@@ -137,7 +137,7 @@ $(coreboot_dir)/.config: $(coreboot_config)
 	cp "$<" "$@"
 	make -C "$(coreboot_dir)" oldconfig
 
-$(coreboot_dir)/build/coreboot.rom:
+$(coreboot_dir)/build/coreboot.rom: \
 	$(coreboot_dir) \
 	$(coreboot_dir)/.config \
 	$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl \
