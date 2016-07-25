@@ -10,3 +10,14 @@ to commodity hardware.  Among its goals are:
 * Measure and verify all filesystems
 
 It is a work in progress and not yet ready for users.
+
+---
+
+Components:
+
+* CoreBoot
+* Linux
+* busybox
+* kexec
+* tpmtotp
+* QubesOS (Xen)
