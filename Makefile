@@ -58,7 +58,6 @@ $(linux_dir)/.config: $(linux_config)
 	make -C "$(linux_dir)" oldconfig
 
 $(linux_dir)/arch/x86/boot/bzImage: $(linux_dir) $(linux_dir)/.config
-	make -C "$(linux_dir)" -j 8
 	make -C "$(linux_dir)" bzImage
 	ls -Fla "$@"
 
@@ -82,14 +81,7 @@ $(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
 $(coreboot_dir)/bzImage: $(linux_dir)/arch/x86/boot/bzImage
 	cp "$<" "$@"
 
-$(coreboot_dir)/initrd.img: FORCE
-	echo '*** Building initrd ***'
-	( cd initrd && \
-		find . \
-		| cpio --quiet -H newc -o \
-		) | bzip2 -9  > "$@"
-
-
+# initrd image is now included by the Linux kernel build process
 initrd: \
 	initrd/bin/busybox \
 	initrd/sbin/kexec \
