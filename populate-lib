@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+# Find all libraries for the executables
+#
+use warnings;
+use strict;
+use Data::Dumper;
+use File::Copy;
+use File::Basename;
+
+my $dest = shift
+	or die "Usage: $0 dest-dir [programs...]\n";
+
+my %libraries;
+
+for my $file (@ARGV)
+{
+	my @libs = `ldd "$file"`;
+	for (@libs)
+	{
+		if (/ => ([^ ]+)/)
+		{
+			# Normal library
+			$libraries{$1}++;
+		}
+		elsif (/^\s+([^ ]+) \(/)
+		{
+			# Dynamic linker
+			$libraries{$1}++;
+		}
+	}
+}
+
+print Dumper(\%libraries);
+
+unless( -d $dest )
+{
+	system("mkdir", "-p", $dest)
+		and die "$dest: Unable to make directory: $!\n";
+}
+
+my $size = 0;
+
+for my $lib (keys %libraries)
+{
+	$size += -s $lib;
+	my $libname = basename $lib;
+#	my $dirname = dirname "$dest/$lib";
+#
+#	unless( -d $dirname )
+#	{
+#		system("mkdir", "-p", $dirname)
+#			and die "$dirname: Unable to make directory: $!\n";
+#	}
+
+	copy $lib, "$dest/$libname"
+		or die "$lib: Unable to copy: $!\n";
+
+	# make them executable because otherwise chroot barfs
+	system("chmod", "+x", "$dest/$libname");
+}
+
+print "Total size $size\n";
+__END__

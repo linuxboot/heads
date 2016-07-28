@@ -1,11 +1,26 @@
 #!/bin/ash
-echo "Hello coreboot initrd"
+echo '====================================================='
+echo ' _   _                _           ____   ___  __  __ '
+echo '| | | | ___  __ _  __| |___   _  |  _ \ / _ \|  \/  |'
+echo '| |_| |/ _ \/ _` |/ _` / __| (_) | |_) | | | | |\/| |'
+echo '|  _  |  __/ (_| | (_| \__ \  _  |  _ <| |_| | |  | |'
+echo '|_| |_|\___|\__,_|\__,_|___/ (_) |_| \_\\___/|_|  |_|'
+echo ''
+echo '====================================================='
 
 # Mount the system directories
-mkdir /proc /sys /dev /tmp /boot
+mkdir /proc /sys /dev /tmp /boot 2>/dev/null
+
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev
 
+## Ensure that we load libraries from our directory
+#export LD_LIBRARY_PATH=/lib64
+
 # Start an interactive shell
+echo "Run './start-xen' to load the hypervisor"
+echo "Run 'kexec -e' to boot it"
+echo
+
 exec /bin/ash
