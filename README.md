@@ -21,3 +21,12 @@ Components:
 * kexec
 * tpmtotp
 * QubesOS (Xen)
+
+---
+
+Notes:
+
+`initrd/dev/` must be populated with a few entries for things to work.
+At the least I've found that you need `console`, `mem`, `null`,
+`tty`, `tty0`, and `ttyS0`.
+

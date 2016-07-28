@@ -1,5 +1,7 @@
 all: coreboot
 
+force:
+	-rm $(linux_dir)/arch/x86/boot/bzImage
 
 kexec_version := 2.0.12
 kexec_dir := kexec-tools-$(kexec_version)
@@ -27,7 +29,7 @@ busybox_url := https://busybox.net/downloads/$(busybox_tar)
 busybox_hash := 5a0fe06885ee1b805fb459ab6aaa023fe4f2eccee4fb8c0fd9a6c17c0daca2fc
 busybox_config := config/busybox.config
 
-busybox: $(busybox_dir) $(busybox_dir)/.config
+$(busybox_dir)/busybox: $(busybox_dir) $(busybox_dir)/.config
 	make -C "$(busybox_dir)" -j 8
 
 $(busybox_dir): $(busybox_tar)
@@ -57,7 +59,14 @@ $(linux_dir)/.config: $(linux_config)
 	cp "$<" "$@"
 	make -C "$(linux_dir)" oldconfig
 
-$(linux_dir)/arch/x86/boot/bzImage: $(linux_dir) $(linux_dir)/.config
+bzImage: $(linux_dir)/arch/x86/boot/bzImage
+
+$(linux_dir)/arch/x86/boot/bzImage: \
+	$(linux_dir) \
+	$(linux_dir)/.config \
+	initrd/bin/busybox \
+	initrd/libs \
+
 	make -C "$(linux_dir)" bzImage
 	ls -Fla "$@"
 
@@ -81,6 +90,13 @@ $(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
 $(coreboot_dir)/bzImage: $(linux_dir)/arch/x86/boot/bzImage
 	cp "$<" "$@"
 
+initrd.img:
+	( \
+		cd initrd && \
+		find . \
+		| cpio --quiet -H newc -o \
+	) | xz -9 > "$@"
+
 # initrd image is now included by the Linux kernel build process
 initrd: \
 	initrd/bin/busybox \
@@ -101,12 +117,7 @@ INITRD_LIBS += \
 	libdl.so.2 \
 
 initrd/libs:
-	-mkdir -p initrd/lib/x86_64-linux-gnu
-	-mkdir -p initrd/lib64
-	cp /lib64/ld-linux-x86-64.so.2 initrd/lib64/
-	for lib in $(INITRD_LIBS); do \
-		cp "/lib/x86_64-linux-gnu/$$lib" initrd/lib/x86_64-linux-gnu/; \
-	done
+	./populate-lib ./initrd/lib/x86_64-linux-gnu/ initrd/bin/* initrd/sbin/*
 
 
 $(coreboot_tar):
@@ -134,7 +145,6 @@ $(coreboot_dir)/build/coreboot.rom: \
 	$(coreboot_dir)/.config \
 	$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl \
 	$(coreboot_dir)/bzImage \
-	$(coreboot_dir)/initrd.img \
 	$(coreboot-blobs_canary) \
 
 	make -C "$(coreboot_dir)"
