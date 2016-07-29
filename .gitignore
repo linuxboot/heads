@@ -4,3 +4,8 @@
 *.gz
 *.sign
 *.rom
+*.o
+*.gz
+*.tgz
+*.img
+*.rom
