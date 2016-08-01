@@ -1,4 +1,11 @@
 #!/bin/ash
+# First thing it is vital to mount the /dev and other system directories
+mkdir /proc /sys /dev /tmp /boot 2>&- 1>&-
+mount -t devtmpfs none /dev
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+# Now it is safe to print a banner
 echo '====================================================='
 echo ' _   _                _           ____   ___  __  __ '
 echo '| | | | ___  __ _  __| |___   _  |  _ \ / _ \|  \/  |'
@@ -8,19 +15,23 @@ echo '|_| |_|\___|\__,_|\__,_|___/ (_) |_| \_\\___/|_|  |_|'
 echo ''
 echo '====================================================='
 
-# Mount the system directories
-mkdir /proc /sys /dev /tmp /boot 2>/dev/null
-
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs none /dev
-
-## Ensure that we load libraries from our directory
-#export LD_LIBRARY_PATH=/lib64
-
-# Start an interactive shell
+echo
 echo "Run './start-xen' to load the hypervisor"
 echo "Run 'kexec -e' to boot it"
 echo
 
+# Load the date from the hardware clock, setting it in local time
+hwclock -l -s
+
+# Verify the user's TPM secret
+date
+if [ -r /secret.totp ]; then
+	echo
+	echo -n "Verify TPM PCR: "
+	unsealtotp /secret.totp
+	echo
+fi
+	
+
+# Start an interactive shell
 exec /bin/ash
