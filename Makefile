@@ -3,6 +3,12 @@ all: coreboot
 force:
 	-rm $(linux_dir)/arch/x86/boot/bzImage
 
+# uclibc must be built after the kernel,
+# since 'make headers_install' must be run to generate the
+# headers that uclibc needs.
+uclibc_url := https://uclibc.org/downloads/uClibc-0.9.33.tar.xz
+
+
 kexec_version := 2.0.12
 kexec_dir := kexec-tools-$(kexec_version)
 kexec_tar := kexec-tools-$(kexec_version).tar.gz
@@ -20,6 +26,32 @@ $(kexec_dir): $(kexec_tar)
 
 kexec: $(kexec_dir)
 	make -C "$(kexec_dir)" -j 8
+
+
+qrencode_dir := qrencode-3.4.4
+qrencode_tar := qrencode-3.4.4.tar.gz
+qrencode_url := https://fukuchi.org/works/qrencode/$(qrencode_tar)
+qrencode_canary := $(qrencode_dir)/.canary
+
+$(qrencode_tar):
+	wget $(qrencode_url)
+
+qrencode_lib := $(qrencode_dir)/.libs/libqrencode.so
+$(qrencode_canary): $(qrencode_tar)
+	tar xvf "$<"
+	touch "$@"
+
+$(qrencode_lib): $(qrencode_canary)
+	cd $(qrencode_dir) ; ./configure --without-tools
+	make -C "$(qrencode_dir)"
+
+
+initrd/bin/unsealtotp: $(qrencode_lib)
+	make -C tpmtotp unsealtotp
+	cp tpmtotp/unsealtotp "$@"
+initrd/bin/sealtotp: $(qrencode_lib)
+	make -C tpmtotp sealtotp
+	cp tpmtotp/sealtotp "$@"
 
 
 busybox_version := 1.25.0
