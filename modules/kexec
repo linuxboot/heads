@@ -1,0 +1,10 @@
+modules += kexec
+
+kexec_version := 2.0.12
+kexec_dir := kexec-tools-$(kexec_version)
+kexec_tar := kexec-tools-$(kexec_version).tar.gz
+kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
+kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
+
+kexec_configure := ./configure
+kexec_output := build/sbin/kexec
