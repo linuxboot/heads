@@ -1,192 +1,64 @@
-all: coreboot
+modules 	:=
+pwd 		:= $(shell pwd)
+packages 	:= $(pwd)/packages
+build		:= $(pwd)/build
+config		:= $(pwd)/build
 
-force:
-	-rm $(linux_dir)/arch/x86/boot/bzImage
+all:
 
-# uclibc must be built after the kernel,
-# since 'make headers_install' must be run to generate the
-# headers that uclibc needs.
-uclibc_url := https://uclibc.org/downloads/uClibc-0.9.33.tar.xz
+include modules/qrencode
+include modules/kexec
+include modules/tpmtotp
+include modules/mbedtls
 
+all: $(modules)
 
-kexec_version := 2.0.12
-kexec_dir := kexec-tools-$(kexec_version)
-kexec_tar := kexec-tools-$(kexec_version).tar.gz
-kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
-kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
+define prefix =
+$(foreach _, $2, $1$_)
+endef
 
-$(kexec_tar):
-	wget "$(kexec_url)"
-	sha256sum "$(kexec_tar)"
-	echo "$(kexec_hash)"
+define outputs =
+$(call prefix,$(build)/$($1_dir)/,$($1_output))
+endef
 
-$(kexec_dir): $(kexec_tar)
-	tar xvf "$(kexec_tar)"
-	cd "$(kexec_dir)" && ./configure
+#
+# Generate the targets for a module.
+#
+# Special variables like $@ must be written as $$@ to avoid
+# expansion during the first evaluation.
+#
+define define_module =
+  # Fetch and verify the source tar file
+  $(packages)/$($1_tar):
+	wget -O "$$@" $($1_url)
+  $(packages)/.$1_verify: $(packages)/$($1_tar)
+	echo "$($1_hash) $$^" | sha256sum --check -
+	touch "$$@"
 
-kexec: $(kexec_dir)
-	make -C "$(kexec_dir)" -j 8
+  # Unpack the tar file and touch the canary so that we know
+  # that the files are all present
+  $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
+	tar -xvf "$(packages)/$($1_tar)" -C "$(build)"
+	touch "$$@"
 
+  # Copy our stored config file into the unpacked directory
+  $(build)/$($1_dir)/.config: config/$1.config $(build)/$($1_dir)/.canary
+	cp "$$<" "$$@"
 
-qrencode_dir := qrencode-3.4.4
-qrencode_tar := qrencode-3.4.4.tar.gz
-qrencode_url := https://fukuchi.org/works/qrencode/$(qrencode_tar)
-qrencode_canary := $(qrencode_dir)/.canary
+  # Use the module's configure variable to build itself
+  $(build)/$($1_dir)/.configured: \
+		$(build)/$($1_dir)/.canary \
+		$(build)/$($1_dir)/.config
+	cd "$(build)/$($1_dir)" ; $($1_configure)
+	touch "$$@"
 
-$(qrencode_tar):
-	wget $(qrencode_url)
+  # Actually build the target
+  $(call outputs,$1): $(build)/$($1_dir)/.configured $(call outputs,$($1_depends))
+	make -C "$(build)/$($1_dir)" $($1_target)
+  $1: $(call outputs,$1)
 
-qrencode_lib := $(qrencode_dir)/.libs/libqrencode.so
-$(qrencode_canary): $(qrencode_tar)
-	tar xvf "$<"
-	touch "$@"
+  # Update any dependencies
+endef
 
-$(qrencode_lib): $(qrencode_canary)
-	cd $(qrencode_dir) ; ./configure --without-tools
-	make -C "$(qrencode_dir)"
+$(foreach _, $(modules), $(eval $(call define_module,$_)))
 
-
-initrd/bin/unsealtotp: $(qrencode_lib)
-	make -C tpmtotp unsealtotp
-	cp tpmtotp/unsealtotp "$@"
-initrd/bin/sealtotp: $(qrencode_lib)
-	make -C tpmtotp sealtotp
-	cp tpmtotp/sealtotp "$@"
-
-
-busybox_version := 1.25.0
-busybox_dir := busybox-$(busybox_version)
-busybox_tar := busybox-$(busybox_version).tar.bz2
-busybox_url := https://busybox.net/downloads/$(busybox_tar)
-busybox_hash := 5a0fe06885ee1b805fb459ab6aaa023fe4f2eccee4fb8c0fd9a6c17c0daca2fc
-busybox_config := config/busybox.config
-
-$(busybox_dir)/busybox: $(busybox_dir) $(busybox_dir)/.config
-	make -C "$(busybox_dir)" -j 8
-
-$(busybox_dir): $(busybox_tar)
-	tar xvf "$(busybox_tar)"
-
-$(busybox_dir)/.config: $(busybox_config)
-	cp "$<" "$@"
-	make -C "$(busybox_dir)" oldconfig
-
-$(busybox_tar):
-	wget "$(busybox_url)"
-	sha256sum "$(busybox_tar)"
-	echo "$(busybox_hash)"
-
-
-linux_version := 4.6.4
-linux_dir := linux-$(linux_version)
-linux_tar := linux-$(linux_version).tar.xz
-linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
-linux_hash := 8568d41c7104e941989b14a380d167129f83db42c04e950d8d9337fe6012ff7e
-linux_config := config/linux.config
-
-$(linux_dir): $(linux_tar)
-	tar xvf "$(linux_tar)"
-
-$(linux_dir)/.config: $(linux_config)
-	cp "$<" "$@"
-	make -C "$(linux_dir)" oldconfig
-
-bzImage: $(linux_dir)/arch/x86/boot/bzImage
-
-$(linux_dir)/arch/x86/boot/bzImage: \
-	$(linux_dir) \
-	$(linux_dir)/.config \
-	initrd/bin/busybox \
-	initrd/libs \
-
-	make -C "$(linux_dir)" bzImage
-	ls -Fla "$@"
-
-coreboot_version := 4.4
-coreboot_dir := coreboot-$(coreboot_version)
-coreboot_tar := coreboot-$(coreboot_version).tar.xz
-coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
-coreboot_config := config/coreboot.config
-
-coreboot-blobs_tar := coreboot-blobs-$(coreboot_version).tar.xz
-coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
-coreboot-blobs_dir := coreboot-$(coreboot_version)/3rdparty/blobs
-coreboot-blobs_hash := 43b993915c0f46a77ee7ddaa2dbe47581f399510632c62f2558dff931358d8ab
-coreboot-blobs_canary := $(coreboot-blobs_dir)/documentation/binary_policy.md
-
-
-$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
-	echo '******* Building gcc (this might take a while) ******'
-	time make -C "$(coreboot_dir)" crossgcc
-
-$(coreboot_dir)/bzImage: $(linux_dir)/arch/x86/boot/bzImage
-	cp "$<" "$@"
-
-initrd.img:
-	( \
-		cd initrd && \
-		find . \
-		| cpio --quiet -H newc -o \
-	) | xz -9 > "$@"
-
-# initrd image is now included by the Linux kernel build process
-initrd: \
-	initrd/bin/busybox \
-	initrd/sbin/kexec \
-	initrd/libs
-
-initrd/bin/busybox: $(busybox_dir)/busybox
-	make -C "$(busybox_dir)" CONFIG_PREFIX="`pwd`/initrd" install 
-
-initrd/sbin/kexec: $(kexec_dir)/build/sbin/kexec
-	-mkdir "`dirnname "$@"`"
-	cp "$<" "$@"
-
-INITRD_LIBS += \
-	liblzma.so.5 \
-	libz.so.1 \
-	libc.so.6 \
-	libdl.so.2 \
-
-initrd/libs:
-	./populate-lib ./initrd/lib/x86_64-linux-gnu/ initrd/bin/* initrd/sbin/*
-
-
-$(coreboot_tar):
-	wget "$(coreboot_url)"
-	sha256sum "$(coreboot_tar)"
-	echo "$(coreboot_hash)"
-
-$(coreboot-blobs_tar):
-	wget "$(coreboot-blobs_url)"
-	sha256sum "$(coreboot-blobs_tar)"
-	echo "$(coreboot-blobs_hash)"
-
-$(coreboot_blobs_canary): $(coreboot-blobs_tar)
-	tar xvf "$(coreboot-blobs_tar)"
-
-$(coreboot_dir): $(coreboot_tar)
-	tar xvf "$(coreboot_tar)"
-
-$(coreboot_dir)/.config: $(coreboot_config)
-	cp "$<" "$@"
-	make -C "$(coreboot_dir)" oldconfig
-
-$(coreboot_dir)/build/coreboot.rom: \
-	$(coreboot_dir) \
-	$(coreboot_dir)/.config \
-	$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl \
-	$(coreboot_dir)/bzImage \
-	$(coreboot-blobs_canary) \
-
-	make -C "$(coreboot_dir)"
-
-heads-x230.rom: $(coreboot_dir)/build/coreboot.rom
-	dd if="$<" of="$@" bs=1M skip=8
-	sha256sum "$@"
-	xxd -g 1 "$@" | head
-	xxd -g 1 "$@" | tail
-
-coreboot: heads-x230.rom
-
-FORCE:
