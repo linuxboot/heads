@@ -10,6 +10,7 @@ include modules/qrencode
 include modules/kexec
 include modules/tpmtotp
 include modules/mbedtls
+include modules/busybox
 
 all: $(modules)
 
