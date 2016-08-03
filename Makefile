@@ -145,3 +145,9 @@ initrd.cpio: $(initrd_bins) initrd_libs
 # hack for the linux kernel to depend on the initrd image
 # this will change once coreboot can link in the initrd separately
 $(call outputs,linux): initrd.cpio
+
+# hack for the coreboot to find the linux kernel
+$(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
+	cmp --quiet "$$@" "$$^" || \
+	cp -a "$$^" "$$@"
+$(call outputs,corebot): $(build)/$(coreboot_dir)/bzImage
