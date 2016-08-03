@@ -38,4 +38,5 @@ Notes:
 * Building coreboot's cross compilers can take a while.
 * Currently only tested in Qemu and on a Thinkpad x230
 * Booting Qubes requires patching Xen's real mode startup code;
-see `patches/xen-4.6.3.patch`
+see `patches/xen-4.6.3.patch` and add `no-real-mode` to start
+of the Xen command line.

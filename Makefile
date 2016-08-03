@@ -37,6 +37,9 @@ define define_module =
   # that the files are all present
   $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
+	if [ -r patches/$1-$($1_version).patch ]; then \
+		( cd $(build)/$($1_dir) ; patch -p1 ) < patches/$1-$($1_version).patch; \
+	fi
 	touch "$$@"
 
   # Copy our stored config file into the unpacked directory
@@ -78,6 +81,7 @@ endef
 
 $(foreach _, $(call outputs,kexec), $(eval $(call initrd_bin,$_)))
 $(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
+$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
 initrd_bins += initrd/bin/busybox
