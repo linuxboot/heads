@@ -6,14 +6,8 @@ config		:= $(pwd)/build
 
 all:
 
-include modules/qrencode
-include modules/kexec
-include modules/tpmtotp
-include modules/mbedtls
-include modules/busybox
-include modules/linux
-include modules/coreboot
-include modules/coreboot-blobs
+
+include modules/*
 
 all: $(modules)
 
@@ -22,7 +16,7 @@ $(foreach _, $2, $1$_)
 endef
 
 define outputs =
-$(call prefix,$(build)/$($1_dir)/,$($1_output))
+$(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
 endef
 
 #
@@ -41,7 +35,9 @@ define define_module =
 
   # Unpack the tar file and touch the canary so that we know
   # that the files are all present
-  $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
+  $(build)/$($1_dir)/.canary: \
+		$(packages)/.$1_verify \
+		$(call outputs,$($1_depends))
 	tar -xvf "$(packages)/$($1_tar)" -C "$(build)"
 	touch "$$@"
 
@@ -76,7 +72,7 @@ $(foreach _, $(modules), $(eval $(call define_module,$_)))
 #
 define initrd_bin =
 initrd/bin/$(notdir $1): $1
-	@-mkdir "initrd/bin"
+	@if [ ! -d initrd/bin ]; then mkdir "initrd/bin"; fi
 	cmp --quiet "$$@" "$$^" || \
 	cp -a "$$^" "$$@"
 initrd_bins += initrd/bin/$(notdir $1)
@@ -149,6 +145,7 @@ $(call outputs,linux): initrd.cpio
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
-	cmp --quiet "$$@" "$$^" || \
-	cp -a "$$^" "$$@"
-$(call outputs,corebot): $(build)/$(coreboot_dir)/bzImage
+	cmp --quiet "$@" "$^" || \
+	cp -a "$^" "$@"
+$(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
+
