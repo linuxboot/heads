@@ -8,6 +8,5 @@ coreboot-blobs_hash := 43b993915c0f46a77ee7ddaa2dbe47581f399510632c62f2558dff931
 
 # there is nothing to build for the blobs, this should be
 # made easier to make happen
-coreboot-blobs_output := null
-#coreboot-blobs_configure := echo -e 'all:\n\ttouch $(build)/$(coreboot-blobs_dir)/.canary' > Makefile
-coreboot-blobs_configure := echo -e 'all:\n\ttouch null' > Makefile
+coreboot-blobs_output := .built
+coreboot-blobs_configure := echo -e 'all:\n\ttouch .built' > Makefile
