@@ -12,6 +12,7 @@ include modules/tpmtotp
 include modules/mbedtls
 include modules/busybox
 include modules/linux
+include modules/coreboot
 include modules/coreboot-blobs
 
 all: $(modules)
