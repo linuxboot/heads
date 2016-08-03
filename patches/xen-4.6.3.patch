@@ -1,6 +1,6 @@
 diff -u --recursive clean/xen-4.6.3/xen/arch/x86/boot/head.S xen-4.6.3/xen/arch/x86/boot/head.S
 --- clean/xen-4.6.3/xen/arch/x86/boot/head.S	2016-06-20 08:08:22.000000000 -0400
-+++ xen-4.6.3/xen/arch/x86/boot/head.S	2016-07-26 13:10:55.407297163 -0400
++++ xen/arch/x86/boot/head.S	2016-07-26 13:10:55.407297163 -0400
 @@ -86,6 +86,8 @@
          cmp     $MULTIBOOT_BOOTLOADER_MAGIC,%eax
          jne     not_multiboot
@@ -23,20 +23,9 @@ diff -u --recursive clean/xen-4.6.3/xen/arch/x86/boot/head.S xen-4.6.3/xen/arch/
  
  2:      /* Reserve 64kb for the trampoline */
          sub     $0x1000,%eax
-diff -u --recursive clean/xen-4.6.3/xen/arch/x86/boot/trampoline.S xen-4.6.3/xen/arch/x86/boot/trampoline.S
---- clean/xen-4.6.3/xen/arch/x86/boot/trampoline.S	2016-06-20 08:08:22.000000000 -0400
-+++ xen-4.6.3/xen/arch/x86/boot/trampoline.S	2016-07-26 11:40:55.938940922 -0400
-@@ -114,6 +114,7 @@
- 
-         .code32
- trampoline_boot_cpu_entry:
-+        jmp     .Lskip_realmode // always!
-         cmpb    $0,bootsym_rel(skip_realmode,5)
-         jnz     .Lskip_realmode
- 
 diff -u --recursive clean/xen-4.6.3/xen/drivers/video/vga.c xen-4.6.3/xen/drivers/video/vga.c
 --- clean/xen-4.6.3/xen/drivers/video/vga.c	2016-06-20 08:08:22.000000000 -0400
-+++ xen-4.6.3/xen/drivers/video/vga.c	2016-07-26 13:34:03.756108517 -0400
++++ xen/drivers/video/vga.c	2016-07-26 13:34:03.756108517 -0400
 @@ -5,177 +5,691 @@
   */
  

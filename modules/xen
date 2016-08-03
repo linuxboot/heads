@@ -1,0 +1,12 @@
+modules += xen
+
+# We extract the entire Xen tree, but only use the xen/xen hypervisor
+# portion since Qubes provides the rest of it.
+xen_version := 4.6.3
+xen_dir := xen-$(xen_version)/xen
+xen_tar := xen-$(xen_version).tar.gz
+xen_url := ineed-to-find-xen/$(xen_tar)
+xen_hash := 02badfce9a037bd1bd4a94210c1f6b85467746216c71795805102b514bcf1fc4
+
+xen_output := xen.gz
+xen_configure := 
