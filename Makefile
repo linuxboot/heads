@@ -11,6 +11,7 @@ include modules/kexec
 include modules/tpmtotp
 include modules/mbedtls
 include modules/busybox
+include modules/linux
 
 all: $(modules)
 
@@ -53,13 +54,92 @@ define define_module =
 	cd "$(build)/$($1_dir)" ; $($1_configure)
 	touch "$$@"
 
-  # Actually build the target
-  $(call outputs,$1): $(build)/$($1_dir)/.configured $(call outputs,$($1_depends))
+  # Build the target after any dependencies
+  $(call outputs,$1): \
+		$(build)/$($1_dir)/.configured \
+		$(call outputs,$($1_depends))
 	make -C "$(build)/$($1_dir)" $($1_target)
+
+  # Short hand target for the module
   $1: $(call outputs,$1)
 
-  # Update any dependencies
 endef
 
 $(foreach _, $(modules), $(eval $(call define_module,$_)))
 
+
+#
+# Files that should be copied into the initrd
+# THis should probably be done in a more scalable manner
+#
+define initrd_bin =
+initrd/bin/$(notdir $1): $1
+	cmp --quiet "$$@" "$$^" || \
+	cp -a "$$^" "$$@"
+initrd_bins += initrd/bin/$(notdir $1)
+endef
+
+$(foreach _, $(call outputs,kexec), $(eval $(call initrd_bin,$_)))
+$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
+
+# hack to install busybox into the initrd
+initrd_bins += initrd/bin/busybox
+
+initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
+	cmp --quiet "$@" "$^" || \
+	make \
+		-C $(build)/$(busybox_dir) \
+		CONFIG_PREFIX="$(pwd)/initrd" \
+		install
+
+
+# Update all of the libraries in the initrd based on the executables
+# that were installed.
+initrd_libs:
+	./populate-lib \
+		./initrd/lib/x86-64-linux-gnu/ \
+		initrd/bin/* \
+		initrd/sbin/* \
+
+
+#
+# We also have to include some real /dev files; the minimal
+# set should be determined.
+#
+initrd_devs += /dev/console
+initrd_devs += /dev/mem
+initrd_devs += /dev/null
+initrd_devs += /dev/tty
+initrd_devs += /dev/tty0
+initrd_devs += /dev/ttyS0
+
+#
+# initrd image creation
+#
+# The initrd is constructed from various bits and pieces
+# Note the touch and sort operation on the find output -- this
+# ensures that the files always have the same timestamp and
+# appear in the same order.
+#
+# This breaks on the files in /dev.
+#
+#
+initrd.cpio: $(initrd_bins) initrd_libs
+	find ./initrd -type f -print0 \
+		| xargs -0 touch -d "1970-01-01"
+	cd ./initrd; \
+	find . $(initrd_devs) \
+		| sort \
+		| cpio --quiet -H newc -o \
+		> "../$@.tmp" 
+	if ! cmp --quiet "$@" "$@.tmp"; then \
+		mv "$@.tmp" "$@"; \
+	else \
+		echo "$@: Unchanged"; \
+		rm "$@.tmp"; \
+	fi
+	
+
+# hack for the linux kernel to depend on the initrd image
+# this will change once coreboot can link in the initrd separately
+$(call outputs,linux): initrd.cpio
