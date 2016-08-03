@@ -12,6 +12,7 @@ include modules/tpmtotp
 include modules/mbedtls
 include modules/busybox
 include modules/linux
+include modules/coreboot-blobs
 
 all: $(modules)
 
@@ -95,7 +96,7 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 
 # Update all of the libraries in the initrd based on the executables
 # that were installed.
-initrd_libs:
+initrd_libs: $(initrd_bins)
 	./populate-lib \
 		./initrd/lib/x86-64-linux-gnu/ \
 		initrd/bin/* \
