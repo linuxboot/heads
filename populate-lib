@@ -52,11 +52,13 @@ for my $lib (keys %libraries)
 #			and die "$dirname: Unable to make directory: $!\n";
 #	}
 
-	copy $lib, "$dest/$libname"
+	my $dest_lib = "$dest/$libname";
+
+	copy $lib, $dest_lib
 		or die "$lib: Unable to copy: $!\n";
 
 	# make them executable because otherwise chroot barfs
-	system("chmod", "+x", "$dest/$libname");
+	system("chmod", "+x", $dest_lib);
 }
 
 print "Total size $size\n";
