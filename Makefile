@@ -35,9 +35,7 @@ define define_module =
 
   # Unpack the tar file and touch the canary so that we know
   # that the files are all present
-  $(build)/$($1_dir)/.canary: \
-		$(packages)/.$1_verify \
-		$(call outputs,$($1_depends))
+  $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	touch "$$@"
 
@@ -101,16 +99,6 @@ initrd_libs: $(initrd_bins)
 		initrd/sbin/* \
 
 
-#
-# We also have to include some real /dev files; the minimal
-# set should be determined.
-#
-initrd_devs += /dev/console
-initrd_devs += /dev/mem
-initrd_devs += /dev/null
-initrd_devs += /dev/tty
-initrd_devs += /dev/tty0
-initrd_devs += /dev/ttyS0
 
 #
 # initrd image creation
@@ -120,16 +108,21 @@ initrd_devs += /dev/ttyS0
 # ensures that the files always have the same timestamp and
 # appear in the same order.
 #
-# This breaks on the files in /dev.
+# If there is in /dev/console, initrd can't startup.
+# We have to force it to be included into the cpio image.
 #
 #
 initrd.cpio: $(initrd_bins) initrd_libs
 	find ./initrd -type f -print0 \
 		| xargs -0 touch -d "1970-01-01"
-	cd ./initrd; \
-	find . $(initrd_devs) \
-		| sort \
-		| cpio --quiet -H newc -o \
+	cd ./initrd ; \
+	( \
+		echo "/dev" ; \
+		echo "/dev/console"; \
+		find . \
+	) \
+	| sort \
+	| cpio --quiet -H newc -o \
 		> "../$@.tmp" 
 	if ! cmp --quiet "$@" "$@.tmp"; then \
 		mv "$@.tmp" "$@"; \
