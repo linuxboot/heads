@@ -76,6 +76,7 @@ $(foreach _, $(modules), $(eval $(call define_module,$_)))
 #
 define initrd_bin =
 initrd/bin/$(notdir $1): $1
+	@-mkdir "initrd/bin"
 	cmp --quiet "$$@" "$$^" || \
 	cp -a "$$^" "$$@"
 initrd_bins += initrd/bin/$(notdir $1)
