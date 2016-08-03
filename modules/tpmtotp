@@ -6,8 +6,8 @@ tpmtotp_depends := mbedtls
 tpmtotp_version := 0.0.1
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
-tpmtotp_url := git-from-somewhere-$(tpmtotp_tar)
-tpmtotp_hash := 4f2d7bc9282ad6cad75f6bca6362a79e893d41b46524c7f67803889118d9707b
+tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v0.0.1.tar.gz
+tpmtotp_hash := 8bf2380248fea540a96ad0ff8a4f170b8d93b6bb5fe49b958f9f1926f994823f
 
 tpmtotp_output := sealtotp unsealtotp
 tpmtotp_configure := 
