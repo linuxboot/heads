@@ -1,0 +1,13 @@
+modules += coreboot-blobs
+
+coreboot-blobs_version := 4.4
+coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
+coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
+coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
+coreboot-blobs_hash := 43b993915c0f46a77ee7ddaa2dbe47581f399510632c62f2558dff931358d8ab
+
+# there is nothing to build for the blobs, this should be
+# made easier to make happen
+coreboot-blobs_output := null
+#coreboot-blobs_configure := echo -e 'all:\n\ttouch $(build)/$(coreboot-blobs_dir)/.canary' > Makefile
+coreboot-blobs_configure := echo -e 'all:\n\ttouch null' > Makefile
