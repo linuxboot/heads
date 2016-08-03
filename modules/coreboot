@@ -1,0 +1,19 @@
+modules += coreboot
+
+coreboot_version := 4.4
+coreboot_dir := coreboot-$(coreboot_version)
+coreboot_tar := coreboot-$(coreboot_version).tar.xz
+coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
+coreboot_hash := ccfa3ea4e6b4a6ff3e4f1a8dc72d61f794af25bf0e73640e54b0b04733cc50a5
+
+coreboot_configure := make oldconfig
+coreboot_output := buld/coreboot.rom
+
+# The coreboot-blobs must be unpacked before we can build coreboot
+coreboot_depends := coreboot-blobs linux initrd
+
+# hack to force a build dependency on the cross compiler
+$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl
+$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
+	echo '******* Building gcc (this might take a while) ******'
+	time make -C "$(build)/$(coreboot_dir)" crossgcc
