@@ -38,7 +38,7 @@ define define_module =
   $(build)/$($1_dir)/.canary: \
 		$(packages)/.$1_verify \
 		$(call outputs,$($1_depends))
-	tar -xvf "$(packages)/$($1_tar)" -C "$(build)"
+	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	touch "$$@"
 
   # Copy our stored config file into the unpacked directory
