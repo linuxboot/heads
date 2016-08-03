@@ -99,7 +99,7 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 # that were installed.
 initrd_libs: $(initrd_bins)
 	./populate-lib \
-		./initrd/lib/x86-64-linux-gnu/ \
+		./initrd/lib/x86_64-linux-gnu/ \
 		initrd/bin/* \
 		initrd/sbin/* \
 
