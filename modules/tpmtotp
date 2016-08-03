@@ -1,7 +1,6 @@
 modules += tpmtotp
 
-# depends on the mbedtls module
-tpmtotp_depends := mbedtls
+tpmtotp_depends := mbedtls qrencode
 
 tpmtotp_version := 0.0.1
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
