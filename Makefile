@@ -93,6 +93,14 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 		CONFIG_PREFIX="$(pwd)/initrd" \
 		install
 
+# hack to build cbmem from coreboot
+initrd_bins += initrd/bin/cbmem
+initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
+	cmp --quiet "$^" "$@" \
+	|| cp "$^" "$@"
+$(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
+	make -C "$(dir $@)"
+
 
 # Update all of the libraries in the initrd based on the executables
 # that were installed.
