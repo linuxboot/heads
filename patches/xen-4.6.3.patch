@@ -1,6 +1,6 @@
-diff -u --recursive clean/xen-4.6.3/xen/arch/x86/boot/head.S xen-4.6.3/xen/arch/x86/boot/head.S
---- clean/xen-4.6.3/xen/arch/x86/boot/head.S	2016-06-20 08:08:22.000000000 -0400
-+++ xen/arch/x86/boot/head.S	2016-07-26 13:10:55.407297163 -0400
+diff --recursive -u /home/hudson/build/clean/xen-4.6.3/xen/arch/x86/boot/head.S ./xen/arch/x86/boot/head.S
+--- /home/hudson/build/clean/xen-4.6.3/xen/arch/x86/boot/head.S	2016-06-20 08:08:22.000000000 -0400
++++ ./xen/arch/x86/boot/head.S	2016-08-03 17:56:37.511121443 -0400
 @@ -86,6 +86,8 @@
          cmp     $MULTIBOOT_BOOTLOADER_MAGIC,%eax
          jne     not_multiboot
@@ -23,9 +23,32 @@ diff -u --recursive clean/xen-4.6.3/xen/arch/x86/boot/head.S xen-4.6.3/xen/arch/
  
  2:      /* Reserve 64kb for the trampoline */
          sub     $0x1000,%eax
-diff -u --recursive clean/xen-4.6.3/xen/drivers/video/vga.c xen-4.6.3/xen/drivers/video/vga.c
---- clean/xen-4.6.3/xen/drivers/video/vga.c	2016-06-20 08:08:22.000000000 -0400
-+++ xen/drivers/video/vga.c	2016-07-26 13:34:03.756108517 -0400
+diff --recursive -u /home/hudson/build/clean/xen-4.6.3/xen/arch/x86/boot/mkelf32.c ./xen/arch/x86/boot/mkelf32.c
+--- /home/hudson/build/clean/xen-4.6.3/xen/arch/x86/boot/mkelf32.c	2016-06-20 08:08:22.000000000 -0400
++++ ./xen/arch/x86/boot/mkelf32.c	2016-08-04 18:02:25.854371605 -0400
+@@ -231,14 +231,14 @@
+     u32        loadbase, dat_siz, mem_siz;
+     char      *inimage, *outimage;
+     int        infd, outfd;
+-    char       buffer[1024];
++    char       buffer[1024] = {};
+     int        bytes, todo, i;
+ 
+-    Elf32_Ehdr in32_ehdr;
+-    Elf32_Phdr in32_phdr;
++    Elf32_Ehdr in32_ehdr = {};
++    Elf32_Phdr in32_phdr = {};
+ 
+-    Elf64_Ehdr in64_ehdr;
+-    Elf64_Phdr in64_phdr;
++    Elf64_Ehdr in64_ehdr = {};
++    Elf64_Phdr in64_phdr = {};
+ 
+     if ( argc != 5 )
+     {
+diff --recursive -u /home/hudson/build/clean/xen-4.6.3/xen/drivers/video/vga.c ./xen/drivers/video/vga.c
+--- /home/hudson/build/clean/xen-4.6.3/xen/drivers/video/vga.c	2016-06-20 08:08:22.000000000 -0400
++++ ./xen/drivers/video/vga.c	2016-08-03 18:03:38.241443543 -0400
 @@ -5,177 +5,691 @@
   */
  
@@ -882,3 +905,38 @@ diff -u --recursive clean/xen-4.6.3/xen/drivers/video/vga.c xen-4.6.3/xen/driver
 -}
 +// hard code it to always go to vga
 +void (*video_puts)(const char *) = vga_text_puts;
+diff --recursive -u /home/hudson/build/clean/xen-4.6.3/xen/Makefile ./xen/Makefile
+--- /home/hudson/build/clean/xen-4.6.3/xen/Makefile	2016-06-20 08:08:22.000000000 -0400
++++ ./xen/Makefile	2016-08-04 17:50:04.888970103 -0400
+@@ -6,11 +6,17 @@
+ export XEN_FULLVERSION   = $(XEN_VERSION).$(XEN_SUBVERSION)$(XEN_EXTRAVERSION)
+ -include xen-version
+ 
+-export XEN_WHOAMI	?= $(USER)
+-export XEN_DOMAIN	?= $(shell ([ -x /bin/dnsdomainname ] && /bin/dnsdomainname) || ([ -x /bin/domainname ] && /bin/domainname || echo [unknown]))
+-export XEN_BUILD_DATE	?= $(shell LC_ALL=C date)
+-export XEN_BUILD_TIME	?= $(shell LC_ALL=C date +%T)
+-export XEN_BUILD_HOST	?= $(shell hostname)
++#export XEN_WHOAMI	?= $(USER)
++#export XEN_DOMAIN	?= $(shell ([ -x /bin/dnsdomainname ] && /bin/dnsdomainname) || ([ -x /bin/domainname ] && /bin/domainname || echo [unknown]))
++#export XEN_BUILD_DATE	?= $(shell LC_ALL=C date)
++#export XEN_BUILD_TIME	?= $(shell LC_ALL=C date +%T)
++#export XEN_BUILD_HOST	?= $(shell hostname)
++
++export XEN_WHOAMI	?= user
++export XEN_DOMAIN	?= domain
++export XEN_BUILD_DATE	?= 1970-01-01
++export XEN_BUILD_TIME	?= 00:00:00
++export XEN_BUILD_HOST	?= xen-buildhost
+ 
+ export BASEDIR := $(CURDIR)
+ export XEN_ROOT := $(BASEDIR)/..
+@@ -97,7 +103,7 @@
+ 	rm -f tags TAGS cscope.files cscope.in.out cscope.out cscope.po.out GTAGS GPATH GRTAGS GSYMS
+ 
+ $(TARGET).gz: $(TARGET)
+-	gzip -f -9 < $< > $@.new
++	gzip -n -f -9 < $< > $@.new
+ 	mv $@.new $@
+ 
+ $(TARGET): delete-unfresh-files
