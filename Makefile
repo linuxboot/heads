@@ -125,8 +125,8 @@ initrd_libs: $(initrd_bins)
 #
 #
 initrd.cpio: $(initrd_bins) initrd_libs
-	find ./initrd -type f -print0 \
-		| xargs -0 touch -d "1970-01-01"
+	find ./initrd -print0 \
+		| xargs -0 touch --no-dereference -d "1970-01-01"
 	cd ./initrd ; \
 	( \
 		echo "/dev" ; \
