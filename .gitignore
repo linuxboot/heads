@@ -13,3 +13,4 @@
 initrd/bin
 initrd/sbin
 initrd/lib
+typescript*
