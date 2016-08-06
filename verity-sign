@@ -76,17 +76,27 @@ my $hash_algorithm = $params{'Hash algorithm'}
 die "Missing parameter: ", join(', ', @missing), "\n"
 	if @missing;
 
+# Compute the derived parameters
 my $data_size = $data_blocks * $data_block_size;
 my $data_size_512b = $data_size / 512;
 my $first_hash_block = $data_blocks + 1;
 
-print <<"";
-0 $data_size_512b verity $hash_type
-$dev $dev
-$data_block_size $hash_block_size
-$data_blocks $first_hash_block
-$hash_algorithm
-$root_hash
-$salt
+# The table must be on a single line
+my $table = sprintf "0 %d verity %d %s %s %d %d %d %d %s %s %s",
+	$data_size_512b,
+	$hash_type,
+	$dev,
+	$dev,
+	$data_block_size,
+	$hash_block_size,
+	$data_blocks,
+	$first_hash_block,
+	$hash_algorithm,
+	$root_hash,
+	$salt,
+	;
+
+print "dmsetup create --readonly boot --table '$table'\n";
+print "dmsetup mknodes boot\n";
 
 __END__
