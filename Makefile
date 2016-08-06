@@ -80,8 +80,8 @@ initrd_bins += initrd/bin/$(notdir $1)
 endef
 
 $(foreach _, $(call outputs,kexec), $(eval $(call initrd_bin,$_)))
-$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
-$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
+#$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
+#$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
 initrd_bins += initrd/bin/busybox
@@ -101,10 +101,21 @@ initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 	make -C "$(dir $@)"
 
+# Mounting dm-verity file systems requires dm-verity to be installed
+# We use gpgv to verify the signature on the root hash.
+# Both of these should be brought in as modules instead of from /sbin
+initrd_bins += initrd/bin/dmsetup
+initrd/bin/dmsetup: /sbin/dmsetup
+	cp "$<" "$@"
+initrd_bins += initrd/bin/gpgv
+initrd/bin/gpgv: /usr/bin/gpgv
+	cp "$<" "$@"
 
 # Update all of the libraries in the initrd based on the executables
 # that were installed.
 initrd_libs: $(initrd_bins)
+	-find initrd/bin -type f -print0 \
+		| xargs -0 strip
 	./populate-lib \
 		./initrd/lib/x86_64-linux-gnu/ \
 		initrd/bin/* \
@@ -122,6 +133,8 @@ initrd_libs: $(initrd_bins)
 #
 # If there is in /dev/console, initrd can't startup.
 # We have to force it to be included into the cpio image.
+# Since we are picking up the system's /dev/console, the
+# timestamp will not be reproducible.
 #
 #
 initrd.cpio: $(initrd_bins) initrd_libs
@@ -153,4 +166,10 @@ $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
 	cmp --quiet "$@" "$^" || \
 	cp -a "$^" "$@"
 $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
+
+
+# The CoreBoot gcc won't work for us since it doesn't have libc
+#XGCC := $(build)/$(coreboot_dir)/util/crossgcc/xgcc/
+#export CC := $(XGCC)/bin/x86_64-elf-gcc
+#export LDFLAGS := -L/lib/x86_64-linux-gnu
 
