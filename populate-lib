@@ -17,6 +17,11 @@ for my $file (@ARGV)
 	my @libs = `ldd "$file"`;
 	for (@libs)
 	{
+		if (/ not found/)
+		{
+			warn "$file: $_";
+			next;
+		}
 		if (/ => ([^ ]+)/)
 		{
 			# Normal library
