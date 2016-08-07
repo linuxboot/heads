@@ -27,6 +27,7 @@ veritysetup \
 	--data-blocks $[$size*1024*1024/4096] \
 	format hdd.img hdd.img \
 | ./verity-sign /dev/sda1 \
+| gpg --clearsign \
 | tee hdd.table
 
 
@@ -98,5 +99,6 @@ my $table = sprintf "0 %d verity %d %s %s %d %d %d %d %s %s %s",
 
 print "dmsetup create --readonly boot --table '$table'\n";
 print "dmsetup mknodes boot\n";
+print "mount -o ro /dev/mapper/boot /boot\n";
 
 __END__
