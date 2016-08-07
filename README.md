@@ -24,7 +24,14 @@ significant frustration.
 Threat model
 ---
 Heads considers two broad classes of threats:
+
 * Attackers with physical access to the system
+** Customs officials, LEO, etc with brief access
+** "Evil maid" attacks with longer, but still limited access (sans password)
+** Stolen machines, with unlimited physical access without password
+** Insider attacks with unlimited time, with password
+** Insider attacks with unlimited time, with password and without regard for the machine
+
 * Attackers with ring0 code execution on the runtime system
 
 The first is hardest to deal with since it allows an attacker to
@@ -43,9 +50,27 @@ a software attack, we have better hopes of handling with some harware
 modifications.  The SPI flash chip's boot block protection modes can
 be locked on and the WP# pin grounded, which will prevent any software
 attacks from overwriting that portion of the boot ROM.  This gives us
-a better root of trust than any of the other x86 boot processes,
-since we now have 
+a better root of trust than the EFI configurations, most of which do
+not lock the boot ROM.
 
+Even if they are not able to write to the ROM, the attackers might
+be able to use their software code execution to modify the system
+software or boot partition on the drive.  The recommended OS
+configuration is a read-only `/boot` and `/` filesystem, with
+only the user data directories writable.  Additional protection
+comes from using dm-verity on the file systems, which will
+detect any writes to the filesystem through a hash tree
+that is signed by the user's (offline) key.
+
+Updates to `/` or `/boot` will require a special boot mode,
+which can be selected by the boot firmware.  After the file
+systems are updated, the user can sign the new hashes with their
+key on a different machine and store the signed root hash on the
+drive.  TPM keys might need to be migrated as well for the recovery
+boot mode.  On next boot the firmware will mount the drives read-only
+and verify that the correct key was used to sign the changes,
+and the TPM should be able to unseal the secrets for TPMTOTP
+as well as the drive decryption.
 
 
 
