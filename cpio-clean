@@ -1,0 +1,133 @@
+#!/usr/bin/perl
+# Clean all non-deterministric fields in a newc cpio file
+#
+# Items fixed:
+# Files are sorted by name
+# Inode numbers are based on the hash of the filename
+# File timestamp is set to 1970-01-01T00:00:00
+# uid/gid are set to root
+# check field is zeroed
+#
+use warnings;
+use strict;
+use Data::Dumper;
+use Digest::MD5 'md5_hex';
+
+#	   struct cpio_newc_header {
+#		   char    c_magic[6]; -6
+#		   char    c_ino[8]; -- set to a monotonic value 0
+#		   char    c_mode[8]; 8
+#		   char    c_uid[8]; 16
+#		   char    c_gid[8];  24
+#		   char    c_nlink[8]; 32
+#		   char    c_mtime[8]; 40 -- set to zero
+#		   char    c_filesize[8]; 48
+#		   char    c_devmajor[8]; 56
+#		   char    c_devminor[8]; 64
+#		   char    c_rdevmajor[8]; 72
+#		   char    c_rdevminor[8]; 80
+#		   char    c_namesize[8]; 88
+#		   char    c_check[8]; 96
+#	   }; // 104
+# followed by namesize bytes of name (padded to be a multiple of 4)
+# followed dby filesize bytes of file (padded to be a multiple of 4)
+
+# Read the entire file at once
+undef $/;
+
+# Generate a map of all of the files in the cpio archive
+# This will also merge multiple cpio files
+my %entries;
+my $trailer;
+
+while(<>)
+{
+	for(my $i = 0 ; $i < length $_ ; )
+	{
+		my $magic = substr($_, $i, 6);
+		if ($magic ne "070701")
+		{
+			die "$ARGV: offset $i: invalid magic '$magic'\n";
+		}
+
+		my $namesize = substr($_, $i + 6+88, 8);
+		my $filesize = substr($_, $i + 6+48, 8);
+
+		if ($namesize =~ /[^0-9A-Fa-f]/)
+		{
+			die "$ARGV: offset $i: invalid characters in namesize '$namesize'\n";
+		}
+
+		if ($filesize =~ /[^0-9A-Fa-f]/)
+		{
+			die "$ARGV: offset $i: invalid characters in filesize '$filesize'\n";
+		}
+
+		# Convert them to hex
+		$namesize = hex $namesize;
+		$filesize = hex $filesize;
+
+		#print STDERR "name: '$namesize', filesize: '$filesize'\n";
+
+		my $name = substr($_, $i + 6+104, $namesize);
+		#print STDERR Dumper($name);
+
+		# Align the header size to be a multiple of four bytes
+		my $entry_size = (6+104 + $namesize + 3) & ~3;
+		$entry_size += ($filesize + 3) & ~3;
+
+		my $entry = substr($_, $i, $entry_size);
+		$i += $entry_size;
+
+		if ($name =~ /^TRAILER!!!/)
+		{
+			$trailer = $entry;
+			last;
+		}
+
+		$entries{$name} = $entry;
+	}
+
+	die "$ARGV: No trailer!\n" unless $trailer;
+}
+
+# Apply the cleaning to each one
+for my $filename (sort keys %entries)
+{
+	my $entry = $entries{$filename};
+	my $zero = sprintf "%08x", 0;
+
+	# inodes are hashed to be deterministic
+	# and hopefully not colliding
+	my $md5 = md5_hex($filename);
+	my $d0 = hex substr($md5,  0, 8) ;
+	my $d1 = hex substr($md5,  8, 8) ;
+	my $d2 = hex substr($md5, 16, 8) ;
+	my $d3 = hex substr($md5, 24, 8) ;
+	
+	substr($entry, 6 + 0, 8) = sprintf "%08x", $d0 ^ $d1 ^ $d2 ^ $d3;
+
+	# set timestamps to zero
+	substr($entry, 6 + 40, 8) = $zero;
+
+	# set uid/gid to zero
+	substr($entry, 6 + 16, 8) = $zero;
+	substr($entry, 6 + 24, 8) = $zero;
+
+	# set check to zero
+	substr($entry, 6 + 96, 8) = $zero;
+
+	$entries{$filename} = $entry;
+}
+
+
+# Print them in sorted order
+for my $filename (sort keys %entries)
+{
+	my $entry = $entries{$filename};
+	print $entry;
+}
+
+# Output the trailer to mark the end of the archive
+print $trailer;
+__END__
