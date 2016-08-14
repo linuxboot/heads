@@ -21,8 +21,36 @@ external SPI flash programmers, possible risk of destruction and
 significant frustration.
 
 
-Threat model
+Building heads
+===
+
+Components:
+
+* CoreBoot
+* Linux
+* busybox
+* kexec
+* tpmtotp (with qrencode)
+* QubesOS (Xen)
+
+The top level `Makefile` will handle most of the details -- it downloads
+the various packages, patches them, configures and builds, and then
+copies the necessary parts into the `initrd` directory.   
+
+Notes:
 ---
+
+* Building coreboot's cross compilers can take a while.  Luckily this is only done once.
+* Builds are not reproducible; there are several issue with the [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) to track it.
+* Currently only tested in Qemu and on a Thinkpad x230.  Xen and the TPM do no t work in Qemu, so it is only for testing the `initrd` image.
+* Booting Qubes requires patching Xen's real mode startup code
+see `patches/xen-4.6.3.patch` and add `no-real-mode` to start
+of the Xen command line.  Booting or installing Qubes is a bit hacky and needs to be documented.
+* Coreboot 4.4 does not handle initrd separately from the kernel correctly, so it must be bundled into the coreboot image.  Building from git does the right thing.
+
+
+Threat model
+===
 Heads considers two broad classes of threats:
 
 * Attackers with physical access to the system
@@ -76,29 +104,11 @@ as well as the drive decryption.
 
 ---
 
-Components:
-
-* CoreBoot
-* Linux
-* busybox
-* kexec
-* tpmtotp (with qrencode)
-* QubesOS (Xen)
-
----
-
-Notes:
-
-* Building coreboot's cross compilers can take a while.
-* Currently only tested in Qemu and on a Thinkpad x230
-* Booting Qubes requires patching Xen's real mode startup code;
-see `patches/xen-4.6.3.patch` and add `no-real-mode` to start
-of the Xen command line.
-* Builds are not reproducible; this is a significant project
-
 
 dm-verity setup
 ===
+*You must install `libdevmapper-dev`, `libpopt-dev` and `libgcrypt-dev` to build cryptsetup*
+
 This set of tools isn't the easiest to use.  It is possible to store
 hashes on the device that is being hashed if some work is done ahead
 of time to reserve the last few blocks or if the file system can be
@@ -229,3 +239,10 @@ own hash pre-computed, which is not feasible with a good hashing
 algorithm.  You could store the hashes in the ROM, but that would
 not allow upgrades without rewriting the ROM.
 
+
+CoreBoot console messages
+---
+The CoreBoot console messages are stored in the CBMEM region
+and can be read by the Linux payload with the `cbmem --console | less`
+command.  There is lots of interesting data about the state of the
+system.
