@@ -4,7 +4,8 @@ packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
 
-all:
+all: x230.rom
+
 
 
 include modules/*
@@ -80,7 +81,8 @@ initrd_bins += initrd/bin/$(notdir $1)
 endef
 
 $(foreach _, $(call outputs,kexec), $(eval $(call initrd_bin,$_)))
-#$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
+$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
+#$(eval $(call initrd_bin,$(build)/$(tpmtotp_dir)/unsealtotp))
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
@@ -138,16 +140,14 @@ initrd_libs: $(initrd_bins)
 #
 #
 initrd.cpio: $(initrd_bins) initrd_libs
-	find ./initrd -print0 \
-		| xargs -0 touch --no-dereference -d "1970-01-01"
 	cd ./initrd ; \
 	( \
 		echo "/dev" ; \
 		echo "/dev/console"; \
 		find . \
 	) \
-	| sort \
 	| cpio --quiet -H newc -o \
+	| ../cpio-clean \
 		> "../$@.tmp" 
 	if ! cmp --quiet "$@" "$@.tmp"; then \
 		mv "$@.tmp" "$@"; \
@@ -157,9 +157,12 @@ initrd.cpio: $(initrd_bins) initrd_libs
 	fi
 	
 
-# hack for the linux kernel to depend on the initrd image
-# this will change once coreboot can link in the initrd separately
+# populate the coreboot initrd image from the one we built.
+# 4.4 doesn't allow this, but building from head does.
 $(call outputs,linux): initrd.cpio
+#$(call outputs,coreboot): $(build)/$(coreboot_dir)/initrd.cpio.xz
+$(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
+	xz < "$<" > "$@"
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
@@ -172,4 +175,7 @@ $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 #XGCC := $(build)/$(coreboot_dir)/util/crossgcc/xgcc/
 #export CC := $(XGCC)/bin/x86_64-elf-gcc
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
+
+x230.rom: $(build)/$(coreboot_dir)/build/coreboot.rom
+	dd if="$<" of="$@" bs=1M skip=8
 
