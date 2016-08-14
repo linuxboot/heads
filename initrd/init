@@ -30,6 +30,11 @@ if [ -r /secret.totp ]; then
 	echo -n "Verify TPM PCR: "
 	unsealtotp /secret.totp
 	echo
+else
+	echo '!!!!!'
+	echo '!!!!! TPM TOTP secret not found.'
+	echo '!!!!! This firmware can not be trusted.'
+	echo '!!!!!'
 fi
 	
 
