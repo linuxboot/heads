@@ -1,19 +1,36 @@
 modules += coreboot
 
-coreboot_version := 4.4
+coreboot_version := git
 coreboot_dir := coreboot-$(coreboot_version)
-coreboot_tar := coreboot-$(coreboot_version).tar.xz
+#coreboot_tar := coreboot-$(coreboot_version).tar.xz
+coreboot_tar := coreboot-4.4.tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
 coreboot_hash := ccfa3ea4e6b4a6ff3e4f1a8dc72d61f794af25bf0e73640e54b0b04733cc50a5
 
 coreboot_configure := make oldconfig
-coreboot_output := buld/coreboot.rom
-
-# The coreboot-blobs must be unpacked before we can build coreboot
-coreboot_depends := coreboot-blobs linux initrd
+coreboot_output := build/coreboot.rom
 
 # hack to force a build dependency on the cross compiler
 $(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl
 $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
 	echo '******* Building gcc (this might take a while) ******'
-	time make -C "$(build)/$(coreboot_dir)" crossgcc
+	time make -C "$(build)/$(coreboot_dir)" crossgcc-i386
+
+# The coreboot-blobs must be unpacked before we can build coreboot
+# if we are using a tar file; git checkout will clone the submodule.
+coreboot_depends := linux initrd
+
+#coreboot_depends += coreboot_blobs
+#modules += coreboot-blobs
+#
+#coreboot-blobs_version := 4.4
+#coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
+#coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
+#coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
+#coreboot-blobs_hash := 43b993915c0f46a77ee7ddaa2dbe47581f399510632c62f2558dff931358d8ab
+#
+## there is nothing to build for the blobs, this should be
+## made easier to make happen
+#coreboot-blobs_output := .built
+#coreboot-blobs_configure := echo -e 'all:\n\ttouch .built' > Makefile
+
