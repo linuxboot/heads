@@ -7,6 +7,7 @@
 # File timestamp is set to 1970-01-01T00:00:00
 # uid/gid are set to root
 # check field is zeroed
+# nlinks is set to zero, since the filesystem manages it
 #
 use warnings;
 use strict;
@@ -113,6 +114,9 @@ for my $filename (sort keys %entries)
 	# set uid/gid to zero
 	substr($entry, 6 + 16, 8) = $zero;
 	substr($entry, 6 + 24, 8) = $zero;
+
+	# zero out the nlinks, since it is managed by the real fs
+	substr($entry, 6 + 32, 8) = $zero;
 
 	# set check to zero
 	substr($entry, 6 + 96, 8) = $zero;
