@@ -1,0 +1,10 @@
+modules += cryptsetup
+
+cryptsetup_version := 1.7.2
+cryptsetup_dir := cryptsetup-$(cryptsetup_version)
+cryptsetup_tar := cryptsetup-$(cryptsetup_version).tar.xz
+cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptsetup-1.7.2.tar.xz
+cryptsetup_hash := dbb35dbf5f0c1749168c86c913fe98e872247bfc8425314b494c2423e7e43342
+
+cryptsetup_configure := ./configure
+cryptsetup_output := 
