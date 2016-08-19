@@ -27,21 +27,30 @@ endef
 # expansion during the first evaluation.
 #
 define define_module =
-  # Fetch and verify the source tar file
-  $(packages)/$($1_tar):
+  ifneq ("$($1_repo)","")
+    # Checkout the tree instead and touch the canary file so that we know
+    # that the files are all present. No signature hashes are checked in
+    # this case, since we don't have a stable version to compare against.
+    $(build)/$($1_dir)/.canary:
+	git clone "$($1_repo)" "$(build)/$($1_dir)"
+	touch "$$@"
+  else
+    # Fetch and verify the source tar file
+    $(packages)/$($1_tar):
 	wget -O "$$@" $($1_url)
-  $(packages)/.$1_verify: $(packages)/$($1_tar)
+    $(packages)/.$1_verify: $(packages)/$($1_tar)
 	echo "$($1_hash) $$^" | sha256sum --check -
 	touch "$$@"
 
-  # Unpack the tar file and touch the canary so that we know
-  # that the files are all present
-  $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
+    # Unpack the tar file and touch the canary so that we know
+    # that the files are all present
+    $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
 		( cd $(build)/$($1_dir) ; patch -p1 ) < patches/$1-$($1_version).patch; \
 	fi
 	touch "$$@"
+  endif
 
   # Copy our stored config file into the unpacked directory
   $(build)/$($1_dir)/.config: config/$1.config $(build)/$($1_dir)/.canary

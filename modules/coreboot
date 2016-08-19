@@ -3,9 +3,11 @@ modules += coreboot
 coreboot_version := git
 coreboot_dir := coreboot-$(coreboot_version)
 #coreboot_tar := coreboot-$(coreboot_version).tar.xz
-coreboot_tar := coreboot-4.4.tar.xz
-coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
-coreboot_hash := ccfa3ea4e6b4a6ff3e4f1a8dc72d61f794af25bf0e73640e54b0b04733cc50a5
+#coreboot_tar := coreboot-4.4.tar.xz
+#coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
+#coreboot_hash := ccfa3ea4e6b4a6ff3e4f1a8dc72d61f794af25bf0e73640e54b0b04733cc50a5
+
+coreboot_repo := https://github.com/osresearch/coreboot
 
 coreboot_configure := make oldconfig
 coreboot_output := build/coreboot.rom
