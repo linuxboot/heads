@@ -1,6 +1,6 @@
 diff -u --recursive /home/hudson/build/clean/linux-4.7/arch/x86/boot/compressed/head_64.S ./linux-4.7/arch/x86/boot/compressed/head_64.S
 --- /home/hudson/build/clean/linux-4.7/arch/x86/boot/compressed/head_64.S	2016-07-24 15:23:50.000000000 -0400
-+++ ./linux-4.7/arch/x86/boot/compressed/head_64.S	2016-08-05 12:07:11.399854225 -0400
++++ linux-4.7/arch/x86/boot/compressed/head_64.S	2016-08-05 12:07:11.399854225 -0400
 @@ -340,9 +357,15 @@
  1:
  
