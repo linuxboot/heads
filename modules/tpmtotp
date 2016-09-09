@@ -15,6 +15,11 @@ tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 tpmtotp_output := \
 	sealtotp \
 	unsealtotp \
+	totp \
+	base32 \
+	qrenc \
+	sealtotp.sh \
+	unsealtotp.sh \
 	util/nv \
 	util/nv_definespace \
 	util/nv_readvalue \
@@ -26,5 +31,11 @@ tpmtotp_output := \
 	util/physicalpresence \
 	util/physicalsetdeactivated \
 	util/getcapability \
+	util/sealfile2 \
+	util/unsealfile \
+	util/counter_create \
+	util/counter_increment \
+	util/counter_read \
+	util/counter_release \
 
 tpmtotp_configure := 
