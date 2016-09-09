@@ -171,7 +171,7 @@ initrd.cpio: $(initrd_bins) initrd_libs
 $(call outputs,linux): initrd.cpio
 #$(call outputs,coreboot): $(build)/$(coreboot_dir)/initrd.cpio.xz
 $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
-	xz < "$<" > "$@"
+	xz --extreme < "$<" > "$@"
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
