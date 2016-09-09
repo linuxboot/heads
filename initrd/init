@@ -24,18 +24,14 @@ echo
 hwclock -l -s
 
 # Verify the user's TPM secret
-date
-if [ -r /secret.totp ]; then
-	echo
-	echo -n "Verify TPM PCR: "
-	unsealtotp /secret.totp
-	echo
-else
+echo "TPM TOTP:"
+if ! unsealtotp.sh ; then
 	echo '!!!!!'
 	echo '!!!!! TPM TOTP secret not found.'
 	echo '!!!!! This firmware can not be trusted.'
 	echo '!!!!!'
 fi
+echo
 	
 
 # Start an interactive shell
