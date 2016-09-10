@@ -19,7 +19,11 @@ for my $file (@ARGV)
 	{
 		if (/ not found/)
 		{
-			warn "$file: $_";
+			# check to see if it is already installed
+			my ($lib) = /^\s*(.*?)\s*=>/;
+
+			warn "$file: '$lib' $_"
+				unless -r "$dest/$lib";
 			next;
 		}
 		if (/ => ([^ ]+)/)
@@ -35,7 +39,7 @@ for my $file (@ARGV)
 	}
 }
 
-print Dumper(\%libraries);
+#print Dumper(\%libraries);
 
 unless( -d $dest )
 {

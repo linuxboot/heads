@@ -16,8 +16,18 @@ define prefix =
 $(foreach _, $2, $1$_)
 endef
 
-define outputs =
+define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
+endef
+define libs =
+$(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_libraries)))
+endef
+
+define outputs =
+$(foreach m,$1,\
+	$(call bins,$m)\
+	$(call libs,$m)\
+)
 endef
 
 #
@@ -76,22 +86,45 @@ endef
 
 $(foreach _, $(modules), $(eval $(call define_module,$_)))
 
+initrd_lib_dir := initrd/lib/x86_64-linux-gnu
+initrd_bin_dir := initrd/bin
+
+#
+# Install a file into the initrd, if it changed from
+# the destination file.
+#
+define install =
+	@if [ ! -d "$(dir $$@)" ]; \
+		then mkdir "$(dir $$@)"; \
+	fi
+	cmp --quiet "$$@" "$$<" || \
+	cp -a "$$<" "$$@"
+endef
 
 #
 # Files that should be copied into the initrd
 # THis should probably be done in a more scalable manner
 #
-define initrd_bin =
-initrd/bin/$(notdir $1): $1
-	@if [ ! -d initrd/bin ]; then mkdir "initrd/bin"; fi
-	cmp --quiet "$$@" "$$^" || \
-	cp -a "$$^" "$$@"
-initrd_bins += initrd/bin/$(notdir $1)
+define initrd_bin_add =
+$(initrd_bin_dir)/$(notdir $1): $1
+	$(install)
+initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
-$(foreach _, $(call outputs,kexec), $(eval $(call initrd_bin,$_)))
-$(foreach _, $(call outputs,tpmtotp), $(eval $(call initrd_bin,$_)))
-#$(eval $(call initrd_bin,$(build)/$(tpmtotp_dir)/unsealtotp))
+
+define initrd_lib_add =
+$(initrd_lib_dir)/$(notdir $1): $1
+	$(install)
+initrd_libs += $(initrd_lib_dir)/$(notdir $1)
+endef
+
+$(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
+
+$(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
+$(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
+$(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
+
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
@@ -124,8 +157,8 @@ initrd/bin/gpgv: /usr/bin/gpgv
 
 # Update all of the libraries in the initrd based on the executables
 # that were installed.
-initrd_libs: $(initrd_bins)
-	-find initrd/bin -type f -print0 \
+initrd_lib_install: $(initrd_bins) $(initrd_libs)
+	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
 		| xargs -0 strip
 	./populate-lib \
 		./initrd/lib/x86_64-linux-gnu/ \
@@ -148,7 +181,7 @@ initrd_libs: $(initrd_bins)
 # timestamp will not be reproducible.
 #
 #
-initrd.cpio: $(initrd_bins) initrd_libs
+initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	cd ./initrd ; \
 	( \
 		echo "/dev" ; \
