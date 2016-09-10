@@ -25,6 +25,8 @@ tpmtotp_output := \
 	util/nv_readvalue \
 	util/nv_writevalue \
 	util/clearown \
+	util/takeown \
+	util/forceclear \
 	util/pcrreset \
 	util/physicaldisable \
 	util/physicalenable \
@@ -37,5 +39,8 @@ tpmtotp_output := \
 	util/counter_increment \
 	util/counter_read \
 	util/counter_release \
+
+tpmtotp_libraries := \
+	libtpm/libtpm.so \
 
 tpmtotp_configure := 

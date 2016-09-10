@@ -6,6 +6,8 @@ mbedtls_tar := mbedtls-$(mbedtls_version)-gpl.tgz
 mbedtls_url := https://tls.mbed.org/download/$(mbedtls_tar)
 mbedtls_hash := 21237014f779bde70b2d71399cc1ea53365eb7f10cdd74a13ee6329a1910cb49
 
-mbedtls_output := libmbedcrypto.so
+mbedtls_libraries := \
+	libmbedcrypto.so.0 \
+
 mbedtls_configure :=
 mbedtls_target := SHARED=1
