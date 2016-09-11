@@ -13,8 +13,6 @@ tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 
 
 tpmtotp_output := \
-	sealtotp \
-	unsealtotp \
 	totp \
 	base32 \
 	qrenc \
