@@ -94,11 +94,8 @@ initrd_bin_dir := initrd/bin
 # the destination file.
 #
 define install =
-	@if [ ! -d "$(dir $$@)" ]; \
-		then mkdir "$(dir $$@)"; \
-	fi
-	cmp --quiet "$$@" "$$<" || \
-	cp -a "$$<" "$$@"
+	cmp --quiet "$1" "$2" || \
+	cp -a "$1" "$2"
 endef
 
 #
@@ -107,14 +104,20 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	$(install)
+	@if [ ! -d "$(initrd_bin_dir)" ]; \
+		then mkdir -p "$(initrd_bin_dir)"; \
+	fi
+	$(call install,$$<,$$@)
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	$(install)
+	@if [ ! -d "$(initrd_lib_dir)" ]; \
+		then mkdir -p "$(initrd_lib_dir)"; \
+	fi
+	$(call install,$$<,$$@)
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
