@@ -1,9 +1,31 @@
 #!/bin/sh
-mount -o ro -t ext4 /dev/sda1 /boot
+mount -o ro -t ext4 /dev/sda2 /boot
 
-exec kexec \
+die() { echo >&2 "$*"; exit 1; }
+
+XEN=/boot/xen-4.6.3.gz
+INITRD=/boot/initramfs-4.4.12-9.pvops.qubes.x86_64.img
+KERNEL=/boot/vmlinuz-4.4.12-9.pvops.qubes.x86_64
+
+echo "+++ Checking $XEN"
+gpgv "${XEN}.asc" "${XEN}" || die "Xen signature failed"
+echo "+++ Checking $INITRD"
+
+gpgv "${INITRD}.asc" "${INITRD}" || die "Initrd signature failed"
+
+echo "+++ Checking $KERNEL"
+gpgv "${KERNEL}.asc" "${KERNEL}" || die "Kernel signature failed"
+
+
+# should also check xen command line arguments!
+# should also check kernel command line arguments!
+
+kexec \
 	-l \
-	--module "/boot/vmlinuz-4.1.13-9.pvops.qubes.x86_64 placeholder root=/dev/mapper/qubes_dom0-root ro i915.preliminary_hw_support=1 rd.lvm.lv=qubes_dom0/root rd.luks.uuid=luks-0f662ac6-2939-48fe-bc95-f5a7e3d6fefb vconsole.font=latarcyrheb-sun16 rd.lvm.lv=qubes_dom0/swap rhgb" \
-	--module "/boot/initramfs-4.1.13-9.pvops.qubes.x86_64.img" \
+	--module "${KERNEL} placeholder root=/dev/mapper/luks-886ba0fa-8a51-4780-91bf-06c5944baab4 ro rd.luks.uuid=luks-886ba0fa-8a51-4780-91bf-06c5944baab4 rd.lvm.lv=qubes_dom0/00 rd.luks.uuid=luks-28948c05-c995-466c-91a2-bd517a7dd50f rd.lvm.lv=qubes_dom0/02 i915.preliminary_hw_support=1 rhgb" \
+	--module "${INITRD}" \
 	--command-line "no-real-mode reboot=no console=vga dom0_mem=min:1024M dom0_mem=max:4096M" \
-	/boot/xen-4.6.3.gz
+	"${XEN}"
+
+
+echo "Ready to start Xen: run 'kexec -e' to execute it"
