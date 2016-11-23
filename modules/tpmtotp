@@ -42,3 +42,4 @@ tpmtotp_libraries := \
 	libtpm/libtpm.so \
 
 tpmtotp_configure := 
+tpmtotp_config := tpmtotp.config

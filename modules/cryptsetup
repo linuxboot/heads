@@ -7,4 +7,5 @@ cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptse
 cryptsetup_hash := dbb35dbf5f0c1749168c86c913fe98e872247bfc8425314b494c2423e7e43342
 
 cryptsetup_configure := ./configure
+cryptsetup_config := cryptsetup.config
 cryptsetup_output := 
