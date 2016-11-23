@@ -151,6 +151,9 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 # Mounting dm-verity file systems requires dm-verity to be installed
 # We use gpgv to verify the signature on the root hash.
 # Both of these should be brought in as modules instead of from /sbin
+#initrd_bins += initrd/bin/cryptsetup
+initrd/bin/cryptsetup: /sbin/cryptsetup
+	cp "$<" "$@"
 initrd_bins += initrd/bin/dmsetup
 initrd/bin/dmsetup: /sbin/dmsetup
 	cp "$<" "$@"
