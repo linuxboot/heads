@@ -8,6 +8,11 @@ TPM_SIZE=312
 die() { echo >&2 "$@"; exit 1; }
 warn() { echo >&2 "$@"; }
 
+key_file="$1"
+if [ -z "$key_file" ]; then
+	key_file=/tmp/secret.key
+fi
+
 read -s -p "Encryption password: " tpm_password
 echo
 
@@ -19,9 +24,11 @@ nv_readvalue \
 
 unsealfile \
 	-if /tmp/sealed \
-	-of /tmp/secret.key \
+	-of "$key_file" \
 	-pwdd "$tpm_password" \
 	-hk 40000000 \
 || die "Unable to unseal disk encryption key"
 
 rm /tmp/sealed
+
+
