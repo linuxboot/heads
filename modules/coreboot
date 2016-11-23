@@ -9,14 +9,26 @@ coreboot_dir := coreboot-$(coreboot_version)
 
 coreboot_repo := https://github.com/osresearch/coreboot
 
-coreboot_configure := make oldconfig
-coreboot_output := build/coreboot.rom
+# Coreboot builds are specialized on a per-target basis.
+# The builds are done in a per-target subdirectory
+coreboot_config := coreboot-$(TARGET).config
+
+coreboot_configure := \
+	make oldconfig obj=./$(TARGET) DOTCONFIG=../../config/coreboot-$(TARGET).config
+
+coreboot_target := \
+	obj=./$(TARGET) DOTCONFIG=../../config/coreboot-$(TARGET).config -j 8
+
+coreboot_output := $(TARGET)/coreboot.rom
+
 
 # hack to force a build dependency on the cross compiler
-$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl
-$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/iasl:
-	echo '******* Building gcc (this might take a while) ******'
+$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
+$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc:
+	echo '******* Building crossgcc-i386 (this might take a while) ******'
 	time make -C "$(build)/$(coreboot_dir)" crossgcc-i386
+	#echo '******* Building crossgcc-arm (this might take a while) ******'
+	#time make -C "$(build)/$(coreboot_dir)" crossgcc-arm
 
 # The coreboot-blobs must be unpacked before we can build coreboot
 # if we are using a tar file; git checkout will clone the submodule.

@@ -4,10 +4,15 @@ packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
 
-all: x230.rom
+# Currently supported targets are x230, chell and qemu
+TARGET		?= x230
+
+all: $(TARGET).rom
 
 
-
+# Bring in all of the module definitions;
+# these are the external pieces that will be downloaded and built
+# as part of creating the Heads firmware image.
 include modules/*
 
 all: $(modules)
@@ -63,7 +68,7 @@ define define_module =
   endif
 
   # Copy our stored config file into the unpacked directory
-  $(build)/$($1_dir)/.config: config/$1.config $(build)/$($1_dir)/.canary
+  $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
 	cp "$$<" "$$@"
 
   # Use the module's configure variable to build itself
@@ -177,14 +182,14 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 # initrd image creation
 #
 # The initrd is constructed from various bits and pieces
-# Note the touch and sort operation on the find output -- this
-# ensures that the files always have the same timestamp and
-# appear in the same order.
+# The cpio-clean program is used ensure that the files
+# always have the same timestamp and appear in the same order.
 #
-# If there is in /dev/console, initrd can't startup.
+# If there is no /dev/console, initrd can't startup.
 # We have to force it to be included into the cpio image.
-# Since we are picking up the system's /dev/console, the
-# timestamp will not be reproducible.
+# Since we are picking up the system's /dev/console, there
+# is a chance the build will not be reproducible (although
+# unlikely that their device file has a different major/minor)
 #
 #
 initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
@@ -224,6 +229,8 @@ $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 #export CC := $(XGCC)/bin/x86_64-elf-gcc
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
 
-x230.rom: $(build)/$(coreboot_dir)/build/coreboot.rom
+x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	dd if="$<" of="$@" bs=1M skip=8
 
+qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
+	cp -a "$<" "$@"

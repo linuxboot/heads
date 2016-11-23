@@ -11,3 +11,4 @@ mbedtls_libraries := \
 
 mbedtls_configure :=
 mbedtls_target := SHARED=1
+mbedtls_config := mbedtls.config
