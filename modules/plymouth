@@ -1,0 +1,29 @@
+modules += plymouth
+
+plymouth_depends :=
+
+plymouth_version := git
+plymouth_repo := https://anongit.freedesktop.org/git/plymouth
+
+plymouth_dir := plymouth-$(plymouth_version)
+
+plymouth_output := \
+	src/.libs/plymouthd \
+	src/client/.libs/plymouth
+
+plymouth_libraries := \
+	src/libply/.libs/libply.so \
+	src/libply/.libs/libply.so.4.0.0 \
+	src/libply-splash-graphics/.libs/libply-splash-graphics.so \
+	src/libply-splash-graphics/.libs/libply-splash-graphics.so.4.0.0 \
+	src/libply-splash-core/.libs/libply-splash-core.so \
+	src/libply-splash-core/.libs/libply-splash-core.so.4.0.0 \
+	src/plugins/renderers/frame-buffer/.libs/frame-buffer.so \
+	src/plugins/renderers/drm/.libs/drm.so \
+	src/plugins/splash/script/.libs/script.so
+
+plymouth_configure := ./autogen.sh \
+                      --disable-gtk \
+                      --disable-documentation \
+                      --disable-systemd-integration \
+                      --disable-gdm-transition

@@ -143,10 +143,12 @@ endef
 
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,plymouth), $(eval $(call initrd_bin_add,$_)))
 
 $(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
+$(foreach _, $(call libs,plymouth), $(eval $(call initrd_lib_add,$_)))
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
