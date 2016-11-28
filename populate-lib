@@ -51,6 +51,10 @@ my $size = 0;
 
 for my $lib (keys %libraries)
 {
+	# skip vdso
+	next if $lib =~ /vdso/;
+
+	warn "$lib\n";
 	$size += -s $lib;
 	my $libname = basename $lib;
 #	my $dirname = dirname "$dest/$lib";
