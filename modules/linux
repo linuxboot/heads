@@ -12,3 +12,5 @@ linux_hash := $(linux-$(linux_version)_hash)
 
 linux_configure := make oldconfig
 linux_output := arch/x86/boot/bzImage
+linux_config := linux.config
+linux_target := -j 8 bzImage
