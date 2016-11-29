@@ -11,4 +11,3 @@ xen_hash := 02badfce9a037bd1bd4a94210c1f6b85467746216c71795805102b514bcf1fc4
 xen_output := xen.gz
 xen_configure := 
 xen_target := -j 8
-xen_config := xen.config

@@ -8,4 +8,3 @@ kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
 
 kexec_configure := ./configure
 kexec_output := build/sbin/kexec
-kexec_config := kexec.config
