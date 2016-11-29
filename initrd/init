@@ -35,4 +35,5 @@ echo
 	
 
 # Start an interactive shell
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin
 exec /bin/ash
