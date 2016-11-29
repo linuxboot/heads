@@ -11,15 +11,15 @@ coreboot_repo := https://github.com/osresearch/coreboot
 
 # Coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
-coreboot_config := coreboot-$(TARGET).config
+#coreboot_config := coreboot-$(TARGET).config
 
 coreboot_configure := \
-	make oldconfig obj=./$(TARGET) DOTCONFIG=../../config/coreboot-$(TARGET).config
+	make oldconfig obj=./$(BOARD) DOTCONFIG=../../config/coreboot-$(BOARD).config
 
 coreboot_target := \
-	obj=./$(TARGET) DOTCONFIG=../../config/coreboot-$(TARGET).config -j 8
+	obj=./$(BOARD) DOTCONFIG=../../config/coreboot-$(BOARD).config -j 8
 
-coreboot_output := $(TARGET)/coreboot.rom
+coreboot_output := $(BOARD)/coreboot.rom
 
 
 # hack to force a build dependency on the cross compiler

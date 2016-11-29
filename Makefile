@@ -5,9 +5,12 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 
 # Currently supported targets are x230, chell and qemu
-TARGET		?= x230
+BOARD		?= x230
 
-all: $(TARGET).rom
+all: $(BOARD).rom
+
+# Disable all built in rules
+.SUFFIXES:
 
 
 # Bring in all of the module definitions;
@@ -15,7 +18,9 @@ all: $(TARGET).rom
 # as part of creating the Heads firmware image.
 include modules/*
 
-all: $(modules)
+# These will be built via their intermediate targets
+# This increases the build time, so it is commented out for now
+#all: $(foreach m,$(modules),$m.intermediate)
 
 define prefix =
 $(foreach _, $2, $1$_)
@@ -68,8 +73,14 @@ define define_module =
   endif
 
   # Copy our stored config file into the unpacked directory
-  $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
-	cp "$$<" "$$@"
+  ifdef $1_config
+    $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
+	cp -a "$$<" "$$@"
+  else
+    $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
+	touch "$$@"
+  endif
+  
 
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
@@ -79,14 +90,18 @@ define define_module =
 	touch "$$@"
 
   # Build the target after any dependencies
-  $(call outputs,$1): \
-		$(build)/$($1_dir)/.configured \
-		$(call outputs,$($1_depends))
-	make -C "$(build)/$($1_dir)" $($1_target)
+  $(call outputs,$1): $1.intermediate
 
   # Short hand target for the module
-  $1: $(call outputs,$1)
+  #$1: $(call outputs,$1)
 
+  # Target for all of the outputs, which depend on their dependent modules
+$1.intermediate: \
+		$(build)/$($1_dir)/.configured \
+		$(foreach d,$($1_depends),$d.intermediate)
+	make -C "$(build)/$($1_dir)" $($1_target)
+
+.INTERMEDIATE: $1.intermediate
 endef
 
 $(foreach _, $(modules), $(eval $(call define_module,$_)))
@@ -208,6 +223,8 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 		echo "$@: Unchanged"; \
 		rm "$@.tmp"; \
 	fi
+
+initrd.intermediate: initrd.cpio
 	
 
 # populate the coreboot initrd image from the one we built.
