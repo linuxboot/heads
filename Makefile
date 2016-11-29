@@ -4,13 +4,23 @@ packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
 
-all: x230.rom
+# Currently supported targets are x230, chell and qemu
+BOARD		?= x230
+
+all: $(BOARD).rom
+
+# Disable all built in rules
+.SUFFIXES:
 
 
-
+# Bring in all of the module definitions;
+# these are the external pieces that will be downloaded and built
+# as part of creating the Heads firmware image.
 include modules/*
 
-all: $(modules)
+# These will be built via their intermediate targets
+# This increases the build time, so it is commented out for now
+#all: $(foreach m,$(modules),$m.intermediate)
 
 define prefix =
 $(foreach _, $2, $1$_)
@@ -63,8 +73,14 @@ define define_module =
   endif
 
   # Copy our stored config file into the unpacked directory
-  $(build)/$($1_dir)/.config: config/$1.config $(build)/$($1_dir)/.canary
-	cp "$$<" "$$@"
+  ifdef $1_config
+    $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
+	cp -a "$$<" "$$@"
+  else
+    $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
+	touch "$$@"
+  endif
+  
 
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
@@ -74,14 +90,18 @@ define define_module =
 	touch "$$@"
 
   # Build the target after any dependencies
-  $(call outputs,$1): \
-		$(build)/$($1_dir)/.configured \
-		$(call outputs,$($1_depends))
-	make -C "$(build)/$($1_dir)" $($1_target)
+  $(call outputs,$1): $1.intermediate
 
   # Short hand target for the module
-  $1: $(call outputs,$1)
+  #$1: $(call outputs,$1)
 
+  # Target for all of the outputs, which depend on their dependent modules
+$1.intermediate: \
+		$(build)/$($1_dir)/.configured \
+		$(foreach d,$($1_depends),$d.intermediate)
+	make -C "$(build)/$($1_dir)" $($1_target)
+
+.INTERMEDIATE: $1.intermediate
 endef
 
 $(foreach _, $(modules), $(eval $(call define_module,$_)))
@@ -151,6 +171,9 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 # Mounting dm-verity file systems requires dm-verity to be installed
 # We use gpgv to verify the signature on the root hash.
 # Both of these should be brought in as modules instead of from /sbin
+#initrd_bins += initrd/bin/cryptsetup
+initrd/bin/cryptsetup: /sbin/cryptsetup
+	cp "$<" "$@"
 initrd_bins += initrd/bin/dmsetup
 initrd/bin/dmsetup: /sbin/dmsetup
 	cp "$<" "$@"
@@ -174,14 +197,14 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 # initrd image creation
 #
 # The initrd is constructed from various bits and pieces
-# Note the touch and sort operation on the find output -- this
-# ensures that the files always have the same timestamp and
-# appear in the same order.
+# The cpio-clean program is used ensure that the files
+# always have the same timestamp and appear in the same order.
 #
-# If there is in /dev/console, initrd can't startup.
+# If there is no /dev/console, initrd can't startup.
 # We have to force it to be included into the cpio image.
-# Since we are picking up the system's /dev/console, the
-# timestamp will not be reproducible.
+# Since we are picking up the system's /dev/console, there
+# is a chance the build will not be reproducible (although
+# unlikely that their device file has a different major/minor)
 #
 #
 initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
@@ -200,6 +223,8 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 		echo "$@: Unchanged"; \
 		rm "$@.tmp"; \
 	fi
+
+initrd.intermediate: initrd.cpio
 	
 
 # populate the coreboot initrd image from the one we built.
@@ -221,6 +246,8 @@ $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 #export CC := $(XGCC)/bin/x86_64-elf-gcc
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
 
-x230.rom: $(build)/$(coreboot_dir)/build/coreboot.rom
+x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	dd if="$<" of="$@" bs=1M skip=8
 
+qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
+	cp -a "$<" "$@"
