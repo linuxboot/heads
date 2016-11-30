@@ -80,7 +80,7 @@ define define_module =
     $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
 	touch "$$@"
   endif
-  
+
 
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
@@ -143,10 +143,12 @@ endef
 
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,signify), $(eval $(call initrd_bin_add,$_)))
 
 $(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
+$(foreach _, $(call libs,signify), $(eval $(call initrd_lib_add,$_)))
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
@@ -169,16 +171,14 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 	make -C "$(dir $@)"
 
 # Mounting dm-verity file systems requires dm-verity to be installed
-# We use gpgv to verify the signature on the root hash.
+# We use signify to verify the signature on the root hash.
 # Both of these should be brought in as modules instead of from /sbin
 #initrd_bins += initrd/bin/cryptsetup
 initrd/bin/cryptsetup: /sbin/cryptsetup
 	cp "$<" "$@"
+
 initrd_bins += initrd/bin/dmsetup
 initrd/bin/dmsetup: /sbin/dmsetup
-	cp "$<" "$@"
-initrd_bins += initrd/bin/gpgv
-initrd/bin/gpgv: /usr/bin/gpgv
 	cp "$<" "$@"
 
 # Update all of the libraries in the initrd based on the executables
@@ -216,7 +216,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	) \
 	| cpio --quiet -H newc -o \
 	| ../cpio-clean \
-		> "../$@.tmp" 
+		> "../$@.tmp"
 	if ! cmp --quiet "$@" "$@.tmp"; then \
 		mv "$@.tmp" "$@"; \
 	else \
@@ -225,7 +225,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	fi
 
 initrd.intermediate: initrd.cpio
-	
+
 
 # populate the coreboot initrd image from the one we built.
 # 4.4 doesn't allow this, but building from head does.

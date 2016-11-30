@@ -176,56 +176,26 @@ header so that the firmware can validate the image before mounting it.
 This does require that the firmware be able to find the header;
 for now we have it hard coded.
 
-
-mbedtls vs OpenSSL
+Signing with BSD Signify
 ---
-mbedtls is a significantly smaller and more modular library than
-OpenSSL's libcrypto (380KB vs 2.3MB).  It is not API compatible,
-so applications must be written to use it.
+`signify` is the BSD answer to gpg and openssl in order to sign and verify
+packages. We make use of signify because less space is left firmware image and
+signify is only around 350kb big therefore it's perfect for us. You can download
+signify from this [repository](https://github.com/aperezdc/signify).
+In order to create a curve25519 keypair for an eddsa operation execute:
 
-One the build host side we can make use of openssl's tools, but in
-the firmware we are limited to the smaller library.  They are mostly
-compatible, although the tools are quite different.
+    signify -G -c "roothash key" -p initrd/root.pub -s /path/to/home/root.sec
 
-Generate the private/public key pair (and copy the public key to
-the initrd):
+You will be asked to enter a password and a new keypair is generated.
+The signing command works as followed:
 
-	openssl genrsa -aes256 -out signing.key
-	openssl rsa -pubout -in signing.key -out signing.pub
-
-Sign something (requires password and private key):
-
-	openssl pkeyutl \
-		-sign \
-		-inkey signing.key \
-		-in roothash \
-		-out roothash.sig
-
-Verify it (requires public key, no password):
-
-	openssl pkeyutl \
-		-verify \
-		-pubin
-		-inkey signing.pub \
-		-sigfile roothash.sig \
-		-in roothash
-
-but this doesn't work with pk_verify from mbedtls.  more work is necessary.
-
-
-Signing with GPG
----
-`gpgv` is a stripped down version of GPG that can be used to verify
-signatures without extraneous libraries.  This works well with the
-Free Software workflow that we want to use.
-
-	gpg --clearsign roothash
+    signify -S -s /path/to/root.sec -m roothash
 
 The `roothash` and `roothash.sig` files can be embedded into the
 HDD image and then extracted at firmware boot time:
 
-	gpgv --keyring /trustedkeys.gpg roothash.sig roothash \
-	|| echo "FAILED"
+    signify -V -p /root.pub -x roothash.sig -m roothash \
+    || echo "FAILED"
 
 The `mount-boot` script is a start at doing this automatically.
 There needs to be an empty block at the end of the partition
