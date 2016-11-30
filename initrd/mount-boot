@@ -47,7 +47,7 @@ fi
 #
 # Validate the file
 #
-if ! gpgv --keyring /trustedkeys.gpg "$cmd_sig"; then
+if signify -Ve -p /root.pub -x "$cmd_sig"; then
 	echo >&2 '!!!!!'
 	echo >&2 '!!!!! GPG signature on block failed'
 	echo >&2 '!!!!! Dropping to recovery shell'
@@ -56,11 +56,10 @@ if ! gpgv --keyring /trustedkeys.gpg "$cmd_sig"; then
 fi
 
 #
-# Strip the PGP signature off the file
-# (too bad gpgv doesn't do this)
+# Strip the comment of the signature.
 #
 awk < "$cmd_sig" > "$cmd" '
-	/BEGIN PGP SIGNATURE/ { exit };
+	/untrusted comment/ { exit };
 	do_print {print};
 	/^$/ { do_print=1 };
 '

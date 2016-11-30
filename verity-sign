@@ -27,9 +27,9 @@ veritysetup \
 	--data-blocks $[$size*1024*1024/4096] \
 	format hdd.img hdd.img \
 | ./verity-sign /dev/sda1 \
-| gpg --clearsign \
-| tee hdd.table
-
+| tee hdd.table.tmp
+signify -Se -s root.sec -m hdd.table.tmp -x hdd.table
+rm hdd.table.tmp
 
 use warnings;
 use strict;

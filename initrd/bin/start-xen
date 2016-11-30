@@ -8,13 +8,13 @@ INITRD=/boot/initramfs-4.4.14-11.pvops.qubes.x86_64.img
 KERNEL=/boot/vmlinuz-4.4.14-11.pvops.qubes.x86_64
 
 echo "+++ Checking $XEN"
-gpgv "${XEN}.asc" "${XEN}" || die "Xen signature failed"
+signify -V -p /root.pub -x "${XEN}.asc" -m "${XEN}" || die "Xen signature failed"
 
 echo "+++ Checking $INITRD"
-gpgv "${INITRD}.asc" "${INITRD}" || die "Initrd signature failed"
+signify -V -p /root.pub -x "${INITRD}.asc" -m "${INITRD}" || die "Initrd signature failed"
 
 echo "+++ Checking $KERNEL"
-gpgv "${KERNEL}.asc" "${KERNEL}" || die "Kernel signature failed"
+signify -V -p /root.pub -x "${KERNEL}.asc" -m "${KERNEL}" || die "Kernel signature failed"
 
 # should also check xen command line arguments!
 # should also check kernel command line arguments!

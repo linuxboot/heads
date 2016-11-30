@@ -1,0 +1,11 @@
+modules += signify
+
+signify_version := 20
+signify_dir := signify-$(signify_version)
+signify_tar := signify-v$(signify_version).tar.gz
+signify_url := https://github.com/aperezdc/signify/archive/v$(signify_version).tar.gz
+signify_hash := 99dc0f4a3c2a80c854f45410ee4832b0c7fb537ed3bbc0cc4f5435b9d614be22
+
+signify_output := signify
+signify_configure :=
+#signify_target := MUSL=1
