@@ -7,6 +7,10 @@ cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptse
 cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6adc02
 
 cryptsetup_configure := ./configure \
-			--disable-gcrypt-pbkdf2 \
-			--with-crypto_backend=kernel
-cryptsetup_output := 
+	--disable-gcrypt-pbkdf2 \
+	--with-crypto_backend=kernel \
+
+cryptsetup_output := \
+	src/.libs/cryptsetup \
+	src/.libs/veritysetup \
+

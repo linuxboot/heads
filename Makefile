@@ -5,7 +5,7 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 
 # Currently supported targets are x230, chell and qemu
-BOARD		?= x230
+BOARD		?= qemu
 
 all: $(BOARD).rom
 
@@ -72,13 +72,14 @@ define define_module =
 	touch "$$@"
   endif
 
-  # Copy our stored config file into the unpacked directory
-  ifdef $1_config
-    $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
-	cp -a "$$<" "$$@"
-  else
+  ifeq "$($1_config)" ""
+    # There is no official .config file
     $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
 	touch "$$@"
+  else
+    # Copy the stored config file into the unpacked directory
+    $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
+	cp -a "$$<" "$$@"
   endif
   
 
@@ -143,6 +144,7 @@ endef
 
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
 
 $(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
@@ -171,10 +173,7 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 # Mounting dm-verity file systems requires dm-verity to be installed
 # We use gpgv to verify the signature on the root hash.
 # Both of these should be brought in as modules instead of from /sbin
-#initrd_bins += initrd/bin/cryptsetup
-initrd/bin/cryptsetup: /sbin/cryptsetup
-	cp "$<" "$@"
-initrd_bins += initrd/bin/dmsetup
+#initrd_bins += initrd/bin/dmsetup
 initrd/bin/dmsetup: /sbin/dmsetup
 	cp "$<" "$@"
 initrd_bins += initrd/bin/gpgv
