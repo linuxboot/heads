@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+
+undef $/;
+my $rom = <>;
+my $base = 0xFFFFFFFF - length($rom) + 1;
+printf "ROM len:  %08x\n", length($rom);
+printf "ROM base: %08x\n", $base;
+
+sub uint32
+{
+	my $offset = shift;
+	return unpack("V", substr($rom, $offset - $base, 4));
+}
+
+sub uint64
+{
+	my $offset = shift;
+	return unpack("Q", substr($rom, $offset - $base, 8));
+}
+
+# Assume the ROM is mapped to the top of 4GB
+my $fit_ptr = uint32(0xFFFFFFC0);
+my $fit_offset = $fit_ptr - $base;
+
+printf "FIT pointer: %08x (offset %08x)\n", $fit_ptr, $fit_offset;
+
+die "FIT pointer out of range?\n" if $fit_offset >= length($rom);
+
+my $fit = substr($rom, $fit_ptr - $base, 8);
+printf "Signature: '%s'\n", $fit;
+die "Bad signature?\n" unless $fit eq '_FIT_   ';
+
+my $entries = uint32($fit_ptr + 0x8);
+
+my %entry_types = (
+	0x00	=> "Header",
+	0x01	=> "Microcode",
+	0x02	=> "Startup ACM",
+	0x07	=> "BIOS Startup Module",
+	0x08	=> "TPM Policy",
+	0x09	=> "BIOS Policy",
+	0x0A	=> "TXT Policy",
+	0x0B	=> "Key Manifest",
+	0x0C	=> "Boot Policy Manifest",
+	0x10	=> "CSE Secure Boot",
+	0x2D	=> "TXTSX Policy",
+	0x2F	=> "JMP Debug Policy",
+	0x7F	=> "SKIP",
+);
+
+for my $i (1..$entries-1)
+{
+	my ($address, $len, $ver, $type, $csum) = unpack(
+		"QVSCC", substr($rom, $fit_ptr - $base + $i*0x10, 0x10));
+
+	printf "%d: address %08x @ %08x: ver %04x type %s (0x%02x)\n",
+		$i,
+		$address,
+		$len,
+		$ver,
+		$entry_types{$type} || "Unknown",
+		$type,
+		;
+}
