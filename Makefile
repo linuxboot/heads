@@ -81,7 +81,7 @@ define define_module =
     $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
 	cp -a "$$<" "$$@"
   endif
-  
+
 
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
@@ -215,7 +215,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	) \
 	| cpio --quiet -H newc -o \
 	| ../cpio-clean \
-		> "../$@.tmp" 
+		> "../$@.tmp"
 	if ! cmp --quiet "$@" "$@.tmp"; then \
 		mv "$@.tmp" "$@"; \
 	else \
@@ -224,7 +224,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	fi
 
 initrd.intermediate: initrd.cpio
-	
+
 
 # populate the coreboot initrd image from the one we built.
 # 4.4 doesn't allow this, but building from head does.
@@ -240,7 +240,7 @@ $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
 $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 
 
-# The CoreBoot gcc won't work for us since it doesn't have libc
+# The coreboot gcc won't work for us since it doesn't have libc
 #XGCC := $(build)/$(coreboot_dir)/util/crossgcc/xgcc/
 #export CC := $(XGCC)/bin/x86_64-elf-gcc
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
