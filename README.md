@@ -26,7 +26,7 @@ Building heads
 
 Components:
 
-* CoreBoot
+* coreboot
 * Linux
 * busybox
 * kexec
@@ -240,9 +240,9 @@ algorithm.  You could store the hashes in the ROM, but that would
 not allow upgrades without rewriting the ROM.
 
 
-CoreBoot console messages
+coreboot console messages
 ---
-The CoreBoot console messages are stored in the CBMEM region
+The coreboot console messages are stored in the CBMEM region
 and can be read by the Linux payload with the `cbmem --console | less`
 command.  There is lots of interesting data about the state of the
 system.
