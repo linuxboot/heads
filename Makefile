@@ -240,7 +240,7 @@ $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
 $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 
 
-# The CoreBoot gcc won't work for us since it doesn't have libc
+# The coreboot gcc won't work for us since it doesn't have libc
 #XGCC := $(build)/$(coreboot_dir)/util/crossgcc/xgcc/
 #export CC := $(XGCC)/bin/x86_64-elf-gcc
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
