@@ -35,7 +35,7 @@ Components:
 
 The top level `Makefile` will handle most of the details -- it downloads
 the various packages, patches them, configures and builds, and then
-copies the necessary parts into the `initrd` directory.   
+copies the necessary parts into the `initrd` directory.
 
 Notes:
 ---
