@@ -18,25 +18,7 @@ tpmtotp_output := \
 	qrenc \
 	sealtotp.sh \
 	unsealtotp.sh \
-	util/nv \
-	util/nv_definespace \
-	util/nv_readvalue \
-	util/nv_writevalue \
-	util/clearown \
-	util/takeown \
-	util/forceclear \
-	util/pcrreset \
-	util/physicaldisable \
-	util/physicalenable \
-	util/physicalpresence \
-	util/physicalsetdeactivated \
-	util/getcapability \
-	util/sealfile2 \
-	util/unsealfile \
-	util/counter_create \
-	util/counter_increment \
-	util/counter_read \
-	util/counter_release \
+	util/tpm \
 
 tpmtotp_libraries := \
 	libtpm/libtpm.so \
