@@ -1,5 +1,7 @@
 modules += cryptsetup
 
+cryptsetup_depends := libuuid popt lvm2
+
 cryptsetup_version := 1.7.3
 cryptsetup_dir := cryptsetup-$(cryptsetup_version)
 cryptsetup_tar := cryptsetup-$(cryptsetup_version).tar.xz
@@ -7,10 +9,16 @@ cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptse
 cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6adc02
 
 cryptsetup_configure := ./configure \
+	CFLAGS="-I$(INSTALL)/include" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+	--prefix "$(INSTALL)" \
 	--disable-gcrypt-pbkdf2 \
 	--with-crypto_backend=kernel \
+
+cryptsetup_target := -j 8 install
 
 cryptsetup_output := \
 	src/.libs/cryptsetup \
 	src/.libs/veritysetup \
+
 

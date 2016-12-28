@@ -3,6 +3,7 @@ pwd 		:= $(shell pwd)
 packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
+INSTALL		:= $(pwd)/install
 
 # Currently supported targets are x230, chell and qemu
 BOARD		?= qemu
@@ -97,9 +98,9 @@ define define_module =
   #$1: $(call outputs,$1)
 
   # Target for all of the outputs, which depend on their dependent modules
-$1.intermediate: \
-		$(build)/$($1_dir)/.configured \
-		$(foreach d,$($1_depends),$d.intermediate)
+  $1.intermediate: \
+		$(foreach d,$($1_depends),$(call outputs,$d)) \
+		$(build)/$($1_dir)/.configured
 	make -C "$(build)/$($1_dir)" $($1_target)
 
 .INTERMEDIATE: $1.intermediate
@@ -145,10 +146,13 @@ endef
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,gpg), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,lvm2), $(eval $(call initrd_bin_add,$_)))
 
 $(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
 $(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
+$(foreach _, $(call libs,lvm2), $(eval $(call initrd_lib_add,$_)))
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
@@ -170,21 +174,13 @@ initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
 	make -C "$(dir $@)"
 
-# Mounting dm-verity file systems requires dm-verity to be installed
-# We use gpgv to verify the signature on the root hash.
-# Both of these should be brought in as modules instead of from /sbin
-#initrd_bins += initrd/bin/dmsetup
-initrd/bin/dmsetup: /sbin/dmsetup
-	cp "$<" "$@"
-initrd_bins += initrd/bin/gpgv
-initrd/bin/gpgv: /usr/bin/gpgv
-	cp "$<" "$@"
 
 # Update all of the libraries in the initrd based on the executables
 # that were installed.
 initrd_lib_install: $(initrd_bins) $(initrd_libs)
 	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
 		| xargs -0 strip
+	LD_LIBRARY_PATH="$(INSTALL)/lib" \
 	./populate-lib \
 		./initrd/lib/x86_64-linux-gnu/ \
 		initrd/bin/* \

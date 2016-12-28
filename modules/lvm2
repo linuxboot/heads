@@ -1,0 +1,19 @@
+modules += lvm2
+
+lvm2_version := 2.02.168
+lvm2_dir := LVM2.$(lvm2_version)
+lvm2_tar := LVM2.$(lvm2_version).tgz
+lvm2_url := http://mirrors.kernel.org/sourceware/lvm2/$(lvm2_tar)
+lvm2_hash := 23a3d1cddd41b3ef51812ebf83e9fa491f502fe74130d4263be327a91914660d
+
+lvm2_configure := ./configure \
+	--prefix $(INSTALL) \
+	--disable-selinux \
+	--disable-udev-systemd-background-jobs \
+	--disable-realtime \
+
+lvm2_target := -j 8 install_device-mapper
+
+lvm2_libraries := libdm/libdevmapper.so
+
+lvm2_output := tools/dmsetup
