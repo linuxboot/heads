@@ -11,6 +11,7 @@ my $dest = shift
 	or die "Usage: $0 dest-dir [programs...]\n";
 
 my %libraries;
+my %deps;
 
 for my $file (@ARGV)
 {
@@ -30,6 +31,7 @@ for my $file (@ARGV)
 		{
 			# Normal library
 			$libraries{$1}++;
+			push @{$deps{$file}}, $1;
 		}
 		elsif (/^\s+([^ ]+) \(/)
 		{
@@ -40,6 +42,11 @@ for my $file (@ARGV)
 }
 
 #print Dumper(\%libraries);
+print "$_: ", join(" ", @{$deps{$_}}), "\n"
+	for keys %deps;
+
+print "\n";
+
 
 unless( -d $dest )
 {
