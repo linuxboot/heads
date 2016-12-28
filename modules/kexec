@@ -11,6 +11,7 @@ kexec_configure := ./configure \
 	LDFLAGS="-L$(INSTALL)/lib" \
 	--prefix="$(INSTALL)" \
 	--without-zlib \
+	--without-lzma \
 
 kexec_target := -j 8 install
 
