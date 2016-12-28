@@ -1,0 +1,30 @@
+#!/bin/sh
+mount -o ro -t ext4 /dev/sda1 /boot
+
+die() { echo >&2 "$*"; exit 1; }
+
+XEN=/boot/xen-4.6.3.gz
+INITRD=/boot/initramfs-4.4.14-11.pvops.qubes.x86_64.img
+KERNEL=/boot/vmlinuz-4.4.14-11.pvops.qubes.x86_64
+
+echo "+++ Checking $XEN"
+gpgv "${XEN}.asc" "${XEN}" || die "Xen signature failed"
+
+echo "+++ Checking $INITRD"
+gpgv "${INITRD}.asc" "${INITRD}" || die "Initrd signature failed"
+
+echo "+++ Checking $KERNEL"
+gpgv "${KERNEL}.asc" "${KERNEL}" || die "Kernel signature failed"
+
+# should also check xen command line arguments!
+# should also check kernel command line arguments!
+
+kexec \
+	-l \
+	--module "${KERNEL} root=LABEL=root rhgb" \
+	--module "${INITRD}" \
+	--command-line "no-real-mode reboot=no console=vga dom0_mem=min:1024M dom0_mem=max:4096M" \
+	"${XEN}"
+
+
+echo "Ready to start Xen: run 'kexec -e' to execute it"
