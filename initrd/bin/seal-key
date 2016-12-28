@@ -1,0 +1,74 @@
+#!/bin/sh
+# This will generate a disk encryption key and seal / ecncrypt
+# with the current PCRs and then store it in the TPM NVRAM.
+# It will then need to be bundled into initrd that is booted with Qubes.
+
+TPM_INDEX=3
+TPM_SIZE=312
+KEY_FILE=/tmp/secret.key
+
+die() { echo >&2 "$@"; exit 1; }
+warn() { echo >&2 "$@"; }
+
+read -s -p "New key password: " key_password
+echo
+read -s -p "Repeat password: " key_password2
+echo
+
+if [ "$key_password" -ne "$key_password2" ]; then
+	die "Key passwords do not match"
+fi
+
+dd \
+	if=/dev/urandom \
+	of="$KEY_FILE" \
+	bs=1 \
+	count=128 \
+	2>/dev/null \
+|| die "Unable to generate 128 random bytes"
+
+
+# Use the current values of the PCRs, which will be read
+# from the TPM as part of the sealing ("X").
+# should this read the storage root key?
+sealfile2 \
+	-if "$KEY_FILE" \
+	-of /tmp/sealed \
+	-pwdd "$key_password" \
+	-hk 40000000 \
+	-ix 0 X \
+	-ix 1 X \
+	-ix 2 X \
+	-ix 3 X \
+	-ix 4 X \
+|| die "Unable to seal secret"
+
+rm "$KEY_FILE"
+
+
+# to create an nvram space we need the TPM owner password
+# and the TPM physical presence must be asserted.
+#
+# The permissions are 0 since there is nothing special
+# about the sealed file
+physicalpresence -s \
+|| warn "Warning: Unable to assert physical presence"
+
+read -s -p "TPM Owner password: " tpm_password
+echo
+
+nv_definespace \
+	-in $TPM_INDEX \
+	-sz $TPM_SIZE \
+	-pwdo "$tpm_password" \
+	-per 0 \
+|| die "Warning: Unable to define NVRAM space; trying anyway"
+
+
+nv_writevalue \
+	-in $TPM_INDEX \
+	-if /tmp/sealed \
+|| die "Unable to write sealed secret to NVRAM"
+
+rm /tmp/sealed
+
