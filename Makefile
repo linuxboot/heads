@@ -186,6 +186,7 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 		initrd/bin/* \
 		initrd/sbin/* \
 
+	-strip ./initrd/lib/x86_64-linux-gnu/*
 
 
 #
