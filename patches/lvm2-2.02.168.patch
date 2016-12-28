@@ -1,0 +1,77 @@
+diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/libdm-stats.c /home/user/heads/build/LVM2.2.02.168/libdm/libdm-stats.c
+--- /home/user/clean/LVM2.2.02.168/libdm/libdm-stats.c	2016-11-30 18:17:30.000000000 -0500
++++ LVM2.2.02.168/libdm/libdm-stats.c	2016-12-28 11:39:18.018000000 -0500
+@@ -17,7 +17,24 @@
+ 
+ #include "dmlib.h"
+ 
++#if 0
+ #include "math.h" /* log10() */
++#else
++static int ilog10(double x)
++{
++	int e = 0;
++
++	while(x > 10)
++	{
++		e++;
++		x = x / 10;
++	}
++
++	return e;
++}
++#endif
++
++
+ 
+ #include <sys/sysmacros.h>
+ #include <sys/ioctl.h>
+@@ -502,7 +519,11 @@
+ 	while(entry >= bins) {
+ 		value = (double) (entry--)->upper;
+ 		/* Use lround to avoid size_t -> double cast warning. */
++#if 0
+ 		hist_len += 1 + (size_t) lround(log10(value / scale));
++#else
++		hist_len += 1 + ilog10(value / scale);
++#endif
+ 		if (entry != bins)
+ 			hist_len++; /* ',' */
+ 	}
+@@ -1746,7 +1767,11 @@
+ 		}
+ 
+ 		/* length of region_id or range start in characters */
++#if 0
+ 		id_len = (i) ? 1 + (size_t) log10(i) : 1;
++#else
++		id_len = (i) ? 1 + ilog10(i) : 1;
++#endif
+ 		buflen += id_len;
+ 		j = i;
+ 		do
+@@ -1761,7 +1786,11 @@
+ 		/* handle range */
+ 		if (i != j) {
+ 			/* j is always > i, which is always >= 0 */
++#if 0
+ 			id_len = 1 + (size_t) log10(j);
++#else
++			id_len = 1 + ilog10(j);
++#endif
+ 			buflen += id_len + 1; /* range end plus "-" */
+ 		}
+ 		buflen++;
+diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/Makefile.in /home/user/heads/build/LVM2.2.02.168/libdm/Makefile.in
+--- /home/user/clean/LVM2.2.02.168/libdm/Makefile.in	2016-11-30 18:17:30.000000000 -0500
++++ LVM2.2.02.168/libdm/Makefile.in	2016-12-28 11:40:04.992000000 -0500
+@@ -56,7 +56,8 @@
+ 
+ CFLAGS += $(UDEV_CFLAGS) $(VALGRIND_CFLAGS)
+ 
+-LIBS += $(SELINUX_LIBS) $(UDEV_LIBS) $(PTHREAD_LIBS) $(M_LIBS)
++#LIBS += $(SELINUX_LIBS) $(UDEV_LIBS) $(PTHREAD_LIBS) $(M_LIBS)
++LIBS += $(SELINUX_LIBS) $(UDEV_LIBS)
+ 
+ device-mapper: all
+ 
