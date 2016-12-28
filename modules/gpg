@@ -1,0 +1,38 @@
+modules += gpg
+
+# we install gpgv 1.4, which is an older version that has fewer
+# dependencies.  This may need to be revisted later.
+gpg_version := 1.4.21
+gpg_dir := gnupg-$(gpg_version)
+gpg_tar := gnupg-$(gpg_version).tar.bz2
+gpg_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg_tar)
+gpg_hash := e329785a4f366ba5d72c2c678a7e388b0892ac8440c2f4e6810042123c235d71
+
+gpg_configure := ./configure \
+	CFLAGS="-I$(INSTALL)/include" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+	--prefix $(INSTALL) \
+	--disable-bzip2 \
+	--disable-gpg \
+	--disable-gpgsm \
+	--disable-agent \
+	--disable-scdaemon \
+	--disable-tools \
+	--disable-doc \
+	--disable-exec \
+	--disable-photo-viewers \
+	--disable-keyserver-helpers \
+	--disable-ldap \
+	--disable-hkp \
+	--disable-finger \
+	--disable-ccid-driver \
+	--disable-dns-srv \
+	--disable-dns-pka \
+	--disable-dns-cert \
+	--disable-regex \
+
+gpg_target := -j 8 install
+
+gpg_outputs := g10/gpgv
+
+

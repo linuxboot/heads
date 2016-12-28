@@ -1,0 +1,14 @@
+modules += popt
+
+popt_version := 1.16
+popt_dir := popt-$(popt_version)
+popt_tar := popt-$(popt_version).tar.gz
+popt_url := http://rpm5.org/files/popt/$(popt_tar)
+popt_hash := e728ed296fe9f069a0e005003c3d6b2dde3d9cad453422a10d6558616d304cc8
+
+popt_configure := ./configure \
+	--prefix $(INSTALL) \
+
+popt_target := install
+
+popt_libraries := ./libs/libpopt.so
