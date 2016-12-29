@@ -1,6 +1,6 @@
 modules += cryptsetup
 
-cryptsetup_depends := libuuid popt lvm2
+cryptsetup_depends := libuuid popt lvm2 $(musl_dep)
 
 cryptsetup_version := 1.7.3
 cryptsetup_dir := cryptsetup-$(cryptsetup_version)
@@ -9,6 +9,7 @@ cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptse
 cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6adc02
 
 cryptsetup_configure := ./configure \
+	CC="$(heads_cc)" \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 	--prefix "$(INSTALL)" \
