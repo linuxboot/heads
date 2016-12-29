@@ -33,6 +33,5 @@ gpg_configure := ./configure \
 
 gpg_target := -j 8 install
 
-gpg_outputs := g10/gpgv
-
+gpg_output := g10/gpgv
 
