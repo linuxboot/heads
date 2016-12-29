@@ -1,0 +1,18 @@
+modules += kernel-headers
+
+# we install kernel-headers from sabotage linux, a musl-libc based
+# distribution, that works well with busybox and other tools.
+
+kernel-headers_version := 3.12.6-5
+kernel-headers_dir := kernel-headers-$(kernel-headers_version)
+kernel-headers_tar := kernel-headers-$(kernel-headers_version).tar.gz
+kernel-headers_url := https://github.com/sabotage-linux/kernel-headers/archive/v$(kernel-headers_version).tar.gz
+kernel-headers_hash := ecf4db8781dc50a21cbc4cb17b039f96aede53f9da13435a3201373abb49b96b
+
+kernel-headers_configure :=
+
+kernel-headers_target := \
+	ARCH=x86_64 \
+	prefix="$(INSTALL)" \
+	install
+

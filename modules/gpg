@@ -9,6 +9,7 @@ gpg_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg_tar)
 gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 
 gpg_configure := ./configure \
+	CC="$(heads_cc)" \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 	--prefix $(INSTALL) \
@@ -35,3 +36,4 @@ gpg_target := -j 8 install
 
 gpg_output := g10/gpgv
 
+gpg_depends := $(musl_dep)

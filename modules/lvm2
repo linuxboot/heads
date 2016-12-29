@@ -7,6 +7,7 @@ lvm2_url := http://mirrors.kernel.org/sourceware/lvm2/$(lvm2_tar)
 lvm2_hash := 23a3d1cddd41b3ef51812ebf83e9fa491f502fe74130d4263be327a91914660d
 
 lvm2_configure := ./configure \
+	CC="$(heads_cc)" \
 	--prefix $(INSTALL) \
 	--disable-selinux \
 	--disable-udev-systemd-background-jobs \
@@ -17,3 +18,5 @@ lvm2_target := -j 8 install_device-mapper
 lvm2_libraries := libdm/libdevmapper.so
 
 lvm2_output := tools/dmsetup
+
+lvm2_depends := $(musl_dep)

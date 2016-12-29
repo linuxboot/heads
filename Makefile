@@ -8,6 +8,11 @@ INSTALL		:= $(pwd)/install
 # Currently supported targets are x230, chell and qemu
 BOARD		?= qemu
 
+# If musl-libc is being used in the initrd, set the heads_cc
+# variable to point to it.
+musl_dep	:= musl
+heads_cc	:= $(INSTALL)/bin/musl-gcc
+
 all: $(BOARD).rom
 
 # Disable all built in rules
@@ -68,7 +73,8 @@ define define_module =
     $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
-		( cd $(build)/$($1_dir) ; patch -p1 ) < patches/$1-$($1_version).patch; \
+		( cd $(build)/$($1_dir) ; patch -p1 ) \
+			< patches/$1-$($1_version).patch; \
 	fi
 	touch "$$@"
   endif
@@ -100,6 +106,7 @@ define define_module =
   # Target for all of the outputs, which depend on their dependent modules
   $1.intermediate: \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
+		$(foreach d,$($1_depends),$d.intermediate) \
 		$(build)/$($1_dir)/.configured
 	make -C "$(build)/$($1_dir)" $($1_target)
 
@@ -163,16 +170,21 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 	cmp --quiet "$@" "$^" || \
 	make \
 		-C $(build)/$(busybox_dir) \
+		CC="$(heads_cc)" \
 		CONFIG_PREFIX="$(pwd)/initrd" \
+		-j 8 \
 		install
 
 # hack to build cbmem from coreboot
+# this must be built *AFTER* musl
 initrd_bins += initrd/bin/cbmem
 initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 	cmp --quiet "$^" "$@" \
 	|| cp "$^" "$@"
-$(build)/$(coreboot_dir)/util/cbmem/cbmem: $(build)/$(coreboot_dir)/.canary
-	make -C "$(dir $@)"
+$(build)/$(coreboot_dir)/util/cbmem/cbmem: \
+		$(build)/$(coreboot_dir)/.canary \
+		musl.intermediate
+	make -C "$(dir $@)" CC="$(heads_cc)"
 
 
 # Update all of the libraries in the initrd based on the executables
