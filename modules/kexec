@@ -10,6 +10,7 @@ kexec_configure := ./configure \
 	CC="$(heads_cc)" \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
+	--host i386-elf-linux \
 	--prefix="$(INSTALL)" \
 	--without-zlib \
 	--without-lzma \
