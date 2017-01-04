@@ -15,7 +15,7 @@ lvm2_configure := ./configure \
 
 lvm2_target := -j 8 install_device-mapper
 
-lvm2_libraries := libdm/libdevmapper.so
+#lvm2_libraries := libdm/libdevmapper.so
 
 lvm2_output := tools/dmsetup
 
