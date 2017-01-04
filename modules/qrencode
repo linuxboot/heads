@@ -12,6 +12,7 @@ qrencode_configure := ./configure \
 	CC="$(heads_cc)" \
 	--prefix $(INSTALL) \
 	--without-tools \
+	--host i386-elf-linux \
 
 qrencode_target := install
 
