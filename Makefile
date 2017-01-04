@@ -115,7 +115,7 @@ endef
 
 $(foreach _, $(modules), $(eval $(call define_module,$_)))
 
-initrd_lib_dir := initrd/lib/x86_64-linux-gnu
+initrd_lib_dir := initrd/lib
 initrd_bin_dir := initrd/bin
 
 #
@@ -194,11 +194,11 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 		| xargs -0 strip
 	LD_LIBRARY_PATH="$(INSTALL)/lib" \
 	./populate-lib \
-		./initrd/lib/x86_64-linux-gnu/ \
+		$(initrd_lib_dir) \
 		initrd/bin/* \
 		initrd/sbin/* \
 
-	-strip ./initrd/lib/x86_64-linux-gnu/*
+	-strip $(initrd_lib_dir)/* ; true
 
 
 #
@@ -259,3 +259,9 @@ x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	cp -a "$<" "$@"
+
+clean-modules:
+	for dir in busybox-1.25.0 cryptsetup-1.7.3 gnupg-1.4.21 kexec-tools-2.0.12 libuuid-1.0.3 LVM2.2.02.168 mbedtls-2.3.0 popt-1.16 qrencode-3.4.4 tpmtotp-git ; do \
+		make -C build/$$dir clean; \
+		rm build/$$dir/.configured; \
+	done

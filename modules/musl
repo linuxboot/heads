@@ -8,9 +8,17 @@ musl_hash := 97e447c7ee2a7f613186ec54a93054fe15469fe34d7d323080f7ef38f5ecb0fa
 
 musl_output := $(INSTALL)/bin/musl-gcc
 
+#
+# Note that for syslibdir to be /lib the install will likely fail.
+# this is unfortunate, but can be worked around by making sure that
+# a /lib/ld-musl-x86_64.so.1 symlink exists and points to libc.so
+# for your musl build.
+#
+# Otherwise we'll have to make a whole cross compiler setup.
+#
 musl_configure := ./configure \
 	--prefix="$(INSTALL)" \
-	--syslibdir="$(INSTALL)/lib" \
+	--syslibdir="/lib" \
 
 musl_target := -j 8 install
 
