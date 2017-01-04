@@ -14,10 +14,9 @@ kexec_configure := ./configure \
 	--prefix="$(INSTALL)" \
 	--without-zlib \
 	--without-lzma \
+	&& make clean
 
 kexec_target := \
-	CC="$(heads_cc)" \
-	-j 8 \
 	install \
 
 kexec_output := build/sbin/kexec
