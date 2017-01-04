@@ -9,6 +9,7 @@ popt_hash := e728ed296fe9f069a0e005003c3d6b2dde3d9cad453422a10d6558616d304cc8
 popt_configure := ./configure \
 	CC="$(heads_cc)" \
 	--prefix $(INSTALL) \
+	--host i386-elf-linux \
 
 popt_target := install
 

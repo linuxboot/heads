@@ -12,11 +12,14 @@ cryptsetup_configure := ./configure \
 	CC="$(heads_cc)" \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
+	--host i386-elf-linux \
 	--prefix "$(INSTALL)" \
 	--disable-gcrypt-pbkdf2 \
 	--with-crypto_backend=kernel \
 
-cryptsetup_target := -j 8 install
+cryptsetup_target := \
+	-j 8 \
+	install
 
 cryptsetup_output := \
 	src/.libs/cryptsetup \

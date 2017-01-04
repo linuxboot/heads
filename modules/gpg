@@ -10,12 +10,12 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 
 gpg_configure := ./configure \
 	CC="$(heads_cc)" \
-	CFLAGS="-I$(INSTALL)/include" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	--host i386-elf-linux \
 	--prefix $(INSTALL) \
 	--disable-bzip2 \
 	--disable-gpg \
 	--disable-gpgsm \
+	--disable-asm \
 	--disable-agent \
 	--disable-scdaemon \
 	--disable-tools \
