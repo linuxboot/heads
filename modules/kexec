@@ -7,15 +7,20 @@ kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
 kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
 
 kexec_configure := ./configure \
+	CC="$(heads_cc)" \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
+	--host i386-elf-linux \
 	--prefix="$(INSTALL)" \
 	--without-zlib \
 	--without-lzma \
+	&& make clean
 
-kexec_target := -j 8 install
+kexec_target := \
+	install \
 
 kexec_output := build/sbin/kexec
 
 # if we don't need zlib, don't built it
 #kexec_depends := zlib
+kexec_depends := $(musl_dep)
