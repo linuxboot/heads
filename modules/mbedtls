@@ -10,4 +10,11 @@ mbedtls_libraries := \
 	library/libmbedcrypto.so.0 \
 
 mbedtls_configure :=
-mbedtls_target := SHARED=1 DESTDIR=$(INSTALL) -j 8 install
+mbedtls_target := \
+	SHARED=1 \
+	DESTDIR=$(INSTALL) \
+	CC="$(heads_cc)" \
+	-j 8 \
+	install
+
+mbedtls_depends := $(musl_dep)
