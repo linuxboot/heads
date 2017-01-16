@@ -26,9 +26,9 @@ coreboot_output := $(BOARD)/coreboot.rom
 $(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
 $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc:
 	echo '******* Building crossgcc-i386 (this might take a while) ******'
-	time make -C "$(build)/$(coreboot_dir)" crossgcc-i386
+	make -C "$(build)/$(coreboot_dir)" crossgcc-i386
 	#echo '******* Building crossgcc-arm (this might take a while) ******'
-	#time make -C "$(build)/$(coreboot_dir)" crossgcc-arm
+	#make -C "$(build)/$(coreboot_dir)" crossgcc-arm
 
 # The coreboot-blobs must be unpacked before we can build coreboot
 # if we are using a tar file; git checkout will clone the submodule.
