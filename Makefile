@@ -65,7 +65,7 @@ define define_module =
     $(packages)/$($1_tar):
 	wget -O "$$@" $($1_url)
     $(packages)/.$1_verify: $(packages)/$($1_tar)
-	echo "$($1_hash) $$^" | sha256sum --check -
+	echo "$($1_hash)  $$^" | sha256sum --check -
 	touch "$$@"
 
     # Unpack the tar file and touch the canary so that we know
