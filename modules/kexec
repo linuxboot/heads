@@ -13,7 +13,7 @@ kexec_configure := ./configure \
 	--prefix="$(INSTALL)" \
 	--without-zlib \
 	--without-lzma \
-	&& make clean
+	&& $(MAKE) clean
 
 kexec_target := \
 	install \

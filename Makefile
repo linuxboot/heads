@@ -5,6 +5,14 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
 
+# Check that we have a correct version of make
+LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
+include modules/make
+
+ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
+# We are running our own version of make,
+# proceed with the build.
+
 # Currently supported targets are x230, chell and qemu
 BOARD		?= qemu
 
@@ -12,6 +20,7 @@ BOARD		?= qemu
 # variable to point to it.
 musl_dep	:= musl
 heads_cc	:= $(INSTALL)/bin/musl-gcc
+#heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
 all: $(BOARD).rom
 
@@ -108,7 +117,7 @@ define define_module =
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(build)/$($1_dir)/.configured
-	make -C "$(build)/$($1_dir)" $($1_target)
+	$(MAKE) -C "$(build)/$($1_dir)" $($1_target)
 
 .INTERMEDIATE: $1.intermediate
 endef
@@ -168,7 +177,7 @@ initrd_bins += initrd/bin/busybox
 
 initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 	cmp --quiet "$@" "$^" || \
-	make \
+	$(MAKE) \
 		-C $(build)/$(busybox_dir) \
 		CC="$(heads_cc)" \
 		CONFIG_PREFIX="$(pwd)/initrd" \
@@ -184,7 +193,7 @@ initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
-	make -C "$(dir $@)" CC="$(heads_cc)"
+	$(MAKE) -C "$(dir $@)" CC="$(heads_cc)"
 
 
 # Update all of the libraries in the initrd based on the executables
@@ -262,6 +271,33 @@ qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 
 clean-modules:
 	for dir in busybox-1.25.0 cryptsetup-1.7.3 gnupg-1.4.21 kexec-tools-2.0.12 libuuid-1.0.3 LVM2.2.02.168 mbedtls-2.3.0 popt-1.16 qrencode-3.4.4 tpmtotp-git ; do \
-		make -C build/$$dir clean; \
+		$(MAKE) -C build/$$dir clean; \
 		rm build/$$dir/.configured; \
 	done
+
+
+else
+# Wrong make version detected -- build our local version
+# and re-invoke the Makefile with it instead.
+$(info Wrong make detected: $(LOCAL_MAKE_VERSION))
+HEADS_MAKE := $(build)/$(make_dir)/make
+
+# Once we have a proper Make, we can just pass arguments into it
+%: $(HEADS_MAKE)
+	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
+all:
+
+# How to download and build the correct version of make
+$(HEADS_MAKE): $(build)/$(make_dir)/Makefile
+	make -C "`dirname $@`" -j8
+$(build)/$(make_dir)/Makefile: $(packages)/$(make_tar)
+	tar xf "$<" -C build/
+	cd "`dirname $@`" ; ./configure
+$(packages)/$(make_tar):
+	wget -O "$@" "$(make_url)"
+	if ! echo "$(make_hash)  $@" | sha256sum --check -; then \
+		$(MV) "$@" "$@.failed"; \
+		false; \
+	fi
+
+endif
