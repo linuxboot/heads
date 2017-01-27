@@ -1,0 +1,13 @@
+# This is not added to the module list since it is a special case
+# of things that need to be built for the host system, instead of the
+# target platform.
+#modules += make
+
+make_version := 4.2
+make_dir := make-$(make_version)
+make_tar := make-$(make_version).tar.bz2
+make_url := http://gnu.mirror.constant.com/make/$(make_tar)
+make_hash := 4e5ce3b62fe5d75ff8db92b7f6df91e476d10c3aceebf1639796dc5bfece655f
+
+# This is built for the local machine, not the target, so it doesn't have any
+# of the build instructions.
