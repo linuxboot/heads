@@ -18,7 +18,13 @@ musl_output := $(INSTALL)/bin/musl-gcc
 musl_configure := ./configure \
 	--prefix="$(INSTALL)" \
 	--syslibdir="/lib" \
+	--enable-gcc-wrapper \
+	--enable-shared \
+	CC=$(HOME)/heads/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
+
+
 
 musl_target := -j 8 install
+#musl_target :=  install
 
 musl_depends := kernel-headers
