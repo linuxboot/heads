@@ -1,0 +1,40 @@
+diff -r c004067a7b34 config.sh
+--- a/config.sh	Sun Oct 02 20:51:04 2016 -0400
++++ b/config.sh	Fri Jan 27 17:47:25 2017 -0500
+@@ -1,13 +1,15 @@
+ # ARCH will be auto-detected as the host if not specified
+ #ARCH=i486
+-#ARCH=x86_64
++ARCH=x86_64
+ #ARCH=powerpc
+ #ARCH=arm
+ #ARCH=microblaze
+ #ARCH=mips
+ #ARCH=mipsel
+ 
+-CC_BASE_PREFIX=/opt/cross
++if [ -z "$CC_BASE_PREFIX" ]; then
++	CC_BASE_PREFIX=$HOME/heads/install
++fi
+ 
+ # If you use arm, you may need more fine-tuning:
+ # arm hardfloat v7
+@@ -24,3 +26,6 @@
+ 
+ # Enable this to build the bootstrap gcc (thrown away) without optimization, to reduce build time
+ GCC_STAGE1_NOOPT=1
++
++# Build GMP, MPFR and MPC
++GCC_BUILTIN_PREREQS=yes
+diff -r c004067a7b34 defs.sh
+--- a/defs.sh	Sun Oct 02 20:51:04 2016 -0400
++++ b/defs.sh	Fri Jan 27 17:47:25 2017 -0500
+@@ -46,7 +46,7 @@
+ 
+ # musl can optionally be checked out from GIT, in which case MUSL_VERSION must
+ # be set to a git tag and MUSL_GIT set to yes in config.sh
+-MUSL_DEFAULT_VERSION=1.1.12
++MUSL_DEFAULT_VERSION=1.1.15
+ MUSL_GIT_VERSION=615629bd6fcd6ddb69ad762e679f088c7bd878e2
+ MUSL_GIT_REPO='git://repo.or.cz/musl.git'
+ MUSL_VERSION="$MUSL_DEFAULT_VERSION"

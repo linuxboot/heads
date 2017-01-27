@@ -1,0 +1,25 @@
+#!/bin/sh
+# Download and build the musl-libc cross compiler.
+# This should be worked around eventually to use the coreboot
+# cross compile suite that we've already built, but for now
+# we'll download yet another copy of gcc...
+
+PWD="`dirname $0`"
+
+die() { echo >&2 "$@"; exit 1; }
+
+if [ -d build/musl-cross ]; then
+	die "cross compiler already built?"
+fi
+
+cd build
+hg clone https://bitbucket.org/GregorR/musl-cross \
+	|| die "clone failed"
+
+cd musl-cross
+patch -p1 < ../../patches/musl-cross.patch \
+	|| die "patch of configuration failed!"
+
+export CC_BASE_PREFIX="$PWD/crossgcc"
+./build.sh \
+	|| die "compiler build failed!"
