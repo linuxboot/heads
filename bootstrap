@@ -10,8 +10,6 @@ BASE="`cd "$DIRNAME" ; /bin/pwd `"
 die() { echo >&2 "$@"; exit 1; }
 
 if [ ! -d build/musl-cross ]; then
-	die "cross compiler already built?"
-
 	cd build
 	hg clone https://bitbucket.org/GregorR/musl-cross \
 		|| die "clone failed"
