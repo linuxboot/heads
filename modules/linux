@@ -19,7 +19,16 @@ linux_configure := \
 linux_output := arch/x86/boot/bzImage
 linux_config := linux.config
 
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+
 linux_target := \
 	CROSS_COMPILE=$(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl- \
+	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
+	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
+	CFLAGS_MODULE="$(EXTRA_FLAGS)" \
+	KBUILD_BUILD_USER=user \
+	KBUILD_BUILD_HOST=heads-build \
+	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
+	KBUILD_BUILD_VERSION=0 \
 	-j 8 \
 	bzImage
