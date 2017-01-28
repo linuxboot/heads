@@ -20,7 +20,7 @@ musl_configure := ./configure \
 	--syslibdir="/lib" \
 	--enable-gcc-wrapper \
 	--enable-shared \
-	CC=$(HOME)/heads/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
+	CC=$(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
 
 
 
