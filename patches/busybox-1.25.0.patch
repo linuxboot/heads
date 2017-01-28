@@ -1,0 +1,36 @@
+diff --recursive -u /home/hudson/build/clean/busybox-1.25.0/e2fsprogs/fsck.c ./busybox-1.25.0/e2fsprogs/fsck.c
+--- /home/hudson/build/clean/busybox-1.25.0/e2fsprogs/fsck.c	2016-05-26 13:42:44.000000000 -0400
++++ busybox-1.25.0/e2fsprogs/fsck.c	2017-01-28 14:02:37.674839434 -0500
+@@ -1071,7 +1071,7 @@
+ 	new_args(); /* G.args[G.num_args - 1] is the last, NULL element */
+ 
+ 	if (!notitle)
+-		puts("fsck (busybox "BB_VER", "BB_BT")");
++		puts("fsck (busybox "BB_VER")");
+ 
+ 	/* Even plain "fsck /dev/hda1" needs fstab to get fs type,
+ 	 * so we are scanning it anyway */
+diff --recursive -u /home/hudson/build/clean/busybox-1.25.0/editors/vi.c ./busybox-1.25.0/editors/vi.c
+--- /home/hudson/build/clean/busybox-1.25.0/editors/vi.c	2016-05-26 13:42:44.000000000 -0400
++++ busybox-1.25.0/editors/vi.c	2017-01-28 14:02:19.970827576 -0500
+@@ -1461,7 +1461,7 @@
+ 		}
+ #endif /* FEATURE_VI_SEARCH */
+ 	} else if (strncmp(cmd, "version", i) == 0) {  // show software version
+-		status_line(BB_VER " " BB_BT);
++		status_line(BB_VER);
+ 	} else if (strncmp(cmd, "write", i) == 0  // write text to file
+ 	        || strncmp(cmd, "wq", i) == 0
+ 	        || strncmp(cmd, "wn", i) == 0
+diff --recursive -u /home/hudson/build/clean/busybox-1.25.0/libbb/messages.c ./busybox-1.25.0/libbb/messages.c
+--- /home/hudson/build/clean/busybox-1.25.0/libbb/messages.c	2016-05-26 13:42:44.000000000 -0400
++++ busybox-1.25.0/libbb/messages.c	2017-01-28 14:14:36.593045461 -0500
+@@ -17,7 +17,7 @@
+ #define BB_EXTRA_VERSION BB_BT
+ #endif
+ 
+-#define BANNER "BusyBox v" BB_VER " (" BB_EXTRA_VERSION ")"
++#define BANNER "BusyBox v" BB_VER " (heads)"
+ 
+ const char bb_banner[] ALIGN1 = BANNER;
+ 
