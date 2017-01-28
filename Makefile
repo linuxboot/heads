@@ -19,7 +19,10 @@ BOARD		?= qemu
 # If musl-libc is being used in the initrd, set the heads_cc
 # variable to point to it.
 musl_dep	:= musl
-heads_cc	:= $(INSTALL)/bin/musl-gcc
+heads_cc	:= $(INSTALL)/bin/musl-gcc \
+	-fdebug-prefix-map=$(pwd)=heads \
+	-gno-record-gcc-switches \
+
 #heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
 all: $(BOARD).rom
