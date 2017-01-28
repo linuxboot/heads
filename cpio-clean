@@ -105,8 +105,10 @@ for my $filename (sort keys %entries)
 	my $d1 = hex substr($md5,  8, 8) ;
 	my $d2 = hex substr($md5, 16, 8) ;
 	my $d3 = hex substr($md5, 24, 8) ;
+	my $hash = sprintf "%08x", $d0 ^ $d1 ^ $d2 ^ $d3;
 	
-	substr($entry, 6 + 0, 8) = sprintf "%08x", $d0 ^ $d1 ^ $d2 ^ $d3;
+	#warn "$filename: $md5 -> $hash\n";
+	substr($entry, 6 + 0, 8) = $hash;
 
 	# set timestamps to zero
 	substr($entry, 6 + 40, 8) = $zero;
@@ -117,6 +119,10 @@ for my $filename (sort keys %entries)
 
 	# zero out the nlinks, since it is managed by the real fs
 	substr($entry, 6 + 32, 8) = $zero;
+
+	# set the device major/minor to zero
+	substr($entry, 6 + 56, 8) = $zero;
+	substr($entry, 6 + 64, 8) = $zero;
 
 	# set check to zero
 	substr($entry, 6 + 96, 8) = $zero;
