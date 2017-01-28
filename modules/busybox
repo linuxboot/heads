@@ -6,7 +6,7 @@ busybox_tar := busybox-$(busybox_version).tar.bz2
 busybox_url := https://busybox.net/downloads/$(busybox_tar)
 busybox_hash := 5a0fe06885ee1b805fb459ab6aaa023fe4f2eccee4fb8c0fd9a6c17c0daca2fc
 
-busybox_configure := $(MAKE) CC=$(heads_cc) oldconfig
+busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := busybox.config
 busybox_output := busybox
 busybox_target := \
