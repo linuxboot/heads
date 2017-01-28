@@ -8,18 +8,23 @@ cryptsetup_tar := cryptsetup-$(cryptsetup_version).tar.xz
 cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptsetup-$(cryptsetup_version).tar.xz
 cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6adc02
 
+# Use an empty prefix so that the executables will not include the
+# build path.
 cryptsetup_configure := ./configure \
 	CC="$(heads_cc)" \
-	CFLAGS="-I$(INSTALL)/include" \
-	LDFLAGS="-L$(INSTALL)/lib" \
 	--host i386-elf-linux \
-	--prefix "$(INSTALL)" \
+	--prefix "" \
 	--disable-gcrypt-pbkdf2 \
 	--with-crypto_backend=kernel \
 
+# but after building, replace prefix so that they will be installed
+# in the correct directory.
 cryptsetup_target := \
 	-j 8 \
-	install
+	&& $(MAKE) \
+		-C $(build)/$(cryptsetup_dir) \
+		prefix="$(INSTALL)" \
+		install
 
 cryptsetup_output := \
 	src/.libs/cryptsetup \

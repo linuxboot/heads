@@ -10,10 +10,14 @@ qrencode_output := .libs/libqrencode.so.$(qrencode_version)
 
 qrencode_configure := ./configure \
 	CC="$(heads_cc)" \
-	--prefix $(INSTALL) \
+	--prefix "" \
 	--without-tools \
 	--host i386-elf-linux \
 
-qrencode_target := install
+qrencode_target := -j 8 \
+	&& $(MAKE) \
+		-C "$(build)/$(qrencode_dir)" \
+		prefix="$(INSTALL)" \
+		install
 
 qrencode_depends := $(musl_dep)
