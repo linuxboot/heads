@@ -1,6 +1,6 @@
-diff -u --recursive clean/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c build/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c
---- clean/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c	2015-11-29 18:52:07.000000000 -0500
-+++ kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c	2017-01-04 13:46:53.684313636 -0500
+diff -u --recursive /home/hudson/clean/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c
+--- /home/hudson/clean/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c	2015-11-29 18:52:07.000000000 -0500
++++ kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c	2017-01-28 14:46:48.765247188 -0500
 @@ -24,6 +24,7 @@
  #include <fcntl.h>
  #include <stddef.h>
@@ -42,9 +42,9 @@ diff -u --recursive clean/kexec-tools-2.0.12/kexec/arch/i386/kexec-x86-common.c 
  
  		memory_ranges++;
  	}
-diff -u --recursive clean/kexec-tools-2.0.12/Makefile.in build/kexec-tools-2.0.12/Makefile.in
---- clean/kexec-tools-2.0.12/Makefile.in	2014-10-14 00:58:06.000000000 -0400
-+++ kexec-tools-2.0.12/Makefile.in	2017-01-04 10:08:51.584425301 -0500
+diff -u --recursive /home/hudson/clean/kexec-tools-2.0.12/Makefile.in kexec-tools-2.0.12/Makefile.in
+--- /home/hudson/clean/kexec-tools-2.0.12/Makefile.in	2014-10-14 00:58:06.000000000 -0400
++++ kexec-tools-2.0.12/Makefile.in	2017-01-28 14:46:48.765247188 -0500
 @@ -158,16 +158,16 @@
  
  # kdump (read a crashdump from memory)
@@ -65,3 +65,14 @@ diff -u --recursive clean/kexec-tools-2.0.12/Makefile.in build/kexec-tools-2.0.1
  
  SPEC=$(PACKAGE_NAME).spec
  GENERATED_SRCS:= $(SPEC)
+diff -u --recursive /home/hudson/clean/kexec-tools-2.0.12/purgatory/Makefile kexec-tools-2.0.12/purgatory/Makefile
+--- /home/hudson/clean/kexec-tools-2.0.12/purgatory/Makefile	2015-04-30 01:05:17.000000000 -0400
++++ kexec-tools-2.0.12/purgatory/Makefile	2017-01-28 15:36:11.811188490 -0500
+@@ -45,7 +45,6 @@
+ 	mkdir -p $(@D)
+ 	$(COMPILE.c) -o $@ $^
+ 
+-$(PURGATORY): CC=$(TARGET_CC)
+ $(PURGATORY): CFLAGS+=$(PURGATORY_EXTRA_CFLAGS) \
+ 		      $($(ARCH)_PURGATORY_EXTRA_CFLAGS) \
+ 		      -Os -fno-builtin -ffreestanding \
