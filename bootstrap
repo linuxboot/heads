@@ -4,22 +4,27 @@
 # cross compile suite that we've already built, but for now
 # we'll download yet another copy of gcc...
 
-PWD="`dirname $0`"
+DIRNAME="`dirname $0`"
+BASE="`cd "$DIRNAME" ; /bin/pwd `"
 
 die() { echo >&2 "$@"; exit 1; }
 
-if [ -d build/musl-cross ]; then
+if [ ! -d build/musl-cross ]; then
 	die "cross compiler already built?"
+
+	cd build
+	hg clone https://bitbucket.org/GregorR/musl-cross \
+		|| die "clone failed"
+
+	cd musl-cross
+	patch -p1 < ../../patches/musl-cross.patch \
+		|| die "patch of configuration failed!"
+else
+	cd build/musl-cross
 fi
 
-cd build
-hg clone https://bitbucket.org/GregorR/musl-cross \
-	|| die "clone failed"
+export CC_BASE_PREFIX="$BASE/crossgcc"
+echo "export CC_BASE_PREFIX='$CC_BASE_PREFIX'"
 
-cd musl-cross
-patch -p1 < ../../patches/musl-cross.patch \
-	|| die "patch of configuration failed!"
-
-export CC_BASE_PREFIX="$PWD/crossgcc"
 ./build.sh \
 	|| die "compiler build failed!"
