@@ -13,11 +13,23 @@ coreboot_repo := https://github.com/osresearch/coreboot
 # The builds are done in a per-target subdirectory
 #coreboot_config := coreboot-$(TARGET).config
 
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+
 coreboot_configure := \
-	$(MAKE) oldconfig obj=./$(BOARD) DOTCONFIG=../../config/coreboot-$(BOARD).config
+	$(MAKE) \
+		oldconfig \
+		obj=./$(BOARD) \
+		DOTCONFIG=../../config/coreboot-$(BOARD).config \
+		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
+		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
-	obj=./$(BOARD) DOTCONFIG=../../config/coreboot-$(BOARD).config -j 8
+	obj=./$(BOARD) \
+	DOTCONFIG=../../config/coreboot-$(BOARD).config \
+	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
+	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
+	V=1 \
+	-j 8
 
 coreboot_output := $(BOARD)/coreboot.rom
 
