@@ -3,7 +3,6 @@
 Heads: the other side of TAILS
 ===
 
-
 Heads is a configuration for laptops that tries to bring more security
 to commodity hardware.  Among its goals are:
 
@@ -14,7 +13,7 @@ to commodity hardware.  Among its goals are:
 
 ![Flashing Heads into the boot ROM](https://farm1.staticflickr.com/553/30969183324_c31d8f2dee_z_d.jpg)
 
-NOTE: It is a work in progress and not yet ready for users.
+NOTE: It is a work in progress and not yet ready for non-technical users.
 If you're interested in contributing, please get in touch.
 Installation requires disassembly of your laptop or server,
 external SPI flash programmers, possible risk of destruction and
@@ -26,30 +25,53 @@ More information is available in [the 33C3 presentation of building "Slightly mo
 Building heads
 ===
 
-Components:
+In order to build reproducible firmware images, Heads builds a specific
+version of gcc and uses it to compile the Linux kernel and various tools
+that go into the initrd.  Unfortunately this means the first step is a
+little slow...  After cloning the tree, cd into it and run `./bootstrap`
+to download and build binutils, gcc and all of their dependencies into
+`./crossgcc/`.
 
-* coreboot
-* Linux
-* busybox
-* kexec
-* tpmtotp (with qrencode)
-* QubesOS (Xen)
+Once that is done, the top level `Makefile` will handle most of the
+remaining details -- it downloads the various packages, verifies the
+hashes, applies Heads specific patches, configures and builds them
+with the cross compiler, and then copies the necessary parts into
+the `initrd` directory.
 
-The top level `Makefile` will handle most of the details -- it downloads
-the various packages, patches them, configures and builds, and then
-copies the necessary parts into the `initrd` directory.
+There are still dependencies on the build system's coreutils in
+`/bin` and `/usr/bin/`, but any problems should be detectable if you
+end up with a different hash than the official builds.
+
+The various components that are downloaded are in the `./modules`
+directory and include:
+
+* [musl-libc](https://www.musl-libc.org/)
+* [busybox](https://busybox.net/)
+* [kexec](https://wiki.archlinux.org/index.php/kexec)
+* [mbedtls](https://tls.mbed.org/)
+* [tpmtotp](https://trmm.net/Tpmtotp)
+* [coreboot](http://coreboot.org/)
+* [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup)
+* [lvm2](https://sourceware.org/lvm2/)
+* [gnupg](https://www.gnupg.org/)
+* [Linux kernel](https://kernel.org)
+* [Xen hypervisor](https://www.xenproject.org/)
+
+We also recommend installing [Qubes OS](https://www.qubes-os.org/),
+although there Heads can `kexec` into any (?) Linux or
+[multiboot](https://www.gnu.org/software/grub/manual/multiboot/multiboot.html)
+kernel.
 
 Notes:
 ---
 
 * Building coreboot's cross compilers can take a while.  Luckily this is only done once.
-* Builds are not reproducible; there are several issue with the [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) to track it.
-* Currently only tested in Qemu and on a Thinkpad x230.  Xen and the TPM do no t work in Qemu, so it is only for testing the `initrd` image.
+* Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
+* Currently only tested in Qemu, the Thinkpad x230 and the Chell chromebook.
+** Xen and the TPM do not work in Qemu, so it is only for testing the `initrd` image.
 * Booting Qubes requires patching Xen's real mode startup code
-see `patches/xen-4.6.3.patch` and add `no-real-mode` to start
+see `patches/xen-4.6.3.patch` and adding `no-real-mode` to start
 of the Xen command line.  Booting or installing Qubes is a bit hacky and needs to be documented.
-* Coreboot 4.4 does not handle initrd separately from the kernel correctly, so it must be bundled into the coreboot image.  Building from git does the right thing.
-
 
 
 Signing with GPG
