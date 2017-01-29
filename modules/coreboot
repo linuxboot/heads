@@ -28,7 +28,6 @@ coreboot_target := \
 	DOTCONFIG=../../config/coreboot-$(BOARD).config \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
-	V=1 \
 	-j 8
 
 coreboot_output := $(BOARD)/coreboot.rom
