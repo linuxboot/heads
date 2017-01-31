@@ -11,7 +11,7 @@ die() { echo >&2 "$@"; exit 1; }
 
 if [ ! -d build/musl-cross ]; then
 	cd build
-	hg clone https://bitbucket.org/GregorR/musl-cross \
+	git clone https://github.com/GregorR/musl-cross.git \
 		|| die "clone failed"
 
 	cd musl-cross
