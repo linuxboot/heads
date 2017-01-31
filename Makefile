@@ -71,6 +71,10 @@ define define_module =
     # this case, since we don't have a stable version to compare against.
     $(build)/$($1_dir)/.canary:
 	git clone "$($1_repo)" "$(build)/$($1_dir)"
+	if [ -r patches/$1.patch ]; then \
+		( cd $(build)/$($1_dir) ; patch -p1 ) \
+			< patches/$1.patch; \
+	fi
 	touch "$$@"
   else
     # Fetch and verify the source tar file
@@ -121,6 +125,10 @@ define define_module =
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(build)/$($1_dir)/.configured
 	$(MAKE) -C "$(build)/$($1_dir)" $($1_target)
+
+  $1.clean:
+	-$(RM) "$(build)/$($1_dir)/.configured
+	-$(MAKE) -C "$(build)/$($1_dir)" clean
 
 .INTERMEDIATE: $1.intermediate
 endef
