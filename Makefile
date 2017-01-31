@@ -23,6 +23,8 @@ heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 
+CROSS		:= $(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+
 #heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
 all: $(BOARD).rom
@@ -127,7 +129,7 @@ define define_module =
 	$(MAKE) -C "$(build)/$($1_dir)" $($1_target)
 
   $1.clean:
-	-$(RM) "$(build)/$($1_dir)/.configured
+	-$(RM) "$(build)/$($1_dir)/.configured"
 	-$(MAKE) -C "$(build)/$($1_dir)" clean
 
 .INTERMEDIATE: $1.intermediate
@@ -211,14 +213,14 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 # that were installed.
 initrd_lib_install: $(initrd_bins) $(initrd_libs)
 	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
-		| xargs -0 strip
+		| xargs -0 $(CROSS)strip
 	LD_LIBRARY_PATH="$(INSTALL)/lib" \
 	./populate-lib \
 		$(initrd_lib_dir) \
 		initrd/bin/* \
 		initrd/sbin/* \
 
-	-strip $(initrd_lib_dir)/* ; true
+	-$(CROSS)strip $(initrd_lib_dir)/* ; true
 
 
 #
