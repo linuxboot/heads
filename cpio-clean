@@ -113,6 +113,13 @@ for my $filename (sort keys %entries)
 	# set timestamps to zero
 	substr($entry, 6 + 40, 8) = $zero;
 
+	# remove group/user permissions, leaving only
+	# the owner bits intact.
+	my $mode = hex substr($entry, 6 + 8, 8);
+	$mode &= ~0077;
+	#$mode |= $mode >> 3 | $mode >> 6;
+	substr($entry, 6 + 8, 8) = sprintf "%08X", $mode;
+
 	# set uid/gid to zero
 	substr($entry, 6 + 16, 8) = $zero;
 	substr($entry, 6 + 24, 8) = $zero;
