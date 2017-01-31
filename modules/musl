@@ -27,4 +27,4 @@ musl_configure := ./configure \
 musl_target := -j 8 install
 #musl_target :=  install
 
-musl_depends := kernel-headers
+musl_depends := kernel-headers musl-cross
