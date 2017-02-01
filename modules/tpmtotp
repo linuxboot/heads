@@ -5,11 +5,11 @@ tpmtotp_depends := mbedtls qrencode $(musl_dep)
 #tpmtotp_version := git
 #tpmtotp_repo := https://github.com/osresearch/tpmtotp
 
-tpmtotp_version := 0.2.0
+tpmtotp_version := 0.2.1
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
 tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v$(tpmtotp_version).tar.gz
-tpmtotp_hash := c197e56d577db716e46e22c400ccf39aae8229282c5c2812742e9197c83b27ee
+tpmtotp_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
 
 tpmtotp_target := \
 	CC="$(heads_cc)"  \
