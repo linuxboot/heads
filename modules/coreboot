@@ -20,12 +20,14 @@ coreboot_configure := \
 		oldconfig \
 		obj=./$(BOARD) \
 		DOTCONFIG=../../config/coreboot-$(BOARD).config \
+		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
 	obj=./$(BOARD) \
 	DOTCONFIG=../../config/coreboot-$(BOARD).config \
+	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	-j 8
