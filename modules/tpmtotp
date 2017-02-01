@@ -2,14 +2,14 @@ modules += tpmtotp
 
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
-tpmtotp_version := git
-tpmtotp_repo := https://github.com/osresearch/tpmtotp
+#tpmtotp_version := git
+#tpmtotp_repo := https://github.com/osresearch/tpmtotp
 
-#tpmtotp_version := 0.0.1
+tpmtotp_version := 0.2.0
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
-#tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
-#tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v0.0.1.tar.gz
-#tpmtotp_hash := 8bf2380248fea540a96ad0ff8a4f170b8d93b6bb5fe49b958f9f1926f994823f
+tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
+tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v$(tpmtotp_version).tar.gz
+tpmtotp_hash := c197e56d577db716e46e22c400ccf39aae8229282c5c2812742e9197c83b27ee
 
 tpmtotp_target := \
 	CC="$(heads_cc)"  \
