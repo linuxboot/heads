@@ -21,7 +21,7 @@ gpgv "${KERNEL}.asc" "${KERNEL}" || die "Kernel signature failed"
 
 kexec \
 	-l \
-	--module "${KERNEL} root=LABEL=root rhgb" \
+	--module "${KERNEL} root=/dev/mapper/qubes_dom0-root rhgb" \
 	--module "${INITRD}" \
 	--command-line "no-real-mode reboot=no console=vga dom0_mem=min:1024M dom0_mem=max:4096M" \
 	"${XEN}"
