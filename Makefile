@@ -4,6 +4,16 @@ packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
+log_dir		:= $(build)/log
+
+# Create the log directory if it doesn't already exist
+BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir "$(log_dir)")
+
+# If V is set in the environment, do not redirect the tee
+# command to /dev/null.
+ifeq "$V" ""
+VERBOSE_REDIRECT := > /dev/null
+endif
 
 # Check that we have a correct version of make
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -32,6 +42,8 @@ all: $(BOARD).rom
 # Disable all built in rules
 .SUFFIXES:
 
+# Timestamps should be in ISO format
+DATE=`date --rfc-3339=seconds`
 
 # Bring in all of the module definitions;
 # these are the external pieces that will be downloaded and built
@@ -107,12 +119,15 @@ define define_module =
 	cp -a "$$<" "$$@"
   endif
 
-
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
 		$(build)/$($1_dir)/.canary \
 		$(build)/$($1_dir)/.config
-	cd "$(build)/$($1_dir)" ; $($1_configure)
+	@echo "$(DATE) Configuring $1..."
+	@( cd "$(build)/$($1_dir)" ; $($1_configure) ) \
+		2>&1 \
+		| tee "$(log_dir)/$1.configure.log" \
+		$(VERBOSE_REDIRECT)
 	touch "$$@"
 
   # Build the target after any dependencies
@@ -126,7 +141,14 @@ define define_module =
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(build)/$($1_dir)/.configured
-	$(MAKE) -C "$(build)/$($1_dir)" $($1_target)
+	@echo "$(DATE) Building $1"
+	@( $(MAKE) \
+		-C "$(build)/$($1_dir)" \
+		$($1_target)  \
+	) \
+		2>&1 \
+		| tee "$(log_dir)/$1.log" \
+		$(VERBOSE_REDIRECT)
 
   $1.clean:
 	-$(RM) "$(build)/$($1_dir)/.configured"
@@ -145,8 +167,9 @@ initrd_bin_dir := initrd/bin
 # the destination file.
 #
 define install =
-	cmp --quiet "$1" "$2" || \
-	cp -a "$1" "$2"
+	@echo "$(DATE) Installing $2"
+	@cmp --quiet "$1" "$2" || \
+		cp -a "$1" "$2"
 endef
 
 #
@@ -206,7 +229,8 @@ initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
-	$(MAKE) -C "$(dir $@)" CC="$(heads_cc)"
+	@echo "$(DATE) Building cbmem"
+	@$(MAKE) -C "$(dir $@)" CC="$(heads_cc)"
 
 
 # Update all of the libraries in the initrd based on the executables
@@ -262,7 +286,8 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
-	cmp --quiet "$@" "$^" || \
+	@echo "$(DATE) Copying $@"
+	@cmp --quiet "$@" "$^" || \
 	cp -a "$^" "$@"
 $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 
@@ -279,9 +304,20 @@ qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	cp -a "$<" "$@"
 
 clean-modules:
-	for dir in busybox-1.25.0 cryptsetup-1.7.3 gnupg-1.4.21 kexec-tools-2.0.12 libuuid-1.0.3 LVM2.2.02.168 mbedtls-2.3.0 popt-1.16 qrencode-3.4.4 tpmtotp-git ; do \
-		$(MAKE) -C build/$$dir clean; \
-		rm build/$$dir/.configured; \
+	for dir in \
+		$(busybox_dir) \
+		$(cryptsetup_dir) \
+		$(gnupg_dir) \
+		$(kexec_dir) \
+		$(libuuid_dir) \
+		$(lvm2_dir) \
+		$(mbedtls_dir) \
+		$(popt_dir) \
+		$(qrencode_dir) \
+		$(tpmtotp_dir) \
+	; do \
+		$(MAKE) -C "build/$$dir" clean ; \
+		rm "build/$$dir/.configured" ; \
 	done
 
 
@@ -298,10 +334,18 @@ all:
 
 # How to download and build the correct version of make
 $(HEADS_MAKE): $(build)/$(make_dir)/Makefile
-	make -C "`dirname $@`" -j8
+	make -C "`dirname $@`" -j8 \
+		2>&1 \
+		| tee "$(log_dir)/make.log" \
+		$(VERBOSE_REDIRECT)
+
 $(build)/$(make_dir)/Makefile: $(packages)/$(make_tar)
 	tar xf "$<" -C build/
-	cd "`dirname $@`" ; ./configure
+	cd "`dirname $@`" ; ./configure \
+		2>&1 \
+		| tee "$(log_dir)/make.configure.log" \
+		$(VERBOSE_REDIRECT)
+
 $(packages)/$(make_tar):
 	wget -O "$@" "$(make_url)"
 	if ! echo "$(make_hash)  $@" | sha256sum --check -; then \
