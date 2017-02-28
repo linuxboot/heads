@@ -239,13 +239,9 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 #
 initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	cd ./initrd ; \
-	( \
-		echo "/dev" ; \
-		echo "/dev/console"; \
-		find . \
-	) \
+	find . \
 	| cpio --quiet -H newc -o \
-	| ../cpio-clean \
+	| ../cpio-clean ../dev.cpio - \
 		> "../$@.tmp"
 	if ! cmp --quiet "$@" "$@.tmp"; then \
 		mv "$@.tmp" "$@"; \
