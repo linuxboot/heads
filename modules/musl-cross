@@ -7,7 +7,7 @@ musl-cross_repo := https://github.com/GregorR/musl-cross
 musl-cross_output := $(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
 
 musl-cross_configure := \
-	echo > Makefile -e \
+	/bin/echo -e > Makefile \
 	'$(musl-cross_output):\n\tCC_BASE_PREFIX="$(pwd)/crossgcc" ./build.sh'
 
 musl-cross_target :=
