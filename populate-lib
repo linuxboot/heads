@@ -42,10 +42,13 @@ for my $file (@ARGV)
 }
 
 #print Dumper(\%libraries);
+if(0)
+{
 print "$_: ", join(" ", @{$deps{$_}}), "\n"
 	for keys %deps;
 
 print "\n";
+}
 
 
 unless( -d $dest )
