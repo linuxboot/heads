@@ -2,7 +2,7 @@
 
 Installing Heads
 ===
-These instructions are only for the Lenovo Thinkpad x230 and require physical access to the hardware. There are risks in installation that might brick your system and cause loss of data. You will need another computer to perform the flashing and building steps. If you want to experiment, consider [[Emulating Heads]] with qemu before installing it on your machine.
+These instructions are only for the Lenovo Thinkpad x230 and require physical access to the hardware. There are risks in installation that might brick your system and cause loss of data. You will need another computer to perform the flashing and building steps. If you want to experiment, consider [Emulating Heads](./Emulating-Heads.md) with qemu before installing it on your machine.
 
 ![Underside of the x230](https://farm9.static.flickr.com/8778/28686026815_6931443f6c.jpg)
 
@@ -18,7 +18,7 @@ The palm rest trackpad ribbon cable needs to be disconnected. Flip up the retain
 
 ![Flash chips](https://farm9.static.flickr.com/8581/28401826120_bd8a84e508.jpg)
 
-There are two SPI flash chips hiding under the black plastic, labelled "SPI1" and "SPI2". The top one is 4MB and contains the BIOS and reset vector. The bottom one is 8MB and has the [Intel Management Engine (ME)|https://www.flashrom.org/ME] firmware, plus the flash descriptor.
+There are two SPI flash chips hiding under the black plastic, labelled "SPI1" and "SPI2". The top one is 4MB and contains the BIOS and reset vector. The bottom one is 8MB and has the [Intel Management Engine (ME)](https://www.flashrom.org/ME) firmware, plus the flash descriptor.
 
 
 Using a chip clip and a [SPI programmer](https://trmm.net/SPI_Flash), dump the existing ROMs to files. Dump them again and compare the different dumps to be sure that were no errors. Maybe dump them both a third time, just to be safe.
