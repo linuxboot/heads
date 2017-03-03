@@ -28,7 +28,7 @@ Building heads
 In order to build reproducible firmware images, Heads builds a specific
 version of gcc and uses it to compile the Linux kernel and various tools
 that go into the initrd.  Unfortunately this means the first step is a
-little slow since it will clone the `musl-cross` tree and build gcc... 
+little slow since it will clone the `musl-cross` tree and build gcc...
 
 Once that is done, the top level `Makefile` will handle most of the
 remaining details -- it downloads the various packages, verifies the
