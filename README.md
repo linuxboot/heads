@@ -48,7 +48,7 @@ directory and include:
 * [kexec](https://wiki.archlinux.org/index.php/kexec)
 * [mbedtls](https://tls.mbed.org/)
 * [tpmtotp](https://trmm.net/Tpmtotp)
-* [coreboot](https://coreboot.org/)
+* [coreboot](https://www.coreboot.org/)
 * [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup)
 * [lvm2](https://sourceware.org/lvm2/)
 * [gnupg](https://www.gnupg.org/)
