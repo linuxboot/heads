@@ -280,10 +280,15 @@ initrd.intermediate: initrd.cpio
 
 # populate the coreboot initrd image from the one we built.
 # 4.4 doesn't allow this, but building from head does.
-$(call outputs,linux): initrd.cpio
-#$(call outputs,coreboot): $(build)/$(coreboot_dir)/initrd.cpio.xz
+#$(call outputs,linux): initrd.cpio
+coreboot.intermediate: $(build)/$(coreboot_dir)/initrd.cpio.xz
 $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
-	xz --extreme < "$<" > "$@"
+	xz \
+		--check=crc32 \
+		--lzma2=dict=1MiB \
+		--extreme \
+		< "$<" \
+		> "$@"
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
