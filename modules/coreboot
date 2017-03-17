@@ -30,7 +30,7 @@ coreboot_target := \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
-	-j 8
+	-j $(MAKE_JOBS)
 
 coreboot_output := $(BOARD)/coreboot.rom
 

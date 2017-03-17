@@ -14,7 +14,7 @@ mbedtls_target := \
 	SHARED=1 \
 	DESTDIR=$(INSTALL) \
 	CC="$(heads_cc)" \
-	-j 8 \
+	-j $(MAKE_JOBS) \
 	install
 
 mbedtls_depends := $(musl_dep)

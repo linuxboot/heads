@@ -11,7 +11,7 @@ popt_configure := ./configure \
 	--prefix "" \
 	--host i386-elf-linux \
 
-popt_target := -j 8 \
+popt_target := -j $(MAKE_JOBS) \
 	&& $(MAKE) \
 		-C "$(build)/$(popt_dir)" \
 		prefix="$(INSTALL)" \
