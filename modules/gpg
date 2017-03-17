@@ -40,7 +40,7 @@ gpg_configure := ./configure \
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
 # into our actual target location
-gpg_target := -j 8 \
+gpg_target := -j $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(gpg_dir) \
 		exec_prefix=$(pwd)/install \
 		datarootdir=$(pwd)/install/share \
