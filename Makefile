@@ -5,6 +5,7 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
+MAKE_JOB	?= 8
 
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir "$(log_dir)")
@@ -334,7 +335,7 @@ all:
 
 # How to download and build the correct version of make
 $(HEADS_MAKE): $(build)/$(make_dir)/Makefile
-	make -C "`dirname $@`" -j8 \
+	make -C "`dirname $@`" -j$(MAKE_JOBS) \
 		2>&1 \
 		| tee "$(log_dir)/make.log" \
 		$(VERBOSE_REDIRECT)

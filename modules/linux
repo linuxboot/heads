@@ -28,5 +28,5 @@ linux_target := \
 	KBUILD_BUILD_HOST=heads-build \
 	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
 	KBUILD_BUILD_VERSION=0 \
-	-j 8 \
+	-j $(MAKE_JOBS) \
 	bzImage
