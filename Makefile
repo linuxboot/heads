@@ -301,7 +301,7 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 		> "$@"
 
 # hack for the coreboot to find the linux kernel
-$(build)/$(coreboot_dir)/bzImage: linux.intermediate
+$(build)/$(coreboot_dir)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
 	@echo "$(DATE) Copying $@"
 	@cp -a "$^" "$@"
 coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
