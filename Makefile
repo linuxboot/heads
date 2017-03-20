@@ -38,7 +38,7 @@ heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 
-CROSS		:= $(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS		:= $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 
 #heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
@@ -136,7 +136,7 @@ define define_module =
 		$(VERBOSE_REDIRECT)
 	touch "$$@"
 
-  # Build the target after any dependencies
+  # All of the outputs should result from building the intermediate target
   $(call outputs,$1): $1.intermediate
 
   # Short hand target for the module
@@ -144,8 +144,8 @@ define define_module =
 
   # Target for all of the outputs, which depend on their dependent modules
   $1.intermediate: \
-		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(foreach d,$($1_depends),$d.intermediate) \
+		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(build)/$($1_dir)/.configured
 	@echo "$(DATE) Building $1"
 	@( $(MAKE) \
@@ -301,7 +301,7 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 		> "$@"
 
 # hack for the coreboot to find the linux kernel
-$(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
+$(build)/$(coreboot_dir)/bzImage: linux.intermediate
 	@echo "$(DATE) Copying $@"
 	@cp -a "$^" "$@"
 coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
@@ -315,10 +315,12 @@ coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	dd if="$<" of="$@" bs=1M skip=8
+	$(RM) "$<"
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	cp -a "$<" "$@"
+	mv "$<" "$@"
+
 
 clean-modules:
 	for dir in \
