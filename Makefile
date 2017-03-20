@@ -24,6 +24,10 @@ ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
 # We are running our own version of make,
 # proceed with the build.
 
+# Force pipelines to fail if any of the commands in the pipe fail
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 # Currently supported targets are x230, chell and qemu
 BOARD		?= qemu
 
@@ -126,6 +130,7 @@ define define_module =
 		$(build)/$($1_dir)/.config
 	@echo "$(DATE) Configuring $1..."
 	@( cd "$(build)/$($1_dir)" ; $($1_configure) ) \
+		< /dev/null \
 		2>&1 \
 		| tee "$(log_dir)/$1.configure.log" \
 		$(VERBOSE_REDIRECT)
@@ -147,9 +152,16 @@ define define_module =
 		-C "$(build)/$($1_dir)" \
 		$($1_target)  \
 	) \
+		< /dev/null \
 		2>&1 \
 		| tee "$(log_dir)/$1.log" \
-		$(VERBOSE_REDIRECT)
+		$(VERBOSE_REDIRECT) \
+	|| ( \
+		echo "tail $(log_dir)/$1.log"; \
+		echo "-----"; \
+		tail -20 "$(log_dir)/$1.log"; \
+		exit 1; \
+	)
 
   $1.clean:
 	-$(RM) "$(build)/$($1_dir)/.configured"
@@ -169,8 +181,7 @@ initrd_bin_dir := initrd/bin
 #
 define install =
 	@echo "$(DATE) Installing $2"
-	@cmp --quiet "$1" "$2" || \
-		cp -a "$1" "$2"
+	@cp -a "$1" "$2"
 endef
 
 #
@@ -225,8 +236,7 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 # this must be built *AFTER* musl
 initrd_bins += initrd/bin/cbmem
 initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
-	cmp --quiet "$^" "$@" \
-	|| cp "$^" "$@"
+	cp "$^" "$@"
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
@@ -238,7 +248,7 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 # that were installed.
 initrd_lib_install: $(initrd_bins) $(initrd_libs)
 	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
-		| xargs -0 $(CROSS)strip
+		| xargs -0 $(CROSS)strip --preserve-dates
 	LD_LIBRARY_PATH="$(INSTALL)/lib" \
 	./populate-lib \
 		$(initrd_lib_dir) \
@@ -293,9 +303,8 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(call outputs,linux)
 	@echo "$(DATE) Copying $@"
-	@cmp --quiet "$@" "$^" || \
-	cp -a "$^" "$@"
-$(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
+	@cp -a "$^" "$@"
+coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 
 # The coreboot gcc won't work for us since it doesn't have libc
@@ -304,9 +313,11 @@ $(call outputs,coreboot): $(build)/$(coreboot_dir)/bzImage
 #export LDFLAGS := -L/lib/x86_64-linux-gnu
 
 x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
+	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	dd if="$<" of="$@" bs=1M skip=8
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
+	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	cp -a "$<" "$@"
 
 clean-modules:
