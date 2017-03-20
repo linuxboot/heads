@@ -6,7 +6,7 @@ musl_tar := musl-$(musl_version).tar.gz
 musl_url := https://www.musl-libc.org/releases/$(musl_tar)
 musl_hash := 97e447c7ee2a7f613186ec54a93054fe15469fe34d7d323080f7ef38f5ecb0fa
 
-musl_output := $(INSTALL)/bin/musl-gcc
+musl_output := ../../install/bin/musl-gcc
 
 #
 # Note that for syslibdir to be /lib the install will fail.
