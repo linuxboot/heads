@@ -30,3 +30,6 @@ linux_target := \
 	KBUILD_BUILD_VERSION=0 \
 	-j $(MAKE_JOBS) \
 	bzImage
+
+# We cross compile linux now
+linux_depends := $(musl_dep)
