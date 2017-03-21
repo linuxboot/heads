@@ -14,7 +14,7 @@ qrencode_configure := ./configure \
 	--without-tools \
 	--host i386-elf-linux \
 
-qrencode_target := -j $(MAKE_JOBS) \
+qrencode_target := $(MAKE_JOBS) \
 	&& $(MAKE) \
 		-C "$(build)/$(qrencode_dir)" \
 		prefix="$(INSTALL)" \

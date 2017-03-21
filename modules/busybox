@@ -12,7 +12,7 @@ busybox_output := busybox
 busybox_target := \
 	CC="$(heads_cc)" \
 	CONFIG_PREFIX="$(INSTALL)" \
-	-j $(MAKE_JOBS) \
+	$(MAKE_JOBS) \
 	install
 
 busybox_depends := $(musl_dep)

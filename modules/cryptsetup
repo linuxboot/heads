@@ -20,7 +20,7 @@ cryptsetup_configure := ./configure \
 # but after building, replace prefix so that they will be installed
 # in the correct directory.
 cryptsetup_target := \
-	-j $(MAKE_JOBS) \
+	$(MAKE_JOBS) \
 	&& $(MAKE) \
 		-C $(build)/$(cryptsetup_dir) \
 		prefix="$(INSTALL)" \

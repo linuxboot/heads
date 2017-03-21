@@ -22,6 +22,7 @@ lvm2_configure := \
 
 # not sure why LIB_SUFFIX is not defined in the cross build
 lvm2_target := \
+	$(MAKE_JOBS) \
 	install_device-mapper \
 
 #lvm2_libraries := libdm/libdevmapper.so
