@@ -324,10 +324,12 @@ x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	dd if="$<" of="$@" bs=1M skip=8
 	$(RM) "$<"
+	@sha256sum "$@"
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	mv "$<" "$@"
+	@sha256sum "$@"
 
 
 clean-modules:
