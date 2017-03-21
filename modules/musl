@@ -24,7 +24,7 @@ musl_configure := ./configure \
 
 
 
-musl_target := -j $(MAKE_JOBS) install
+musl_target := $(MAKE_JOBS) install
 #musl_target :=  install
 
 musl_depends := kernel-headers musl-cross

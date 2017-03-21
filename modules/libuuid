@@ -11,7 +11,7 @@ libuuid_configure := ./configure \
 	--prefix "" \
 	--host i386-elf-linux \
 
-libuuid_target := -j $(MAKE_JOBS) && \
+libuuid_target := $(MAKE_JOBS) && \
 	$(MAKE) \
 		-C "$(build)/$(libuuid_dir)" \
 		prefix="$(INSTALL)" \

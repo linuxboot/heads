@@ -17,6 +17,7 @@ kexec_configure := ./configure \
 	&& $(MAKE) clean
 
 kexec_target := \
+	$(MAKE_JOBS) \
 	install \
 
 kexec_output := build/sbin/kexec
