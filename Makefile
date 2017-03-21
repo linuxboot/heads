@@ -5,7 +5,7 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
-MAKE_JOB	?= 8
+MAKE_JOBS	?= -j8 --max-load 24
 
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir "$(log_dir)")
@@ -38,7 +38,7 @@ heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 
-CROSS		:= $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 
 #heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
@@ -229,7 +229,7 @@ initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
 		-C $(build)/$(busybox_dir) \
 		CC="$(heads_cc)" \
 		CONFIG_PREFIX="$(pwd)/initrd" \
-		-j 8 \
+		$(MAKE_JOBS) \
 		install
 
 # hack to build cbmem from coreboot
@@ -353,7 +353,7 @@ all:
 
 # How to download and build the correct version of make
 $(HEADS_MAKE): $(build)/$(make_dir)/Makefile
-	make -C "`dirname $@`" -j$(MAKE_JOBS) \
+	make -C "`dirname $@`" $(MAKE_JOBS) \
 		2>&1 \
 		| tee "$(log_dir)/make.log" \
 		$(VERBOSE_REDIRECT)
