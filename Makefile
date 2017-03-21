@@ -128,8 +128,12 @@ define define_module =
   $(build)/$($1_dir)/.configured: \
 		$(build)/$($1_dir)/.canary \
 		$(build)/$($1_dir)/.config
-	@echo "$(DATE) Configuring $1..."
-	@( cd "$(build)/$($1_dir)" ; $($1_configure) ) \
+	@echo "$(DATE) Configuring $1"
+	@( \
+		cd "$(build)/$($1_dir)" ; \
+		echo "$($1_configure)"; \
+		$($1_configure) \
+	) \
 		< /dev/null \
 		2>&1 \
 		| tee "$(log_dir)/$1.configure.log" \
@@ -148,9 +152,13 @@ define define_module =
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(build)/$($1_dir)/.configured
 	@echo "$(DATE) Building $1"
-	@( $(MAKE) \
-		-C "$(build)/$($1_dir)" \
-		$($1_target)  \
+	@( \
+		echo "$(MAKE) \
+			-C \"$(build)/$($1_dir)\" \
+			$($1_target)" ;  \
+		$(MAKE) \
+			-C "$(build)/$($1_dir)" \
+			$($1_target)  \
 	) \
 		< /dev/null \
 		2>&1 \
