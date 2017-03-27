@@ -1,6 +1,6 @@
 #!/bin/ash
 # First thing it is vital to mount the /dev and other system directories
-mkdir /proc /sys /dev /tmp /boot 2>&- 1>&-
+mkdir /proc /sys /dev /tmp /etc /boot 2>&- 1>&-
 mount -t devtmpfs none /dev
 mount -t proc none /proc
 mount -t sysfs none /sys
