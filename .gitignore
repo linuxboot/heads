@@ -15,3 +15,4 @@ initrd/sbin
 initrd/lib
 typescript*
 config/*.old
+*.log
