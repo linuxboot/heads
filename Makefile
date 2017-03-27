@@ -285,13 +285,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 	find . \
 	| cpio --quiet -H newc -o \
 	| ../cpio-clean ../dev.cpio - \
-		> "../$@.tmp"
-	if ! cmp --quiet "$@" "$@.tmp"; then \
-		mv "$@.tmp" "$@"; \
-	else \
-		echo "$@: Unchanged"; \
-		rm "$@.tmp"; \
-	fi
+		> "../$@"
 
 initrd.intermediate: initrd.cpio
 
