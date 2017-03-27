@@ -1,10 +1,10 @@
 modules += mbedtls
 
-mbedtls_version := 2.3.0
+mbedtls_version := 2.4.2
 mbedtls_dir := mbedtls-$(mbedtls_version)
 mbedtls_tar := mbedtls-$(mbedtls_version)-gpl.tgz
 mbedtls_url := https://tls.mbed.org/download/$(mbedtls_tar)
-mbedtls_hash := 21237014f779bde70b2d71399cc1ea53365eb7f10cdd74a13ee6329a1910cb49
+mbedtls_hash := d01f2d5586a52055329d194d909103f445bd2d0b6b2b5f1c830fbf828ac6299f
 
 mbedtls_libraries := \
 	library/libmbedcrypto.so.0 \
