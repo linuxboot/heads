@@ -20,7 +20,12 @@ linux_config := linux.config
 linux_modules := \
 	drivers/net/ethernet/intel/e1000/e1000.ko \
 	drivers/net/ethernet/intel/e1000e/e1000e.ko \
-	
+	drivers/usb/host/xhci-hcd.ko \
+	drivers/usb/host/ehci-platform.ko \
+	drivers/usb/host/ehci-hcd.ko \
+	drivers/usb/host/xhci-plat-hcd.ko \
+	drivers/usb/host/xhci-pci.ko \
+	drivers/usb/host/ehci-pci.ko \
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
