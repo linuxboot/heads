@@ -16,3 +16,5 @@ initrd/lib
 typescript*
 config/*.old
 *.log
+crossgcc
+install
