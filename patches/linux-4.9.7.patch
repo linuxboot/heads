@@ -1,0 +1,18 @@
+--- a/arch/x86/kernel/nmi.c	2017-03-28 16:19:30.830924335 -0400
++++ b/arch/x86/kernel/nmi.c	2017-03-28 16:19:32.798935626 -0400
+@@ -303,6 +303,7 @@
+ 
+ 	__this_cpu_add(nmi_stats.unknown, 1);
+ 
++/*
+ 	pr_emerg("Uhhuh. NMI received for unknown reason %02x on CPU %d.\n",
+ 		 reason, smp_processor_id());
+ 
+@@ -311,6 +312,7 @@
+ 		nmi_panic(regs, "NMI: Not continuing");
+ 
+ 	pr_emerg("Dazed and confused, but trying to continue\n");
++*/
+ }
+ NOKPROBE_SYMBOL(unknown_nmi_error);
+ 
