@@ -280,7 +280,7 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 # unlikely that their device file has a different major/minor)
 #
 #
-initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
+initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install linux_modules
 	cd ./initrd ; \
 	find . \
 	| cpio --quiet -H newc -o \
@@ -288,6 +288,14 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
 		> "../$@"
 
 initrd.intermediate: initrd.cpio
+
+linux_modules: linux.intermediate
+	@-mkdir initrd/lib/modules
+	@for mod in $(linux_modules); do \
+		echo "$(DATE) Installing $$mod"; \
+		cp -a "$(build)/$(linux_dir)/$$mod" initrd/lib/modules; \
+	done
+	
 
 
 # populate the coreboot initrd image from the one we built.
