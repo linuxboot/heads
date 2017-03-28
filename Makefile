@@ -295,6 +295,7 @@ linux_modules: linux.intermediate
 		echo "$(DATE) Installing $$mod"; \
 		cp -a "$(build)/$(linux_dir)/$$mod" initrd/lib/modules; \
 	done
+	$(CROSS)strip --strip-debug initrd/lib/modules/*.ko
 	
 
 
