@@ -11,7 +11,7 @@ busybox_config := busybox.config
 busybox_output := busybox
 busybox_target := \
 	CC="$(heads_cc)" \
-	CONFIG_PREFIX="$(INSTALL)" \
+	CONFIG_PREFIX="../../initrd/" \
 	$(MAKE_JOBS) \
 	install
 
