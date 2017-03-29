@@ -17,5 +17,5 @@ libuuid_target := $(MAKE_JOBS) && \
 		prefix="$(INSTALL)" \
 		install
 
-libuuid_libraries := .libs/libuuid.so
+libuuid_libraries := .libs/libuuid.so.1
 libuuid_depends := $(musl_dep)
