@@ -30,4 +30,6 @@ cryptsetup_output := \
 	src/.libs/cryptsetup \
 	src/.libs/veritysetup \
 
+cryptsetup_libraries := \
+	lib/.libs/libcryptsetup.so.4 \
 
