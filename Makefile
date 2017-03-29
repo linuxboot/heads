@@ -14,7 +14,19 @@ BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir "$(log_dir)")
 # command to /dev/null.
 ifeq "$V" ""
 VERBOSE_REDIRECT := > /dev/null
+# Not verbose, so we only show the header
+define do =
+	@echo "$(DATE) $1 $2"
+	@$3
+endef
+else
+# Verbose, so we display what we are doing
+define do =
+	@echo "$(DATE) $1 $2"
+	$3
+endef
 endif
+
 
 # Check that we have a correct version of make
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -151,7 +163,7 @@ define define_module =
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(build)/$($1_dir)/.configured
-	@echo "$(DATE) Building $1"
+	@echo "$(DATE) MAKE $1"
 	@( \
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
@@ -188,8 +200,7 @@ initrd_bin_dir := initrd/bin
 # the destination file.
 #
 define install =
-	@echo "$(DATE) Installing $2"
-	@cp -a "$1" "$2"
+	$(call do,INSTALL,$2,cp "$1" "$2")
 endef
 
 #
@@ -208,10 +219,8 @@ endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	@if [ ! -d "$(initrd_lib_dir)" ]; \
-		then mkdir -p "$(initrd_lib_dir)"; \
-	fi
-	$(call install,$$<,$$@)
+	@mkdir -p "$(initrd_lib_dir)"
+	$(call do,INSTALL-STRIP,$1,$(CROSS)strip -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
@@ -221,10 +230,10 @@ $(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,gpg), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,lvm2), $(eval $(call initrd_bin_add,$_)))
 
-$(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,lvm2), $(eval $(call initrd_lib_add,$_)))
+# Install the libraries for every module that we have built
+$(foreach m, $(modules), \
+	$(foreach _, $(call libs,$m), $(eval $(call initrd_lib_add,$_))) \
+)
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
@@ -248,22 +257,9 @@ initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
-	@echo "$(DATE) Building cbmem"
-	@$(MAKE) -C "$(dir $@)" CC="$(heads_cc)"
-
-
-# Update all of the libraries in the initrd based on the executables
-# that were installed.
-initrd_lib_install: $(initrd_bins) $(initrd_libs)
-	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
-		| xargs -0 $(CROSS)strip --preserve-dates
-	LD_LIBRARY_PATH="$(INSTALL)/lib" \
-	./populate-lib \
-		$(initrd_lib_dir) \
-		initrd/bin/* \
-		initrd/sbin/* \
-
-	-$(CROSS)strip $(initrd_lib_dir)/* ; true
+	$(call do,MAKE,cbmem,\
+		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
+	)
 
 
 #
@@ -280,23 +276,30 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 # unlikely that their device file has a different major/minor)
 #
 #
-initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install linux_modules
+initrd.cpio: $(initrd_bins) $(initrd_libs) linux_modules
+	$(call do,CPIO,$@, \
 	cd ./initrd ; \
 	find . \
 	| cpio --quiet -H newc -o \
 	| ../cpio-clean ../dev.cpio - \
-		> "../$@"
+		> "../$@" \
+	)
 
 initrd.intermediate: initrd.cpio
 
 linux_modules: linux.intermediate
-	@-mkdir initrd/lib/modules
-	@for mod in $(linux_modules); do \
-		echo "$(DATE) Installing $$mod"; \
-		cp -a "$(build)/$(linux_dir)/$$mod" initrd/lib/modules; \
-	done
-	$(CROSS)strip --strip-debug initrd/lib/modules/*.ko
-	
+	@-mkdir -p initrd/lib/modules
+
+define linux_module =
+$(build)/$(linux_dir)/$1: linux.intermediate
+initrd.cpio: initrd/lib/modules/$(notdir $1)
+initrd/lib/modules/$(notdir $1): $(build)/$(linux_dir)/$1
+	$(call do,INSTALL-STRIP,$$@,$(CROSS)strip --strip-debug -o "$$@" "$$<")
+endef
+define map =
+$(foreach _,$2,$(eval $(call $1,$_)))
+endef
+$(call map,linux_module,$(linux_modules))
 
 
 # populate the coreboot initrd image from the one we built.
@@ -304,17 +307,19 @@ linux_modules: linux.intermediate
 #$(call outputs,linux): initrd.cpio
 coreboot.intermediate: $(build)/$(coreboot_dir)/initrd.cpio.xz
 $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
+	$(call do,COMPRESS,$<,\
 	xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
 		--extreme \
 		< "$<" \
-		> "$@"
+		> "$@" \
+	)
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	@echo "$(DATE) Copying $@"
-	@cp -a "$^" "$@"
+	$(call do,COPY,$@,cp -a "$^" "$@")
+
 coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 
@@ -325,13 +330,13 @@ coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	dd if="$<" of="$@" bs=1M skip=8
-	$(RM) "$<"
+	$(call do,EXTRACT,$@,dd if="$<" of="$@" bs=1M skip=8)
+	@$(RM) "$<"
 	@sha256sum "$@"
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	mv "$<" "$@"
+	$(call do,EXTRACT,$@,mv "$<" "$@")
 	@sha256sum "$@"
 
 
