@@ -336,10 +336,13 @@ coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 # Each board output has its own fixup required to turn the coreboot.rom
 # into a flashable image.
+
+# This produces a ROM image suitable for writing into the top chip;
+# the x230.full.rom is suitable for our modified flashrom program.
 x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	$(call do,EXTRACT,$@,dd if="$<" of="$@" bs=1M skip=8)
-	@$(RM) "$<"
+	@mv "$<" x230.full.rom
 	@sha256sum "$@"
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom

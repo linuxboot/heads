@@ -1,6 +1,171 @@
+diff -u --recursive ../clean/flashrom-0.9.9/board_enable.c flashrom-0.9.9/board_enable.c
+--- ../clean/flashrom-0.9.9/board_enable.c	2016-03-13 11:16:30.000000000 -0400
++++ flashrom-0.9.9/board_enable.c	2017-03-30 16:50:21.727748288 -0400
+@@ -2305,6 +2305,7 @@
+ 
+ 	/* first pci-id set [4],          second pci-id set [4],          dmi identifier, coreboot id [2],  phase, vendor name,  board name       max_rom_...  OK? flash enable */
+ #if defined(__i386__) || defined(__x86_64__)
++#if 0
+ 	{0x10DE, 0x0547, 0x147B, 0x1C2F,  0x10DE, 0x0548, 0x147B, 0x1C2F, NULL,         NULL, NULL,           P3, "abit",        "AN-M2",                 0,   NT, nvidia_mcp_gpio2_raise},
+ 	{0x1106, 0x0282, 0x147B, 0x1415,  0x1106, 0x3227, 0x147B, 0x1415, "^AV8 ",      NULL, NULL,           P3, "abit",        "AV8",                   0,   OK, board_abit_av8},
+ 	{0x8086, 0x7190,      0,      0,  0x8086, 0x7110,      0,      0, NULL /* "^I440BX-W977$" */, "abit", "bf6", P3, "abit", "BF6",                   0,   OK, intel_piix4_gpo26_lower},
+@@ -2427,6 +2428,7 @@
+ 	{0x8086, 0x7190,      0,      0,  0x8086, 0x7110,      0,      0, "^SE440BX-2$", NULL, NULL,          P3, "Intel",       "SE440BX-2",             0,   NT, intel_piix4_gpo27_lower},
+ 	{0x1022, 0x7468,      0,      0,  0x1022, 0x7460,      0,      0, NULL,         "iwill", "dk8_htx",   P3, "IWILL",       "DK8-HTX",               0,   OK, w83627hf_gpio24_raise_2e},
+ 	{0x8086, 0x27A0, 0x8086, 0x27a0,  0x8086, 0x27b8, 0x8086, 0x27b8, NULL,        "kontron", "986lcd-m", P3, "Kontron",     "986LCD-M",              0,   OK, board_kontron_986lcd_m},
++#endif
+ 	{0x8086, 0x2917, 0x17AA, 0x20F5,  0x8086, 0x2930, 0x17AA, 0x20F9, "^ThinkPad T400", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad T400",         0,   OK, p2_whitelist_laptop},
+ 	{0x8086, 0x1E22, 0x17AA, 0x21F6,  0x8086, 0x1E55, 0x17AA, 0x21F6, "^ThinkPad T530", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad T530",         0,   OK, p2_whitelist_laptop},
+ 	{0x8086, 0x27a0, 0x17aa, 0x2015,  0x8086, 0x27b9, 0x17aa, 0x2009, "^ThinkPad T60", NULL, NULL,        P2, "IBM/Lenovo",  "ThinkPad T60",          0,   OK, p2_whitelist_laptop},
+@@ -2435,6 +2437,7 @@
+ 	{0x8086, 0x3B07, 0x17AA, 0x2166,  0x8086, 0x3B30, 0x17AA, 0x2167, "^Lenovo X201", NULL, NULL,         P2, "IBM/Lenovo",  "ThinkPad X201",         0,   OK, p2_whitelist_laptop},
+ 	{0x8086, 0x1E22, 0x17AA, 0x21FA,  0x8086, 0x1E55, 0x17AA, 0x21FA, "^ThinkPad X230", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad X230",         0,   OK, p2_whitelist_laptop},
+ 	{0x8086, 0x27A0, 0x17AA, 0x2017,  0x8086, 0x27B9, 0x17AA, 0x2009, "^ThinkPad X60", NULL, NULL,        P2, "IBM/Lenovo",  "ThinkPad X60(s)",       0,   OK, p2_whitelist_laptop},
++#if 0
+ 	{0x8086, 0x2411, 0x8086, 0x2411,  0x8086, 0x7125, 0x0e11, 0xb165, NULL,         NULL, NULL,           P3, "Mitac",       "6513WU",                0,   OK, board_mitac_6513wu},
+ 	{0x8086, 0x8186, 0x8086, 0x8186,  0x8086, 0x8800,      0,      0, "^MSC Vertriebs GmbH$", NULL, NULL, P2, "MSC",         "Q7-TCTC",               0,   OK, p2_not_a_laptop},
+ 	{0x8086, 0x7190,      0,      0,  0x8086, 0x7110,      0,      0, "^MS-6163 (i440BX)$", NULL, NULL,   P3, "MSI",         "MS-6163 (MS-6163 Pro)", 0,   OK, intel_piix4_gpo14_raise},
+@@ -2470,6 +2473,7 @@
+ 	{0x1106, 0x3177, 0x1106, 0xAA01,  0x1106, 0x3123, 0x1106, 0xAA01, NULL,         NULL, NULL,           P3, "VIA",         "EPIA M/MII/...",        0,   OK, via_vt823x_gpio15_raise},
+ 	{0x1106, 0x0259, 0x1106, 0x3227,  0x1106, 0x3065, 0x1106, 0x3149, NULL,         NULL, NULL,           P3, "VIA",         "EPIA-N/NL",             0,   OK, via_vt823x_gpio9_raise},
+ #endif
++#endif
+ 	{     0,      0,      0,      0,       0,      0,      0,      0, NULL,         NULL, NULL,           P3, NULL,          NULL,                    0,   NT, NULL}, /* end marker */
+ };
+ 
+diff -u --recursive ../clean/flashrom-0.9.9/chipset_enable.c flashrom-0.9.9/chipset_enable.c
+--- ../clean/flashrom-0.9.9/chipset_enable.c	2016-01-23 11:16:49.000000000 -0500
++++ flashrom-0.9.9/chipset_enable.c	2017-03-30 16:46:10.496413767 -0400
+@@ -1482,6 +1482,7 @@
+ /* Please keep this list numerically sorted by vendor/device ID. */
+ const struct penable chipset_enables[] = {
+ #if defined(__i386__) || defined(__x86_64__)
++#if 0
+ 	{0x1002, 0x4377, OK,  "ATI", "SB400",				enable_flash_sb400},
+ 	{0x1002, 0x438d, OK,  "AMD", "SB600",				enable_flash_sb600},
+ 	{0x1002, 0x439d, OK,  "AMD", "SB7x0/SB8x0/SB9x0",		enable_flash_sb600},
+@@ -1624,7 +1625,9 @@
+ 	{0x8086, 0x1e49, DEP, "Intel", "B75",				enable_flash_pch7},
+ 	{0x8086, 0x1e4a, DEP, "Intel", "H77",				enable_flash_pch7},
+ 	{0x8086, 0x1e53, NT,  "Intel", "C216",				enable_flash_pch7},
++#endif
+ 	{0x8086, 0x1e55, DEP, "Intel", "QM77",				enable_flash_pch7},
++#if 0
+ 	{0x8086, 0x1e56, NT,  "Intel", "QS77",				enable_flash_pch7},
+ 	{0x8086, 0x1e57, DEP, "Intel", "HM77",				enable_flash_pch7},
+ 	{0x8086, 0x1e58, NT,  "Intel", "UM77",				enable_flash_pch7},
+@@ -1786,6 +1789,7 @@
+ 	{0x8086, 0x9d48, BAD, "Intel", "Sunrise Point (Skylake-U Premium)",	NULL},
+ 	{0x8086, 0x9d46, BAD, "Intel", "Sunrise Point (Skylake-Y Premium)",	NULL},
+ #endif
++#endif
+ 	{0},
+ };
+ 
+diff -u --recursive ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
+--- ../clean/flashrom-0.9.9/flashchips.c	2016-03-13 11:16:30.000000000 -0400
++++ flashrom-0.9.9/flashchips.c	2017-03-30 16:44:00.474681255 -0400
+@@ -33,7 +33,7 @@
+  * alphabetically sorted. Within families keep them in order of density.
+  */
+ const struct flashchip flashchips[] = {
+-
++#if 0
+ 	/*
+ 	 * .vendor		= Vendor name
+ 	 * .name		= Chip name
+@@ -15902,6 +15902,7 @@
+ 		.feature_bits	= 0,
+ 		.block_erasers	= {},
+ 	},
++#endif
+ 
+ 	{
+ 		.vendor		= "Programmer",
+@@ -15925,6 +15926,7 @@
+ 		.read		= read_opaque,
+ 	},
+ 
++#if 0
+ 	{
+ 		.vendor		= "AMIC",
+ 		.name		= "unknown AMIC SPI chip",
+@@ -16085,6 +16087,7 @@
+ 		.probe		= probe_spi_rems,
+ 		.write		= NULL,
+ 	},
++#endif
+ 
+ 	{0}
+ };
+diff -u --recursive ../clean/flashrom-0.9.9/flashrom.c flashrom-0.9.9/flashrom.c
+--- ../clean/flashrom-0.9.9/flashrom.c	2016-02-22 03:59:27.000000000 -0500
++++ flashrom-0.9.9/flashrom.c	2017-03-30 16:06:35.121301300 -0400
+@@ -1983,7 +1983,7 @@
+ 	uint8_t *newcontents;
+ 	int ret = 0;
+ 	unsigned long size = flash->chip->total_size * 1024;
+-	int read_all_first = 1; /* FIXME: Make this configurable. */
++	int read_all_first = 0; /* FIXME: Make this configurable. */
+ 
+ 	if (chip_safety_check(flash, force, read_it, write_it, erase_it, verify_it)) {
+ 		msg_cerr("Aborting.\n");
+diff -u --recursive ../clean/flashrom-0.9.9/layout.c flashrom-0.9.9/layout.c
+--- ../clean/flashrom-0.9.9/layout.c	2016-03-13 13:36:49.000000000 -0400
++++ flashrom-0.9.9/layout.c	2017-03-30 16:28:31.853958644 -0400
+@@ -259,6 +259,7 @@
+ 
+ static int copy_old_content(struct flashctx *flash, int oldcontents_valid, uint8_t *oldcontents, uint8_t *newcontents, unsigned int start, unsigned int size)
+ {
++#if 0
+ 	if (!oldcontents_valid) {
+ 		/* oldcontents is a zero-filled buffer. By reading the current data into oldcontents here, we
+ 		 * avoid a rewrite of identical regions even if an initial full chip read didn't happen. */
+@@ -269,6 +270,7 @@
+ 			return 1;
+ 		}
+ 	}
++#endif
+ 	memcpy(newcontents + start, oldcontents + start, size);
+ 	return 0;
+ }
+diff -u --recursive ../clean/flashrom-0.9.9/print.c flashrom-0.9.9/print.c
+--- ../clean/flashrom-0.9.9/print.c	2016-03-13 11:16:30.000000000 -0400
++++ flashrom-0.9.9/print.c	2017-03-30 15:40:11.681082983 -0400
+@@ -518,6 +518,7 @@
+ 
+ /* Please keep this list alphabetically ordered by vendor/board. */
+ const struct board_info boards_known[] = {
++#if 0
+ #if defined(__i386__) || defined(__x86_64__)
+ 	B("A-Trend",	"ATC-6220",		OK, "http://www.motherboard.cz/mb/atrend/atc6220.htm", NULL),
+ 	B("abit",	"A-S78H",		OK, NULL, NULL),
+@@ -1140,12 +1141,13 @@
+ 	B("ZOTAC",	"ZBOX AD02 (PLUS)",	OK, NULL, NULL),
+ 	B("ZOTAC",	"ZBOX HD-ID11",		OK, NULL, NULL),
+ #endif
+-
++#endif
+ 	{0},
+ };
+ 
+ /* Please keep this list alphabetically ordered by vendor/board. */
+ const struct board_info laptops_known[] = {
++#if 0
+ #if defined(__i386__) || defined(__x86_64__)
+ 	B("Acer",	"Aspire 1520",		OK, "http://support.acer.com/us/en/acerpanam/notebook/0000/Acer/Aspire1520/Aspire1520nv.shtml", NULL),
+ 	B("Acer",	"Aspire One",		BAD, NULL, "http://www.coreboot.org/pipermail/coreboot/2009-May/048041.html"),
+@@ -1174,6 +1176,7 @@
+ 	//B("MSI",	"GT60-2OD",		OK, "http://www.msi.com/product/nb/GT60_2OD.html", NULL), requires layout patches
+ 	B("Teclast",	"X98 Air 3G",		OK, NULL, NULL),
+ #endif
++#endif
+ 
+ 	{0},
+ };
 diff -u --recursive ../clean/flashrom-0.9.9/spi.c flashrom-0.9.9/spi.c
 --- ../clean/flashrom-0.9.9/spi.c	2014-07-19 18:03:29.000000000 -0400
-+++ flashrom-0.9.9/spi.c	2017-03-30 13:50:15.007897599 -0400
++++ flashrom-0.9.9/spi.c	2017-03-30 15:10:38.192254930 -0400
 @@ -100,6 +100,20 @@
  	return spi_write_chunked(flash, buf, start, len, max_data);
  }
