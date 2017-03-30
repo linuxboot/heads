@@ -17,6 +17,16 @@ linux_configure := \
 linux_output := arch/x86/boot/bzImage
 linux_config := linux.config
 
+linux_modules := \
+	drivers/net/ethernet/intel/e1000/e1000.ko \
+	drivers/net/ethernet/intel/e1000e/e1000e.ko \
+	drivers/usb/host/xhci-hcd.ko \
+	drivers/usb/host/ehci-platform.ko \
+	drivers/usb/host/ehci-hcd.ko \
+	drivers/usb/host/xhci-plat-hcd.ko \
+	drivers/usb/host/xhci-pci.ko \
+	drivers/usb/host/ehci-pci.ko \
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
@@ -29,7 +39,6 @@ linux_target := \
 	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
 	KBUILD_BUILD_VERSION=0 \
 	-j $(MAKE_JOBS) \
-	bzImage
 
 # We cross compile linux now
 linux_depends := $(musl_dep)

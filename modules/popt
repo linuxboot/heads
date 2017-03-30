@@ -17,5 +17,6 @@ popt_target := $(MAKE_JOBS) \
 		prefix="$(INSTALL)" \
 		install
 
-popt_libraries := ./libs/libpopt.so
+popt_libraries := .libs/libpopt.so.0
+
 popt_depends := $(musl_dep)

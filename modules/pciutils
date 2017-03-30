@@ -1,0 +1,30 @@
+modules += pciutils
+
+pciutils_depends := $(musl_dep)
+
+#pciutils_version := git
+#pciutils_repo := https://github.com/osresearch/pciutils
+
+pciutils_version := 3.5.4
+pciutils_dir := pciutils-$(pciutils_version)
+pciutils_tar := pciutils-$(pciutils_version).tar.xz
+pciutils_url := https://www.kernel.org/pub/software/utils/pciutils/$(pciutils_tar)
+pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe66
+
+pciutils_target := \
+	$(MAKE_JOBS) \
+	CC="$(heads_cc)"  \
+	ZLIB=no \
+	HWDB=no \
+	SHARED=yes \
+	PREFIX=$(INSTALL) \
+	install \
+	install-lib \
+
+pciutils_output := \
+	lspci \
+
+pciutils_libraries := \
+	../../install/lib/libpci.so.3 \
+
+pciutils_configure := 
