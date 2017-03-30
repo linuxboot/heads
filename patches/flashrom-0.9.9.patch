@@ -1,0 +1,33 @@
+diff -u --recursive ../clean/flashrom-0.9.9/spi.c flashrom-0.9.9/spi.c
+--- ../clean/flashrom-0.9.9/spi.c	2014-07-19 18:03:29.000000000 -0400
++++ flashrom-0.9.9/spi.c	2017-03-30 13:50:15.007897599 -0400
+@@ -100,6 +100,20 @@
+ 	return spi_write_chunked(flash, buf, start, len, max_data);
+ }
+ 
++static int my_ffs(int x)
++{
++	int rc = 0;
++	while(x)
++	{
++		if (x & 1)
++			return rc;
++		rc++;
++		x >>= 1;
++	}
++
++	return 0;
++}
++
+ int spi_chip_read(struct flashctx *flash, uint8_t *buf, unsigned int start,
+ 		  unsigned int len)
+ {
+@@ -119,7 +133,7 @@
+ 	/* Check if alignment is native (at least the largest power of two which
+ 	 * is a factor of the mapped size of the chip).
+ 	 */
+-	if (ffs(flash->chip->total_size * 1024) > (ffs(addrbase) ? : 33)) {
++	if (my_ffs(flash->chip->total_size * 1024) > (my_ffs(addrbase) ? : 33)) {
+ 		msg_perr("Flash chip is not aligned natively in the allowed "
+ 			 "access window.\n");
+ 		msg_perr("Read will probably return garbage.\n");

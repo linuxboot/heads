@@ -231,7 +231,8 @@ endef
 
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,bioswrite), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,pciutils), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,flashrom), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,gpg), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,lvm2), $(eval $(call initrd_bin_add,$_)))
