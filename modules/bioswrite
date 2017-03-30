@@ -1,0 +1,20 @@
+modules += bioswrite
+
+bioswrite_depends := $(musl_dep)
+
+bioswrite_version := git
+bioswrite_repo := https://github.com/osresearch/bioswrite
+
+#bioswrite_version := 0.2.1
+bioswrite_dir := bioswrite-$(bioswrite_version)
+bioswrite_tar := bioswrite-$(bioswrite_version).tar.gz
+bioswrite_url := https://github.com/osresearch/bioswrite/archive/v$(bioswrite_version).tar.gz
+bioswrite_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
+
+bioswrite_target := \
+	CC="$(heads_cc)"  \
+
+bioswrite_output := \
+	bioswrite \
+
+bioswrite_configure := 
