@@ -1,0 +1,4 @@
+00000000:00000FFF Descriptor     
+00001000:00002FFF GBe                   
+00003000:004FFFFF ME              
+00800000:00BFFFFF BIOS                  
