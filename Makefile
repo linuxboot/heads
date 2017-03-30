@@ -141,7 +141,7 @@ define define_module =
   else
     # Copy the stored config file into the unpacked directory
     $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
-	$(call do,COPY,"$$<",cp -a "$$<" "$$@")
+	$(call do,COPY,"$$<",cp "$$<" "$$@")
   endif
 
   # Use the module's configure variable to build itself
@@ -195,7 +195,6 @@ define define_module =
 	-$(RM) "$(build)/$($1_dir)/.configured"
 	-$(MAKE) -C "$(build)/$($1_dir)" clean
 
-.INTERMEDIATE: $1.intermediate
 endef
 
 $(call map, define_module, $(modules))
@@ -216,7 +215,7 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	$(call do,INSTALL-BIN,$$<,cp -a "$$<" "$$@")
+	$(call do,INSTALL-BIN,$$<,cp "$$<" "$$@")
 	@$(CROSS)strip "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
@@ -229,16 +228,23 @@ $(initrd_lib_dir)/$(notdir $1): $1
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
-$(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,pciutils), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,flashrom), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,gpg), $(eval $(call initrd_bin_add,$_)))
-$(foreach _, $(call bins,lvm2), $(eval $(call initrd_bin_add,$_)))
+# Only some modules have binaries that we install
+bin_modules += kexec
+bin_modules += tpmtotp
+bin_modules += pciutils
+bin_modules += flashrom
+bin_modules += cryptsetup
+bin_modules += gpg
+bin_modules += lvm2
+
+$(foreach m, $(bin_modules), \
+	$(call map,initrd_bin_add,$(call bins,$m)) \
+)
 
 # Install the libraries for every module that we have built
-$(foreach m, $(modules), $(call map,initrd_lib_add,$(call libs,$m)))
+$(foreach m, $(modules), \
+	$(call map,initrd_lib_add,$(call libs,$m)) \
+)
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
@@ -329,7 +335,7 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	$(call do,COPY,$@,cp -a "$^" "$@")
+	$(call do,COPY,$@,cp "$^" "$@")
 
 coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
