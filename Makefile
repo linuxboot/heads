@@ -5,16 +5,32 @@ build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
+initrd_lib_dir	:= initrd/lib
+initrd_bin_dir	:= initrd/bin
+
+# Controls how many parallel jobs are invoked in subshells
 MAKE_JOBS	?= -j8 --max-load 24
 
 # Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir "$(log_dir)")
+BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir -p "$(log_dir)")
 
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
 ifeq "$V" ""
 VERBOSE_REDIRECT := > /dev/null
+# Not verbose, so we only show the header
+define do =
+	@echo "$(DATE) $1 $2"
+	@$3
+endef
+else
+# Verbose, so we display what we are doing
+define do =
+	@echo "$(DATE) $1 $2"
+	$3
+endef
 endif
+
 
 # Check that we have a correct version of make
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -40,15 +56,23 @@ heads_cc	:= $(INSTALL)/bin/musl-gcc \
 
 CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 
-#heads_cc	:= $(HOME)/install/x86_64-linux-musl/x86_64-linux-musl/bin/gcc
 
 all: $(BOARD).rom
 
 # Disable all built in rules
 .SUFFIXES:
+FORCE:
 
 # Timestamps should be in ISO format
 DATE=`date --rfc-3339=seconds`
+
+# Make helpers to operate on lists of things
+define prefix =
+$(foreach _, $2, $1$_)
+endef
+define map =
+$(foreach _,$2,$(eval $(call $1,$_)))
+endef
 
 # Bring in all of the module definitions;
 # these are the external pieces that will be downloaded and built
@@ -58,10 +82,6 @@ include modules/*
 # These will be built via their intermediate targets
 # This increases the build time, so it is commented out for now
 #all: $(foreach m,$(modules),$m.intermediate)
-
-define prefix =
-$(foreach _, $2, $1$_)
-endef
 
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
@@ -94,14 +114,14 @@ define define_module =
 		( cd $(build)/$($1_dir) ; patch -p1 ) \
 			< patches/$1.patch; \
 	fi
-	touch "$$@"
+	@touch "$$@"
   else
     # Fetch and verify the source tar file
     $(packages)/$($1_tar):
 	wget -O "$$@" $($1_url)
     $(packages)/.$1_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
-	touch "$$@"
+	@touch "$$@"
 
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
@@ -111,24 +131,24 @@ define define_module =
 		( cd $(build)/$($1_dir) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch; \
 	fi
-	touch "$$@"
+	@touch "$$@"
   endif
 
   ifeq "$($1_config)" ""
     # There is no official .config file
     $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
-	touch "$$@"
+	@touch "$$@"
   else
     # Copy the stored config file into the unpacked directory
     $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
-	cp -a "$$<" "$$@"
+	$(call do,COPY,"$$<",cp -a "$$<" "$$@")
   endif
 
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
 		$(build)/$($1_dir)/.canary \
 		$(build)/$($1_dir)/.config
-	@echo "$(DATE) Configuring $1"
+	@echo "$(DATE) CONFIG $1"
 	@( \
 		cd "$(build)/$($1_dir)" ; \
 		echo "$($1_configure)"; \
@@ -138,7 +158,7 @@ define define_module =
 		2>&1 \
 		| tee "$(log_dir)/$1.configure.log" \
 		$(VERBOSE_REDIRECT)
-	touch "$$@"
+	@touch "$$@"
 
   # All of the outputs should result from building the intermediate target
   $(call outputs,$1): $1.intermediate
@@ -151,7 +171,7 @@ define define_module =
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		$(build)/$($1_dir)/.configured
-	@echo "$(DATE) Building $1"
+	@echo "$(DATE) MAKE $1"
 	@( \
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
@@ -178,18 +198,16 @@ define define_module =
 .INTERMEDIATE: $1.intermediate
 endef
 
-$(foreach _, $(modules), $(eval $(call define_module,$_)))
+$(call map, define_module, $(modules))
 
-initrd_lib_dir := initrd/lib
-initrd_bin_dir := initrd/bin
 
 #
 # Install a file into the initrd, if it changed from
 # the destination file.
 #
 define install =
-	@echo "$(DATE) Installing $2"
-	@cp -a "$1" "$2"
+	@-mkdir -p "$(dir $2)"
+	$(call do,INSTALL,$2,cp "$1" "$2")
 endef
 
 #
@@ -198,72 +216,74 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	@if [ ! -d "$(initrd_bin_dir)" ]; \
-		then mkdir -p "$(initrd_bin_dir)"; \
-	fi
-	$(call install,$$<,$$@)
+	$(call do,INSTALL-BIN,$$<,cp -a "$$<" "$$@")
+	@$(CROSS)strip "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	@if [ ! -d "$(initrd_lib_dir)" ]; \
-		then mkdir -p "$(initrd_lib_dir)"; \
-	fi
-	$(call install,$$<,$$@)
+	@-mkdir -p "$(dir $$@)"
+	$(call do,INSTALL-LIB,$$@,$(CROSS)strip -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
 $(foreach _, $(call bins,kexec), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,tpmtotp), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,pciutils), $(eval $(call initrd_bin_add,$_)))
+$(foreach _, $(call bins,flashrom), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,cryptsetup), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,gpg), $(eval $(call initrd_bin_add,$_)))
 $(foreach _, $(call bins,lvm2), $(eval $(call initrd_bin_add,$_)))
 
-$(foreach _, $(call libs,tpmtotp), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,mbedtls), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,qrencode), $(eval $(call initrd_lib_add,$_)))
-$(foreach _, $(call libs,lvm2), $(eval $(call initrd_lib_add,$_)))
+# Install the libraries for every module that we have built
+$(foreach m, $(modules), $(call map,initrd_lib_add,$(call libs,$m)))
 
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
-initrd_bins += initrd/bin/busybox
+initrd.cpio: busybox.intermediate
+initrd_bins += $(initrd_bin_dir)/busybox
 
-initrd/bin/busybox: $(build)/$(busybox_dir)/busybox
-	cmp --quiet "$@" "$^" || \
-	$(MAKE) \
+$(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
+	$(do,SYMLINK,$@,$(MAKE) \
 		-C $(build)/$(busybox_dir) \
 		CC="$(heads_cc)" \
 		CONFIG_PREFIX="$(pwd)/initrd" \
 		$(MAKE_JOBS) \
-		install
+		install \
+	)
 
+#
 # hack to build cbmem from coreboot
-# this must be built *AFTER* musl
-initrd_bins += initrd/bin/cbmem
-initrd/bin/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
-	cp "$^" "$@"
+# this must be built *AFTER* musl, but since coreboot depends on other things
+# that depend on musl it should be ok.
+#
+initrd_bins += $(initrd_bin_dir)/cbmem
+$(initrd_bin_dir)/cbmem: $(build)/$(coreboot_dir)/util/cbmem/cbmem
+	$(call install,$<,$@)
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
-	@echo "$(DATE) Building cbmem"
-	@$(MAKE) -C "$(dir $@)" CC="$(heads_cc)"
+	$(call do,MAKE,cbmem,\
+		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
+	)
 
-
-# Update all of the libraries in the initrd based on the executables
-# that were installed.
-initrd_lib_install: $(initrd_bins) $(initrd_libs)
-	-find initrd/bin -type f -a ! -name '*.sh' -print0 \
-		| xargs -0 $(CROSS)strip --preserve-dates
-	LD_LIBRARY_PATH="$(INSTALL)/lib" \
-	./populate-lib \
-		$(initrd_lib_dir) \
-		initrd/bin/* \
-		initrd/sbin/* \
-
-	-$(CROSS)strip $(initrd_lib_dir)/* ; true
+#
+# Linux kernel module installation
+#
+# This is special cases since we have to do a special strip operation on
+# the kernel modules to make them fit into the ROM image.
+#
+define linux_module =
+$(build)/$(linux_dir)/$1: linux.intermediate
+initrd.cpio: $(initrd_lib_dir)/modules/$(notdir $1)
+$(initrd_lib_dir)/modules/$(notdir $1): $(build)/$(linux_dir)/$1
+	@-mkdir -p "$(initrd_lib_dir)/modules"
+	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --strip-debug -o "$$@" "$$<")
+endef
+$(call map,linux_module,$(linux_modules))
 
 
 #
@@ -280,53 +300,58 @@ initrd_lib_install: $(initrd_bins) $(initrd_libs)
 # unlikely that their device file has a different major/minor)
 #
 #
-initrd.cpio: $(initrd_bins) $(initrd_libs) initrd_lib_install
+initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
+	$(call do,CPIO,$@, \
 	cd ./initrd ; \
 	find . \
 	| cpio --quiet -H newc -o \
 	| ../cpio-clean ../dev.cpio - \
-		> "../$@"
+		> "../$@" \
+	)
 
 initrd.intermediate: initrd.cpio
 
 
-# populate the coreboot initrd image from the one we built.
-# 4.4 doesn't allow this, but building from head does.
-#$(call outputs,linux): initrd.cpio
+#
+# Compress the initrd into a xz file that can be included by coreboot.
+# The extra options are necessary to let the Linux kernel decompress it.
+#
 coreboot.intermediate: $(build)/$(coreboot_dir)/initrd.cpio.xz
 $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
+	$(call do,COMPRESS,$<,\
 	xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
 		--extreme \
 		< "$<" \
-		> "$@"
+		> "$@" \
+	)
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(coreboot_dir)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	@echo "$(DATE) Copying $@"
-	@cp -a "$^" "$@"
+	$(call do,COPY,$@,cp -a "$^" "$@")
+
 coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 
-# The coreboot gcc won't work for us since it doesn't have libc
-#XGCC := $(build)/$(coreboot_dir)/util/crossgcc/xgcc/
-#export CC := $(XGCC)/bin/x86_64-elf-gcc
-#export LDFLAGS := -L/lib/x86_64-linux-gnu
+# Each board output has its own fixup required to turn the coreboot.rom
+# into a flashable image.
 
+# This produces a ROM image suitable for writing into the top chip;
+# the x230.full.rom is suitable for our modified flashrom program.
 x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	dd if="$<" of="$@" bs=1M skip=8
-	$(RM) "$<"
+	$(call do,EXTRACT,$@,dd if="$<" of="$@" bs=1M skip=8)
+	@mv "$<" x230.full.rom
 	@sha256sum "$@"
 
 qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	mv "$<" "$@"
+	$(call do,EXTRACT,$@,mv "$<" "$@")
 	@sha256sum "$@"
 
 
-clean-modules:
+modules.clean:
 	for dir in \
 		$(busybox_dir) \
 		$(cryptsetup_dir) \
@@ -357,14 +382,14 @@ all:
 
 # How to download and build the correct version of make
 $(HEADS_MAKE): $(build)/$(make_dir)/Makefile
-	make -C "`dirname $@`" $(MAKE_JOBS) \
+	make -C "$(dir $@)" $(MAKE_JOBS) \
 		2>&1 \
 		| tee "$(log_dir)/make.log" \
 		$(VERBOSE_REDIRECT)
 
 $(build)/$(make_dir)/Makefile: $(packages)/$(make_tar)
 	tar xf "$<" -C build/
-	cd "`dirname $@`" ; ./configure \
+	cd "$(dir $@)" ; ./configure \
 		2>&1 \
 		| tee "$(log_dir)/make.configure.log" \
 		$(VERBOSE_REDIRECT)

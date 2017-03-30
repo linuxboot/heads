@@ -15,11 +15,6 @@ echo '|_| |_|\___|\__,_|\__,_|___/ (_) |_| \_\\___/|_|  |_|'
 echo ''
 echo '====================================================='
 
-echo
-echo "Run './start-xen' to load the hypervisor"
-echo "Run 'kexec -e' to boot it"
-echo
-
 # Load the date from the hardware clock, setting it in local time
 hwclock -l -s
 
@@ -32,7 +27,6 @@ if ! unsealtotp.sh ; then
 	echo '!!!!!'
 fi
 echo
-	
 
 # Start an interactive shell
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin
