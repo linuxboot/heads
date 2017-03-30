@@ -28,9 +28,6 @@ if ! unsealtotp.sh ; then
 fi
 echo
 
-# try to setup DHCP, but fail quickly
-udhcpc -n
-
 # Start an interactive shell
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin
 exec /bin/ash
