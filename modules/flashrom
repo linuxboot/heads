@@ -1,4 +1,4 @@
-modules += flashrom
+modules-$(CONFIG_FLASHROM) += flashrom
 
 flashrom_depends := pciutils $(musl_dep)
 

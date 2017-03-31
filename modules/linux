@@ -1,4 +1,4 @@
-modules += linux
+modules-y += linux
 
 linux_version := 4.9.7
 linux_dir := linux-$(linux_version)
@@ -17,15 +17,14 @@ linux_configure := \
 linux_output := arch/x86/boot/bzImage
 linux_config := linux.config
 
-linux_modules := \
-	drivers/net/ethernet/intel/e1000/e1000.ko \
-	drivers/net/ethernet/intel/e1000e/e1000e.ko \
-	drivers/usb/host/xhci-hcd.ko \
-	drivers/usb/host/ehci-platform.ko \
-	drivers/usb/host/ehci-hcd.ko \
-	drivers/usb/host/xhci-plat-hcd.ko \
-	drivers/usb/host/xhci-pci.ko \
-	drivers/usb/host/ehci-pci.ko \
+linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
+linux_modules-$(CONFIG_LINUX_E1000E)	+= drivers/net/ethernet/intel/e1000e/e1000e.ko
+#linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-platform.ko
+linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
+linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
+#linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-plat-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
