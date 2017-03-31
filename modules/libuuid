@@ -1,4 +1,4 @@
-modules += libuuid
+modules-$(CONFIG_LIBUUID) += libuuid
 
 libuuid_version := 1.0.3
 libuuid_dir := libuuid-$(libuuid_version)

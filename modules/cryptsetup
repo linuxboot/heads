@@ -1,4 +1,4 @@
-modules += cryptsetup
+modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
 cryptsetup_depends := libuuid popt lvm2 $(musl_dep)
 

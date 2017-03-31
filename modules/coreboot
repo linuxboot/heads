@@ -1,4 +1,4 @@
-modules += coreboot
+modules-y += coreboot
 
 #coreboot_version := git
 #coreboot_repo := https://github.com/osresearch/coreboot
@@ -52,7 +52,7 @@ ifneq "$(coreboot_version)" "git"
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree
 coreboot_depends += coreboot-blobs
-modules += coreboot-blobs
+modules-y += coreboot-blobs
 
 coreboot-blobs_version := $(coreboot_version)
 coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
