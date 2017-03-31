@@ -1,4 +1,4 @@
-modules += popt
+modules-$(CONFIG_POPT) += popt
 
 popt_version := 1.16
 popt_dir := popt-$(popt_version)

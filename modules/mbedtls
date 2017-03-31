@@ -1,4 +1,4 @@
-modules += mbedtls
+modules-$(CONFIG_MBEDTLS) += mbedtls
 
 mbedtls_version := 2.4.2
 mbedtls_dir := mbedtls-$(mbedtls_version)
