@@ -1,11 +1,12 @@
 modules-y += linux
 
-linux_version := 4.9.7
+linux_version := 4.9.20
 linux_dir := linux-$(linux_version)
 linux_tar := linux-$(linux_version).tar.xz
 linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
 linux-4.9.7_hash := 0b61283b71c7397cb6b5ac3497845d3cdf8137ecd16ab39c8ac6cf5bb90e33dc
+linux-4.9.20_hash := 48660806dd32fb8dcbcf5932291bf6cc7d29240070372230871e0f56fea81341
 
 linux_hash := $(linux-$(linux_version)_hash)
 
