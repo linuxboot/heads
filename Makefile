@@ -328,10 +328,12 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
 	cd "$(initrd_dir)"; \
 	find . \
 	| cpio --quiet -H newc -o \
-	| $(pwd)/cpio-clean $(pwd)/dev.cpio - \
+	| $(pwd)/cpio-clean \
+		$(pwd)/dev.cpio \
+		- \
 		> "$(pwd)/$@" \
 	)
-	echo should $(RM) -rf "$(initrd_dir)"
+	$(call do,RM,$(initrd_dir),$(RM) -rf "$(initrd_dir)")
 
 initrd.intermediate: initrd.cpio
 
@@ -396,13 +398,14 @@ modules.clean:
 else
 # Wrong make version detected -- build our local version
 # and re-invoke the Makefile with it instead.
-$(info Wrong make detected: $(LOCAL_MAKE_VERSION))
+$(eval $(shell echo >&2 "$(DATE) Wrong make detected: $(LOCAL_MAKE_VERSION)"))
 HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
-%: $(HEADS_MAKE)
+all: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
-all:
+%.intermediate: $(HEADS_MAKE)
+	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 
 # How to download and build the correct version of make
 $(HEADS_MAKE): $(build)/$(make_dir)/Makefile
