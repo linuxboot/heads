@@ -11,6 +11,7 @@ busybox_config := busybox.config
 busybox_output := busybox
 busybox_target := \
 	CC="$(heads_cc)" \
+	STRIP="$(CROSS)strip" \
 	CONFIG_PREFIX="$(initrd_dir)" \
 	$(MAKE_JOBS) \
 	install
