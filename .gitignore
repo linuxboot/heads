@@ -10,11 +10,9 @@
 *.img
 *.rom
 *.cpio
-initrd/bin
-initrd/sbin
-initrd/lib
 typescript*
 config/*.old
 *.log
 crossgcc
 install
+clean

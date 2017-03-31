@@ -1,4 +1,4 @@
-modules += musl
+modules-y += musl
 
 musl_version := 1.1.15
 musl_dir := musl-$(musl_version)

@@ -1,4 +1,4 @@
-modules += pciutils
+modules-$(CONFIG_PCIUTILS) += pciutils
 
 pciutils_depends := $(musl_dep)
 

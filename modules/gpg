@@ -1,4 +1,4 @@
-modules += gpg
+modules-$(CONFIG_GPG) += gpg
 
 # we install gpgv 1.4, which is an older version that has fewer
 # dependencies.  This may need to be revisted later.
