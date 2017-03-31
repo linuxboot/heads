@@ -1,4 +1,4 @@
-modules += lvm2
+modules-$(CONFIG_LVM2) += lvm2
 
 lvm2_version := 2.02.168
 lvm2_dir := LVM2.$(lvm2_version)

@@ -1,4 +1,4 @@
-modules += kernel-headers
+modules-y += kernel-headers
 
 # we install kernel-headers from sabotage linux, a musl-libc based
 # distribution, that works well with busybox and other tools.

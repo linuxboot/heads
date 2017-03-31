@@ -1,4 +1,4 @@
-modules += qrencode
+modules-$(CONFIG_QRENCODE) += qrencode
 
 qrencode_version := 3.4.4
 qrencode_dir := qrencode-$(qrencode_version)
