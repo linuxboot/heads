@@ -12,6 +12,9 @@ MAKE_JOBS	?= -j8 --max-load 24
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir -p "$(log_dir)")
 
+# Timestamps should be in ISO format
+DATE=`date --rfc-3339=seconds`
+
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
 ifeq "$V" ""
@@ -44,6 +47,11 @@ initrd_bin_dir	:= $(initrd_dir)/bin
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 $(shell echo "Initrd: $initrd_dir")
 
+ifeq "$(CONFIG)" ""
+CONFIG := config/qemu-moc.config
+$(eval $(shell echo >&2 "$(DATE) CONFIG is not set, defaulting to $(CONFIG)"))
+endif
+
 include $(CONFIG)
 
 # We are running our own version of make,
@@ -71,9 +79,6 @@ all: $(BOARD).rom
 # Disable all built in rules
 .SUFFIXES:
 FORCE:
-
-# Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
 
 # Make helpers to operate on lists of things
 define prefix =
@@ -237,15 +242,15 @@ initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
 # Only some modules have binaries that we install
-bin_modules += kexec
-bin_modules += tpmtotp
-bin_modules += pciutils
-bin_modules += flashrom
-bin_modules += cryptsetup
-bin_modules += gpg
-bin_modules += lvm2
+bin_modules-$(CONFIG_KEXEC) += kexec
+bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
+bin_modules-$(CONFIG_PCIUTILS) += pciutils
+bin_modules-$(CONFIG_FLASHROM) += flashrom
+bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
+bin_modules-$(CONFIG_GPG) += gpg
+bin_modules-$(CONFIG_LVM2) += lvm2
 
-$(foreach m, $(bin_modules), \
+$(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
 )
 
