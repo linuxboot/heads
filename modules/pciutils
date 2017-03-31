@@ -19,6 +19,15 @@ pciutils_target := \
 	SHARED=yes \
 	PREFIX=$(INSTALL) \
 	install \
+	&& \
+	$(MAKE) \
+	-C $(build)/$(pciutils_dir) \
+	$(MAKE_JOBS) \
+	CC="$(heads_cc)"  \
+	ZLIB=no \
+	HWDB=no \
+	SHARED=yes \
+	PREFIX=$(INSTALL) \
 	install-lib \
 
 pciutils_output := \
