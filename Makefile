@@ -1,12 +1,10 @@
-modules 	:=
+modules-y 	:=
 pwd 		:= $(shell pwd)
 packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/build
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
-initrd_lib_dir	:= initrd/lib
-initrd_bin_dir	:= initrd/bin
 
 # Controls how many parallel jobs are invoked in subshells
 MAKE_JOBS	?= -j8 --max-load 24
@@ -37,6 +35,17 @@ LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
 include modules/make
 
 ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
+
+# Create a temporary directory for the initrd
+initrd_dir	:= $(shell mktemp -d)
+initrd_lib_dir	:= $(initrd_dir)/lib
+initrd_bin_dir	:= $(initrd_dir)/bin
+
+$(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
+$(shell echo "Initrd: $initrd_dir")
+
+include $(CONFIG)
+
 # We are running our own version of make,
 # proceed with the build.
 
@@ -81,7 +90,7 @@ include modules/*
 
 # These will be built via their intermediate targets
 # This increases the build time, so it is commented out for now
-#all: $(foreach m,$(modules),$m.intermediate)
+#all: $(foreach m,$(modules-y),$m.intermediate)
 
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
@@ -197,7 +206,7 @@ define define_module =
 
 endef
 
-$(call map, define_module, $(modules))
+$(call map, define_module, $(modules-y))
 
 
 #
@@ -223,7 +232,6 @@ endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	@-mkdir -p "$(dir $$@)"
 	$(call do,INSTALL-LIB,$$@,$(CROSS)strip -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
@@ -242,7 +250,7 @@ $(foreach m, $(bin_modules), \
 )
 
 # Install the libraries for every module that we have built
-$(foreach m, $(modules), \
+$(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
 )
 
@@ -289,7 +297,7 @@ $(initrd_lib_dir)/modules/$(notdir $1): $(build)/$(linux_dir)/$1
 	@-mkdir -p "$(initrd_lib_dir)/modules"
 	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --strip-debug -o "$$@" "$$<")
 endef
-$(call map,linux_module,$(linux_modules))
+$(call map,linux_module,$(linux_modules-y))
 
 
 #
@@ -307,13 +315,18 @@ $(call map,linux_module,$(linux_modules))
 #
 #
 initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
+	$(call do,OVERLAY,initrd,\
+		tar -C ./initrd -cf - . | tar -C "$(initrd_dir)" -xf - \
+	)
+	$(call do,INSTALL,$(CONFIG),cp "$(CONFIG)" "$(initrd_dir)/config")
 	$(call do,CPIO,$@, \
-	cd ./initrd ; \
+	cd "$(initrd_dir)"; \
 	find . \
 	| cpio --quiet -H newc -o \
-	| ../cpio-clean ../dev.cpio - \
-		> "../$@" \
+	| $(pwd)/cpio-clean $(pwd)/dev.cpio - \
+		> "$(pwd)/$@" \
 	)
+	echo should $(RM) -rf "$(initrd_dir)"
 
 initrd.intermediate: initrd.cpio
 
