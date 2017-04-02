@@ -7,15 +7,36 @@ TPM_INDEX=3
 TPM_SIZE=312
 KEY_FILE=/tmp/secret.key
 
-die() { echo >&2 "$@"; exit 1; }
+. /config
+
+die() {
+	echo >&2 "$@";
+	rm -f /tmp/secret.key /tmp/recovery.key /tmp/sealed
+	exit 1;
+}
 warn() { echo >&2 "$@"; }
 
-read -s -p "New key password: " key_password
+# Key slot 0 is the manual recovery pass phrase
+# that they user entered when they installed Qubes,
+# key slot 1 is the one that we've generated.
+read -s -p "Enter disk recovery key: " disk_password
+echo -n "$disk_password" > /tmp/recovery.key
+echo
+
+for dev in $CONFIG_QUBES_DEVS; do
+	echo "++++++ $dev: Removing old key slot"
+	cryptsetup luksKillSlot \
+		--key-file /tmp/recovery.key \
+		$dev 1 \
+	|| warn "$dev: ignoring problem"
+done
+
+read -s -p "New disk decryption password for booting: " key_password
 echo
 read -s -p "Repeat password: " key_password2
 echo
 
-if [ "$key_password" -ne "$key_password2" ]; then
+if [ "$key_password" != "$key_password2" ]; then
 	die "Key passwords do not match"
 fi
 
@@ -27,11 +48,28 @@ dd \
 	2>/dev/null \
 || die "Unable to generate 128 random bytes"
 
+for dev in $CONFIG_QUBES_DEVS; do
+	echo "+++++ $dev: Adding key"
+	cryptsetup luksAddKey \
+		--key-file /tmp/recovery.key \
+		--key-slot 1 \
+		$dev "$KEY_FILE" \
+	|| die "$dev: Unable to add key"
+done
 
-# Use the current values of the PCRs, which will be read
+# Now that we have setup the new keys, measure the PCRs
+/bin/qubes-measure-luks $CONFIG_QUBES_DEVS \
+	|| die "Unable to measure the LUKS headers"
+
+# Note that PCR 4 needs to be set with the "normal-boot"
+# path value, which we do not have right now since we are
+# in a recovery shell.
+# PCR 5 must be all zero since no kernel modules should have
+# been loaded during a normal boot, but might have been
+# loaded in the recovery shell.
+# Otherwise use the current values of the PCRs, which will be read
 # from the TPM as part of the sealing ("X").
-# should this read the storage root key?
-sealfile2 \
+tpm sealfile2 \
 	-if "$KEY_FILE" \
 	-of /tmp/sealed \
 	-pwdd "$key_password" \
@@ -40,10 +78,12 @@ sealfile2 \
 	-ix 1 X \
 	-ix 2 X \
 	-ix 3 X \
-	-ix 4 X \
+	-ix 4 f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d \
+	-ix 5 0000000000000000000000000000000000000000 \
+	-ix 6 X \
 || die "Unable to seal secret"
 
-rm "$KEY_FILE"
+rm -f "$KEY_FILE"
 
 
 # to create an nvram space we need the TPM owner password
@@ -51,24 +91,23 @@ rm "$KEY_FILE"
 #
 # The permissions are 0 since there is nothing special
 # about the sealed file
-physicalpresence -s \
+tpm physicalpresence -s \
 || warn "Warning: Unable to assert physical presence"
 
 read -s -p "TPM Owner password: " tpm_password
 echo
 
-nv_definespace \
+tpm nv_definespace \
 	-in $TPM_INDEX \
 	-sz $TPM_SIZE \
 	-pwdo "$tpm_password" \
 	-per 0 \
-|| die "Warning: Unable to define NVRAM space; trying anyway"
+|| warn "Warning: Unable to define NVRAM space; trying anyway"
 
 
-nv_writevalue \
+tpm nv_writevalue \
 	-in $TPM_INDEX \
 	-if /tmp/sealed \
 || die "Unable to write sealed secret to NVRAM"
 
 rm /tmp/sealed
-

@@ -1,0 +1,65 @@
+#!/bin/sh
+# Boot a Qubes installation that has already been setup.
+# This depends on the PCR 4 being "normal-boot":
+# f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d
+# which is only set if the top level /init script has started
+# without user intervention or dropping into a recovery shell.
+
+recovery() {
+	echo >&2 "!!!!! $@"
+	rm -f /tmp/secret.key
+	tpm extend -ix 4 -if recovery
+
+	echo >&2 "!!!!! Starting recovery shell"
+	exec /bin/ash
+}
+
+. /config
+
+# TODO: Allow /boot to be encrypted?
+# This would require a different TPM key or a user
+# passphrase to decrypt it.
+mount -o ro "$CONFIG_QUBES_BOOT_DEV" /boot \
+	|| recovery '$CONFIG_BOOT_DEV: Unable to mount /boot'
+
+# TODO: Allow these to be specified on the /boot device
+XEN=/boot/xen-4.6.3.heads
+INITRD=/boot/initramfs-4.4.31-11.pvops.qubes.x86_64.img
+KERNEL=/boot/vmlinuz-4.4.31-11.pvops.qubes.x86_64
+
+echo "+++ Checking $XEN"
+gpgv "${XEN}.asc" "${XEN}" \
+	|| recovery 'Xen signature failed'
+
+echo "+++ Checking $INITRD"
+gpgv "${INITRD}.asc" "${INITRD}" \
+	|| recovery 'Initrd signature failed'
+
+echo "+++ Checking $KERNEL"
+gpgv "${KERNEL}.asc" "${KERNEL}" \
+	|| recovery 'Kernel signature failed'
+
+# Measure the LUKS headers before we unseal the disk key
+/bin/qubes-measure-luks $CONFIG_QUBES_DEVS \
+	|| recovery "LUKS measure failed"
+
+# Attempt to unseal the disk key from the TPM
+# should we give this some number of tries?
+unseal-key \
+	|| recovery 'Unseal disk key failed. Starting recovery shell'
+
+# command line arguments are in the hash, so they are "correct".
+kexec \
+	-l \
+	--module "${KERNEL} root=LABEL=root rhgb" \
+	--module "${INITRD}" \
+	--command-line "no-real-mode reboot=no console=vga dom0_mem=min:1024M dom0_mem=max:4096M" \
+	"${XEN}" \
+|| recovery "kexec load failed"
+
+# Last step is to override PCR 6 so that user can't read the key
+tpm extend -ix 4 -ic qubes \
+	|| recovery 'Unable to scramble PCR'
+
+echo "+++ Starting Qubes..."
+exec kexec -e
