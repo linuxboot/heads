@@ -24,6 +24,8 @@ if [ -z "$CONFIG_TIMEOUT" ]; then
 fi
 
 while true; do
+	boot_option=
+
 	# Verify the user's TPM secret
 	echo "TPM TOTP:"
 	if ! unsealtotp.sh ; then
@@ -37,7 +39,6 @@ while true; do
 	fi
 
 	# Secret decrypted ok, so prompt for a next step
-
 	read \
 		-t "$CONFIG_TIMEOUT" \
 		-p "Enter for normal boot or 'r' for recovery shell: " \
