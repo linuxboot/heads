@@ -13,22 +13,22 @@ if [ -z "$key_file" ]; then
 	key_file=/tmp/secret.key
 fi
 
-read -s -p "Encryption password: " tpm_password
+read -s -p "Disk encryption password: " tpm_password
 echo
 
-nv_readvalue \
+tpm nv_readvalue \
 	-in "$TPM_INDEX" \
 	-sz "$TPM_SIZE" \
 	-of /tmp/sealed \
 || die "Unable to read key from TPM NVRAM"
 
-unsealfile \
+tpm unsealfile \
 	-if /tmp/sealed \
 	-of "$key_file" \
 	-pwdd "$tpm_password" \
 	-hk 40000000 \
 || die "Unable to unseal disk encryption key"
 
-rm /tmp/sealed
+rm -f /tmp/sealed
 
-
+exit 0

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Mount a USB device
+die() { echo >&2 "!!!!! $@"; exit 1; }
+
+if ! lsmod | grep -q ehci_hcd; then
+	insmod /lib/modules/ehci-hcd.ko \
+	|| die "ehci_hcd: module load failed"
+fi
+if ! lsmod | grep -q ehci_pci; then
+	insmod /lib/modules/ehci-pci.ko \
+	|| die "ehci_pci: module load failed"
+fi
+
+if [ ! -d /media ]; then
+	mkdir /media
+fi
+
+mount -o ro $1 /media
