@@ -22,6 +22,23 @@ recovery() {
 mount -o ro "$CONFIG_QUBES_BOOT_DEV" /boot \
 	|| recovery '$CONFIG_BOOT_DEV: Unable to mount /boot'
 
+BOOT_SCRIPT=/boot/boot.sh
+if [ ! -x /boot/boot.sh ]; then
+	recovery "$BOOT_SCRIPT does not exist"
+fi
+
+# Hand control over to the user boot script
+echo "+++ Checking $BOOT_SCRIPT"
+gpgv "$BOOT_SCRIPT.asc" "$BOOT_SCRIPT" \
+	|| recovery 'boot script signature failed'
+
+exec "$BOOT_SCRIPT"
+
+recovery 'Boot script exec failed?'
+
+############################
+# For historical reference
+
 # TODO: Allow these to be specified on the /boot device
 XEN=/boot/xen-4.6.3.heads
 INITRD=/boot/initramfs-4.4.31-11.pvops.qubes.x86_64.img
@@ -51,11 +68,18 @@ unseal-key \
 # command line arguments are in the hash, so they are "correct".
 kexec \
 	-l \
-	--module "${KERNEL} root=LABEL=root rhgb" \
+	--module "${KERNEL} root=LABEL=root ro rd.qubes.hide_all_usb rhgb" \
 	--module "${INITRD}" \
-	--command-line "no-real-mode reboot=no console=vga dom0_mem=min:1024M dom0_mem=max:4096M" \
+	--command-line "no-real-mode reboot=no"
 	"${XEN}" \
 || recovery "kexec load failed"
+
+
+kexec -l \
+	--module "${KERNEL} root=UUID=257b593f-d4ae-46ee-b499-14bc9ffd37d4 ro rd.qubes.hide_all_usb" \
+	--module "/boot/initramfs-4.4.31-11.pvops.qubes.x86_64.img" \
+	--command-line "no-real-mode reboot=no" \
+	/boot/xen-4.6.3.heads
 
 # Last step is to override PCR 6 so that user can't read the key
 tpm extend -ix 4 -ic qubes \
