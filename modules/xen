@@ -2,11 +2,11 @@ modules-$(CONFIG_XEN) += xen
 
 # We extract the entire Xen tree, but only use the xen/xen hypervisor
 # portion since Qubes provides the rest of it.
-xen_version := 4.6.3
+xen_version := 4.6.4
 xen_dir := xen-$(xen_version)/xen
 xen_tar := xen-$(xen_version).tar.gz
-xen_url := http://bits.xensource.com/oss-xen/release/4.6.3/xen-4.6.3.tar.gz
-xen_hash := 02badfce9a037bd1bd4a94210c1f6b85467746216c71795805102b514bcf1fc4
+xen_url := http://bits.xensource.com/oss-xen/release/$(xen_version)/$(xen_tar)
+xen_hash := b795d5631a85fb68295361067195ecd00003656dacede4ec57533fce33ab5109
 
 xen_output :=
 xen_configure := 
