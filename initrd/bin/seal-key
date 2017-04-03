@@ -16,6 +16,11 @@ die() {
 }
 warn() { echo >&2 "$@"; }
 
+# Activate the LVM volume group
+VOLUME_GROUP=qubes_dom0
+lvm vgchange -a y $VOLUME_GROUP \
+	|| die "$VOLUME_GROUP: unable to activate volume group"
+
 # Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed Qubes,
 # key slot 1 is the one that we've generated.
@@ -23,7 +28,8 @@ read -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > /tmp/recovery.key
 echo
 
-for dev in $CONFIG_QUBES_DEVS; do
+# Remove all the old keys from slot 1
+for dev in /dev/$VOLUME_GROUP/*; do
 	echo "++++++ $dev: Removing old key slot"
 	cryptsetup luksKillSlot \
 		--key-file /tmp/recovery.key \
@@ -48,7 +54,7 @@ dd \
 	2>/dev/null \
 || die "Unable to generate 128 random bytes"
 
-for dev in $CONFIG_QUBES_DEVS; do
+for dev in /dev/$VOLUME_GROUP/*; do
 	echo "+++++ $dev: Adding key"
 	cryptsetup luksAddKey \
 		--key-file /tmp/recovery.key \
@@ -58,7 +64,7 @@ for dev in $CONFIG_QUBES_DEVS; do
 done
 
 # Now that we have setup the new keys, measure the PCRs
-/bin/qubes-measure-luks $CONFIG_QUBES_DEVS \
+/bin/qubes-measure-luks /dev/$VOLUME_GROUP/* \
 	|| die "Unable to measure the LUKS headers"
 
 # Note that PCR 4 needs to be set with the "normal-boot"

@@ -16,14 +16,14 @@
 #
 
 XEN=/boot/xen-4.6.4.heads
-INITRD=/boot/initramfs-4.4.38-11.pvops.qubes.x86_64.img
-KERNEL=/boot/vmlinuz-4.4.38-11.pvops.qubes.x86_64
+INITRD=/boot/initramfs-4.4.14-11.pvops.qubes.x86_64.img
+KERNEL=/boot/vmlinuz-4.4.14-11.pvops.qubes.x86_64
 
 
 recovery() {
 	echo >&2 "!!!!! $@"
-	rm -f /tmp/secret.key
-	tpm extend -ix 4 -if recovery
+	rm -f /tmp/secret.key /initrd.gz
+	tpm extend -ix 4 -ic recovery
 
 	echo >&2 "!!!!! Starting recovery shell"
 	exec /bin/ash
@@ -43,21 +43,54 @@ echo "+++ Checking $KERNEL"
 gpgv "${KERNEL}.asc" "${KERNEL}" \
 	|| recovery 'Kernel signature failed'
 
+# Activate the dom0 group
+lvm vgchange -a y "$CONFIG_QUBES_VG" \
+	|| recovery "$CONFIG_QUBES_VG: LVM volume group activate failed"
+
 # Measure the LUKS headers before we unseal the disk key
-qubes-measure-luks $CONFIG_QUBES_DEVS \
+qubes-measure-luks /dev/$CONFIG_QUBES_VG/* \
 	|| recovery "LUKS measure failed"
+
+# get the UUID of the root file system
+# busybox blkid doesn't have a "just the UUID" option
+ROOT_UUID=`blkid /dev/$CONFIG_QUBES_VG/00 | cut -d\" -f2`
+if [ -z "$ROOT_UUID" ]; then
+	recovery "$CONFIG_QUBES_VG/00: No UUID for /"
+fi
+
+echo "$CONFIG_QUBES_VG/00: UUID=$ROOT_UUID"
 
 # Attempt to unseal the disk key from the TPM
 # should we give this some number of tries?
 unseal-key \
 	|| recovery 'Unseal disk key failed. Starting recovery shell'
 
+# Unpack the initrd and fixup the /etc/crypttab
+# this is a hack to split it into two parts since
+# we know that the first 0x3400 bytes are the microcode
+INITRD_DIR=/tmp/initrd
+echo '+++ Unpacking initrd'
+mkdir -p $INITRD_DIR
+dd if="$INITRD" bs=256 count=52 | ( cd $INITRD_DIR ; cpio -i )
+dd if="$INITRD" bs=256 skip=52 | zcat | ( cd $INITRD_DIR ; cpio -i )
+
+# Update the /etc/crypttab in the initrd and install our key
+for dev in /dev/$CONFIG_QUBES_VG/*; do
+	uuid=`blkid $dev | cut -d\" -f2`
+	echo luks-$uuid /dev/disk/by-uuid/$uuid /secret.key
+done > $INITRD_DIR/etc/crypttab
+
+mv /tmp/secret.key $INITRD_DIR/
+
+echo '+++ Repacking initrd'
+( cd $INITRD_DIR ; find . | cpio -H newc -o ) | gzip > /initrd.gz
+
 # command line arguments are include in the signature on this script,
-# although the root UUID should be specified in some better manner.
+echo '+++ Loading kernel and initrd'
 kexec \
 	-l \
-	--module "${KERNEL} root=UUID=257b593f-d4ae-46ee-b499-14bc9ffd37d4 ro rd.qubes.hide_all_usb" \
-	--module "${INITRD}" \
+	--module "${KERNEL} root=/dev/mapper/luks-$ROOT_UUID ro rd.qubes.hide_all_usb" \
+	--module /initrd.gz \
 	--command-line "no-real-mode reboot=no" \
 	"${XEN}" \
 || recovery "kexec load failed"
@@ -67,4 +100,5 @@ tpm extend -ix 4 -ic qubes \
 	|| recovery 'Unable to scramble PCR'
 
 echo "+++ Starting Qubes..."
+sleep 2
 exec kexec -e
