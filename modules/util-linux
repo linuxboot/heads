@@ -1,0 +1,34 @@
+modules-$(CONFIG_UTIL_LINUX) += util-linux
+
+util-linux_version := 2.29.2
+util-linux_dir := util-linux-$(util-linux_version)
+util-linux_tar := util-linux-$(util-linux_version).tar.xz
+util-linux_url := https://www.kernel.org/pub/linux/utils/util-linux/v2.29/$(util-linux_tar)
+util-linux_hash := accea4d678209f97f634f40a93b7e9fcad5915d1f4749f6c47bee6bf110fe8e3
+
+util-linux_configure := ./configure \
+	CC="$(heads_cc)" \
+	--host i386-elf-linux \
+	--prefix "$(INSTALL)" \
+	--datadir "$(INSTALL)/share" \
+	--oldincludedir "$(INSTALL)/include" \
+	--without-ncurses \
+	--without-ncursesw \
+	--without-tinfo \
+	--without-udev \
+	--without-python \
+	--disable-bash-completion \
+	--disable-all-programs \
+	--enable-libuuid \
+	--enable-libblkid \
+
+
+util-linux_target := \
+	$(MAKE_JOBS) install
+
+util-linux_libraries += .libs/libuuid.so.1
+
+# libblkid is not needed by lvm2, so it is not installed now
+#util-linux_libraries += .libs/libblkid.so.1
+
+util-linux_depends := $(musl_dep)

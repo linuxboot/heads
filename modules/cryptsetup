@@ -1,6 +1,6 @@
 modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
-cryptsetup_depends := libuuid popt lvm2 $(musl_dep)
+cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
 
 cryptsetup_version := 1.7.3
 cryptsetup_dir := cryptsetup-$(cryptsetup_version)
