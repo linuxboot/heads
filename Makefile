@@ -249,6 +249,7 @@ bin_modules-$(CONFIG_FLASHROM) += flashrom
 bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 bin_modules-$(CONFIG_GPG) += gpg
 bin_modules-$(CONFIG_LVM2) += lvm2
+bin_modules-$(CONFIG_XEN) += xen
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
