@@ -1,6 +1,25 @@
-diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/libdm-stats.c /home/user/heads/build/LVM2.2.02.168/libdm/libdm-stats.c
---- /home/user/clean/LVM2.2.02.168/libdm/libdm-stats.c	2016-11-30 18:17:30.000000000 -0500
-+++ LVM2.2.02.168/libdm/libdm-stats.c	2016-12-28 11:39:18.018000000 -0500
+diff -u --recursive ../clean/LVM2.2.02.168/lib/mm/memlock.c LVM2.2.02.168/lib/mm/memlock.c
+--- ../clean/LVM2.2.02.168/lib/mm/memlock.c	2016-11-30 18:17:29.000000000 -0500
++++ LVM2.2.02.168/lib/mm/memlock.c	2017-04-03 11:31:02.690049009 -0400
+@@ -150,6 +150,7 @@
+ 
+ static void _allocate_memory(void)
+ {
++#if 0
+ #ifndef VALGRIND_POOL
+ 	void *stack_mem;
+ 	struct rlimit limit;
+@@ -208,6 +209,7 @@
+ 	for (i = 0; i < area; ++i)
+ 		free(areas[i]);
+ #endif
++#endif
+ }
+ 
+ static void _release_memory(void)
+diff -u --recursive ../clean/LVM2.2.02.168/libdm/libdm-stats.c LVM2.2.02.168/libdm/libdm-stats.c
+--- ../clean/LVM2.2.02.168/libdm/libdm-stats.c	2016-11-30 18:17:30.000000000 -0500
++++ LVM2.2.02.168/libdm/libdm-stats.c	2017-04-03 11:28:41.852392488 -0400
 @@ -17,7 +17,24 @@
  
  #include "dmlib.h"
@@ -62,9 +81,9 @@ diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/libdm-stats.c /home/use
  			buflen += id_len + 1; /* range end plus "-" */
  		}
  		buflen++;
-diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/Makefile.in /home/user/heads/build/LVM2.2.02.168/libdm/Makefile.in
---- /home/user/clean/LVM2.2.02.168/libdm/Makefile.in	2016-11-30 18:17:30.000000000 -0500
-+++ LVM2.2.02.168/libdm/Makefile.in	2016-12-28 11:40:04.992000000 -0500
+diff -u --recursive ../clean/LVM2.2.02.168/libdm/Makefile.in LVM2.2.02.168/libdm/Makefile.in
+--- ../clean/LVM2.2.02.168/libdm/Makefile.in	2016-11-30 18:17:30.000000000 -0500
++++ LVM2.2.02.168/libdm/Makefile.in	2017-04-03 11:28:41.856392534 -0400
 @@ -56,7 +56,8 @@
  
  CFLAGS += $(UDEV_CFLAGS) $(VALGRIND_CFLAGS)
@@ -75,3 +94,22 @@ diff -u --recursive /home/user/clean/LVM2.2.02.168/libdm/Makefile.in /home/user/
  
  device-mapper: all
  
+diff -u --recursive ../clean/LVM2.2.02.168/tools/lvmcmdline.c LVM2.2.02.168/tools/lvmcmdline.c
+--- ../clean/LVM2.2.02.168/tools/lvmcmdline.c	2016-11-30 18:17:32.000000000 -0500
++++ LVM2.2.02.168/tools/lvmcmdline.c	2017-04-03 11:36:26.781878449 -0400
+@@ -1817,6 +1817,7 @@
+ {
+ 	int err = is_valid_fd(STDERR_FILENO);
+ 
++#if 0
+ 	if (!is_valid_fd(STDIN_FILENO) &&
+ 	    !(stdin = fopen(_PATH_DEVNULL, "r"))) {
+ 		if (err)
+@@ -1841,6 +1842,7 @@
+ 		       strerror(errno));
+ 		return 0;
+ 	}
++#endif
+ 
+ 	return 1;
+ }
