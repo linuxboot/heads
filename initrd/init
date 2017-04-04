@@ -28,6 +28,11 @@ if ! unsealtotp.sh ; then
 fi
 echo
 
+# Load the network modules and get an IP address
+insmod /lib/modules/e1000.ko
+insmod /lib/modules/e1000e.ko
+udhcpc -n
+
 # Start an interactive shell
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin
 exec /bin/ash
