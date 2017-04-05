@@ -70,27 +70,30 @@ unseal-key \
 # we know that the first 0x3400 bytes are the microcode
 INITRD_DIR=/tmp/initrd
 echo '+++ Unpacking initrd'
-mkdir -p $INITRD_DIR
-dd if="$INITRD" bs=256 count=52 | ( cd $INITRD_DIR ; cpio -i )
-dd if="$INITRD" bs=256 skip=52 | zcat | ( cd $INITRD_DIR ; cpio -i )
-
-# Update the /etc/crypttab in the initrd and install our key
-for dev in /dev/$CONFIG_QUBES_VG/*; do
-	uuid=`blkid $dev | cut -d\" -f2`
-	echo luks-$uuid /dev/disk/by-uuid/$uuid /secret.key
-done > $INITRD_DIR/etc/crypttab
+mkdir -p $INITRD_DIR/etc
+#dd if="$INITRD" bs=256 count=52 | ( cd $INITRD_DIR ; cpio -i )
+#dd if="$INITRD" bs=256 skip=52 | zcat | ( cd $INITRD_DIR ; cpio -i )
 
 mv /tmp/secret.key $INITRD_DIR/
 
+## Update the /etc/crypttab in the initrd and install our key
+## This is no longer required, now that dom0 /etc/crypttab has
+## the /secret.key specified.
+#for dev in /dev/$CONFIG_QUBES_VG/*; do
+#	uuid=`blkid $dev | cut -d\" -f2`
+#	echo luks-$uuid /dev/disk/by-uuid/$uuid /secret.key
+#done > $INITRD_DIR/etc/crypttab
+
 echo '+++ Repacking initrd'
-( cd $INITRD_DIR ; find . | cpio -H newc -o ) | gzip > /initrd.gz
+( cd $INITRD_DIR ; find . | cpio -H newc -o ) > /initrd.cpio
+cat "$INITRD" >> /initrd.cpio
 
 # command line arguments are include in the signature on this script,
 echo '+++ Loading kernel and initrd'
 kexec \
 	-l \
 	--module "${KERNEL} root=/dev/mapper/luks-$ROOT_UUID ro rd.qubes.hide_all_usb" \
-	--module /initrd.gz \
+	--module /initrd.cpio \
 	--command-line "no-real-mode reboot=no" \
 	"${XEN}" \
 || recovery "kexec load failed"
