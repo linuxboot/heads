@@ -370,16 +370,10 @@ x230.flash.rom: $(build)/$(coreboot_dir)/x230.flash/coreboot.rom
 	@sha256sum "$@"
 
 # This produces a ROM image that is written with the flashrom program
-x230.rom: $(build)/$(coreboot_dir)/x230/coreboot.rom
+%.rom: $(build)/$(coreboot_dir)/%/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	$(call do,EXTRACT,$@,mv "$<" "$@")
 	@sha256sum "$@"
-
-qemu.rom: $(build)/$(coreboot_dir)/qemu/coreboot.rom
-	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	$(call do,EXTRACT,$@,mv "$<" "$@")
-	@sha256sum "$@"
-
 
 modules.clean:
 	for dir in \
