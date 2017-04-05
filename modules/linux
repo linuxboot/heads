@@ -18,12 +18,17 @@ linux_configure := \
 linux_output := arch/x86/boot/bzImage
 linux_config := linux.config
 
+# qemu
 linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
+
+# x230
 linux_modules-$(CONFIG_LINUX_E1000E)	+= drivers/net/ethernet/intel/e1000e/e1000e.ko
+
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
+linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
