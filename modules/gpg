@@ -16,36 +16,30 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 gpg_configure := ./configure \
 	CC="$(heads_cc)" \
 	--host i386-elf-linux \
-	--prefix "" \
+	--with-libusb="$(INSTALL)" \
+	--prefix "/" \
+	--enable-card-support \
 	--disable-bzip2 \
-	--disable-gpg \
-	--disable-gpgsm \
 	--disable-asm \
-	--disable-agent \
-	--disable-scdaemon \
-	--disable-tools \
-	--disable-doc \
 	--disable-exec \
 	--disable-photo-viewers \
 	--disable-keyserver-helpers \
 	--disable-ldap \
 	--disable-hkp \
 	--disable-finger \
-	--disable-ccid-driver \
 	--disable-dns-srv \
-	--disable-dns-pka \
 	--disable-dns-cert \
 	--disable-regex \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
 # into our actual target location
-gpg_target := -j $(MAKE_JOBS) \
+gpg_target := $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(gpg_dir) \
 		exec_prefix=$(pwd)/install \
 		datarootdir=$(pwd)/install/share \
 		install
 
-gpg_output := g10/gpgv
+gpg_output := g10/gpg
 
-gpg_depends := $(musl_dep)
+gpg_depends := libusb-compat $(musl_dep)
