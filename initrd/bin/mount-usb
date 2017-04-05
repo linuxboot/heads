@@ -17,6 +17,10 @@ fi
 if ! lsmod | grep -q xhci_pci; then
 	insmod /lib/modules/xhci-pci.ko \
 	|| die "ehci_pci: module load failed"
+fi
+if ! lsmod | grep -q usb_storage; then
+	insmod /lib/modules/usb-storage.ko \
+	|| die "usb_storage: module load failed"
 	sleep 5
 fi
 
