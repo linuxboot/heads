@@ -13,6 +13,9 @@ libusb-compat_configure := ./configure \
 	CC="$(heads_cc)" \
 	--host i386-elf-linux \
 	--prefix "$(INSTALL)" \
+	PKG_CONFIG=/bin/false \
+	LIBUSB_1_0_CFLAGS="-I$(INSTALL)/include/libusb" \
+	LIBUSB_1_0_LIBS="-L$(INSTALL)/lib -lusb-1.0" \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
