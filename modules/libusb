@@ -1,0 +1,24 @@
+# GPG with Yubikey support requires libusb
+modules-$(CONFIG_GPG) += libusb
+
+libusb_version := 1.0.21
+libusb_dir := libusb-$(libusb_version)
+libusb_tar := libusb-$(libusb_version).tar.bz2
+libusb_url := https://downloads.sourceforge.net/project/libusb/libusb-1.0/libusb-$(libusb_version)/$(libusb_tar)
+libusb_hash := e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+libusb_configure := ./configure \
+	CC="$(heads_cc)" \
+	--host i386-elf-linux \
+	--prefix "$(INSTALL)" \
+	--disable-udev \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+libusb_target := $(MAKE_JOBS) \
+	install \
+
+libusb_libraries := libusb/.libs/libusb-1.0.so.0
+
+libusb_depends := $(musl_dep)
