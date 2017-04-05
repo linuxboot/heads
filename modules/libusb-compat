@@ -1,0 +1,25 @@
+# GPG 1.4.21 uses an old version of libusb, which
+# is emulated with the compatibility library.
+# This is a bit of a hack to set it up.
+modules-$(CONFIG_GPG) += libusb-compat
+
+libusb-compat_version := 0.1.5
+libusb-compat_dir := libusb-compat-$(libusb-compat_version)
+libusb-compat_tar := libusb-compat-$(libusb-compat_version).tar.bz2
+libusb-compat_url := https://downloads.sourceforge.net/project/libusb/libusb-compat-0.1/libusb-compat-$(libusb-compat_version)/$(libusb-compat_tar)
+libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea328bc55a
+
+libusb-compat_configure := ./configure \
+	CC="$(heads_cc)" \
+	--host i386-elf-linux \
+	--prefix "$(INSTALL)" \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+libusb-compat_target := $(MAKE_JOBS) \
+	install \
+
+libusb-compat_libraries := libusb/.libs/libusb-0.1.so.4
+
+libusb-compat_depends := libusb $(musl_dep)
