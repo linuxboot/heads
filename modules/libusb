@@ -5,7 +5,7 @@ libusb_version := 1.0.21
 libusb_dir := libusb-$(libusb_version)
 libusb_tar := libusb-$(libusb_version).tar.bz2
 libusb_url := https://downloads.sourceforge.net/project/libusb/libusb-1.0/libusb-$(libusb_version)/$(libusb_tar)
-libusb_hash := e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 
 libusb_configure := ./configure \
 	CC="$(heads_cc)" \
