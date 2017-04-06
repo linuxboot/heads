@@ -14,7 +14,7 @@ lvm2_configure := \
 	ac_cv_func_realloc_0_nonnull=yes \
 	./configure \
 	--host i386-elf-linux \
-	--prefix $(INSTALL) \
+	--prefix "/" \
 	--disable-selinux \
 	--disable-udev-systemd-background-jobs \
 	--disable-realtime \
@@ -27,7 +27,12 @@ lvm2_configure := \
 # not sure why LIB_SUFFIX is not defined in the cross build
 lvm2_target := \
 	$(MAKE_JOBS) \
-	all install_device-mapper \
+	all \
+	&& \
+	$(MAKE) \
+	-C $(build)/$(lvm2_dir) \
+	DESTDIR="$(INSTALL)" \
+	install_device-mapper \
 
 lvm2_libraries := libdm/libdevmapper.so.1.02
 
