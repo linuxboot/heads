@@ -22,8 +22,8 @@ pciutils_target := \
 	ZLIB=no \
 	HWDB=no \
 	SHARED=yes \
-	IDSDIR=/ \
-	PREFIX=$(INSTALL) \
+	IDSDIR="/" \
+	PREFIX="/" \
 	&& \
 	$(MAKE) \
 	-C $(build)/$(pciutils_dir) \
@@ -31,7 +31,8 @@ pciutils_target := \
 	ZLIB=no \
 	HWDB=no \
 	SHARED=yes \
-	PREFIX=$(INSTALL) \
+	PREFIX="/" \
+	DESTDIR="$(INSTALL)" \
 	install \
 	install-lib \
 

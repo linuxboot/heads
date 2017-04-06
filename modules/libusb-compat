@@ -12,15 +12,16 @@ libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea32
 libusb-compat_configure := ./configure \
 	CC="$(heads_cc)" \
 	--host i386-elf-linux \
-	--prefix "$(INSTALL)" \
+	--prefix "/" \
 	PKG_CONFIG=/bin/false \
 	LIBUSB_1_0_CFLAGS="-I$(INSTALL)/include/libusb-1.0" \
-	LIBUSB_1_0_LIBS="-L$(INSTALL)/lib -lusb-1.0" \
+	LIBUSB_1_0_LIBS="$(INSTALL)/libusb-1.0.so" \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
 # into our actual target location
 libusb-compat_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
 	install \
 
 libusb-compat_libraries := libusb/.libs/libusb-0.1.so.4

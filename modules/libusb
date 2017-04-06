@@ -10,13 +10,14 @@ libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 libusb_configure := ./configure \
 	CC="$(heads_cc)" \
 	--host i386-elf-linux \
-	--prefix "$(INSTALL)" \
+	--prefix "/" \
 	--disable-udev \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
 # into our actual target location
 libusb_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
 	install \
 
 libusb_libraries := libusb/.libs/libusb-1.0.so.0
