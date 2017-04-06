@@ -12,4 +12,5 @@ xen_output := xen
 xen_configure := 
 xen_target := $(MAKE_JOBS) \
 	CC="$(heads_cc) -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
+	LD="$(CROSS)ld" \
 
