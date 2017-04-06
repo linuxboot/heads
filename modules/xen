@@ -10,4 +10,6 @@ xen_hash := b795d5631a85fb68295361067195ecd00003656dacede4ec57533fce33ab5109
 
 xen_output := xen
 xen_configure := 
-xen_target := $(MAKE_JOBS)
+xen_target := $(MAKE_JOBS) \
+	CC="$(heads_cc) -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
+
