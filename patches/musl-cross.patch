@@ -25,7 +25,7 @@ index 4e321c9..336c65b 100644
  #GCC_CONFFLAGS="--with-arch=armv7-a --with-float=softfp"
  
 -MAKEFLAGS=-j8
-+MAKEFLAGS := -j`nproc`
++MAKEFLAGS=-j`nproc`
  
  # Enable this to build the bootstrap gcc (thrown away) without optimization, to reduce build time
  GCC_STAGE1_NOOPT=1
