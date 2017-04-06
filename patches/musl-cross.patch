@@ -1,6 +1,7 @@
-diff -r c004067a7b34 config.sh
---- a/config.sh	Sun Oct 02 20:51:04 2016 -0400
-+++ b/config.sh	Fri Jan 27 17:47:25 2017 -0500
+diff --git a/config.sh b/config.sh
+index 4e321c9..336c65b 100644
+--- a/config.sh
++++ b/config.sh
 @@ -1,13 +1,15 @@
  # ARCH will be auto-detected as the host if not specified
  #ARCH=i486
@@ -19,7 +20,12 @@ diff -r c004067a7b34 config.sh
  
  # If you use arm, you may need more fine-tuning:
  # arm hardfloat v7
-@@ -24,3 +26,6 @@
+@@ -20,7 +22,10 @@ CC_BASE_PREFIX=/opt/cross
+ #GCC_BOOTSTRAP_CONFFLAGS="--with-arch=armv7-a --with-float=softfp"
+ #GCC_CONFFLAGS="--with-arch=armv7-a --with-float=softfp"
+ 
+-MAKEFLAGS=-j8
++MAKEFLAGS := -j`nproc`
  
  # Enable this to build the bootstrap gcc (thrown away) without optimization, to reduce build time
  GCC_STAGE1_NOOPT=1
