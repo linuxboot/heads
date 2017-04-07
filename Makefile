@@ -162,7 +162,8 @@ define define_module =
   # Use the module's configure variable to build itself
   $(build)/$($1_dir)/.configured: \
 		$(build)/$($1_dir)/.canary \
-		$(build)/$($1_dir)/.config
+		$(build)/$($1_dir)/.config \
+		modules/$1
 	@echo "$(DATE) CONFIG $1"
 	@( \
 		cd "$(build)/$($1_dir)" ; \
