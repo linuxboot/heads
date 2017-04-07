@@ -16,17 +16,19 @@ musl_output := ../../install/bin/musl-gcc
 # That works, with some hacks...
 #
 musl_configure := ./configure \
+	CC="$(CROSS)gcc" \
 	--prefix="$(INSTALL)" \
 	--syslibdir="/lib" \
 	--enable-gcc-wrapper \
 	--enable-shared \
-	CC=$(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
+
+musl_target := \
+	$(MAKE_JOBS) \
+	AR="$(CROSS)ar" \
+	install \
 
 musl_libraries := \
 	lib/libc.so \
 
-
-musl_target := $(MAKE_JOBS) install
-#musl_target :=  install
 
 musl_depends := kernel-headers musl-cross
