@@ -251,6 +251,7 @@ bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 bin_modules-$(CONFIG_GPG) += gpg
 bin_modules-$(CONFIG_LVM2) += lvm2
 bin_modules-$(CONFIG_XEN) += xen
+bin_modules-$(CONFIG_DROPBEAR) += dropbear
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -382,14 +383,20 @@ modules.clean:
 	for dir in \
 		$(busybox_dir) \
 		$(cryptsetup_dir) \
+		$(dropbear_dir) \
+		$(flashrom_dir) \
 		$(gnupg_dir) \
 		$(kexec_dir) \
-		$(libuuid_dir) \
+		$(libusb_dir) \
+		$(libusb-compat_dir) \
 		$(lvm2_dir) \
 		$(mbedtls_dir) \
+		$(pciutils_dir) \
 		$(popt_dir) \
 		$(qrencode_dir) \
 		$(tpmtotp_dir) \
+		$(util-linux_dir) \
+		$(zlib_dir) \
 	; do \
 		$(MAKE) -C "build/$$dir" clean ; \
 		rm "build/$$dir/.configured" ; \
