@@ -15,6 +15,7 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 # location.
 gpg_configure := ./configure \
 	CC="$(heads_cc)" \
+	AR="$(CROSS)ar" \
 	--host i386-elf-linux \
 	--with-libusb="$(INSTALL)" \
 	--prefix "/" \
@@ -36,8 +37,7 @@ gpg_configure := ./configure \
 # into our actual target location
 gpg_target := $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(gpg_dir) \
-		exec_prefix=$(pwd)/install \
-		datarootdir=$(pwd)/install/share \
+		DESTDIR="$(INSTALL)" \
 		install
 
 gpg_output := g10/gpg
