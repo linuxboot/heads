@@ -11,17 +11,15 @@ kexec_configure := ./configure \
 	STRIP="$(CROSS)strip" \
 	--host i386-elf-linux \
 	--target x86_64 \
-	--prefix="$(INSTALL)" \
-	--without-zlib \
+	--prefix="/" \
 	--without-lzma \
 	&& $(MAKE) clean
 
 kexec_target := \
 	$(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
 	install \
 
 kexec_output := build/sbin/kexec
 
-# if we don't need zlib, don't built it
-#kexec_depends := zlib
-kexec_depends := $(musl_dep)
+kexec_depends := zlib $(musl_dep)
