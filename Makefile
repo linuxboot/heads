@@ -349,7 +349,7 @@ $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
 	xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
-		--extreme \
+		-9 \
 		< "$<" \
 		> "$@" \
 	)
