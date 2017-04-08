@@ -7,9 +7,7 @@ kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
 kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
 
 kexec_configure := ./configure \
-	CC="$(heads_cc)" \
-	STRIP="$(CROSS)strip" \
-	AR="$(CROSS)ar" \
+	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--target x86_64 \
 	--prefix="/" \
@@ -18,6 +16,7 @@ kexec_configure := ./configure \
 
 kexec_target := \
 	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
 	install \
 

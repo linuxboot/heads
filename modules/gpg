@@ -14,8 +14,7 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 # we use the install target so that they will be copied to the correct
 # location.
 gpg_configure := ./configure \
-	CC="$(heads_cc)" \
-	AR="$(CROSS)ar" \
+	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--with-libusb="$(INSTALL)" \
 	--prefix "/" \
