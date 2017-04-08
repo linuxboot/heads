@@ -16,6 +16,7 @@ musl_output := ../../install/bin/musl-gcc
 # That works, with some hacks...
 #
 musl_configure := ./configure \
+	$(CROSS_TOOLS_NOCC) \
 	CC="$(CROSS)gcc" \
 	--prefix="$(INSTALL)" \
 	--syslibdir="/lib" \
@@ -24,7 +25,8 @@ musl_configure := ./configure \
 
 musl_target := \
 	$(MAKE_JOBS) \
-	AR="$(CROSS)ar" \
+	$(CROSS_TOOLS_NOCC) \
+	CC="$(CROSS)gcc" \
 	install \
 
 musl_libraries := \

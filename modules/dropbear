@@ -8,8 +8,7 @@ dropbear_url := http://matt.ucc.asn.au/dropbear/releases/$(dropbear_tar)
 dropbear_hash := 2720ea54ed009af812701bcc290a2a601d5c107d12993e5d92c0f5f81f718891
 
 dropbear_configure := ./configure \
-	CC="$(heads_cc)" \
-	AR="$(CROSS)ar" \
+	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "/" \
 	
@@ -17,6 +16,7 @@ dropbear_config :=
 dropbear_output := ssh scp
 dropbear_target := \
 	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
 	dbclient scp \
 	&& \
