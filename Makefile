@@ -175,6 +175,7 @@ define define_module =
   $(build)/$($1_dir)/.configured: \
 		$(build)/$($1_dir)/.canary \
 		$(build)/$($1_dir)/.config \
+		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		modules/$1
 	@echo "$(DATE) CONFIG $1"
 	@( \
@@ -218,6 +219,7 @@ define define_module =
 		tail -20 "$(log_dir)/$1.log"; \
 		exit 1; \
 	)
+	@echo "$(DATE) DONE $1"
 
   $1.clean:
 	-$(RM) "$(build)/$($1_dir)/.configured"
@@ -236,7 +238,7 @@ $(call map, define_module, $(modules-y))
 #
 define install =
 	@-mkdir -p "$(dir $2)"
-	$(call do,INSTALL,$2,cp "$1" "$2")
+	$(call do,INSTALL,$2,cp -a "$1" "$2")
 endef
 
 #
@@ -245,15 +247,15 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	$(call do,INSTALL-BIN,$$<,cp "$$<" "$$@")
-	@$(CROSS)strip "$$@" 2>&-; true
+	$(call do,INSTALL-BIN,$$<,cp -a "$$<" "$$@")
+	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	$(call do,INSTALL-LIB,$$@,$(CROSS)strip -o "$$@" "$$<")
+	$(call do,INSTALL-LIB,$$@,$(CROSS)strip --preserve-dates -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
@@ -316,7 +318,7 @@ $(build)/$(linux_dir)/$1: linux.intermediate
 initrd.cpio: $(initrd_lib_dir)/modules/$(notdir $1)
 $(initrd_lib_dir)/modules/$(notdir $1): $(build)/$(linux_dir)/$1
 	@-mkdir -p "$(initrd_lib_dir)/modules"
-	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --strip-debug -o "$$@" "$$<")
+	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --preserve-dates --strip-debug -o "$$@" "$$<")
 endef
 $(call map,linux_module,$(linux_modules-y))
 
@@ -394,8 +396,7 @@ x230.flash.rom: $(build)/$(coreboot_dir)/x230.flash/coreboot.rom
 	$(call do,EXTRACT,$@,mv "$<" "$@")
 	@sha256sum "$@"
 
-modules.clean:
-	for dir in \
+module_dirs := \
 		$(busybox_dir) \
 		$(cryptsetup_dir) \
 		$(dropbear_dir) \
@@ -412,9 +413,24 @@ modules.clean:
 		$(tpmtotp_dir) \
 		$(util-linux_dir) \
 		$(zlib_dir) \
+		$(kernel-headers_dir) \
+
+modules.clean:
+	for dir in $(module_dirs) \
 	; do \
 		$(MAKE) -C "build/$$dir" clean ; \
 		rm "build/$$dir/.configured" ; \
+	done
+
+real.clean:
+	for dir in \
+		$(module_dirs) \
+		$(musl_dir) \
+		$(kernel_headers) \
+	; do \
+		if [ ! -z "$$dir" ]; then \
+			rm -rf "build/$$dir"; \
+		fi; \
 	done
 
 bootstrap:
