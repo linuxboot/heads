@@ -10,7 +10,7 @@ libusb-compat_url := https://downloads.sourceforge.net/project/libusb/libusb-com
 libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea328bc55a
 
 libusb-compat_configure := ./configure \
-	CC="$(heads_cc)" \
+	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "/" \
 	PKG_CONFIG=/bin/false \
@@ -22,6 +22,7 @@ libusb-compat_configure := ./configure \
 # into our actual target location
 libusb-compat_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
 	install \
 
 libusb-compat_libraries := libusb/.libs/libusb-0.1.so.4

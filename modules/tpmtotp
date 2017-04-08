@@ -12,7 +12,7 @@ tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v$(tpmtotp_version)
 tpmtotp_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
 
 tpmtotp_target := \
-	CC="$(heads_cc)"  \
+	$(CROSS_TOOLS) \
 	CFLAGS="-I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 

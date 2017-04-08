@@ -9,7 +9,7 @@ lvm2_hash := 23a3d1cddd41b3ef51812ebf83e9fa491f502fe74130d4263be327a91914660d
 # cross compiling test assumes malloc/realloc aren't glibc compat
 # so we force it via the configure cache.
 lvm2_configure := \
-	CC="$(heads_cc)" \
+	$(CROSS_TOOLS) \
 	PKG_CONFIG=/bin/false \
 	MODPROBE_CMD=/bin/false \
 	ac_cv_func_malloc_0_nonnull=yes \
@@ -17,6 +17,7 @@ lvm2_configure := \
 	./configure \
 	--host i386-elf-linux \
 	--prefix "/" \
+	--enable-devmapper \
 	--disable-selinux \
 	--disable-udev-systemd-background-jobs \
 	--disable-realtime \
@@ -29,12 +30,9 @@ lvm2_configure := \
 # not sure why LIB_SUFFIX is not defined in the cross build
 lvm2_target := \
 	$(MAKE_JOBS) \
-	AR="$(CROSS)ar" \
-	all \
-	&& \
-	$(MAKE) \
-	-C $(build)/$(lvm2_dir) \
+	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
+	all \
 	install_device-mapper \
 
 lvm2_libraries := libdm/libdevmapper.so.1.02

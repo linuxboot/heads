@@ -73,6 +73,18 @@ heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-gno-record-gcc-switches \
 
 CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS_TOOLS_NOCC := \
+	AR="$(CROSS)ar" \
+	LD="$(CROSS)ld" \
+	STRIP="$(CROSS)strip" \
+	NM="$(CROSS)nm" \
+	OBJCOPY="$(CROSS)objcopy" \
+	OBJDUMP="$(CROSS)objdump" \
+
+CROSS_TOOLS := \
+	CC="$(heads_cc)" \
+	$(CROSS_TOOLS_NOCC) \
+
 
 
 all: $(BOARD).rom

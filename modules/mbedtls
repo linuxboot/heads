@@ -13,7 +13,7 @@ mbedtls_configure :=
 mbedtls_target := \
 	SHARED=1 \
 	DESTDIR=$(INSTALL) \
-	CC="$(heads_cc)" \
+	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
 	install
 

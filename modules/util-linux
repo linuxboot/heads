@@ -7,10 +7,9 @@ util-linux_url := https://www.kernel.org/pub/linux/utils/util-linux/v2.29/$(util
 util-linux_hash := accea4d678209f97f634f40a93b7e9fcad5915d1f4749f6c47bee6bf110fe8e3
 
 util-linux_configure := ./configure \
-	CC="$(heads_cc)" \
+	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
-	--prefix "$(INSTALL)" \
-	--datadir "$(INSTALL)/share" \
+	--prefix "/" \
 	--oldincludedir "$(INSTALL)/include" \
 	--without-ncurses \
 	--without-ncursesw \
@@ -24,7 +23,10 @@ util-linux_configure := ./configure \
 
 
 util-linux_target := \
-	$(MAKE_JOBS) install
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install
 
 util-linux_libraries += .libs/libuuid.so.1
 
