@@ -227,6 +227,8 @@ endef
 
 $(call map, define_module, $(modules-y))
 
+# hack to force musl-cross to be built before musl
+#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
 
 #
 # Install a file into the initrd, if it changed from
@@ -415,6 +417,12 @@ modules.clean:
 		rm "build/$$dir/.configured" ; \
 	done
 
+bootstrap:
+	$(MAKE) \
+		-j`nproc` \
+		musl-cross.intermediate \
+		$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc \
+
 
 else
 # Wrong make version detected -- build our local version
@@ -423,7 +431,7 @@ $(eval $(shell echo >&2 "$(DATE) Wrong make detected: $(LOCAL_MAKE_VERSION)"))
 HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
-all: $(HEADS_MAKE)
+all bootstrap: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 %.clean %.intermediate: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
