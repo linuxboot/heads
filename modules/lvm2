@@ -37,6 +37,12 @@ lvm2_target := \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
 	all \
+	&& \
+	$(MAKE) \
+	-C "$(build)/$(lvm2_dir)" \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
 	install_device-mapper \
 
 lvm2_libraries := libdm/libdevmapper.so.1.02
