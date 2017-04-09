@@ -401,7 +401,7 @@ module_dirs := \
 		$(cryptsetup_dir) \
 		$(dropbear_dir) \
 		$(flashrom_dir) \
-		$(gnupg_dir) \
+		$(gpg_dir) \
 		$(kexec_dir) \
 		$(libusb_dir) \
 		$(libusb-compat_dir) \
@@ -432,6 +432,7 @@ real.clean:
 			rm -rf "build/$$dir"; \
 		fi; \
 	done
+	rm -rf ./install
 
 bootstrap:
 	$(MAKE) \
