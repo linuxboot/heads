@@ -15,6 +15,6 @@ xen_configure :=
 
 xen_target := \
 	$(MAKE_JOBS) \
-	$(CROSS_TOOL_NOCC) \
+	$(CROSS_TOOLS_NOCC) \
 	CC="$(CROSS)gcc -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
 
