@@ -44,4 +44,4 @@ linux_target := \
 	-j $(MAKE_JOBS) \
 
 # We cross compile linux now
-linux_depends := $(musl_dep)
+linux_depends := musl-cross
