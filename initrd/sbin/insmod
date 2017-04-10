@@ -24,14 +24,23 @@ if [ ! -r "$MODULE" ]; then
 	die "$MODULE: not found?"
 fi
 
-tpm extend -ix "$MODULE_PCR" -if "$MODULE" || die "$MODULE: tpm extend failed"
+if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
+	tpm_missing=1
+fi
 
-if [ ! -z "$@" ]; then
+if [ -z "$tpm_missing" ]; then
+	tpm extend -ix "$MODULE_PCR" -if "$MODULE" \
+	|| die "$MODULE: tpm extend failed"
+fi
+
+if [ ! -z "$@" -a -z "$tpm_missing" ]; then
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
-	tpm extend -ix "$MODULE_PCR" -if $TMPFILE || die "$MODULE: tpm extend on arguments failed"
+	tpm extend -ix "$MODULE_PCR" -if $TMPFILE \
+	|| die "$MODULE: tpm extend on arguments failed"
 fi
 
 # Since we have replaced the real insmod, we must invoke
 # the busybox insmod via the original executable
-busybox insmod "$MODULE" "$@" || die "$MODULE: insmod failed"
+busybox insmod "$MODULE" "$@" \
+|| die "$MODULE: insmod failed"
