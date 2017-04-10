@@ -1,7 +1,9 @@
 #!/bin/ash
 # First thing it is vital to mount the /dev and other system directories
 mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
-mount /dev /proc /sys
+mount /dev
+mount /proc
+mount /sys
 
 # Setup our path
 export PATH=/sbin:/bin
