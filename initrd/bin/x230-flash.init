@@ -1,0 +1,21 @@
+#!/bin/sh
+# Initialize the USB device drivers, invoke a recovery shell
+
+insmod /lib/modules/ehci-hcd.ko
+insmod /lib/modules/ehci-pci.ko
+insmod /lib/modules/xhci-hcd.ko
+insmod /lib/modules/xhci-pci.ko
+insmod /lib/modules/e1000e.ko
+
+tpm extend -ix 4 -ic recovery
+sleep 2
+
+echo '***** Starting recovery shell'
+echo ''
+echo 'To install from flash drive:'
+echo ''
+echo '  mount -o ro /dev/sdb1 /media'
+echo '  flashrom-x230.sh /media/x230.rom'
+echo ''
+
+exec /bin/ash
