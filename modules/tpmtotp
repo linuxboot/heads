@@ -20,8 +20,6 @@ tpmtotp_output := \
 	totp \
 	base32 \
 	qrenc \
-	sealtotp.sh \
-	unsealtotp.sh \
 	util/tpm \
 
 tpmtotp_libraries := \

@@ -1,0 +1,87 @@
+#!/bin/sh
+# Generate a random secret, seal it with the PCRs
+# and write it to the TPM NVRAM.
+#
+# Pass in a hostname if you want to change it from the default string
+#
+
+. /etc/functions
+
+TPM_NVRAM_SPACE=4d47
+
+HOST="$1"
+if [ -z "$HOST" ]; then
+	HOST="TPMTOTP"
+fi
+
+TOTP_SECRET="/tmp/secret/totp.key"
+TOTP_SEALED="/tmp/secret/totp.sealed"
+
+dd \
+	if=/dev/urandom \
+	of="$TOTP_SECRET" \
+	count=1 \
+	bs=20 \
+	2>/dev/null \
+|| die "Unable to generate 20 random bytes"
+
+secret="`base32 < $TOTP_SECRET`"
+
+# Use the current values of the PCRs, which will be read
+# from the TPM as part of the sealing ("X").
+# PCR4 == 0 means that we are still in the boot process and
+# not a recovery shell.
+# should this read the storage root key?
+if ! tpm sealfile2 \
+	-if "$TOTP_SECRET" \
+	-of "$TOTP_SEALED" \
+	-hk 40000000 \
+	-ix 0 X \
+	-ix 1 X \
+	-ix 2 X \
+	-ix 3 X \
+	-ix 4 0000000000000000000000000000000000000000 \
+; then
+	rm -f "$TOTP_SECRET"
+	 die "Unable to seal secret"
+fi
+
+
+# to create an nvram space we need the TPM owner password
+# and the TPM physical presence must be asserted.
+#
+# The permissions are 0 since there is nothing special
+# about the sealed file
+tpm physicalpresence -s \
+|| warn "Warning: Unable to assert physical presence"
+
+# Try to write it without the password first, and then create
+# the NVRAM space using the owner password if it fails for some reason.
+if ! tpm nv_writevalue \
+	-in $TPM_NVRAM_SPACE \
+	-if "$TOTP_SEALED" \
+; then
+	warn 'NVRAM space does not exist? Owner password is required'
+	read -s -p "TPM Owner password: " tpm_password
+	echo
+
+	tpm nv_definespace \
+		-in $TPM_NVRAM_SPACE \
+		-sz 312 \
+		-pwdo "$tpm_password" \
+		-per 0 \
+	|| die "Unable to define NVRAM space"
+
+	tpm nv_writevalue \
+		-in $TPM_NVRAM_SPACE \
+		-if "$TOTP_SEALED" \
+	|| die "Unable to write sealed secret to NVRAM"
+fi
+
+rm -f "$TOTP_SEALED"
+
+url="otpauth://totp/$HOST?secret=$secret"
+secret=""
+
+qrenc "$url"
+#echo "$url"
