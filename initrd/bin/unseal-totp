@@ -20,7 +20,7 @@ tpm unsealfile  \
 
 rm -f "$TOTP_SEALED"
 
-echo -n "`date`: "
+#echo -n "`date`: "
 if ! totp < "$TOTP_SECRET"; then
 	rm -f "$TOTP_SECRET"
 	die 'Unable to compute TOTP hash?'
