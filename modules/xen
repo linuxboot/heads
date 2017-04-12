@@ -10,7 +10,7 @@ xen_hash := b795d5631a85fb68295361067195ecd00003656dacede4ec57533fce33ab5109
 
 xen_depends := musl-cross
 
-xen_output := xen
+xen_output := xen.gz
 xen_configure := 
 
 xen_target := \
