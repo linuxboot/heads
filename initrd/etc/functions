@@ -1,0 +1,30 @@
+#!/bin/sh
+# Shell functions for most initialization scripts
+
+die() {
+	echo >&2 "$*";
+	exit 1;
+}
+
+warn() {
+	echo >&2 "$*";
+}
+
+recovery() {
+	echo >&2 "!!!!! $*"
+
+	# Remove any temporary secret files that might be hanging around
+	# but recreate the directory so that new tools can use it.
+	rm -rf /tmp/secret
+	mkdir -p /tmp/secret
+	tpm extend -ix 4 -ic recovery
+
+	echo >&2 "!!!!! Starting recovery shell"
+	sleep 1
+	exec /bin/ash
+}
+
+
+pcrs() {
+	head -7 /sys/class/tpm/tpm0/pcrs
+}
