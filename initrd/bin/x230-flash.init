@@ -1,5 +1,9 @@
 #!/bin/sh
-# Initialize the USB device drivers, invoke a recovery shell
+# Initialize the USB and network device drivers,
+# invoke a recovery shell and prompt the user for how to proceed
+
+. /etc/functions
+. /etc/config
 
 insmod /lib/modules/ehci-hcd.ko
 insmod /lib/modules/ehci-pci.ko
