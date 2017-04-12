@@ -1,9 +1,18 @@
 #!/bin/ash
+# This is the very first script invoked by the Linux kernel and is
+# running out of the ram disk.  There are no fileysstems mounted.
+# It is important to have a way to invoke a recovery shell in case
+# the boot scripts are messed up, but also important to modify the
+# PCRs if this happens to prevent the TPM disk keys from being revealed.
+
 # First thing it is vital to mount the /dev and other system directories
 mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev
 mount /proc
 mount /sys
+
+# Recovery shells will erase anything from here
+mkdir -p /tmp/secret
 
 # Setup our path
 export PATH=/sbin:/bin
@@ -17,50 +26,37 @@ fi
 hwclock -l -s
 
 # Read the system configuration parameters
-. /config
+. /etc/functions
+. /etc/config
 
-if [ -z "$CONFIG_TIMEOUT" ]; then
-	CONFIG_TIMEOUT=10
+if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
+	recovery 'Boot script missing?  Entering recovery shell'
+	# just in case...
+	tpm extend -ix 4 recovery
+	exec /bin/ash
 fi
 
-while true; do
-	boot_option=
+# Give the user a second to enter a recovery shell
+read \
+	-t "1" \
+	-p "Press 'r' for recovery shell: " \
+	-n 1 \
+	boot_option
+echo
 
-	# Verify the user's TPM secret
-	echo "TPM TOTP:"
-	if ! unsealtotp.sh ; then
-		echo '!!!!!'
-		echo '!!!!! TPM TOTP secret not found.'
-		echo '!!!!! This firmware can not be trusted.'
-		echo '!!!!! Entering recovery shell'
-		echo '!!!!!'
-		tpm extend -ix 4 -ic "tpm-failure"
-		exec /bin/ash
-	fi
+if [ "$boot_option" = "r" ]; then
+	# Start an interactive shell
+	recovery 'User requested recovery shell'
+	# just in case...
+	tpm extend -ix 4 recovery
+	exec /bin/ash
+fi
 
-	# Secret decrypted ok, so prompt for a next step
-	read \
-		-t "$CONFIG_TIMEOUT" \
-		-p "Enter for normal boot or 'r' for recovery shell: " \
-		-n 1 \
-		boot_option
+echo '***** Normal boot'
+exec "$CONFIG_BOOTSCRIPT"
 
-	if [ "$boot_option" = "r" ]; then
-		# Start an interactive shell
-		echo '***** Starting recovery shell'
-		tpm extend -ix 4 -ic "recovery"
-		exec /bin/ash
-	fi
-
-	if [ "$boot_option" = "" ]; then
-		if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
-			echo '!!!!! Boot script missing?  Entering recovery shell'
-			tpm extend -ix 4 -ic "boot-failure"
-			exec /bin/ash
-		fi
-
-		echo '***** Normal boot'
-		tpm extend -ix 4 -ic "normal-boot"
-		exec "$CONFIG_BOOTSCRIPT"
-	fi
-done
+# We should never reach here, but just in case...
+recovery 'Boot script failure?  Entering recovery shell'
+# belts and suspenders, just in case...
+tpm extend -ix 4 recovery
+exec /bin/ash

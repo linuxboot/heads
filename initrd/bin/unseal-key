@@ -1,34 +1,48 @@
 #!/bin/sh
 # This will unseal and unecncrypt the drive encryption key from the TPM
+# The TOTP secret will be shown to the user on each encryption attempt.
 # It will then need to be bundled into initrd that is booted with Qubes.
 
 TPM_INDEX=3
 TPM_SIZE=312
 
-die() { echo >&2 "$@"; exit 1; }
-warn() { echo >&2 "$@"; }
+. /etc/functions
+mkdir -p /tmp/secret
 
+sealed_file="/tmp/secret/sealed.key"
 key_file="$1"
-if [ -z "$key_file" ]; then
-	key_file=/tmp/secret.key
-fi
 
-read -s -p "Disk encryption password: " tpm_password
-echo
+if [ -z "$key_file" ]; then
+	key_file="/tmp/secret/secret.key"
+fi
 
 tpm nv_readvalue \
 	-in "$TPM_INDEX" \
 	-sz "$TPM_SIZE" \
-	-of /tmp/sealed \
+	-of "$sealed_file" \
 || die "Unable to read key from TPM NVRAM"
 
-tpm unsealfile \
-	-if /tmp/sealed \
-	-of "$key_file" \
-	-pwdd "$tpm_password" \
-	-hk 40000000 \
-|| die "Unable to unseal disk encryption key"
+for tries in 1 2 3; do
+	tpm_password=
+	while [ -z "$tpm_password" ]; do
+		unseal-totp || die "TOTP code generation failed"
 
-rm -f /tmp/sealed
+		read -s -p "Disk unlock password: " tpm_password
+		echo
+	done
 
-exit 0
+	if tpm unsealfile \
+		-if "$sealed_file" \
+		-of "$key_file" \
+		-pwdd "$tpm_password" \
+		-hk 40000000 \
+	; then
+		rm -f /tmp/secret/sealed
+		exit 0
+	fi
+
+	pcrs
+	warn "Unable to unseal disk encryption key"
+done
+
+die "Retry count exceeded..."
