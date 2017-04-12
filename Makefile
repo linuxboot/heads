@@ -341,7 +341,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
 	$(call do,OVERLAY,initrd,\
 		tar -C ./initrd -cf - . | tar -C "$(initrd_dir)" -xf - \
 	)
-	$(call do,INSTALL,$(CONFIG),cp "$(CONFIG)" "$(initrd_dir)/config")
+	$(call do,INSTALL,$(CONFIG),cp "$(CONFIG)" "$(initrd_dir)/etc/config")
 	$(call do,CPIO,$@, \
 	cd "$(initrd_dir)"; \
 	find . \
