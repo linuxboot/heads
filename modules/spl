@@ -1,0 +1,28 @@
+modules-$(CONFIG_ZFS) += spl
+
+spl_depends := $(musl_dep)
+
+spl_version := 0.6.5.9
+spl_dir := spl-$(spl_version)
+spl_tar := spl-$(spl_version).tar.gz
+spl_url := https://github.com/zfsonlinux/zfs/releases/download/zfs-$(spl_version)/$(spl_tar)
+spl_hash := d9ccd24786bb5a8616748a93a3c0b1270aa891175e2f5d726195b416f5c03b9c
+
+spl_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host i386-elf-linux \
+	PREFIX="/" \
+	--with-linux=$(build)/linux-4.9.20 \
+	--with-linux-obj=$(build)/linux-4.9.20 \
+	
+
+spl_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+
+spl_output := \
+	spl.ko
+
+spl_libraries := \
+
