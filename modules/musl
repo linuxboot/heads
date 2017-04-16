@@ -33,4 +33,14 @@ musl_libraries := \
 	lib/libc.so \
 
 
-musl_depends := kernel-headers musl-cross
+musl_depends := musl-cross
+
+# Fake a target so that musl will force a header install by the
+# Linux kernel sources.
+musl.intermediate: $(INSTALL)/include/linux/limits.h
+$(INSTALL)/include/linux/limits.h: $(build)/$(linux_dir)/.canary
+	$(MAKE) \
+		-C "$(build)/$(linux_dir)" \
+		INSTALL_HDR_PATH="$(INSTALL)" \
+		headers_install
+

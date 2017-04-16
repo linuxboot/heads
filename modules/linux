@@ -12,7 +12,7 @@ linux_hash := $(linux-$(linux_version)_hash)
 
 linux_configure := \
 	$(MAKE) \
-		CROSS_COMPILE=$(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl- \
+		CROSS_COMPILE="$(CROSS)" \
 		oldconfig \
 
 linux_output := arch/x86/boot/bzImage
@@ -33,7 +33,7 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
-	CROSS_COMPILE=$(pwd)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl- \
+	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_MODULE="$(EXTRA_FLAGS)" \
@@ -41,7 +41,7 @@ linux_target := \
 	KBUILD_BUILD_HOST=heads-build \
 	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
 	KBUILD_BUILD_VERSION=0 \
-	-j $(MAKE_JOBS) \
+	$(MAKE_JOBS) \
 
 # We cross compile linux now
 linux_depends := musl-cross
