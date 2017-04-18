@@ -1,6 +1,6 @@
-diff -u ../clean/flashrom-0.9.9/board_enable.c flashrom-0.9.9/board_enable.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/board_enable.c flashrom-0.9.9/board_enable.c
 --- ../clean/flashrom-0.9.9/board_enable.c	2016-03-13 16:16:30.000000000 +0100
-+++ flashrom-0.9.9/board_enable.c	2017-04-18 23:53:44.389399460 +0200
++++ flashrom-0.9.9/board_enable.c	2017-04-19 00:04:25.134374538 +0200
 @@ -2305,6 +2305,7 @@
  
  	/* first pci-id set [4],          second pci-id set [4],          dmi identifier, coreboot id [2],  phase, vendor name,  board name       max_rom_...  OK? flash enable */
@@ -35,9 +35,9 @@ diff -u ../clean/flashrom-0.9.9/board_enable.c flashrom-0.9.9/board_enable.c
  	{     0,      0,      0,      0,       0,      0,      0,      0, NULL,         NULL, NULL,           P3, NULL,          NULL,                    0,   NT, NULL}, /* end marker */
  };
  
-diff -u ../clean/flashrom-0.9.9/chipset_enable.c flashrom-0.9.9/chipset_enable.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/chipset_enable.c flashrom-0.9.9/chipset_enable.c
 --- ../clean/flashrom-0.9.9/chipset_enable.c	2016-01-23 17:16:49.000000000 +0100
-+++ flashrom-0.9.9/chipset_enable.c	2017-04-18 23:54:39.677489973 +0200
++++ flashrom-0.9.9/chipset_enable.c	2017-04-19 00:04:25.134374538 +0200
 @@ -1482,6 +1482,7 @@
  /* Please keep this list numerically sorted by vendor/device ID. */
  const struct penable chipset_enables[] = {
@@ -74,9 +74,9 @@ diff -u ../clean/flashrom-0.9.9/chipset_enable.c flashrom-0.9.9/chipset_enable.c
  	{0},
  };
  
-diff -u ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
 --- ../clean/flashrom-0.9.9/flashchips.c	2016-03-13 16:16:30.000000000 +0100
-+++ flashrom-0.9.9/flashchips.c	2017-04-18 21:51:27.966222443 +0200
++++ flashrom-0.9.9/flashchips.c	2017-04-19 00:11:13.687322064 +0200
 @@ -33,7 +33,7 @@
   * alphabetically sorted. Within families keep them in order of density.
   */
@@ -86,7 +86,24 @@ diff -u ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
  	/*
  	 * .vendor		= Vendor name
  	 * .name		= Chip name
-@@ -15902,6 +15902,7 @@
+@@ -14506,6 +14506,7 @@
+ 		.voltage	= {2700, 3600},
+ 	},
+ 
++#endif
+ 	{
+ 		.vendor		= "Winbond",
+ 		.name		= "W25Q64.V",
+@@ -14545,7 +14546,7 @@
+ 		.read		= spi_chip_read,
+ 		.voltage	= {2700, 3600},
+ 	},
+-
++#if 0
+ 	{
+ 		.vendor		= "Winbond",
+ 		.name		= "W25Q128.V",
+@@ -15902,6 +15903,7 @@
  		.feature_bits	= 0,
  		.block_erasers	= {},
  	},
@@ -94,7 +111,7 @@ diff -u ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
  
  	{
  		.vendor		= "Programmer",
-@@ -15925,6 +15926,7 @@
+@@ -15925,6 +15927,7 @@
  		.read		= read_opaque,
  	},
  
@@ -102,7 +119,7 @@ diff -u ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
  	{
  		.vendor		= "AMIC",
  		.name		= "unknown AMIC SPI chip",
-@@ -16085,6 +16087,7 @@
+@@ -16085,6 +16088,7 @@
  		.probe		= probe_spi_rems,
  		.write		= NULL,
  	},
@@ -110,9 +127,9 @@ diff -u ../clean/flashrom-0.9.9/flashchips.c flashrom-0.9.9/flashchips.c
  
  	{0}
  };
-diff -u ../clean/flashrom-0.9.9/flashrom.c flashrom-0.9.9/flashrom.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/flashrom.c flashrom-0.9.9/flashrom.c
 --- ../clean/flashrom-0.9.9/flashrom.c	2016-02-22 09:59:27.000000000 +0100
-+++ flashrom-0.9.9/flashrom.c	2017-04-18 21:51:27.966222443 +0200
++++ flashrom-0.9.9/flashrom.c	2017-04-19 00:04:25.138374544 +0200
 @@ -1983,7 +1983,7 @@
  	uint8_t *newcontents;
  	int ret = 0;
@@ -122,9 +139,9 @@ diff -u ../clean/flashrom-0.9.9/flashrom.c flashrom-0.9.9/flashrom.c
  
  	if (chip_safety_check(flash, force, read_it, write_it, erase_it, verify_it)) {
  		msg_cerr("Aborting.\n");
-diff -u ../clean/flashrom-0.9.9/layout.c flashrom-0.9.9/layout.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/layout.c flashrom-0.9.9/layout.c
 --- ../clean/flashrom-0.9.9/layout.c	2016-03-13 18:36:49.000000000 +0100
-+++ flashrom-0.9.9/layout.c	2017-04-18 21:51:27.966222443 +0200
++++ flashrom-0.9.9/layout.c	2017-04-19 00:04:25.138374544 +0200
 @@ -259,6 +259,7 @@
  
  static int copy_old_content(struct flashctx *flash, int oldcontents_valid, uint8_t *oldcontents, uint8_t *newcontents, unsigned int start, unsigned int size)
@@ -141,9 +158,9 @@ diff -u ../clean/flashrom-0.9.9/layout.c flashrom-0.9.9/layout.c
  	memcpy(newcontents + start, oldcontents + start, size);
  	return 0;
  }
-diff -u ../clean/flashrom-0.9.9/print.c flashrom-0.9.9/print.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/print.c flashrom-0.9.9/print.c
 --- ../clean/flashrom-0.9.9/print.c	2016-03-13 16:16:30.000000000 +0100
-+++ flashrom-0.9.9/print.c	2017-04-18 21:51:27.966222443 +0200
++++ flashrom-0.9.9/print.c	2017-04-19 00:04:25.138374544 +0200
 @@ -518,6 +518,7 @@
  
  /* Please keep this list alphabetically ordered by vendor/board. */
@@ -175,9 +192,9 @@ diff -u ../clean/flashrom-0.9.9/print.c flashrom-0.9.9/print.c
  
  	{0},
  };
-diff -u ../clean/flashrom-0.9.9/spi.c flashrom-0.9.9/spi.c
+diff -u -x '*.d' -x '*.o' ../clean/flashrom-0.9.9/spi.c flashrom-0.9.9/spi.c
 --- ../clean/flashrom-0.9.9/spi.c	2014-07-20 00:03:29.000000000 +0200
-+++ flashrom-0.9.9/spi.c	2017-04-18 21:51:27.966222443 +0200
++++ flashrom-0.9.9/spi.c	2017-04-19 00:04:25.138374544 +0200
 @@ -100,6 +100,20 @@
  	return spi_write_chunked(flash, buf, start, len, max_data);
  }
