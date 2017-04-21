@@ -70,7 +70,8 @@ Notes:
 * Booting Qubes requires patching Xen's real mode startup code
 see `patches/xen-4.6.3.patch` and adding `no-real-mode` to start
 of the Xen command line.  Booting or installing Qubes is a bit hacky and needs to be documented.
-
+* Building for the Lenovo X220 requires binary blobs to be placed in the blobs/x220/ folder.
+See the readme.txt file in that folder
 
 Signing with GPG
 ---
