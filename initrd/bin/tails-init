@@ -1,0 +1,38 @@
+#!/bin/sh
+# Boot a Tails installation that has already been setup.
+
+. /etc/functions
+. /etc/config
+
+# TODO: Do a scan of USB devices to detect the Tails USB
+mount-usb "$CONFIG_USB_BOOT_DEV"
+LIVE_DIR=/media/live
+
+BOOT_HASHES=$LIVE_DIR/boot.hashes
+if [ ! -r "$BOOT_HASHES" ]; then
+	recovery "$BOOT_HASHES does not exist; re-run tails-update"
+fi
+
+# Verify the signature on the hashes
+gpgv "$BOOT_HASHES.asc" "$BOOT_HASHES" \
+	|| recovery 'boot hashes signature failed'
+
+# Retrieve the TPM counter ID and generate its current value
+TPM_COUNTER=`grep counter $BOOT_HASHES | cut -d- -f2`
+if [ -z "$TPM_COUNTER" ]; then
+	recovery "$BOOT_HASHES: TPM counter not found?"
+fi
+
+tpm counter_read -ix "$TPM_COUNTER" | tee "/tmp/counter-$TPM_COUNTER"
+
+# Check the hashes of all the files
+sha256sum -c "$BOOT_HASHES" \
+|| recovery "$BOOT_HASHES: hash mismatch"
+
+KERNEL=`grep $LIVE_DIR/vmlin $BOOT_HASHES | cut -d\  -f3 | tail -1`
+INITRD=`grep $LIVE_DIR/initr $BOOT_HASHES | cut -d\  -f3 | tail -1`
+
+echo "+++ Booting Tails with $KERNEL and $INITRD"
+/bin/tails-boot "$KERNEL" "$INITRD"
+
+recovery "Something failed..."
