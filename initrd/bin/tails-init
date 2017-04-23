@@ -1,0 +1,32 @@
+#!/bin/sh
+# Boot a Tails installation
+
+. /etc/functions
+. /etc/config
+
+# Confirm we have a good TOTP unseal
+if ! confirm_totp ; then
+	recovery 'Failed to unseal TOTP'
+fi
+
+# Extend PCR4 as soon as possible
+tpm extend -ix 4 -ic tails
+
+if [ ! "$totp_confirm" = "y" ]; then
+	recovery "Failed to confirm validity of TOTP"
+fi
+
+# TODO: Do a scan of USB devices to detect the Tails USB
+mount-usb "$CONFIG_USB_BOOT_DEV"
+
+# Check for ISO first
+ISO=`ls -1r /media/tails-i386-*.iso 2>/dev/null | head -1`
+if [ -r "$ISO" ]; then
+	echo "+++ Found Tails ISO at $ISO"
+	exec /bin/tails-iso-init $ISO
+fi
+
+echo "!!! Could not find Tails ISO, trying bootable USB"
+exec /bin/tails-usb-init
+
+recovery "Something failed..."

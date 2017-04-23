@@ -1,0 +1,18 @@
+#!/bin/sh
+# Boot Tails from signed ISO
+
+. /etc/functions
+. /etc/config
+
+ISO="$1"
+
+echo '+++ Verifying Tails ISO'
+# Verify the signature on the hashes
+gpgv "$ISO.sig" "$ISO" \
+	|| recovery 'Tails ISO signature failed'
+
+echo '+++ Mounting Tails ISO and Booting'
+mount -t iso9660 -o loop $ISO /boot
+
+ISO_FILE=${ISO:7}
+/bin/tails-iso-boot /boot/live/vmlinuz2 /boot/live/initrd2.img ${CONFIG_USB_BOOT_DEV} ${ISO_FILE}
