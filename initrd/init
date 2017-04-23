@@ -32,7 +32,7 @@ hwclock -l -s
 if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 	# just in case...
-	tpm extend -ix 4 recovery
+	tpm extend -ix 4 -ic recovery
 	exec /bin/ash
 fi
 
@@ -48,7 +48,7 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	tpm extend -ix 4 recovery
+	tpm extend -ix 4 -ic recovery
 	exec /bin/ash
 fi
 
@@ -58,5 +58,5 @@ exec "$CONFIG_BOOTSCRIPT"
 # We should never reach here, but just in case...
 recovery 'Boot script failure?  Entering recovery shell'
 # belts and suspenders, just in case...
-tpm extend -ix 4 recovery
+tpm extend -ix 4 -ic recovery
 exec /bin/ash
