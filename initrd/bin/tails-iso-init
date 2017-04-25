@@ -11,8 +11,8 @@ echo '+++ Verifying Tails ISO'
 gpgv "$ISO.sig" "$ISO" \
 	|| recovery 'Tails ISO signature failed'
 
-echo '+++ Mounting Tails ISO and Booting'
+echo '+++ Mounting Tails ISO and booting'
 mount -t iso9660 -o loop $ISO /boot
 
 ISO_FILE=${ISO:7}
-/bin/tails-iso-boot /boot/live/vmlinuz2 /boot/live/initrd2.img ${CONFIG_USB_BOOT_DEV} ${ISO_FILE}
+/bin/tails-boot /boot ${CONFIG_USB_BOOT_DEV} ${ISO_FILE}
