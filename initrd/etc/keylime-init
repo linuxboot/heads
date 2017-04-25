@@ -1,5 +1,7 @@
 #!/bin/sh
-# Bring up the x230's NIC, get a DHCP address and invoke keylime
+# Bring up the x230's NIC, get a DHCP address, and invoke keylime
+
+. /etc/functions
 
 insmod /lib/modules/e1000e.ko
 udhcpc -n
