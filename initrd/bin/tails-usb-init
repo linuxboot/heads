@@ -20,5 +20,5 @@ if [ ! "$tails_confirm" = "y" ]; then
 	recovery 'Failed to boot Tails USB'
 fi
 
-echo "+++ Booting Tails from /media
+echo "+++ Booting Tails from /media"
 /bin/tails-boot /media
