@@ -1,0 +1,27 @@
+#!/bin/sh
+# Boot from signed ISO
+
+. /etc/functions
+. /etc/config
+
+ISO="$1"
+
+echo '+++ Verifying ISO'
+# Verify the signature on the hashes
+ISOSIG="$ISO.sig"
+if ! [ -r "$ISOSIG" ]; then
+	ISOSIG="$ISO.asc"
+fi
+
+gpgv "$ISOSIG" "$ISO" \
+	|| recovery 'ISO signature failed'
+
+echo '+++ Mounting ISO and booting'
+mount -t iso9660 -o loop $ISO /boot
+
+ISO_FILE=${ISO:7}
+DEV=$CONFIG_USB_BOOT_DEV
+DEV_UUID=`blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2`
+ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_FILE"
+
+/bin/usb-select-boot /boot "$ADD"
