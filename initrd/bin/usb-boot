@@ -1,0 +1,73 @@
+#!/bin/sh
+. /etc/functions
+
+while getopts "b:e:r:a:" arg; do
+	case $arg in
+		b) bootdir="$OPTARG" ;;
+		e) entry="$OPTARG" ;;
+		r) cmdremove="$OPTARG" ;;
+		a) cmdadd="$OPTARG" ;;
+	esac
+done
+
+kexectype=`echo $entry | cut -d\| -f2`
+kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
+kexeccmd="kexec"
+
+fix_file_path() {
+	filepath=`find $bootdir -path "*$firstval" | tail -1`
+	if ! [ -r $filepath ]; then
+		die "failed to find file $firstval"
+	fi
+}
+
+adjust_cmd_line() {
+	if [ -n "$cmdremove" ]; then
+		for i in $cmdremove; do
+			cmdline="${cmdline//$i/}"
+		done
+	fi
+
+	if [ -n "$cmdadd" ]; then
+		cmdline="$cmdline $cmdadd"
+	fi
+}
+
+while read line
+do
+	key=`echo $line | cut -d\  -f1`
+	firstval=`echo $line | cut -d\  -f2`
+	restval=`echo $line | cut -d\  -f3-`
+	if [ "$key" = "kernel" ]; then
+		fix_file_path
+		kexeccmd="$kexeccmd -l $filepath"
+		if [ "$kexectype" = "multiboot" ]; then
+			cmdline="$restval"
+			adjust_cmd_line
+			kexeccmd="$kexeccmd --command-line \"$cmdline\""
+		fi
+	fi
+	if [ "$key" = "module" ]; then
+		fix_file_path
+		kexeccmd="$kexeccmd --module \"$filepath $restval\""
+	fi
+	if [ "$key" = "initrd" ]; then
+		fix_file_path
+		kexeccmd="$kexeccmd --initrd=$filepath"
+	fi
+	if [ "$key" = "append" ]; then
+		cmdline="$firstval $restval"
+		adjust_cmd_line
+		kexeccmd="$kexeccmd --append=\"$cmdline\""
+	fi
+done << EOF
+$kexecparams
+EOF
+
+echo "Loading the new kernel:"
+echo "$kexeccmd"
+eval "$kexeccmd" \
+|| die "Failed to load the new kernel"
+
+echo "Starting the new kernel"
+exec kexec -e

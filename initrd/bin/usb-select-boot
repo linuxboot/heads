@@ -1,0 +1,59 @@
+#!/bin/sh
+. /etc/functions
+
+bootdir=$1
+add=$2
+
+get_menu_option() {
+	echo "+++ Select your boot option:"
+	n=0
+	while read option
+	do
+		parse_option
+		n=`expr $n + 1`
+		echo "$n. $name [$kernel]"
+	done < /tmp/usb_menu.txt
+
+	read \
+		-p "Choose the boot option [1-$n, a to abort]: " \
+		option_index
+
+	if [ "$option_index" = "a" ]; then
+		recovery "Aborting boot attempt"
+	fi
+
+	option=`head -n $option_index /tmp/usb_menu.txt | tail -1`
+	parse_option
+}
+
+confirm_menu_option() {
+	echo "+++ Please confirm the boot details for $name:"
+	echo $option
+
+	read \
+		-n 1 \
+		-p "Confirm selection by pressing 'y': " \
+		option_confirm
+	echo
+}
+
+parse_option() {
+	name=`echo $option | cut -d\| -f1`
+	kernel=`echo $option | cut -d\| -f3`
+}
+
+echo "+++ Scanning USB media boot options"
+for i in `find $bootdir -name "*.cfg"`; do usb-parse-boot $i >> /tmp/usb_options.txt; done
+if [ ! -r /tmp/usb_options.txt ]; then
+	recovery "Failed to parse any boot options"
+fi
+sort /tmp/usb_options.txt | uniq > /tmp/usb_menu.txt
+
+option_confirm=""
+while [ "$option_confirm" != "y" ]
+do
+	get_menu_option
+	confirm_menu_option
+done
+
+usb-boot -b $bootdir -e "$option" -a "intel_iommu=on $add" -r "quiet"
