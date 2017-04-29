@@ -28,3 +28,38 @@ recovery() {
 pcrs() {
 	head -7 /sys/class/tpm/tpm0/pcrs
 }
+
+confirm_totp()
+{
+	last_half=X
+
+	while true; do
+
+		# update the TOTP code every thirty seconds
+		date=`date "+%Y-%m-%d %H:%M:%S"`
+		seconds=`date "+%s"`
+		half=`expr \( $seconds % 60 \) / 30`
+		if [ "$half" != "$last_half" ]; then
+			last_half=$half;
+			TOTP=`unseal-totp` \
+			|| recovery "TOTP code generation failed"
+		fi
+
+		echo -n "$date $TOTP: "
+
+		# read the first character, non-blocking
+		read \
+			-t 1 \
+			-n 1 \
+			-s \
+			-p "Confirm TOTP with a 'y': " \
+			totp_confirm \
+		&& break
+
+		# nothing typed, redraw the line
+		echo -ne '\r'
+	done
+
+	# clean up with a newline
+	echo
+}
