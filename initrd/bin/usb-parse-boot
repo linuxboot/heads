@@ -13,7 +13,7 @@ reset_entry() {
 
 echo_entry() {
 	if [ "$kexectype" = "elf" ]; then
-		if [ -z "$kernel" -o -z "$initrd" ]; then return; fi
+		if [ -z "$kernel" ]; then return; fi
 
 		entry="$name|$kexectype|kernel $kernel|initrd $initrd"
 		if [ -n "$append" ]; then entry="$entry|append $append"; fi
@@ -57,6 +57,9 @@ grub_entry() {
 			kernel="$val"
 			;;
 		module*)
+			case $val in
+				--nounzip*) val=`echo $val | cut -d\  -f2-` ;;
+			esac
 			modules="$modules|module $val"
 			;;
 		linux*)
@@ -105,14 +108,17 @@ EOF
 }
 
 syslinux_entry() {
-	label_line=${line:0:5}
-	if [ -z "$line" ]; then
-		syslinux_end
-	fi
-	if [ "$label_line" = "label" -o "$label_line" = "LABEL" ]; then
-		search_entry
-		return
-	fi
+	case $line in
+		"")
+			syslinux_end
+			return
+			;;
+		label* | LABEL* )
+			syslinux_end
+			search_entry
+			return
+			;;
+	esac
 
 	# add info to menuentry
 	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
