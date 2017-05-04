@@ -70,7 +70,12 @@ sha256sum \
 | tee "$BOOT_HASHES"
 
 for tries in 1 2 3; do
-	if gpg --detach-sign -a "$BOOT_HASHES"; then
+	if gpg \
+		--digest-algo SHA256 \
+		--detach-sign \
+		-a \
+		"$BOOT_HASHES" \
+	; then
 		mount -o ro,remount /boot
 		exit 0
 	fi
