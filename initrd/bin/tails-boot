@@ -1,0 +1,36 @@
+#!/bin/sh
+# Final stage to start Tails
+. /etc/functions
+. /etc/config
+
+BOOT="$1"
+DEV="$2"
+ISO="$3"
+
+if [ -z "$BOOT" ]; then
+	die "Usage: $0 /boot"
+fi
+
+if [ -n "$DEV" -a -z "$ISO" ]; then
+	die "Usage: $0 /boot /dev/sdb1 tails-i386-2.12.iso"
+fi
+
+KERNEL=$BOOT/live/vmlinuz2
+INITRD=$BOOT/live/initrd2.img
+CMD_LINE=`grep "initrd2.*quiet" $BOOT/EFI/BOOT/liveamd64.cfg | cut -d\  -f3- | awk '{gsub(/quiet/,""); print}'`
+CMD_LINE="$CMD_LINE intel_iommu=on vga=normal"
+
+if [ -n "$DEV" -a -n "$ISO" ]; then
+	DEV_UUID=`blkid $DEV | tr " " "\n" | grep UUID | cut -d\" -f2`
+	CMD_LINE="$CMD_LINE fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO"
+fi
+
+echo '+++ Loading kernel and initrd'
+kexec \
+	-l ${KERNEL} \
+	--initrd=${INITRD} \
+	--append="${CMD_LINE}" \
+|| die "kexec load failed"
+
+echo "+++ Starting Tails..."
+exec kexec -e

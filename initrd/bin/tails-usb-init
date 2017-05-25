@@ -1,0 +1,24 @@
+#!/bin/sh
+# Boot Tails from a bootable USB
+
+. /etc/functions
+. /etc/config
+
+LIVE_DIR=/media/live
+if [ ! -d "$LIVE_DIR" ]; then
+	recovery "Could not find Tails live directory"
+fi
+
+read \
+  -p "!!! Press 'y' to proceed with an UNVERIFIED boot: " \
+  -n 1 \
+  tails_confirm
+
+echo
+
+if [ ! "$tails_confirm" = "y" ]; then
+	recovery 'Failed to boot Tails USB'
+fi
+
+echo "+++ Booting Tails from /media"
+/bin/tails-boot /media

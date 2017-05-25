@@ -1,0 +1,4 @@
+#!/bin/sh
+# The TOTP secret will be shown to the user to confirm validity
+. /etc/functions
+confirm_totp
