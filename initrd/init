@@ -39,7 +39,7 @@ fi
 # Give the user a second to enter a recovery shell
 read \
 	-t "1" \
-	-p "Press 'r' for recovery shell: " \
+	-p "Press 'r' for recovery shell or 't' for Tails: " \
 	-n 1 \
 	boot_option
 echo
@@ -50,6 +50,11 @@ if [ "$boot_option" = "r" ]; then
 	# just in case...
 	tpm extend -ix 4 -ic recovery
 	exec /bin/ash
+fi
+
+if [ "$boot_option" = "t" ]; then
+	tpm extend -ix 4 -ic tails
+	exec /bin/tails-init
 fi
 
 echo '***** Normal boot'
