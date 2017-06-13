@@ -21,6 +21,7 @@ pciutils_target := \
 	$(CROSS_TOOLS) \
 	ZLIB=no \
 	HWDB=no \
+	LIBKMOD=no \
 	SHARED=yes \
 	IDSDIR="/" \
 	PREFIX="/" \
@@ -30,6 +31,7 @@ pciutils_target := \
 	$(CROSS_TOOLS) \
 	ZLIB=no \
 	HWDB=no \
+	LIBKMOD=no \
 	SHARED=yes \
 	PREFIX="/" \
 	DESTDIR="$(INSTALL)" \
