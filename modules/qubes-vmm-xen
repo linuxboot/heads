@@ -1,0 +1,21 @@
+modules-$(CONFIG_QUBES_VMM_XEN) += qubes-vmm-xen
+
+# We extract the entire Xen tree, but only use the xen/xen hypervisor
+# portion since Qubes provides the rest of it.
+xen_version := 4.6.5
+qubes-vmm-xen_version := $(xen_version)-28
+qubes-vmm-xen_dir := qubes-vmm-xen-$(qubes-vmm-xen_version)/
+qubes-vmm-xen_tar := qubes-vmm-xen-$(qubes-vmm-xen_version).tar.gz
+qubes-vmm-xen_url := https://github.com/QubesOS/qubes-vmm-xen/archive/v$(qubes-vmm-xen_version).tar.gz
+qubes-vmm-xen_hash := 314b01af6726ed7b09dfd72ff8b224636d822d432790765287abeedc81fd86b2
+
+qubes-vmm-xen_depends := musl-cross
+
+qubes-vmm-xen_output := xen-$(xen_version)/xen/xen.gz
+qubes-vmm-xen_configure :=
+
+qubes-vmm-xen_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS_NOCC) \
+	CC="$(CROSS)gcc -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
+	xen.gz
