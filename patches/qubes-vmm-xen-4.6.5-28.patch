@@ -1,22 +1,31 @@
-diff --git Makefile Makefile
-index c210da9..522530f 100644
+diff --git ./Makefile ./Makefile
+index c210da9..d8f8708 100644
 --- ./Makefile
 +++ ./Makefile
-@@ -153,6 +153,13 @@ update-repo-installer:
+@@ -122,6 +122,7 @@ verrel:
+ 
+ .PHONY: clean
+ clean::
++	rm -rf xen-$(version)/
+ 	@echo "Running the %clean script of the rpmbuild..."
+ 	-$(RPMBUILD) --clean --nodeps $(SPECFILE)
+ 
+@@ -153,6 +154,14 @@ update-repo-installer:
  	for pkg in $(xen-pkgs); do ln -f rpm/x86_64/$$pkg*.rpm ../installer/yum/qubes-dom0/rpm/; done
  	ln -f rpm/x86_64/xen-hvm-$(version)gui2*-$(release).$(DIST_DOM0)*.rpm ../installer/yum/qubes-dom0/rpm/
  
-+xen-${version}/: get-sources verify-sources
-+	tar xzvf xen-${version}.tar.gz
-+	cd xen-${version} && ../apply-patches ../series.conf ../
++xen-$(version)/.canary: xen-$(version).tar.gz
++	tar xzvf xen-$(version).tar.gz
++	cd xen-$(version) && ../apply-patches ../series.conf ../
++	touch $@
 +
-+xen.gz: xen-${version}/
-+	$(MAKE) -C xen-${version}/ xen
++xen.gz: xen-$(version)/.canary
++	$(MAKE) -C xen-$(version)/ xen
 +
  help:
  	@echo "Usage: make <target>"
  	@echo
-diff --git apply-patches apply-patches
+diff --git ./apply-patches ./apply-patches
 index b1c8468..74a4c20 100755
 --- ./apply-patches
 +++ ./apply-patches
