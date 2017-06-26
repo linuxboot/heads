@@ -17,5 +17,10 @@ xen_configure :=
 xen_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS_NOCC) \
-	CC="$(CROSS)gcc -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
+	XEN_WHOAMI=builder \
+	XEN_DOMAIN=heads \
+	XEN_BUILD_DATE=1970-01-01 \
+	XEN_BUILD_TIME=00:00:00 \
+	XEN_BUILD_HOST=xen-buildhost \
+	CC="$(CROSS)gcc -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
 	xen.gz
