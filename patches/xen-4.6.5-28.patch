@@ -54,12 +54,19 @@ index b1c8468..74a4c20 100755
 +do
 +	patch -s -F0 -E -p1 --no-backup-if-mismatch -i $PATCH_DIR/$i
 +done
-diff --git ./patches.heads/heads.patch ./patches.heads/heads.patch
-new file mode 100644
-index 0000000..0bc152c
---- /dev/null
-+++ ./patches.heads/heads.patch
-@@ -0,0 +1,942 @@
+diff --git ./series.conf ./series.conf
+index ede01b2..109ddfb 100644
+--- ./series.conf
++++ ./series.conf
+@@ -98,3 +98,5 @@ patches.qubes/libxl-disable-forced-vkb-for-HVM.patch
+ patches.qubes/xenconsoled-enable-logging.patch
+ patches.qubes/vm-0001-hotplug-do-not-attempt-to-remove-containing-xenstore.patch
+ patches.qubes/xen-hotplug-qubesdb-update.patch
++
++patches.heads/heads.patch
+--- /dev/null	2017-06-23 08:59:03.575068586 -0400
++++ ./patches.heads/heads.patch	2017-06-26 16:14:35.378693545 -0400
+@@ -0,0 +1,927 @@
 +diff --recursive -u ../xen-4.6.5-clean/xen/arch/x86/boot/head.S ./xen/arch/x86/boot/head.S
 +--- ../xen-4.6.5-clean/xen/arch/x86/boot/head.S	2017-03-07 11:19:05.000000000 -0500
 ++++ ./xen/arch/x86/boot/head.S	2017-06-23 21:18:50.498798061 -0400
@@ -967,48 +974,23 @@ index 0000000..0bc152c
 +-}
 ++// hard code it to always go to vga
 ++void (*video_puts)(const char *) = vga_text_puts;
-+diff --recursive -u ../xen-4.6.5-clean/xen/Makefile ./xen/Makefile
-+--- ../xen-4.6.5-clean/xen/Makefile	2017-03-07 11:19:05.000000000 -0500
-++++ ./xen/Makefile	2017-06-23 21:18:50.502798121 -0400
-+@@ -6,11 +6,17 @@
-+ export XEN_FULLVERSION   = $(XEN_VERSION).$(XEN_SUBVERSION)$(XEN_EXTRAVERSION)
-+ -include xen-version
-+ 
-+-export XEN_WHOAMI	?= $(USER)
-+-export XEN_DOMAIN	?= $(shell ([ -x /bin/dnsdomainname ] && /bin/dnsdomainname) || ([ -x /bin/domainname ] && /bin/domainname || echo [unknown]))
-+-export XEN_BUILD_DATE	?= $(shell LC_ALL=C date)
-+-export XEN_BUILD_TIME	?= $(shell LC_ALL=C date +%T)
-+-export XEN_BUILD_HOST	?= $(shell hostname)
-++#export XEN_WHOAMI	?= $(USER)
-++#export XEN_DOMAIN	?= $(shell ([ -x /bin/dnsdomainname ] && /bin/dnsdomainname) || ([ -x /bin/domainname ] && /bin/domainname || echo [unknown]))
-++#export XEN_BUILD_DATE	?= $(shell LC_ALL=C date)
-++#export XEN_BUILD_TIME	?= $(shell LC_ALL=C date +%T)
-++#export XEN_BUILD_HOST	?= $(shell hostname)
-++
-++export XEN_WHOAMI	?= user
-++export XEN_DOMAIN	?= domain
-++export XEN_BUILD_DATE	?= 1970-01-01
-++export XEN_BUILD_TIME	?= 00:00:00
-++export XEN_BUILD_HOST	?= xen-buildhost
-+ 
-+ export BASEDIR := $(CURDIR)
-+ export XEN_ROOT := $(BASEDIR)/..
-+@@ -97,7 +103,7 @@
++--- ../xen-4.6.5-clean/xen/Makefile.orig	2017-06-26 16:11:02.692193372 -0400
+++++ ./xen/Makefile	2017-06-26 16:11:46.528708643 -0400
++@@ -97,7 +97,7 @@
 + 	rm -f tags TAGS cscope.files cscope.in.out cscope.out cscope.po.out GTAGS GPATH GRTAGS GSYMS
 + 
 + $(TARGET).gz: $(TARGET)
 +-	gzip -f -9 < $< > $@.new
-++	gzip -n -f -9 < $< > $@.new
+++	gzip -f -9 -n < $< > $@.new
 + 	mv $@.new $@
 + 
 + $(TARGET): delete-unfresh-files
-diff --git ./series.conf ./series.conf
-index ede01b2..109ddfb 100644
---- ./series.conf
-+++ ./series.conf
-@@ -98,3 +98,5 @@ patches.qubes/libxl-disable-forced-vkb-for-HVM.patch
- patches.qubes/xenconsoled-enable-logging.patch
- patches.qubes/vm-0001-hotplug-do-not-attempt-to-remove-containing-xenstore.patch
- patches.qubes/xen-hotplug-qubesdb-update.patch
-+
-+patches.heads/heads.patch
++@@ -121,7 +121,7 @@
++ 	fi
++ 
++ .banner: Makefile
++-	@if which figlet >/dev/null 2>&1 ; then \
+++	@if false ; then \
++ 		echo " Xen $(XEN_FULLVERSION)" | figlet -f tools/xen.flf > $@.tmp; \
++ 	else \
++ 		echo " Xen $(XEN_FULLVERSION)" > $@.tmp; \
