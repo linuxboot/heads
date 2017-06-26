@@ -56,13 +56,13 @@ index b1c8468..74a4c20 100755
 +done
 diff --git ./patches.heads/heads.patch ./patches.heads/heads.patch
 new file mode 100644
-index 0000000..0bc152c
+index 0000000..92663b6
 --- /dev/null
 +++ ./patches.heads/heads.patch
-@@ -0,0 +1,942 @@
+@@ -0,0 +1,956 @@
 +diff --recursive -u ../xen-4.6.5-clean/xen/arch/x86/boot/head.S ./xen/arch/x86/boot/head.S
 +--- ../xen-4.6.5-clean/xen/arch/x86/boot/head.S	2017-03-07 11:19:05.000000000 -0500
-++++ ./xen/arch/x86/boot/head.S	2017-06-23 21:18:50.498798061 -0400
+++++ ./xen/arch/x86/boot/head.S	2017-06-26 15:50:33.187449529 -0400
 +@@ -86,6 +86,8 @@
 +         cmp     $MULTIBOOT_BOOTLOADER_MAGIC,%eax
 +         jne     not_multiboot
@@ -87,7 +87,7 @@ index 0000000..0bc152c
 +         sub     $0x1000,%eax
 +diff --recursive -u ../xen-4.6.5-clean/xen/arch/x86/boot/mkelf32.c ./xen/arch/x86/boot/mkelf32.c
 +--- ../xen-4.6.5-clean/xen/arch/x86/boot/mkelf32.c	2017-03-07 11:19:05.000000000 -0500
-++++ ./xen/arch/x86/boot/mkelf32.c	2017-06-23 21:18:50.498798061 -0400
+++++ ./xen/arch/x86/boot/mkelf32.c	2017-06-26 15:50:33.187449529 -0400
 +@@ -231,14 +231,14 @@
 +     u32        loadbase, dat_siz, mem_siz;
 +     char      *inimage, *outimage;
@@ -110,7 +110,7 @@ index 0000000..0bc152c
 +     {
 +diff --recursive -u ../xen-4.6.5-clean/xen/drivers/video/vga.c ./xen/drivers/video/vga.c
 +--- ../xen-4.6.5-clean/xen/drivers/video/vga.c	2017-03-07 11:19:05.000000000 -0500
-++++ ./xen/drivers/video/vga.c	2017-06-23 21:18:50.502798121 -0400
+++++ ./xen/drivers/video/vga.c	2017-06-26 15:50:33.187449529 -0400
 +@@ -5,177 +5,691 @@
 +  */
 + 
@@ -969,7 +969,7 @@ index 0000000..0bc152c
 ++void (*video_puts)(const char *) = vga_text_puts;
 +diff --recursive -u ../xen-4.6.5-clean/xen/Makefile ./xen/Makefile
 +--- ../xen-4.6.5-clean/xen/Makefile	2017-03-07 11:19:05.000000000 -0500
-++++ ./xen/Makefile	2017-06-23 21:18:50.502798121 -0400
+++++ ./xen/Makefile	2017-06-26 15:51:35.338630928 -0400
 +@@ -6,11 +6,17 @@
 + export XEN_FULLVERSION   = $(XEN_VERSION).$(XEN_SUBVERSION)$(XEN_EXTRAVERSION)
 + -include xen-version
@@ -1002,6 +1002,20 @@ index 0000000..0bc152c
 + 	mv $@.new $@
 + 
 + $(TARGET): delete-unfresh-files
++@@ -121,12 +127,7 @@
++ 	fi
++ 
++ .banner: Makefile
++-	@if which figlet >/dev/null 2>&1 ; then \
++-		echo " Xen $(XEN_FULLVERSION)" | figlet -f tools/xen.flf > $@.tmp; \
++-	else \
++-		echo " Xen $(XEN_FULLVERSION)" > $@.tmp; \
++-	fi
++-	@mv -f $@.tmp $@
+++	echo " Xen $(XEN_FULLVERSION)" > $@
++ 
++ # compile.h contains dynamic build info. Rebuilt on every 'make' invocation.
++ include/xen/compile.h: include/xen/compile.h.in .banner
 diff --git ./series.conf ./series.conf
 index ede01b2..109ddfb 100644
 --- ./series.conf
