@@ -75,8 +75,14 @@ tpm extend -ix 4 -ic qubes \
 	|| recovery 'Unable to scramble PCR'
 
 echo '+++ Building initrd'
-( cd "$INITRD_DIR" ; find . | cpio -H newc -o ) > "$SECRET_CPIO"
-cat "$INITRD" >> "$SECRET_CPIO"
+# pad the initramfs (dracut doesn't pad the last gz blob)
+# without this the kernel init/initramfs.c fails to read
+# the subsequent uncompressed/compressed cpio
+dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync
+
+# overwrite /etc/crypttab to mirror the behavior for in seal-key
+generate-crypttab "$INITRD_DIR/etc/crypttab"
+( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
 
 /bin/qubes-boot "$XEN" "$KERNEL" "$SECRET_CPIO"
 

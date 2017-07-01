@@ -4,8 +4,9 @@
 # rd.luks.key=/secret.key should be sufficient.
 
 keyfile=/secret.key
+VOLUME_GROUP=$CONFIG_QUBES_VG
 
-for dev in /dev/sd*; do
+for dev in /dev/$VOLUME_GROUP/*; do
 	uuid=`cryptsetup luksUUID "$dev" 2>/dev/null` || continue
-	echo "luks-$uuid /dev/disk/by-uuid/$uuid $keyfile luks"
+	echo "luks-$uuid UUID=$uuid $keyfile" >> $1
 done
