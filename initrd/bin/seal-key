@@ -13,7 +13,7 @@ RECOVERY_KEY="/tmp/secret/recovery.key"
 . /etc/config
 
 # Activate the LVM volume group
-VOLUME_GROUP=qubes_dom0
+VOLUME_GROUP=$CONFIG_QUBES_VG
 lvm vgchange -a y $VOLUME_GROUP \
 	|| die "$VOLUME_GROUP: unable to activate volume group"
 
