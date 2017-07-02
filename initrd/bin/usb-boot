@@ -33,6 +33,7 @@ adjust_cmd_line() {
 	fi
 }
 
+first_module=y
 while read line
 do
 	key=`echo $line | cut -d\  -f1`
@@ -40,16 +41,23 @@ do
 	restval=`echo $line | cut -d\  -f3-`
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
-		kexeccmd="$kexeccmd -l $filepath"
 		if [ "$kexectype" = "multiboot" ]; then
-			cmdline="$restval"
-			adjust_cmd_line
-			kexeccmd="$kexeccmd --command-line \"$cmdline\""
+			# always overload xen and with custom arguments
+			# TODO: control this replacement via flag
+			kexeccmd="$kexeccmd -l /bin/xen.gz"
+			kexeccmd="$kexeccmd --command-line \"no-real-mode reboot=no\""
+		else
+			kexeccmd="$kexeccmd -l $filepath"
 		fi
 	fi
 	if [ "$key" = "module" ]; then
 		fix_file_path
-		kexeccmd="$kexeccmd --module \"$filepath $restval\""
+		cmdline="$restval"
+		if [ -n $first_module ]; then
+			adjust_cmd_line
+			unset first_module
+		fi
+		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then
 		fix_file_path
