@@ -1,0 +1,22 @@
+#!/bin/sh
+# Check for valid kexec params and copy to tmp
+. /etc/functions
+
+MEDIA="$1"
+if [ ! -d /tmp/kexec ]; then
+	mkdir /tmp/kexec \
+		|| recovery 'failed to make kexec tmp dir'
+fi
+
+if [ ! -r $MEDIA/kexec.sig ]; then
+	exit 0
+fi
+
+if [ -z `find $MEDIA/kexec*.txt` ]; then
+	exit 0
+fi
+
+if sha256sum `find $MEDIA/kexec*.txt` | gpg --verify $MEDIA/kexec.sig - ; then
+	echo "+++ Found verified kexec boot params"
+	cp $MEDIA/kexec*.txt /tmp/kexec
+fi

@@ -1,0 +1,29 @@
+#!/bin/sh
+# Boot from a local disk installation
+
+. /etc/functions
+. /etc/config
+
+# Confirm we have a good TOTP unseal
+if ! confirm_totp ; then
+	recovery 'Failed to unseal TOTP'
+fi
+
+# Extend PCR4 as soon as possible
+tpm extend -ix 4 -ic local
+
+if [ ! "$totp_confirm" = "y" ]; then
+	recovery "Failed to confirm validity of TOTP"
+fi
+
+# Mount local disk
+if ! grep -q /boot /proc/mounts ; then
+	mount -o ro "$CONFIG_BOOT_DEV" /boot \
+		|| recovery '$CONFIG_BOOT_DEV: Unable to mount /boot'
+fi
+
+# Attempt to pull verified config from device
+kexec-check-config /boot
+exec kexec-select-boot /boot
+
+recovery "Something failed..."
