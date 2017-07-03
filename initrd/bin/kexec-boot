@@ -14,6 +14,10 @@ kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
 kexeccmd="kexec"
 
+# TODO: make this configurable
+cmdadd="intel_iommu=on $cmdadd"
+cmdremove="quiet $cmdremove"
+
 fix_file_path() {
 	filepath=`find $bootdir -path "*$firstval" | tail -1`
 	if ! [ -r $filepath ]; then

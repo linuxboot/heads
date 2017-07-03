@@ -1,0 +1,82 @@
+#!/bin/sh
+. /etc/functions
+
+bootdir=$1
+add=$2
+remove=$3
+
+MENU_NAME="kexec_menu.txt"
+HASH_NAME="kexec_hashes.txt"
+TMP_MENU_FILE=/tmp/kexec/$MENU_NAME
+TMP_HASH_FILE=/tmp/kexec/$HASH_NAME
+
+get_menu_option() {
+	echo "+++ Select your boot option:"
+	n=0
+	while read option
+	do
+		parse_option
+		n=`expr $n + 1`
+		echo "$n. $name [$kernel]"
+	done < $TMP_MENU_FILE
+
+	read \
+		-p "Choose the boot option [1-$n, a to abort]: " \
+		option_index
+
+	if [ "$option_index" = "a" ]; then
+		recovery "Aborting boot attempt"
+	fi
+
+	option=`head -n $option_index $TMP_MENU_FILE | tail -1`
+	parse_option
+}
+
+confirm_menu_option() {
+	echo "+++ Please confirm the boot details for $name:"
+	echo $option
+
+	read \
+		-n 1 \
+		-p "Confirm selection by pressing 'y': " \
+		option_confirm
+	echo
+}
+
+parse_option() {
+	name=`echo $option | cut -d\| -f1`
+	kernel=`echo $option | cut -d\| -f3`
+}
+
+# optionally enforce file hashes
+if [ -r $TMP_HASH_FILE ]; then
+	echo "+++ Checking verified boot hash file "
+	# Check the hashes of all the files
+	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
+		echo "+++ Verified boot hashes "
+	else
+		recovery "$TMP_HASH_FILE: boot hash mismatch"
+	fi
+fi
+
+# otherwise scan the boot directory and generate options
+if [ ! -r $TMP_MENU_FILE ]; then
+	echo "+++ Scanning for unsigned boot options"
+	option_file="/tmp/kexec_options.txt"
+	for i in `find $bootdir -name "*.cfg"`; do
+		kexec-parse-boot $i >> $option_file
+	done
+	if [ ! -r $option_file ]; then
+		recovery "Failed to parse any boot options"
+	fi
+	sort $option_file | uniq > $TMP_MENU_FILE
+fi
+
+option_confirm=""
+while [ "$option_confirm" != "y" ]
+do
+	get_menu_option
+	confirm_menu_option
+done
+
+kexec-boot -b $bootdir -e "$option" -a "$add" -r "$remove"
