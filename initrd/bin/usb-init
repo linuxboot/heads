@@ -1,5 +1,5 @@
 #!/bin/sh
-# Boot a Tails installation
+# Boot a USB installation
 
 . /etc/functions
 . /etc/config
@@ -16,8 +16,9 @@ if [ ! "$totp_confirm" = "y" ]; then
 	recovery "Failed to confirm validity of TOTP"
 fi
 
-# TODO: Do a scan of USB devices to detect the Tails USB
-mount-usb "$CONFIG_USB_BOOT_DEV"
+# Mount the USB boot device
+mount-usb "$CONFIG_USB_BOOT_DEV" \
+	|| recovery '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
 
 # Check for ISO first
 get_menu_option() {
@@ -55,11 +56,16 @@ if [ `wc -l /tmp/iso_menu.txt | cut -d\  -f1` -gt 0 ]; then
 	done
 
 	if [ -n "$option" ]; then
-		exec usb-iso-init $option
+		MOUNTED_ISO=$option
+		ISO=${option:7} # remove /media/ to get device relative path
+		kexec-check-config /media/kexec_iso/$ISO
+		exec kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
 	fi
 fi
 
 echo "!!! Could not find any ISO, trying bootable USB"
-exec usb-select-boot /media
+# Attempt to pull verified config from device
+kexec-check-config /media
+exec kexec-select-boot /media
 
 recovery "Something failed..."
