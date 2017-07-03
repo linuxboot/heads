@@ -23,7 +23,7 @@ if ! grep -q /boot /proc/mounts ; then
 fi
 
 # Attempt to pull verified config from device
-kexec-check-config /boot
-exec kexec-select-boot /boot
+kexec-check-config /boot/
+kexec-select-boot /boot/
 
 recovery "Something failed..."

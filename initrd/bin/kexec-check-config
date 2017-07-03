@@ -6,13 +6,16 @@ MEDIA="$1"
 if [ ! -d /tmp/kexec ]; then
 	mkdir /tmp/kexec \
 		|| recovery 'failed to make kexec tmp dir'
+else
+	rm -rf /tmp/kexec/* \
+		|| recovert 'failed to empty kexec tmp dir'
 fi
 
 if [ ! -r $MEDIA/kexec.sig ]; then
 	exit 0
 fi
 
-if [ -z `find $MEDIA/kexec*.txt` ]; then
+if [ `find $MEDIA/kexec*.txt | wc -l` -eq 0 ]; then
 	exit 0
 fi
 
