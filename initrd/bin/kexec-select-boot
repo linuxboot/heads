@@ -10,23 +10,34 @@ HASH_NAME="kexec_hashes.txt"
 TMP_MENU_FILE=/tmp/kexec/$MENU_NAME
 TMP_HASH_FILE=/tmp/kexec/$HASH_NAME
 
+first_menu="y"
 get_menu_option() {
-	echo "+++ Select your boot option:"
-	n=0
-	while read option
-	do
-		parse_option
-		n=`expr $n + 1`
-		echo "$n. $name [$kernel]"
-	done < $TMP_MENU_FILE
-
-	read \
-		-p "Choose the boot option [1-$n, a to abort]: " \
-		option_index
-
-	if [ "$option_index" = "a" ]; then
-		recovery "Aborting boot attempt"
+	num_options=`cat $TMP_MENU_FILE | wc -l`
+	if [ $num_options -eq 0 ]; then
+		recovery "No boot options"
 	fi
+
+	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
+		option_index=1
+	else
+		echo "+++ Select your boot option:"
+		n=0
+		while read option
+		do
+			parse_option
+			n=`expr $n + 1`
+			echo "$n. $name [$kernel]"
+		done < $TMP_MENU_FILE
+
+		read \
+			-p "Choose the boot option [1-$n, a to abort]: " \
+			option_index
+
+		if [ "$option_index" = "a" ]; then
+			recovery "Aborting boot attempt"
+		fi
+	fi
+	first_menu="n"
 
 	option=`head -n $option_index $TMP_MENU_FILE | tail -1`
 	parse_option
@@ -59,7 +70,7 @@ if [ -r $TMP_HASH_FILE ]; then
 	fi
 fi
 
-# otherwise scan the boot directory and generate options
+# if no saved options, scan the boot directory and generate
 if [ ! -r $TMP_MENU_FILE ]; then
 	echo "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
