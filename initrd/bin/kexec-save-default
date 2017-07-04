@@ -1,0 +1,48 @@
+#!/bin/sh
+# Save these options to be the persistent default
+. /etc/functions
+
+while getopts "b:d:p:e:i:" arg; do
+	case $arg in
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		e) entry="$OPTARG" ;;
+		i) index="$OPTARG" ;;
+	esac
+done
+
+if [ -z "$bootdir" -o -z "$entry" -o -z "$index" ]; then
+	die "Usage: $0 -b /boot/ -e \"boot params|...\" -i 1 "
+fi
+
+if [ -z "$paramsdev" ]; then
+	paramsdev="$bootdir"
+fi
+
+if [ -z "$paramsdir" ]; then
+	paramsdir="$bootdir"
+fi
+
+ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
+HASH_FILE="$paramsdir/kexec_default_hashes.txt"
+
+# try to switch to rw mode
+mount -o rw,remount $paramsdev
+
+if [ ! -d $paramsdir ]; then
+	mkdir -p $paramsdir
+fi
+rm "$paramsdir/kexec_default.*.txt" 2>/dev/null
+echo "$entry" > $ENTRY_FILE
+cd $bootdir && kexec-boot -e "$entry" -d | xargs sha256sum > $HASH_FILE
+if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
+	die "Failed to write default config"
+fi
+
+if ! kexec-sign-config $paramsdir; then
+	die "Failed to sign default config"
+fi
+
+# switch back to ro mode
+mount -o ro,remount $paramsdev

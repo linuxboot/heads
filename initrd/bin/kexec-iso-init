@@ -36,7 +36,8 @@ REMOVE_FILE=/tmp/kexec/kexec_iso_remove.txt
 if [ -r $REMOVE_FILE ]; then
 	NEW_REMOVE=`cat $REMOVE_FILE`
 	REMOVE=$(eval "echo \"$NEW_REMOVE\"")
-	echo "+++ Overriding standard ISO kernel remove arguments: $REMOVE"x
+	echo "+++ Overriding standard ISO kernel remove arguments: $REMOVE"
 fi
 
-kexec-select-boot /boot "$ADD" "$REMOVE"
+# Call kexec and indicate that hashes have been verified
+kexec-select-boot -b /boot/ -d /media/ -p "/media/kexec_iso/$ISO_PATH/" -a "$ADD" -r "$REMOVE" -c "*.cfg" -u -h

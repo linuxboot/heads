@@ -1,6 +1,5 @@
 #!/bin/sh
-file=$1
-basefile=$(basename $file)
+file="$1"
 
 reset_entry() {
 	name=""
@@ -21,7 +20,7 @@ echo_entry() {
 
 		echo $(eval "echo \"$entry\"")
 	fi
-	if [ "$kexectype" = "multiboot" ]; then
+	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
 		echo $(eval "echo \"$name|$kexectype|kernel $kernel$modules\"")
@@ -39,6 +38,7 @@ search_entry() {
 		label* | LABEL* )
 			state="syslinux"
 			reset_entry
+			name=`echo $line | cut -c6- `
 	esac
 }
 
@@ -55,7 +55,8 @@ grub_entry() {
 	val=`echo $trimcmd | cut -d\  -f2-`
 	case $cmd in
 		multiboot*)
-			kexectype="multiboot"
+			# TODO: differentiate between Xen and other multiboot kernels
+			kexectype="xen"
 			kernel="$val"
 			;;
 		module*)
@@ -130,12 +131,13 @@ syslinux_entry() {
 		menu* | MENU* )
 			cmd2=`echo $trimcmd | cut -d \  -f2`
 			if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
-				name=`echo ${trimcmd:11} | tr -d '^'`
+				name=`echo $trimcmd | cut -c11- | tr -d '^'`
 			fi
 			;;
 		linux* | LINUX* | kernel* | KERNEL* )
 			case $val in
-				*mboot.c32) kexectype="multiboot" ;;
+				# TODO: differentiate between Xen and other multiboot kernels
+				*mboot.c32) kexectype="xen" ;;
 				*.c32)
 					# skip this entry
 					state="search"
@@ -148,7 +150,7 @@ syslinux_entry() {
 			initrd="$val"
 			;;
 		append* | APPEND* )
-			if [ "$kexectype" = "multiboot" ]; then
+			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 				syslinux_multiboot_append
 			else
 				append="$val"
