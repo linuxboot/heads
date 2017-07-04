@@ -1,14 +1,36 @@
 #!/bin/sh
+. /etc/config
 . /etc/functions
 
-bootdir=$1
-add=$2
-remove=$3
+add=""
+remove=""
+config="*.cfg"
+unique="n"
+hashed="n"
+while getopts "b:d:p:a:r:c:uh" arg; do
+	case $arg in
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		a) add="$OPTARG" ;;
+		r) remove="$OPTARG" ;;
+		c) config="$OPTARG" ;;
+		u) unique="y" ;;
+		h) hashed="y" ;;
+	esac
+done
 
-MENU_NAME="kexec_menu.txt"
-HASH_NAME="kexec_hashes.txt"
-TMP_MENU_FILE=/tmp/kexec/$MENU_NAME
-TMP_HASH_FILE=/tmp/kexec/$HASH_NAME
+if [ -z "$bootdir" ]; then
+	die "Usage: $0 -b /boot/"
+fi
+
+if [ -z "$paramsdev" ]; then
+	paramsdev="$bootdir"
+fi
+
+if [ -z "$paramsdir" ]; then
+	paramsdir="$bootdir"
+fi
 
 first_menu="y"
 get_menu_option() {
@@ -49,7 +71,7 @@ confirm_menu_option() {
 
 	read \
 		-n 1 \
-		-p "Confirm selection by pressing 'y': " \
+		-p "Confirm selection by pressing 'y', make default with 'd': " \
 		option_confirm
 	echo
 }
@@ -59,35 +81,112 @@ parse_option() {
 	kernel=`echo $option | cut -d\| -f3`
 }
 
-# optionally enforce file hashes
-if [ -r $TMP_HASH_FILE ]; then
-	echo "+++ Checking verified boot hash file "
-	# Check the hashes of all the files
-	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
-		echo "+++ Verified boot hashes "
-	else
-		recovery "$TMP_HASH_FILE: boot hash mismatch"
-	fi
-fi
-
-# if no saved options, scan the boot directory and generate
-if [ ! -r $TMP_MENU_FILE ]; then
+scan_options() {
 	echo "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
-	for i in `find $bootdir -name "*.cfg"`; do
+	if [ -r $option_file ]; then rm $option_file; fi
+	for i in `find $bootdir -name "$config"`; do
 		kexec-parse-boot $i >> $option_file
 	done
 	if [ ! -r $option_file ]; then
 		recovery "Failed to parse any boot options"
 	fi
-	sort $option_file | uniq > $TMP_MENU_FILE
-fi
+	if [ "$unique" = 'y' ]; then
+		sort $option_file | uniq > $TMP_MENU_FILE
+	else
+		cp $option_file $TMP_MENU_FILE
+	fi
+}
 
-option_confirm=""
-while [ "$option_confirm" != "y" ]
-do
-	get_menu_option
-	confirm_menu_option
+default_select() {
+	# Attempt boot with expected parameters
+
+	# Check that entry matches that which is expected from menu
+	default_index=`basename "$TMP_DEFAULT_FILE" | cut -d. -f 2`
+
+	# Check to see if entries have changed - useful for detecting grub update
+	expectedoption=`cat $TMP_DEFAULT_FILE`
+	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
+	if [ "$option" != "$expectedoption" ]; then
+		recovery "Boot entry has changed: expected $expectedoption, found $option"
+	fi
+	parse_option
+
+	# Enforce that default option hashes are valid
+	echo "+++ Checking verified default boot hash file "
+	# Check the hashes of all the files
+	if cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" ; then
+		echo "+++ Verified default boot hashes "
+	else
+		recovery "$TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
+	fi
+
+	echo "+++ Executing default boot for $name:"
+	kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove"
+	recovery "Something failed"
+}
+
+user_select() {
+	# No default expected boot parameters, ask user
+
+	# Optionally enforce device file hashes
+	if [ -r $TMP_HASH_FILE ]; then
+		echo "+++ Checking verified boot hash file "
+		# Check the hashes of all the files
+		if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
+			echo "+++ Verified boot hashes "
+			hashed='y'
+		else
+			recovery "$TMP_HASH_FILE: boot hash mismatch"
+		fi
+	fi
+
+	option_confirm=""
+	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
+	do
+		get_menu_option
+		confirm_menu_option
+
+		if [ "$option_confirm" = 'd' ]; then
+			if ! kexec-save-default -b "$bootdir" -d "$paramsdev" -p "$paramsdir" -e "$option" -i "$option_index"; then
+				echo "!!!!!! Failed to save defaults"
+			else
+				echo "+++ Saved defaults to device"
+				sleep 2
+			fi
+		fi
+	done
+
+	if [ "$option_confirm" = "d" ]; then
+		# reload settings to reflect new default
+		continue
+	fi
+
+	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$hashed" = "n" ]; then
+		recovery "!!!!!! Missing required boot hashes"
+	fi
+
+	kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove"
+	recovery "Something failed"
+}
+
+while true; do
+	kexec-check-config $paramsdir
+	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
+	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1`
+	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
+
+	# if no saved options, scan the boot directory and generate
+	if [ ! -r $TMP_MENU_FILE ]; then
+		scan_options
+	fi
+
+	if [ -r "$TMP_DEFAULT_FILE" -a -r "$TMP_DEFAULT_HASH_FILE" ]; then
+		default_select
+	else
+		user_select
+	fi
+
+	recovery "Something failed again"
 done
-
-kexec-boot -b $bootdir -e "$option" -a "$add" -r "$remove"

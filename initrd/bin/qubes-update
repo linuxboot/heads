@@ -12,27 +12,7 @@ if [ -z "$XEN" -o -z "$KERNEL" -o -z "$INITRD" ]; then
 	die "Usage: $0 /boot/xen... /boot/vmlinuz... /boot/initramfs..."
 fi
 
-# setup the USB so we can reach the GPG card
-if ! lsmod | grep -q ehci_hcd; then
-	insmod /lib/modules/ehci-hcd.ko \
-	|| die "ehci_hcd: module load failed"
-fi
-if ! lsmod | grep -q ehci_pci; then
-	insmod /lib/modules/ehci-pci.ko \
-	|| die "ehci_pci: module load failed"
-fi
-if ! lsmod | grep -q xhci_hcd; then
-	insmod /lib/modules/xhci-hcd.ko \
-	|| die "ehci_hcd: module load failed"
-fi
-if ! lsmod | grep -q xhci_pci; then
-	insmod /lib/modules/xhci-pci.ko \
-	|| die "ehci_pci: module load failed"
-	sleep 2
-fi
-
-gpg --card-status \
-|| die "gpg card read failed"
+confirm_gpg_card
 
 # if the /boot.hashes file already exists, read the TPM counter ID
 # from it.

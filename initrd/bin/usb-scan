@@ -4,9 +4,17 @@
 . /etc/functions
 . /etc/config
 
+# Unmount any previous boot device
+if grep -q /boot /proc/mounts ; then
+	umount /boot \
+		|| recovery '$CONFIG_USB_BOOT_DEV: Unable to unmount /boot'
+fi
+
 # Mount the USB boot device
-mount-usb "$CONFIG_USB_BOOT_DEV" \
-	|| recovery '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
+if ! grep -q /media /proc/mounts ; then
+	mount-usb "$CONFIG_USB_BOOT_DEV" \
+		|| recovery '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
+fi
 
 # Check for ISO first
 get_menu_option() {
@@ -46,7 +54,6 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 	if [ -n "$option" ]; then
 		MOUNTED_ISO=$option
 		ISO=${option:7} # remove /media/ to get device relative path
-		kexec-check-config /media/kexec_iso/$ISO/
 		kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
 
 		recovery "Something failed..."
@@ -55,7 +62,6 @@ fi
 
 echo "!!! Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
-kexec-check-config /media/
-kexec-select-boot /media/
+kexec-select-boot -b /media/ -c "*.cfg" -u
 
 recovery "Something failed..."
