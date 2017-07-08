@@ -88,3 +88,67 @@ confirm_gpg_card()
 	gpg --card-status \
 	|| die "gpg card read failed"
 }
+
+
+check_tpm_counter()
+{
+	# if the /boot.hashes file already exists, read the TPM counter ID
+	# from it.
+	if [ -r "$1" ]; then
+		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
+	else
+		warn "$BOOT_HASHES does not exist; creating new TPM counter"
+		read -s -p "TPM Owner password: " tpm_password
+		echo
+		tpm counter_create \
+			-pwdo "$tpm_password" \
+			-pwdc '' \
+			-la 3135106223 \
+		| tee /tmp/counter \
+		|| die "Unable to create TPM counter"
+		TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+	fi
+
+	if [ -z "$TPM_COUNTER" ]; then
+		die "$1: TPM Counter not found?"
+	fi
+}
+
+read_tpm_counter()
+{
+	tpm counter_read -ix "$1" | tee "/tmp/counter-$1" \
+	|| die "Counter read failed"
+}
+
+increment_tpm_counter()
+{
+	tpm counter_increment -ix "$1" -pwdc '' \
+		| tee /tmp/counter-$1 \
+	|| die "Counter increment failed"
+}
+
+check_config() {
+	if [ ! -d /tmp/kexec ]; then
+		mkdir /tmp/kexec \
+		|| die 'Failed to make kexec tmp dir'
+	else
+		rm -rf /tmp/kexec/* \
+		|| die 'Failed to empty kexec tmp dir'
+	fi
+
+	if [ ! -r $1/kexec.sig ]; then
+		return
+	fi
+
+	if [ `find $1/kexec*.txt | wc -l` -eq 0 ]; then
+		return
+	fi
+
+	if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
+		die 'Invalid signature on kexec boot params'
+	fi
+
+	echo "+++ Found verified kexec boot params"
+	cp $1/kexec*.txt /tmp/kexec \
+	|| die "Failed to copy kexec boot params to tmp"
+}
