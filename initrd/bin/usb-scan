@@ -7,13 +7,13 @@
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then
 	umount /boot \
-		|| recovery '$CONFIG_USB_BOOT_DEV: Unable to unmount /boot'
+		|| die '$CONFIG_USB_BOOT_DEV: Unable to unmount /boot'
 fi
 
 # Mount the USB boot device
 if ! grep -q /media /proc/mounts ; then
 	mount-usb "$CONFIG_USB_BOOT_DEV" \
-		|| recovery '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
+		|| die '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
 fi
 
 # Check for ISO first
@@ -31,7 +31,7 @@ get_menu_option() {
 		option_index
 
 	if [ "$option_index" = "a" ]; then
-		recovery "Aborting boot attempt"
+		die "Aborting boot attempt"
 	fi
 
 	if [ "$option_index" = "s" ]; then
@@ -56,7 +56,7 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 		ISO=${option:7} # remove /media/ to get device relative path
 		kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
 
-		recovery "Something failed..."
+		die "Something failed in iso init"
 	fi
 fi
 
@@ -64,4 +64,4 @@ echo "!!! Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
 kexec-select-boot -b /media/ -c "*.cfg" -u
 
-recovery "Something failed..."
+die "Something failed in selecting boot"

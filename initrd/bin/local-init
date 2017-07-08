@@ -19,10 +19,10 @@ fi
 # Mount local disk
 if ! grep -q /boot /proc/mounts ; then
 	mount -o ro "$CONFIG_BOOT_DEV" /boot \
-		|| recovery '$CONFIG_BOOT_DEV: Unable to mount /boot'
+		|| recovery "$CONFIG_BOOT_DEV: Unable to mount /boot"
 fi
 
 # Attempt to pull verified config from device
 kexec-select-boot -b /boot/ -c "grub.cfg"
 
-recovery "Something failed..."
+recovery "Something failed during boot"

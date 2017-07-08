@@ -14,33 +14,12 @@ fi
 
 confirm_gpg_card
 
-# if the /boot.hashes file already exists, read the TPM counter ID
-# from it.
-if [ -r "$BOOT_HASHES" ]; then
-	TPM_COUNTER=`grep counter- "$BOOT_HASHES" | cut -d- -f2`
-else
-	warn "$BOOT_HASHES does not exist; creating new TPM counter"
-	read -s -p "TPM Owner password: " tpm_password
-	echo
-	tpm counter_create \
-		-pwdo "$tpm_password" \
-		-pwdc '' \
-		-la 3135106223 \
-	| tee /tmp/counter \
-	|| die "Unable to create TPM counter"
-	TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
-fi
-	
-if [ -z "$TPM_COUNTER" ]; then
-	die "$BOOT_HASHES: TPM Counter not found?"
-fi
+check_tpm_counter $BOOT_HASHES
 
 mount -o rw,remount /boot \
 || die "Could not remount /boot"
 
-tpm counter_increment -ix "$TPM_COUNTER" -pwdc '' \
-	| tee /tmp/counter-$TPM_COUNTER \
-|| die "Counter increment failed"
+increment_tpm_counter $TPM_COUNTER
 
 sha256sum \
 	"$XEN" \

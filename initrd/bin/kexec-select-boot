@@ -1,4 +1,6 @@
 #!/bin/sh
+# Generic configurable boot script via kexec
+set -o pipefail
 . /etc/config
 . /etc/functions
 
@@ -6,8 +8,10 @@ add=""
 remove=""
 config="*.cfg"
 unique="n"
-hashed="n"
-while getopts "b:d:p:a:r:c:uh" arg; do
+valid_hash="n"
+valid_global_hash="n"
+valid_rollback="n"
+while getopts "b:d:p:a:r:c:ui" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -16,7 +20,7 @@ while getopts "b:d:p:a:r:c:uh" arg; do
 		r) remove="$OPTARG" ;;
 		c) config="$OPTARG" ;;
 		u) unique="y" ;;
-		h) hashed="y" ;;
+		i) valid_hash="y"; valid_rollback="y" ;;
 	esac
 done
 
@@ -32,11 +36,40 @@ if [ -z "$paramsdir" ]; then
 	paramsdir="$bootdir"
 fi
 
+verify_global_hashes()
+{
+	echo "+++ Checking verified boot hash file "
+	# Check the hashes of all the files
+	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
+		echo "+++ Verified boot hashes "
+		valid_hash='y'
+		valid_global_hash='y'
+	else
+		die "$TMP_HASH_FILE: boot hash mismatch"
+	fi
+}
+
+verify_rollback_counter()
+{
+	TPM_COUNTER=`grep counter $TMP_ROLLBACK_FILE | cut -d- -f2`
+	if [ -z "$TPM_COUNTER" ]; then
+		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
+	fi
+
+	read_tpm_counter $TPM_COUNTER \
+	|| die "Failed to read TPM counter"
+
+	sha256sum -c $TMP_ROLLBACK_FILE \
+	|| die "Invalid TPM counter state"
+
+	valid_rollback="y"
+}
+
 first_menu="y"
 get_menu_option() {
 	num_options=`cat $TMP_MENU_FILE | wc -l`
 	if [ $num_options -eq 0 ]; then
-		recovery "No boot options"
+		die "No boot options"
 	fi
 
 	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
@@ -56,7 +89,7 @@ get_menu_option() {
 			option_index
 
 		if [ "$option_index" = "a" ]; then
-			recovery "Aborting boot attempt"
+			die "Aborting boot attempt"
 		fi
 	fi
 	first_menu="n"
@@ -89,13 +122,39 @@ scan_options() {
 		kexec-parse-boot $i >> $option_file
 	done
 	if [ ! -r $option_file ]; then
-		recovery "Failed to parse any boot options"
+		die "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
 		sort $option_file | uniq > $TMP_MENU_FILE
 	else
 		cp $option_file $TMP_MENU_FILE
 	fi
+}
+
+save_default_option() {
+	read \
+		-n 1 \
+		-p "Saving a default will modify the disk. Proceed? (y/n): " \
+		default_confirm
+	echo
+
+	if [ "$default_confirm" = "y" ]; then
+		if kexec-save-default \
+			-b "$bootdir" \
+			-d "$paramsdev" \
+			-p "$paramsdir" \
+			-i "$option_index" \
+		; then
+			echo "+++ Saved defaults to device"
+			sleep 2
+			default_failed="n"
+			return
+		else
+			echo "Failed to save defaults"
+		fi
+	fi
+
+	option_confirm="n"
 }
 
 default_select() {
@@ -108,7 +167,9 @@ default_select() {
 	expectedoption=`cat $TMP_DEFAULT_FILE`
 	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
 	if [ "$option" != "$expectedoption" ]; then
-		recovery "Boot entry has changed: expected $expectedoption, found $option"
+		warn "!!! Boot entry has changed - please set a new default"
+		sleep 5
+		return
 	fi
 	parse_option
 
@@ -117,29 +178,18 @@ default_select() {
 	# Check the hashes of all the files
 	if cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" ; then
 		echo "+++ Verified default boot hashes "
+		valid_hash='y'
 	else
-		recovery "$TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
+		die "$TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
 	fi
 
 	echo "+++ Executing default boot for $name:"
-	kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove"
-	recovery "Something failed"
+	do_boot
+	warn "Failed to boot default option"
 }
 
 user_select() {
 	# No default expected boot parameters, ask user
-
-	# Optionally enforce device file hashes
-	if [ -r $TMP_HASH_FILE ]; then
-		echo "+++ Checking verified boot hash file "
-		# Check the hashes of all the files
-		if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
-			echo "+++ Verified boot hashes "
-			hashed='y'
-		else
-			recovery "$TMP_HASH_FILE: boot hash mismatch"
-		fi
-	fi
 
 	option_confirm=""
 	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
@@ -148,12 +198,7 @@ user_select() {
 		confirm_menu_option
 
 		if [ "$option_confirm" = 'd' ]; then
-			if ! kexec-save-default -b "$bootdir" -d "$paramsdev" -p "$paramsdir" -e "$option" -i "$option_index"; then
-				echo "!!!!!! Failed to save defaults"
-			else
-				echo "+++ Saved defaults to device"
-				sleep 2
-			fi
+			save_default_option
 		fi
 	done
 
@@ -162,31 +207,66 @@ user_select() {
 		continue
 	fi
 
-	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$hashed" = "n" ]; then
-		recovery "!!!!!! Missing required boot hashes"
+	do_boot
+}
+
+do_boot()
+{
+	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
+		warn "!!! Missing required rollback counter state"
+		return
+	fi
+
+	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
+		warn "!!! Missing required boot hashes"
+		return
 	fi
 
 	kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove"
-	recovery "Something failed"
+	die "!!! Failed to boot w/ options: $option"
 }
 
 while true; do
-	kexec-check-config $paramsdir
+	check_config $paramsdir
+
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1`
 	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
+	TMP_ROLLBACK_FILE="/tmp/kexec/kexec_rollback.txt"
 
 	# if no saved options, scan the boot directory and generate
-	if [ ! -r $TMP_MENU_FILE ]; then
+	if [ ! -r "$TMP_MENU_FILE" ]; then
 		scan_options
 	fi
 
-	if [ -r "$TMP_DEFAULT_FILE" -a -r "$TMP_DEFAULT_HASH_FILE" ]; then
+	# Optionally enforce device file hashes
+	if [ -r "$TMP_HASH_FILE" ]; then
+		valid_global_hash="n"
+
+		verify_global_hashes
+
+		if [ "$valid_global_hash" = "n" ]; then
+			die "Failed to verify global hashes"
+		fi
+	fi
+
+	if [ -r "$TMP_ROLLBACK_FILE" ]; then
+		# in the case of iso boot with a rollback file, do not assume valid
+		valid_rollback="n"
+
+		verify_rollback_counter
+	fi
+
+	if [ "$default_failed" != "y" \
+		-a -r "$TMP_DEFAULT_FILE" \
+		-a -r "$TMP_DEFAULT_HASH_FILE" ] \
+	; then
 		default_select
+		default_failed="y"
 	else
 		user_select
 	fi
-
-	recovery "Something failed again"
 done
+
+die "!!! Shouldn't get here""
