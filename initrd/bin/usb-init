@@ -17,4 +17,4 @@ if [ ! "$totp_confirm" = "y" ]; then
 fi
 
 usb-scan
-recovery "Something failed..."
+recovery "Something failed during USB boot"
