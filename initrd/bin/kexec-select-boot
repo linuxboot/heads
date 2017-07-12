@@ -1,6 +1,6 @@
 #!/bin/sh
 # Generic configurable boot script via kexec
-set -o pipefail
+set -e -o pipefail
 . /etc/config
 . /etc/functions
 
@@ -119,7 +119,7 @@ scan_options() {
 	option_file="/tmp/kexec_options.txt"
 	if [ -r $option_file ]; then rm $option_file; fi
 	for i in `find $bootdir -name "$config"`; do
-		kexec-parse-boot $i >> $option_file
+		kexec-parse-boot "$bootdir" "$i" >> $option_file
 	done
 	if [ ! -r $option_file ]; then
 		die "Failed to parse any boot options"
@@ -222,18 +222,40 @@ do_boot()
 		return
 	fi
 
-	kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove"
-	die "!!! Failed to boot w/ options: $option"
+	if [ -r "$TMP_KEY_DEVICES" ]; then
+		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
+		|| die "!!! Failed to extract the initrd from boot option"
+		if [ -z "$INITRD" ]; then
+			die "!!! No initrd file found in boot option"
+		fi
+
+		kexec-insert-key $INITRD \
+		|| die "!!! Failed to insert disk key into a new initrd"
+
+		kexec-boot -b "$bootdir" -e "$option" \
+			-a "$add" -r "$remove" -o "/tmp/secret/initrd.cpio" \
+		|| die "!!! Failed to boot w/ options: $option"
+	else
+		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" \
+		|| die "!!! Failed to boot w/ options: $option"
+	fi
 }
 
 while true; do
 	check_config $paramsdir
-
+	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1` || true
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
-	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1`
 	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
 	TMP_ROLLBACK_FILE="/tmp/kexec/kexec_rollback.txt"
+	TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
+	TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
+
+	if [ ! -r "$TMP_KEY_DEVICES" ]; then
+		# Extend PCR4 as soon as possible
+		tpm extend -ix 4 -ic generic \
+		|| die "Failed to extend PCR 4"
+	fi
 
 	# if no saved options, scan the boot directory and generate
 	if [ ! -r "$TMP_MENU_FILE" ]; then
