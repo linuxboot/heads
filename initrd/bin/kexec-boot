@@ -1,16 +1,28 @@
 #!/bin/sh
+# Launches kexec from saved configuration entries
+set -e -o pipefail
 . /etc/functions
 
 dryrun="n"
-while getopts "b:e:r:a:d" arg; do
+printfiles="n"
+printinitrd="n"
+while getopts "b:e:r:a:o:fi" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		e) entry="$OPTARG" ;;
 		r) cmdremove="$OPTARG" ;;
 		a) cmdadd="$OPTARG" ;;
-		d) dryrun="y" ;;
+		o) override_initrd="$OPTARG" ;;
+		f) dryrun="y"; printfiles="y" ;;
+		i) dryrun="y"; printinitrd="y" ;;
 	esac
 done
+
+if [ -z "$bootdir" -o -z "$entry" ]; then
+	die "Usage: $0 -b /boot/ -e 'kexec params|...|...'"
+fi
+
+bootdir=${bootdir%%"/"}
 
 kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
@@ -21,11 +33,15 @@ cmdadd="intel_iommu=on $cmdadd"
 cmdremove="quiet $cmdremove"
 
 fix_file_path() {
-	if [ "$dryrun" = "y" ]; then echo ".$firstval"; fi
+	if [ "$printfiles" = "y" ]; then
+		# output file relative to local boot directory
+		echo ".$firstval"
+	fi
 
-	filepath=`find $bootdir -path "*$firstval" | tail -1`
+	filepath="$bootdir$firstval"
+
 	if ! [ -r $filepath ]; then
-		die "failed to find file $firstval"
+		die "Failed to find file $firstval"
 	fi
 }
 
@@ -41,7 +57,7 @@ adjust_cmd_line() {
 	fi
 }
 
-first_module=y
+module_number="1"
 while read line
 do
 	key=`echo $line | cut -d\  -f1`
@@ -64,14 +80,31 @@ do
 	if [ "$key" = "module" ]; then
 		fix_file_path
 		cmdline="$restval"
-		if [ -n "$first_module" ]; then
-			adjust_cmd_line
-			unset first_module
+		if [ "$kexectype" = "xen" ]; then
+			if [ "$module_number" -eq 1 ]; then
+				adjust_cmd_line
+			elif [ "$module_number" -eq 2 ]; then
+				if [ "$printinitrd" = "y" ]; then
+					# output the current path to initrd
+					echo $filepath
+				fi
+				if [ -n "$override_initrd" ]; then
+					filepath="$override_initrd"
+				fi
+			fi
 		fi
+		module_number=`expr $module_number + 1`
 		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then
 		fix_file_path
+		if [ "$printinitrd" = "y" ]; then
+			# output the current path to initrd
+			echo $filepath
+		fi
+		if [ -n "$override_initrd" ]; then
+			filepath="$override_initrd"
+		fi
 		kexeccmd="$kexeccmd --initrd=$filepath"
 	fi
 	if [ "$key" = "append" ]; then
