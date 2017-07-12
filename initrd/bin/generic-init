@@ -9,9 +9,6 @@ if ! confirm_totp ; then
 	recovery 'Failed to unseal TOTP'
 fi
 
-# Extend PCR4 as soon as possible
-tpm extend -ix 4 -ic local
-
 if [ ! "$totp_confirm" = "y" ]; then
 	recovery "Failed to confirm validity of TOTP"
 fi

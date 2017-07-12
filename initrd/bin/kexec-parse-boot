@@ -1,5 +1,8 @@
 #!/bin/sh
-file="$1"
+set -e -o pipefail
+bootdir="$1"
+file="$2"
+filedir=`dirname $file`
 
 reset_entry() {
 	name=""
@@ -10,20 +13,38 @@ reset_entry() {
 	append=""
 }
 
+bootdir=${bootdir%%"/"}
+bootlen=${#bootdir}
+appenddir=${filedir:$bootlen}
+
+fix_path() {
+	path="$@"
+	if [ "${path:0:1}" != "/" ]; then
+		path="$appenddir/$path"
+	fi
+}
+
 echo_entry() {
 	if [ "$kexectype" = "elf" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		entry="$name|$kexectype|kernel $kernel"
-		if [ -n "$initrd" ]; then entry="$entry|initrd $initrd"; fi
-		if [ -n "$append" ]; then entry="$entry|append $append"; fi
+		fix_path $kernel
+		entry="$name|$kexectype|kernel $path"
+		if [ -n "$initrd" ]; then
+			fix_path $initrd
+			entry="$entry|initrd $path"
+		fi
+		if [ -n "$append" ]; then
+			entry="$entry|append $append"
+		fi
 
 		echo $(eval "echo \"$entry\"")
 	fi
 	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		echo $(eval "echo \"$name|$kexectype|kernel $kernel$modules\"")
+		fix_path $kernel
+		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
 	fi
 }
 
@@ -63,7 +84,8 @@ grub_entry() {
 			case $val in
 				--nounzip*) val=`echo $val | cut -d\  -f2-` ;;
 			esac
-			modules="$modules|module $val"
+			fix_path $val
+			modules="$modules|module $path"
 			;;
 		linux*)
 			kernel=`echo $trimcmd | cut -d\  -f2`
@@ -103,7 +125,8 @@ syslinux_multiboot_append() {
 		if [ -z "$kernel" ]; then
 			kernel="$line"
 		else
-			modules="$modules|module $line"
+			fix_path $line
+			modules="$modules|module $path"
 		fi
 	done << EOF
 $splitval

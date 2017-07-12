@@ -1,6 +1,6 @@
 #!/bin/sh
 # Boot from signed ISO
-
+set -e -o pipefail
 . /etc/functions
 . /etc/config
 

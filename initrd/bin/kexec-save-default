@@ -1,5 +1,6 @@
 #!/bin/sh
 # Save these options to be the persistent default
+set -e -o pipefail
 . /etc/functions
 
 while getopts "b:d:p:e:i:" arg; do
@@ -43,9 +44,11 @@ if [ ! -d $paramsdir ]; then
 	mkdir -p $paramsdir \
 	|| die "Failed to create params directory"
 fi
-rm "$paramsdir/kexec_default.*.txt" 2>/dev/null
+rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
 echo "$entry" > $ENTRY_FILE
-cd $bootdir && kexec-boot -e "$entry" -d | xargs sha256sum > $HASH_FILE
+cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f | \
+	xargs sha256sum > $HASH_FILE \
+|| die "Failed to create hashes of boot files"
 if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
 	die "Failed to write default config"
 fi
