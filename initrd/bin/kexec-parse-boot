@@ -2,7 +2,10 @@
 set -e -o pipefail
 bootdir="$1"
 file="$2"
-filedir=`dirname $file`
+
+if [ -z "$bootdir" -o -z "$file" ]; then
+	die "Usage: $0 /boot/ /boot/grub/grub.cfg"
+fi
 
 reset_entry() {
 	name=""
@@ -13,6 +16,7 @@ reset_entry() {
 	append=""
 }
 
+filedir=`dirname $file`
 bootdir=${bootdir%%"/"}
 bootlen=${#bootdir}
 appenddir=${filedir:$bootlen}
@@ -111,7 +115,7 @@ syslinux_end() {
 				*) newappend="$newappend $param" ;;
 			esac
 		done
-		append="$newappend"
+		append="${newappend##' '}"
 	fi
 
 	echo_entry
@@ -196,7 +200,7 @@ do
 			syslinux_entry
 			;;
 	esac
-done < $file
+done < "$file"
 
 # handle EOF case
 if [ "$state" = "syslinux" ]; then
