@@ -14,7 +14,7 @@ while getopts "p:c:u" arg; do
 done
 
 if [ -z "$paramsdir" ]; then
-	die "Usage: $0 -p /boot/ [ -u | -c counter ]"
+	die "Usage: $0 -p /boot [ -u | -c counter ]"
 fi
 
 confirm_gpg_card
