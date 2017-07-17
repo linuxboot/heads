@@ -1,7 +1,8 @@
 #!/bin/sh
 # This will generate a disk encryption key and seal / ecncrypt
 # with the current PCRs and then store it in the TPM NVRAM.
-# It will then need to be bundled into initrd that is booted with Qubes.
+# It will then need to be bundled into initrd that is booted.
+set -e -o pipefail
 
 TPM_INDEX=3
 TPM_SIZE=312
@@ -12,10 +13,27 @@ RECOVERY_KEY="/tmp/secret/recovery.key"
 . /etc/functions
 . /etc/config
 
-# Activate the LVM volume group
-VOLUME_GROUP=qubes_dom0
-lvm vgchange -a y $VOLUME_GROUP \
-	|| die "$VOLUME_GROUP: unable to activate volume group"
+paramsdir=$1
+if [ -z "$paramsdir" ]; then
+	die "Usage $0 /boot"
+fi
+
+KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
+KEY_LVM="$paramsdir/kexec_key_lvm.txt"
+
+if [ ! -r "$KEY_DEVICES" ]; then
+	die "No devices defined for disk encryption"
+fi
+
+if [ -r "$KEY_LVM" ]; then
+	# Activate the LVM volume group
+	VOLUME_GROUP=`cat $KEY_LVM`
+	if [ -z "$VOLUME_GROUP" ]; then
+		die "No LVM volume group defined for activation"
+	fi
+	lvm vgchange -a y $VOLUME_GROUP \
+		|| die "$VOLUME_GROUP: unable to activate volume group"
+fi
 
 # Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed Qubes,
@@ -23,15 +41,6 @@ lvm vgchange -a y $VOLUME_GROUP \
 read -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > "$RECOVERY_KEY"
 echo
-
-# Remove all the old keys from slot 1
-for dev in /dev/$VOLUME_GROUP/*; do
-	echo "++++++ $dev: Removing old key slot"
-	cryptsetup luksKillSlot \
-		--key-file "$RECOVERY_KEY" \
-		$dev 1 \
-	|| warn "$dev: ignoring problem"
-done
 
 read -s -p "New disk unlock password for booting: " key_password
 echo
@@ -42,6 +51,7 @@ if [ "$key_password" != "$key_password2" ]; then
 	die "Key passwords do not match"
 fi
 
+# Generate key file
 dd \
 	if=/dev/urandom \
 	of="$KEY_FILE" \
@@ -50,8 +60,15 @@ dd \
 	2>/dev/null \
 || die "Unable to generate 128 random bytes"
 
-for dev in /dev/$VOLUME_GROUP/*; do
-	echo "+++++ $dev: Adding key"
+# Remove all the old keys from slot 1
+for dev in `cat "$KEY_DEVICES" | cut -d\  -f1`; do
+	echo "++++++ $dev: Removing old key slot"
+	cryptsetup luksKillSlot \
+		--key-file "$RECOVERY_KEY" \
+		$dev 1 \
+	|| warn "$dev: ignoring problem"
+
+	echo "++++++ $dev: Adding key"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
@@ -63,7 +80,7 @@ done
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-/bin/qubes-measure-luks /dev/$VOLUME_GROUP/* \
+cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
@@ -91,7 +108,8 @@ tpm sealfile2 \
 	-ix 6 $luks_pcr \
 || die "Unable to seal secret"
 
-rm -f "$KEY_FILE"
+rm -f "$KEY_FILE" \
+|| die "Failed to delete key file"
 
 # try it without the owner password first
 if ! tpm nv_writevalue \
@@ -124,3 +142,4 @@ if ! tpm nv_writevalue \
 fi
 
 rm "$TPM_SEALED" \
+|| warn "Failed to delete the sealed secret - continuing"

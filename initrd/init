@@ -29,6 +29,15 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
+# Add our boot devices into the /etc/fstab, if they are defined
+# in the configuration file.
+if [ ! -z "$CONFIG_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+fi
+if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
+fi
+
 if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 	# just in case...
@@ -39,7 +48,7 @@ fi
 # Give the user a second to enter a recovery shell
 read \
 	-t "1" \
-	-p "Press 'r' for recovery shell: " \
+	-p "Press 'r' for recovery shell or 'u' for usb: " \
 	-n 1 \
 	boot_option
 echo
@@ -47,6 +56,14 @@ echo
 if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
+	# just in case...
+	tpm extend -ix 4 -ic recovery
+	exec /bin/ash
+fi
+
+if [ "$boot_option" = "u" ]; then
+	echo '***** USB boot'
+	exec /bin/usb-init
 	# just in case...
 	tpm extend -ix 4 -ic recovery
 	exec /bin/ash

@@ -1,0 +1,294 @@
+#!/bin/sh
+# Generic configurable boot script via kexec
+set -e -o pipefail
+. /etc/config
+. /etc/functions
+
+add=""
+remove=""
+config="*.cfg"
+unique="n"
+valid_hash="n"
+valid_global_hash="n"
+valid_rollback="n"
+while getopts "b:d:p:a:r:c:ui" arg; do
+	case $arg in
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		a) add="$OPTARG" ;;
+		r) remove="$OPTARG" ;;
+		c) config="$OPTARG" ;;
+		u) unique="y" ;;
+		i) valid_hash="y"; valid_rollback="y" ;;
+	esac
+done
+
+if [ -z "$bootdir" ]; then
+	die "Usage: $0 -b /boot"
+fi
+
+if [ -z "$paramsdev" ]; then
+	paramsdev="$bootdir"
+fi
+
+if [ -z "$paramsdir" ]; then
+	paramsdir="$bootdir"
+fi
+
+verify_global_hashes()
+{
+	echo "+++ Checking verified boot hash file "
+	# Check the hashes of all the files
+	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" ; then
+		echo "+++ Verified boot hashes "
+		valid_hash='y'
+		valid_global_hash='y'
+	else
+		die "$TMP_HASH_FILE: boot hash mismatch"
+	fi
+}
+
+verify_rollback_counter()
+{
+	TPM_COUNTER=`grep counter $TMP_ROLLBACK_FILE | cut -d- -f2`
+	if [ -z "$TPM_COUNTER" ]; then
+		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
+	fi
+
+	read_tpm_counter $TPM_COUNTER \
+	|| die "Failed to read TPM counter"
+
+	sha256sum -c $TMP_ROLLBACK_FILE \
+	|| die "Invalid TPM counter state"
+
+	valid_rollback="y"
+}
+
+first_menu="y"
+get_menu_option() {
+	num_options=`cat $TMP_MENU_FILE | wc -l`
+	if [ $num_options -eq 0 ]; then
+		die "No boot options"
+	fi
+
+	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
+		option_index=1
+	else
+		echo "+++ Select your boot option:"
+		n=0
+		while read option
+		do
+			parse_option
+			n=`expr $n + 1`
+			echo "$n. $name [$kernel]"
+		done < $TMP_MENU_FILE
+
+		read \
+			-p "Choose the boot option [1-$n, a to abort]: " \
+			option_index
+
+		if [ "$option_index" = "a" ]; then
+			die "Aborting boot attempt"
+		fi
+	fi
+	first_menu="n"
+
+	option=`head -n $option_index $TMP_MENU_FILE | tail -1`
+	parse_option
+}
+
+confirm_menu_option() {
+	echo "+++ Please confirm the boot details for $name:"
+	echo $option
+
+	read \
+		-n 1 \
+		-p "Confirm selection by pressing 'y', make default with 'd': " \
+		option_confirm
+	echo
+}
+
+parse_option() {
+	name=`echo $option | cut -d\| -f1`
+	kernel=`echo $option | cut -d\| -f3`
+}
+
+scan_options() {
+	echo "+++ Scanning for unsigned boot options"
+	option_file="/tmp/kexec_options.txt"
+	if [ -r $option_file ]; then rm $option_file; fi
+	for i in `find $bootdir -name "$config"`; do
+		kexec-parse-boot "$bootdir" "$i" >> $option_file
+	done
+	if [ ! -r $option_file ]; then
+		die "Failed to parse any boot options"
+	fi
+	if [ "$unique" = 'y' ]; then
+		sort $option_file | uniq > $TMP_MENU_FILE
+	else
+		cp $option_file $TMP_MENU_FILE
+	fi
+}
+
+save_default_option() {
+	read \
+		-n 1 \
+		-p "Saving a default will modify the disk. Proceed? (y/n): " \
+		default_confirm
+	echo
+
+	if [ "$default_confirm" = "y" ]; then
+		if kexec-save-default \
+			-b "$bootdir" \
+			-d "$paramsdev" \
+			-p "$paramsdir" \
+			-i "$option_index" \
+		; then
+			echo "+++ Saved defaults to device"
+			sleep 2
+			default_failed="n"
+			return
+		else
+			echo "Failed to save defaults"
+		fi
+	fi
+
+	option_confirm="n"
+}
+
+default_select() {
+	# Attempt boot with expected parameters
+
+	# Check that entry matches that which is expected from menu
+	default_index=`basename "$TMP_DEFAULT_FILE" | cut -d. -f 2`
+
+	# Check to see if entries have changed - useful for detecting grub update
+	expectedoption=`cat $TMP_DEFAULT_FILE`
+	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
+	if [ "$option" != "$expectedoption" ]; then
+		warn "!!! Boot entry has changed - please set a new default"
+		sleep 5
+		return
+	fi
+	parse_option
+
+	# Enforce that default option hashes are valid
+	echo "+++ Checking verified default boot hash file "
+	# Check the hashes of all the files
+	if cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" ; then
+		echo "+++ Verified default boot hashes "
+		valid_hash='y'
+	else
+		die "$TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
+	fi
+
+	echo "+++ Executing default boot for $name:"
+	do_boot
+	warn "Failed to boot default option"
+}
+
+user_select() {
+	# No default expected boot parameters, ask user
+
+	option_confirm=""
+	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
+	do
+		get_menu_option
+		confirm_menu_option
+
+		if [ "$option_confirm" = 'd' ]; then
+			save_default_option
+		fi
+	done
+
+	if [ "$option_confirm" = "d" ]; then
+		# reload settings to reflect new default
+		continue
+	fi
+
+	do_boot
+}
+
+do_boot()
+{
+	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
+		warn "!!! Missing required rollback counter state"
+		return
+	fi
+
+	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
+		warn "!!! Missing required boot hashes"
+		return
+	fi
+
+	if [ -r "$TMP_KEY_DEVICES" ]; then
+		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
+		|| die "!!! Failed to extract the initrd from boot option"
+		if [ -z "$INITRD" ]; then
+			die "!!! No initrd file found in boot option"
+		fi
+
+		kexec-insert-key $INITRD \
+		|| die "!!! Failed to insert disk key into a new initrd"
+
+		kexec-boot -b "$bootdir" -e "$option" \
+			-a "$add" -r "$remove" -o "/tmp/secret/initrd.cpio" \
+		|| die "!!! Failed to boot w/ options: $option"
+	else
+		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" \
+		|| die "!!! Failed to boot w/ options: $option"
+	fi
+}
+
+while true; do
+	check_config $paramsdir
+	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1` || true
+	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
+	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
+	TMP_ROLLBACK_FILE="/tmp/kexec/kexec_rollback.txt"
+	TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
+	TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
+
+	if [ ! -r "$TMP_KEY_DEVICES" ]; then
+		# Extend PCR4 as soon as possible
+		tpm extend -ix 4 -ic generic \
+		|| die "Failed to extend PCR 4"
+	fi
+
+	# if no saved options, scan the boot directory and generate
+	if [ ! -r "$TMP_MENU_FILE" ]; then
+		scan_options
+	fi
+
+	# Optionally enforce device file hashes
+	if [ -r "$TMP_HASH_FILE" ]; then
+		valid_global_hash="n"
+
+		verify_global_hashes
+
+		if [ "$valid_global_hash" = "n" ]; then
+			die "Failed to verify global hashes"
+		fi
+	fi
+
+	if [ -r "$TMP_ROLLBACK_FILE" ]; then
+		# in the case of iso boot with a rollback file, do not assume valid
+		valid_rollback="n"
+
+		verify_rollback_counter
+	fi
+
+	if [ "$default_failed" != "y" \
+		-a -r "$TMP_DEFAULT_FILE" \
+		-a -r "$TMP_DEFAULT_HASH_FILE" ] \
+	; then
+		default_select
+		default_failed="y"
+	else
+		user_select
+	fi
+done
+
+die "!!! Shouldn't get here""

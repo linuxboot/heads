@@ -1,0 +1,61 @@
+#!/bin/sh
+# Save these options to be the persistent default
+set -e -o pipefail
+. /etc/functions
+
+while getopts "b:d:p:e:i:" arg; do
+	case $arg in
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		i) index="$OPTARG" ;;
+	esac
+done
+
+if [ -z "$bootdir" -o -z "$index" ]; then
+	die "Usage: $0 -b /boot -i menu_option "
+fi
+
+if [ -z "$paramsdev" ]; then
+	paramsdev="$bootdir"
+fi
+
+if [ -z "$paramsdir" ]; then
+	paramsdir="$bootdir"
+fi
+
+TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
+ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
+HASH_FILE="$paramsdir/kexec_default_hashes.txt"
+
+if [ ! -r "$TMP_MENU_FILE" ]; then
+	die "No menu options available, please run kexec-select-boot"
+fi
+
+entry=`head -n $index $TMP_MENU_FILE | tail -1`
+if [ -z "$entry" ]; then
+	die "Invalid menu index $index"
+fi
+
+# try to switch to rw mode
+mount -o rw,remount $paramsdev
+
+if [ ! -d $paramsdir ]; then
+	mkdir -p $paramsdir \
+	|| die "Failed to create params directory"
+fi
+rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
+echo "$entry" > $ENTRY_FILE
+cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f | \
+	xargs sha256sum > $HASH_FILE \
+|| die "Failed to create hashes of boot files"
+if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
+	die "Failed to write default config"
+fi
+
+# sign and auto-roll config counter
+kexec-sign-config -p $paramsdir -u \
+|| die "Failed to sign default config"
+
+# switch back to ro mode
+mount -o ro,remount $paramsdev
