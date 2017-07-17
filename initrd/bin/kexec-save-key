@@ -1,0 +1,63 @@
+#!/bin/sh
+# Generate a TPM key used to unlock LUKS disks
+set -e -o pipefail
+. /etc/functions
+
+lvm_volume_group=""
+while getopts "p:d:l:" arg; do
+	case $arg in
+		p) paramsdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		l) lvm_volume_group="$OPTARG" ;;
+	esac
+done
+shift `expr $OPTIND - 1`
+key_devices="$@"
+
+if [ -z "$paramsdir" ]; then
+	die "Usage: $0 -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
+fi
+
+if [ -z "$paramsdev" ]; then
+	paramsdev="$paramsdir"
+fi
+
+if [ -n "$lvm_volume_group" ]; then
+	lvm vgchange -a y $lvm_volume_group \
+	|| die "Failed to activate the LVM group"
+
+	for dev in /dev/$lvm_volume_group/*; do
+		key_devices="$key_devices $dev"
+	done
+fi
+
+if [ -z "$key_devices" ]; then
+	die "No devices specified for TPM key insertion"
+fi
+
+# try to switch to rw mode
+mount -o rw,remount $paramsdev
+
+rm -f $paramsdir/kexec_key_lvm.txt || true
+if [ -n "$lvm_volume_group" ]; then
+	echo "$lvm_volume_group" > $paramsdir/kexec_key_lvm.txt \
+	|| die "Failed to write lvm group to key config "
+fi
+
+rm -f $paramsdir/kexec_key_devices.txt || true
+for dev in $key_devices; do
+	uuid=`cryptsetup luksUUID "$dev" 2>/dev/null` \
+	|| die "Failed to get UUID for device $dev"
+	echo "$dev $uuid" >> $paramsdir/kexec_key_devices.txt \
+	|| die "Failed to add $dev:$uuid to key devices config"
+done
+
+kexec-seal-key $paramsdir \
+|| die "Failed to save and generate key in TPM"
+
+# sign and auto-roll config counter
+kexec-sign-config -p $paramsdir -u \
+|| die "Failed to sign updated config"
+
+# switch back to ro mode
+mount -o ro,remount $paramsdev

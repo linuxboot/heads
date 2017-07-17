@@ -1,0 +1,208 @@
+#!/bin/sh
+set -e -o pipefail
+bootdir="$1"
+file="$2"
+
+if [ -z "$bootdir" -o -z "$file" ]; then
+	die "Usage: $0 /boot /boot/grub/grub.cfg"
+fi
+
+reset_entry() {
+	name=""
+	kexectype="elf"
+	kernel=""
+	initrd=""
+	modules=""
+	append=""
+}
+
+filedir=`dirname $file`
+bootdir=${bootdir%%"/"}
+bootlen=${#bootdir}
+appenddir=${filedir:$bootlen}
+
+fix_path() {
+	path="$@"
+	if [ "${path:0:1}" != "/" ]; then
+		path="$appenddir/$path"
+	fi
+}
+
+echo_entry() {
+	if [ "$kexectype" = "elf" ]; then
+		if [ -z "$kernel" ]; then return; fi
+
+		fix_path $kernel
+		entry="$name|$kexectype|kernel $path"
+		if [ -n "$initrd" ]; then
+			fix_path $initrd
+			entry="$entry|initrd $path"
+		fi
+		if [ -n "$append" ]; then
+			entry="$entry|append $append"
+		fi
+
+		echo $(eval "echo \"$entry\"")
+	fi
+	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+		if [ -z "$kernel" ]; then return; fi
+
+		fix_path $kernel
+		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
+	fi
+}
+
+search_entry() {
+	case $line in
+		menuentry* | MENUENTRY* )
+			state="grub"
+			reset_entry
+			name=`echo $line | tr "'" "\"" | cut -d\" -f 2`
+			;;
+
+		label* | LABEL* )
+			state="syslinux"
+			reset_entry
+			name=`echo $line | cut -c6- `
+	esac
+}
+
+grub_entry() {
+	if [ "$line" = "}" ]; then
+		echo_entry
+		state="search"
+		return
+	fi
+
+	# add info to menuentry
+	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
+	cmd=`echo $trimcmd | cut -d\  -f1`
+	val=`echo $trimcmd | cut -d\  -f2-`
+	case $cmd in
+		multiboot*)
+			# TODO: differentiate between Xen and other multiboot kernels
+			kexectype="xen"
+			kernel="$val"
+			;;
+		module*)
+			case $val in
+				--nounzip*) val=`echo $val | cut -d\  -f2-` ;;
+			esac
+			fix_path $val
+			modules="$modules|module $path"
+			;;
+		linux*)
+			kernel=`echo $trimcmd | cut -d\  -f2`
+			append=`echo $trimcmd | cut -d\  -f3-`
+			;;
+		initrd*)
+			initrd="$val"
+			;;
+	esac
+}
+
+syslinux_end() {
+	# finish menuentry
+
+	# attempt to parse out of append if missing initrd
+	if [ -z "$initrd" ]; then
+		newappend=""
+		for param in $append; do
+			case $param in
+				initrd=*)
+					initrd=`echo $param | cut -d\= -f2`
+					;;
+				*) newappend="$newappend $param" ;;
+			esac
+		done
+		append="${newappend##' '}"
+	fi
+
+	echo_entry
+	state="search"
+}
+
+syslinux_multiboot_append() {
+	splitval=`echo "${val// --- /|}" | tr '|' '\n'`
+	while read line
+	do
+		if [ -z "$kernel" ]; then
+			kernel="$line"
+		else
+			fix_path $line
+			modules="$modules|module $path"
+		fi
+	done << EOF
+$splitval
+EOF
+}
+
+syslinux_entry() {
+	case $line in
+		"")
+			syslinux_end
+			return
+			;;
+		label* | LABEL* )
+			syslinux_end
+			search_entry
+			return
+			;;
+	esac
+
+	# add info to menuentry
+	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
+	cmd=`echo $trimcmd | cut -d\  -f1`
+	val=`echo $trimcmd | cut -d\  -f2-`
+	case $trimcmd in
+		menu* | MENU* )
+			cmd2=`echo $trimcmd | cut -d \  -f2`
+			if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
+				name=`echo $trimcmd | cut -c11- | tr -d '^'`
+			fi
+			;;
+		linux* | LINUX* | kernel* | KERNEL* )
+			case $val in
+				# TODO: differentiate between Xen and other multiboot kernels
+				*mboot.c32) kexectype="xen" ;;
+				*.c32)
+					# skip this entry
+					state="search"
+					;;
+				*)
+					kernel="$val"
+			esac
+			;;
+		initrd* | INITRD* )
+			initrd="$val"
+			;;
+		append* | APPEND* )
+			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+				syslinux_multiboot_append
+			else
+				append="$val"
+			fi
+			;;
+	esac
+}
+
+state="search"
+while read line
+do
+	case $state in
+		search)
+			search_entry
+			;;
+		grub)
+			grub_entry
+			;;
+		syslinux)
+			syslinux_entry
+			;;
+	esac
+done < "$file"
+
+# handle EOF case
+if [ "$state" = "syslinux" ]; then
+	syslinux_end
+fi

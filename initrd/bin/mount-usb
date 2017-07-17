@@ -28,4 +28,8 @@ if [ ! -d /media ]; then
 	mkdir /media
 fi
 
-mount -o ro $1 /media
+if [ -z "$1" ]; then
+	mount -o ro /media
+else
+	mount -o ro $1 /media
+fi
