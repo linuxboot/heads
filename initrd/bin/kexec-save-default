@@ -13,7 +13,7 @@ while getopts "b:d:p:e:i:" arg; do
 done
 
 if [ -z "$bootdir" -o -z "$index" ]; then
-	die "Usage: $0 -b /boot/ -i menu_option "
+	die "Usage: $0 -b /boot -i menu_option "
 fi
 
 if [ -z "$paramsdev" ]; then

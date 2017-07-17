@@ -43,7 +43,7 @@ if [ -r $REMOVE_FILE ]; then
 fi
 
 # Call kexec and indicate that hashes have been verified
-kexec-select-boot -b /boot/ -d /media/ -p "$paramsdir" \
+kexec-select-boot -b /boot -d /media/ -p "$paramsdir" \
 	-a "$ADD" -r "$REMOVE" -c "*.cfg" -u -i
 
 die "Something failed in selecting boot"
