@@ -36,7 +36,7 @@ if [ -z "$TPM_COUNTER" ]; then
 	recovery "$BOOT_HASHES: TPM counter not found?"
 fi
 
-tpm counter_read -ix "$TPM_COUNTER" | tee "/tmp/counter-$TPM_COUNTER"
+read_tpm_counter $TPM_COUNTER
 
 # Check the hashes of all the files
 sha256sum -c "$BOOT_HASHES" \

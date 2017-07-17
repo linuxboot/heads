@@ -28,3 +28,127 @@ recovery() {
 pcrs() {
 	head -7 /sys/class/tpm/tpm0/pcrs
 }
+
+confirm_totp()
+{
+	last_half=X
+
+	while true; do
+
+		# update the TOTP code every thirty seconds
+		date=`date "+%Y-%m-%d %H:%M:%S"`
+		seconds=`date "+%s"`
+		half=`expr \( $seconds % 60 \) / 30`
+		if [ "$half" != "$last_half" ]; then
+			last_half=$half;
+			TOTP=`unseal-totp` \
+			|| recovery "TOTP code generation failed"
+		fi
+
+		echo -n "$date $TOTP: "
+
+		# read the first character, non-blocking
+		read \
+			-t 1 \
+			-n 1 \
+			-s \
+			-p "Confirm TOTP with a 'y': " \
+			totp_confirm \
+		&& break
+
+		# nothing typed, redraw the line
+		echo -ne '\r'
+	done
+
+	# clean up with a newline
+	echo
+}
+
+confirm_gpg_card()
+{
+	# setup the USB so we can reach the GPG card
+	if ! lsmod | grep -q ehci_hcd; then
+		insmod /lib/modules/ehci-hcd.ko \
+		|| die "ehci_hcd: module load failed"
+	fi
+	if ! lsmod | grep -q ehci_pci; then
+		insmod /lib/modules/ehci-pci.ko \
+		|| die "ehci_pci: module load failed"
+	fi
+	if ! lsmod | grep -q xhci_hcd; then
+		insmod /lib/modules/xhci-hcd.ko \
+		|| die "ehci_hcd: module load failed"
+	fi
+	if ! lsmod | grep -q xhci_pci; then
+		insmod /lib/modules/xhci-pci.ko \
+		|| die "ehci_pci: module load failed"
+		sleep 2
+	fi
+
+	gpg --card-status \
+	|| die "gpg card read failed"
+}
+
+
+check_tpm_counter()
+{
+	# if the /boot.hashes file already exists, read the TPM counter ID
+	# from it.
+	if [ -r "$1" ]; then
+		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
+	else
+		warn "$BOOT_HASHES does not exist; creating new TPM counter"
+		read -s -p "TPM Owner password: " tpm_password
+		echo
+		tpm counter_create \
+			-pwdo "$tpm_password" \
+			-pwdc '' \
+			-la 3135106223 \
+		| tee /tmp/counter \
+		|| die "Unable to create TPM counter"
+		TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+	fi
+
+	if [ -z "$TPM_COUNTER" ]; then
+		die "$1: TPM Counter not found?"
+	fi
+}
+
+read_tpm_counter()
+{
+	tpm counter_read -ix "$1" | tee "/tmp/counter-$1" \
+	|| die "Counter read failed"
+}
+
+increment_tpm_counter()
+{
+	tpm counter_increment -ix "$1" -pwdc '' \
+		| tee /tmp/counter-$1 \
+	|| die "Counter increment failed"
+}
+
+check_config() {
+	if [ ! -d /tmp/kexec ]; then
+		mkdir /tmp/kexec \
+		|| die 'Failed to make kexec tmp dir'
+	else
+		rm -rf /tmp/kexec/* \
+		|| die 'Failed to empty kexec tmp dir'
+	fi
+
+	if [ ! -r $1/kexec.sig ]; then
+		return
+	fi
+
+	if [ `find $1/kexec*.txt | wc -l` -eq 0 ]; then
+		return
+	fi
+
+	if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
+		die 'Invalid signature on kexec boot params'
+	fi
+
+	echo "+++ Found verified kexec boot params"
+	cp $1/kexec*.txt /tmp/kexec \
+	|| die "Failed to copy kexec boot params to tmp"
+}

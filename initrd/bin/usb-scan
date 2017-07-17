@@ -1,0 +1,67 @@
+#!/bin/sh
+# Scan for USB installation options
+set -e -o pipefail
+. /etc/functions
+. /etc/config
+
+# Unmount any previous boot device
+if grep -q /boot /proc/mounts ; then
+	umount /boot \
+		|| die '$CONFIG_USB_BOOT_DEV: Unable to unmount /boot'
+fi
+
+# Mount the USB boot device
+if ! grep -q /media /proc/mounts ; then
+	mount-usb "$CONFIG_USB_BOOT_DEV" \
+		|| die '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
+fi
+
+# Check for ISO first
+get_menu_option() {
+	echo "+++ Select your ISO boot option:"
+	n=0
+	while read option
+	do
+		n=`expr $n + 1`
+		echo "$n. $option"
+	done < /tmp/iso_menu.txt
+
+	read \
+		-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
+		option_index
+
+	if [ "$option_index" = "a" ]; then
+		die "Aborting boot attempt"
+	fi
+
+	if [ "$option_index" = "s" ]; then
+			option=""
+			return
+	fi
+
+	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
+}
+
+# create ISO menu options
+ls -1r /media/*.iso 2>/dev/null > /tmp/iso_menu.txt || true
+if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
+	option_confirm=""
+	while [ -z "$option" -a "$option_index" != "s" ]
+	do
+		get_menu_option
+	done
+
+	if [ -n "$option" ]; then
+		MOUNTED_ISO=$option
+		ISO=${option:7} # remove /media/ to get device relative path
+		kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
+
+		die "Something failed in iso init"
+	fi
+fi
+
+echo "!!! Could not find any ISO, trying bootable USB"
+# Attempt to pull verified config from device
+kexec-select-boot -b /media/ -c "*.cfg" -u
+
+die "Something failed in selecting boot"
