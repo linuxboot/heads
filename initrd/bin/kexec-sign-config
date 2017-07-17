@@ -1,0 +1,59 @@
+#!/bin/sh
+# Sign a valid directory of kexec params
+set -e -o pipefail
+. /etc/functions
+
+rollback="n"
+update_counter="n"
+while getopts "p:c:u" arg; do
+	case $arg in
+		p) paramsdir="$OPTARG" ;;
+		c) counter="$OPTARG"; rollback="y" ;;
+		u) update_counter="y"; rollback="y" ;;
+	esac
+done
+
+if [ -z "$paramsdir" ]; then
+	die "Usage: $0 -p /boot [ -u | -c counter ]"
+fi
+
+confirm_gpg_card
+
+if [ "$rollback" = "y" ]; then
+	rollback_file="$paramsdir/kexec_rollback.txt"
+
+	if [ -n "$counter" ]; then
+		# use existing counter
+		read_tpm_counter $counter \
+		|| die "$paramsdir: Unable to read tpm counter '$counter'"
+	else
+		# increment counter
+		check_tpm_counter $rollback_file \
+		|| die "$paramsdir: Unable to find/create tpm counter"
+		counter="$TPM_COUNTER"
+
+		increment_tpm_counter $counter \
+		|| die "$paramsdir: Unable to increment tpm counter"
+	fi
+
+	sha256sum /tmp/counter-$counter > $rollback_file \
+	|| die "$paramsdir: Unable to create rollback file"
+fi
+
+param_files=`find $paramsdir/kexec*.txt`
+if [ -z "$param_files" ]; then
+	die "$paramsdir: No kexec parameter files to sign"
+fi
+
+for tries in 1 2 3; do
+	if sha256sum $param_files | gpg \
+		--digest-algo SHA256 \
+		--detach-sign \
+		-a \
+		> $paramsdir/kexec.sig \
+	; then
+		exit 0
+	fi
+done
+
+die "$paramsdir: Unable to sign kexec hashes"

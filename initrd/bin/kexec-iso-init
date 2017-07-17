@@ -1,0 +1,49 @@
+#!/bin/sh
+# Boot from signed ISO
+set -e -o pipefail
+. /etc/functions
+. /etc/config
+
+MOUNTED_ISO_PATH="$1"
+ISO_PATH="$2"
+DEV="$3"
+
+echo '+++ Verifying ISO'
+# Verify the signature on the hashes
+ISOSIG="$MOUNTED_ISO_PATH.sig"
+if ! [ -r "$ISOSIG" ]; then
+	ISOSIG="$MOUNTED_ISO_PATH.asc"
+fi
+
+gpgv "$ISOSIG" "$MOUNTED_ISO_PATH" \
+	|| die 'ISO signature failed'
+
+echo '+++ Mounting ISO and booting'
+mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot \
+	|| die '$MOUNTED_ISO_PATH: Unable to mount /boot'
+
+DEV_UUID=`blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2`
+ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH"
+REMOVE=""
+
+paramsdir="/media/kexec_iso/$ISO_PATH/"
+check_config $paramsdir
+
+ADD_FILE=/tmp/kexec/kexec_iso_add.txt
+if [ -r $ADD_FILE ]; then
+	NEW_ADD=`cat $ADD_FILE`
+	ADD=$(eval "echo \"$NEW_ADD\"")
+	echo "+++ Overriding standard ISO kernel add arguments: $ADD"
+fi
+REMOVE_FILE=/tmp/kexec/kexec_iso_remove.txt
+if [ -r $REMOVE_FILE ]; then
+	NEW_REMOVE=`cat $REMOVE_FILE`
+	REMOVE=$(eval "echo \"$NEW_REMOVE\"")
+	echo "+++ Overriding standard ISO kernel remove arguments: $REMOVE"
+fi
+
+# Call kexec and indicate that hashes have been verified
+kexec-select-boot -b /boot -d /media/ -p "$paramsdir" \
+	-a "$ADD" -r "$REMOVE" -c "*.cfg" -u -i
+
+die "Something failed in selecting boot"
