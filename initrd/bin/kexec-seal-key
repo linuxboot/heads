@@ -15,7 +15,7 @@ RECOVERY_KEY="/tmp/secret/recovery.key"
 
 paramsdir=$1
 if [ -z "$paramsdir" ]; then
-	die "Usage $0 /boot/"
+	die "Usage $0 /boot"
 fi
 
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"

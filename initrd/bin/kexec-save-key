@@ -15,7 +15,7 @@ shift `expr $OPTIND - 1`
 key_devices="$@"
 
 if [ -z "$paramsdir" ]; then
-	die "Usage: $0 -p /boot/ [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
+	die "Usage: $0 -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
 fi
 
 if [ -z "$paramsdev" ]; then
