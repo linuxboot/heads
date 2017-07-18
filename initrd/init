@@ -45,10 +45,11 @@ if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
 	exec /bin/ash
 fi
 
-# Give the user a second to enter a recovery shell
+# If the user has been holding down r, enter a recovery shell
+# otherwise immediately start the configured boot script.
+# We don't print a prompt, since this is a near instant timeout.
 read \
-	-t "1" \
-	-p "Press 'r' for recovery shell or 'u' for usb: " \
+	-t 0.1 \
 	-n 1 \
 	boot_option
 echo
@@ -61,15 +62,7 @@ if [ "$boot_option" = "r" ]; then
 	exec /bin/ash
 fi
 
-if [ "$boot_option" = "u" ]; then
-	echo '***** USB boot'
-	exec /bin/usb-init
-	# just in case...
-	tpm extend -ix 4 -ic recovery
-	exec /bin/ash
-fi
-
-echo '***** Normal boot'
+echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
 exec "$CONFIG_BOOTSCRIPT"
 
 # We should never reach here, but just in case...
