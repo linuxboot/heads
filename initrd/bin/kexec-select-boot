@@ -11,7 +11,7 @@ unique="n"
 valid_hash="n"
 valid_global_hash="n"
 valid_rollback="n"
-while getopts "b:d:p:a:r:c:ui" arg; do
+while getopts "b:d:p:a:r:c:uim" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -20,6 +20,7 @@ while getopts "b:d:p:a:r:c:ui" arg; do
 		r) remove="$OPTARG" ;;
 		c) config="$OPTARG" ;;
 		u) unique="y" ;;
+		m) show_menu="y" ;;
 		i) valid_hash="y"; valid_rollback="y" ;;
 	esac
 done
