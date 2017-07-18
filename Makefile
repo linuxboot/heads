@@ -146,13 +146,13 @@ define define_module =
     # Fetch and verify the source tar file
     $(packages)/$($1_tar):
 	wget -O "$$@" $($1_url)
-    $(packages)/.$1_verify: $(packages)/$($1_tar)
+    $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
 	@touch "$$@"
 
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
-    $(build)/$($1_dir)/.canary: $(packages)/.$1_verify
+    $(build)/$($1_dir)/.canary: $(packages)/.$1-$($1_version)_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
 		( cd $(build)/$($1_dir) ; patch -p1 ) \
