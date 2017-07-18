@@ -4,22 +4,57 @@
 . /etc/functions
 . /etc/config
 
-# Confirm we have a good TOTP unseal
-if ! confirm_totp ; then
-	recovery 'Failed to unseal TOTP'
-fi
+mount_boot()
+{
+	# Mount local disk if it is not already mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+			|| recovery "Unable to mount /boot"
+	fi
+}
 
-if [ ! "$totp_confirm" = "y" ]; then
-	recovery "Failed to confirm validity of TOTP"
-fi
 
-# Mount local disk
-if ! grep -q /boot /proc/mounts ; then
-	mount -o ro "$CONFIG_BOOT_DEV" /boot \
-		|| recovery "$CONFIG_BOOT_DEV: Unable to mount /boot"
-fi
+# Confirm we have a good TOTP unseal and ask the user for next choice
+while true; do
+	echo "y) Default boot"
+	echo "n) TOTP does not match"
+	echo "r) Recovery boot"
+	echo "u) USB boot"
+	echo "m) Boot menu"
 
-# Attempt to pull verified config from device
-kexec-select-boot -b /boot -c "grub.cfg"
+	if ! confirm_totp "Boot mode"; then
+		recovery 'Failed to unseal TOTP'
+	fi
+
+	if [ "$totp_confirm" = "r" ]; then
+		recovery "User requested recovery shell"
+	fi
+
+	if [ "$totp_confim" = "n" ]; then
+		echo ""
+		echo "To correct clock drift: 'date -s HH:MM:SS'"
+		echo "and save it to the RTC: 'hwclock -w'"
+		echo "then reboot and try again"
+		echo ""
+		recovery "TOTP mismatch"
+	fi
+
+	if [ "$totp_confirm" = "u" ]; then
+		exec /bin/usb-init
+	fi
+
+	if [ "$totp_confirm" = "m" ]; then
+		# Try to select a kernel from the menu
+		mount_boot
+		kexec-select-boot -m -b /boot -c "grub.cfg"
+	fi
+
+	if [ "$totp_confirm" = "y" -o "$totp_confirm" != " " ]; then
+		# Try to boot the default
+		mount_boot
+		kexec-select-boot -b /boot -c "grub.cfg"
+	fi
+
+done
 
 recovery "Something failed during boot"
