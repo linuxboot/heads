@@ -1,17 +1,21 @@
 #!/bin/sh
-# Bring up the x230's NIC, get a DHCP address and invoke keylime
+# Bring up the x230's NIC, get a DHCP address, and invoke keylime
+
+. /etc/functions
 
 insmod /lib/modules/e1000e.ko
 udhcpc -n
 
 cd /
-wget-measure.sh 6 http://192.168.1.5/keylime.tar.gz
-tar xf keylime.tar.gz
+wget-measure.sh 6 http://keylime-server/keylime.tar.gz
+tar -xvzf keylime.tar.gz
 
-if [ ! -x /keylime-node ]; then
-	echo '!!!! Keylime overlay not found?'
-	tpm extend -ix 4 -ic "recovery"
-	exec /bin/ash
+if [ ! -x /keylime_node ]; then
+  recovery 'Keylime overlay not found?'
 fi
 
-exec /keylime-node
+/keylime_node &
+KEYLIME_PID=$!
+
+wait $KEYLIME_PID
+recovery 'Keylime-node failed unexpectedly'
