@@ -4,8 +4,10 @@ set -e -o pipefail
 . /etc/functions
 
 lvm_volume_group=""
-while getopts "p:d:l:" arg; do
+skip_sign="n"
+while getopts "sp:d:l:" arg; do
 	case $arg in
+		s) skip_sign="y" ;;
 		p) paramsdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
 		l) lvm_volume_group="$OPTARG" ;;
@@ -15,7 +17,7 @@ shift `expr $OPTIND - 1`
 key_devices="$@"
 
 if [ -z "$paramsdir" ]; then
-	die "Usage: $0 -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
+	die "Usage: $0 [-s] -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
 fi
 
 if [ -z "$paramsdev" ]; then
@@ -58,9 +60,11 @@ done
 kexec-seal-key $paramsdir \
 || die "Failed to save and generate key in TPM"
 
-# sign and auto-roll config counter
-kexec-sign-config -p $paramsdir -u \
-|| die "Failed to sign updated config"
+if [ "$skip_sign" != "y" ]; then
+	# sign and auto-roll config counter
+	kexec-sign-config -p $paramsdir -u \
+	|| die "Failed to sign updated config"
+fi
 
 # switch back to ro mode
 mount -o ro,remount $paramsdev
