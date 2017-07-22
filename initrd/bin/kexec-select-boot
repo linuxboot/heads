@@ -37,6 +37,10 @@ if [ -z "$paramsdir" ]; then
 	paramsdir="$bootdir"
 fi
 
+bootdir="${bootdir%%/}"
+paramsdev="${paramsdev%%/}"
+paramsdir="${paramsdir%%/}"
+
 verify_global_hashes()
 {
 	echo "+++ Checking verified boot hash file "
