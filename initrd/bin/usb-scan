@@ -62,6 +62,6 @@ fi
 
 echo "!!! Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
-kexec-select-boot -b /media/ -c "*.cfg" -u
+kexec-select-boot -b /media -c "*.cfg" -u
 
 die "Something failed in selecting boot"
