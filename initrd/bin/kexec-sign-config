@@ -17,6 +17,8 @@ if [ -z "$paramsdir" ]; then
 	die "Usage: $0 -p /boot [ -u | -c counter ]"
 fi
 
+paramsdir="${paramsdir%%/}"
+
 confirm_gpg_card
 
 if [ "$rollback" = "y" ]; then

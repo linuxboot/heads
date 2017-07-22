@@ -17,9 +17,9 @@ reset_entry() {
 }
 
 filedir=`dirname $file`
-bootdir=${bootdir%%"/"}
-bootlen=${#bootdir}
-appenddir=${filedir:$bootlen}
+bootdir="${bootdir%%/}"
+bootlen="${#bootdir}"
+appenddir="${filedir:$bootlen}"
 
 fix_path() {
 	path="$@"
