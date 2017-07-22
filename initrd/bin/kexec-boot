@@ -22,7 +22,7 @@ if [ -z "$bootdir" -o -z "$entry" ]; then
 	die "Usage: $0 -b /boot -e 'kexec params|...|...'"
 fi
 
-bootdir=${bootdir%%"/"}
+bootdir="${bootdir%%/}"
 
 kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`

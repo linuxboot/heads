@@ -22,6 +22,9 @@ if [ -z "$paramsdev" ]; then
 	paramsdev="$paramsdir"
 fi
 
+paramsdev="${paramsdev%%/}"
+paramsdir="${paramsdir%%/}"
+
 if [ -n "$lvm_volume_group" ]; then
 	lvm vgchange -a y $lvm_volume_group \
 	|| die "Failed to activate the LVM group"
