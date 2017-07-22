@@ -54,6 +54,8 @@ for tries in 1 2 3; do
 		-a \
 		> $paramsdir/kexec.sig \
 	; then
+		# successful - update the validated params
+		check_config $paramsdir
 		exit 0
 	fi
 done
