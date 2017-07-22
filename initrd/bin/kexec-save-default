@@ -3,7 +3,7 @@
 set -e -o pipefail
 . /etc/functions
 
-while getopts "b:d:p:e:i:" arg; do
+while getopts "b:d:p:i:" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -39,6 +39,37 @@ fi
 entry=`head -n $index $TMP_MENU_FILE | tail -1`
 if [ -z "$entry" ]; then
 	die "Invalid menu index $index"
+fi
+
+KEY_DEVICE_FILE="$paramsdir/kexec_key_devices.txt"
+if [ ! -r "$KEY_DEVICE_FILE" ]; then
+	read \
+		-n 1 \
+		-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
+		add_key_confirm
+	echo
+
+	if [ "$add_key_confirm" = "y" \
+		-o "$add_key_confirm" = "Y" ] \
+	; then
+		read \
+			-p "Encrypted LVM group? (e.g. qubes_dom0 or blank): " \
+			lvm_volume_group
+
+		read \
+			-p "Encrypted devices? (e.g. /dev/sda2 or blank): " \
+			key_devices
+
+		save_key_params="-s -p $paramsdev"
+		if [ -n "$lvm_volume_group" ]; then
+			save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
+		else
+			save_key_params="$save_key_params $key_devices"
+		fi
+		echo "Running kexec-save-key with params: $save_key_params"
+		kexec-save-key $save_key_params \
+		|| die "Failed to save the disk key"
+	fi
 fi
 
 # try to switch to rw mode

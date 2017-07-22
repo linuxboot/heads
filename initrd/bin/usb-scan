@@ -7,13 +7,13 @@ set -e -o pipefail
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then
 	umount /boot \
-		|| die '$CONFIG_USB_BOOT_DEV: Unable to unmount /boot'
+		|| die "Unable to unmount /boot"
 fi
 
 # Mount the USB boot device
 if ! grep -q /media /proc/mounts ; then
 	mount-usb "$CONFIG_USB_BOOT_DEV" \
-		|| die '$CONFIG_USB_BOOT_DEV: Unable to mount /media'
+		|| die "Unable to mount /media"
 fi
 
 # Check for ISO first
