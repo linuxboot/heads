@@ -39,13 +39,31 @@ mkdir -p "$INITRD_DIR/etc"
 
 # Attempt to unseal the disk key from the TPM
 # should we give this some number of tries?
+unseal_failed="n"
 if ! kexec-unseal-key "$INITRD_DIR/secret.key" ; then
-	die 'Unseal disk key failed'
+	unseal_failed="y"
+	echo "!!! Failed to unseal the TPM LUKS disk key"
 fi
 
 # Override PCR 4 so that user can't read the key
 tpm extend -ix 4 -ic generic \
 	|| die 'Unable to scramble PCR'
+
+# Check to continue
+if [ "$unseal_failed" = "y" ]; then
+	confirm_boot="n"
+	read \
+		-n 1 \
+		-p "Do you wish to boot and use the disk recovery key? [Y/n] " \
+		confirm_boot
+
+	if [ "$confirm_boot" != 'y' \
+		-a "$confirm_boot" != 'Y' \
+		-a -n "$confirm_boot" ] \
+	; then
+		die "!!! Aborting boot due to failure to unseal TPM disk key"
+	fi
+fi
 
 echo '+++ Building initrd'
 # pad the initramfs (dracut doesn't pad the last gz blob)
@@ -54,8 +72,10 @@ echo '+++ Building initrd'
 dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 || die "Failed to copy initrd to /tmp"
 
-# overwrite /etc/crypttab to mirror the behavior for in seal-key
-for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
-	echo "luks-$uuid UUID=$uuid /secret.key" >> "$INITRD_DIR/etc/crypttab"
-done
-( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
+if [ "$unseal_failed" = "n" ]; then
+	# overwrite /etc/crypttab to mirror the behavior for in seal-key
+	for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
+		echo "luks-$uuid UUID=$uuid /secret.key" >> "$INITRD_DIR/etc/crypttab"
+	done
+	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
+fi

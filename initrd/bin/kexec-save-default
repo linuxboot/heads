@@ -41,8 +41,10 @@ if [ -z "$entry" ]; then
 	die "Invalid menu index $index"
 fi
 
-KEY_DEVICE_FILE="$paramsdir/kexec_key_devices.txt"
-if [ ! -r "$KEY_DEVICE_FILE" ]; then
+KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
+KEY_LVM="$paramsdir/kexec_key_lvm.txt"
+save_key="n"
+if [ ! -r "$KEY_DEVICES" ]; then
 	read \
 		-n 1 \
 		-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
@@ -52,24 +54,59 @@ if [ ! -r "$KEY_DEVICE_FILE" ]; then
 	if [ "$add_key_confirm" = "y" \
 		-o "$add_key_confirm" = "Y" ] \
 	; then
-		read \
-			-p "Encrypted LVM group? (e.g. qubes_dom0 or blank): " \
-			lvm_volume_group
-
-		read \
-			-p "Encrypted devices? (e.g. /dev/sda2 or blank): " \
-			key_devices
-
-		save_key_params="-s -p $paramsdev"
-		if [ -n "$lvm_volume_group" ]; then
-			save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
-		else
-			save_key_params="$save_key_params $key_devices"
-		fi
-		echo "Running kexec-save-key with params: $save_key_params"
-		kexec-save-key $save_key_params \
-		|| die "Failed to save the disk key"
+		lvm_suggest="e.g. qubes_dom0 or blank"
+		devices_suggest="e.g. /dev/sda2 or blank"
+		save_key="y"
 	fi
+else
+	read \
+		-n 1 \
+		-p "Do you want to reseal a disk key to the TPM [y/N]: " \
+		change_key_confirm
+	echo
+
+	if [ "$change_key_confirm" = "y" \
+		-o "$change_key_confirm" = "Y" ] \
+	; then
+		old_lvm_volume_group=""
+		if [ -r "$KEY_LVM" ]; then
+			old_lvm_volume_group=`cat $KEY_LVM` || true
+			old_key_devices=`cat $KEY_DEVICES | cut -d\  -f1 \
+				| grep -v "$old_lvm_volume_group" | xargs` || true
+		else
+			old_key_devices=`cat $KEY_DEVICES | cut -d\  -f1 | xargs` || true
+		fi
+
+		lvm_suggest="was '$old_lvm_volume_group'"
+		devices_suggest="was '$old_key_devices'"
+		save_key="y"
+	fi
+fi
+
+if [ "$save_key" = "y" ]; then
+	echo "+++ LVM volume groups (lvm vgscan): "
+	lvm vgscan || true
+
+	read \
+		-p "Encrypted LVM group? ($lvm_suggest): " \
+		lvm_volume_group
+
+	echo "+++ Block devices (blkid): "
+	blkid || true
+
+	read \
+		-p "Encrypted devices? ($devices_suggest): " \
+		key_devices
+
+	save_key_params="-s -p $paramsdev"
+	if [ -n "$lvm_volume_group" ]; then
+		save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
+	else
+		save_key_params="$save_key_params $key_devices"
+	fi
+	echo "Running kexec-save-key with params: $save_key_params"
+	kexec-save-key $save_key_params \
+	|| die "Failed to save the disk key"
 fi
 
 # try to switch to rw mode
