@@ -1,6 +1,7 @@
 #!/bin/sh
 # Launches kexec from saved configuration entries
 set -e -o pipefail
+. /etc/config
 . /etc/functions
 
 dryrun="n"
@@ -28,9 +29,8 @@ kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
 kexeccmd="kexec"
 
-# TODO: make this configurable
-cmdadd="intel_iommu=on $cmdadd"
-cmdremove="quiet $cmdremove"
+cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
+cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
 fix_file_path() {
 	if [ "$printfiles" = "y" ]; then
