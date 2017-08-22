@@ -1,8 +1,8 @@
-diff --git a/src/Kconfig b/src/Kconfig
-index 91b27ce..2e9beb9 100644
---- a/src/Kconfig
-+++ b/src/Kconfig
-@@ -365,6 +365,21 @@ config BOOTSPLASH_FILE
+diff --git ./src/Kconfig ./src/Kconfig
+index 49f8672..4ca811d 100644
+--- ./src/Kconfig
++++ ./src/Kconfig
+@@ -259,6 +259,21 @@ config BOOTSPLASH_FILE
  	  The path and filename of the file to use as graphical bootsplash
  	  screen. The file format has to be jpg.
  
@@ -24,11 +24,11 @@ index 91b27ce..2e9beb9 100644
  endmenu
  
  menu "Mainboard"
-diff --git a/src/include/sha1.h b/src/include/sha1.h
+diff --git ./src/include/sha1.h ./src/include/sha1.h
 new file mode 100644
 index 0000000..e7e28e6
 --- /dev/null
-+++ b/src/include/sha1.h
++++ ./src/include/sha1.h
 @@ -0,0 +1,31 @@
 +/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
 + * Use of this source code is governed by a BSD-style license that can be
@@ -61,12 +61,12 @@ index 0000000..e7e28e6
 +uint8_t *sha1_final(struct sha1_ctx *ctx);
 +
 +#endif  /* _sha1_h_ */
-diff --git a/src/include/tpm_lite/tlcl.h b/src/include/tpm_lite/tlcl.h
-index 8ea5564..c600d78 100644
---- a/src/include/tpm_lite/tlcl.h
-+++ b/src/include/tpm_lite/tlcl.h
+diff --git ./src/include/tpm_lite/tlcl.h ./src/include/tpm_lite/tlcl.h
+index 8dd5d80..15fbebf 100644
+--- ./src/include/tpm_lite/tlcl.h
++++ ./src/include/tpm_lite/tlcl.h
 @@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
-                      uint8_t *out_digest);
+ 		     uint8_t *out_digest);
  
  /**
 + * Perform a SHA1 hash on a region and extend a PCR with the hash.
@@ -77,30 +77,30 @@ index 8ea5564..c600d78 100644
   * Get the entire set of permanent flags.
   */
  uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
-diff --git a/src/lib/Makefile.inc b/src/lib/Makefile.inc
-index 67f8364..20b359a 100644
---- a/src/lib/Makefile.inc
-+++ b/src/lib/Makefile.inc
-@@ -56,7 +56,14 @@ else
- libverstage-$(CONFIG_TPM) += tlcl.c
- libverstage-$(CONFIG_TPM2) += tpm2_marshaling.c
- libverstage-$(CONFIG_TPM2) += tpm2_tlcl.c
-+
+diff --git ./src/lib/Makefile.inc ./src/lib/Makefile.inc
+index 8f92b29..1822daf 100644
+--- ./src/lib/Makefile.inc
++++ ./src/lib/Makefile.inc
+@@ -54,8 +54,13 @@ verstage-$(CONFIG_TPM) += tlcl.c
+ verstage-$(CONFIG_TPM2) += tpm2_marshaling.c
+ verstage-$(CONFIG_TPM2) += tpm2_tlcl.c
+ 
+-ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
 +# Add the TPM support into the ROM stage for measuring the bootblock
-+romstage-$(CONFIG_TPM) += tlcl.c
+ romstage-$(CONFIG_TPM) += tlcl.c
 +romstage-$(CONFIG_TPM) += sha1.c
 +ramstage-$(CONFIG_TPM) += tlcl.c
 +ramstage-$(CONFIG_TPM) += sha1.c
- endif
-+$(info yes)
- 
- verstage-$(CONFIG_GENERIC_UDELAY) += timer.c
- verstage-$(CONFIG_GENERIC_GPIO_LIB) += gpio.c
-diff --git a/src/lib/cbfs.c b/src/lib/cbfs.c
-index 5a2f63f..c5b145d 100644
---- a/src/lib/cbfs.c
-+++ b/src/lib/cbfs.c
-@@ -69,9 +69,15 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
++
++ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM2) += tpm2_marshaling.c
+ romstage-$(CONFIG_TPM2) += tpm2_tlcl.c
+ endif # CONFIG_VBOOT_SEPARATE_VERSTAGE
+diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
+index 11bce2c..c1024f9 100644
+--- ./src/lib/cbfs.c
++++ ./src/lib/cbfs.c
+@@ -69,7 +69,11 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
  	if (size != NULL)
  		*size = fsize;
  
@@ -112,12 +112,8 @@ index 5a2f63f..c5b145d 100644
 +	return buffer;
  }
  
-+
-+
- size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
- 	size_t in_size, void *buffer, size_t buffer_size, uint32_t compression)
- {
-@@ -83,7 +89,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
+@@ -97,7 +101,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  			return 0;
  		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
  			return 0;
@@ -127,7 +123,7 @@ index 5a2f63f..c5b145d 100644
  
  	case CBFS_COMPRESS_LZ4:
  		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
-@@ -101,7 +108,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -115,7 +120,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  		timestamp_add_now(TS_START_ULZ4F);
  		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
  		timestamp_add_now(TS_END_ULZ4F);
@@ -136,7 +132,7 @@ index 5a2f63f..c5b145d 100644
  
  	case CBFS_COMPRESS_LZMA:
  		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
-@@ -120,11 +127,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -134,11 +139,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  
  		rdev_munmap(rdev, map);
  
@@ -153,11 +149,11 @@ index 5a2f63f..c5b145d 100644
  }
  
  static inline int tohex4(unsigned int c)
-diff --git a/src/lib/hardwaremain.c b/src/lib/hardwaremain.c
-index ab4d9f4..01d83cb 100644
---- a/src/lib/hardwaremain.c
-+++ b/src/lib/hardwaremain.c
-@@ -31,6 +31,7 @@
+diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
+index a56d68e..94f7c95 100644
+--- ./src/lib/hardwaremain.c
++++ ./src/lib/hardwaremain.c
+@@ -32,6 +32,7 @@
  #include <reset.h>
  #include <boot/tables.h>
  #include <program_loading.h>
@@ -165,7 +161,7 @@ index ab4d9f4..01d83cb 100644
  #include <lib.h>
  #if CONFIG_HAVE_ACPI_RESUME
  #include <arch/acpi.h>
-@@ -526,3 +527,13 @@ void boot_state_current_unblock(void)
+@@ -544,3 +545,13 @@ void boot_state_current_unblock(void)
  {
  	boot_state_unblock(current_phase.state_id, current_phase.seq);
  }
@@ -179,10 +175,10 @@ index ab4d9f4..01d83cb 100644
 +	}
 +}
 +
-diff --git a/src/lib/rmodule.c b/src/lib/rmodule.c
-index 7043157..e3c6ef5 100644
---- a/src/lib/rmodule.c
-+++ b/src/lib/rmodule.c
+diff --git ./src/lib/rmodule.c ./src/lib/rmodule.c
+index a3a74ac..f5c3ad3 100644
+--- ./src/lib/rmodule.c
++++ ./src/lib/rmodule.c
 @@ -125,10 +125,21 @@ static inline size_t rmodule_number_relocations(const struct rmodule *module)
  
  static void rmodule_copy_payload(const struct rmodule *module)
@@ -219,11 +215,11 @@ index 7043157..e3c6ef5 100644
  
  		reloc++;
  		num_relocations--;
-diff --git a/src/lib/sha1.c b/src/lib/sha1.c
+diff --git ./src/lib/sha1.c ./src/lib/sha1.c
 new file mode 100644
 index 0000000..506907f
 --- /dev/null
-+++ b/src/lib/sha1.c
++++ ./src/lib/sha1.c
 @@ -0,0 +1,175 @@
 +/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 + * Use of this source code is governed by a BSD-style license that can be
@@ -400,11 +396,11 @@ index 0000000..506907f
 +	ctx->state[4] = 0xC3D2E1F0;
 +	ctx->count = 0;
 +}
-diff --git a/src/lib/tlcl.c b/src/lib/tlcl.c
-index ccf4e80..fe78b70 100644
---- a/src/lib/tlcl.c
-+++ b/src/lib/tlcl.c
-@@ -18,6 +18,7 @@
+diff --git ./src/lib/tlcl.c ./src/lib/tlcl.c
+index 49854cb..32eb128 100644
+--- ./src/lib/tlcl.c
++++ ./src/lib/tlcl.c
+@@ -19,6 +19,7 @@
  #include <string.h>
  #include <tpm_lite/tlcl.h>
  #include <tpm.h>
@@ -412,7 +408,7 @@ index ccf4e80..fe78b70 100644
  #include <vb2_api.h>
  #include "tlcl_internal.h"
  #include "tlcl_structures.h"
-@@ -325,3 +326,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t* in_digest,
+@@ -351,3 +352,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
  		       kPcrDigestLength);
  	return result;
  }
@@ -436,10 +432,10 @@ index ccf4e80..fe78b70 100644
 +	return tlcl_extend(pcr_num, hash, NULL);
 +}
 +
-diff --git a/src/northbridge/intel/sandybridge/romstage.c b/src/northbridge/intel/sandybridge/romstage.c
-index a2ca1c1..df80286 100644
---- a/src/northbridge/intel/sandybridge/romstage.c
-+++ b/src/northbridge/intel/sandybridge/romstage.c
+diff --git ./src/northbridge/intel/sandybridge/romstage.c ./src/northbridge/intel/sandybridge/romstage.c
+index 738e285..2b16657 100644
+--- ./src/northbridge/intel/sandybridge/romstage.c
++++ ./src/northbridge/intel/sandybridge/romstage.c
 @@ -29,6 +29,8 @@
  #include <device/device.h>
  #include <halt.h>
@@ -465,7 +461,7 @@ index a2ca1c1..df80286 100644
 +		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
 +	}
 +
- 	/* USB is inited in MRC if MRC is used.  */
+ 	/* USB is initialized in MRC if MRC is used.  */
  	if (CONFIG_USE_NATIVE_RAMINIT) {
  		early_usb_init(mainboard_usb_ports);
 @@ -116,9 +130,23 @@ void mainboard_romstage_entry(unsigned long bist)
@@ -493,21 +489,3 @@ index a2ca1c1..df80286 100644
 +	}
 +}
 +
-diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
-index 4883754..1037fe0 100755
---- a/util/crossgcc/buildgcc
-+++ b/util/crossgcc/buildgcc
-@@ -502,6 +502,13 @@ set_hostcflags_from_gmp() {
- }
-
- build_GMP() {
-+	# Check if GCC enables `-pie` by default (possible since GCC 6).
-+	# We need PIC in all static libraries then.
-+	if "${CC}" -dumpspecs 2>/dev/null | grep -q '[{;][[:space:]]*:-pie\>'
-+	then
-+		OPTIONS="$OPTIONS --with-pic"
-+	fi
-+
-	CC="$CC" ../${GMP_DIR}/configure --disable-shared --enable-fat \
-		--prefix=$TARGETDIR $OPTIONS \
-		|| touch .failed
