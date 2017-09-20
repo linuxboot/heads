@@ -1,0 +1,71 @@
+diff --git a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
+index 91e94a7..6b729df 100644
+--- a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
++++ b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
+@@ -743,6 +800,7 @@ CoreExitBootServices (
+   //
+   // Disable Timer
+   //
++  if(gTimer)
+   gTimer->SetTimerPeriod (gTimer, 0);
+ 
+   //
+@@ -780,6 +838,7 @@ CoreExitBootServices (
+   //
+   // Disable CPU Interrupts
+   //
++  if(gCpu)
+   gCpu->DisableInterrupt (gCpu);
+ 
+   MemoryProtectionExitBootServicesCallback();
+diff --git a/MdeModulePkg/Core/Dxe/Misc/MemoryProtection.c b/MdeModulePkg/Core/Dxe/Misc/MemoryProtection.c
+index a73c4cc..2c08b81 100644
+--- a/MdeModulePkg/Core/Dxe/Misc/MemoryProtection.c
++++ b/MdeModulePkg/Core/Dxe/Misc/MemoryProtection.c
+@@ -232,7 +232,7 @@ SetUefiImageMemoryAttributes (
+ 
+   DEBUG ((DEBUG_INFO, "SetUefiImageMemoryAttributes - 0x%016lx - 0x%016lx (0x%016lx)\n", BaseAddress, Length, FinalAttributes));
+ 
+-  ASSERT(gCpu != NULL);
++  if(gCpu)
+   gCpu->SetMemoryAttributes (gCpu, BaseAddress, Length, FinalAttributes);
+ }
+ 
+--- /dev/null	2017-09-19 09:53:09.766660422 -0400
++++ ./Makefile	2017-09-20 15:24:01.850433474 -0400
+@@ -0,0 +1,35 @@
++# Wrapper around the edk2 "build" script to generate
++# the few files that we actually want and avoid rebuilding
++# if we don't have to.
++
++PWD := $(shell pwd)
++EDK2_OUTPUT_DIR := $(PWD)/Build/MdeModule/DEBUG_GCC5/X64/MdeModulePkg/Core
++EDK2_BIN_DIR := $(PWD)/BaseTools/BinWrappers/PosixLike
++
++export PATH := $(EDK2_BIN_DIR):$(PATH)
++export CONFIG_PATH := $(PWD)/Conf
++export EDK_TOOLS_PATH := $(PWD)/BaseTools
++export WORKSPACE := $(PWD)
++
++EDK2_BINS += Dxe/DxeMain/DEBUG/DxeCore.efi
++EDK2_BINS += RuntimeDxe/RuntimeDxe/DEBUG/RuntimeDxe.efi
++
++EDK2_OUTPUTS = $(addprefix $(EDK2_OUTPUT_DIR)/,$(EDK2_BINS))
++
++# build takes too long, so we check to see if our executables exist
++# before we start a build.  run the clean target if they must be rebuilt
++all: $(EDK2_OUTPUTS)
++	ls -Fla $(EDK2_OUTPUTS)
++	cp -a $(EDK2_OUTPUTS) .
++
++$(EDK2_OUTPUTS):
++	build
++
++build:
++	build
++
++clean:
++	$(RM) $(EDK2_OUTPUTS)
++
++real-clean: clean
++	build clean
