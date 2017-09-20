@@ -1,0 +1,31 @@
+# This is only needed for building NERF firmware
+# coreboot systems do not require this tree
+modules-$(CONFIG_EDK2) += edk2
+
+edk2_branch := UDK2017
+edk2_version := git
+edk2_repo := --branch $(edk2_branch) --depth 1 https://github.com/tianocore/edk2
+edk2_dir := edk2-$(edk2_branch)
+
+# we don't build with our cross compiler since there isn't a host versus
+# target difference in their makefiles.
+#edk2_depends := musl-cross
+
+edk2_configure := \
+	$(MAKE) \
+		-C BaseTools \
+	&& pwd \
+	&& cp ../../config/edk2.config ./Conf/target.txt \
+	&& cp ../../config/edk2.makefile ./Makefile \
+	&& . ./edksetup.sh
+
+edk2_target := \
+	all
+	
+NO:=\
+	obj=./$(BOARD) \
+	DOTCONFIG=../../config/edk2-$(BOARD).config \
+	BUILD_TIMELESS=1 \
+	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
+	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
+	$(MAKE_JOBS)
