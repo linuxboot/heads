@@ -11,14 +11,20 @@ dropbear_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "/" \
+	--disable-syslog \
+	--disable-lastlog \
+	--disable-utmp \
+	--disable-utmpx \
+	--disable-wtmp \
+	--disable-wtmpx \
 	
 dropbear_config :=
-dropbear_output := ssh scp
+dropbear_output := ssh scp dropbear
 dropbear_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
-	dbclient scp \
+	dbclient scp dropbear \
 	&& \
 	cp $(build)/$(dropbear_dir)/dbclient $(build)/$(dropbear_dir)/ssh
 
