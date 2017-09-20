@@ -16,16 +16,7 @@ edk2_configure := \
 		-C BaseTools \
 	&& pwd \
 	&& cp ../../config/edk2.config ./Conf/target.txt \
-	&& cp ../../config/edk2.makefile ./Makefile \
 	&& . ./edksetup.sh
 
 edk2_target := \
 	all
-	
-NO:=\
-	obj=./$(BOARD) \
-	DOTCONFIG=../../config/edk2-$(BOARD).config \
-	BUILD_TIMELESS=1 \
-	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
-	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
-	$(MAKE_JOBS)
