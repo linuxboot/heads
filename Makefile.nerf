@@ -105,16 +105,23 @@ RuntimeDxe.ffs: RuntimeDxe-pe.sec RuntimeDxe-name.sec RuntimeDxe-version.sec nop
 		$(addprefix -i ,$^) \
 		-o $@ \
 
-# For now we generate a FV that matches the existing UEFI image in size.
-# This will change once we modify the image
+# If you have to fit within the normal UEFI image, the volume is
+# limited to 0x47 blocks.
+#
+# But you can also replace the entire region from 0x310000
+# up to PEI at 0xE40000, which leaves us almost 11 MB of space.
 nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
 	$(EDK2_DIR)/GenFv \
-		--numberblock 0x47 \
+		--numberblock 0xB3 \
 		--blocksize 0x10000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
 		$(addprefix -f ,$^) \
 
+# You must provide your own r630.rom as input
+nerf-r630.rom: nerf.vol
+	dd if=$< of=$@ conv=notrunc seek=$$[0x31] bs=$$[0x10000]
 
 
-nerf.intermediate: nerf.vol
+
+nerf.intermediate: nerf-r630.rom
