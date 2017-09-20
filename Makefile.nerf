@@ -26,6 +26,7 @@ GenSec-pe	= $(EDK2_DIR)/GenSec \
 	"$2" \
 
 
+$(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 linux-pe.sec: $(build)/$(linux_dir)/arch/x86/boot/bzImage
 	$(call GenSec-pe,$@,$<)
 linux-name.sec:
@@ -82,7 +83,7 @@ DxeCore.ffs: DxeCore-pe.sec DxeCore-name.sec DxeCore-version.sec
 	$(EDK2_DIR)/GenFfs \
 		-t EFI_FV_FILETYPE_DXE_CORE \
 		-g D6A2CB7F-6A18-4E2F-B43B-9920A733700A \
-		--align 64K \
+		--align 1K \
 		$(addprefix -i ,$^) \
 		-o $@ \
 
@@ -112,6 +113,7 @@ nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
 
 
 nerf.intermediate: \
+	linux.intermediate \
 	edk2.intermediate \
 	DxeCore.ffs \
 	RuntimeDxe.ffs \

@@ -440,6 +440,7 @@ bootstrap:
 		musl-cross.intermediate \
 		$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc \
 
+include Makefile.nerf
 
 else
 # Wrong make version detected -- build our local version
