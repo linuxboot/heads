@@ -6,6 +6,8 @@
 # edk2.intermediate or something like that.
 EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 
+# This should be done in some sort of automated way
+# it is currently a little risk prone...
 initrd: initrd.intermediate
 	cat blobs/r630/acpi.initrd initrd.cpio > $(linux_dir)/initrd.cpio
 
@@ -73,6 +75,7 @@ linux.ffs: linux-pe.sec linux-name.sec linux-version.sec nop-dep.sec
 		-o $@ \
 
 
+$(build)/$(edk2_dir)/DxeCore.efi: edk2.intermediate
 DxeCore-pe.sec: $(build)/$(edk2_dir)/DxeCore.efi
 	$(call GenSec-pe,$@,$<)
 DxeCore-name.sec:
@@ -87,6 +90,7 @@ DxeCore.ffs: DxeCore-pe.sec DxeCore-name.sec DxeCore-version.sec
 		$(addprefix -i ,$^) \
 		-o $@ \
 
+$(build)/$(edk2_dir)/RuntimeDxe.efi: edk2.intermediate
 RuntimeDxe-pe.sec: $(build)/$(edk2_dir)/RuntimeDxe.efi
 	$(call GenSec-pe,$@,$<)
 RuntimeDxe-name.sec:
@@ -112,11 +116,5 @@ nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
 		$(addprefix -f ,$^) \
 
 
-nerf.intermediate: \
-	linux.intermediate \
-	edk2.intermediate \
-	DxeCore.ffs \
-	RuntimeDxe.ffs \
 
-no=\
-	linux.ffs \
+nerf.intermediate: nerf.vol
