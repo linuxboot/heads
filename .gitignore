@@ -17,3 +17,8 @@ config/*.old
 crossgcc
 install
 clean
+*.map
+*.sec
+*.dep
+*.ffs
+*.vol
