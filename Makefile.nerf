@@ -116,7 +116,8 @@ nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
 		--blocksize 0x10000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
-		$(addprefix -f ,$^) \
+		$(addprefix -f ,$^)
+	-$(RM) $@.txt
 
 # You must provide your own r630.rom as input
 nerf-r630.rom: nerf.vol
