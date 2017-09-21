@@ -9,7 +9,7 @@ EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 # This should be done in some sort of automated way
 # it is currently a little risk prone...
 initrd: initrd.intermediate
-	cat blobs/r630/acpi.initrd initrd.cpio > $(linux_dir)/initrd.cpio
+	cat blobs/r630/acpi.cpio initrd.cpio > $(build)/$(linux_dir)/initrd.cpio
 
 
 GenSec-name	= $(EDK2_DIR)/GenSec \
@@ -117,11 +117,30 @@ nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
 		$(addprefix -f ,$^)
-	-$(RM) $@.txt
+	@head -2 $@.txt
+	-$(RM) $@.txt $@.map
 
 # You must provide your own r630.rom as input
-nerf-r630.rom: nerf.vol
-	dd if=$< of=$@ conv=notrunc seek=$$[0x31] bs=$$[0x10000]
+# the ifd is only the first 64k, but we take all the way to the ME region
+# dd < r630.rom bs=$[0x10000] skip=$[0x00] count=$[0x02] > blobs/r630/ifd.bin
+# dd < r630.rom bs=$[0x10000] skip=$[0x02] count=$[0x2F] > blobs/r630/me.bin
+# dd < r630.rom bs=$[0x10000] skip=$[0xe4] count=$[0x1C] > blobs/r630/pei.bin
+#
+# and unlock the IFD (from coreboot) to allow flashrom to write to the ROM.
+# ifdtool -u blobs/r630/ifd.bin && mv blobs/r630/ifd.bin.new blobs/r630/ifd.bin
+nerf-r630.rom: \
+		blobs/r630/ifd.bin  \
+		blobs/r630/me.bin \
+		nerf.vol \
+		blobs/r630/pei.bin \
+
+	cat $^ > $@
+	@if [ `stat -c'%s' $@` -ne 16777216 ]; then \
+		echo -n >&2 "$@ SHOULD BE 16MB. size "; \
+		stat -c'%s' $@ >&2 ; \
+		mv $@ $@.bad; \
+		exit 1; \
+	fi
 
 
 
