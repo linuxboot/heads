@@ -133,14 +133,15 @@ nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs initrd.ffs
 	@head -2 $@.txt
 	-$(RM) $@.txt $@.map
 
-# You must provide your own r630.rom as input
+# You must provide your own r630.rom as input for the ME and PEI sections.
 # the ifd is only the first 64k, but we take all the way to the ME region
-# dd < r630.rom bs=$[0x10000] skip=$[0x00] count=$[0x02] > blobs/r630/ifd.bin
-# dd < r630.rom bs=$[0x10000] skip=$[0x02] count=$[0x2F] > blobs/r630/me.bin
-# dd < r630.rom bs=$[0x10000] skip=$[0xe4] count=$[0x1C] > blobs/r630/pei.bin
-#
 # and unlock the IFD (from coreboot) to allow flashrom to write to the ROM.
 # ifdtool -u blobs/r630/ifd.bin && mv blobs/r630/ifd.bin.new blobs/r630/ifd.bin
+blobs/r630/me.bin: r630.rom
+	dd < $< bs=$$[0x10000] skip=$$[0x02] count=$$[0x2F] > $@
+blobs/r630/pei.bin: r630.rom
+	dd < $< bs=$$[0x10000] skip=$$[0xE4] count=$$[0x1C] > $@
+
 nerf-r630.rom: \
 		blobs/r630/ifd.bin  \
 		blobs/r630/me.bin \
