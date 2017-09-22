@@ -1,8 +1,78 @@
 diff --git a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
-index 91e94a7..6b729df 100644
+index 91e94a7..9733629 100644
 --- a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
 +++ b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
-@@ -743,6 +800,7 @@ CoreExitBootServices (
+@@ -14,6 +14,39 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+ 
+ #include "DxeMain.h"
+ 
++#include <sys/io.h>
++#define PORT 0x3f8
++
++static int is_transmit_empty() {
++   return inb(PORT + 5) & 0x20;
++}
++
++void serial_char(char a) {
++   outb(a, PORT);
++   while (is_transmit_empty() == 0);
++}
++
++void serial_string(const char * s)
++{
++        while(*s)
++                serial_char(*s++);
++}
++
++void serial_hex(unsigned long x, unsigned digits)
++{
++        while(digits-- > 0)
++        {
++                unsigned d = (x >> (digits * 4)) & 0xF;
++                if (d >= 0xA)
++                        serial_char(d + 'A' - 0xA);
++                else
++                        serial_char(d + '0');
++        }
++        serial_char('\r');
++        serial_char('\n');
++}
++
++
+ //
+ // DXE Core Global Variables for Protocols from PEI
+ //
+@@ -283,7 +318,12 @@ DxeMain (
+   gDxeCoreRT = AllocateRuntimeCopyPool (sizeof (EFI_RUNTIME_SERVICES), &mEfiRuntimeServicesTableTemplate);
+   ASSERT (gDxeCoreRT != NULL);
+ 
++
++  // Set our vendor string and make sure there is at least a few pages
++  // available in low memory for the SMP trampoline.
+   gDxeCoreST->RuntimeServices = gDxeCoreRT;
++  gDxeCoreST->FirmwareVendor = L"Heads/NERF";
++  gDxeCoreST->FirmwareRevision = 1337;
+ 
+   //
+   // Start the Image Services.
+@@ -297,6 +337,16 @@ DxeMain (
+   Status = CoreInitializeGcdServices (&HobStart, MemoryBaseAddress, MemoryLength);
+   ASSERT_EFI_ERROR (Status);
+ 
++  // free up the low memory for Linux's SMP trampoline
++  // otherwise bad things happen...
++  CoreRemoveMemorySpace (0x10000, 0x10000);
++  CoreAddMemorySpace(
++	EfiGcdMemoryTypeSystemMemory,
++	0x10000,
++	0x10000,
++        0
++  );
++
+   //
+   // Call constructor for all libraries
+   //
+@@ -743,6 +794,7 @@ CoreExitBootServices (
    //
    // Disable Timer
    //
@@ -10,7 +80,7 @@ index 91e94a7..6b729df 100644
    gTimer->SetTimerPeriod (gTimer, 0);
  
    //
-@@ -780,6 +838,7 @@ CoreExitBootServices (
+@@ -780,6 +832,7 @@ CoreExitBootServices (
    //
    // Disable CPU Interrupts
    //
@@ -31,6 +101,7 @@ index a73c4cc..2c08b81 100644
    gCpu->SetMemoryAttributes (gCpu, BaseAddress, Length, FinalAttributes);
  }
  
+index 91e94a7..6b729df 100644
 --- /dev/null	2017-09-19 09:53:09.766660422 -0400
 +++ ./Makefile	2017-09-20 15:24:01.850433474 -0400
 @@ -0,0 +1,35 @@
