@@ -358,17 +358,21 @@ initrd.intermediate: initrd.cpio
 
 #
 # Compress the initrd into a xz file that can be included by coreboot.
-# The extra options are necessary to let the Linux kernel decompress it.
+# The extra options are necessary to let the Linux kernel decompress it
+# and the extra padding is to ensure that it can be concatenated to
+# other cpio files.
 #
 coreboot.intermediate: $(build)/$(coreboot_dir)/initrd.cpio.xz
 $(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
+
+%.xz: %
 	$(call do,COMPRESS,$<,\
 	xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
 		-9 \
 		< "$<" \
-		> "$@" \
+	| dd bs=512 conv=sync > "$@" \
 	)
 	@sha256sum "$@"
 
