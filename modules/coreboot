@@ -1,4 +1,4 @@
-modules-y += coreboot
+modules-$(CONFIG_COREBOOT) += coreboot
 
 #coreboot_version := git
 #coreboot_repo := https://github.com/osresearch/coreboot
