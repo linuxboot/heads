@@ -60,7 +60,7 @@ nop-dep.sec:
 
 	-$(RM) $@.tmp
 
-linux.ffs: linux-pe.sec linux-name.sec linux-version.sec nop-dep.sec
+linux.ffs: linux-pe.sec linux-name.sec linux-version.sec linux-dep.sec
 	$(EDK2_DIR)/GenFfs \
 		-t EFI_FV_FILETYPE_DRIVER \
 		-g DECAFBAD-6548-6461-732d-2f2d4e455246 \
