@@ -8,8 +8,8 @@ EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 
 # This should be done in some sort of automated way
 # it is currently a little risk prone...
-initrd: initrd.intermediate
-	cat blobs/r630/acpi.cpio initrd.cpio > $(build)/$(linux_dir)/initrd.cpio
+#initrd: initrd.intermediate
+	#cat blobs/r630/acpi.cpio initrd.cpio > $(build)/$(linux_dir)/initrd.cpio
 
 
 GenSec-name	= $(EDK2_DIR)/GenSec \
@@ -69,7 +69,7 @@ nop-dep.sec:
 linux.ffs: linux-pe.sec linux-name.sec linux-version.sec nop-dep.sec
 	$(EDK2_DIR)/GenFfs \
 		-t EFI_FV_FILETYPE_DRIVER \
-		-g DECAFBAD-4865-6164-732d-2f2d4e455246 \
+		-g DECAFBAD-6548-6461-732d-2f2d4e455246 \
 		--align 64K \
 		$(addprefix -i ,$^) \
 		-o $@ \
@@ -105,12 +105,32 @@ RuntimeDxe.ffs: RuntimeDxe-pe.sec RuntimeDxe-name.sec RuntimeDxe-version.sec nop
 		$(addprefix -i ,$^) \
 		-o $@ \
 
+# Generate a firmware file with a well known guid
+# "initrd.cpio/bios" that contains the real initrd file
+#initrd.ffs: initrd.cpio.xz
+initrd.ffs: initrd.cpio
+	$(call GenSec-name,initrd-name.sec,"initrd")
+	$(call GenSec-version,initrd-version.sec,"0.0")
+	$(EDK2_DIR)/GenSec \
+		-S EFI_SECTION_RAW \
+		-o "initrd-data.sec" \
+		$<
+	$(EDK2_DIR)/GenFfs \
+		-t EFI_FV_FILETYPE_FREEFORM \
+		-g 74696e69-6472-632e-7069-6f2f62696f73 \
+		--align 64K \
+		-o $@ \
+		-i initrd-name.sec \
+		-i initrd-version.sec \
+		-i initrd-data.sec \
+		
+
 # If you have to fit within the normal UEFI image, the volume is
 # limited to 0x47 blocks.
 #
 # But you can also replace the entire region from 0x310000
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
-nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs
+nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs initrd.ffs
 	$(EDK2_DIR)/GenFv \
 		--numberblock 0xB3 \
 		--blocksize 0x10000 \

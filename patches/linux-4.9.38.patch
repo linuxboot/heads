@@ -1,11 +1,10 @@
-diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./linux-4.9.38/arch/x86/boot/compressed/eboot.c
+diff -u --recursive ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c linux-4.9.38/arch/x86/boot/compressed/eboot.c
 --- ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/arch/x86/boot/compressed/eboot.c	2017-09-19 14:55:16.395027896 -0400
-@@ -16,6 +16,73 @@
++++ linux-4.9.38/arch/x86/boot/compressed/eboot.c	2017-09-22 14:55:37.055153767 -0400
+@@ -16,6 +16,71 @@
  #include "../string.h"
  #include "eboot.h"
  
-+#if 0
 +#define PORT 0x3f8   /* COM1 */
 +
 +#define DLAB		0x80
@@ -44,38 +43,37 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./lin
 +   return inb(PORT + 5) & 0x20;
 +}
 + 
-+static void write_serial(char a) {
++void serial_char(char a) {
 +   outb(a, PORT);
 +   while (is_transmit_empty() == 0);
 +}
 +
-+static void write_serial_string(const char * s)
++void serial_string(const char * s)
 +{
 +	while(*s)
-+		write_serial(*s++);
++		serial_char(*s++);
 +}
 +
-+static void write_hex(unsigned long x, unsigned digits)
++void serial_hex(unsigned long x, unsigned digits)
 +{
 +	while(digits-- > 0)
 +	{
 +		unsigned d = (x >> (digits * 4)) & 0xF;
 +		if (d >= 0xA)
-+			write_serial(d + 'A' - 0xA);
++			serial_char(d + 'A' - 0xA);
 +		else
-+			write_serial(d + '0');
++			serial_char(d + '0');
 +	}
-+	write_serial('\r');
-+	write_serial('\n');
++	serial_char('\r');
++	serial_char('\n');
 +}
-+#endif
 +
 +
 +
  static efi_system_table_t *sys_table;
  
  static struct efi_config *efi_early;
-@@ -249,6 +316,12 @@
+@@ -249,6 +314,12 @@
  
  void efi_char16_printk(efi_system_table_t *table, efi_char16_t *str)
  {
@@ -88,7 +86,7 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./lin
  	unsigned long output_string;
  	size_t offset;
  
-@@ -273,6 +346,7 @@
+@@ -273,6 +344,7 @@
  
  		efi_early->call(*func, out, str);
  	}
@@ -96,7 +94,108 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./lin
  }
  
  static efi_status_t
-@@ -739,8 +813,18 @@
+@@ -710,6 +782,100 @@
+ 	}
+ }
+ 
++#define EFI_FIRMWARE_VOLUME2_PROTOCOL_GUID EFI_GUID(0x220e73b6, 0x6bdb, 0x4413, 0x84, 0x5, 0xb9, 0x74, 0xb1, 0x8, 0x61, 0x9a)
++typedef struct _EFI_FIRMWARE_VOLUME2_PROTOCOL {
++  uint64_t    GetVolumeAttributes;
++  uint64_t    SetVolumeAttributes;
++  uint64_t    ReadFile;
++  uint64_t    ReadSection;
++  uint64_t    WriteFile;
++  uint64_t    GetNextFile;
++  uint32_t    KeySize;
++  uint64_t    ParentHandle;
++  uint64_t    GetInfo;
++  uint64_t    SetInfo;
++} efi_firmware_volume2_protocol_t;
++
++
++/*
++ * attempt to locate the ramdisk in our firmware volume.
++ * This assumes that it has a well-known GUID.
++ */
++static int nerf_find_initrd(const efi_guid_t * initrd_guid, void ** buffer, uint32_t * size)
++{
++	efi_status_t status;
++	efi_guid_t fv_proto = EFI_FIRMWARE_VOLUME2_PROTOCOL_GUID;
++	void ** handles = NULL;
++	unsigned long handle_count;
++
++	status = efi_call_early(locate_handle_buffer,
++		EFI_LOCATE_BY_PROTOCOL,
++		&fv_proto,
++		NULL,
++		&handle_count,
++		&handles
++	);
++
++	if (status != 0)
++	{
++		serial_string("locate_handle rc=");
++		serial_hex(status, 8);
++		return -1;
++	}
++
++	for(unsigned i = 0 ; i < handle_count ; i++)
++	{
++		efi_firmware_volume2_protocol_t * fv = NULL;
++		uint32_t auth_status = 0;
++
++		serial_string("handle=");
++		serial_hex((unsigned long) handles[i], 16);
++
++		status = efi_call_early(handle_protocol,
++			handles[i],
++			&fv_proto,
++			(void**) &fv
++		);
++
++		if (status != 0)
++		{
++			serial_string("handle proto rc=");
++			serial_hex(status, 8);
++			continue;
++		}
++
++		serial_string("fv=");
++		serial_hex((unsigned long) fv, 16);
++		serial_hex((unsigned long) &fv->ReadSection, 16);
++		serial_hex((unsigned long) fv->ReadSection, 16);
++
++		status = efi_early->call(fv->ReadSection,
++			fv,
++			initrd_guid,
++			0x19, // EFI_SECTION_RAW
++			0,
++			buffer,
++			size,
++			&auth_status
++		);
++		if (status != 0)
++		{
++			serial_string("read section rc=");
++			serial_hex(status, 8);
++			continue;
++		}
++
++		serial_string("initrd ");
++		serial_hex((unsigned long) *buffer, 16);
++		serial_hex(*size, 8);
++		return 0;
++	}
++
++	// this leaks the handle buffer.
++	serial_string("initrd not found\r\n");
++	return -1;
++}
++
+ /*
+  * Because the x86 boot code expects to be passed a boot_params we
+  * need to create one ourselves (usually the bootloader would create
+@@ -739,8 +905,18 @@
  	sys_table = (efi_system_table_t *)(unsigned long)efi_early->table;
  	handle = (void *)(unsigned long)efi_early->image_handle;
  
@@ -116,7 +215,7 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./lin
  		return NULL;
  
  	if (efi_early->is64)
-@@ -751,7 +835,6 @@
+@@ -751,7 +927,6 @@
  	status = efi_call_early(handle_protocol, handle,
  				&proto, (void *)&image);
  	if (status != EFI_SUCCESS) {
@@ -124,29 +223,39 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c ./lin
  		return NULL;
  	}
  
-@@ -1047,7 +1130,9 @@
- 	status = efi_exit_boot_services(sys_table, handle, &map, &priv,
- 					exit_boot_func);
+@@ -814,6 +989,21 @@
+ 
  	if (status != EFI_SUCCESS)
+ 		goto fail2;
++
++#if 1
++	void * initrd_ptr = NULL;
++	uint32_t initrd_size = 0;
++	if (nerf_find_initrd(
++		(const efi_guid_t*) "initrd.cpio/bios",
++		&initrd_ptr,
++		&initrd_size
++	) == 0 )
 +	{
- 		return status;
++		ramdisk_addr = (uintptr_t) initrd_ptr;
++		ramdisk_size = initrd_size;
 +	}
- 
- 	e820ext = priv.e820ext;
- 	e820ext_size = priv.e820ext_size;
-@@ -1056,7 +1141,9 @@
- 
- 	status = setup_e820(boot_params, e820ext, e820ext_size);
- 	if (status != EFI_SUCCESS)
-+	{
- 		return status;
-+	}
- 
- 	return EFI_SUCCESS;
- }
-diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/head_64.S ./linux-4.9.38/arch/x86/boot/compressed/head_64.S
++#endif
++
+ 	hdr->ramdisk_image = ramdisk_addr & 0xffffffff;
+ 	hdr->ramdisk_size  = ramdisk_size & 0xffffffff;
+ 	boot_params->ext_ramdisk_image = (u64)ramdisk_addr >> 32;
+@@ -1068,6 +1262,7 @@
+ struct boot_params *efi_main(struct efi_config *c,
+ 			     struct boot_params *boot_params)
+ {
++serial_string("efi_main\r\n");
+ 	struct desc_ptr *gdt = NULL;
+ 	efi_loaded_image_t *image;
+ 	struct setup_header *hdr = &boot_params->hdr;
+diff -u --recursive ../clean/linux-4.9.38/arch/x86/boot/compressed/head_64.S linux-4.9.38/arch/x86/boot/compressed/head_64.S
 --- ../clean/linux-4.9.38/arch/x86/boot/compressed/head_64.S	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/arch/x86/boot/compressed/head_64.S	2017-09-19 13:41:47.715096617 -0400
++++ linux-4.9.38/arch/x86/boot/compressed/head_64.S	2017-09-20 10:58:06.101915625 -0400
 @@ -294,8 +294,12 @@
  	jne	2f
  fail:
@@ -161,9 +270,9 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/boot/compressed/head_64.S ./l
  2:
  	movl	BP_code32_start(%esi), %eax
  	leaq	preferred_addr(%rax), %rax
-diff --recursive -u ../clean/linux-4.9.38/arch/x86/realmode/init.c ./linux-4.9.38/arch/x86/realmode/init.c
+diff -u --recursive ../clean/linux-4.9.38/arch/x86/realmode/init.c linux-4.9.38/arch/x86/realmode/init.c
 --- ../clean/linux-4.9.38/arch/x86/realmode/init.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/arch/x86/realmode/init.c	2017-09-19 08:27:23.183585570 -0400
++++ linux-4.9.38/arch/x86/realmode/init.c	2017-09-20 10:58:06.101915625 -0400
 @@ -35,8 +35,8 @@
  	/* Has to be under 1M so we can execute real-mode AP code. */
  	mem = memblock_find_in_range(0, 1<<20, size, PAGE_SIZE);
@@ -189,9 +298,9 @@ diff --recursive -u ../clean/linux-4.9.38/arch/x86/realmode/init.c ./linux-4.9.3
  
  	setup_real_mode();
  	set_real_mode_permissions();
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/evxfevnt.c ./linux-4.9.38/drivers/acpi/acpica/evxfevnt.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/evxfevnt.c linux-4.9.38/drivers/acpi/acpica/evxfevnt.c
 --- ../clean/linux-4.9.38/drivers/acpi/acpica/evxfevnt.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/acpica/evxfevnt.c	2017-09-19 15:05:20.429486756 -0400
++++ linux-4.9.38/drivers/acpi/acpica/evxfevnt.c	2017-09-20 10:58:06.101915625 -0400
 @@ -111,6 +111,8 @@
  	}
  
@@ -201,9 +310,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/evxfevnt.c ./linux
  	return_ACPI_STATUS(AE_NO_HARDWARE_RESPONSE);
  }
  
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/hwacpi.c ./linux-4.9.38/drivers/acpi/acpica/hwacpi.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/hwacpi.c linux-4.9.38/drivers/acpi/acpica/hwacpi.c
 --- ../clean/linux-4.9.38/drivers/acpi/acpica/hwacpi.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/acpica/hwacpi.c	2017-09-19 15:04:43.229254898 -0400
++++ linux-4.9.38/drivers/acpi/acpica/hwacpi.c	2017-09-20 10:58:06.101915625 -0400
 @@ -168,12 +168,16 @@
  
  	status = acpi_read_bit_register(ACPI_BITREG_SCI_ENABLE, &value);
@@ -221,9 +330,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/hwacpi.c ./linux-4
  		return_UINT32(ACPI_SYS_MODE_LEGACY);
  	}
  }
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbfadt.c ./linux-4.9.38/drivers/acpi/acpica/tbfadt.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/tbfadt.c linux-4.9.38/drivers/acpi/acpica/tbfadt.c
 --- ../clean/linux-4.9.38/drivers/acpi/acpica/tbfadt.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/acpica/tbfadt.c	2017-09-19 13:46:37.599809800 -0400
++++ linux-4.9.38/drivers/acpi/acpica/tbfadt.c	2017-09-20 10:58:06.101915625 -0400
 @@ -344,6 +344,7 @@
  
  	/* Obtain the DSDT and FACS tables via their addresses within the FADT */
@@ -240,9 +349,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbfadt.c ./linux-4
  }
  
  /*******************************************************************************
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbxface.c ./linux-4.9.38/drivers/acpi/acpica/tbxface.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/tbxface.c linux-4.9.38/drivers/acpi/acpica/tbxface.c
 --- ../clean/linux-4.9.38/drivers/acpi/acpica/tbxface.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/acpica/tbxface.c	2017-09-19 13:47:44.572900070 -0400
++++ linux-4.9.38/drivers/acpi/acpica/tbxface.c	2017-09-20 10:58:06.101915625 -0400
 @@ -136,7 +136,11 @@
  
  	rsdp_address = acpi_os_get_root_pointer();
@@ -256,9 +365,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbxface.c ./linux-
  	}
  
  	/*
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbxfload.c ./linux-4.9.38/drivers/acpi/acpica/tbxfload.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/tbxfload.c linux-4.9.38/drivers/acpi/acpica/tbxfload.c
 --- ../clean/linux-4.9.38/drivers/acpi/acpica/tbxfload.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/acpica/tbxfload.c	2017-09-19 13:49:14.358362302 -0400
++++ linux-4.9.38/drivers/acpi/acpica/tbxfload.c	2017-09-20 10:58:06.101915625 -0400
 @@ -277,6 +277,7 @@
  	acpi_status status;
  	u8 flags;
@@ -298,9 +407,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/acpica/tbxfload.c ./linux
  	return_ACPI_STATUS(status);
  }
  
-diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/tables.c ./linux-4.9.38/drivers/acpi/tables.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/tables.c linux-4.9.38/drivers/acpi/tables.c
 --- ../clean/linux-4.9.38/drivers/acpi/tables.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/acpi/tables.c	2017-09-19 13:50:47.511879998 -0400
++++ linux-4.9.38/drivers/acpi/tables.c	2017-09-20 10:58:06.101915625 -0400
 @@ -475,7 +475,8 @@
  	ACPI_SIG_SLIC, ACPI_SIG_SPCR, ACPI_SIG_SPMI, ACPI_SIG_TCPA,
  	ACPI_SIG_UEFI, ACPI_SIG_WAET, ACPI_SIG_WDAT, ACPI_SIG_WDDT,
@@ -343,9 +452,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/acpi/tables.c ./linux-4.9.38/d
  			pr_err("ACPI OVERRIDE: Bad table checksum [%s%s]\n",
  				cpio_path, file.name);
  			continue;
-diff --recursive -u ../clean/linux-4.9.38/drivers/firmware/efi/vars.c ./linux-4.9.38/drivers/firmware/efi/vars.c
+diff -u --recursive ../clean/linux-4.9.38/drivers/firmware/efi/vars.c linux-4.9.38/drivers/firmware/efi/vars.c
 --- ../clean/linux-4.9.38/drivers/firmware/efi/vars.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/firmware/efi/vars.c	2017-09-19 13:52:01.141079970 -0400
++++ linux-4.9.38/drivers/firmware/efi/vars.c	2017-09-20 10:58:06.101915625 -0400
 @@ -429,6 +429,12 @@
  int efivar_init(int (*func)(efi_char16_t *, efi_guid_t, unsigned long, void *),
  		void *data, bool duplicates, struct list_head *head)
@@ -359,9 +468,9 @@ diff --recursive -u ../clean/linux-4.9.38/drivers/firmware/efi/vars.c ./linux-4.
  	const struct efivar_operations *ops = __efivars->ops;
  	unsigned long variable_name_size = 1024;
  	efi_char16_t *variable_name;
-diff --recursive -u ../clean/linux-4.9.38/init/initramfs.c ./linux-4.9.38/init/initramfs.c
+diff -u --recursive ../clean/linux-4.9.38/init/initramfs.c linux-4.9.38/init/initramfs.c
 --- ../clean/linux-4.9.38/init/initramfs.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/init/initramfs.c	2017-09-19 13:53:34.002593777 -0400
++++ linux-4.9.38/init/initramfs.c	2017-09-20 10:58:06.101915625 -0400
 @@ -609,7 +609,7 @@
  {
  	char *err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
@@ -371,26 +480,3 @@ diff --recursive -u ../clean/linux-4.9.38/init/initramfs.c ./linux-4.9.38/init/i
  	if (initrd_start) {
  #ifdef CONFIG_BLK_DEV_RAM
  		int fd;
-diff --recursive -u ../clean/linux-4.9.38/init/main.c ./linux-4.9.38/init/main.c
---- ../clean/linux-4.9.38/init/main.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/init/main.c	2017-09-19 13:54:31.699534533 -0400
-@@ -954,7 +954,9 @@
- 	if (ramdisk_execute_command) {
- 		ret = run_init_process(ramdisk_execute_command);
- 		if (!ret)
-+		{
- 			return 0;
-+		}
- 		pr_err("Failed to execute %s (error %d)\n",
- 		       ramdisk_execute_command, ret);
- 	}
-@@ -976,7 +978,9 @@
- 	    !try_to_run_init_process("/etc/init") ||
- 	    !try_to_run_init_process("/bin/init") ||
- 	    !try_to_run_init_process("/bin/sh"))
-+	{
- 		return 0;
-+	}
- 
- 	panic("No working init found.  Try passing init= option to kernel. "
- 	      "See Linux Documentation/init.txt for guidance.");
