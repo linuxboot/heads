@@ -299,7 +299,10 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
 # this must be built *AFTER* musl, but since coreboot depends on other things
 # that depend on musl it should be ok.
 #
+ifeq ($(CONFIG_COREBOOT),y)
 $(eval $(call initrd_bin_add,$(build)/$(coreboot_dir)/util/cbmem/cbmem))
+endif
+
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
