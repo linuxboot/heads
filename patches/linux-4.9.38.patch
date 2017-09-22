@@ -480,3 +480,18 @@ diff -u --recursive ../clean/linux-4.9.38/init/initramfs.c linux-4.9.38/init/ini
  	if (initrd_start) {
  #ifdef CONFIG_BLK_DEV_RAM
  		int fd;
+diff -u --recursive ../clean/linux-4.9.38/usr/Makefile linux-4.9.38/usr/Makefile
+--- ../clean/linux-4.9.38/usr/Makefile	2017-07-15 06:17:55.000000000 -0400
++++ linux-4.9.38/usr/Makefile	2017-09-22 15:16:19.128175394 -0400
+@@ -24,6 +24,11 @@
+ # Gzip
+ suffix_$(CONFIG_RD_GZIP)   = .gz
+ 
++# NERF doesn't support compressed initramfs, so it must disable
++# the compression here.  The initrd image will be compressed in
++# the EFI firmware, however.
++suffix_y =
++
+ AFLAGS_initramfs_data.o += -DINITRAMFS_IMAGE="usr/initramfs_data.cpio$(suffix_y)"
+ 
+ # Generate builtin.o based on initramfs_data.o
