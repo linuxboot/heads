@@ -1,4 +1,4 @@
-#
+
 # Targets specific for the NERF firmware
 #
 
@@ -6,124 +6,115 @@
 # edk2.intermediate or something like that.
 EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 
-GenSec-name	= $(EDK2_DIR)/GenSec \
-	-S EFI_SECTION_USER_INTERFACE \
-	-o "$1" \
-	-n $2 \
 
-GenSec-version	= $(EDK2_DIR)/GenSec \
-	-S EFI_SECTION_VERSION \
-	-o "$1" \
-	-n $2 \
+# build/edk2-UDK2017/Build/MdeModule/DEBUG_GCC5/X64/MdeModulePkg/Core/Dxe/DxeMain/OUTPUT
+# wtf edk2 doesn't hve a way to turn the inf file into an executable?
+# this build system sucks
 
-GenSec-pe	= $(EDK2_DIR)/GenSec \
-	-S EFI_SECTION_PE32 \
-	-o "$1" \
-	"$2" \
+RuntimeArchProtocolGuid := { 0xb7dfb4e1, 0x052f, 0x449f, { 0x87, 0xbe, 0x98, 0x18, 0xfc, 0x91, 0xb7, 0x33 }}
+AcpiTableProtocolGuid := { 0xFFE06BDD, 0x6107, 0x46A6, { 0x7B, 0xB2, 0x5A, 0x9C, 0x7E, 0xC5, 0x27, 0x5C }}
 
+
+dxe-y += DxeCore
+DxeCore-filetype := EFI_FV_FILETYPE_DXE_CORE
+DxeCore-guid := D6A2CB7F-6A18-4E2F-B43B-9920A733700A 
+
+dxe-y += RuntimeDxe
+RuntimeDxe-depex := TRUE
+RuntimeDxe-guid := B601F8C4-43B7-4784-95B1-F4226CB40CEE
+
+dxe-y += AcpiTableDxe
+AcpiTableDxe-guid := 9622E42C-8E38-4a08-9E8F-54F784652F6B
+AcpiTableDxe-depex := $(RuntimeArchProtocolGuid)
+
+dxe-y += AcpiPlatform
+AcpiPlatform-guid := cb933912-df8f-4305-b1f9-7b44fa11395c
+AcpiPlatform-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
+
+
+dxe-y += Linux
+Linux-file := $(build)/$(linux_dir)/arch/x86/boot/bzImage
+Linux-version := $(linux-version)
+Linux-guid := DECAFBAD-6548-6461-732d-2f2d4e455246
+Linux-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
+
+
+dxe-y += Initrd
+Initrd-file := initrd.cpio.xz
+Initrd-filetype := EFI_FV_FILETYPE_FREEFORM
+Initrd-guid := 74696e69-6472-632e-7069-6f2f62696f73
+Initrd-sectiontype := EFI_SECTION_RAW
+
+#$(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
+
+%.dep:
+	$(EDK2_DIR)/GenDepex \
+		-t DXE_DRIVER \
+		-o $@ \
+		-e '$($*-depex)'
+
+%.dep.sec: %.dep
+	$(EDK2_DIR)/GenSec \
+		-S EFI_SECTION_DXE_DEPEX \
+		-o $@ \
+		$<
+
+%.name.sec:
+	$(EDK2_DIR)/GenSec \
+		-S EFI_SECTION_USER_INTERFACE \
+		-o "$@" \
+		-n "$*"
+
+%.ver.sec:
+	$(EDK2_DIR)/GenSec \
+		-S EFI_SECTION_VERSION \
+		-o "$@" \
+		-n "$(or $($*-version),1.0)"
+
+
+define build-ffs =
+$1.ffs: $1.file.sec $1.ver.sec $1.name.sec \
+	$(if $($1-depex),$1.dep.sec) \
+
+	$(EDK2_DIR)/GenFfs \
+		-t $(or $($1-filetype),EFI_FV_FILETYPE_DRIVER) \
+		-g $($1-guid) \
+		--align 64K \
+		-o $$@ \
+		$$(addprefix -i ,$$^)
+
+$1.file.sec: \
+	$(or $($1-file),$(build)/$(edk2_dir)/Build/MdeModule/DEBUG_GCC5/X64/$1.efi)
+
+	$(EDK2_DIR)/GenSec \
+		-S $(or $($1-sectiontype),EFI_SECTION_PE32) \
+		-o $$@ \
+		$$^
+
+# add a dependency on the edk2 module if we are picking up an
+# edk2 build DXEexecutable.
+ifndef $($1-file)
+$(build)/$(edk2_dir)/Build/MdeModule/DEBUG_GCC5/X64/$1.efi: edk2.intermediate
+endif
+
+endef
+
+# For everything that we will include in our DXE filesystem, we
+# have to instatiate targets for the ffs and file sections.
+# If there is no DEPEX defined, do not create a depex file dependency
+$(call map,build-ffs,$(dxe-y))
 
 $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
-linux-pe.sec: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	$(call GenSec-pe,$@,$<)
-linux-name.sec:
-	$(call GenSec-name,$@,"HeadsNERF")
-linux-version.sec:
-	$(call GenSec-version,$@,"0.1")
-# Linux depends on the RuntimeArchProtocolGuid to have been installed,
-# so we hand code a PUSH GUID, END dependecy file.
-linux-dep.sec:
-	perl -e 'print chr(hex($$_)) for @ARGV' > $@.tmp \
-		02 \
-		e1 b4 df b7 \
-		2f 05 \
-		9f 44 \
-		87 be \
-		98 18 fc 91 b7 33 \
-		08 \
 
-	$(EDK2_DIR)/GenSec \
-		-S EFI_SECTION_DXE_DEPEX \
-		-o $@ \
-		$@.tmp
-
-	-$(RM) $@.tmp
-
-# The RuntimeDxe has no dependencies, so we create an empty
-# DEPEX file for it (TRUE, END).  GenDepex could be used, but its
-# commandline parser makes no sense.
-nop-dep.sec:
-	perl -e 'print chr(hex($$_)) for qw/06 08/' > $@.tmp
-	$(EDK2_DIR)/GenSec \
-		-S EFI_SECTION_DXE_DEPEX \
-		-o $@ \
-		$@.tmp
-
-	-$(RM) $@.tmp
-
-linux.ffs: linux-pe.sec linux-name.sec linux-version.sec linux-dep.sec
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_DRIVER \
-		-g DECAFBAD-6548-6461-732d-2f2d4e455246 \
-		--align 64K \
-		$(addprefix -i ,$^) \
-		-o $@ \
-
-
-$(build)/$(edk2_dir)/DxeCore.efi: edk2.intermediate
-DxeCore-pe.sec: $(build)/$(edk2_dir)/DxeCore.efi
-	$(call GenSec-pe,$@,$<)
-DxeCore-name.sec:
-	$(call GenSec-name,$@,"DxeCore")
-DxeCore-version.sec:
-	$(call GenSec-version,$@,"1.0")
-DxeCore.ffs: DxeCore-pe.sec DxeCore-name.sec DxeCore-version.sec
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_DXE_CORE \
-		-g D6A2CB7F-6A18-4E2F-B43B-9920A733700A \
-		--align 1K \
-		$(addprefix -i ,$^) \
-		-o $@ \
-
-$(build)/$(edk2_dir)/RuntimeDxe.efi: edk2.intermediate
-RuntimeDxe-pe.sec: $(build)/$(edk2_dir)/RuntimeDxe.efi
-	$(call GenSec-pe,$@,$<)
-RuntimeDxe-name.sec:
-	$(call GenSec-name,$@,"RuntimeDxe")
-RuntimeDxe-version.sec:
-	$(call GenSec-version,$@,"1.0")
-RuntimeDxe.ffs: RuntimeDxe-pe.sec RuntimeDxe-name.sec RuntimeDxe-version.sec nop-dep.sec
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_DRIVER \
-		-g B601F8C4-43B7-4784-95B1-F4226CB40CEE \
-		--align 64K \
-		$(addprefix -i ,$^) \
-		-o $@ \
 
 # Generate a firmware file with a well known guid
-# "initrd.cpio/bios" that contains the real initrd file
-initrd.ffs: initrd.cpio.xz
-	$(call GenSec-name,initrd-name.sec,"initrd")
-	$(call GenSec-version,initrd-version.sec,"0.0")
-	$(EDK2_DIR)/GenSec \
-		-S EFI_SECTION_RAW \
-		-o "initrd-data.sec" \
-		$<
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_FREEFORM \
-		-g 74696e69-6472-632e-7069-6f2f62696f73 \
-		--align 64K \
-		-o $@ \
-		-i initrd-name.sec \
-		-i initrd-version.sec \
-		-i initrd-data.sec \
-		
 
 # If you have to fit within the normal UEFI image, the volume is
 # limited to 0x47 blocks.
 #
 # But you can also replace the entire region from 0x310000
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
-nerf.vol: DxeCore.ffs RuntimeDxe.ffs linux.ffs initrd.ffs
+nerf.vol: $(addsuffix .ffs,$(dxe-y)) blobs/r630/acpi-data.ffs
 	$(EDK2_DIR)/GenFv \
 		--numberblock 0xB3 \
 		--blocksize 0x10000 \
@@ -156,6 +147,34 @@ nerf-r630.rom: \
 		exit 1; \
 	fi
 
+#
+# Generate a compressed section
+# LZMA guid is EE4E5898-3914-4259-9D6E-DC7BD79403CF
+# Embedded filesystem is 8C8CE578-8A3D-4F1C-9935-896185C32DD3
+#
+acpi-lz.ffs: blobs/r630/acpi-data.ffs
+	$(EDK2_DIR)/GenFfs \
+		-t EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE \
+		-g 8C8CE578-8A3D-4F1C-9935-896185C32DD3 \
+		-o $<.ffs.fv \
+		-a 16 \
+		-i $<
+	$(EDK2_DIR)/LzmaCompress \
+		-e \
+		-q \
+		-o $<.fv.lz \
+		$<.fv
+	$(EDK2_DIR)/GenSec \
+		-s EFI_SECTION_GUID_DEFINED \
+		-g EE4E5898-3914-4259-9D6E-DC7BD79403CF \
+		-r PROCESSING_REQUIRED \
+		-o $<.fv.lz.sec \
+		$<.fv.lz
+	$(EDK2_DIR)/GenFfs \
+		-t EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE \
+		-g 8C8CE578-8A3D-4F1C-9935-896185C32DD3 \
+		-i $<.fv.lz.sec \
+		-o $@
 
 
 nerf.intermediate: nerf-r630.rom
