@@ -18,6 +18,7 @@ AcpiTableProtocolGuid := { 0xFFE06BDD, 0x6107, 0x46A6, { 0x7B, 0xB2, 0x5A, 0x9C,
 dxe-y += DxeCore
 DxeCore-filetype := EFI_FV_FILETYPE_DXE_CORE
 DxeCore-guid := D6A2CB7F-6A18-4E2F-B43B-9920A733700A 
+DxeCore-align := 1K
 
 dxe-y += RuntimeDxe
 RuntimeDxe-depex := TRUE
@@ -30,6 +31,23 @@ AcpiTableDxe-depex := $(RuntimeArchProtocolGuid)
 dxe-y += AcpiPlatform
 AcpiPlatform-guid := cb933912-df8f-4305-b1f9-7b44fa11395c
 AcpiPlatform-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
+
+#dxe-y += Acpi-data
+Acpi-data-file := /dev/null
+Acpi-data-guid := 7E374E25-8E01-4FEE-87F2-390C23C606CD
+Acpi-data-filetype := EFI_FV_FILETYPE_FREEFORM
+Acpi-data-sectiontype := EFI_SECTION_RAW
+Acpi-data.ffs: $(sort blobs/r630/acpi/*)
+	for file in $^; do \
+		$(EDK2_DIR)/GenSec \
+			-s EFI_SECTION_RAW \
+			-o `basename $$file`.sec $$file; \
+	done
+	$(EDK2_DIR)/GenFfs \
+		-t EFI_FV_FILETYPE_FREEFORM \
+		-g $(Acpi-data-guid) \
+		-o $@ \
+		$(foreach f,$^,-i $(notdir $f).sec)
 
 
 dxe-y += Linux
@@ -79,7 +97,7 @@ $1.ffs: $1.file.sec $1.ver.sec $1.name.sec \
 	$(EDK2_DIR)/GenFfs \
 		-t $(or $($1-filetype),EFI_FV_FILETYPE_DRIVER) \
 		-g $($1-guid) \
-		--align 64K \
+		--align $(or $($1-align),4K) \
 		-o $$@ \
 		$$(addprefix -i ,$$^)
 
@@ -114,9 +132,9 @@ $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 #
 # But you can also replace the entire region from 0x310000
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
-nerf.vol: $(addsuffix .ffs,$(dxe-y)) blobs/r630/acpi-data.ffs
+nerf.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.ffs  # blobs/r630/acpi-data.ffs.uncompressed
 	$(EDK2_DIR)/GenFv \
-		--numberblock 0xB3 \
+		--numberblock 0xb3 \
 		--blocksize 0x10000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
