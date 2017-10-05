@@ -22,3 +22,7 @@ clean
 *.dep
 *.ffs
 *.vol
+*.lz
+*.fv
+*.bin
+*.bad
