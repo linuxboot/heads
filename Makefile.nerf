@@ -37,7 +37,7 @@ Acpi-data-file := /dev/null
 Acpi-data-guid := 7E374E25-8E01-4FEE-87F2-390C23C606CD
 Acpi-data-filetype := EFI_FV_FILETYPE_FREEFORM
 Acpi-data-sectiontype := EFI_SECTION_RAW
-Acpi-data.ffs: $(sort blobs/r630/acpi/*)
+Acpi-data.ffs: $(sort blobs/$(BOARD)/acpi/*)
 	for file in $^; do \
 		$(EDK2_DIR)/GenSec \
 			-s EFI_SECTION_RAW \
@@ -132,10 +132,12 @@ $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 #
 # But you can also replace the entire region from 0x310000
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
+#
+# x3550m5 -- pei starts at 0xb00000, bios is from 0x1000 == 0xaff
 nerf.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.ffs  # blobs/r630/acpi-data.ffs.uncompressed
 	$(EDK2_DIR)/GenFv \
-		--numberblock 0xb3 \
-		--blocksize 0x10000 \
+		--numberblock $$[$(NERF_SIZE)/0x1000] \
+		--blocksize 0x1000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
 		$(addprefix -f ,$^)
@@ -146,16 +148,16 @@ nerf.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.ffs  # blobs/r630/acpi-data.ffs.u
 # the ifd is only the first 64k, but we take all the way to the ME region
 # and unlock the IFD (from coreboot) to allow flashrom to write to the ROM.
 # ifdtool -u blobs/r630/ifd.bin && mv blobs/r630/ifd.bin.new blobs/r630/ifd.bin
-blobs/r630/me.bin: r630.rom
-	dd < $< bs=$$[0x10000] skip=$$[0x02] count=$$[0x2F] > $@
-blobs/r630/pei.bin: r630.rom
-	dd < $< bs=$$[0x10000] skip=$$[0xE4] count=$$[0x1C] > $@
+blobs/$(BOARD)/me.bin: blobs/$(BOARD)/$(BOARD).rom
+	dd < $< bs=$$[0x10000] skip=$$[$(ME_OFFSET)/0x10000] count=$$[$(ME_SIZE)/0x10000] > $@
+blobs/$(BOARD)/pei.bin: blobs/$(BOARD)/$(BOARD).rom
+	dd < $< bs=$$[0x10000] skip=$$[$(PEI_OFFSET)/0x10000] count=$$[$(PEI_SIZE)/0x10000] > $@
 
-nerf-r630.rom: \
-		blobs/r630/ifd.bin  \
-		blobs/r630/me.bin \
+nerf-$(BOARD).rom: \
+		blobs/$(BOARD)/ifd.bin  \
+		blobs/$(BOARD)/me.bin \
 		nerf.vol \
-		blobs/r630/pei.bin \
+		blobs/$(BOARD)/pei.bin \
 
 	cat $^ > $@
 	@if [ `stat -c'%s' $@` -ne 16777216 ]; then \
@@ -170,7 +172,7 @@ nerf-r630.rom: \
 # LZMA guid is EE4E5898-3914-4259-9D6E-DC7BD79403CF
 # Embedded filesystem is 8C8CE578-8A3D-4F1C-9935-896185C32DD3
 #
-acpi-lz.ffs: blobs/r630/acpi-data.ffs
+acpi-lz.ffs: blobs/$(BOARD)/acpi-data.ffs
 	$(EDK2_DIR)/GenFfs \
 		-t EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE \
 		-g 8C8CE578-8A3D-4F1C-9935-896185C32DD3 \
@@ -195,4 +197,4 @@ acpi-lz.ffs: blobs/r630/acpi-data.ffs
 		-o $@
 
 
-nerf.intermediate: nerf-r630.rom
+nerf.intermediate: nerf-$(BOARD).rom
