@@ -70,6 +70,19 @@ confirm_totp()
 
 confirm_gpg_card()
 {
+	read \
+		-n 1 \
+		-p "Please confirm that your GPG card is inserted [Y/n]: " \
+		card_confirm
+	echo
+
+	if [ "$card_confirm" != "y" \
+		-a "$card_confirm" != "Y" \
+		-a -n "$card_confirm" ] \
+	; then
+		die "gpg card not confirmed"
+	fi
+
 	# setup the USB so we can reach the GPG card
 	if ! lsmod | grep -q ehci_hcd; then
 		insmod /lib/modules/ehci-hcd.ko \
