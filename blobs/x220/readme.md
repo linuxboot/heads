@@ -1,7 +1,7 @@
 To build for X220 we need to have the following files in this folder:
 * `me.bin` - ME binary that has been stripped and truncated with me_cleaner
 * `gbe.bin` - Network card blob from the original firmware
-* `ifd.bin` - Flash layout file has been provided, layout.txt is also present for changes
+* `ifd.bin` - Flash layout file has been provided as text
 
 To get the binaries, start with a copy of the original lenovo firmware image.
 If you do not have one already, you can read one out from the laptops SPI flash.
@@ -10,22 +10,19 @@ If you do not have one already, you can read one out from the laptops SPI flash.
 flashrom --programmer internal:laptop=force_I_want_a_brick -r original.bin
 ```
 
-Once you have the image, run `ifdtool` to extract the parts.
+Once you have the image, the provided extraction script will extract the files needed.
 
 ```
-ifdtool -x origin.bin
+./extract.sh -f <romdump>
 ```
 
-Rename `flashregion_3_gbe.bin` to `gbe.bin`
+Use the options '-m' and '-i' to provide me_cleaner and ifdtool if they can not be located
+automatically.
 
-To truncate and neuter the ME blob (this can be done automatically in coreboot 4.6):
-
-```
-me_cleaner -r -t -O me.bin flashregion_2_intel_me.bin"
-```
+The flash layout will be automatically adjusted and the ME image cleaned and truncated.
 
 You can now compile the image with:
 
 ```
-make CONFIG=config/x220-qubes.config
+make CONFIG=config/x220-generic.config
 ```
