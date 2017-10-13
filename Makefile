@@ -1,4 +1,4 @@
-modules-y 	:=
+Wmodules-y 	:=
 pwd 		:= $(shell pwd)
 packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
@@ -71,8 +71,10 @@ musl_dep	:= musl
 heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
+	-fPIE \
+#	-fstack-protector-strong
 
-CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
 CROSS_TOOLS_NOCC := \
 	AR="$(CROSS)ar" \
 	LD="$(CROSS)ld" \
@@ -229,8 +231,8 @@ endef
 
 $(call map, define_module, $(modules-y))
 
-# hack to force musl-cross to be built before musl
-#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
+# hack to force musl-cross-make to be built before musl
+#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross-make_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
 
 #
 # Install a file into the initrd, if it changed from
@@ -437,7 +439,7 @@ real.clean:
 bootstrap:
 	$(MAKE) \
 		-j`nproc` \
-		musl-cross.intermediate \
+		musl-cross-make.intermediate \
 		$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc \
 
 

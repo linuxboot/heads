@@ -1,5 +1,5 @@
 modules-y += musl
-
+linux_dir := linux-4.9.38
 musl_version := 1.1.15
 musl_dir := musl-$(musl_version)
 musl_tar := musl-$(musl_version).tar.gz
@@ -33,7 +33,7 @@ musl_libraries := \
 	lib/libc.so \
 
 
-musl_depends := musl-cross
+musl_depends := musl-cross-make
 
 # Fake a target so that musl will force a header install by the
 # Linux kernel sources.
