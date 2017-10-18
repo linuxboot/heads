@@ -1,11 +1,9 @@
 modules-y += musl
-linux_dir := linux-4.9.38
 musl_version := 1.1.15
 musl_dir := musl-$(musl_version)
 musl_tar := musl-$(musl_version).tar.gz
 musl_url := https://www.musl-libc.org/releases/$(musl_tar)
 musl_hash := 97e447c7ee2a7f613186ec54a93054fe15469fe34d7d323080f7ef38f5ecb0fa
-
 musl_output := ../../install/bin/musl-gcc
 
 #
@@ -32,15 +30,4 @@ musl_target := \
 musl_libraries := \
 	lib/libc.so \
 
-
-musl_depends := musl-cross-make
-
-# Fake a target so that musl will force a header install by the
-# Linux kernel sources.
-musl.intermediate: $(INSTALL)/include/linux/limits.h
-$(INSTALL)/include/linux/limits.h: $(build)/$(linux_dir)/.canary
-	$(MAKE) \
-		-C "$(build)/$(linux_dir)" \
-		INSTALL_HDR_PATH="$(INSTALL)" \
-		headers_install
-
+musl_depends := musl-cross-make kernel-headers
