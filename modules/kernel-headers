@@ -1,0 +1,14 @@
+modules-y += kernel-headers
+
+kernel-headers_version := 3.12.6-5
+kernel-headers_dir := kernel-headers-$(kernel-headers_version)
+kernel-headers_tar := kernel-headers-$(kernel-headers_version).tar.xz
+kernel-headers_url := https://ftp.barfooze.de/pub/sabotage/tarballs/$(kernel-headers_tar)
+kernel-headers_hash := 8e0b09357fde866bdbcd1fae90ce4717c81ac1292f0dbcab5c34197fd7a6835c
+
+kernel-headers_target := \
+	$(MAKE) \
+		ARCH=x86_64 \
+		-C "$(build)/$(kernel-headers_dir)" \
+		INSTALL_HDR_PATH="$(INSTALL)" \
+		headers_install

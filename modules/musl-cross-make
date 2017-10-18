@@ -1,0 +1,16 @@
+modules-y += musl-cross-make
+
+musl-cross-make_version := 0.9.6
+musl-cross-make_dir := musl-cross-make-$(musl-cross-make_version)
+#musl-cross-make_repo := https://github.com/richfelker/musl-cross-make
+musl-cross-make_tar := v$(musl-cross-make_version).tar.gz
+musl-cross-make_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross-make_tar)
+musl-cross-make_hash := 9850146bd1e76abefa893b45066b4ca19061559369d00b181020108292d80854
+
+musl-cross-make_output := ../../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
+
+musl-cross-make_configure := \
+	/bin/echo -e "GCC_CONFIG += --enable-multilib --enable-default-ssp --enable-libssp\nOUTPUT = $(pwd)/crossgcc/x86_64-linux-musl\nTARGET = x86_64-linux-musl" > config.mak
+
+musl-cross-make_target := \
+	$(MAKE) install

@@ -16,7 +16,7 @@ xen_dir := qubes-vmm-xen-$(xen_version)
 xen_tar := qubes-vmm-xen-$(xen_version).tar.gz
 xen_url := https://github.com/QubesOS/qubes-vmm-xen/archive/v$(xen_version).tar.gz
 
-xen_depends := musl-cross
+xen_depends := musl-cross-make
 
 xen_output := xen-$(xen_base_version)/xen/xen.gz
 xen_configure :=
