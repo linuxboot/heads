@@ -1,5 +1,5 @@
 diff --git a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
-index 91e94a7..9733629 100644
+index 91e94a7..027f039 100644
 --- a/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
 +++ b/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c
 @@ -14,6 +14,39 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
@@ -42,7 +42,7 @@ index 91e94a7..9733629 100644
  //
  // DXE Core Global Variables for Protocols from PEI
  //
-@@ -283,7 +318,12 @@ DxeMain (
+@@ -283,7 +316,12 @@ DxeMain (
    gDxeCoreRT = AllocateRuntimeCopyPool (sizeof (EFI_RUNTIME_SERVICES), &mEfiRuntimeServicesTableTemplate);
    ASSERT (gDxeCoreRT != NULL);
  
@@ -55,12 +55,14 @@ index 91e94a7..9733629 100644
  
    //
    // Start the Image Services.
-@@ -297,6 +337,16 @@ DxeMain (
+@@ -297,6 +335,19 @@ DxeMain (
    Status = CoreInitializeGcdServices (&HobStart, MemoryBaseAddress, MemoryLength);
    ASSERT_EFI_ERROR (Status);
  
++/*
 +  // free up the low memory for Linux's SMP trampoline
 +  // otherwise bad things happen...
++  // TODO: find out how to do this the right way, can't kexec until it works
 +  CoreRemoveMemorySpace (0x10000, 0x10000);
 +  CoreAddMemorySpace(
 +	EfiGcdMemoryTypeSystemMemory,
@@ -68,6 +70,7 @@ index 91e94a7..9733629 100644
 +	0x10000,
 +        0
 +  );
++*/
 +
    //
    // Call constructor for all libraries
@@ -101,9 +104,87 @@ index a73c4cc..2c08b81 100644
    gCpu->SetMemoryAttributes (gCpu, BaseAddress, Length, FinalAttributes);
  }
  
-index 91e94a7..6b729df 100644
+diff --git a/MdeModulePkg/MdeModulePkg.dsc b/MdeModulePkg/MdeModulePkg.dsc
+index ad85776..5b68318 100644
+--- a/MdeModulePkg/MdeModulePkg.dsc
++++ b/MdeModulePkg/MdeModulePkg.dsc
+@@ -76,7 +76,7 @@
+   DpcLib|MdeModulePkg/Library/DxeDpcLib/DxeDpcLib.inf
+   SecurityManagementLib|MdeModulePkg/Library/DxeSecurityManagementLib/DxeSecurityManagementLib.inf
+   TimerLib|MdePkg/Library/BaseTimerLibNullTemplate/BaseTimerLibNullTemplate.inf
+-  SerialPortLib|MdePkg/Library/BaseSerialPortLibNull/BaseSerialPortLibNull.inf
++  SerialPortLib|MdeModulePkg/Library/BaseSerialPortLib16550/BaseSerialPortLib16550.inf
+   CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull.inf
+   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
+   PalLib|MdePkg/Library/BasePalLibNull/BasePalLibNull.inf
+@@ -85,7 +85,7 @@
+   #
+   # Misc
+   #
+-  DebugLib|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf
++  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf  
+   ReportStatusCodeLib|MdePkg/Library/BaseReportStatusCodeLibNull/BaseReportStatusCodeLibNull.inf  
+   PeCoffExtraActionLib|MdePkg/Library/BasePeCoffExtraActionLibNull/BasePeCoffExtraActionLibNull.inf
+@@ -135,7 +135,7 @@
+ [LibraryClasses.common.DXE_RUNTIME_DRIVER]
+   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
+   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+-  DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
++  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+   LockBoxLib|MdeModulePkg/Library/SmmLockBoxLib/SmmLockBoxDxeLib.inf
+   CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibFmp/DxeRuntimeCapsuleLib.inf
+ 
+@@ -148,7 +148,7 @@
+ 
+ [LibraryClasses.common.DXE_SMM_DRIVER]
+   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
+-  DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
++  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+   MemoryAllocationLib|MdePkg/Library/SmmMemoryAllocationLib/SmmMemoryAllocationLib.inf
+   SmmServicesTableLib|MdePkg/Library/SmmServicesTableLib/SmmServicesTableLib.inf
+   LockBoxLib|MdeModulePkg/Library/SmmLockBoxLib/SmmLockBoxSmmLib.inf
+@@ -157,13 +157,13 @@
+ [LibraryClasses.common.UEFI_DRIVER]
+   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
+   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+-  DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
++  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+   LockBoxLib|MdeModulePkg/Library/SmmLockBoxLib/SmmLockBoxDxeLib.inf
+ 
+ [LibraryClasses.common.UEFI_APPLICATION]
+   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
+   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+-  DebugLib|MdePkg/Library/UefiDebugLibStdErr/UefiDebugLibStdErr.inf
++  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+ 
+ [LibraryClasses.ARM, LibraryClasses.AARCH64]
+   ArmLib|ArmPkg/Library/ArmLib/ArmBaseLib.inf
+@@ -193,7 +193,8 @@
+   gEfiMdeModulePkgTokenSpaceGuid.PcdDevicePathSupportDevicePathToText|FALSE
+ 
+ [PcdsFixedAtBuild]
+-  gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x0f
++  gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0xff
++  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x800800cf
+   gEfiMdePkgTokenSpaceGuid.PcdReportStatusCodePropertyMask|0x06
+   gEfiMdeModulePkgTokenSpaceGuid.PcdMaxSizeNonPopulateCapsule|0x0
+   gEfiMdeModulePkgTokenSpaceGuid.PcdMaxSizePopulateCapsule|0x0
+diff --git a/MdePkg/MdePkg.dsc b/MdePkg/MdePkg.dsc
+index 8648dfa..9905200 100644
+--- a/MdePkg/MdePkg.dsc
++++ b/MdePkg/MdePkg.dsc
+@@ -29,7 +29,7 @@
+ 
+ [PcdsFixedAtBuild]
+   gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x0f
+-  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80000000
++  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x800800cf
+   gEfiMdePkgTokenSpaceGuid.PcdPciExpressBaseAddress|0xE0000000
+ 
+ [PcdsFixedAtBuild.IPF]
 --- /dev/null	2017-09-19 09:53:09.766660422 -0400
-+++ ./Makefile	2017-09-20 15:24:01.850433474 -0400
++++ ./Makefile	2017-10-11 18:19:17.776756265 -0400
 @@ -0,0 +1,35 @@
 +# Wrapper around the edk2 "build" script to generate
 +# the few files that we actually want and avoid rebuilding
