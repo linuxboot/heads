@@ -330,22 +330,6 @@ diff -u --recursive ../clean/linux-4.9.38/drivers/acpi/acpica/hwacpi.c linux-4.9
  		return_UINT32(ACPI_SYS_MODE_LEGACY);
  	}
  }
-diff -u --recursive ../clean/linux-4.9.38/drivers/firmware/efi/vars.c linux-4.9.38/drivers/firmware/efi/vars.c
---- ../clean/linux-4.9.38/drivers/firmware/efi/vars.c	2017-07-15 06:17:55.000000000 -0400
-+++ linux-4.9.38/drivers/firmware/efi/vars.c	2017-09-20 10:58:06.101915625 -0400
-@@ -429,6 +429,12 @@
- int efivar_init(int (*func)(efi_char16_t *, efi_guid_t, unsigned long, void *),
- 		void *data, bool duplicates, struct list_head *head)
- {
-+	// NERF: We do not have the EfiVars protocol, so none of these
-+	// routines will work.  This avoids a possible kernel panic by
-+	// not calling the random pointers in the runtime services.
-+	printk("%s: not running\n", __func__);
-+	return 0;
-+
- 	const struct efivar_operations *ops = __efivars->ops;
- 	unsigned long variable_name_size = 1024;
- 	efi_char16_t *variable_name;
 diff -u --recursive ../clean/linux-4.9.38/init/initramfs.c linux-4.9.38/init/initramfs.c
 --- ../clean/linux-4.9.38/init/initramfs.c	2017-07-15 06:17:55.000000000 -0400
 +++ linux-4.9.38/init/initramfs.c	2017-09-20 10:58:06.101915625 -0400
