@@ -13,12 +13,14 @@ EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 
 RuntimeArchProtocolGuid := { 0xb7dfb4e1, 0x052f, 0x449f, { 0x87, 0xbe, 0x98, 0x18, 0xfc, 0x91, 0xb7, 0x33 }}
 AcpiTableProtocolGuid := { 0xFFE06BDD, 0x6107, 0x46A6, { 0x7B, 0xB2, 0x5A, 0x9C, 0x7E, 0xC5, 0x27, 0x5C }}
+SmbiosProtocolGuid := {0x3583ff6, 0xcb36, 0x4940, { 0x94, 0x7e, 0xb9, 0xb3, 0x9f, 0x4a, 0xfa, 0xf7}}
+VariableArchProtocolGuid := { 0x1E5668E2, 0x8481, 0x11D4, { 0xBC, 0xF1, 0x00, 0x80, 0xC7, 0x3C, 0x88, 0x81 }}
 
 
 dxe-y += DxeCore
 DxeCore-filetype := EFI_FV_FILETYPE_DXE_CORE
 DxeCore-guid := D6A2CB7F-6A18-4E2F-B43B-9920A733700A 
-DxeCore-align := 1K
+#DxeCore-align := 1K
 
 dxe-y += RuntimeDxe
 RuntimeDxe-depex := TRUE
@@ -31,6 +33,20 @@ AcpiTableDxe-depex := $(RuntimeArchProtocolGuid)
 dxe-y += AcpiPlatform
 AcpiPlatform-guid := cb933912-df8f-4305-b1f9-7b44fa11395c
 AcpiPlatform-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
+
+dxe-y += SmbiosDxe
+SmbiosDxe-guid := F9D88642-0737-49BC-81B5-6889CD57D9EA
+SmbiosDxe-depex := $(RuntimeArchProtocolGuid)
+
+# the VariableStore doesn't work with most vendor firmwares for some reason.
+# instead we link in the EmuRuntimeDxe, which avoids the 
+dxe-n += VariableRuntimeDxe
+VariableRuntimeDxe-guid := CBD2E4D5-7068-4FF5-B462-9822B4AD8D60
+VariableRuntimeDxe-depex := $(RuntimeArchProtocolGuid)
+dxe-y += EmuVariableRuntimeDxe
+EmuVariableRuntimeDxe-guid := CBD2E4D5-7068-4FF5-B462-9822B4AD8D60
+EmuVariableRuntimeDxe-depex := $(RuntimeArchProtocolGuid)
+
 
 #dxe-y += Acpi-data
 Acpi-data-file := /dev/null
@@ -54,7 +70,11 @@ dxe-y += Linux
 Linux-file := $(build)/$(linux_dir)/arch/x86/boot/bzImage
 Linux-version := $(linux-version)
 Linux-guid := DECAFBAD-6548-6461-732d-2f2d4e455246
-Linux-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
+Linux-depex := \
+	$(RuntimeArchProtocolGuid) \
+	AND $(AcpiTableProtocolGuid) \
+	AND $(SmbiosProtocolGuid) \
+	AND $(VariableArchProtocolGuid) \
 
 
 dxe-y += Initrd
@@ -91,15 +111,17 @@ Initrd-sectiontype := EFI_SECTION_RAW
 
 
 define build-ffs =
-$1.ffs: $1.file.sec $1.ver.sec $1.name.sec \
+$1.ffs: \
+	$1.name.sec \
+	$1.ver.sec \
 	$(if $($1-depex),$1.dep.sec) \
+	$1.file.sec \
 
 	$(EDK2_DIR)/GenFfs \
 		-t $(or $($1-filetype),EFI_FV_FILETYPE_DRIVER) \
 		-g $($1-guid) \
-		--align $(or $($1-align),4K) \
 		-o $$@ \
-		$$(addprefix -i ,$$^)
+		$$(addprefix -i ,$$^) \
 
 $1.file.sec: \
 	$(or $($1-file),$(build)/$(edk2_dir)/Build/MdeModule/DEBUG_GCC5/X64/$1.efi)
