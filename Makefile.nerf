@@ -120,6 +120,7 @@ $1.ffs: \
 	$(EDK2_DIR)/GenFfs \
 		-t $(or $($1-filetype),EFI_FV_FILETYPE_DRIVER) \
 		-g $($1-guid) \
+		--align $(or $($1-align),4K) \
 		-o $$@ \
 		$$(addprefix -i ,$$^) \
 
