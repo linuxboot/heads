@@ -220,4 +220,4 @@ acpi-lz.ffs: blobs/$(BOARD)/acpi-data.ffs
 		-o $@
 
 
-nerf.intermediate: nerf-$(BOARD).rom
+nerf.intermediate: edk2.intermediate nerf-$(BOARD).rom

@@ -87,7 +87,11 @@ CROSS_TOOLS := \
 
 
 
+ifeq "$(CONFIG_COREBOOT)" "y"
 all: $(BOARD).rom
+else
+all: nerf-$(BOARD).rom
+endif
 
 # Disable all built in rules
 .SUFFIXES:
