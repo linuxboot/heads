@@ -115,10 +115,10 @@ index 0000000..d956f8a
 + 	else \
 + 		echo " Xen $(XEN_FULLVERSION)" > $@.tmp; \
 diff --git ./series.conf ./series.conf
-index 98eab7a..f72e088 100644
+index 750ec6c..0706300 100644
 --- ./series.conf
 +++ ./series.conf
-@@ -93,6 +93,9 @@ patches.qubes/xenconsoled-enable-logging.patch
+@@ -97,6 +97,9 @@ patches.qubes/xenconsoled-enable-logging.patch
  patches.qubes/vm-0001-hotplug-do-not-attempt-to-remove-containing-xenstore.patch
  patches.qubes/xen-hotplug-qubesdb-update.patch
  
