@@ -31,6 +31,14 @@ linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_mm.ko
 linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_sas.ko
 linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_mbox.ko
 
+# Intel s2600wf scsi controller
+linux_modules-$(CONFIG_LINUX_SCSI_GDTH)	+= drivers/scsi/gdth.ko
+linux_modules-$(CONFIG_LINUX_ATA)	+= drivers/ata/libata.ko
+linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci.ko
+linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci_platform.ko
+linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci.ko
+linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci_platform.ko
+
 # USB modules for both types of controllers
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
