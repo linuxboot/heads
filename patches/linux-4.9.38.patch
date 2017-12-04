@@ -451,23 +451,23 @@ diff --recursive -u clean/linux-4.9.38/arch/x86/boot/compressed/eboot.c linux-4.
 +	// generated.  Ovmf just twiddles an atapi bit; ignoring for now
 +
 +	// connect all the pci root bridges
-+serial_string("connect pci root brdiges\n");
++serial_string("connect pci root brdiges\r\n");
 +	efi_guid_t pci_protocol = EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_GUID;
 +	efi_visit_handles(&pci_protocol, efi_connect_controllers, (void*) 0);
 +
 +	// signal the acpi platform driver that it can download the ACPI tables
-+serial_string("signal root bridges connected\n");
++serial_string("signal root bridges connected\r\n");
 +	efi_event_signal(ROOT_BRIDGES_CONNECTED_EVENT_GROUP_GUID);
 +
 +	// signal that dxe is about to end
-+serial_string("signal dxe end\n");
++serial_string("signal dxe end\r\n");
 +	efi_event_signal(EFI_END_OF_DXE_EVENT_GROUP_GUID);
 +
 +	// Prevent further changes to LockBoxes or SMRAM.
 +	// not necessary, but we probably want to do it for security
 +	efi_handle_t handle = NULL;
 +	efi_guid_t smm_ready_to_lock = EFI_DXE_SMM_READY_TO_LOCK_PROTOCOL_GUID;
-+serial_string("signal smm ready to lock\n");
++serial_string("signal smm ready to lock\r\n");
 +	efi_call_early(install_protocol_interface,
 +		&handle,
 +		&smm_ready_to_lock,
