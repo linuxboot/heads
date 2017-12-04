@@ -183,7 +183,7 @@ nerf-$(BOARD).rom: \
 		blobs/$(BOARD)/pei.bin \
 
 	cat $^ > $@
-	@if [ `stat -c'%s' $@` -ne 16777216 ]; then \
+	@if [ `stat -c'%s' $@` -ne $(ROM_SIZE) ]; then \
 		echo -n >&2 "$@ SHOULD BE 16MB. size "; \
 		stat -c'%s' $@ >&2 ; \
 		mv $@ $@.bad; \
