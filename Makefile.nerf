@@ -17,24 +17,24 @@ SmbiosProtocolGuid := {0x3583ff6, 0xcb36, 0x4940, { 0x94, 0x7e, 0xb9, 0xb3, 0x9f
 VariableArchProtocolGuid := { 0x1E5668E2, 0x8481, 0x11D4, { 0xBC, 0xF1, 0x00, 0x80, 0xC7, 0x3C, 0x88, 0x81 }}
 
 
-dxe-y += DxeCore
+dxe-$(CONFIG_BUNDLE_DXE) += DxeCore
 DxeCore-filetype := EFI_FV_FILETYPE_DXE_CORE
 DxeCore-guid := D6A2CB7F-6A18-4E2F-B43B-9920A733700A 
 #DxeCore-align := 1K
 
-dxe-y += RuntimeDxe
+dxe-$(CONFIG_BUNDLE_DXE) += RuntimeDxe
 RuntimeDxe-depex := TRUE
 RuntimeDxe-guid := B601F8C4-43B7-4784-95B1-F4226CB40CEE
 
-dxe-y += AcpiTableDxe
+dxe-$(CONFIG_BUNDLE_DXE) += AcpiTableDxe
 AcpiTableDxe-guid := 9622E42C-8E38-4a08-9E8F-54F784652F6B
 AcpiTableDxe-depex := $(RuntimeArchProtocolGuid)
 
-dxe-y += AcpiPlatform
+dxe-$(CONFIG_BUNDLE_DXE) += AcpiPlatform
 AcpiPlatform-guid := cb933912-df8f-4305-b1f9-7b44fa11395c
 AcpiPlatform-depex := $(RuntimeArchProtocolGuid) AND $(AcpiTableProtocolGuid)
 
-dxe-y += SmbiosDxe
+dxe-$(CONFIG_BUNDLE_DXE) += SmbiosDxe
 SmbiosDxe-guid := F9D88642-0737-49BC-81B5-6889CD57D9EA
 SmbiosDxe-depex := $(RuntimeArchProtocolGuid)
 
@@ -43,7 +43,7 @@ SmbiosDxe-depex := $(RuntimeArchProtocolGuid)
 dxe-n += VariableRuntimeDxe
 VariableRuntimeDxe-guid := CBD2E4D5-7068-4FF5-B462-9822B4AD8D60
 VariableRuntimeDxe-depex := $(RuntimeArchProtocolGuid)
-dxe-y += EmuVariableRuntimeDxe
+dxe-$(CONFIG_BUNDLE_DXE) += EmuVariableRuntimeDxe
 EmuVariableRuntimeDxe-guid := CBD2E4D5-7068-4FF5-B462-9822B4AD8D60
 EmuVariableRuntimeDxe-depex := $(RuntimeArchProtocolGuid)
 
@@ -157,7 +157,7 @@ $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
 #
 # x3550m5 -- pei starts at 0xb00000, bios is from 0x1000 == 0xaff
-nerf.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.ffs  # blobs/r630/acpi-data.ffs.uncompressed
+nerf.vol: $(addsuffix .ffs,$(dxe-y)) # Acpi-data.ffs  # blobs/r630/acpi-data.ffs.uncompressed
 	$(EDK2_DIR)/GenFv \
 		--numberblock $$[$(NERF_SIZE)/0x1000] \
 		--blocksize 0x1000 \
