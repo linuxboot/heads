@@ -462,7 +462,7 @@ HEADS_MAKE := $(build)/$(make_dir)/make
 # Once we have a proper Make, we can just pass arguments into it
 all bootstrap: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
-%.clean %.intermediate: $(HEADS_MAKE)
+%.clean %.intermediate %.vol: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 
 # How to download and build the correct version of make
