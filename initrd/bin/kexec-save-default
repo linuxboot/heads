@@ -1,6 +1,7 @@
 #!/bin/sh
 # Save these options to be the persistent default
 set -e -o pipefail
+. /etc/config
 . /etc/functions
 
 while getopts "b:d:p:i:" arg; do
@@ -44,69 +45,72 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [ ! -r "$KEY_DEVICES" ]; then
-	read \
-		-n 1 \
-		-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
-		add_key_confirm
-	echo
+if [ "$CONFIG_TPM" = "y" ]; then
+	if [ ! -r "$KEY_DEVICES" ]; then
+		read \
+			-n 1 \
+			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
+			add_key_confirm
+		echo
 
-	if [ "$add_key_confirm" = "y" \
-		-o "$add_key_confirm" = "Y" ] \
-	; then
-		lvm_suggest="e.g. qubes_dom0 or blank"
-		devices_suggest="e.g. /dev/sda2 or blank"
-		save_key="y"
-	fi
-else
-	read \
-		-n 1 \
-		-p "Do you want to reseal a disk key to the TPM [y/N]: " \
-		change_key_confirm
-	echo
-
-	if [ "$change_key_confirm" = "y" \
-		-o "$change_key_confirm" = "Y" ] \
-	; then
-		old_lvm_volume_group=""
-		if [ -r "$KEY_LVM" ]; then
-			old_lvm_volume_group=`cat $KEY_LVM` || true
-			old_key_devices=`cat $KEY_DEVICES | cut -d\  -f1 \
-				| grep -v "$old_lvm_volume_group" | xargs` || true
-		else
-			old_key_devices=`cat $KEY_DEVICES | cut -d\  -f1 | xargs` || true
+		if [ "$add_key_confirm" = "y" \
+			-o "$add_key_confirm" = "Y" ]; then
+			lvm_suggest="e.g. qubes_dom0 or blank"
+			devices_suggest="e.g. /dev/sda2 or blank"
+			save_key="y"
 		fi
-
-		lvm_suggest="was '$old_lvm_volume_group'"
-		devices_suggest="was '$old_key_devices'"
-		save_key="y"
-	fi
-fi
-
-if [ "$save_key" = "y" ]; then
-	echo "+++ LVM volume groups (lvm vgscan): "
-	lvm vgscan || true
-
-	read \
-		-p "Encrypted LVM group? ($lvm_suggest): " \
-		lvm_volume_group
-
-	echo "+++ Block devices (blkid): "
-	blkid || true
-
-	read \
-		-p "Encrypted devices? ($devices_suggest): " \
-		key_devices
-
-	save_key_params="-s -p $paramsdev"
-	if [ -n "$lvm_volume_group" ]; then
-		save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
 	else
-		save_key_params="$save_key_params $key_devices"
+		read \
+			-n 1 \
+			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
+			change_key_confirm
+		echo
+
+		if [ "$change_key_confirm" = "y" \
+			-o "$change_key_confirm" = "Y" ]; then
+			old_lvm_volume_group=""
+			if [ -r "$KEY_LVM" ]; then
+				old_lvm_volume_group=`cat $KEY_LVM` || true
+				old_key_devices=`cat $KEY_DEVICES \
+				| cut -d\  -f1 \
+				| grep -v "$old_lvm_volume_group" \
+				| xargs` || true
+			else
+				old_key_devices=`cat $KEY_DEVICES \
+				| cut -d\  -f1 | xargs` || true
+			fi
+
+			lvm_suggest="was '$old_lvm_volume_group'"
+			devices_suggest="was '$old_key_devices'"
+			save_key="y"
+		fi
 	fi
-	echo "Running kexec-save-key with params: $save_key_params"
-	kexec-save-key $save_key_params \
-	|| die "Failed to save the disk key"
+
+	if [ "$save_key" = "y" ]; then
+		echo "+++ LVM volume groups (lvm vgscan): "
+		lvm vgscan || true
+
+		read \
+			-p "Encrypted LVM group? ($lvm_suggest): " \
+			lvm_volume_group
+
+		echo "+++ Block devices (blkid): "
+		blkid || true
+
+		read \
+			-p "Encrypted devices? ($devices_suggest): " \
+			key_devices
+
+		save_key_params="-s -p $paramsdev"
+		if [ -n "$lvm_volume_group" ]; then
+			save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
+		else
+			save_key_params="$save_key_params $key_devices"
+		fi
+		echo "Running kexec-save-key with params: $save_key_params"
+		kexec-save-key $save_key_params \
+			|| die "Failed to save the disk key"
+	fi
 fi
 
 # try to switch to rw mode
@@ -126,7 +130,11 @@ if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
 fi
 
 # sign and auto-roll config counter
-kexec-sign-config -p $paramsdir -u \
+extparam=
+if [ "$CONFIG_TPM" = "y" ]; then
+	extparam=-u
+fi
+kexec-sign-config -p $paramsdir $extparam \
 || die "Failed to sign default config"
 
 # switch back to ro mode
