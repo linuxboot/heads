@@ -232,7 +232,8 @@ do_boot()
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_TPM" = "y" \
+		-a -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 		|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
@@ -261,7 +262,8 @@ while true; do
 	TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
 	TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
 
-	if [ ! -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_TPM" = "y" \
+		-a ! -r "$TMP_KEY_DEVICES" ]; then
 		# Extend PCR4 as soon as possible
 		tpm extend -ix 4 -ic generic \
 		|| die "Failed to extend PCR 4"
@@ -272,22 +274,24 @@ while true; do
 		scan_options
 	fi
 
-	# Optionally enforce device file hashes
-	if [ -r "$TMP_HASH_FILE" ]; then
-		valid_global_hash="n"
+	if [ "$CONFIG_TPM" = "y" ]; then
+		# Optionally enforce device file hashes
+		if [ -r "$TMP_HASH_FILE" ]; then
+			valid_global_hash="n"
 
-		verify_global_hashes
+			verify_global_hashes
 
-		if [ "$valid_global_hash" = "n" ]; then
-			die "Failed to verify global hashes"
+			if [ "$valid_global_hash" = "n" ]; then
+				die "Failed to verify global hashes"
+			fi
 		fi
-	fi
 
-	if [ -r "$TMP_ROLLBACK_FILE" ]; then
-		# in the case of iso boot with a rollback file, do not assume valid
-		valid_rollback="n"
+		if [ -r "$TMP_ROLLBACK_FILE" ]; then
+			# in the case of iso boot with a rollback file, do not assume valid
+			valid_rollback="n"
 
-		verify_rollback_counter
+			verify_rollback_counter
+		fi
 	fi
 
 	if [ "$default_failed" != "y" \
