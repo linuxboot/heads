@@ -1,13 +1,7 @@
 fc510ee7-ffdc-11d4-bd41-0080c73c8881 DxeApriori
 d6a2cb7f-6a18-4e2f-b43b-9920a733700a DxeCore
-350d356d-f340-45d7-a3b5-335f0085924c FastVideoDxe
 80cf7257-87ab-47f9-a3fe-d50b76d89541 PcdDxe
 56d60ee4-5ccf-485c-bbbb-fedae2b24146 RegAccessDxe
-d93ce3d8-a7eb-4730-8c8e-cc466a9ecc3c ReportStatusCodeRouterRuntimeDxe
-6c2004ef-4e0e-4be4-b14c-340eb4aa5891 StatusCodeHandlerRuntimeDxe
-863d214f-0920-437b-8cad-88ea83a24e97 DatahubStatusCodeHandlerDxe
-fede0a1b-bca2-4a9f-bb2b-d9fd7dec2e9f StatusCodeRuntimeDxe
-801adca0-815e-46a4-84f7-657f53621a57 SectionExtractionDxe
 e0471a15-76dc-4203-8b27-6db4f8ba644a UbaConfigDatabaseDxe
 69e6dd6d-f09e-485f-9627-eb70e9cfc82a UbaInitDxe
 466a36cc-494a-4a33-bbfe-8c4416155c1d StaticSkuDataDxeWolfPass
@@ -29,15 +23,12 @@ a19b1fe7-c1bc-49f8-875f-54a5d542443f CpuIo2Dxe
 62d171cb-78cd-4480-8678-c6a2a797a8de CpuArchDxe
 76a7b4fc-c8d5-462d-a4d2-6e88338a772a PlatformCpuPolicy
 40beab40-cece-4909-b133-20a413ae19e9 CpuMpDxe
-b3461d39-7b7b-41ca-8722-9be487d58038 SMBIOSFilter
 c8339973-a563-4561-b858-d8476f9defc4 Metronome
 f099d67f-71ae-4c36-b2a3-dceb0eb2b7d8 WatchdogTimer
 378d7b65-8da9-4773-b6e4-a47826a833e1 PcRtc
 b601f8c4-43b7-4784-95b1-f4226cb40cee RuntimeDxe
 d58ebce1-af26-488d-be66-c164417f8c13 PciHostBridge
 3ffcae95-23cf-4967-94f5-16352f68e43b PpmInitialize
-4143c17d-54bc-4903-9958-2454216bb21e LpcPlatform
-2a537c0e-5d9c-45d3-a6ce-3ad02d3e3b53 ReserveMem
 ad608272-d07f-4964-801e-7bd3b7888652 MonotonicCounterRuntimeDxe
 f80697e9-7fd6-4665-8646-88e33ef71dfc SecurityStubDxe
 42857f0a-13f2-4b21-8a23-53d3f714b840 CapsuleRuntimeDxe
@@ -46,7 +37,6 @@ f80697e9-7fd6-4665-8646-88e33ef71dfc SecurityStubDxe
 96b5c032-df4c-4b6e-8232-438dcf448d0e NullMemoryTestDxe
 de23acee-cf55-4fb6-aa77-984ab53de823 PchInitDxe
 e052d8a6-224a-4c32-8d37-2e0ae162364d PchSmbusDxe
-c1c418f9-591d-461c-82a2-b9cd96dfea86 LegacyInterrupt
 a0bad9f7-ab78-491b-b583-c52b7f84b9e0 SmmControl
 c194c6ea-b68c-4981-b64b-9bd271474b20 PchSpiRuntime
 90cb75db-71fc-489d-aacf-943477ec7212 SmartTimer
@@ -58,18 +48,15 @@ e2441b64-7ef4-41fe-b3a3-8caa7f8d3017 PciPlatform
 6a3def38-0a45-4107-a74e-abf2b8eaed86 MemorySubClass
 c8885b5c-48ba-44e1-b992-7f3dc826b36f PlatformDevsUpdate
 f9d88642-0737-49bc-81b5-6889cd57d9ea SmbiosDxe
-d27fed59-abb4-4fed-bead-2a878c7e4a7e SmbiosMeasurementDxe
 87ab821c-79b8-4ef6-a913-21d22063f55f AcpiPlatform
 274f0c8f-9e57-41d8-9966-29ccd48d31c2 SmmAccess
 8faad0a7-02b4-432f-8f5c-b880965d8b41 SmmCommunicationBuffer
 abbce13d-e25a-4d9f-a1f9-2f7710786892 Platform
 7e374e25-8e01-4fee-87f2-390c23c606cd EfiAcpiTableStorage
-a381a73e-23c9-4939-8f88-30b544dc4023
 06d20d84-a032-4e25-969a-346d255e46d1 CpuCsrAccess
 c4eb3614-4986-42b9-8c0d-9fe118278908 CrystalRidge
 63809859-f029-41c3-9f34-eeeb9ea787a5 IioInit
 6ec99217-69bb-4ad6-9b4e-8f4ab9af72b9 ResetTesting
-6b6fd380-2c55-42c6-98bf-cbbc5a9aa666 SocketSetup
 deb0ee00-18df-415c-af03-74d09b0aad87 JedecNvDimm
 2fa2a6da-11d5-4dc3-999a-749648b03c56 PiSmmIpl
 e94f54cd-81eb-47ed-aec3-856f5dc157a9 PiSmmCore
