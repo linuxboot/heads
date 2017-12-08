@@ -11,10 +11,6 @@ cbaeb5fd-e23d-499b-8930-0e66321502a2 IioCfgUpdateDxeWolfPass
 2e6a521c-f697-402d-9774-98b2b7e140f3 PlatformType
 9f7dcade-11ea-448a-a46f-76e003657dd1 VariableSmmRuntimeDxe
 96fcec89-bbd9-4413-93cd-144631db7431 SmbiosPcTable
-213609e5-3451-4395-9ed6-8ceceadb74a7 SecureBootErrorHandlerDxe
-99677785-7339-4fab-b15a-ceb7354cccaa SecureBootProvisionDxe
-3bc456c8-c12c-4c86-9902-73b183a1fb72 SecureBootSetup
-d564771b-573e-4dd5-a6f2-f4c30c610815 SecureBootCtrlDxe
 7f8d35bd-0ce3-4654-b5d3-73fc4b38aabf PlatformEarlyDxe
 bae7599f-3c6b-43b7-bdf0-9ce07aa91aa6 CpuIoDxe
 a19b1fe7-c1bc-49f8-875f-54a5d542443f CpuIo2Dxe
@@ -68,6 +64,5 @@ a3ff0ef5-0c28-42f5-b544-8c7de1e80014 PiSmmCpuDxeSmm
 b0d6ed53-b844-43f5-bd2f-61095264e77e PchSmiDispatcher
 a47ee2d8-f60e-42fd-8e58-7bd65ee4c29b CpuIo2Smm
 470cb248-e8ac-473c-bb4f-81069a1fe6fd SmmFaultTolerantWriteDxe
-6d4baa0b-f431-4370-af19-99d6209239f6 BiosGuardServices
 a469ddbd-16d0-4535-bae3-77274bd70b4c FwBlockServiceSmm
 27f4917b-a707-4aad-9676-26df168cbf0d PchSpiSmm
