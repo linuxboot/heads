@@ -1,0 +1,58 @@
+modules-$(CONFIG_GPG2) += gpg2
+
+gpg2_version := 2.2.4
+gpg2_dir := gnupg-$(gpg2_version)
+gpg2_tar := gnupg-$(gpg2_version).tar.bz2
+gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
+gpg2_hash := 401a3e64780fdfa6d7670de0880aa5c9d589b3db7a7098979d7606cec546f2ec
+
+# For reproducibility reasons we have to override the exec_prefix
+# and datarootdir on the configure line so that the Makefiles will
+# be generated with the correct paths, but then re-write them when
+# we use the install target so that they will be copied to the correct
+# location.
+gpg2_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host x86_64-linux-musl \
+	--with-libusb="$(INSTALL)" \
+	--with-libgpg-error-prefix="$(INSTALL)" \
+	--with-libgcrypt-prefix="$(INSTALL)" \
+	--with-libassuan-prefix="$(INSTALL)" \
+	--with-ksba-prefix="$(INSTALL)" \
+	--with-npth-prefix="$(INSTALL)" \
+	--prefix "/" \
+	--enable-scdaemon \
+	--enable-ccid-driver \
+	--disable-tofu \
+	--disable-rpath \
+        --disable-regex \
+        --disable-doc \
+	--disable-bzip2 \
+	--disable-asm \
+	--disable-exec \
+	--disable-photo-viewers \
+	--disable-keyserver-helpers \
+	--disable-ldap \
+	--disable-hkp \
+	--disable-finger \
+	--disable-dns-srv \
+	--disable-dns-cert \
+	--disable-regex \
+	--disable-nls \
+	--disable-all-tests \
+	--disable-wks-server \
+	--disable-wks-tools \
+	--disable-gnutls \
+	--disable-dirmgnr \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+gpg2_target := $(MAKE_JOBS) \
+	&& $(MAKE) -C $(build)/$(gpg2_dir) \
+		DESTDIR="$(INSTALL)" \
+		install
+
+gpg2_output := g10/gpg
+
+gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb-compat $(musl_dep)
