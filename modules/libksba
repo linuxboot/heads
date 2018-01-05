@@ -1,0 +1,24 @@
+modules-$(CONFIG_GPG2) += libksba
+libksba_version := 1.3.5
+libksba_dir := libksba-$(libksba_version)
+libksba_tar := libksba-$(libksba_version).tar.bz2
+libksba_url := https://gnupg.org/ftp/gcrypt/libksba/$(libksba_tar)
+libksba_hash := 41444fd7a6ff73a79ad9728f985e71c9ba8cd3e5e53358e70d5f066d35c1a340
+
+libksba_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+	--disable-static \
+	--disable-nls \
+	--with-libgpg-error-prefix="$(INSTALL)" \
+	--disable-asm \
+
+libksba_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	install \
+
+libksba_libraries := src/.libs/libksba.so
+
+libksba_depends := libgpg-error $(musl_dep)
