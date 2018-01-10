@@ -1,5 +1,5 @@
 diff --git ./src/Kconfig ./src/Kconfig
-index 49f8672..4ca811d 100644
+index 49f8672ff2..4ca811df77 100644
 --- ./src/Kconfig
 +++ ./src/Kconfig
 @@ -259,6 +259,21 @@ config BOOTSPLASH_FILE
@@ -25,7 +25,7 @@ index 49f8672..4ca811d 100644
  
  menu "Mainboard"
 diff --git ./src/include/program_loading.h ./src/include/program_loading.h
-index 416e2e9..40486cd 100644
+index 416e2e9418..40486cdfed 100644
 --- ./src/include/program_loading.h
 +++ ./src/include/program_loading.h
 @@ -24,6 +24,8 @@ enum {
@@ -39,7 +39,7 @@ index 416e2e9..40486cd 100644
  enum prog_type {
 diff --git ./src/include/sha1.h ./src/include/sha1.h
 new file mode 100644
-index 0000000..e7e28e6
+index 0000000000..e7e28e6cdb
 --- /dev/null
 +++ ./src/include/sha1.h
 @@ -0,0 +1,31 @@
@@ -75,7 +75,7 @@ index 0000000..e7e28e6
 +
 +#endif  /* _sha1_h_ */
 diff --git ./src/include/tpm_lite/tlcl.h ./src/include/tpm_lite/tlcl.h
-index 8dd5d80..15fbebf 100644
+index 8dd5d80685..15fbebfde3 100644
 --- ./src/include/tpm_lite/tlcl.h
 +++ ./src/include/tpm_lite/tlcl.h
 @@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
@@ -91,7 +91,7 @@ index 8dd5d80..15fbebf 100644
   */
  uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
 diff --git ./src/lib/Makefile.inc ./src/lib/Makefile.inc
-index 8f92b29..1822daf 100644
+index 8f92b291bb..1822daf301 100644
 --- ./src/lib/Makefile.inc
 +++ ./src/lib/Makefile.inc
 @@ -54,8 +54,13 @@ verstage-$(CONFIG_TPM) += tlcl.c
@@ -110,7 +110,7 @@ index 8f92b29..1822daf 100644
  romstage-$(CONFIG_TPM2) += tpm2_tlcl.c
  endif # CONFIG_VBOOT_SEPARATE_VERSTAGE
 diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
-index 11bce2c..8428245 100644
+index 11bce2c530..8428245f7f 100644
 --- ./src/lib/cbfs.c
 +++ ./src/lib/cbfs.c
 @@ -69,7 +69,11 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
@@ -163,7 +163,7 @@ index 11bce2c..8428245 100644
  
  static inline int tohex4(unsigned int c)
 diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
-index a56d68e..8c13f5f 100644
+index a56d68e3f5..8c13f5f2e6 100644
 --- ./src/lib/hardwaremain.c
 +++ ./src/lib/hardwaremain.c
 @@ -32,6 +32,7 @@
@@ -189,7 +189,7 @@ index a56d68e..8c13f5f 100644
 +}
 +
 diff --git ./src/lib/rmodule.c ./src/lib/rmodule.c
-index a3a74ac..bb99e5f 100644
+index a3a74ac613..bb99e5f9f8 100644
 --- ./src/lib/rmodule.c
 +++ ./src/lib/rmodule.c
 @@ -198,7 +198,7 @@ int rmodule_load(void *base, struct rmodule *module)
@@ -203,7 +203,7 @@ index a3a74ac..bb99e5f 100644
  }
 diff --git ./src/lib/sha1.c ./src/lib/sha1.c
 new file mode 100644
-index 0000000..506907f
+index 0000000000..506907fde1
 --- /dev/null
 +++ ./src/lib/sha1.c
 @@ -0,0 +1,175 @@
@@ -383,7 +383,7 @@ index 0000000..506907f
 +	ctx->count = 0;
 +}
 diff --git ./src/lib/tlcl.c ./src/lib/tlcl.c
-index 49854cb..32eb128 100644
+index 49854cbdcb..32eb128913 100644
 --- ./src/lib/tlcl.c
 +++ ./src/lib/tlcl.c
 @@ -19,6 +19,7 @@
@@ -419,7 +419,7 @@ index 49854cb..32eb128 100644
 +}
 +
 diff --git ./src/northbridge/intel/sandybridge/romstage.c ./src/northbridge/intel/sandybridge/romstage.c
-index 738e285..c7c0c62 100644
+index 738e2851af..c7c0c628d4 100644
 --- ./src/northbridge/intel/sandybridge/romstage.c
 +++ ./src/northbridge/intel/sandybridge/romstage.c
 @@ -29,6 +29,8 @@
@@ -476,7 +476,7 @@ index 738e285..c7c0c62 100644
 +}
 +
 diff --git ./util/cbfstool/lz4/lib/lz4frame.c ./util/cbfstool/lz4/lib/lz4frame.c
-index e5458bb..58fb68f 100644
+index e5458bb9e4..58fb68fbb3 100644
 --- ./util/cbfstool/lz4/lib/lz4frame.c
 +++ ./util/cbfstool/lz4/lib/lz4frame.c
 @@ -1091,7 +1091,7 @@ size_t LZ4F_decompress(LZ4F_decompressionContext_t decompressionContext,
@@ -488,3 +488,36 @@ index e5458bb..58fb68f 100644
          case dstage_storeHeader:
              {
                  size_t sizeToCopy = dctxPtr->tmpInTarget - dctxPtr->tmpInSize;
+diff --git ./util/crossgcc/patches/gcc-6.3.0_pointer_integer.patch ./util/crossgcc/patches/gcc-6.3.0_pointer_integer.patch
+new file mode 100644
+index 0000000000..f34d6cc36e
+--- /dev/null
++++ ./util/crossgcc/patches/gcc-6.3.0_pointer_integer.patch
+@@ -0,0 +1,27 @@
++From 8db2cf6353c13f2a84cbe49b689654897906c499 Mon Sep 17 00:00:00 2001
++From: kyukhin <kyukhin@138bc75d-0d04-0410-961f-82ee72b054a4>
++Date: Sat, 3 Sep 2016 10:57:05 +0000
++Subject: [PATCH] gcc/ 	* ubsan.c (ubsan_use_new_style_p): Fix check for empty
++ string.
++
++git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/trunk@239971 138bc75d-0d04-0410-961f-82ee72b054a4
++---
++ gcc/ubsan.c   | 2 +-
++ 2 files changed, 5 insertions(+), 1 deletion(-)
++
++diff --git a/gcc/ubsan.c b/gcc/ubsan.c
++index 5cbc98dbabb..d3bd8e3393d 100644
++--- a/gcc/ubsan.c
+++++ b/gcc/ubsan.c
++@@ -1469,7 +1469,7 @@ ubsan_use_new_style_p (location_t loc)
++ 
++   expanded_location xloc = expand_location (loc);
++   if (xloc.file == NULL || strncmp (xloc.file, "\1", 2) == 0
++-      || xloc.file == '\0' || xloc.file[0] == '\xff'
+++      || xloc.file[0] == '\0' || xloc.file[0] == '\xff'
++       || xloc.file[1] == '\xff')
++     return false;
++ 
++-- 
++2.13.0
++
