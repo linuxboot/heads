@@ -40,12 +40,18 @@ while true; do
 	fi
 
 	if [ "$totp_confirm" = "u" ]; then
+		if [ "$CONFIG_IO386" = y ]; then
+			lock_chip
+		fi
 		exec /bin/usb-init
 		continue
 	fi
 
 	if [ "$totp_confirm" = "m" ]; then
 		# Try to select a kernel from the menu
+		if [ "$CONFIG_IO386" = y ]; then
+			lock_chip
+		fi
 		mount_boot
 		kexec-select-boot -m -b /boot -c "grub.cfg"
 		continue
@@ -53,10 +59,15 @@ while true; do
 
 	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
 		# Try to boot the default
+		if [ "$CONFIG_IO386" = y ]; then
+			lock_chip
+		fi
 		mount_boot
 		kexec-select-boot -b /boot -c "grub.cfg" \
 		|| recovery "Failed default boot"
 	fi
+
+
 
 done
 

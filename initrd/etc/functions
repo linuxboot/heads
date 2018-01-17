@@ -10,6 +10,13 @@ warn() {
 	echo >&2 "$*";
 }
 
+lock_chip() {
+	APM_CNT=0xb2
+	FIN_CODE=0xcb
+	echo "Finalizing chipset"
+	io386 -o b -b x $APM_CNT $FIN_CODE
+}
+
 recovery() {
 	echo >&2 "!!!!! $*"
 
