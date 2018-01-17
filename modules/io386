@@ -1,0 +1,28 @@
+modules-$(CONFIG_IO386) += io386
+
+io386_depends := $(musl_dep)
+
+io386_version := git
+io386_repo := https://github.com/hardenedlinux/io386
+io386_dir := io386-$(io386_version)
+
+io386_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	SHARED=yes \
+	PREFIX="/" \
+	&& \
+	$(MAKE) \
+	-C $(build)/$(io386_dir) \
+	$(CROSS_TOOLS) \
+	SHARED=yes \
+	PREFIX="/" \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+io386_output := \
+	io386
+
+io386_libraries :=
+
+io386_configure :=
