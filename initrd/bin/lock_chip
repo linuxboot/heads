@@ -1,0 +1,15 @@
+#!/bin/sh
+# For this to work:
+#  - io386 module needs to be enabled in board config (sandy/ivy/haswell know to work)
+#  - coreboot config need to enable CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y without enabling CONFIG_INTEL_CHIPSET_LOCKDOWN
+#  - Heads is actually doing the CONFIG_INTEL_CHIPSET_LOCKDOWN equivalent here.
+# TODO: If more platforms are able to enable CONFIG_INTEL_CHIPSET_LOCKDOWN in the future, have board config export APM_CNT and FIN_CODE and modify this script accordingly
+
+#include ash shell functions (TRACE requires it)
+. /etc/ash_functions
+
+TRACE "Under /bin/lock_chip"
+APM_CNT=0xb2
+FIN_CODE=0xcb
+echo "Finalizing chipset"
+io386 -o b -b x $APM_CNT $FIN_CODE
