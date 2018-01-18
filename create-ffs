@@ -180,7 +180,7 @@ if ($output eq '-')
 {
 	print $ffs;
 } else {
-	open OUTPUT, $output
+	open OUTPUT, ">", $output
 		or die "$output: Unable to open: $!\n";
 
 	print OUTPUT $ffs;
