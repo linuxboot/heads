@@ -137,16 +137,17 @@ $(call map,build-ffs,$(dxe-y))
 $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 
 
-# Generate a firmware file with a well known guid
+# Create a compressed FFS from a volume image
+%.lz.ffs: %.full.vol
+	./bin/create-ffs \
+		--compress \
+		--type FIRMWARE_VOLUME_IMAGE \
+		-o "$@" \
+		"$^"
 
-# If you have to fit within the normal UEFI image, the volume is
-# limited to 0x47 blocks.
-#
-# But you can also replace the entire region from 0x310000
-# up to PEI at 0xE40000, which leaves us almost 11 MB of space.
-#
-# x3550m5 -- pei starts at 0xb00000, bios is from 0x1000 == 0xaff
-nerf-$(BOARD).full.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.$(BOARD).ffs  # blobs/r630/acpi-data.ffs.uncompressed
+
+# Generate a firmware file with a well known guid
+nerf-$(BOARD).full.vol: $(addsuffix .ffs,$(dxe-y)) # Acpi-data.$(BOARD).ffs  # blobs/r630/acpi-data.ffs.uncompressed
 	$(EDK2_DIR)/GenFv \
 		--numberblock $$[$(NERF_FULL_SIZE)/0x1000] \
 		--blocksize 0x1000 \
@@ -154,15 +155,7 @@ nerf-$(BOARD).full.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.$(BOARD).ffs  # blo
 		-o $@ \
 		$(addprefix -f ,$^)
 	@head -2 $@.txt
-	-$(RM) $@.txt $@.map
-
-#nerf-$(BOARD).lz.ffs: nerf-$(BOARD).full.vol
-nerf-$(BOARD).lz.ffs: vendor-$(BOARD).full.rom
-	./bin/create-ffs \
-		--compress \
-		--type FIRMWARE_VOLUME_IMAGE \
-		-o "$@" \
-		"$^"
+	@-$(RM) $@.txt $@.map
 
 nerf-$(BOARD).vol: nerf-$(BOARD).lz.ffs
 	$(EDK2_DIR)/GenFv \
@@ -172,7 +165,8 @@ nerf-$(BOARD).vol: nerf-$(BOARD).lz.ffs
 		-o $@ \
 		$(addprefix -f ,$^)
 	@head -2 $@.txt
-	-$(RM) $@.txt $@.map
+	@-$(RM) $@.txt $@.map
+
 	
 
 # You must provide your own r630.rom as input for the ME and PEI sections.
@@ -203,7 +197,7 @@ vendor-files-y := $(shell awk \
 	blobs/$(BOARD)/vendor-files.txt \
 )
 
-vendor-$(BOARD).full.rom: \
+vendor-$(BOARD).full.vol: \
 	EmuVariableRuntimeDxe.ffs \
 	$(vendor-files-y) \
 	Linux.ffs \
@@ -215,6 +209,17 @@ vendor-$(BOARD).full.rom: \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
 		$(addprefix -f ,$^)
+	@head -2 $@.txt
+	@-$(RM) $@.txt $@.map
 
+vendor-$(BOARD).vol: vendor-$(BOARD).lz.ffs
+	$(EDK2_DIR)/GenFv \
+		--numberblock $$[$(NERF_SIZE)/0x1000] \
+		--blocksize 0x1000 \
+		--FvNameGuid decafbad-89ab-cdef-5a5a-5a5a5a5a5a5a \
+		-o $@ \
+		$(addprefix -f ,$^)
+	@head -2 $@.txt
+	@-$(RM) $@.txt $@.map
 
 nerf.intermediate: edk2.intermediate nerf-$(BOARD).rom
