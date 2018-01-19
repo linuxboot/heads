@@ -30,7 +30,7 @@
 use warnings;
 use strict;
 use Getopt::Long;
-use File::Slurp;
+use File::Temp 'tempfile';
 use Digest::SHA 'sha1';
 
 my $usage = <<"";
@@ -43,6 +43,7 @@ Options:
     -v | --version 1.0            Version section
     -g | --guid GUID              This file GUID (default is hash of Name)
     -d | --depex 'guid guid..'    Optional dependencies (all ANDed, or TRUE)
+    -z | --compress               Enable LZMA compression
 
 my $output = '-';
 my $name;
@@ -50,6 +51,7 @@ my $type = 'FREEFORM';
 my $version;
 my $guid;
 my $depex;
+my $compress;
 
 
 GetOptions(
@@ -59,6 +61,7 @@ GetOptions(
 	"v|version=s"	=> \$version,
 	"g|guid=s"	=> \$guid,
 	"d|depex=s"	=> \$depex,
+	"z|compress+"	=> \$compress,
 ) or die $usage;
 
 
@@ -82,6 +85,7 @@ my %file_types = qw/
 /;
 
 my %section_types = qw/
+	GUID_DEFINED          0x02
 	PE32                  0x10
 	PIC                   0x11
 	TE                    0x12
@@ -143,6 +147,33 @@ if ($guid)
 
 my $file_type = $file_types{$type}
 	or die "$type: unknown file type\n";
+
+# If we're compressing, compress the data and wrap it with a GUIDed header
+if ($compress)
+{
+	my ($fh,$filename) = tempfile();
+	print $fh $data;
+	close $fh;
+
+	# -7 produces the same bit-stream as the UEFI tools
+	my $lz_data = `lzma --compress --stdout -7 $filename`;
+	printf STDERR "%d compressed to %d\n", length($data), length($lz_data);
+
+	# fixup the size field in the lzma compressed data
+	substr($lz_data, 5, 8) = pack("VV", length($data), 0);
+
+	# wrap the lzdata in a GUIDed section
+	my $lz_header = ''
+		. guid('EE4E5898-3914-4259-9D6E-DC7BD79403CF')
+		. chr(0x18)  # data offset
+		. chr(0x00)
+		. chr(0x01)  # Processing required
+		. chr(0x00)
+		;
+
+	# and replace our data with the GUID defined LZ compressed data
+	$data = section(GUID_DEFINED => $lz_header . $lz_data);
+}
 
 # Generate the FFS header around the sections
 my $len = length($data) + 0x18;
@@ -207,6 +238,8 @@ sub ucs16
 
 
 # output an EFI Common Section Header
+# Since we might be dealing with ones larger than 16 MB, we should use extended
+# section type that gives us a 4-byte length.
 sub section
 {
 	my $type = shift;
@@ -216,6 +249,9 @@ sub section
 		unless exists $section_types{$type};
 
 	my $len = length($data) + 4;
+
+	die "Section length $len > 16 MB, can't include it in a section!\n"
+		if $len >= 0x1000000;
 
 	my $sec = ''
 		. chr(($len >>  0) & 0xFF)
