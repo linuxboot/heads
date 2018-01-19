@@ -2,6 +2,8 @@
 # Targets specific for the NERF firmware
 #
 
+NERF_FULL_SIZE=0xF00000
+
 # this assumes that we've already made the edk2 things, via
 # edk2.intermediate or something like that.
 EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
@@ -14,7 +16,21 @@ EDK2_DIR := $(build)/$(edk2_dir)/BaseTools/BinWrappers/PosixLike
 RuntimeArchProtocolGuid	:= b7dfb4e1-052f-449f-87be-9818fc91b733
 AcpiTableProtocolGuid	:= FFE06BDD-6107-46A6-7BB2-5A9C7EC5275C
 SmbiosProtocolGuid	:= 03583ff6-cb36-4940-947e-b9b39f4afaf7
-VariableArchProtocolGuid := 1E5668E2-8481-11D4-BCF1-0080C73C8881
+VariableArchProtocolGuid	:= 1E5668E2-8481-11D4-BCF1-0080C73C8881
+EfiPciRootBridgeIoProtocolGuid	:= 2F707EBB-4A1A-11D4-9A38-0090273FC14D
+EfiPciEnumerationCompleteProtocolGuid := 30cfe3e7-3de1-4586-be20-deaba1b3b793
+EfiPcdProtocolGuid		:= 13a3f0f6-264a-3ef0-f2e0-dec512342f34
+EfiTimerArchProtocolGuid	:= 26BACCB3-6F42-11D4-BCE7-0080C73C8881
+EfiCpuIo2ProtocolGuid		:= ad61f191-ae5f-4c0e-b9fa-e869d288c64f
+EfiIioUdsProtocolGuid		:= A7CED760-C71C-4E1A-ACB1-89604D5216CB
+EfiSmmAccess2ProtocolGuid	:= c2702b74-800c-4131-8746-8fb5b89ce4ac
+EfiSmmControl2ProtocolGuid	:= 843dc720-ab1e-42cb-9357-8a0078f3561b
+IntelRegAccessProtocolGuid	:= FD480A76-B134-4EF7-ADFE-B0E054639807
+EfiMpServiceProtocolGuid	:= 3fdda605-a76e-4f46-ad29-12f4531b3d08
+IntelPlatformTypeGuid		:= a7ced760-c71c-4e1a-acb1-89604d5216cb
+IntelPlatformCpuPolicy		:= ADB7B9E6-70B7-48D4-B6A5-18FA15EBCD78
+IntelCrystalRidgeGuid		:= 626967C7-071B-4D9A-9D0C-F112CF0836E9
+
 
 
 dxe-$(CONFIG_BUNDLE_DXE) += DxeCore
@@ -40,6 +56,17 @@ dxe-$(CONFIG_BUNDLE_DXE) += SmbiosDxe
 SmbiosDxe-guid := F9D88642-0737-49BC-81B5-6889CD57D9EA
 SmbiosDxe-depex := $(RuntimeArchProtocolGuid)
 
+dxe-$(CONFIG_BUNDLE_DXE) += Legacy8259
+Legacy8259-guid := 99998642-0737-49BC-81B5-6889CD57D9EA
+Legacy8259-file := Legacy8259.efi
+Legacy8259-depex := $(RuntimeArchProtocolGuid)
+
+dxe-$(CONFIG_BUNDLE_DXE) += PciBusDxe
+PciBusDxe-depex := $(RuntimeArchProtocolGuid)
+
+dxe-$(CONFIG_BUNDLE_DXE) += PciHostBridgeDxe
+PciHostBridgeDxe-depex := $(RuntimeArchProtocolGuid)
+
 # the VariableStore doesn't work with most vendor firmwares for some reason.
 # instead we link in the EmuRuntimeDxe, which avoids the 
 dxe-n += VariableRuntimeDxe
@@ -54,13 +81,12 @@ EmuVariableRuntimeDxe-depex := $(RuntimeArchProtocolGuid)
 Acpi-data-file := /dev/null
 Acpi-data-guid := 7E374E25-8E01-4FEE-87F2-390C23C606CD
 Acpi-data-filetype := FREEFORM
-Acpi-data.ffs: $(sort blobs/$(BOARD)/acpi/*)
+Acpi-data.$(BOARD).ffs: $(sort blobs/$(BOARD)/acpi/*)
 	./create-ffs \
 		-o $@ \
-		-g $(Acpi-data-guid) \
-		-t FREEFORM \
+		--guid "$(Acpi-data-guid)" \
+		--type FREEFORM \
 		$^
-
 
 dxe-y += Linux
 Linux-file := $(build)/$(linux_dir)/arch/x86/boot/bzImage
@@ -68,6 +94,8 @@ Linux-version := $(linux-version)
 Linux-guid := DECAFBAD-6548-6461-732d-2f2d4e455246
 Linux-depex := \
 	$(RuntimeArchProtocolGuid) \
+
+NO=\
 	$(AcpiTableProtocolGuid) \
 	$(SmbiosProtocolGuid) \
 	$(VariableArchProtocolGuid) \
@@ -85,11 +113,11 @@ define build-ffs =
 $1.ffs: $(or $($1-file),$(build)/$(edk2_dir)/Build/MdeModule/DEBUG_GCC5/X64/$1.efi)
 	./create-ffs \
 		-o "$1.ffs" \
-		-g $($1-guid) \
-		-t $(or $($1-filetype),DRIVER) \
-		-n "$1" \
-		-v "$(or $($1-version),0.1)" \
-		-d "$($1-depex)" \
+		--guid "$($1-guid)" \
+		--type $(or $($1-filetype),DRIVER) \
+		--name "$1" \
+		--version "$(or $($1-version),0.1)" \
+		--depex "$($1-depex)" \
 		$$^
 
 
@@ -118,15 +146,34 @@ $(build)/$(linux_dir)/arch/x86/boot/bzImage: linux.intermediate
 # up to PEI at 0xE40000, which leaves us almost 11 MB of space.
 #
 # x3550m5 -- pei starts at 0xb00000, bios is from 0x1000 == 0xaff
-nerf.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.ffs  # blobs/r630/acpi-data.ffs.uncompressed
+nerf-$(BOARD).full.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.$(BOARD).ffs  # blobs/r630/acpi-data.ffs.uncompressed
 	$(EDK2_DIR)/GenFv \
-		--numberblock $$[$(NERF_SIZE)/0x1000] \
+		--numberblock $$[$(NERF_FULL_SIZE)/0x1000] \
 		--blocksize 0x1000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
 		$(addprefix -f ,$^)
 	@head -2 $@.txt
 	-$(RM) $@.txt $@.map
+
+#nerf-$(BOARD).lz.ffs: nerf-$(BOARD).full.vol
+nerf-$(BOARD).lz.ffs: vendor-$(BOARD).full.rom
+	./create-ffs \
+		--compress \
+		--type FIRMWARE_VOLUME_IMAGE \
+		-o "$@" \
+		"$^"
+
+nerf-$(BOARD).vol: nerf-$(BOARD).lz.ffs
+	$(EDK2_DIR)/GenFv \
+		--numberblock $$[$(NERF_SIZE)/0x1000] \
+		--blocksize 0x1000 \
+		--FvNameGuid 01234567-89ab-cdef-5a5a-5a5a5a5a5a5a \
+		-o $@ \
+		$(addprefix -f ,$^)
+	@head -2 $@.txt
+	-$(RM) $@.txt $@.map
+	
 
 # You must provide your own r630.rom as input for the ME and PEI sections.
 # the ifd is only the first 64k, but we take all the way to the ME region
@@ -151,34 +198,15 @@ nerf-$(BOARD).rom: \
 		exit 1; \
 	fi
 
-#
-# Generate a compressed section
-# LZMA guid is EE4E5898-3914-4259-9D6E-DC7BD79403CF
-# Embedded filesystem is 8C8CE578-8A3D-4F1C-9935-896185C32DD3
-#
-acpi-lz.ffs: blobs/$(BOARD)/acpi-data.ffs
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE \
-		-g 8C8CE578-8A3D-4F1C-9935-896185C32DD3 \
-		-o $<.ffs.fv \
-		-a 16 \
-		-i $<
-	$(EDK2_DIR)/LzmaCompress \
-		-e \
-		-q \
-		-o $<.fv.lz \
-		$<.fv
-	$(EDK2_DIR)/GenSec \
-		-s EFI_SECTION_GUID_DEFINED \
-		-g EE4E5898-3914-4259-9D6E-DC7BD79403CF \
-		-r PROCESSING_REQUIRED \
-		-o $<.fv.lz.sec \
-		$<.fv.lz
-	$(EDK2_DIR)/GenFfs \
-		-t EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE \
-		-g 8C8CE578-8A3D-4F1C-9935-896185C32DD3 \
-		-i $<.fv.lz.sec \
-		-o $@
+vendor-$(BOARD).full.rom: blobs/$(BOARD)/vendor-files.txt Linux.ffs Initrd.ffs
+	$(EDK2_DIR)/GenFv \
+		--numberblock $$[$(NERF_FULL_SIZE)/0x1000] \
+		--blocksize 0x1000 \
+		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
+		-o $@ \
+		`awk '/^[0-9A-Fa-f]/ {print "-f blobs/$(BOARD)/files/file-"$$1"/file.obj"}' $<` \
+		-f Linux.ffs \
+		-f Initrd.ffs \
 
 
 nerf.intermediate: edk2.intermediate nerf-$(BOARD).rom
