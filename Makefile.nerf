@@ -82,7 +82,7 @@ Acpi-data-file := /dev/null
 Acpi-data-guid := 7E374E25-8E01-4FEE-87F2-390C23C606CD
 Acpi-data-filetype := FREEFORM
 Acpi-data.$(BOARD).ffs: $(sort blobs/$(BOARD)/acpi/*)
-	./create-ffs \
+	./bin/create-ffs \
 		-o $@ \
 		--guid "$(Acpi-data-guid)" \
 		--type FREEFORM \
@@ -111,7 +111,7 @@ Initrd-guid := 74696e69-6472-632e-7069-6f2f62696f73
 
 define build-ffs =
 $1.ffs: $(or $($1-file),$(build)/$(edk2_dir)/Build/MdeModule/DEBUG_GCC5/X64/$1.efi)
-	./create-ffs \
+	./bin/create-ffs \
 		-o "$1.ffs" \
 		--guid "$($1-guid)" \
 		--type $(or $($1-filetype),DRIVER) \
@@ -158,7 +158,7 @@ nerf-$(BOARD).full.vol: $(addsuffix .ffs,$(dxe-y)) Acpi-data.$(BOARD).ffs  # blo
 
 #nerf-$(BOARD).lz.ffs: nerf-$(BOARD).full.vol
 nerf-$(BOARD).lz.ffs: vendor-$(BOARD).full.rom
-	./create-ffs \
+	./bin/create-ffs \
 		--compress \
 		--type FIRMWARE_VOLUME_IMAGE \
 		-o "$@" \
@@ -198,15 +198,23 @@ nerf-$(BOARD).rom: \
 		exit 1; \
 	fi
 
-vendor-$(BOARD).full.rom: blobs/$(BOARD)/vendor-files.txt Linux.ffs Initrd.ffs
+vendor-files-y := $(shell awk \
+	'/^[0-9A-Fa-f]/ {print "blobs/$(BOARD)/files/file-"$$1"/file.obj"}' \
+	blobs/$(BOARD)/vendor-files.txt \
+)
+
+vendor-$(BOARD).full.rom: \
+	EmuVariableRuntimeDxe.ffs \
+	$(vendor-files-y) \
+	Linux.ffs \
+	Initrd.ffs \
+
 	$(EDK2_DIR)/GenFv \
 		--numberblock $$[$(NERF_FULL_SIZE)/0x1000] \
 		--blocksize 0x1000 \
 		--FvNameGuid 4652454e-482f-6165-6473-2f4c696e7578 \
 		-o $@ \
-		`awk '/^[0-9A-Fa-f]/ {print "-f blobs/$(BOARD)/files/file-"$$1"/file.obj"}' $<` \
-		-f Linux.ffs \
-		-f Initrd.ffs \
+		$(addprefix -f ,$^)
 
 
 nerf.intermediate: edk2.intermediate nerf-$(BOARD).rom
