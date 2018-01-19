@@ -353,7 +353,7 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
 	cd "$(initrd_dir)"; \
 	find . \
 	| cpio --quiet -H newc -o \
-	| $(pwd)/cpio-clean \
+	| $(pwd)/bin/cpio-clean \
 		$(pwd)/dev.cpio \
 		- \
 		> "$(pwd)/$@" \
