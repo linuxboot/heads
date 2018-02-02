@@ -1,5 +1,5 @@
 diff --git a/config.sh b/config.sh
-index 4e321c9..336c65b 100644
+index 4e321c9..6d9ea32 100644
 --- a/config.sh
 +++ b/config.sh
 @@ -1,13 +1,15 @@
@@ -32,3 +32,30 @@ index 4e321c9..336c65b 100644
 +
 +# Build GMP, MPFR and MPC
 +GCC_BUILTIN_PREREQS=yes
+diff --git a/defs.sh b/defs.sh
+index f76a2ac..9184123 100644
+--- a/defs.sh
++++ b/defs.sh
+@@ -221,19 +221,19 @@ muslfetchextract() {
+ gccprereqs() {
+     if [ ! -e gcc-$GCC_VERSION/gmp ]
+     then
+-        fetchextract http://gmplib.org/download/gmp/ gmp-$GMP_VERSION .tar.bz2
++        fetchextract https://gmplib.org/download/gmp/ gmp-$GMP_VERSION .tar.bz2
+         mv gmp-$GMP_VERSION gcc-$GCC_VERSION/gmp
+     fi
+ 
+     if [ ! -e gcc-$GCC_VERSION/mpfr ]
+     then
+-        fetchextract http://ftp.gnu.org/gnu/mpfr/ mpfr-$MPFR_VERSION .tar.bz2
++        fetchextract https://ftp.gnu.org/gnu/mpfr/ mpfr-$MPFR_VERSION .tar.bz2
+         mv mpfr-$MPFR_VERSION gcc-$GCC_VERSION/mpfr
+     fi
+ 
+     if [ ! -e gcc-$GCC_VERSION/mpc ]
+     then
+-        fetchextract http://www.multiprecision.org/mpc/download/ mpc-$MPC_VERSION .tar.gz
++        fetchextract https://ftp.gnu.org/gnu/mpc/ mpc-$MPC_VERSION .tar.gz
+         mv mpc-$MPC_VERSION gcc-$GCC_VERSION/mpc
+     fi
+ }
