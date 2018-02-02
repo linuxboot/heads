@@ -1,6 +1,15 @@
-diff -u --recursive ../clean/gnupg-1.4.21/configure gnupg-1.4.21/configure
---- ../clean/gnupg-1.4.21/configure	2016-08-17 09:20:25.000000000 -0400
-+++ gnupg-1.4.21/configure	2017-04-05 17:59:31.785284325 -0400
+diff -u --recursive /home/hudson/build/clean/gnupg-1.4.21/configure gnupg-1.4.21/configure
+--- /home/hudson/build/clean/gnupg-1.4.21/configure	2016-08-17 09:20:25.000000000 -0400
++++ gnupg-1.4.21/configure	2018-01-20 16:55:14.502067084 -0500
+@@ -572,7 +572,7 @@
+ ac_clean_files=
+ ac_config_libobj_dir=.
+ LIBOBJS=
+-cross_compiling=no
++cross_compiling=yes
+ subdirs=
+ MFLAGS=
+ MAKEFLAGS=
 @@ -17100,7 +17100,7 @@
          _libusb_try_libs=`$LIBS $_usb_config --libs`
          _libusb_try_cflags=`$LIBS $_usb_config --cflags`
@@ -18,9 +27,9 @@ diff -u --recursive ../clean/gnupg-1.4.21/configure gnupg-1.4.21/configure
  #include <usb.h>
  int
  main ()
-diff -u --recursive ../clean/gnupg-1.4.21/util/ttyio.c gnupg-1.4.21/util/ttyio.c
---- ../clean/gnupg-1.4.21/util/ttyio.c	2016-04-22 03:30:18.000000000 -0400
-+++ gnupg-1.4.21/util/ttyio.c	2017-04-05 18:33:05.000125354 -0400
+diff -u --recursive /home/hudson/build/clean/gnupg-1.4.21/util/ttyio.c gnupg-1.4.21/util/ttyio.c
+--- /home/hudson/build/clean/gnupg-1.4.21/util/ttyio.c	2016-04-22 03:30:18.000000000 -0400
++++ gnupg-1.4.21/util/ttyio.c	2018-01-20 13:44:46.186273642 -0500
 @@ -183,7 +183,8 @@
  #elif defined(__EMX__)
      ttyfp = stdout; /* Fixme: replace by the real functions: see wklib */
