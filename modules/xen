@@ -1,13 +1,20 @@
 modules-$(CONFIG_XEN) += xen
 
+ifeq "$(CONFIG_XEN_VERSION)" "4.8"
+	xen_base_version := 4.8.2
+	xen_version := $(xen_base_version)-11
+	xen_hash := 417bd9585cf8c460812475023bdb80ee964a51205783922b673bed3226d6b91d
+else
+	xen_base_version := 4.6.6
+	xen_version := $(xen_base_version)-35
+	xen_hash := af1089c84c277d1d88d25b62184fa21518828e034b08dbb4b039a6c1f6676e55
+endif
+
 # We extract the entire Xen tree, but only use the xen/xen hypervisor
 # portion since Qubes provides the rest of it.
-xen_base_version := 4.6.5
-xen_version := $(xen_base_version)-28
-xen_dir := qubes-vmm-xen-$(xen_version)/
+xen_dir := qubes-vmm-xen-$(xen_version)
 xen_tar := qubes-vmm-xen-$(xen_version).tar.gz
 xen_url := https://github.com/QubesOS/qubes-vmm-xen/archive/v$(xen_version).tar.gz
-xen_hash := 314b01af6726ed7b09dfd72ff8b224636d822d432790765287abeedc81fd86b2
 
 xen_depends := musl-cross
 
@@ -23,4 +30,5 @@ xen_target := \
 	XEN_BUILD_TIME=00:00:00 \
 	XEN_BUILD_HOST=xen-buildhost \
 	CC="$(CROSS)gcc -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-builtin-macro-redefined -D__FILE__=\\\"__FILE__\\\"" \
+	HOSTCC="gcc" \
 	xen.gz

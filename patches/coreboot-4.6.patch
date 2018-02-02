@@ -1,8 +1,8 @@
-diff --git a/src/Kconfig b/src/Kconfig
-index 91b27ce..2e9beb9 100644
---- a/src/Kconfig
-+++ b/src/Kconfig
-@@ -365,6 +365,21 @@ config BOOTSPLASH_FILE
+diff --git ./src/Kconfig ./src/Kconfig
+index 49f8672..4ca811d 100644
+--- ./src/Kconfig
++++ ./src/Kconfig
+@@ -259,6 +259,21 @@ config BOOTSPLASH_FILE
  	  The path and filename of the file to use as graphical bootsplash
  	  screen. The file format has to be jpg.
  
@@ -24,11 +24,24 @@ index 91b27ce..2e9beb9 100644
  endmenu
  
  menu "Mainboard"
-diff --git a/src/include/sha1.h b/src/include/sha1.h
+diff --git ./src/include/program_loading.h ./src/include/program_loading.h
+index 416e2e9..40486cd 100644
+--- ./src/include/program_loading.h
++++ ./src/include/program_loading.h
+@@ -24,6 +24,8 @@ enum {
+ 	/* Last segment of program. Can be used to take different actions for
+ 	 * cache maintenance of a program load. */
+ 	SEG_FINAL = 1 << 0,
++	/* Indicate that the program segment should not be measured */
++	SEG_NO_MEASURE = 1 << 1,
+ };
+ 
+ enum prog_type {
+diff --git ./src/include/sha1.h ./src/include/sha1.h
 new file mode 100644
 index 0000000..e7e28e6
 --- /dev/null
-+++ b/src/include/sha1.h
++++ ./src/include/sha1.h
 @@ -0,0 +1,31 @@
 +/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
 + * Use of this source code is governed by a BSD-style license that can be
@@ -61,12 +74,12 @@ index 0000000..e7e28e6
 +uint8_t *sha1_final(struct sha1_ctx *ctx);
 +
 +#endif  /* _sha1_h_ */
-diff --git a/src/include/tpm_lite/tlcl.h b/src/include/tpm_lite/tlcl.h
-index 8ea5564..c600d78 100644
---- a/src/include/tpm_lite/tlcl.h
-+++ b/src/include/tpm_lite/tlcl.h
+diff --git ./src/include/tpm_lite/tlcl.h ./src/include/tpm_lite/tlcl.h
+index 8dd5d80..15fbebf 100644
+--- ./src/include/tpm_lite/tlcl.h
++++ ./src/include/tpm_lite/tlcl.h
 @@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
-                      uint8_t *out_digest);
+ 		     uint8_t *out_digest);
  
  /**
 + * Perform a SHA1 hash on a region and extend a PCR with the hash.
@@ -77,47 +90,43 @@ index 8ea5564..c600d78 100644
   * Get the entire set of permanent flags.
   */
  uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
-diff --git a/src/lib/Makefile.inc b/src/lib/Makefile.inc
-index 67f8364..20b359a 100644
---- a/src/lib/Makefile.inc
-+++ b/src/lib/Makefile.inc
-@@ -56,7 +56,14 @@ else
- libverstage-$(CONFIG_TPM) += tlcl.c
- libverstage-$(CONFIG_TPM2) += tpm2_marshaling.c
- libverstage-$(CONFIG_TPM2) += tpm2_tlcl.c
-+
+diff --git ./src/lib/Makefile.inc ./src/lib/Makefile.inc
+index 8f92b29..1822daf 100644
+--- ./src/lib/Makefile.inc
++++ ./src/lib/Makefile.inc
+@@ -54,8 +54,13 @@ verstage-$(CONFIG_TPM) += tlcl.c
+ verstage-$(CONFIG_TPM2) += tpm2_marshaling.c
+ verstage-$(CONFIG_TPM2) += tpm2_tlcl.c
+ 
+-ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
 +# Add the TPM support into the ROM stage for measuring the bootblock
-+romstage-$(CONFIG_TPM) += tlcl.c
+ romstage-$(CONFIG_TPM) += tlcl.c
 +romstage-$(CONFIG_TPM) += sha1.c
 +ramstage-$(CONFIG_TPM) += tlcl.c
 +ramstage-$(CONFIG_TPM) += sha1.c
- endif
-+$(info yes)
- 
- verstage-$(CONFIG_GENERIC_UDELAY) += timer.c
- verstage-$(CONFIG_GENERIC_GPIO_LIB) += gpio.c
-diff --git a/src/lib/cbfs.c b/src/lib/cbfs.c
-index 5a2f63f..c5b145d 100644
---- a/src/lib/cbfs.c
-+++ b/src/lib/cbfs.c
-@@ -69,9 +69,15 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
++
++ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM2) += tpm2_marshaling.c
+ romstage-$(CONFIG_TPM2) += tpm2_tlcl.c
+ endif # CONFIG_VBOOT_SEPARATE_VERSTAGE
+diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
+index 11bce2c..8428245 100644
+--- ./src/lib/cbfs.c
++++ ./src/lib/cbfs.c
+@@ -69,7 +69,11 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
  	if (size != NULL)
  		*size = fsize;
  
 -	return rdev_mmap(&fh.data, 0, fsize);
 +	void * buffer = rdev_mmap(&fh.data, 0, fsize);
 +
-+	prog_segment_loaded((uintptr_t)buffer, fsize, SEG_FINAL);
++	prog_segment_loaded((uintptr_t)buffer, fsize, 0);
 +
 +	return buffer;
  }
  
-+
-+
- size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
- 	size_t in_size, void *buffer, size_t buffer_size, uint32_t compression)
- {
-@@ -83,7 +89,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
+@@ -97,7 +101,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  			return 0;
  		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
  			return 0;
@@ -127,7 +136,7 @@ index 5a2f63f..c5b145d 100644
  
  	case CBFS_COMPRESS_LZ4:
  		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
-@@ -101,7 +108,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -115,7 +120,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  		timestamp_add_now(TS_START_ULZ4F);
  		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
  		timestamp_add_now(TS_END_ULZ4F);
@@ -136,7 +145,7 @@ index 5a2f63f..c5b145d 100644
  
  	case CBFS_COMPRESS_LZMA:
  		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
-@@ -120,11 +127,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -134,11 +139,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  
  		rdev_munmap(rdev, map);
  
@@ -147,17 +156,17 @@ index 5a2f63f..c5b145d 100644
  		return 0;
  	}
 +
-+	prog_segment_loaded((uintptr_t)buffer, out_size, SEG_FINAL);
++	prog_segment_loaded((uintptr_t)buffer, out_size, 0);
 +
 +	return out_size;
  }
  
  static inline int tohex4(unsigned int c)
-diff --git a/src/lib/hardwaremain.c b/src/lib/hardwaremain.c
-index ab4d9f4..01d83cb 100644
---- a/src/lib/hardwaremain.c
-+++ b/src/lib/hardwaremain.c
-@@ -31,6 +31,7 @@
+diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
+index a56d68e..8c13f5f 100644
+--- ./src/lib/hardwaremain.c
++++ ./src/lib/hardwaremain.c
+@@ -32,6 +32,7 @@
  #include <reset.h>
  #include <boot/tables.h>
  #include <program_loading.h>
@@ -165,7 +174,7 @@ index ab4d9f4..01d83cb 100644
  #include <lib.h>
  #if CONFIG_HAVE_ACPI_RESUME
  #include <arch/acpi.h>
-@@ -526,3 +527,13 @@ void boot_state_current_unblock(void)
+@@ -544,3 +545,13 @@ void boot_state_current_unblock(void)
  {
  	boot_state_unblock(current_phase.state_id, current_phase.seq);
  }
@@ -173,57 +182,30 @@ index ab4d9f4..01d83cb 100644
 +// ramstage measurements go into PCR3 if we are doing measured boot
 +void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 +{
-+	if (IS_ENABLED(CONFIG_MEASURED_BOOT))
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
 +	{
 +		tlcl_measure(3, (const void*) start, size);
 +	}
 +}
 +
-diff --git a/src/lib/rmodule.c b/src/lib/rmodule.c
-index 7043157..e3c6ef5 100644
---- a/src/lib/rmodule.c
-+++ b/src/lib/rmodule.c
-@@ -125,10 +125,21 @@ static inline size_t rmodule_number_relocations(const struct rmodule *module)
+diff --git ./src/lib/rmodule.c ./src/lib/rmodule.c
+index a3a74ac..bb99e5f 100644
+--- ./src/lib/rmodule.c
++++ ./src/lib/rmodule.c
+@@ -198,7 +198,7 @@ int rmodule_load(void *base, struct rmodule *module)
+ 	rmodule_clear_bss(module);
  
- static void rmodule_copy_payload(const struct rmodule *module)
- {
--	printk(BIOS_DEBUG, "Loading module at %p with entry %p. "
--	       "filesize: 0x%x memsize: 0x%x\n",
--	       module->location, rmodule_entry(module),
--	       module->payload_size, rmodule_memory_size(module));
-+	const size_t mem_size = rmodule_memory_size(module);
-+
-+	printk(BIOS_DEBUG, "Loading module at %p/%p with entry %p. "
-+	       "filesize: 0x%x memsize: 0x%zx\n",
-+	       module->location, module->payload, rmodule_entry(module),
-+	       module->payload_size, mem_size);
-+
-+	// zero the excess memory if there is any
-+	if (mem_size > module->payload_size)
-+	{
-+		memset((uint8_t*) module->location + module->payload_size,
-+			0,
-+			mem_size - module->payload_size
-+		);
-+	}
+ 	prog_segment_loaded((uintptr_t)module->location,
+-				rmodule_memory_size(module), SEG_FINAL);
++				rmodule_memory_size(module), SEG_FINAL | SEG_NO_MEASURE);
  
- 	/* No need to copy the payload if the load location and the
- 	 * payload location are the same. */
-@@ -162,7 +173,8 @@ static int rmodule_relocate(const struct rmodule *module)
- 		printk(PK_ADJ_LEVEL, "Adjusting %p: 0x%08lx -> 0x%08lx\n",
- 		       adjust_loc, (unsigned long) *adjust_loc,
- 		       (unsigned long) (*adjust_loc + adjustment));
--			*adjust_loc += adjustment;
-+
-+		*adjust_loc += adjustment;
- 
- 		reloc++;
- 		num_relocations--;
-diff --git a/src/lib/sha1.c b/src/lib/sha1.c
+ 	return 0;
+ }
+diff --git ./src/lib/sha1.c ./src/lib/sha1.c
 new file mode 100644
 index 0000000..506907f
 --- /dev/null
-+++ b/src/lib/sha1.c
++++ ./src/lib/sha1.c
 @@ -0,0 +1,175 @@
 +/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 + * Use of this source code is governed by a BSD-style license that can be
@@ -400,11 +382,11 @@ index 0000000..506907f
 +	ctx->state[4] = 0xC3D2E1F0;
 +	ctx->count = 0;
 +}
-diff --git a/src/lib/tlcl.c b/src/lib/tlcl.c
-index ccf4e80..fe78b70 100644
---- a/src/lib/tlcl.c
-+++ b/src/lib/tlcl.c
-@@ -18,6 +18,7 @@
+diff --git ./src/lib/tlcl.c ./src/lib/tlcl.c
+index 49854cb..32eb128 100644
+--- ./src/lib/tlcl.c
++++ ./src/lib/tlcl.c
+@@ -19,6 +19,7 @@
  #include <string.h>
  #include <tpm_lite/tlcl.h>
  #include <tpm.h>
@@ -412,7 +394,7 @@ index ccf4e80..fe78b70 100644
  #include <vb2_api.h>
  #include "tlcl_internal.h"
  #include "tlcl_structures.h"
-@@ -325,3 +326,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t* in_digest,
+@@ -351,3 +352,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
  		       kPcrDigestLength);
  	return result;
  }
@@ -436,10 +418,10 @@ index ccf4e80..fe78b70 100644
 +	return tlcl_extend(pcr_num, hash, NULL);
 +}
 +
-diff --git a/src/northbridge/intel/sandybridge/romstage.c b/src/northbridge/intel/sandybridge/romstage.c
-index a2ca1c1..df80286 100644
---- a/src/northbridge/intel/sandybridge/romstage.c
-+++ b/src/northbridge/intel/sandybridge/romstage.c
+diff --git ./src/northbridge/intel/sandybridge/romstage.c ./src/northbridge/intel/sandybridge/romstage.c
+index 738e285..c7c0c62 100644
+--- ./src/northbridge/intel/sandybridge/romstage.c
++++ ./src/northbridge/intel/sandybridge/romstage.c
 @@ -29,6 +29,8 @@
  #include <device/device.h>
  #include <halt.h>
@@ -465,7 +447,7 @@ index a2ca1c1..df80286 100644
 +		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
 +	}
 +
- 	/* USB is inited in MRC if MRC is used.  */
+ 	/* USB is initialized in MRC if MRC is used.  */
  	if (CONFIG_USE_NATIVE_RAMINIT) {
  		early_usb_init(mainboard_usb_ports);
 @@ -116,9 +130,23 @@ void mainboard_romstage_entry(unsigned long bist)
@@ -487,27 +469,22 @@ index a2ca1c1..df80286 100644
 +
 +void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 +{
-+	if (IS_ENABLED(CONFIG_MEASURED_BOOT))
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
 +	{
 +		tlcl_measure(2, (const void*) start, size);
 +	}
 +}
 +
-diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
-index 4883754..1037fe0 100755
---- a/util/crossgcc/buildgcc
-+++ b/util/crossgcc/buildgcc
-@@ -502,6 +502,13 @@ set_hostcflags_from_gmp() {
- }
-
- build_GMP() {
-+	# Check if GCC enables `-pie` by default (possible since GCC 6).
-+	# We need PIC in all static libraries then.
-+	if "${CC}" -dumpspecs 2>/dev/null | grep -q '[{;][[:space:]]*:-pie\>'
-+	then
-+		OPTIONS="$OPTIONS --with-pic"
-+	fi
-+
-	CC="$CC" ../${GMP_DIR}/configure --disable-shared --enable-fat \
-		--prefix=$TARGETDIR $OPTIONS \
-		|| touch .failed
+diff --git ./util/cbfstool/lz4/lib/lz4frame.c ./util/cbfstool/lz4/lib/lz4frame.c
+index e5458bb..58fb68f 100644
+--- ./util/cbfstool/lz4/lib/lz4frame.c
++++ ./util/cbfstool/lz4/lib/lz4frame.c
+@@ -1091,7 +1091,7 @@ size_t LZ4F_decompress(LZ4F_decompressionContext_t decompressionContext,
+                 dctxPtr->tmpInTarget = minFHSize;   /* minimum to attempt decode */
+                 dctxPtr->dStage = dstage_storeHeader;
+             }
+-
++            /* Falls through. */
+         case dstage_storeHeader:
+             {
+                 size_t sizeToCopy = dctxPtr->tmpInTarget - dctxPtr->tmpInSize;

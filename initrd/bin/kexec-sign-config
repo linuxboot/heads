@@ -17,6 +17,8 @@ if [ -z "$paramsdir" ]; then
 	die "Usage: $0 -p /boot [ -u | -c counter ]"
 fi
 
+paramsdir="${paramsdir%%/}"
+
 confirm_gpg_card
 
 if [ "$rollback" = "y" ]; then
@@ -52,6 +54,8 @@ for tries in 1 2 3; do
 		-a \
 		> $paramsdir/kexec.sig \
 	; then
+		# successful - update the validated params
+		check_config $paramsdir
 		exit 0
 	fi
 done
