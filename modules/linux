@@ -39,6 +39,10 @@ linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci_platform.ko
 linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci.ko
 linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci_platform.ko
 
+# Solarflare network card
+linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/ethernet/sfc/sfc.ko
+linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/mdio.ko
+
 # USB modules for both types of controllers
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
@@ -53,8 +57,8 @@ linux_target := \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_MODULE="$(EXTRA_FLAGS)" \
-	KBUILD_BUILD_USER=user \
-	KBUILD_BUILD_HOST=heads-build \
+	KBUILD_BUILD_USER="$(GIT_HASH)" \
+	KBUILD_BUILD_HOST=linuxboot \
 	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
 	KBUILD_BUILD_VERSION=0 \
 	$(MAKE_JOBS) \
