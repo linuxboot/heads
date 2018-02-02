@@ -11,6 +11,7 @@ unique="n"
 valid_hash="n"
 valid_global_hash="n"
 valid_rollback="n"
+force_menu="n"
 while getopts "b:d:p:a:r:c:uim" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
@@ -20,7 +21,7 @@ while getopts "b:d:p:a:r:c:uim" arg; do
 		r) remove="$OPTARG" ;;
 		c) config="$OPTARG" ;;
 		u) unique="y" ;;
-		m) show_menu="y" ;;
+		m) force_menu="y" ;;
 		i) valid_hash="y"; valid_rollback="y" ;;
 	esac
 done
@@ -36,6 +37,10 @@ fi
 if [ -z "$paramsdir" ]; then
 	paramsdir="$bootdir"
 fi
+
+bootdir="${bootdir%%/}"
+paramsdev="${paramsdev%%/}"
+paramsdir="${paramsdir%%/}"
 
 verify_global_hashes()
 {
@@ -149,6 +154,7 @@ save_default_option() {
 			echo "+++ Saved defaults to device"
 			sleep 2
 			default_failed="n"
+			force_menu="n"
 			return
 		else
 			echo "Failed to save defaults"
@@ -168,9 +174,7 @@ default_select() {
 	expectedoption=`cat $TMP_DEFAULT_FILE`
 	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
 	if [ "$option" != "$expectedoption" ]; then
-		warn "!!! Boot entry has changed - please set a new default"
-		sleep 5
-		return
+		die "!!! Boot entry has changed - please set a new default"
 	fi
 	parse_option
 
@@ -181,7 +185,7 @@ default_select() {
 		echo "+++ Verified default boot hashes "
 		valid_hash='y'
 	else
-		die "$TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
+		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
 	fi
 
 	echo "+++ Executing default boot for $name:"
@@ -204,8 +208,15 @@ user_select() {
 	done
 
 	if [ "$option_confirm" = "d" ]; then
-		# reload settings to reflect new default
-		continue
+		if [ ! -r "$TMP_KEY_DEVICES" ]; then
+			# rerun primary boot loop to boot the new default option
+			continue
+		else
+			echo "+++ Rebooting to start the new default option"
+			sleep 2
+			reboot \
+			|| die "!!! Failed to reboot system"
+		fi
 	fi
 
 	do_boot
@@ -214,13 +225,11 @@ user_select() {
 do_boot()
 {
 	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
-		warn "!!! Missing required rollback counter state"
-		return
+		die "!!! Missing required rollback counter state"
 	fi
 
 	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
-		warn "!!! Missing required boot hashes"
-		return
+		die "!!! Missing required boot hashes"
 	fi
 
 	if [ -r "$TMP_KEY_DEVICES" ]; then
@@ -282,6 +291,7 @@ while true; do
 	fi
 
 	if [ "$default_failed" != "y" \
+		-a "$force_menu" = "n" \
 		-a -r "$TMP_DEFAULT_FILE" \
 		-a -r "$TMP_DEFAULT_HASH_FILE" ] \
 	; then
