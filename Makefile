@@ -1,3 +1,5 @@
+-include .config
+
 modules-y 	:=
 pwd 		:= $(shell pwd)
 packages 	:= $(pwd)/packages
@@ -12,6 +14,10 @@ MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir -p "$(log_dir)")
+
+# Some things want usernames, we use the current checkout
+# so that they are reproducible
+GIT_HASH	:= $(shell git rev-parse HEAD)
 
 # Timestamps should be in ISO format
 DATE=`date --rfc-3339=seconds`
@@ -90,7 +96,7 @@ CROSS_TOOLS := \
 ifeq "$(CONFIG_COREBOOT)" "y"
 all: $(BOARD).rom
 else
-all: nerf-$(BOARD).rom
+all: linux.intermediate initrd.cpio.xz
 endif
 
 # Disable all built in rules
@@ -450,8 +456,6 @@ bootstrap:
 		-j`nproc` \
 		musl-cross.intermediate \
 		$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc \
-
-include Makefile.nerf
 
 else
 # Wrong make version detected -- build our local version
