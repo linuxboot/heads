@@ -1,0 +1,329 @@
+#!/usr/bin/perl
+# Create a UEFI "Firmware File" (FFS) with optional features.
+# Address Size  Designation
+# ------- ----  -----------
+# 
+# EFI_FFS_FILE_HEADER:
+# 0x0000  16    Name (EFI_GUID)
+# 0x0010  1     IntegrityCheck.Header (Header Checksum)
+# 0x0011  1     IntegrityCheck.File -> set to 0xAA (FFS_FIXED_CHECKSUM) and clear bit 0x40 of Attributes
+# 0x0012  1     FileType -> 0x07 = EFI_FV_FILETYPE_DRIVER
+# 0x0013  1     Attributes -> 0x00
+# 0x0014  3     Size, including header and all other sections
+# 0x0017  1     State (unused) -> 0X00
+# 
+# EFI_COMMON_SECTION_HEADER:
+# 0x0000  3     Size, including this header
+# 0x0003  1     Type -> 0x10 (EFI_SECTION_PE32)
+# 0x0004  ####  <PE data>
+# 
+# EFI_COMMON_SECTION_HEADER:
+# 0x0000  3     Size, including this header
+# 0x0003  1     Type -> 0x15 (EFI_SECTION_USER_INTERFACE)
+# 0x0004  ####  NUL terminated UTF-16 string (eg "FAT\0")
+# 
+# EFI_COMMON_SECTION_HEADER:
+# 0x0000  3     Size, including this header
+# 0x0003  1     Type -> 0x14 (EFI_SECTION_VERSION)
+# 0x0004  ####  NUL terminated UTF-16 string (eg "1.0\0")
+
+use warnings;
+use strict;
+use Getopt::Long;
+use File::Temp 'tempfile';
+use Digest::SHA 'sha1';
+
+my $usage = <<"";
+Usage:
+    $0 -o output.ffs [options] file.efi [...]
+Options:
+    -o | --output output.ffs      Output file (default is stdout)
+    -n | --name FileName          Name to include in UI Section 
+    -t | --type Type              FREEFORM|DRIVER|SMM|DXE_CORE|SMM_CORE|PEIM
+    -v | --version 1.0            Version section
+    -g | --guid GUID              This file GUID (default is hash of Name)
+    -d | --depex 'guid guid..'    Optional dependencies (all ANDed, or TRUE)
+    -z | --compress               Enable LZMA compression
+
+my $output = '-';
+my $name;
+my $type = 'FREEFORM';
+my $version;
+my $guid;
+my $depex;
+my $compress;
+
+
+GetOptions(
+	"o|output=s"	=> \$output,
+	"n|name=s"	=> \$name,
+	"t|type=s"	=> \$type,
+	"v|version=s"	=> \$version,
+	"g|guid=s"	=> \$guid,
+	"d|depex=s"	=> \$depex,
+	"z|compress+"	=> \$compress,
+) or die $usage;
+
+
+my %file_types = qw/
+	RAW                   0x01
+	FREEFORM              0x02
+	SECURITY_CORE         0x03
+	PEI_CORE              0x04
+	DXE_CORE              0x05
+	PEIM                  0x06
+	DRIVER                0x07
+	COMBINED_PEIM_DRIVER  0x08
+	APPLICATION           0x09
+	SMM                   0x0A
+	FIRMWARE_VOLUME_IMAGE 0x0B
+	COMBINED_SMM_DXE      0x0C
+	SMM_CORE              0x0D
+	DEBUG_MIN             0xe0
+	DEBUG_MAX             0xef
+	FFS_PAD               0xf0
+/;
+
+my %section_types = qw/
+	GUID_DEFINED          0x02
+	PE32                  0x10
+	PIC                   0x11
+	TE                    0x12
+	DXE_DEPEX             0x13
+	VERSION               0x14
+	USER_INTERFACE        0x15
+	COMPATIBILITY16       0x16
+	FIRMWARE_VOLUME_IMAGE 0x17
+	FREEFORM_SUBTYPE_GUID 0x18
+	RAW                   0x19
+	PEI_DEPEX             0x1B
+	SMM_DEPEX             0x1C
+/;
+
+# Some special cases for non-PE32 sections
+my %section_type_map = qw/
+	FREEFORM		RAW
+	FIRMWARE_VOLUME_IMAGE	FIRMWARE_VOLUME_IMAGE
+/;
+
+# Special cases for DEPEX sections
+my %depex_type_map = qw/
+	PEIM			PEI_DEPX
+	DRIVER			DXE_DEPEX
+	SMM			SMM_DEPEX
+/;
+
+my $data = '';
+
+$data .= section(USER_INTERFACE => ucs16($name))
+	if $name;
+
+$data .= section(VERSION => ucs16(chr(0x00) . $version))
+	if $version;
+
+$data .= depex($type, split /\s+/, $depex)
+	if $depex;
+
+# Read entire files at a time and append a new section
+# for each file read.  Some special types have their own
+# section type; otherwise we're adding a PE32
+local $/ = undef;
+while(<>)
+{
+	$data .= section($section_type_map{$type} || 'PE32', $_);
+}
+
+
+# If no GUID was provided, make one from the name
+# if there is no name from the data
+if ($guid)
+{
+	$guid = guid($guid);
+} else {
+	# Generate a deterministic GUID based on either
+	# the UI name or the hash of the input data
+	$guid = substr(sha1($name || $data), 0, 16);
+}
+
+my $file_type = $file_types{$type}
+	or die "$type: unknown file type\n";
+
+# If we're compressing, compress the data and wrap it with a GUIDed header
+if ($compress)
+{
+	my ($fh,$filename) = tempfile();
+	print $fh $data;
+	close $fh;
+
+	# -7 produces the same bit-stream as the UEFI tools
+	my $lz_data = `lzma --compress --stdout -7 $filename`;
+	printf STDERR "%d compressed to %d\n", length($data), length($lz_data);
+
+	# fixup the size field in the lzma compressed data
+	substr($lz_data, 5, 8) = pack("VV", length($data), 0);
+
+	# wrap the lzdata in a GUIDed section
+	my $lz_header = ''
+		. guid('EE4E5898-3914-4259-9D6E-DC7BD79403CF')
+		. chr(0x18)  # data offset
+		. chr(0x00)
+		. chr(0x01)  # Processing required
+		. chr(0x00)
+		;
+
+	# and replace our data with the GUID defined LZ compressed data
+	$data = section(GUID_DEFINED => $lz_header . $lz_data);
+}
+
+# Generate the FFS header around the sections
+my $len = length($data) + 0x18;
+
+my $ffs = ''
+	. $guid			# 0x00
+	. chr(0x00)		# 0x10 header checksum
+	. chr(0x00)		# 0x11 FFS_FIXED_CHECKSUM
+	. chr(hex $file_type)	# 0x12
+	. chr(0x28)		# 0x13 attributes
+	. chr(($len >>  0) & 0xFF) # 0x14 length
+	. chr(($len >>  8) & 0xFF)
+	. chr(($len >> 16) & 0xFF)
+	. chr(0x07)		# 0x17 state (done?)
+	;
+
+# fixup the header checksum
+my $sum = 0;
+for my $i (0..length($ffs)-2) {
+	$sum -= ord(substr($ffs, $i, 1));
+}
+
+substr($ffs, 0x10, 2) = chr($sum & 0xFF) . chr(0xAA);
+
+# Add the rest of the data
+$ffs .= $data;
+
+# should we pad to align the FFS length?
+#my $unaligned = length($ffs) % 8;
+#$ffs .= chr(0x00) x (8 - $unaligned)
+#	if $unaligned != 0;
+
+
+if ($output eq '-')
+{
+	print $ffs;
+} else {
+	open OUTPUT, ">", $output
+		or die "$output: Unable to open: $!\n";
+
+	print OUTPUT $ffs;
+	close OUTPUT;
+}
+
+
+# Convert a string to UCS-16 and add a nul terminator
+sub ucs16
+{
+	my $val = shift;
+
+	my $rc = '';
+	for(my $i = 0 ; $i < length $val ; $i++)
+	{
+		$rc .= substr($val, $i, 1) . chr(0x0);
+	}
+
+	# nul terminate the string
+	$rc .= chr(0x0) . chr(0x0);
+
+	return $rc;
+}
+
+
+# output an EFI Common Section Header
+# Since we might be dealing with ones larger than 16 MB, we should use extended
+# section type that gives us a 4-byte length.
+sub section
+{
+	my $type = shift;
+	my $data = shift;	
+
+	die "$type: Unknown section type\n"
+		unless exists $section_types{$type};
+
+	my $len = length($data) + 4;
+
+	die "Section length $len > 16 MB, can't include it in a section!\n"
+		if $len >= 0x1000000;
+
+	my $sec = ''
+		. chr(($len >>  0) & 0xFF)
+		. chr(($len >>  8) & 0xFF)
+		. chr(($len >> 16) & 0xFF)
+		. chr(hex $section_types{$type})
+		. $data;
+
+	my $unaligned = length($sec) % 4;
+	$sec .= chr(0x00) x (4 - $unaligned)
+		if $unaligned != 0;
+
+	return $sec;
+}
+
+
+# convert text GUID to hex
+sub guid
+{
+	my $guid = shift;
+	my ($g1,$g2,$g3,$g4,$g5) =
+		$guid =~ /
+			([0-9a-fA-F]{8})
+			-([0-9a-fA-F]{4})
+			-([0-9a-fA-F]{4})
+			-([0-9a-fA-F]{4})
+			-([0-9([0-9a-fA-F]{12})
+		/x
+		or die "$guid: Unable to parse guid\n";
+
+	return pack("VvvnCCCCCC",
+		hex $g1,
+		hex $g2,
+		hex $g3,
+		hex $g4,
+		hex substr($g5, 0, 2),
+		hex substr($g5, 2, 2),
+		hex substr($g5, 4, 2),
+		hex substr($g5, 6, 2),
+		hex substr($g5, 8, 2),
+		hex substr($g5,10, 2),
+	);
+}
+
+
+# Generate a DEPEX 
+sub depex
+{
+	my $type = shift;
+
+	my $section_type = $depex_type_map{$type}
+		or die "$type: DEPEX is not supported\n";
+
+	if ($depex eq 'TRUE')
+	{
+		# Special case for short-circuit
+		return section($section_type, chr(0x06) . chr(0x08));
+	}
+
+	my $data = '';
+	my $count = 0;
+
+	for my $guid (@_)
+	{
+		# push the guid
+		$data .= chr(0x02) . guid($guid);
+		$count++;
+	}
+
+	# AND them all together (1 minus the number of GUIDs)
+	$data .= chr(0x03) for 1..$count-1;
+	$data .= chr(0x08);
+	
+	return section($section_type, $data);
+}
