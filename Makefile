@@ -96,7 +96,7 @@ CROSS_TOOLS := \
 ifeq "$(CONFIG_COREBOOT)" "y"
 all: $(BOARD).rom
 else
-all: linux.intermediate initrd.cpio.xz
+all: linux.intermediate initrd-$(BOARD).cpio.xz
 endif
 
 # Disable all built in rules
@@ -292,7 +292,7 @@ $(foreach m, $(modules-y), \
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
-initrd.cpio: busybox.intermediate
+initrd-$(BOARD).cpio: busybox.intermediate
 initrd_bins += $(initrd_bin_dir)/busybox
 
 $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
@@ -328,7 +328,7 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 #
 define linux_module =
 $(build)/$(linux_dir)/$1: linux.intermediate
-initrd.cpio: $(initrd_lib_dir)/modules/$(notdir $1)
+initrd-$(BOARD).cpio: $(initrd_lib_dir)/modules/$(notdir $1)
 $(initrd_lib_dir)/modules/$(notdir $1): $(build)/$(linux_dir)/$1
 	@-mkdir -p "$(initrd_lib_dir)/modules"
 	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --preserve-dates --strip-debug -o "$$@" "$$<")
@@ -350,7 +350,7 @@ $(call map,linux_module,$(linux_modules-y))
 # unlikely that their device file has a different major/minor)
 #
 #
-initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
+initrd-$(BOARD).cpio: $(initrd_bins) $(initrd_libs) blobs/dev.cpio FORCE
 	$(call do,OVERLAY,initrd,\
 		tar -C ./initrd -cf - . | tar -C "$(initrd_dir)" -xf - \
 	)
@@ -360,13 +360,13 @@ initrd.cpio: $(initrd_bins) $(initrd_libs) dev.cpio FORCE
 	find . \
 	| cpio --quiet -H newc -o \
 	| $(pwd)/bin/cpio-clean \
-		$(pwd)/dev.cpio \
+		$(pwd)/blobs/dev.cpio \
 		- \
 		> "$(pwd)/$@" \
 	)
 	$(call do,RM,$(initrd_dir),$(RM) -rf "$(initrd_dir)")
 
-initrd.intermediate: initrd.cpio
+initrd.intermediate: initrd-$(BOARD).cpio
 
 
 #
@@ -375,8 +375,8 @@ initrd.intermediate: initrd.cpio
 # and the extra padding is to ensure that it can be concatenated to
 # other cpio files.
 #
-coreboot.intermediate: $(build)/$(coreboot_dir)/initrd.cpio.xz
-$(build)/$(coreboot_dir)/initrd.cpio.xz: initrd.cpio
+coreboot.intermediate: $(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz
+$(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz: initrd-$(BOARD).cpio.xz
 
 %.xz: %
 	$(call do,COMPRESS,$<,\
