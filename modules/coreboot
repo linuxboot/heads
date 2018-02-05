@@ -8,10 +8,9 @@ coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
 coreboot_hash := ecfc57f3e16543fe38f83171eaa3a7933098387d0cf597933b7e89a0c95ef531
 
-
 # Coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
-#coreboot_config := coreboot-$(TARGET).config
+CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
@@ -19,21 +18,20 @@ coreboot_configure := \
 	$(MAKE) \
 		oldconfig \
 		obj=./$(BOARD) \
-		DOTCONFIG=../../config/coreboot-$(BOARD).config \
+		DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
 		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
 	obj=./$(BOARD) \
-	DOTCONFIG=../../config/coreboot-$(BOARD).config \
+	DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	$(MAKE_JOBS)
 
 coreboot_output := $(BOARD)/coreboot.rom
-
 
 # hack to force a build dependency on the cross compiler
 $(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
@@ -45,12 +43,20 @@ $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc: $(build)/$(coreboo
 
 # The coreboot-blobs must be unpacked before we can build coreboot
 # if we are using a tar file; git checkout will clone the submodule.
+# The Linux kernel and Heads initrd must be built before linuxboot
+# unless the user has specified "FAST=1" on the make command line,
+# which will assume that the kernel and initrd are fresh
+ifneq "$(FAST)" "1"
 coreboot_depends := linux initrd
+coreboot.intermediate: $(build)/$(BOARD)/bzImage
+coreboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
+endif
 
-ifneq "$(coreboot_version)" "git"
 
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree
+ifneq "$(coreboot_version)" "git"
+
 coreboot_depends += coreboot-blobs
 modules-y += coreboot-blobs
 
