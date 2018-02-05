@@ -221,7 +221,7 @@ define define_module =
     # Copy the stored config file into the unpacked directory
     $($1_config_file_path): $($1_config) $(build)/$($1_dir)/.canary
 	@mkdir -p $$(dir $$@)
-	$(call do-copy,config/$($1_config),$$@)
+	$(call do-copy,$($1_config),$$@)
   endif
 
   # Use the module's configure variable to build itself
