@@ -13,15 +13,16 @@ linux_board_dir := $(build)/$(linux_dir)/$(BOARD)
 
 # input file in the heads config/ dir
 # Allow board config to specialize Linux configuration if necessary
-linux_config := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
+linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 
 # output file in the build dir
-linux_config_file := $(BOARD)/.config
+linux_config_file := .config-$(BOARD)
 
 linux_configure := \
 	$(MAKE) \
 		CROSS_COMPILE="$(CROSS)" \
 		O="$(linux_board_dir)" \
+		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		oldconfig \
 
 linux_output += $(build)/$(BOARD)/bzImage
@@ -69,6 +70,7 @@ EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
 	O="$(linux_board_dir)" \
+	KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
@@ -123,4 +125,3 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 $(build)/$(BOARD)/bzImage: linux.intermediate
 $(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
-

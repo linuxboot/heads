@@ -56,3 +56,11 @@ linuxboot_depends := linux initrd
 linuxboot.intermediate: $(build)/$(BOARD)/bzImage
 linuxboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
 endif
+
+
+linuxboot.run: $(build)/$(BOARD)/linuxboot.rom
+	$(MAKE) -C $(build)/$(linuxboot_dir)  \
+		BOARD:=$(linuxboot_board) \
+		KERNEL=$(build)/$(BOARD)/bzImage \
+		INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
+		run
