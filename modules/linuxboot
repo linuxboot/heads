@@ -1,0 +1,63 @@
+modules-$(CONFIG_LINUXBOOT) += linuxboot
+
+linuxboot_version := git
+linuxboot_repo := https://github.com/osresearch/linuxboot
+linuxboot_dir := linuxboot-$(linuxboot_version)
+
+
+linuxboot_configure := \
+	touch .config
+
+# linuxboot builds are specialized on a per-target basis.
+# They can be specialized by defining $(linuxboot-board),
+# otherwise it is assumed that it will have the same name
+# as the Heads BOARD.
+linuxboot-board ?= $(BOARD)
+
+linuxboot_target := \
+	BOARD:=$(linuxboot-board) \
+	KERNEL=$(build)/$(BOARD)/bzImage \
+	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
+	all
+
+
+#
+# Most mainboards will define a ROM file that contains the vendor ROM
+# for the image.  If so, we copy it into the linuxboot tree.
+#
+ifneq "$(CONFIG_LINUXBOOT_ROM)" ""
+
+ifneq "y" "$(shell [ -r '$(CONFIG_LINUXBOOT_ROM)' ] && echo y)"
+$(error $(CONFIG_LINUXBOOT_ROM): you must provide a ROM file)
+endif
+
+linuxboot-vendor-rom := $(build)/$(linuxboot_dir)/boards/$(linuxboot-board)/$(notdir $(CONFIG_LINUXBOOT_ROM))
+linuxboot.intermediate: $(linuxboot-vendor-rom)
+$(linuxboot-vendor-rom): $(CONFIG_LINUXBOOT_ROM)
+	$(call do-copy,$<,$@)
+endif
+
+# The output file from the LinuxBoot build is a full ROM
+# ready to flash onto the mainboard.  There might be partial
+# firmware volumes as well, but that depends on the board
+# so this only retrieves the final one
+linuxboot_output := $(build)/$(linuxboot_dir)/build/$(linuxboot-board)/linuxboot.rom
+
+$(linuxboot_output): linuxboot.intermediate
+
+$(build)/$(BOARD)/linuxboot.rom: $(linuxboot_output)
+	$(call do-copy,$<,$@)
+
+# The Linux kernel and Heads initrd must be built before linuxboot
+# unless the user has specified "FAST=1" on the make command line,
+# which will assume that the kernel and initrd are fresh
+ifneq "$(FAST)" "1"
+linuxboot_depends := linux initrd
+endif
+
+# The bzImage and initrd must be built, but the dependency
+# might not be there if FAST is defined.
+linuxboot.intermediate: \
+	$(build)/$(BOARD)/bzImage \
+	$(build)/$(BOARD)/initrd.cpio.xz \
+

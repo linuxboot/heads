@@ -16,8 +16,12 @@ linux_configure := \
 		CROSS_COMPILE="$(CROSS)" \
 		oldconfig \
 
-linux_output := arch/x86/boot/bzImage
-linux_config := linux.config
+linux_output += $(build)/$(BOARD)/bzImage
+
+# linux.intermediate: $(linux_output)
+#linux_output += $(build)/$(BOARD)/modules.cpio
+
+linux_config ?= linux.config  # Allow board config to specialize Linux
 
 # qemu
 linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
@@ -43,15 +47,16 @@ linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci_platform.ko
 linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/ethernet/sfc/sfc.ko
 linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/mdio.ko
 
+# Mellanox ConnectX-3 (winterfell)
+linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko
+linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
+
 # USB modules for both types of controllers
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
-
-linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko
-linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
@@ -68,3 +73,46 @@ linux_target := \
 
 # We cross compile linux now
 linux_depends := musl-cross
+
+#
+# Linux kernel module installation
+#
+# This is special cases since we have to do a special strip operation on
+# the kernel modules to make them fit into the ROM image.
+#
+module_initrd_dir	:= $(shell mktemp -d)
+module_initrd_lib_dir	:= $(module_initrd_dir)/lib/modules
+FOO := $(shell mkdir -p "$(module_initrd_lib_dir)")
+
+define linux_module =
+
+# Each module depends on building the Linux kernel
+$(build)/$(linux_dir)/$1: linux.intermediate # $(build)/$(BOARD)/bzImage
+
+# The cpio file will depend on every module
+$(build)/$(BOARD)/modules.cpio: $(module_initrd_lib_dir)/$(notdir $1)
+
+# Strip the modules when we install them so that they will be extra small
+$(module_initrd_lib_dir)/$(notdir $1): $(build)/$(linux_dir)/$1
+	$(call do,INSTALL-MODULE,$1, \
+		$(CROSS)strip \
+			--preserve-dates \
+			--strip-debug \
+			-o "$$@" \
+			"$$<" \
+	)
+endef
+
+$(call map,linux_module,$(linux_modules-y))
+
+# We can't rebuild the module initrd until the kernel has been rebuilt
+$(build)/$(BOARD)/modules.cpio: linux.intermediate
+	$(call do-cpio,$@,$(module_initrd_dir))
+	@$(RM) -rf "$(module_initrd_dir)"
+
+
+# hack for the coreboot to find the linux kernel
+$(build)/$(BOARD)/bzImage: linux.intermediate
+$(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
+	$(call do-copy,$<,$@)
+
