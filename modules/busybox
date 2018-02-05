@@ -7,7 +7,7 @@ busybox_url := https://busybox.net/downloads/$(busybox_tar)
 busybox_hash := da3e44913fc1a9c9b7c5337ea5292da518683cbff32be630777f565d6036af16
 
 busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
-busybox_config := busybox.config
+busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
 	$(CROSS_TOOLS) \
