@@ -5,15 +5,23 @@ linux_dir := linux-$(linux_version)
 linux_tar := linux-$(linux_version).tar.xz
 linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
-linux-4.9.7_hash := 0b61283b71c7397cb6b5ac3497845d3cdf8137ecd16ab39c8ac6cf5bb90e33dc
-linux-4.9.20_hash := 48660806dd32fb8dcbcf5932291bf6cc7d29240070372230871e0f56fea81341
 linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
 
 linux_hash := $(linux-$(linux_version)_hash)
 
+linux_board_dir := $(build)/$(linux_dir)/$(BOARD)
+
+# input file in the heads config/ dir
+# Allow board config to specialize Linux configuration if necessary
+linux_config ?= linux.config
+
+# output file in the build dir
+linux_config_file := $(BOARD)/.config
+
 linux_configure := \
 	$(MAKE) \
 		CROSS_COMPILE="$(CROSS)" \
+		O="$(linux_board_dir)" \
 		oldconfig \
 
 linux_output += $(build)/$(BOARD)/bzImage
@@ -21,7 +29,6 @@ linux_output += $(build)/$(BOARD)/bzImage
 # linux.intermediate: $(linux_output)
 #linux_output += $(build)/$(BOARD)/modules.cpio
 
-linux_config ?= linux.config  # Allow board config to specialize Linux
 
 # qemu
 linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
@@ -61,6 +68,7 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
+	O="$(linux_board_dir)" \
 	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
@@ -87,13 +95,13 @@ FOO := $(shell mkdir -p "$(module_initrd_lib_dir)")
 define linux_module =
 
 # Each module depends on building the Linux kernel
-$(build)/$(linux_dir)/$1: linux.intermediate # $(build)/$(BOARD)/bzImage
+$(linux_board_dir)/$1: linux.intermediate # $(build)/$(BOARD)/bzImage
 
 # The cpio file will depend on every module
 $(build)/$(BOARD)/modules.cpio: $(module_initrd_lib_dir)/$(notdir $1)
 
 # Strip the modules when we install them so that they will be extra small
-$(module_initrd_lib_dir)/$(notdir $1): $(build)/$(linux_dir)/$1
+$(module_initrd_lib_dir)/$(notdir $1): $(linux_board_dir)/$1
 	$(call do,INSTALL-MODULE,$1, \
 		$(CROSS)strip \
 			--preserve-dates \
@@ -113,6 +121,6 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 
 # hack for the coreboot to find the linux kernel
 $(build)/$(BOARD)/bzImage: linux.intermediate
-$(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
+$(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
 
