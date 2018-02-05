@@ -1,0 +1,19 @@
+modules-$(CONFIG_FROTZ) += frotz
+
+frotz_version := 2.44
+frotz_dir := frotz-$(frotz_version)
+frotz_tar := frotz-$(frotz_version).tar.gz
+frotz_url := https://github.com/DavidGriffith/frotz/archive/$(frotz_version).tar.gz
+frotz_hash := dbb5eb3bc95275dcb984c4bdbaea58bc1f1b085b20092ce6e86d9f0bf3ba858f
+
+frotz_configure := touch .config
+
+frotz_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	dumb && \
+	mv $(build)/$(frotz_dir)/dfrotz $(build)/$(frotz_dir)/frotz
+
+frotz_output := frotz
+
+frotz_depends := $(musl_dep)
