@@ -162,7 +162,7 @@ define do-cpio =
 endef
 
 define do-copy =
-	$(call do,COPY,$(2:$(pwd)/%=%),\
+	$(call do,COPY,$1 => $2',\
 		sha256sum "$(1:$(pwd)/%=%)" ; \
 		if ! cmp --quiet "$1" "$2" ; then \
 			cp -a "$1" "$2"; \
@@ -225,7 +225,7 @@ define define_module =
   endif
 
   # Use the module's configure variable to build itself
-  $(dir $($1_config_file_path))/.configured: \
+  $(dir $($1_config_file_path)).configured: \
 		$(build)/$($1_dir)/.canary \
 		$($1_config_file_path) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
@@ -252,7 +252,7 @@ define define_module =
   $1.intermediate: \
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
-		$(dir $($1_config_file_path))/.configured \
+		$(dir $($1_config_file_path)).configured \
 
 	@echo "$(DATE) MAKE $1"
 	@( \
