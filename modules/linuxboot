@@ -53,11 +53,6 @@ $(build)/$(BOARD)/linuxboot.rom: $(linuxboot_output)
 # which will assume that the kernel and initrd are fresh
 ifneq "$(FAST)" "1"
 linuxboot_depends := linux initrd
+linuxboot.intermediate: $(build)/$(BOARD)/bzImage
+linuxboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
 endif
-
-# The bzImage and initrd must be built, but the dependency
-# might not be there if FAST is defined.
-linuxboot.intermediate: \
-	$(build)/$(BOARD)/bzImage \
-	$(build)/$(BOARD)/initrd.cpio.xz \
-
