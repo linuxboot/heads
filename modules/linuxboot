@@ -9,13 +9,13 @@ linuxboot_configure := \
 	touch .config
 
 # linuxboot builds are specialized on a per-target basis.
-# They can be specialized by defining $(linuxboot-board),
+# They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)
 # otherwise it is assumed that it will have the same name
 # as the Heads BOARD.
-linuxboot-board ?= $(BOARD)
+linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
 
 linuxboot_target := \
-	BOARD:=$(linuxboot-board) \
+	BOARD:=$(linuxboot_board) \
 	KERNEL=$(build)/$(BOARD)/bzImage \
 	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
 	all
@@ -31,7 +31,7 @@ ifneq "y" "$(shell [ -r '$(CONFIG_LINUXBOOT_ROM)' ] && echo y)"
 $(error $(CONFIG_LINUXBOOT_ROM): you must provide a ROM file)
 endif
 
-linuxboot-vendor-rom := $(build)/$(linuxboot_dir)/boards/$(linuxboot-board)/$(notdir $(CONFIG_LINUXBOOT_ROM))
+linuxboot-vendor-rom := $(build)/$(linuxboot_dir)/boards/$(linuxboot_board)/$(notdir $(CONFIG_LINUXBOOT_ROM))
 linuxboot.intermediate: $(linuxboot-vendor-rom)
 $(linuxboot-vendor-rom): $(CONFIG_LINUXBOOT_ROM)
 	$(call do-copy,$<,$@)
@@ -41,7 +41,7 @@ endif
 # ready to flash onto the mainboard.  There might be partial
 # firmware volumes as well, but that depends on the board
 # so this only retrieves the final one
-linuxboot_output := $(build)/$(linuxboot_dir)/build/$(linuxboot-board)/linuxboot.rom
+linuxboot_output := $(build)/$(linuxboot_dir)/build/$(linuxboot_board)/linuxboot.rom
 
 $(linuxboot_output): linuxboot.intermediate
 

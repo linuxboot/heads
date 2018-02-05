@@ -219,7 +219,7 @@ define define_module =
 	@touch "$$@"
   else
     # Copy the stored config file into the unpacked directory
-    $($1_config_file_path): config/$($1_config) $(build)/$($1_dir)/.canary
+    $($1_config_file_path): $($1_config) $(build)/$($1_dir)/.canary
 	@mkdir -p $$(dir $$@)
 	$(call do-copy,config/$($1_config),$$@)
   endif
