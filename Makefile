@@ -4,16 +4,25 @@ modules-y 	:=
 pwd 		:= $(shell pwd)
 packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
-config		:= $(pwd)/build
+config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
+
+BOARD		?= qemu
+CONFIG		:= $(pwd)/boards/$(BOARD).config
+
+ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
+$(error $(CONFIG): board configuration does not exist)
+endif
+
+include $(CONFIG)
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		:= $(shell nproc)
 MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell [ -d "$(log_dir)" ] || mkdir -p "$(log_dir)")
+BUILD_LOG := $(shell mkdir -p "$(log_dir)" "$(build)/$(BOARD)" )
 
 # Some things want usernames, we use the current checkout
 # so that they are reproducible
@@ -28,13 +37,13 @@ ifeq "$V" ""
 VERBOSE_REDIRECT := > /dev/null
 # Not verbose, so we only show the header
 define do =
-	@echo "$(DATE) $1 $2"
+	@echo "$(DATE) $1 $(2:$(pwd)/%=%)"
 	@$3
 endef
 else
 # Verbose, so we display what we are doing
 define do =
-	@echo "$(DATE) $1 $2"
+	@echo "$(DATE) $1 $(2:$(pwd)/%=%)"
 	$3
 endef
 endif
@@ -54,12 +63,12 @@ initrd_bin_dir	:= $(initrd_dir)/bin
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 $(shell echo "Initrd: $initrd_dir")
 
-ifeq "$(CONFIG)" ""
-CONFIG := config/qemu-moc.config
-$(eval $(shell echo >&2 "$(DATE) CONFIG is not set, defaulting to $(CONFIG)"))
-endif
-
-include $(CONFIG)
+#ifeq "$(CONFIG)" ""
+#CONFIG := config/qemu-moc.config
+#$(eval $(shell echo >&2 "$(DATE) CONFIG is not set, defaulting to $(CONFIG)"))
+#endif
+#
+#include $(CONFIG)
 
 # We are running our own version of make,
 # proceed with the build.
@@ -67,9 +76,6 @@ include $(CONFIG)
 # Force pipelines to fail if any of the commands in the pipe fail
 SHELL := /bin/bash
 .SHELLFLAGS := -o pipefail -c
-
-# Currently supported targets are x230, chell and qemu
-BOARD		?= qemu
 
 # If musl-libc is being used in the initrd, set the heads_cc
 # variable to point to it.
@@ -95,8 +101,10 @@ CROSS_TOOLS := \
 
 ifeq "$(CONFIG_COREBOOT)" "y"
 all: $(BOARD).rom
+else ifeq "$(CONFIG_LINUXBOOT)" "y"
+all: $(build)/$(BOARD)/linuxboot.rom
 else
-all: linux.intermediate initrd-$(BOARD).cpio.xz
+$(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
 # Disable all built in rules
@@ -133,6 +141,36 @@ $(foreach m,$1,\
 	$(call libs,$m)\
 )
 endef
+
+#
+# Build a cpio from a directory
+#
+define do-cpio =
+	$(call do,CPIO,$1,\
+		( cd "$2"; \
+		find . \
+		| cpio \
+			--quiet \
+			-H newc \
+			-o \
+		) > "$1.tmp" \
+	)
+	@if ! cmp --quiet "$1.tmp" "$1" ; then \
+		mv "$1.tmp" "$1" ; \
+	else \
+		rm "$1.tmp" ; \
+	fi
+endef
+
+define do-copy =
+	$(call do,CP,$2,\
+		sha256sum "$(1:$(pwd)/%=%)" ; \
+		if ! cmp --quiet "$1" "$2" ; then \
+			cp -a "$1" "$2"; \
+		fi
+	)
+endef
+
 
 #
 # Generate the targets for a module.
@@ -257,7 +295,7 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	$(call do,INSTALL-BIN,$$<,cp -a "$$<" "$$@")
+	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a "$$<" "$$@")
 	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
@@ -265,11 +303,13 @@ endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
-	$(call do,INSTALL-LIB,$$@,$(CROSS)strip --preserve-dates -o "$$@" "$$<")
+	$(call do,INSTALL-LIB,$(1:$(pwd)/%=%),\
+		$(CROSS)strip --preserve-dates -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
 # Only some modules have binaries that we install
+# Shouldn't this be specified in the module file?
 bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
@@ -292,7 +332,7 @@ $(foreach m, $(modules-y), \
 #$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
-initrd-$(BOARD).cpio: busybox.intermediate
+$(build)/$(BOARD)/heads.cpio: busybox.intermediate
 initrd_bins += $(initrd_bin_dir)/busybox
 
 $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
@@ -321,22 +361,6 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 	)
 
 #
-# Linux kernel module installation
-#
-# This is special cases since we have to do a special strip operation on
-# the kernel modules to make them fit into the ROM image.
-#
-define linux_module =
-$(build)/$(linux_dir)/$1: linux.intermediate
-initrd-$(BOARD).cpio: $(initrd_lib_dir)/modules/$(notdir $1)
-$(initrd_lib_dir)/modules/$(notdir $1): $(build)/$(linux_dir)/$1
-	@-mkdir -p "$(initrd_lib_dir)/modules"
-	$(call do,INSTALL-MODULE,$$@,$(CROSS)strip --preserve-dates --strip-debug -o "$$@" "$$<")
-endef
-$(call map,linux_module,$(linux_modules-y))
-
-
-#
 # initrd image creation
 #
 # The initrd is constructed from various bits and pieces
@@ -349,24 +373,47 @@ $(call map,linux_module,$(linux_modules-y))
 # is a chance the build will not be reproducible (although
 # unlikely that their device file has a different major/minor)
 #
-#
-initrd-$(BOARD).cpio: $(initrd_bins) $(initrd_libs) blobs/dev.cpio FORCE
-	$(call do,OVERLAY,initrd,\
-		tar -C ./initrd -cf - . | tar -C "$(initrd_dir)" -xf - \
-	)
-	$(call do,INSTALL,$(CONFIG),cp "$(CONFIG)" "$(initrd_dir)/etc/config")
-	$(call do,CPIO,$@, \
-	cd "$(initrd_dir)"; \
-	find . \
-	| cpio --quiet -H newc -o \
-	| $(pwd)/bin/cpio-clean \
-		$(pwd)/blobs/dev.cpio \
-		- \
-		> "$(pwd)/$@" \
-	)
-	$(call do,RM,$(initrd_dir),$(RM) -rf "$(initrd_dir)")
 
-initrd.intermediate: initrd-$(BOARD).cpio
+initrd-y += $(pwd)/blobs/dev.cpio
+initrd-y += $(build)/$(BOARD)/heads.cpio
+initrd-y += $(build)/$(BOARD)/modules.cpio
+initrd-y += $(build)/$(BOARD)/tools.cpio
+
+initrd.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
+$(build)/$(BOARD)/initrd.cpio.xz: $(initrd-y)
+	$(call do,CPIO-CLEAN,$@,\
+	$(pwd)/bin/cpio-clean \
+		$^ \
+	| xz \
+		--check=crc32 \
+		--lzma2=dict=1MiB \
+		-9 \
+	| dd bs=512 conv=sync > "$@" \
+	)
+	@sha256sum "$(@:$(pwd)/%=%)"
+
+#
+# The heads.cpio is built from the initrd directory in the
+# Heads tree.
+#
+$(build)/$(BOARD)/heads.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/initrd)
+
+
+#
+# The tools initrd is made from all of the things that we've
+# created during the submodule build.
+#
+$(build)/$(BOARD)/tools.cpio: \
+	$(initrd_bins) \
+	$(initrd_libs) \
+
+	$(call do,INSTALL,$(CONFIG), \
+		mkdir -p "$(initrd_dir)/etc" ; \
+		cp "$(CONFIG)" "$(initrd_dir)/etc/config" \
+	)
+	$(call do-cpio,$@,$(initrd_dir))
+	@$(RM) -rf "$(initrd_dir)"
 
 
 #
@@ -375,26 +422,10 @@ initrd.intermediate: initrd-$(BOARD).cpio
 # and the extra padding is to ensure that it can be concatenated to
 # other cpio files.
 #
-coreboot.intermediate: $(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz
-$(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz: initrd-$(BOARD).cpio.xz
+coreboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
+coreboot.intermediate: $(build)/$(BOARD)/bzImage
+#$(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz: initrd-$(BOARD).cpio.xz
 
-%.xz: %
-	$(call do,COMPRESS,$<,\
-	xz \
-		--check=crc32 \
-		--lzma2=dict=1MiB \
-		-9 \
-		< "$<" \
-	| dd bs=512 conv=sync > "$@" \
-	)
-	@sha256sum "$@"
-
-# hack for the coreboot to find the linux kernel
-$(build)/$(coreboot_dir)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	$(call do,COPY,$@,cp "$^" "$@")
-	@sha256sum "$@"
-
-coreboot.intermediate: $(build)/$(coreboot_dir)/bzImage
 
 
 # Each board output has its own fixup required to turn the coreboot.rom
