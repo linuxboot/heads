@@ -18,7 +18,6 @@ dropbear_configure := ./configure \
 	--disable-wtmp \
 	--disable-wtmpx \
 	
-dropbear_config :=
 dropbear_output := ssh scp dropbear
 dropbear_target := \
 	$(MAKE_JOBS) \
