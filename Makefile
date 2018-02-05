@@ -61,7 +61,6 @@ initrd_lib_dir	:= $(initrd_dir)/lib
 initrd_bin_dir	:= $(initrd_dir)/bin
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
-$(shell echo "Initrd: $initrd_dir")
 
 #ifeq "$(CONFIG)" ""
 #CONFIG := config/qemu-moc.config
@@ -163,7 +162,7 @@ define do-cpio =
 endef
 
 define do-copy =
-	$(call do,CP,$2,\
+	$(call do,COPY,$(2:$(pwd)/%=%),\
 		sha256sum "$(1:$(pwd)/%=%)" ; \
 		if ! cmp --quiet "$1" "$2" ; then \
 			cp -a "$1" "$2"; \
@@ -209,20 +208,26 @@ define define_module =
 	@touch "$$@"
   endif
 
+  # Allow the module to override the destination configuration file
+  # via a relative path.  Linux uses this to have a per-board build.
+  $(eval $1_config_file_path := $(build)/$($1_dir)/$(or $($1_config_file),.config))
+
   ifeq "$($1_config)" ""
     # There is no official .config file
-    $(build)/$($1_dir)/.config: $(build)/$($1_dir)/.canary
+    $($1_config_file_path): $(build)/$($1_dir)/.canary
+	@mkdir -p $$(dir $$@)
 	@touch "$$@"
   else
     # Copy the stored config file into the unpacked directory
-    $(build)/$($1_dir)/.config: config/$($1_config) $(build)/$($1_dir)/.canary
-	$(call do,COPY,"$$<",cp "$$<" "$$@")
+    $($1_config_file_path): config/$($1_config) $(build)/$($1_dir)/.canary
+	@mkdir -p $$(dir $$@)
+	$(call do-copy,config/$($1_config),$$@)
   endif
 
   # Use the module's configure variable to build itself
-  $(build)/$($1_dir)/.configured: \
+  $(dir $($1_config_file_path))/.configured: \
 		$(build)/$($1_dir)/.canary \
-		$(build)/$($1_dir)/.config \
+		$($1_config_file_path) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
 		modules/$1
 	@echo "$(DATE) CONFIG $1"
@@ -247,7 +252,8 @@ define define_module =
   $1.intermediate: \
 		$(foreach d,$($1_depends),$d.intermediate) \
 		$(foreach d,$($1_depends),$(call outputs,$d)) \
-		$(build)/$($1_dir)/.configured
+		$(dir $($1_config_file_path))/.configured \
+
 	@echo "$(DATE) MAKE $1"
 	@( \
 		echo "$(MAKE) \
