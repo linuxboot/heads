@@ -13,7 +13,7 @@ linux_board_dir := $(build)/$(linux_dir)/$(BOARD)
 
 # input file in the heads config/ dir
 # Allow board config to specialize Linux configuration if necessary
-linux_config := $(or $(CONFIG_LINUX_CONFIG,linux.config))
+linux_config := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 
 # output file in the build dir
 linux_config_file := $(BOARD)/.config
