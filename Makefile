@@ -100,7 +100,7 @@ CROSS_TOOLS := \
 
 
 ifeq "$(CONFIG_COREBOOT)" "y"
-all: $(BOARD).rom
+all: $(build)/$(BOARD)/coreboot.rom
 else ifeq "$(CONFIG_LINUXBOOT)" "y"
 all: $(build)/$(BOARD)/linuxboot.rom
 else
@@ -416,33 +416,13 @@ $(build)/$(BOARD)/tools.cpio: \
 	@$(RM) -rf "$(initrd_dir)"
 
 
-#
-# Compress the initrd into a xz file that can be included by coreboot.
-# The extra options are necessary to let the Linux kernel decompress it
-# and the extra padding is to ensure that it can be concatenated to
-# other cpio files.
-#
-coreboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
-coreboot.intermediate: $(build)/$(BOARD)/bzImage
-#$(build)/$(coreboot_dir)/initrd-$(BOARD).cpio.xz: initrd-$(BOARD).cpio.xz
-
-
-
-# Each board output has its own fixup required to turn the coreboot.rom
-# into a flashable image.
-
-# This produces a ROM image suitable for writing into the top chip;
-x230.flash.rom: $(build)/$(coreboot_dir)/x230.flash/coreboot.rom
-	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
-	$(call do,EXTRACT,$@,dd if="$<" of="$@" bs=1M skip=8)
-	@-$(RM) $<
-	@sha256sum "$@"
 
 # This produces a ROM image that is written with the flashrom program
-%.rom: $(build)/$(coreboot_dir)/%/coreboot.rom
+$(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/$(BOARD)/coreboot.rom
 	"$(build)/$(coreboot_dir)/$(BOARD)/cbfstool" "$<" print
 	$(call do,EXTRACT,$@,mv "$<" "$@")
-	@sha256sum "$@"
+	@sha256sum "$(@:$(pwd)/%=%)"
+
 
 module_dirs := \
 		$(busybox_dir) \
