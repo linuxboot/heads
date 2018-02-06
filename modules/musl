@@ -37,6 +37,7 @@ musl_depends := musl-cross
 
 # Fake a target so that musl will force a header install by the
 # Linux kernel sources.
+musl.intermediate: $(INSTALL)/include/linux/limits.h
 $(INSTALL)/include/linux/limits.h: $(build)/$(linux_dir)/.canary
 	$(MAKE) \
 		-C "$(build)/$(linux_dir)" \
