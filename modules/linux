@@ -9,14 +9,16 @@ linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd1
 
 linux_hash := $(linux-$(linux_version)_hash)
 
-linux_board_dir := $(build)/$(linux_dir)/$(BOARD)
-
 # input file in the heads config/ dir
 # Allow board config to specialize Linux configuration if necessary
 linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 
-# output file in the build dir
-linux_config_file := .config-$(BOARD)
+# Output directory for the Linux kernel build is based on the
+# configuration file name, not the board name
+linux_board_dir := $(build)/$(linux_dir)/$(basename $(linux_kconfig))
+
+# temp file in the build dir to show that we have run make oldconfig
+linux_config_file := $(basename $(linux_kconfig))/.config-$(BOARD)
 
 linux_configure := \
 	$(MAKE) \
