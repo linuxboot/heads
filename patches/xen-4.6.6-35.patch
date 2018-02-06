@@ -1,0 +1,140 @@
+diff --git ./Makefile ./Makefile
+index 13fa4af..0320888 100644
+--- ./Makefile
++++ ./Makefile
+@@ -122,6 +122,7 @@ verrel:
+ 
+ .PHONY: clean
+ clean::
++	rm -rf xen-$(version)/
+ 	@echo "Running the %clean script of the rpmbuild..."
+ 	-$(RPMBUILD) --clean --nodeps $(SPECFILE)
+ 
+@@ -153,6 +154,14 @@ update-repo-installer:
+ 	for pkg in $(xen-pkgs); do ln -f rpm/x86_64/$$pkg*.rpm ../installer/yum/qubes-dom0/rpm/; done
+ 	ln -f rpm/x86_64/xen-hvm-$(version)gui2*-$(release).$(DIST_DOM0)*.rpm ../installer/yum/qubes-dom0/rpm/
+ 
++xen-$(version)/.canary: xen-$(version).tar.gz
++	tar xzvf xen-$(version).tar.gz
++	cd xen-$(version) && ../apply-patches ../series.conf ../
++	touch $@
++
++xen.gz: xen-$(version)/.canary
++	$(MAKE) -C xen-$(version)/ xen
++
+ help:
+ 	@echo "Usage: make <target>"
+ 	@echo
+diff --git ./apply-patches ./apply-patches
+index b1c8468..74a4c20 100755
+--- ./apply-patches
++++ ./apply-patches
+@@ -6,8 +6,7 @@
+ 
+ USAGE="$0 [--vanilla] <series.conf> <patchdir> [symbol ...]"
+ 
+-set -e
+-set -o pipefail
++set -euf
+ if test $# -lt 2; then
+ 	echo "$USAGE" >&2
+ 	exit 1
+@@ -17,10 +16,7 @@ SERIES_CONF=$1
+ PATCH_DIR=$2
+ shift 2
+ 
+-(
+-	echo "trap 'echo \"*** patch \$_ failed ***\"' ERR"
+-	echo "set -ex"
+-	egrep -v '^\s*#|^\s*$' <"$SERIES_CONF" | \
+-	sed "s|^|patch -s -F0 -E -p1 --no-backup-if-mismatch -i $PATCH_DIR/|"
+-) | sh
+-
++for i in `egrep -v '^\s*#|^\s*$' < $SERIES_CONF`
++do
++	patch -s -F0 -E -p1 --no-backup-if-mismatch -i $PATCH_DIR/$i
++done
+diff --git ./series.conf ./series.conf
+index 80972b7..1466c44 100644
+--- ./series.conf
++++ ./series.conf
+@@ -115,3 +115,5 @@ patches.qubes/libxl-disable-forced-vkb-for-HVM.patch
+ patches.qubes/xenconsoled-enable-logging.patch
+ patches.qubes/vm-0001-hotplug-do-not-attempt-to-remove-containing-xenstore.patch
+ patches.qubes/xen-hotplug-qubesdb-update.patch
++
++patches.heads/heads.patch
+diff --git ./patches.heads/heads.patch ./patches.heads/heads.patch
+new file mode 100644
+index 0000000..bb17c3d
+--- /dev/null
++++ ./patches.heads/heads.patch
+@@ -0,0 +1,68 @@
++diff --recursive -u ../xen-4.6.5-clean/xen/arch/x86/boot/head.S ./xen/arch/x86/boot/head.S
++--- ../xen-4.6.5-clean/xen/arch/x86/boot/head.S	2017-03-07 11:19:05.000000000 -0500
+++++ ./xen/arch/x86/boot/head.S	2017-06-23 21:18:50.498798061 -0400
++@@ -86,6 +86,8 @@
++         cmp     $MULTIBOOT_BOOTLOADER_MAGIC,%eax
++         jne     not_multiboot
++ 
+++#if 0
+++
++         /* Set up trampoline segment 64k below EBDA */
++         movzwl  0x40e,%eax          /* EBDA segment */
++         cmp     $0xa000,%eax        /* sanity check (high) */
++@@ -108,6 +110,12 @@
++         shl     $10-4,%edx
++         cmp     %eax,%edx           /* compare with BDA value */
++         cmovb   %edx,%eax           /* and use the smaller */
+++#else
+++	// coreboot does not provide an Extended BIOS Data Area pointer
+++	// just stash things the Multiboot structure, adjusted to bytes
+++        mov     MB_mem_lower(%ebx),%eax
+++        shl     $10-4,%eax
+++#endif
++ 
++ 2:      /* Reserve 64kb for the trampoline */
++         sub     $0x1000,%eax
++diff --recursive -u ../xen-4.6.5-clean/xen/arch/x86/boot/mkelf32.c ./xen/arch/x86/boot/mkelf32.c
++--- ../xen-4.6.5-clean/xen/arch/x86/boot/mkelf32.c	2017-03-07 11:19:05.000000000 -0500
+++++ ./xen/arch/x86/boot/mkelf32.c	2017-06-23 21:18:50.498798061 -0400
++@@ -231,14 +231,14 @@
++     u32        loadbase, dat_siz, mem_siz;
++     char      *inimage, *outimage;
++     int        infd, outfd;
++-    char       buffer[1024];
+++    char       buffer[1024] = {};
++     int        bytes, todo, i;
++ 
++-    Elf32_Ehdr in32_ehdr;
++-    Elf32_Phdr in32_phdr;
+++    Elf32_Ehdr in32_ehdr = {};
+++    Elf32_Phdr in32_phdr = {};
++ 
++-    Elf64_Ehdr in64_ehdr;
++-    Elf64_Phdr in64_phdr;
+++    Elf64_Ehdr in64_ehdr = {};
+++    Elf64_Phdr in64_phdr = {};
++ 
++     if ( argc != 5 )
++     {
++--- ../xen-4.6.5-clean/xen/Makefile.orig	2017-06-26 16:11:02.692193372 -0400
+++++ ./xen/Makefile	2017-06-26 16:11:46.528708643 -0400
++@@ -97,7 +97,7 @@
++ 	rm -f tags TAGS cscope.files cscope.in.out cscope.out cscope.po.out GTAGS GPATH GRTAGS GSYMS
++ 
++ $(TARGET).gz: $(TARGET)
++-	gzip -f -9 < $< > $@.new
+++	gzip -f -9 -n < $< > $@.new
++ 	mv $@.new $@
++ 
++ $(TARGET): delete-unfresh-files
++@@ -121,7 +121,7 @@
++ 	fi
++ 
++ .banner: Makefile
++-	@if which figlet >/dev/null 2>&1 ; then \
+++	@if false ; then \
++ 		echo " Xen $(XEN_FULLVERSION)" | figlet -f tools/xen.flf > $@.tmp; \
++ 	else \
++ 		echo " Xen $(XEN_FULLVERSION)" > $@.tmp; \
