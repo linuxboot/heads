@@ -15,10 +15,10 @@ linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 
 # Output directory for the Linux kernel build is based on the
 # configuration file name, not the board name
-linux_board_dir := $(build)/$(linux_dir)/$(basename $(linux_kconfig))
+linux_board_dir := $(build)/$(linux_dir)/$(notdir $(basename $(linux_kconfig)))
 
 # temp file in the build dir to show that we have run make oldconfig
-linux_config_file := $(basename $(linux_kconfig))/.config-$(BOARD)
+linux_config_file := $(notdir $(basename $(linux_kconfig))/.config-$(BOARD))
 
 linux_configure := \
 	$(MAKE) \
