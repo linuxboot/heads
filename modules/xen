@@ -2,12 +2,12 @@ modules-$(CONFIG_XEN) += xen
 
 ifeq "$(CONFIG_XEN_VERSION)" "4.8"
 	xen_base_version := 4.8.2
-	xen_version := $(xen_base_version)-11
-	xen_hash := 417bd9585cf8c460812475023bdb80ee964a51205783922b673bed3226d6b91d
+	xen_version := $(xen_base_version)-12
+	xen_hash := dbadfcd93f6b9f1735816b59ff8f68bb05056bf8780d93345535af5bc3760531
 else
 	xen_base_version := 4.6.6
-	xen_version := $(xen_base_version)-35
-	xen_hash := af1089c84c277d1d88d25b62184fa21518828e034b08dbb4b039a6c1f6676e55
+	xen_version := $(xen_base_version)-36
+	xen_hash := fcf0703b2931a9230653e0cf38831bad629ab561f6498b8292e532e873286464
 endif
 
 # We extract the entire Xen tree, but only use the xen/xen hypervisor
