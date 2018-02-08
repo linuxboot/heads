@@ -18,23 +18,21 @@ linuxboot_target := \
 	BOARD:=$(linuxboot_board) \
 	KERNEL=$(build)/$(BOARD)/bzImage \
 	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
+	ROM=$(pwd)/$(CONFIG_LINUXBOOT_ROM) \
 	all
-
 
 #
 # Most mainboards will define a ROM file that contains the vendor ROM
-# for the image.  If so, we copy it into the linuxboot tree.
+# for the image.  Provide a reasonable error if the ROM file doesn't exist.
 #
 ifneq "$(CONFIG_LINUXBOOT_ROM)" ""
-
 ifneq "y" "$(shell [ -r '$(CONFIG_LINUXBOOT_ROM)' ] && echo y)"
 $(error $(CONFIG_LINUXBOOT_ROM): you must provide a ROM file)
 endif
 
-linuxboot-vendor-rom := $(build)/$(linuxboot_dir)/boards/$(linuxboot_board)/$(notdir $(CONFIG_LINUXBOOT_ROM))
-linuxboot.intermediate: $(linuxboot-vendor-rom)
-$(linuxboot-vendor-rom): $(CONFIG_LINUXBOOT_ROM)
-	$(call do-copy,$<,$@)
+# Force a rebuild of the LinuxBoot ROM if the vendor ROM changes
+linuxboot.intermediate:  $(CONFIG_LINUXBOOT_ROM)
+
 endif
 
 # The output file from the LinuxBoot build is a full ROM
