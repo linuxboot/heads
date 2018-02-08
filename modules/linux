@@ -128,3 +128,12 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 $(build)/$(BOARD)/bzImage: linux.intermediate
 $(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
+
+
+# menuconfig target allows us to easily reconfigure this Linux kernel
+linux.menuconfig:
+	$(MAKE) \
+		-C "$(build)/$(linux_dir)" \
+		O="$(linux_board_dir)" \
+		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
+		menuconfig \
