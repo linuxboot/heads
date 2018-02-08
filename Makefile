@@ -1,3 +1,4 @@
+all:
 -include .config
 
 modules-y 	:=
@@ -8,7 +9,7 @@ config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
-BOARD		?= qemu
+BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD).config
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
