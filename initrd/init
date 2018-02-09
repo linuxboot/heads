@@ -27,8 +27,10 @@ if [ ! -r /dev/ptmx ]; then
 fi
 
 # bring up the ethernet; maybe should do DHCP?
-insmod /lib/modules/igb.ko
-ifconfig eth0 192.168.1.99
+ifconfig lo 127.0.0.1
+
+insmod /lib/modules/e1000.ko
+ifconfig eth0 10.0.2.15  # qemu
 ifconfig eth0 > /dev/ttyprintk
 
 # Setup the ssh server, allow root logins and log to stderr
