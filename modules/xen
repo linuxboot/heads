@@ -1,9 +1,9 @@
 modules-$(CONFIG_XEN) += xen
 
 ifeq "$(CONFIG_XEN_VERSION)" "4.8"
-	xen_base_version := 4.8.2
-	xen_version := $(xen_base_version)-12
-	xen_hash := dbadfcd93f6b9f1735816b59ff8f68bb05056bf8780d93345535af5bc3760531
+	xen_base_version := 4.8.3
+	xen_version := $(xen_base_version)-2
+	xen_hash := 0d6761a68971e1b7747ae467448a81c16fc97084f96c6832cb4d8f89cbc5dc29
 else
 	xen_base_version := 4.6.6
 	xen_version := $(xen_base_version)-36
