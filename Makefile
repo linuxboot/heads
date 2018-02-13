@@ -391,7 +391,7 @@ initrd-y += $(build)/$(BOARD)/modules.cpio
 initrd-y += $(build)/$(BOARD)/tools.cpio
 
 initrd.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
-$(build)/$(BOARD)/initrd.cpio.xz: $(initrd-y)
+$(build)/$(BOARD)/initrd.cpio.xz: $(or $(INITRD_OVERRIDE),$(initrd-y))
 	$(call do,CPIO-CLEAN,$@,\
 	$(pwd)/bin/cpio-clean \
 		$^ \

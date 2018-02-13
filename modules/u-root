@@ -1,0 +1,33 @@
+#
+# u-root go runtime
+#
+# This is not a normal Heads module, since it builds all of its
+# own dependencies.
+#
+
+ifeq "$(CONFIG_UROOT)" "y"
+
+u-root_url := github.com/u-root/u-root
+u-root_output := $(build)/$(BOARD)/initrd.cpio
+
+export GOPATH=$(build)/go
+
+$(GOPATH):
+	$(call do,GO GET,$(u-root_url),\
+		go get $(u-root_url) \
+	)
+
+$(u-root_output): $(GOPATH)
+	$(call do,U-ROOT,$@,\
+		$(GOPATH)/bin/u-root \
+			-build=bb \
+			-format=cpio \
+			-o $@ \
+	)
+
+# Override the initrd inputs and add in the kernel modules
+INITRD_OVERRIDE += $(u-root_output)
+INITRD_OVERRIDE += $(build)/$(BOARD)/modules.cpio
+
+
+endif
