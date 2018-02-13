@@ -18,6 +18,9 @@ endif
 
 include $(CONFIG)
 
+# Unless otherwise specified, we are building for heads
+CONFIG_HEADS	?= y
+
 # Controls how many parallel jobs are invoked in subshells
 CPUS		:= $(shell nproc)
 MAKE_JOBS	?= -j$(CPUS) --max-load 16
@@ -386,12 +389,12 @@ $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 #
 
 initrd-y += $(pwd)/blobs/dev.cpio
-initrd-y += $(build)/$(BOARD)/heads.cpio
 initrd-y += $(build)/$(BOARD)/modules.cpio
 initrd-y += $(build)/$(BOARD)/tools.cpio
+initrd-$(CONFIG_HEADS) += $(build)/$(BOARD)/heads.cpio
 
 initrd.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
-$(build)/$(BOARD)/initrd.cpio.xz: $(or $(INITRD_OVERRIDE),$(initrd-y))
+$(build)/$(BOARD)/initrd.cpio.xz: $(initrd-y)
 	$(call do,CPIO-CLEAN,$@,\
 	$(pwd)/bin/cpio-clean \
 		$^ \
