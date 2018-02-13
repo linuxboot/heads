@@ -50,9 +50,9 @@ linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_mbox.ko
 linux_modules-$(CONFIG_LINUX_SCSI_GDTH)	+= drivers/scsi/gdth.ko
 linux_modules-$(CONFIG_LINUX_ATA)	+= drivers/ata/libata.ko
 linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci.ko
-linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci_platform.ko
+#linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/ahci_platform.ko
 linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci.ko
-linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci_platform.ko
+#linux_modules-$(CONFIG_LINUX_AHCI)	+= drivers/ata/libahci_platform.ko
 
 # Solarflare network card
 linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/ethernet/sfc/sfc.ko
