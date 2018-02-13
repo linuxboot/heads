@@ -5,10 +5,8 @@
 # own dependencies.
 #
 
-ifeq "$(CONFIG_UROOT)" "y"
-
 u-root_url := github.com/u-root/u-root
-u-root_output := $(build)/$(BOARD)/initrd.cpio
+u-root_output := $(build)/$(BOARD)/u-root.cpio
 
 export GOPATH=$(build)/go
 
@@ -26,8 +24,10 @@ $(u-root_output): $(GOPATH)
 	)
 
 # Override the initrd inputs and add in the kernel modules
-INITRD_OVERRIDE += $(u-root_output)
-INITRD_OVERRIDE += $(build)/$(BOARD)/modules.cpio
+initrd-$(CONFIG_UROOT) += $(u-root_output)
 
 
+# If we are building for u-root, disable the default CONFIG_HEADS
+ifeq "$(CONFIG_UROOT)" "y"
+CONFIG_HEADS=n
 endif
