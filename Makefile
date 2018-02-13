@@ -107,6 +107,10 @@ else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
+# helpful targets for common uses
+linux: $(build)/$(BOARD)/bzImage
+cpio: $(build/$(BOARD)/initrd.cpio.xz
+
 # Disable all built in rules
 .SUFFIXES:
 FORCE:
@@ -482,7 +486,7 @@ $(eval $(shell echo >&2 "$(DATE) Wrong make detected: $(LOCAL_MAKE_VERSION)"))
 HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
-all bootstrap: $(HEADS_MAKE)
+all bootstrap linux cpio: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 %.clean %.intermediate %.vol: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@

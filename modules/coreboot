@@ -52,6 +52,15 @@ coreboot.intermediate: $(build)/$(BOARD)/bzImage
 coreboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
 endif
 
+#
+# Helpful target for reconfiguring the coreboot target
+#
+coreboot.menuconfig:
+	$(MAKE) \
+		-C "$(build)/$(coreboot_dir)" \
+		DOTCONFIG="../../$(CONFIG_COREBOOT_CONFIG)" \
+		menuconfig
+
 
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree
