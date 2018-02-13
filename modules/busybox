@@ -1,4 +1,6 @@
-modules-y += busybox
+# Busybox is always included, unless explicitly turned off
+CONFIG_BUSYBOX ?= y
+modules-$(CONFIG_BUSYBOX) += busybox
 
 busybox_version := 1.28.0
 busybox_dir := busybox-$(busybox_version)
