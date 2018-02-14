@@ -29,15 +29,18 @@ fi
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
 
-insmod /lib/modules/e1000.ko
-ifconfig eth0 10.0.2.15  # qemu
-ifconfig eth0 > /dev/ttyprintk
+if [ -f /lib/modules/e1000.ko ];
+  insmod /lib/modules/e1000.ko
+  ifconfig eth0 10.0.2.15  # qemu
+  ifconfig eth0 > /dev/ttyprintk
 
 # Setup the ssh server, allow root logins and log to stderr
-if [ ! -d /etc/dropbear ]; then
-	mkdir /etc/dropbear
+  if [ ! -d /etc/dropbear ]; then
+    mkdir /etc/dropbear
+  fi
+  dropbear -B -R 2>/dev/ttyprintk
+  ifconfig eth0 | head -1 > /dev/tty0
 fi
-dropbear -B -R 2>/dev/ttyprintk
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
@@ -47,11 +50,6 @@ if [ -r /etc/motd ]; then
 	cat /etc/motd
 	cat /etc/motd > /dev/tty0
 fi
-
-ifconfig eth0 | head -1 > /dev/tty0
-
-# For now we just start a shell
-exec /bin/ash
 
 # Load the date from the hardware clock, setting it in local time
 hwclock -l -s
