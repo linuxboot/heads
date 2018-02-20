@@ -1,4 +1,4 @@
-modules-$(CONFIG_TPMTOTP) += newt
+modules-$(CONFIG_NEWT) += newt
 
 newt_depends := popt slang $(musl_dep)
 
