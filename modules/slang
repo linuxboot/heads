@@ -1,0 +1,26 @@
+modules-$(CONFIG_SLANG) += slang
+
+slang_version := 2.3.1a
+slang_dir := slang-$(slang_version)
+slang_tar := slang-$(slang_version).tar.bz2
+slang_url := https://www.jedsoft.org/releases/slang/$(slang_tar)
+slang_hash := 54f0c3007fde918039c058965dffdfd6c5aec0bad0f4227192cc486021f08c36
+
+slang_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--prefix "/" \
+	--host i386-elf-linux \
+  --with-png=no \
+
+slang_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	&& $(MAKE) \
+		-C "$(build)/$(slang_dir)" \
+		$(CROSS_TOOLS) \
+		DESTDIR="$(INSTALL)" \
+		install
+
+slang_libraries := src/elfobjs/libslang.so.2
+
+slang_depends := $(musl_dep)
