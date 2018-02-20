@@ -10,7 +10,7 @@ slang_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--host i386-elf-linux \
-  --with-png=no \
+	--with-png=no \
 
 slang_target := \
 	$(MAKE_JOBS) \
