@@ -1,0 +1,83 @@
+#!/bin/sh
+# Boot from a local disk installation
+
+. /etc/functions
+. /etc/config
+
+mount_boot()
+{
+	# Mount local disk if it is not already mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+			|| recovery "Unable to mount /boot"
+	fi
+}
+
+
+# Confirm we have a good TOTP unseal and ask the user for next choice
+while true; do
+  last_half=X
+  unset totp_confirm
+	# update the TOTP code every thirty seconds
+	date=`date "+%Y-%m-%d %H:%M:%S"`
+	seconds=`date "+%s"`
+	half=`expr \( $seconds % 60 \) / 30`
+	if [ "$CONFIG_TPM" = n ]; then
+		TOTP="NO TPM"
+	elif [ "$half" != "$last_half" ]; then
+		last_half=$half;
+		TOTP=`unseal-totp` \
+		|| recovery "TOTP code generation failed"
+	fi
+
+  whiptail --clear --title 'Heads Boot Menu' \
+    --menu "$date\nTOTP code: $TOTP" 20 60 8 \
+    'y' ' Default boot' \
+    'n' ' TOTP does not match' \
+    'r' ' Refresh TOTP code' \
+    'm' ' Boot menu'\
+    'u' ' USB boot' \
+    'x' ' Exit to recovery shell' \
+    2>/tmp/whiptail
+
+  totp_confirm=$(cat /tmp/whiptail)
+
+	if [ "$totp_confirm" = "x" ]; then
+		recovery "User requested recovery shell"
+	fi
+
+	if [ "$totp_confirm" = "r" ]; then
+		continue
+	fi
+
+	if [ "$totp_confirm" = "n" ]; then
+		echo ""
+		echo "To correct clock drift: 'date -s HH:MM:SS'"
+		echo "and save it to the RTC: 'hwclock -w'"
+		echo "then reboot and try again"
+		echo ""
+		recovery "TOTP mismatch"
+	fi
+
+	if [ "$totp_confirm" = "u" ]; then
+		exec /bin/usb-init
+		continue
+	fi
+
+	if [ "$totp_confirm" = "m" ]; then
+		# Try to select a kernel from the menu
+		mount_boot
+		kexec-select-boot -m -b /boot -c "grub.cfg"
+		continue
+	fi
+
+	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
+		# Try to boot the default
+		mount_boot
+		kexec-select-boot -b /boot -c "grub.cfg" \
+		|| recovery "Failed default boot"
+	fi
+
+done
+
+recovery "Something failed during boot"
