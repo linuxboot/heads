@@ -1,6 +1,8 @@
 #!/bin/sh
 # Boot from a local disk installation
 
+CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
+
 . /etc/functions
 . /etc/config
 
@@ -14,9 +16,8 @@ mount_boot()
 }
 
 
-# Confirm we have a good TOTP unseal and ask the user for next choice
+last_half=X
 while true; do
-  last_half=X
   unset totp_confirm
 	# update the TOTP code every thirty seconds
 	date=`date "+%Y-%m-%d %H:%M:%S"`
@@ -30,15 +31,16 @@ while true; do
 		|| recovery "TOTP code generation failed"
 	fi
 
-  whiptail --clear --title 'Heads Boot Menu' \
+  whiptail --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
     --menu "$date\nTOTP code: $TOTP" 20 60 8 \
     'y' ' Default boot' \
     'n' ' TOTP does not match' \
     'r' ' Refresh TOTP code' \
-    'm' ' Boot menu'\
+    'm' ' Boot menu' \
     'u' ' USB boot' \
+    'g' ' Generate new TOTP secret' \
     'x' ' Exit to recovery shell' \
-    2>/tmp/whiptail
+    2>/tmp/whiptail || recovery "GUI menu failed"
 
   totp_confirm=$(cat /tmp/whiptail)
 
@@ -61,6 +63,19 @@ while true; do
 
 	if [ "$totp_confirm" = "u" ]; then
 		exec /bin/usb-init
+		continue
+	fi
+
+	if [ "$totp_confirm" = "g" ]; then
+		if (whiptail --title 'Generate new TOTP secret' \
+		    --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 60) then
+      echo "Scan the QR code to add the new TOTP secret"
+		  /bin/seal-totp
+      echo "Hit Enter to return to the main menu"
+      read
+		else
+			echo "Returning to the main menu"
+		fi
 		continue
 	fi
 
