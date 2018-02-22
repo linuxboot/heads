@@ -82,7 +82,7 @@ while true; do
 	if [ "$totp_confirm" = "m" ]; then
 		# Try to select a kernel from the menu
 		mount_boot
-		kexec-select-boot -m -b /boot -c "grub.cfg"
+		kexec-select-boot -m -b /boot -c "grub.cfg" -g
 		continue
 	fi
 
