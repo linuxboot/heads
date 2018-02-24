@@ -29,7 +29,7 @@ fi
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
 
-if [ -f /lib/modules/e1000.ko ];
+if [ -f /lib/modules/e1000.ko ]; then
   insmod /lib/modules/e1000.ko
   ifconfig eth0 10.0.2.15  # qemu
   ifconfig eth0 > /dev/ttyprintk
