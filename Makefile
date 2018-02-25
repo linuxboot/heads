@@ -11,12 +11,17 @@ log_dir		:= $(build)/log
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD).config
+BOARDMAKE	:= $(pwd)/boards/$(BOARD).mk
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
 endif
 
 include $(CONFIG)
+
+ifneq "y" "$(shell [ ! -r '$(BOARDMAKE)' ] && echo y)"
+include $(BOARDMAKE)
+endif
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
@@ -112,7 +117,7 @@ endif
 
 # helpful targets for common uses
 linux: $(build)/$(BOARD)/bzImage
-cpio: $(build/$(BOARD)/initrd.cpio.xz
+cpio: $(build)/$(BOARD)/initrd.cpio.xz
 
 # Disable all built in rules
 .SUFFIXES:

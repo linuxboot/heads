@@ -8,15 +8,15 @@ if ! lsmod | grep -q ehci_hcd; then
 fi
 if ! lsmod | grep -q ehci_pci; then
 	insmod /lib/modules/ehci-pci.ko \
-	|| die "ehci_pci: module load failed"
+  || die "ehci_pci: module load failed"
 fi
 if ! lsmod | grep -q xhci_hcd; then
 	insmod /lib/modules/xhci-hcd.ko \
-	|| die "ehci_hcd: module load failed"
+	|| die "xhci_hcd: module load failed"
 fi
 if ! lsmod | grep -q xhci_pci; then
 	insmod /lib/modules/xhci-pci.ko \
-	|| die "ehci_pci: module load failed"
+	|| die "xhci_pci: module load failed"
 fi
 if ! lsmod | grep -q usb_storage; then
 	insmod /lib/modules/usb-storage.ko \
