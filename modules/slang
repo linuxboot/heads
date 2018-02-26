@@ -11,6 +11,9 @@ slang_configure := ./configure \
 	--prefix "/" \
 	--host i386-elf-linux \
 	--with-png=no \
+	--with-pcre=no \
+	--with-onig=no \
+  && mkdir src/elfobjs
 
 slang_target := \
 	$(MAKE_JOBS) \
