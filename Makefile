@@ -328,6 +328,7 @@ bin_modules-$(CONFIG_LVM2) += lvm2
 bin_modules-$(CONFIG_XEN) += xen
 bin_modules-$(CONFIG_DROPBEAR) += dropbear
 bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
+bin_modules-$(CONFIG_NEWT) += newt
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -458,6 +459,8 @@ module_dirs := \
 		$(util-linux_dir) \
 		$(zlib_dir) \
 		$(kernel-headers_dir) \
+		$(slang_dir) \
+		$(newt_dir) \
 
 modules.clean:
 	for dir in $(module_dirs) \
