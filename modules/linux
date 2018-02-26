@@ -124,8 +124,10 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 	@$(RM) -rf "$(module_initrd_dir)"
 
 
-# hack for the coreboot to find the linux kernel
-$(build)/$(BOARD)/bzImage: linux.intermediate
+# The output of the linux.intermediate is the bzImage in the
+# linus build directory.  We need to copy it into our board
+# specific directory for ease of locating it later.
+$(linux_board_dir)/arch/x86/boot/bzImage: linux.intermediate
 $(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
 
