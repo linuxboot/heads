@@ -66,13 +66,6 @@ initrd_bin_dir	:= $(initrd_dir)/bin
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 
-#ifeq "$(CONFIG)" ""
-#CONFIG := config/qemu-moc.config
-#$(eval $(shell echo >&2 "$(DATE) CONFIG is not set, defaulting to $(CONFIG)"))
-#endif
-#
-#include $(CONFIG)
-
 # We are running our own version of make,
 # proceed with the build.
 
