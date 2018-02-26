@@ -113,7 +113,7 @@ endif
 
 # helpful targets for common uses
 linux: $(build)/$(BOARD)/bzImage
-cpio: $(build/$(BOARD)/initrd.cpio.xz
+cpio: $(build)/$(BOARD)/initrd.cpio.xz
 
 # Disable all built in rules
 .SUFFIXES:
