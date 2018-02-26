@@ -1,6 +1,7 @@
 #!/bin/sh
 # Sign a valid directory of kexec params
 set -e -o pipefail
+. /etc/config
 . /etc/functions
 
 rollback="n"

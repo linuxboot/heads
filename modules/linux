@@ -63,6 +63,10 @@ linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_co
 linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
 
 # USB modules for both types of controllers
+# older boards also need ohci and uhci
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/uhci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
