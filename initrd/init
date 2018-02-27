@@ -16,9 +16,40 @@ mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev 2>/dev/ttyprintk
 mount /proc 2>/dev/ttyprintk
 mount /sys 2>/dev/ttyprintk
+mount /sys/firmware/efi/efivars
+
+# Setup the pty psudeo filesystem
+mkdir /dev/pts
+mount /dev/pts 2>/dev/ttyprintk
+
+if [ ! -r /dev/ptmx ]; then
+	ln -s /dev/pts/ptmx /dev/ptmx
+fi
+
+# bring up the ethernet; maybe should do DHCP?
+ifconfig lo 127.0.0.1
+
+if [ -f /lib/modules/e1000.ko ]; then
+  insmod /lib/modules/e1000.ko
+  ifconfig eth0 10.0.2.15  # qemu
+  ifconfig eth0 > /dev/ttyprintk
+
+# Setup the ssh server, allow root logins and log to stderr
+  if [ ! -d /etc/dropbear ]; then
+    mkdir /etc/dropbear
+  fi
+  dropbear -B -R 2>/dev/ttyprintk
+  ifconfig eth0 | head -1 > /dev/tty0
+fi
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
+
+# Now it is safe to print a banner
+if [ -r /etc/motd ]; then
+	cat /etc/motd
+	cat /etc/motd > /dev/tty0
+fi
 
 # Load the date from the hardware clock, setting it in local time
 hwclock -l -s
@@ -55,74 +86,39 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
-# Now it is safe to print a banner
-if [ ! -z "$CONFIG_LINUXBOOT" ]; then
-	MOTD=/etc/motd.nerf
-else
-	MOTD=/etc/motd.coreboot
-fi
-if [ -r "$MOTD" ]; then
-	cat "$MOTD"
-	if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
-		cat "$MOTD" > "$CONFIG_BOOT_RECOVERY_SERIAL"
-	fi
-fi
-
-# Setup remote attestation interface
-if [ ! -z "$CONFIG_BOOT_REMOTE" ]; then
-  # bring up the ethernet; maybe should do DHCP?
-	ifconfig lo 127.0.0.1
-
-	if [ -f /lib/modules/e1000.ko ]; then
-		insmod /lib/modules/e1000.ko
-		ifconfig eth0 10.0.2.15  # qemu
-		ifconfig eth0 > /dev/ttyprintk
-
-		# Setup the ssh server, allow root logins and log to stderr
-		if [ ! -d /etc/dropbear ]; then
-			mkdir /etc/dropbear
-		fi
-		dropbear -B -R 2>/dev/ttyprintk
-
-		ifconfig eth0 | head -1 > "$CONFIG_BOOT_RECOVERY_SERIAL"
-	fi
-fi
-
-# Setup local attestation interface
-if [ ! -z "$CONFIG_BOOT_LOCAL" ]; then
-	if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
-		recovery 'Boot script missing?  Entering recovery shell'
-		# just in case...
-		if [ ! -z "$CONFIG_TPM" ]; then
+if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
+	recovery 'Boot script missing?  Entering recovery shell'
+	# just in case...
+	if [ ! -z "$CONFIG_TPM" ]; then
 			tpm extend -ix 4 -ic recovery
-		fi
-		exec /bin/ash
 	fi
-
-	# If the user has been holding down r, enter a recovery shell
-	# otherwise immediately start the configured boot script.
-	# We don't print a prompt, since this is a near instant timeout.
-	read \
-		-t 0.1 \
-		-n 1 \
-		boot_option
-	echo
-
-	if [ "$boot_option" = "r" ]; then
-		# Start an interactive shell
-		recovery 'User requested recovery shell'
-		# just in case...
-		if [ ! -z "$CONFIG_TPM" ]; then
-			tpm extend -ix 4 -ic recovery
-		fi
-		exec /bin/ash
-	fi
-
-	echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
-	exec "$CONFIG_BOOTSCRIPT"
+	exec /bin/ash
 fi
 
-recovery 'Entering recovery shell'
+# If the user has been holding down r, enter a recovery shell
+# otherwise immediately start the configured boot script.
+# We don't print a prompt, since this is a near instant timeout.
+read \
+	-t 0.1 \
+	-n 1 \
+	boot_option
+echo
+
+if [ "$boot_option" = "r" ]; then
+	# Start an interactive shell
+	recovery 'User requested recovery shell'
+	# just in case...
+	if [ ! -z "$CONFIG_TPM" ]; then
+			tpm extend -ix 4 -ic recovery
+	fi
+	exec /bin/ash
+fi
+
+echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+exec "$CONFIG_BOOTSCRIPT"
+
+# We should never reach here, but just in case...
+recovery 'Boot script failure?  Entering recovery shell'
 # belts and suspenders, just in case...
 if [ ! -z "$CONFIG_TPM" ]; then
 	tpm extend -ix 4 -ic recovery

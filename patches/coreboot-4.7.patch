@@ -166,14 +166,16 @@ diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
 index 596abc5..f1928ce 100644
 --- ./src/lib/cbfs.c
 +++ ./src/lib/cbfs.c
-@@ -69,7 +69,11 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+@@ -69,7 +69,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
  	if (size != NULL)
  		*size = fsize;
  
 -	return rdev_mmap(&fh.data, 0, fsize);
 +	void * buffer = rdev_mmap(&fh.data, 0, fsize);
 +
++#ifndef __SMM__
 +	prog_segment_loaded((uintptr_t)buffer, fsize, 0);
++#endif
 +
 +	return buffer;
  }

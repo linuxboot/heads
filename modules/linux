@@ -63,6 +63,10 @@ linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_co
 linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
 
 # USB modules for both types of controllers
+# older boards also need ohci and uhci
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/uhci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
@@ -124,8 +128,10 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 	@$(RM) -rf "$(module_initrd_dir)"
 
 
-# hack for the coreboot to find the linux kernel
-$(build)/$(BOARD)/bzImage: linux.intermediate
+# The output of the linux.intermediate is the bzImage in the
+# linus build directory.  We need to copy it into our board
+# specific directory for ease of locating it later.
+$(linux_board_dir)/arch/x86/boot/bzImage: linux.intermediate
 $(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
 

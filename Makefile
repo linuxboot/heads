@@ -71,13 +71,6 @@ initrd_bin_dir	:= $(initrd_dir)/bin
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 
-#ifeq "$(CONFIG)" ""
-#CONFIG := config/qemu-moc.config
-#$(eval $(shell echo >&2 "$(DATE) CONFIG is not set, defaulting to $(CONFIG)"))
-#endif
-#
-#include $(CONFIG)
-
 # We are running our own version of make,
 # proceed with the build.
 
@@ -91,6 +84,7 @@ musl_dep	:= musl
 heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
+	-D__MUSL__ \
 
 CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 CROSS_TOOLS_NOCC := \
@@ -338,6 +332,8 @@ bin_modules-$(CONFIG_GPG) += gpg
 bin_modules-$(CONFIG_LVM2) += lvm2
 bin_modules-$(CONFIG_XEN) += xen
 bin_modules-$(CONFIG_DROPBEAR) += dropbear
+bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
+bin_modules-$(CONFIG_NEWT) += newt
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -370,12 +366,19 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
 #
 ifeq ($(CONFIG_COREBOOT),y)
 $(eval $(call initrd_bin_add,$(build)/$(coreboot_dir)/util/cbmem/cbmem))
+#$(eval $(call initrd_bin_add,$(build)/$(coreboot_dir)/util/inteltool/inteltool))
 endif
 
 $(build)/$(coreboot_dir)/util/cbmem/cbmem: \
 		$(build)/$(coreboot_dir)/.canary \
 		musl.intermediate
 	$(call do,MAKE,cbmem,\
+		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
+	)
+$(build)/$(coreboot_dir)/util/inteltool/inteltool: \
+		$(build)/$(coreboot_dir)/.canary \
+		musl.intermediate
+	$(call do,MAKE,inteltool,\
 		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
 	)
 
@@ -461,6 +464,8 @@ module_dirs := \
 		$(util-linux_dir) \
 		$(zlib_dir) \
 		$(kernel-headers_dir) \
+		$(slang_dir) \
+		$(newt_dir) \
 
 modules.clean:
 	for dir in $(module_dirs) \
