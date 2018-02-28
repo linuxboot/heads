@@ -325,7 +325,6 @@ bin_modules-$(CONFIG_FLASHROM) += flashrom
 bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 bin_modules-$(CONFIG_GPG) += gpg
 bin_modules-$(CONFIG_LVM2) += lvm2
-bin_modules-$(CONFIG_XEN) += xen
 bin_modules-$(CONFIG_DROPBEAR) += dropbear
 bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
 bin_modules-$(CONFIG_NEWT) += newt
@@ -338,8 +337,6 @@ $(foreach m, $(bin_modules-y), \
 $(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
 )
-
-#$(foreach _, $(call outputs,xen), $(eval $(call initrd_bin,$_)))
 
 # hack to install busybox into the initrd
 $(build)/$(BOARD)/heads.cpio: busybox.intermediate
