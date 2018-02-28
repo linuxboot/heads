@@ -3,7 +3,7 @@ modules-$(CONFIG_FLASHTOOLS) += flashtools
 flashtools_depends := $(musl_dep)
 
 flashtools_version := git
-flashtools_repo := ssh://git@github.com/osresearch/flashtools
+flashtools_repo := https://github.com/osresearch/flashtools
 
 flashtools_version := 0.0.1
 flashtools_dir := flashtools-$(flashtools_version)
