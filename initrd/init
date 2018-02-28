@@ -30,7 +30,9 @@ hwclock -l -s
 # Configure linuxboot environment
 if [ ! -z "$CONFIG_LINUXBOOT" ]; then
 	mount /sys/firmware/efi/efivars
+fi
 
+if [ ! -z "$CONFIG_LINUX_PTY" ]; then
 	# Setup the pty psudeo filesystem
 	mkdir /dev/pts
 	mount /dev/pts 2>/dev/ttyprintk
@@ -70,13 +72,23 @@ fi
 
 # Setup remote attestation interface
 if [ ! -z "$CONFIG_BOOT_REMOTE" ]; then
-  # bring up the ethernet; maybe should do DHCP?
+	# bring up the ethernet; maybe should do DHCP?
 	ifconfig lo 127.0.0.1
 
 	if [ -f /lib/modules/e1000.ko ]; then
 		insmod /lib/modules/e1000.ko
-		ifconfig eth0 10.0.2.15  # qemu
-		ifconfig eth0 > /dev/ttyprintk
+	fi
+	if [ -f /lib/modules/e1000e.ko ]; then
+		insmod /lib/modules/e1000e.ko
+	fi
+
+	if [ -e /sys/class/net/eth0 ]; then
+		# Setup static IP
+		if [ ! -z "$CONFIG_BOOT_REMOTE_STATIC_IP" ]; then
+			ifconfig eth0 $CONFIG_BOOT_REMOTE_STATIC_IP
+			ifconfig eth0 > /dev/ttyprintk
+		fi
+		# TODO: enable DHCP if configured
 
 		# Setup the ssh server, allow root logins and log to stderr
 		if [ ! -d /etc/dropbear ]; then
