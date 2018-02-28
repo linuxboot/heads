@@ -73,6 +73,10 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 
+# NVMe driver for winterfell and other servers
+linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme.ko
+linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
