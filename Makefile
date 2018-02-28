@@ -424,7 +424,10 @@ $(build)/$(BOARD)/tools.cpio: \
 
 	$(call do,INSTALL,$(CONFIG), \
 		mkdir -p "$(initrd_dir)/etc" ; \
-		cp "$(CONFIG)" "$(initrd_dir)/etc/config" \
+		export \
+			| grep ' CONFIG_' \
+			| sed 's/^declare -x /export /' \
+			> "$(initrd_dir)/etc/config" \
 	)
 	$(call do-cpio,$@,$(initrd_dir))
 	@$(RM) -rf "$(initrd_dir)"
