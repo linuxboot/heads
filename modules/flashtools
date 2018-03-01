@@ -1,0 +1,26 @@
+modules-$(CONFIG_FLASHTOOLS) += flashtools
+
+flashtools_depends := $(musl_dep)
+
+flashtools_version := git
+flashtools_repo := https://github.com/osresearch/flashtools
+
+flashtools_version := 0.0.1
+flashtools_dir := flashtools-$(flashtools_version)
+flashtools_tar := flashtools-$(flashtools_version).tar.gz
+flashtools_url := https://github.com/osresearch/flashtools/archive/v$(flashtools_version).tar.gz
+flashtools_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
+
+flashtools_target := \
+	$(CROSS_TOOLS) \
+	CFLAGS="-I$(INSTALL)/include" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+
+flashtools_output := \
+	flashtool \
+	peek \
+	poke \
+
+flashtools_libraries := \
+
+flashtools_configure := 
