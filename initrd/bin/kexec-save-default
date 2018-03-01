@@ -45,7 +45,7 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [ ! -z "$CONFIG_TPM" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	if [ ! -r "$KEY_DEVICES" ]; then
 		read \
 			-n 1 \
@@ -131,7 +131,7 @@ fi
 
 # sign and auto-roll config counter
 extparam=
-if [ ! -z "$CONFIG_TPM" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	extparam=-u
 fi
 kexec-sign-config -p $paramsdir $extparam \
