@@ -58,25 +58,6 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
-# Configure linuxboot environment
-if [ ! -z "$CONFIG_LINUXBOOT" ]; then
-	mount /sys/firmware/efi/efivars
-
-	# Setup the pty psudeo filesystem
-	mkdir /dev/pts
-	mount /dev/pts 2>/dev/ttyprintk
-
-	if [ ! -r /dev/ptmx ]; then
-		ln -s /dev/pts/ptmx /dev/ptmx
-	fi
-fi
-
-# Setup recovery serial shell
-if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
-	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
-	/bin/sh < "$CONFIG_BOOT_RECOVERY_SERIAL" > "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
-fi
-
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
 if [ ! -z "$CONFIG_BOOT_DEV" ]; then
