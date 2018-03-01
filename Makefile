@@ -426,7 +426,8 @@ $(build)/$(BOARD)/tools.cpio: \
 		mkdir -p "$(initrd_dir)/etc" ; \
 		export \
 			| grep ' CONFIG_' \
-			| sed 's/^declare -x /export /' \
+			| sed -e 's/^declare -x /export /' \
+			-e 's/\\\"//g' \
 			> "$(initrd_dir)/etc/config" \
 	)
 	$(call do-cpio,$@,$(initrd_dir))
