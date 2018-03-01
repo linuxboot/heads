@@ -109,7 +109,7 @@ while true; do
     mount_boot
 	  DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
     if [ -r "$DEFAULT_FILE" ]; then
-      kexec-select-boot -b /boot -c "grub.cfg" \
+      kexec-select-boot -b /boot -c "grub.cfg" -g \
       || recovery "Failed default boot"
     else
       if (whiptail --title 'No Default Boot Option Configured' \
