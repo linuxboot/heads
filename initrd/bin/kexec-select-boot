@@ -12,7 +12,8 @@ valid_hash="n"
 valid_global_hash="n"
 valid_rollback="n"
 force_menu="n"
-while getopts "b:d:p:a:r:c:uim" arg; do
+gui_menu="n"
+while getopts "b:d:p:a:r:c:uimg" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -23,6 +24,7 @@ while getopts "b:d:p:a:r:c:uim" arg; do
 		u) unique="y" ;;
 		m) force_menu="y" ;;
 		i) valid_hash="y"; valid_rollback="y" ;;
+		g) gui_menu="y" ;;
 	esac
 done
 
@@ -80,6 +82,24 @@ get_menu_option() {
 
 	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
 		option_index=1
+	elif [ "$gui_menu" = "y" ]; then
+		MENU_OPTIONS=""
+		n=0
+		while read option
+		do
+			parse_option
+			n=`expr $n + 1`
+			name=$(echo $name | tr " " "_")
+			kernel=$(echo $kernel | cut -f2 -d " ")
+			MENU_OPTIONS="$MENU_OPTIONS $n ${name}_[$kernel]"
+		done < $TMP_MENU_FILE
+
+		whiptail --clear --title "Select your boot option" \
+			--menu "Choose the boot option [1-$n, a to abort]:" 20 120 8 \
+			-- $MENU_OPTIONS \
+			2>/tmp/whiptail || die "Aborting boot attempt"
+
+		option_index=$(cat /tmp/whiptail)
 	else
 		echo "+++ Select your boot option:"
 		n=0
@@ -105,14 +125,23 @@ get_menu_option() {
 }
 
 confirm_menu_option() {
-	echo "+++ Please confirm the boot details for $name:"
-	echo $option
+	if [ "$gui_menu" = "y" ]; then
+		whiptail --clear --title "Confirm boot details" \
+			--menu "Confirm the boot details for $name:\n\n$option\n\n" 20 120 8 \
+			-- 'y' "Boot $name" 'd' "Make $name the default" \
+			2>/tmp/whiptail || die "Aborting boot attempt"
 
-	read \
-		-n 1 \
-		-p "Confirm selection by pressing 'y', make default with 'd': " \
-		option_confirm
-	echo
+		option_confirm=$(cat /tmp/whiptail)
+	else
+		echo "+++ Please confirm the boot details for $name:"
+		echo $option
+
+		read \
+			-n 1 \
+			-p "Confirm selection by pressing 'y', make default with 'd': " \
+			option_confirm
+		echo
+	fi
 }
 
 parse_option() {
@@ -232,7 +261,7 @@ do_boot()
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ ! -z "$CONFIG_TPM" \
+	if [ "$CONFIG_TPM" = "y" \
 		-a -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 		|| die "!!! Failed to extract the initrd from boot option"
@@ -262,7 +291,7 @@ while true; do
 	TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
 	TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
 
-	if [ ! -z "$CONFIG_TPM" \
+	if [ "$CONFIG_TPM" = "y" \
 		-a ! -r "$TMP_KEY_DEVICES" ]; then
 		# Extend PCR4 as soon as possible
 		tpm extend -ix 4 -ic generic \
@@ -274,7 +303,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ ! -z "$CONFIG_TPM" ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"

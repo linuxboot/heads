@@ -1,10 +1,10 @@
 modules-$(CONFIG_KEXEC) += kexec
 
-kexec_version := 2.0.12
+kexec_version := 2.0.16
 kexec_dir := kexec-tools-$(kexec_version)
 kexec_tar := kexec-tools-$(kexec_version).tar.gz
 kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
-kexec_hash := cc7b60dad0da202004048a6179d8a53606943062dd627a2edba45a8ea3a85135
+kexec_hash := cf17fc99bf77c9b39f06ee88ac0e86d0349c4a0c3f8214a3cc78eece872f6f3a
 
 kexec_configure := ./configure \
 	$(CROSS_TOOLS) \
