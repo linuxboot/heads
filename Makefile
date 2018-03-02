@@ -356,23 +356,24 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
 # this must be built *AFTER* musl, but since coreboot depends on other things
 # that depend on musl it should be ok.
 #
+COREBOOT_UTIL_DIR=$(build)/$(coreboot_dir)/util
 ifeq ($(CONFIG_COREBOOT),y)
-$(eval $(call initrd_bin_add,$(build)/$(coreboot_dir)/util/cbmem/cbmem))
-#$(eval $(call initrd_bin_add,$(build)/$(coreboot_dir)/util/inteltool/inteltool))
+$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/cbmem/cbmem))
+$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/superiotool/superiotool))
+#$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/inteltool/inteltool))
 endif
 
-$(build)/$(coreboot_dir)/util/cbmem/cbmem: \
-		$(build)/$(coreboot_dir)/.canary \
-		musl.intermediate
-	$(call do,MAKE,cbmem,\
-		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
+$(COREBOOT_UTIL_DIR)/cbmem/cbmem \
+$(COREBOOT_UTIL_DIR)/superiotool/superiotool \
+$(COREBOOT_UTIL_DIR)/inteltool/inteltool \
+: $(build)/$(coreboot_dir)/.canary \
+	musl.intermediate
+	$(call do,MAKE,$(notdir $@),\
+		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
-$(build)/$(coreboot_dir)/util/inteltool/inteltool: \
-		$(build)/$(coreboot_dir)/.canary \
-		musl.intermediate
-	$(call do,MAKE,inteltool,\
-		$(MAKE) -C "$(dir $@)" CC="$(heads_cc)" \
-	)
+
+# superio depends on zlib and pciutils
+$(COREBOOT_UTIL_DIR)/superiotool/superiotool: zlib.intermediate pciutils.intermediate
 
 #
 # initrd image creation
