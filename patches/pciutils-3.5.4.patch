@@ -1,0 +1,12 @@
+diff -u --recursive clean/pciutils-3.5.4/lib/types.h pciutils-3.5.4/lib/types.h
+--- clean/pciutils-3.5.4/lib/types.h	2017-02-24 15:22:04.000000000 -0500
++++ pciutils-3.5.4/lib/types.h	2018-03-02 09:31:29.115000000 -0500
+@@ -8,6 +8,8 @@
+ 
+ #include <sys/types.h>
+ 
++#define PCI_HAVE_STDINT_H
++
+ #ifndef PCI_HAVE_Uxx_TYPES
+ 
+ #ifdef PCI_OS_WINDOWS
