@@ -9,6 +9,7 @@ config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
+PKGS_PROXY	?= ""
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD).config
 
@@ -194,7 +195,13 @@ define define_module =
   else
     # Fetch and verify the source tar file
     $(packages)/$($1_tar):
-	wget -O "$$@" $($1_url)
+ifneq "$PKGS_PROXY" ""
+	$(eval package_file := $(shell echo $($1_url) | awk -F"/" '{ print $$NF}'))
+	-wget -O $(packages)/$($1_tar) $(PKGS_PROXY)/packages/$(package_file)
+endif
+	if [ ! -s $(packages)/$($1_tar) ]; then \
+		wget -O $(packages)/$($1_tar) $($1_url); \
+	fi
     $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
 	@touch "$$@"
