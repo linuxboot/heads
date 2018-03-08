@@ -3,7 +3,7 @@ all:
 
 modules-y 	:=
 pwd 		:= $(shell pwd)
-packages 	:= $(pwd)/packages
+packages 	?= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
@@ -361,7 +361,7 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
 COREBOOT_UTIL_DIR=$(build)/$(coreboot_dir)/util
 ifeq ($(CONFIG_COREBOOT),y)
 $(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/cbmem/cbmem))
-$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/superiotool/superiotool))
+#$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/superiotool/superiotool))
 #$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/inteltool/inteltool))
 endif
 
@@ -429,7 +429,8 @@ $(build)/$(BOARD)/tools.cpio: \
 		mkdir -p "$(initrd_dir)/etc" ; \
 		export \
 			| grep ' CONFIG_' \
-			| sed 's/^declare -x /export /' \
+			| sed -e 's/^declare -x /export /' \
+			-e 's/\\\"//g' \
 			> "$(initrd_dir)/etc/config" \
 	)
 	$(call do-cpio,$@,$(initrd_dir))
