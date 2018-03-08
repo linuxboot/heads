@@ -50,6 +50,7 @@ while true; do
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
       'g' ' Generate new TOTP secret' \
+      'i' ' Ignore tampering and force a boot (Unsafe!)' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -101,6 +102,18 @@ while true; do
     # Try to select a kernel from the menu
     mount_boot
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
+    continue
+  fi
+
+  if [ "$totp_confirm" = "i" ]; then
+    # Run the menu selection in "force" mode, bypassing hash checks
+    if (whiptail --title 'Unsafe Forced Boot Selected!' \
+        --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 60) then
+      mount_boot
+      kexec-select-boot -m -b /boot -c "grub.cfg" -g -f
+    else
+      echo "Returning to the main menu"
+    fi
     continue
   fi
 
