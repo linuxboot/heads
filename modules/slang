@@ -13,7 +13,7 @@ slang_configure := ./configure \
 	--with-png=no \
 	--with-pcre=no \
 	--with-onig=no \
-  && mkdir src/elfobjs
+  && mkdir -p src/elfobjs
 
 slang_target := \
 	$(MAKE_JOBS) \
