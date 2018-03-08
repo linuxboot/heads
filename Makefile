@@ -338,9 +338,11 @@ $(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
 )
 
-# hack to install busybox into the initrd
+# hack to install busybox into the initrd if busybox is configured
+ifeq "$(CONFIG_BUSYBOX)" "y"
 $(build)/$(BOARD)/heads.cpio: busybox.intermediate
 initrd_bins += $(initrd_bin_dir)/busybox
+endif
 
 $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
 	$(do,SYMLINK,$@,$(MAKE) \
