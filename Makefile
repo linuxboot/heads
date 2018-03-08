@@ -3,7 +3,7 @@ all:
 
 modules-y 	:=
 pwd 		:= $(shell pwd)
-packages 	:= $(pwd)/packages
+packages 	?= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
