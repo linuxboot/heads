@@ -1,0 +1,43 @@
+From 8e7e0e390fcfda226f0d78bfa883ffee12f751a8 Mon Sep 17 00:00:00 2001
+From: Youness Alaoui <youness.alaoui@puri.sm>
+Date: Fri, 9 Feb 2018 18:32:51 -0500
+Subject: [PATCH 7/9] intel/fsp/fsp2_0: Fix FSP 2.0 headers to match github
+ version
+
+The current FSP 2.0 headers do not match the headers from the official
+FSP 2.0 image that was released on github [1].
+
+[1] https://github.com/IntelFsp/FSP/tree/Kabylake/KabylakeFspBinPkg
+
+Change-Id: I233bf7cf6f62e9e1b389d42a09461717a3285f0f
+Signed-off-by: Youness Alaoui <youness.alaoui@puri.sm>
+---
+ src/vendorcode/intel/fsp/fsp2_0/skykabylake/MemInfoHob.h | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/src/vendorcode/intel/fsp/fsp2_0/skykabylake/MemInfoHob.h b/src/vendorcode/intel/fsp/fsp2_0/skykabylake/MemInfoHob.h
+index 248b4d5ef1..3abc877a19 100644
+--- a/src/vendorcode/intel/fsp/fsp2_0/skykabylake/MemInfoHob.h
++++ b/src/vendorcode/intel/fsp/fsp2_0/skykabylake/MemInfoHob.h
+@@ -207,10 +207,6 @@ typedef struct {
+   UINT8             RevisionId;              ///< The PCI revision id of this memory controller.
+   UINT8             ChannelCount;            ///< Number of valid channels that exist on the controller.
+   CHANNEL_INFO      ChannelInfo[MAX_CH];     ///< The following are channel level definitions.
+-  MRC_TA_TIMING     tRd2Rd;                  ///< Read-to-Read   Turn Around Timings
+-  MRC_TA_TIMING     tRd2Wr;                  ///< Read-to-Write  Turn Around Timings
+-  MRC_TA_TIMING     tWr2Rd;                  ///< Write-to-Read  Turn Around Timings
+-  MRC_TA_TIMING     tWr2Wr;                  ///< Write-to-Write Turn Around Timings
+ } CONTROLLER_INFO;
+ 
+ typedef struct {
+@@ -228,6 +224,7 @@ typedef struct {
+   UINT8             ErrorCorrectionType;
+ 
+   SiMrcVersion      Version;
++  UINT32            FreqMax;
+   BOOLEAN           EccSupport;
+   UINT8             MemoryProfile;
+   UINT32            TotalPhysicalMemorySize;
+-- 
+2.14.3
+
