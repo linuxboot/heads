@@ -1,0 +1,29 @@
+#!/bin/ash
+
+# bring up the ethernet; maybe should do DHCP?
+ifconfig lo 127.0.0.1
+
+if [ -f /lib/modules/e1000.ko ]; then
+	insmod /lib/modules/e1000.ko
+fi
+
+if [ -f /lib/modules/e1000e.ko ]; then
+	insmod /lib/modules/e1000e.ko
+fi
+
+if [ -e /sys/class/net/eth0 ]; then
+	# Setup static IP
+	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
+		ifconfig eth0 $CONFIG_BOOT_STATIC_IP
+	fi
+	# TODO: setup DHCP if available
+	ifconfig eth0 > /dev/ttyprintk
+
+	# Setup the ssh server, allow root logins and log to stderr
+	if [ ! -d /etc/dropbear ]; then
+		mkdir /etc/dropbear
+	fi
+	dropbear -B -R 2>/dev/ttyprintk
+
+	ifconfig eth0 | head -1 > /dev/tty0
+fi
