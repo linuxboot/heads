@@ -26,22 +26,6 @@ if [ ! -r /dev/ptmx ]; then
 	ln -s /dev/pts/ptmx /dev/ptmx
 fi
 
-# bring up the ethernet; maybe should do DHCP?
-ifconfig lo 127.0.0.1
-
-if [ -f /lib/modules/e1000.ko ]; then
-  insmod /lib/modules/e1000.ko
-  ifconfig eth0 10.0.2.15  # qemu
-  ifconfig eth0 > /dev/ttyprintk
-
-# Setup the ssh server, allow root logins and log to stderr
-  if [ ! -d /etc/dropbear ]; then
-    mkdir /etc/dropbear
-  fi
-  dropbear -B -R 2>/dev/ttyprintk
-  ifconfig eth0 | head -1 > /dev/tty0
-fi
-
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
 
@@ -67,11 +51,12 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
-if [ ! -x "$CONFIG_BOOTSCRIPT" ]; then
-	recovery 'Boot script missing?  Entering recovery shell'
-	# just in case...
-	tpm extend -ix 4 -ic recovery
-	exec /bin/ash
+# Setup recovery serial shell
+if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
+	pause_recovery 'Console recovery shell' \
+		< "$CONFIG_BOOT_RECOVERY_SERIAL" \
+		> "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
 
 # If the user has been holding down r, enter a recovery shell
@@ -87,15 +72,37 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	tpm extend -ix 4 -ic recovery
+	if [ "$CONFIG_TPM" = y ]; then
+		tpm extend -ix 4 -ic recovery
+	fi
 	exec /bin/ash
+	exit
 fi
 
-echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
-exec "$CONFIG_BOOTSCRIPT"
+if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+	recovery 'Boot script missing?  Entering recovery shell'
+else
+	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
+		$CONFIG_BOOTSCRIPT_NETWORK
+		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
+		# not blocking
+	fi
 
-# We should never reach here, but just in case...
-recovery 'Boot script failure?  Entering recovery shell'
+	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
+		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+		exec "$CONFIG_BOOTSCRIPT"
+
+		# We should never reach here, but just in case...
+		recovery 'Boot script failure?  Entering recovery shell'
+	else
+		# wait for boot via network to occur
+		pause_recovery 'Override network boot. Entering recovery shell'
+	fi
+fi
+
 # belts and suspenders, just in case...
-tpm extend -ix 4 -ic recovery
+if [ "$CONFIG_TPM" = y ]; then
+	tpm extend -ix 4 -ic recovery
+fi
 exec /bin/ash
