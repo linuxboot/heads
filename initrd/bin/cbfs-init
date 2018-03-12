@@ -1,0 +1,34 @@
+#!/bin/ash
+set -e -o pipefail
+. /etc/functions
+
+# Update initrd with CBFS files
+if [ -z "$CBFS_PCR" ]; then
+	CBFS_PCR=7
+fi
+
+# Load individual files
+cbfsfiles=`cbfs -l 2>/dev/null | grep "^initrd/"` # \
+# || die "cbfs list files failed"
+# qemu dies - ignore check for now
+
+for cbfsname in `echo $cbfsfiles`; do
+	filename=${cbfsname:6}
+	if [ ! -z "$filename" ]; then
+		echo "Loading $filename from CBFS"
+		mkdir -p `dirname $filename` \
+		|| die "$filename: mkdir failed"
+		cbfs -r $cbfsname > "$filename" \
+		|| die "$filename: cbfs file read failed"
+		if [ "$CONFIG_TPM" = "y" ]; then
+			TMPFILE=/tmp/cbfs.$$
+			echo "$filename" > $TMPFILE
+			cat $filename >> $TMPFILE
+			tpm extend -ix "$CBFS_PCR" -if $TMPFILE \
+			|| die "$filename: tpm extend failed"
+		fi
+	fi
+done
+
+# TODO: copy CBFS file named "initrd.tgz" to /tmp, measure and extract
+# TODO: key convenience: take "keys/*.asc" and gpg --import them

@@ -51,6 +51,10 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
+if [ "$CONFIG_COREBOOT" = "y" ]; then
+	/bin/cbfs-init
+fi
+
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
@@ -72,7 +76,7 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = y ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		tpm extend -ix 4 -ic recovery
 	fi
 	exec /bin/ash
@@ -102,7 +106,7 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = y ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	tpm extend -ix 4 -ic recovery
 fi
 exec /bin/ash
