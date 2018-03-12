@@ -22,3 +22,4 @@ newt_configure := ./autogen.sh; ./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--host i386-elf-linux \
+	--without-tcl
