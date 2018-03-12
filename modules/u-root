@@ -7,6 +7,9 @@
 
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio
+ifeq ($(shell test -e build/$(BOARD)/u-root.cpio && echo -n yes),yes)
+$(shell rm $(build)/$(BOARD)/u-root.cpio)
+endif
 
 export GOPATH=$(build)/go
 
