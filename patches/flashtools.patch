@@ -1,0 +1,302 @@
+diff --git ./.gitignore ./.gitignore
+index eb53396..bf46e4e 100644
+--- ./.gitignore
++++ ./.gitignore
+@@ -5,3 +5,4 @@
+ flashtool
+ peek
+ poke
++cbfs
+diff --git ./Makefile ./Makefile
+index 27e28b5..ffb187c 100644
+--- ./Makefile
++++ ./Makefile
+@@ -1,6 +1,7 @@
+ TARGETS += flashtool
+ TARGETS += poke
+ TARGETS += peek
++TARGETS += cbfs
+ 
+ CFLAGS += \
+ 	-std=c99 \
+@@ -17,6 +18,7 @@ all: $(TARGETS)
+ flashtool: flashtool.o spiflash.o util.o
+ peek: peek.o util.o
+ poke: poke.o util.o
++cbfs: cbfs.o
+ 
+ $(TARGETS):
+ 	$(CC) $(LDFLAGS) -o $@ $^
+diff --git ./cbfs.c ./cbfs.c
+new file mode 100644
+index 0000000..7e11c88
+--- /dev/null
++++ ./cbfs.c
+@@ -0,0 +1,267 @@
++#include <stdio.h>
++#include <fcntl.h>
++#include <stdlib.h>
++#include <stdint.h>
++#include <string.h>
++#include <inttypes.h>
++#include <errno.h>
++#include <unistd.h>
++#include <getopt.h>
++#include <arpa/inet.h>
++
++#define CBFS_HEADER_MAGIC  0x4F524243
++#define CBFS_HEADER_VERSION1 0x31313131
++#define CBFS_HEADER_VERSION2 0x31313132
++#define CBFS_HEADER_VERSION  CBFS_HEADER_VERSION2
++
++int verbose = 0;
++
++static const struct option long_options[] = {
++	{ "verbose",		0, NULL, 'v' },
++	{ "read",		1, NULL, 'r' },
++	{ "list",		0, NULL, 'l' },
++	{ "help",		0, NULL, 'h' },
++	{ NULL,			0, NULL, 0 },
++};
++
++
++static const char usage[] =
++"Usage: sudo cbfs [options]\n"
++"\n"
++"-h | -? | --help       This help\n"
++"-v | --verbose         Increase verbosity\n"
++"-r | --read file       Read the CBFS filed and dump to stdout\n"
++"-l | --list            List the raw files in the CBFS\n"
++"\n";
++
++struct cbfs_header {
++	uint32_t magic;
++	uint32_t version;
++	uint32_t romsize;
++	uint32_t bootblocksize;
++	uint32_t align; /* hard coded to 64 byte */
++	uint32_t offset;
++	uint32_t architecture;  /* Version 2 */
++	uint32_t pad[1];
++};
++
++#define CBFS_FILE_MAGIC "LARCHIVE"
++
++struct cbfs_file {
++	uint8_t magic[8];
++	/* length of file data */
++	uint32_t len;
++	uint32_t type;
++	/* offset to struct cbfs_file_attribute or 0 */
++	uint32_t attributes_offset;
++	/* length of header incl. variable data */
++	uint32_t offset;
++	char filename[];
++};
++
++
++int main(int argc, char** argv) {
++	const char * const prog_name = argv[0];
++	if (argc <= 1)
++	{
++		fprintf(stderr, "%s", usage);
++		return EXIT_FAILURE;
++	}
++
++	int opt;
++	int do_read = 0;
++	int do_list = 0;
++	const char * filename = NULL;
++	while ((opt = getopt_long(argc, argv, "h?vlr:", long_options, NULL)) != -1)
++	{
++		switch(opt)
++		{
++		case 'v':
++			verbose++;
++			break;
++		case 'l':
++			do_list = 1;
++			break;
++		case 'r':
++			do_read = 1;
++			filename = optarg;
++			break;
++		case '?': case 'h':
++			printf("%s", usage);
++			return EXIT_SUCCESS;
++		default:
++			fprintf(stderr, "%s", usage);
++			return EXIT_FAILURE;
++		}
++	}
++
++	argc -= optind;
++	argv += optind;
++	if (argc != 0)
++	{
++		fprintf(stderr, "%s: Excess arguments?\n", prog_name);
++		return EXIT_FAILURE;
++	}
++
++	int fd;
++	fd = open("/dev/mem", O_RDONLY);
++	if (fd < 0) {
++		fprintf(stderr, "Failed to open /dev/mem : %s\n", strerror(errno));
++		return EXIT_FAILURE;
++	}
++
++	uint64_t end = 0x100000000;
++	if (verbose) {
++		printf("Seeking to %lx\n", end-4);
++	}
++	if (lseek(fd, end-4, SEEK_SET) == -1) {
++		fprintf(stderr, "Failed to seek to %lx\n", end-4);
++		return EXIT_FAILURE;
++	}
++
++	int32_t header_delta;
++	if (read(fd, &header_delta, sizeof(header_delta)) < 0) {
++		fprintf(stderr, "Failed to read header offset\n");
++		return EXIT_FAILURE;
++	}
++	if (verbose) {
++		printf("Header Offset: %d\n", header_delta);
++	}
++
++	uint64_t header_off;
++	if (header_delta < 0) {
++		header_off = end - ((uint64_t)(-header_delta));
++	} else {
++		header_off = ((uint64_t)header_delta);
++	}
++
++	if (verbose) {
++		printf("Seeking to %lx\n", header_off);
++	}
++	if (lseek(fd, header_off, SEEK_SET) == -1) {
++		fprintf(stderr, "Failed to seek to %lx\n", header_off);
++		return EXIT_FAILURE;
++	}
++
++	struct cbfs_header header;
++	if (read(fd, &header, sizeof(struct cbfs_header)) < 0) {
++		fprintf(stderr, "Failed to read header\n");
++		return EXIT_FAILURE;
++	}
++	header.magic = ntohl(header.magic);
++	header.version = ntohl(header.version);
++	header.romsize = ntohl(header.romsize);
++	header.bootblocksize = ntohl(header.bootblocksize);
++	header.align = ntohl(header.align);
++	header.offset = ntohl(header.offset);
++	header.architecture = ntohl(header.architecture);
++
++	if (verbose) {
++		printf("Header magic          : %x\n", header.magic);
++		printf("Header version        : %x\n", header.version);
++		printf("Header ROM size       : %x\n", header.romsize);
++		printf("Header boot block size: %x\n", header.bootblocksize);
++		printf("Header align          : %x\n", header.align);
++		printf("Header offset         : %x\n", header.offset);
++		printf("Header arch           : %x\n", header.architecture);
++	}
++
++	if (header.magic != CBFS_HEADER_MAGIC) {
++		fprintf(stderr, "Failed to find valid header\n");
++		return EXIT_FAILURE;
++	}
++
++	uint32_t align = header.align;
++	// loop through files
++	uint64_t off = end - ((uint64_t) header.romsize) + ((uint64_t) header.offset);
++	while (1) {
++		if (verbose) {
++			printf("Potential CBFS File Offset: %lx\n", off);
++		}
++	  if (lseek(fd, off, SEEK_SET) == -1) {
++	    fprintf(stderr, "Failed to seek to next CBFS offset %lx\n", off);
++	    return EXIT_FAILURE;
++	  }
++
++		struct cbfs_file file;
++		if (read(fd, &file, sizeof(struct cbfs_file)) < 0) {
++			fprintf(stderr, "Failed to read cbfs file header\n");
++			return EXIT_FAILURE;
++	  }
++
++		file.len = ntohl(file.len);
++		file.type = ntohl(file.type);
++		file.attributes_offset = ntohl(file.attributes_offset);
++		file.offset = ntohl(file.offset);
++
++		if (verbose) {
++			printf("File magic             : %.8s\n", file.magic);
++			printf("File len               : %x\n", file.len);
++			printf("File type              : %x\n", file.type);
++			printf("File attributes_offset : %x\n", file.attributes_offset);
++			printf("File offset            : %x\n", file.offset);
++		}
++
++		if (strncmp((char *)file.magic, CBFS_FILE_MAGIC, 8) != 0) {
++			break;
++		}
++
++		size_t name_size = file.offset - sizeof(struct cbfs_file);
++		char *name = calloc(name_size, sizeof(char));
++		if (read(fd, name, name_size) < 0) {
++			fprintf(stderr, "Failed to read cbfs file name\n");
++			return EXIT_FAILURE;
++		}
++		if (verbose) {
++			printf("File name              : '%s'\n", name);
++		}
++
++		if (do_list && file.type == 0x50) {
++			printf("%s\n", name);
++		}
++		if (do_read && file.type == 0x50 &&
++			strncmp(name, filename, name_size) == 0)
++		{
++			uint64_t file_off = off + file.offset;
++			if (verbose) {
++				printf("Seeking to %lx\n-------- Start Data\n", file_off);
++			}
++			if (lseek(fd, file_off, SEEK_SET) == -1) {
++				fprintf(stderr, "Failed to seek to file data at %lx\n", file_off);
++				return EXIT_FAILURE;
++			}
++
++			char *file_data = malloc(file.len);
++			if (read(fd, file_data, file.len) < 0) {
++				fprintf(stderr, "Failed to read file data\n");
++				return EXIT_FAILURE;
++			}
++			if (write(STDOUT_FILENO, file_data, file.len) == -1) {
++				fprintf(stderr, "Failed to write file to stdout: %s\n",
++					strerror(errno));
++				return EXIT_FAILURE;
++			}
++			free(file_data);
++			if (verbose) {
++				printf("\n-------- End Data\n");
++			}
++			do_read++;
++		}
++
++		uint64_t inc = (align + (file.offset + file.len) - 1) & (~(align-1));
++		off += inc;
++		if (verbose) {
++			printf("File Off+Len    : %x\n", file.offset + file.len);
++			printf("Align           : %x\n", align);
++			printf("Inc             : %lx\n", inc);
++			printf("Next file align : %lx\n", off);
++		}
++	}
++
++	if (do_read == 1) {
++		fprintf(stderr, "Failed to find CBFS file named '%s'\n", filename);
++		return EXIT_FAILURE;
++	}
++
++	return EXIT_SUCCESS;
++}
