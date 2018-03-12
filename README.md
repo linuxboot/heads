@@ -71,7 +71,9 @@ Notes:
 see `patches/xen-4.6.3.patch` and adding `no-real-mode` to start
 of the Xen command line.  Booting or installing Qubes is a bit hacky and needs to be documented.
 * Building for the Lenovo X220 requires binary blobs to be placed in the blobs/x220/ folder.
-See the readme.txt file in that folder
+See the readme.md file in that folder
+* Building for the Librem 13 v2/v3 or Librem 15 v3/v4 requires binary blobs to be placed in
+the blobs/librem_skl folder. See the readme.md file in that folder
 
 Signing with GPG
 ---
