@@ -48,12 +48,33 @@ while true; do
       'y' ' Default boot' \
       'r' ' TOTP does not match, refresh code' \
       'n' ' TOTP does not match after refresh, troubleshoot' \
+      'o' ' Other Boot Options -->' \
+      'a' ' Advanced Settings -->' \
+      'x' ' Exit to recovery shell' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    totp_confirm=$(cat /tmp/whiptail)
+  fi
+
+  if [ "$totp_confirm" = "o" ]; then
+    whiptail --clear --title "Other Boot Options" \
+      --menu "Select A Boot Option" 20 80 10 \
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
-      'g' ' Generate new TOTP secret' \
       'i' ' Ignore tampering and force a boot (Unsafe!)' \
+      'r' ' <-- Return to main menu' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    totp_confirm=$(cat /tmp/whiptail)
+  fi
+
+  if [ "$totp_confirm" = "a" ]; then
+    whiptail --clear --title "Advanced Settings" \
+      --menu "Configure Advanced Settings" 20 80 10 \
+      'g' ' Generate new TOTP secret' \
       'p' ' Reset the TPM' \
-      'x' ' Exit to recovery shell' \
+      's' ' Update checksums and sign all files in /boot' \
+      'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
     totp_confirm=$(cat /tmp/whiptail)
@@ -128,6 +149,33 @@ while true; do
         --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 80) then
       mount_boot
       kexec-select-boot -m -b /boot -c "grub.cfg" -g -f
+    else
+      echo "Returning to the main menu"
+    fi
+    continue
+  fi
+
+  if [ "$totp_confirm" = "s" ]; then
+    if (whiptail --title 'Update Checksums and sign all files in /boot' \
+        --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 80) then
+      mount_boot
+      mount -o rw,remount /boot
+
+      cd /boot
+      find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
+      DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
+      echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+
+      # sign and auto-roll config counter
+      extparam=
+      if [ "$CONFIG_TPM" = "y" ]; then
+        extparam=-u
+      fi
+      kexec-sign-config -p /boot $extparam \
+      || die "Failed to sign default config"
+
+      # switch back to ro mode
+      mount -o ro,remount /boot
     else
       echo "Returning to the main menu"
     fi
