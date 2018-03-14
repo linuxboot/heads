@@ -296,9 +296,9 @@ do_boot()
 while true; do
 	if [ "$force_boot" = "y" ]; then
 	  check_config $paramsdir force
-  else
+	else
 	  check_config $paramsdir
-  fi
+	fi
 	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1` || true
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
