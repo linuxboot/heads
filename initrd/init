@@ -51,6 +51,7 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
+
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
@@ -72,11 +73,14 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = y ]; then
-		tpm extend -ix 4 -ic recovery
+	if [ "$CONFIG_RECOVERY_NEED_AUTH" != y ]; then
+		if [ "$CONFIG_TPM" = y ]; then
+			tpm extend -ix 4 -ic recovery
+		fi
+		exec /bin/ash
+	else
+		exit 1
 	fi
-	exec /bin/ash
-	exit
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
@@ -102,7 +106,11 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = y ]; then
-	tpm extend -ix 4 -ic recovery
+if [ "$CONFIG_RECOVERY_NEED_AUTH" != y ]; then
+	if [ "$CONFIG_TPM" = y ]; then
+		tpm extend -ix 4 -ic recovery
+	fi
+	exec /bin/ash
+else
+	exit 1
 fi
-exec /bin/ash
