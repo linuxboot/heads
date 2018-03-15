@@ -23,7 +23,7 @@ CONFIG_HEADS	?= y
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		:= $(shell nproc)
-MAKE_JOBS	?= -j$(CPUS) --max-load 16
+#MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell mkdir -p "$(log_dir)" "$(build)/$(BOARD)" )
@@ -275,7 +275,7 @@ define define_module =
 		$(dir $($1_config_file_path)).configured \
 
 	@echo "$(DATE) MAKE $1"
-	@( \
+	+@( \
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
 			$($1_target)" ;  \
@@ -388,7 +388,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 : $(build)/$(coreboot_dir)/.canary \
 	musl.intermediate
-	$(call do,MAKE,$(notdir $@),\
+	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
 
@@ -507,8 +507,7 @@ real.clean:
 	rm -rf ./install
 
 bootstrap:
-	$(MAKE) \
-		-j`nproc` \
+	+$(MAKE) \
 		musl-cross.intermediate \
 		$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc \
 
