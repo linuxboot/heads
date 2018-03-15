@@ -4,42 +4,51 @@
 # This is not a normal Heads module, since it builds all of its
 # own dependencies.
 #
-
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio
 UROOT_CMDS ?=
 
 export GOPATH=$(build)/go
-src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
+u-root_src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
 
 $(GOPATH):
 	$(call do,GO GET,$(u-root_url),\
 		go get $(u-root_url) \
 	)
 
-clean:
-	rm -f $(build)/$(BOARD)/u-root.cpio
+#
+# If the board directory has its own go commands, copy them
+# into the u-root tree so that they will be bundled into the go initrd
+# TODO: generalize this to support more commands
+# TODO: fix this sort that it doesn't leave commands lying around
+#
+ifeq "y" "$(shell [ -r 'boards/$(BOARD)/uinit.go' ] && echo y)"
+u-root_uinit := $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit/uinit.go
+$(u-root_uinit): boards/$(BOARD)/uinit.go
+	$(call install,$<,$@)
+endif
 
-$(u-root_output): $(GOPATH) clean
-ifeq ($(shell test -e boards/$(BOARD)/uinit.go && echo -n yes),yes)
-ifeq ($(shell (test -d $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit || echo -n yes)),yes)
-	mkdir $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit
-endif
-	cp boards/$(BOARD)/uinit.go $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit
-endif
+$(u-root_output): $(GOPATH) $(u-root_uinit)
 	$(call do,U-ROOT,$@,\
 		$(GOPATH)/bin/u-root \
 			-build=bb \
 			-format=cpio \
 			-o $@  \
-			$(src_cmds)\
+			$(u-root_src_cmds)\
 	)
 
 # Override the initrd inputs and add in the kernel modules
 initrd-$(CONFIG_UROOT) += $(u-root_output)
 
 
-# If we are building for u-root, disable the default CONFIG_HEADS
 ifeq "$(CONFIG_UROOT)" "y"
+# If we are building for u-root, disable the default CONFIG_HEADS
+# so that the heads/initrd/etc directories will not be included
 CONFIG_HEADS=n
+
+# Since we do not include u-root in modules-y, we have to define our
+# own intermediate and clean targets here
+u-root.intermediate: $(u-root_output)
+u-root.clean:
+	$(RM) $(u-root_output)
 endif
