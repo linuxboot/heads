@@ -12,16 +12,17 @@ linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
 
 
 linuxboot_configure := \
+	echo >&2 "Pre-building edk2" ; \
+	$(MAKE) \
+		BOARD=$(linuxboot_board) \
+		edk2.force \
+	|| exit 1 ; \
 	if [ "$(linuxboot_board)" = "qemu" ]; then \
 		echo >&2 "Pre-building edk2 OVMF" ; \
-		$(MAKE) \
-			BOARD=$(linuxboot_board) \
-			boards/$(linuxboot_board)/$(linuxboot_board).rom \
-		&& touch .config ; \
-	else \
-		echo >&2 "Using existing ROM file" ; \
-		touch .config ; \
-	fi
+		( cd edk2/OvmfPkg ; ./build.sh -n `nproc` ) \
+		|| exit 1 ; \
+	fi ; \
+	touch .config ; \
 
 linuxboot_target := \
 	BOARD=$(linuxboot_board) \
@@ -58,8 +59,11 @@ $(build)/$(BOARD)/linuxboot.rom: $(linuxboot_output)
 # The Linux kernel and Heads initrd must be built before linuxboot
 # unless the user has specified "FAST=1" on the make command line,
 # which will assume that the kernel and initrd are fresh
+#
+# There is not an explicit dependency of linuxboot on linux
+# or initrd so that the configuration can pre-build all of edk2
+# overlapping with the other builds.
 ifneq "$(FAST)" "1"
-linuxboot_depends := linux initrd
 linuxboot.intermediate: $(build)/$(BOARD)/bzImage
 linuxboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
 endif
