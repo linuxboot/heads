@@ -25,6 +25,10 @@ recovery() {
 	exec /bin/ash
 }
 
+pause_recovery() {
+	read -p 'Hit enter to proceed to recovery shell:'
+	recovery $*
+}
 
 pcrs() {
 	head -7 /sys/class/tpm/tpm0/pcrs

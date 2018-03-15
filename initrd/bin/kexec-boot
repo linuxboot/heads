@@ -66,16 +66,15 @@ do
 	firstval=`echo $line | cut -d\  -f2`
 	restval=`echo $line | cut -d\  -f3-`
 	if [ "$key" = "kernel" ]; then
+		fix_file_path
 		if [ "$kexectype" = "xen" ]; then
-			# always overload xen and with custom arguments
-			kexeccmd="$kexeccmd -l $bootdir$firstval"
+			# always use xen with custom arguments
+			kexeccmd="$kexeccmd -l $filepath"
 			kexeccmd="$kexeccmd --command-line \"no-real-mode reboot=no vga=current\""
 		elif [ "$kexectype" = "multiboot" ]; then
-			fix_file_path
 			kexeccmd="$kexeccmd -l $filepath"
 			kexeccmd="$kexeccmd --command-line \"$restval\""
 		else
-			fix_file_path
 			kexeccmd="$kexeccmd -l $filepath"
 		fi
 	fi
