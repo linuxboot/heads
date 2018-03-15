@@ -1,0 +1,152 @@
+diff --git ./src/mainboard/asus/kgpe-d16/Kconfig ./src/mainboard/asus/kgpe-d16/Kconfig
+index 531ba4f..5227d28 100644
+--- ./src/mainboard/asus/kgpe-d16/Kconfig
++++ ./src/mainboard/asus/kgpe-d16/Kconfig
+@@ -28,6 +28,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
+ 	select BOARD_ROMSIZE_KB_2048
+ 	select ENABLE_APIC_EXT_ID
+ 	select SPI_FLASH
++	select TPM2
+ 	select MAINBOARD_HAS_LPC_TPM
+ 	select HAVE_ACPI_RESUME
+ 	select DRIVERS_I2C_W83795
+diff --git ./src/mainboard/asus/kgpe-d16/devicetree.cb ./src/mainboard/asus/kgpe-d16/devicetree.cb
+index 9039f6d..0ea4216 100644
+--- ./src/mainboard/asus/kgpe-d16/devicetree.cb
++++ ./src/mainboard/asus/kgpe-d16/devicetree.cb
+@@ -217,6 +217,9 @@ chip northbridge/amd/amdfam10/root_complex	# Root complex
+ 						chip drivers/pc80/tpm
+ 							device pnp 4e.0 on end		# TPM module
+ 						end
++						chip drivers/generic/generic		# BMC KCS
++							device pnp ca2.0 on end
++						end
+ 					end
+ 					device pci 14.4 on			# Bridge
+ 						device pci 1.0 on end		# VGA
+diff --git ./src/mainboard/asus/kgpe-d16/dsdt.asl ./src/mainboard/asus/kgpe-d16/dsdt.asl
+index 6a25b4d..cfcbc98 100644
+--- ./src/mainboard/asus/kgpe-d16/dsdt.asl
++++ ./src/mainboard/asus/kgpe-d16/dsdt.asl
+@@ -50,6 +50,9 @@ DefinitionBlock (
+ 	/* HPET enable */
+ 	Name (HPTE, 0x1)
+ 
++	/* IPMI KCS enable */
++	Name (KCSE, 0x1)
++
+ 	#include <southbridge/amd/common/acpi/sleepstates.asl>
+ 
+ 	/* The _PIC method is called by the OS to choose between interrupt
+@@ -485,6 +488,13 @@ DefinitionBlock (
+ 				Name (_HID, EisaId ("PNP0A05"))
+ 				Name (_ADR, 0x00140003)
+ 
++				OperationRegion(BMRG, SystemIO, 0xca2, 0x02) /* BMC KCS registers */
++					Field(BMRG, AnyAcc, NoLock, Preserve)
++				{
++					BMRI, 8,  /* Index */
++					BMRD, 8,  /* Data */
++				}
++
+ 				/* Real Time Clock Device */
+ 				Device(RTC0) {
+ 					Name(_HID, EISAID("PNP0B00"))   /* AT Real Time Clock (not PIIX4 compatible) */
+@@ -606,6 +616,27 @@ DefinitionBlock (
+ 						})
+ 					}
+ 				}
++
++				Device(KCS1) {   /* IPMI KCS */
++					Name(_HID,EISAID("IPI0001"))		/* ASpeed BMC */
++					Method (_STA, 0, NotSerialized) {
++						If(KCSE) {			/* Detection enabled */
++							If(LNotEqual(BMRD, 0xff)) {
++								Return(0x0f)	/* Device present */
++							}
++							Return(Zero)
++						}
++						Return(Zero)
++					}
++					Method(_CRS, 0) {
++						Return(ResourceTemplate() {
++							IO(Decode16, 0x0ca2, 0x0ca2, 0x01, 0x02)
++						})
++					}
++					Method (_IFT, 0, NotSerialized) {	/* Interface type */
++						Return(One)			/* KCS interface */
++					}
++				}
+ 			}
+ 
+ 			/* High Precision Event Timer */
+diff --git ./src/mainboard/asus/kgpe-d16/mainboard.c ./src/mainboard/asus/kgpe-d16/mainboard.c
+index 65029d4..8ee3a5e 100644
+--- ./src/mainboard/asus/kgpe-d16/mainboard.c
++++ ./src/mainboard/asus/kgpe-d16/mainboard.c
+@@ -70,6 +70,13 @@ static void mainboard_enable(device_t dev)
+ 
+ 	set_pcie_dereset();
+ 	/* get_ide_dma66(); */
++
++	/* Enable access to the BMC IPMI via KCS */
++	device_t lpc_sio_dev = dev_find_slot_pnp(0xca2, 0);
++	struct resource *res = new_resource(lpc_sio_dev, 0xca2);
++	res->base = 0xca2;
++	res->size = 1;
++	res->flags = IORESOURCE_IO | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
+ }
+ 
+ /* override the default SATA PHY setup */
+diff --git ./src/mainboard/asus/kgpe-d16/romstage.c ./src/mainboard/asus/kgpe-d16/romstage.c
+index 63b93c1..bb4f181 100644
+--- ./src/mainboard/asus/kgpe-d16/romstage.c
++++ ./src/mainboard/asus/kgpe-d16/romstage.c
+@@ -88,6 +88,47 @@ static void switch_spd_mux(uint8_t channel)
+ 	byte &= ~0xc0;			/* Enable SPD mux GPIO output drivers */
+ 	byte |= (channel << 2) & 0xc;	/* Set SPD mux GPIOs */
+ 	pci_write_config8(PCI_DEV(0, 0x14, 0), 0x54, byte);
++
++	/* Temporary AST PCI mapping */
++	uint32_t base_memory = 0xfc000000;
++	uint32_t memory_limit = 0xfc800000;
++
++	/* Temporarily enable the SP5100 PCI bridge */
++	uint16_t prev_sec_cfg = pci_read_config16(PCI_DEV(0, 0x14, 4), 0x04);
++	uint8_t prev_sec_bus = pci_read_config8(PCI_DEV(0, 0x14, 4), 0x19);
++	uint8_t prev_sec_sub_bus = pci_read_config8(PCI_DEV(0, 0x14, 4), 0x1a);
++	uint16_t prev_sec_mem_base = pci_read_config16(PCI_DEV(0, 0x14, 4), 0x20);
++	uint16_t prev_sec_mem_limit = pci_read_config16(PCI_DEV(0, 0x14, 4), 0x22);
++	pci_write_config8(PCI_DEV(0, 0x14, 4), 0x19, 0x01);
++	pci_write_config8(PCI_DEV(0, 0x14, 4), 0x1a, 0xff);
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x20, (base_memory >> 20));
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x22, (memory_limit >> 20));
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x04, 0x2);
++
++	/* Temporarily enable AST BAR1 */
++	uint32_t prev_ast_cfg = pci_read_config32(PCI_DEV(1, 0x1, 0), 0x04);
++	uint32_t prev_ast_bar1 = pci_read_config32(PCI_DEV(1, 0x1, 0), 0x14);
++	pci_write_config32(PCI_DEV(1, 0x1, 0), 0x14, base_memory);
++	pci_write_config32(PCI_DEV(1, 0x1, 0), 0x04, 0x02100002);
++
++	/* Use the P2A bridge to set ASpeed SPD mux GPIOs to the same values as the SP5100 */
++	void* ast_bar1 = (void*)base_memory;
++	write32(ast_bar1 + 0xf004, 0x1e780000);								/* Enable access to GPIO controller */
++	write32(ast_bar1 + 0xf000, 0x1);
++	write32(ast_bar1 + 0x10024, read32(ast_bar1 + 0x10024) | 0x3000);				/* Enable SPD mux GPIO output drivers */
++	write32(ast_bar1 + 0x10020, (read32(ast_bar1 + 0x10020) & ~0x3000) | ((channel & 0x3) << 12));	/* Set SPD mux GPIOs */
++	write32(ast_bar1 + 0xf000, 0x0);
++
++	/* Deconfigure AST BAR1 */
++	pci_write_config32(PCI_DEV(1, 0x1, 0), 0x04, prev_ast_cfg);
++	pci_write_config32(PCI_DEV(1, 0x1, 0), 0x14, prev_ast_bar1);
++
++	/* Deconfigure SP5100 PCI bridge */
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x04, prev_sec_cfg);
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x22, prev_sec_mem_limit);
++	pci_write_config16(PCI_DEV(0, 0x14, 4), 0x20, prev_sec_mem_base);
++	pci_write_config8(PCI_DEV(0, 0x14, 4), 0x1a, prev_sec_sub_bus);
++	pci_write_config8(PCI_DEV(0, 0x14, 4), 0x19, prev_sec_bus);
+ }
+ 
+ static const uint8_t spd_addr_fam15[] = {
