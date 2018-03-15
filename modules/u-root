@@ -7,20 +7,32 @@
 
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio
+UROOT_CMDS ?=
 
 export GOPATH=$(build)/go
+src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
 
 $(GOPATH):
 	$(call do,GO GET,$(u-root_url),\
 		go get $(u-root_url) \
 	)
 
-$(u-root_output): $(GOPATH)
+clean:
+	rm -f $(build)/$(BOARD)/u-root.cpio
+
+$(u-root_output): $(GOPATH) clean
+ifeq ($(shell test -e boards/$(BOARD)/uinit.go && echo -n yes),yes)
+ifeq ($(shell (test -d $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit || echo -n yes)),yes)
+	mkdir $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit
+endif
+	cp boards/$(BOARD)/uinit.go $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit
+endif
 	$(call do,U-ROOT,$@,\
 		$(GOPATH)/bin/u-root \
 			-build=bb \
 			-format=cpio \
-			-o $@ \
+			-o $@  \
+			$(src_cmds)\
 	)
 
 # Override the initrd inputs and add in the kernel modules
