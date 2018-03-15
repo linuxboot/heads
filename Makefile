@@ -154,7 +154,9 @@ define do-cpio =
 			--quiet \
 			-H newc \
 			-o \
-		) > "$1.tmp" \
+		) \
+		| ./bin/cpio-clean \
+		> "$1.tmp" \
 	)
 	@if ! cmp --quiet "$1.tmp" "$1" ; then \
 		mv "$1.tmp" "$1" ; \
@@ -384,11 +386,14 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool: zlib.intermediate pciutils.interme
 # The cpio-clean program is used ensure that the files
 # always have the same timestamp and appear in the same order.
 #
-# If there is no /dev/console, initrd can't startup.
-# We have to force it to be included into the cpio image.
-# Since we are picking up the system's /dev/console, there
-# is a chance the build will not be reproducible (although
-# unlikely that their device file has a different major/minor)
+# The blobs/dev.cpio is also included in the Linux kernel
+# and has a reproducible version of /dev/console.
+#
+# The xz parameters are copied from the Linux kernel build scripts.
+# Without them the kernel will not decompress the initrd.
+#
+# The padding is to ensure that if anyone wants to cat another
+# file onto the initrd then the kernel will be able to find it.
 #
 
 initrd-y += $(pwd)/blobs/dev.cpio

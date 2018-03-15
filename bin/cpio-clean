@@ -138,13 +138,20 @@ for my $filename (sort keys %entries)
 }
 
 
-# Print them in sorted order
-for my $filename (sort keys %entries)
-{
-	my $entry = $entries{$filename};
-	print $entry;
-}
+# Output them in sorted order
+my $out = join '', map { $entries{$_} } sort keys %entries;
+#for my $filename (sort keys %entries)
+#{
+	#$out .= $entries{$filename};
+#}
 
 # Output the trailer to mark the end of the archive
-print $trailer;
+$out .= $trailer;
+
+# Pad to 512-bytes for kernel initrd reasons
+my $unaligned = length($out) % 512;
+$out .= chr(0x00) x (512 - $unaligned)
+	if $unaligned != 0;
+
+print $out;
 __END__
