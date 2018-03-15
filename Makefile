@@ -10,7 +10,7 @@ INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
 BOARD		?= qemu-coreboot
-CONFIG		:= $(pwd)/boards/$(BOARD).config
+CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
