@@ -192,6 +192,14 @@ define define_module =
 		( cd $(build)/$($1_dir) ; patch -p1 ) \
 			< patches/$1.patch; \
 	fi
+	if [ -d patches/$1 ] && \
+	   [ -r patches/$1 ] ; then \
+		for patch in patches/$1/*.patch ; do \
+			echo "Applying patch file : $$$$patch " ;  \
+			( cd $(build)/$($1_dir) ; patch -p1 ) \
+				< $$$$patch ; \
+		done ; \
+	fi
 	@touch "$$@"
   else
     # Fetch and verify the source tar file
@@ -208,6 +216,14 @@ define define_module =
 	if [ -r patches/$1-$($1_version).patch ]; then \
 		( cd $(build)/$($1_dir) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch; \
+	fi
+	if [ -d patches/$1-$($1_version) ] && \
+	   [ -r patches/$1-$($1_version) ] ; then \
+		for patch in patches/$1-$($1_version)/*.patch ; do \
+			echo "Applying patch file : $$$$patch " ;  \
+			( cd $(build)/$($1_dir) ; patch -p1 ) \
+				< $$$$patch ; \
+		done ; \
 	fi
 	@touch "$$@"
   endif
