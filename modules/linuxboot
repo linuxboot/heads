@@ -4,15 +4,24 @@ linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
 linuxboot_dir := linuxboot-$(linuxboot_version)
 
-
-linuxboot_configure := \
-	touch .config
-
 # linuxboot builds are specialized on a per-target basis.
 # They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)
 # otherwise it is assumed that it will have the same name
 # as the Heads BOARD.
 linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
+
+
+linuxboot_configure := \
+	if [ "$(linuxboot_board)" = "qemu" ]; then \
+		echo >&2 "Pre-building edk2 OVMF" ; \
+		$(MAKE) \
+			BOARD=$(linuxboot_board) \
+			boards/$(linuxboot_board)/$(linuxboot_board).rom \
+		&& touch .config ; \
+	else \
+		echo >&2 "Using existing ROM file" ; \
+		touch .config ; \
+	fi
 
 linuxboot_target := \
 	BOARD=$(linuxboot_board) \
