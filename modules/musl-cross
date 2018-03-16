@@ -12,7 +12,7 @@ ifneq "$(CROSS)" ""
 
 # check that $(CROSS)gcc exists or else things just won't work
 ifneq "y" "$(shell [ -x '$(CROSS)gcc' ] && echo y)"
-$(error $(CROSS)gcc does not exist - can not build
+$(error $(CROSS)gcc does not exist - can not build)
 endif
 
 # The cross compiler has already been built, so the musl-cross target
