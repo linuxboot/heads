@@ -73,15 +73,16 @@ $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 SHELL := /bin/bash
 .SHELLFLAGS := -o pipefail -c
 
-# If musl-libc is being used in the initrd, set the heads_cc
-# variable to point to it.
+# Include the musl-cross module early so that $(CROSS) will
+# be defined prior to any other module.
+include modules/musl-cross
+
 musl_dep	:= musl
 heads_cc	:= $(INSTALL)/bin/musl-gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 	-D__MUSL__ \
 
-CROSS		:= $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 CROSS_TOOLS_NOCC := \
 	AR="$(CROSS)ar" \
 	LD="$(CROSS)ld" \
