@@ -28,12 +28,13 @@ musl-cross_version := git
 musl-cross_dir := musl-cross-$(musl-cross_version)
 musl-cross_repo := https://github.com/GregorR/musl-cross
 
+CROSS := $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+musl-cross_output := $(CROSS)gcc
+
 musl-cross_configure := \
 	/bin/echo -e > Makefile \
 	'$(musl-cross_output):\n\tCC_BASE_PREFIX="$(pwd)/crossgcc" ./build.sh'
 
-CROSS := $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
-musl-cross_output := $(CROSS)gcc
 
 endif
 
