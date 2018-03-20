@@ -171,13 +171,16 @@ while true; do
       if [ "$CONFIG_TPM" = "y" ]; then
         extparam=-u
       fi
-      kexec-sign-config -p /boot $extparam \
-      || die "Failed to sign default config"
 
-      # switch back to ro mode
-      mount -o ro,remount /boot
-    else
-      echo "Returning to the main menu"
+      kexec-sign-config -p /boot $extparam 
+      if [ $? -ne 0 ]; then
+        mount -o ro,remount /boot
+        whiptail --title 'ERROR: Signing Failed' \
+          --msgbox "The signing process failed!\n\nReturning to main menu." 16 60
+      else
+        # switch back to ro mode
+        mount -o ro,remount /boot
+      fi
     fi
     continue
   fi
