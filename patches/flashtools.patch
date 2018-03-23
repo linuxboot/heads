@@ -8,7 +8,7 @@ index eb53396..bf46e4e 100644
  poke
 +cbfs
 diff --git ./Makefile ./Makefile
-index 27e28b5..ffb187c 100644
+index 27e28b5..f02daee 100644
 --- ./Makefile
 +++ ./Makefile
 @@ -1,6 +1,7 @@
@@ -23,16 +23,16 @@ index 27e28b5..ffb187c 100644
  flashtool: flashtool.o spiflash.o util.o
  peek: peek.o util.o
  poke: poke.o util.o
-+cbfs: cbfs.o
++cbfs: cbfs.o util.o
  
  $(TARGETS):
  	$(CC) $(LDFLAGS) -o $@ $^
 diff --git ./cbfs.c ./cbfs.c
 new file mode 100644
-index 0000000..7e11c88
+index 0000000..bab5f76
 --- /dev/null
 +++ ./cbfs.c
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,271 @@
 +#include <stdio.h>
 +#include <fcntl.h>
 +#include <stdlib.h>
@@ -43,6 +43,7 @@ index 0000000..7e11c88
 +#include <unistd.h>
 +#include <getopt.h>
 +#include <arpa/inet.h>
++#include "util.h"
 +
 +#define CBFS_HEADER_MAGIC  0x4F524243
 +#define CBFS_HEADER_VERSION1 0x31313131
@@ -55,6 +56,7 @@ index 0000000..7e11c88
 +	{ "verbose",		0, NULL, 'v' },
 +	{ "read",		1, NULL, 'r' },
 +	{ "list",		0, NULL, 'l' },
++	{ "type",		0, NULL, 't' },
 +	{ "help",		0, NULL, 'h' },
 +	{ NULL,			0, NULL, 0 },
 +};
@@ -65,8 +67,9 @@ index 0000000..7e11c88
 +"\n"
 +"-h | -? | --help       This help\n"
 +"-v | --verbose         Increase verbosity\n"
-+"-r | --read file       Read the CBFS filed and dump to stdout\n"
-+"-l | --list            List the raw files in the CBFS\n"
++"-r | --read file       Export a CBFS file to stdout\n"
++"-l | --list            List the names of CBFS files\n"
++"-t | --type 50         Filter to specific CBFS file type (hex)\n"
 +"\n";
 +
 +struct cbfs_header {
@@ -106,8 +109,11 @@ index 0000000..7e11c88
 +	int opt;
 +	int do_read = 0;
 +	int do_list = 0;
++	int do_type = 0;
++	uint32_t cbfs_file_type = 0;
 +	const char * filename = NULL;
-+	while ((opt = getopt_long(argc, argv, "h?vlr:", long_options, NULL)) != -1)
++	while ((opt = getopt_long(argc, argv, "h?vlr:t:",
++		long_options, NULL)) != -1)
 +	{
 +		switch(opt)
 +		{
@@ -121,8 +127,12 @@ index 0000000..7e11c88
 +			do_read = 1;
 +			filename = optarg;
 +			break;
++		case 't':
++			do_type = 1;
++			cbfs_file_type = strtoul(optarg, NULL, 16);
++			break;
 +		case '?': case 'h':
-+			printf("%s", usage);
++			fprintf(stderr, "%s", usage);
 +			return EXIT_SUCCESS;
 +		default:
 +			fprintf(stderr, "%s", usage);
@@ -147,20 +157,13 @@ index 0000000..7e11c88
 +
 +	uint64_t end = 0x100000000;
 +	if (verbose) {
-+		printf("Seeking to %lx\n", end-4);
++		fprintf(stderr, "Seeking to %lx\n", end-4);
 +	}
-+	if (lseek(fd, end-4, SEEK_SET) == -1) {
-+		fprintf(stderr, "Failed to seek to %lx\n", end-4);
-+		return EXIT_FAILURE;
-+	}
-+
 +	int32_t header_delta;
-+	if (read(fd, &header_delta, sizeof(header_delta)) < 0) {
-+		fprintf(stderr, "Failed to read header offset\n");
-+		return EXIT_FAILURE;
-+	}
++	copy_physical(end-4, sizeof(header_delta), &header_delta);
++
 +	if (verbose) {
-+		printf("Header Offset: %d\n", header_delta);
++		fprintf(stderr, "Header Offset: %d\n", header_delta);
 +	}
 +
 +	uint64_t header_off;
@@ -171,18 +174,11 @@ index 0000000..7e11c88
 +	}
 +
 +	if (verbose) {
-+		printf("Seeking to %lx\n", header_off);
++		fprintf(stderr, "Seeking to %lx\n", header_off);
 +	}
-+	if (lseek(fd, header_off, SEEK_SET) == -1) {
-+		fprintf(stderr, "Failed to seek to %lx\n", header_off);
-+		return EXIT_FAILURE;
-+	}
-+
 +	struct cbfs_header header;
-+	if (read(fd, &header, sizeof(struct cbfs_header)) < 0) {
-+		fprintf(stderr, "Failed to read header\n");
-+		return EXIT_FAILURE;
-+	}
++	copy_physical(header_off, sizeof(struct cbfs_header), &header);
++
 +	header.magic = ntohl(header.magic);
 +	header.version = ntohl(header.version);
 +	header.romsize = ntohl(header.romsize);
@@ -192,13 +188,13 @@ index 0000000..7e11c88
 +	header.architecture = ntohl(header.architecture);
 +
 +	if (verbose) {
-+		printf("Header magic          : %x\n", header.magic);
-+		printf("Header version        : %x\n", header.version);
-+		printf("Header ROM size       : %x\n", header.romsize);
-+		printf("Header boot block size: %x\n", header.bootblocksize);
-+		printf("Header align          : %x\n", header.align);
-+		printf("Header offset         : %x\n", header.offset);
-+		printf("Header arch           : %x\n", header.architecture);
++		fprintf(stderr, "Header magic          : %x\n", header.magic);
++		fprintf(stderr, "Header version        : %x\n", header.version);
++		fprintf(stderr, "Header ROM size       : %x\n", header.romsize);
++		fprintf(stderr, "Header boot block size: %x\n", header.bootblocksize);
++		fprintf(stderr, "Header align          : %x\n", header.align);
++		fprintf(stderr, "Header offset         : %x\n", header.offset);
++		fprintf(stderr, "Header arch           : %x\n", header.architecture);
 +	}
 +
 +	if (header.magic != CBFS_HEADER_MAGIC) {
@@ -208,21 +204,14 @@ index 0000000..7e11c88
 +
 +	uint32_t align = header.align;
 +	// loop through files
-+	uint64_t off = end - ((uint64_t) header.romsize) + ((uint64_t) header.offset);
-+	while (1) {
++	uint64_t off = end - ((uint64_t) header.romsize) +
++		((uint64_t) header.offset);
++	while (off < end) {
 +		if (verbose) {
-+			printf("Potential CBFS File Offset: %lx\n", off);
++			fprintf(stderr, "Potential CBFS File Offset: %lx\n", off);
 +		}
-+	  if (lseek(fd, off, SEEK_SET) == -1) {
-+	    fprintf(stderr, "Failed to seek to next CBFS offset %lx\n", off);
-+	    return EXIT_FAILURE;
-+	  }
-+
 +		struct cbfs_file file;
-+		if (read(fd, &file, sizeof(struct cbfs_file)) < 0) {
-+			fprintf(stderr, "Failed to read cbfs file header\n");
-+			return EXIT_FAILURE;
-+	  }
++		copy_physical(off, sizeof(struct cbfs_file), &file);
 +
 +		file.len = ntohl(file.len);
 +		file.type = ntohl(file.type);
@@ -230,11 +219,11 @@ index 0000000..7e11c88
 +		file.offset = ntohl(file.offset);
 +
 +		if (verbose) {
-+			printf("File magic             : %.8s\n", file.magic);
-+			printf("File len               : %x\n", file.len);
-+			printf("File type              : %x\n", file.type);
-+			printf("File attributes_offset : %x\n", file.attributes_offset);
-+			printf("File offset            : %x\n", file.offset);
++			fprintf(stderr, "File magic             : %.8s\n", file.magic);
++			fprintf(stderr, "File len               : %x\n", file.len);
++			fprintf(stderr, "File type              : %x\n", file.type);
++			fprintf(stderr, "File attributes_offset : %x\n", file.attributes_offset);
++			fprintf(stderr, "File offset            : %x\n", file.offset);
 +		}
 +
 +		if (strncmp((char *)file.magic, CBFS_FILE_MAGIC, 8) != 0) {
@@ -243,53 +232,68 @@ index 0000000..7e11c88
 +
 +		size_t name_size = file.offset - sizeof(struct cbfs_file);
 +		char *name = calloc(name_size, sizeof(char));
-+		if (read(fd, name, name_size) < 0) {
-+			fprintf(stderr, "Failed to read cbfs file name\n");
-+			return EXIT_FAILURE;
-+		}
++		copy_physical(off+sizeof(struct cbfs_file), name_size, name);
++
 +		if (verbose) {
-+			printf("File name              : '%s'\n", name);
++			fprintf(stderr, "File name              : '%s'\n", name);
 +		}
 +
-+		if (do_list && file.type == 0x50) {
++		if (do_list &&
++			(!do_type || (do_type && file.type == cbfs_file_type))) {
 +			printf("%s\n", name);
 +		}
-+		if (do_read && file.type == 0x50 &&
++
++		if (do_read &&
++			(!do_type || (do_type && file.type == cbfs_file_type)) &&
 +			strncmp(name, filename, name_size) == 0)
 +		{
 +			uint64_t file_off = off + file.offset;
 +			if (verbose) {
-+				printf("Seeking to %lx\n-------- Start Data\n", file_off);
-+			}
-+			if (lseek(fd, file_off, SEEK_SET) == -1) {
-+				fprintf(stderr, "Failed to seek to file data at %lx\n", file_off);
-+				return EXIT_FAILURE;
++				fprintf(stderr, "Seeking to %lx\n-------- Start Data\n", file_off);
 +			}
 +
 +			char *file_data = malloc(file.len);
-+			if (read(fd, file_data, file.len) < 0) {
-+				fprintf(stderr, "Failed to read file data\n");
++			if (file_data == NULL) {
++				fprintf(stderr, "Failed to allocate memory for file data: length=%d\n",
++					file.len);
 +				return EXIT_FAILURE;
 +			}
-+			if (write(STDOUT_FILENO, file_data, file.len) == -1) {
-+				fprintf(stderr, "Failed to write file to stdout: %s\n",
-+					strerror(errno));
-+				return EXIT_FAILURE;
++			copy_physical(file_off, file.len, file_data);
++
++			for (size_t offset = 0 ; offset < file.len ; ) {
++				const ssize_t rc = write(
++					STDOUT_FILENO,
++					file_data + offset,
++					file.len - offset
++				);
++
++				if (rc <= 0) {
++					fprintf(stderr, "Failed to write file to stdout: %s\n",
++						strerror(errno));
++					return EXIT_FAILURE;
++				}
++
++				offset += rc;
 +			}
-+			free(file_data);
++
 +			if (verbose) {
-+				printf("\n-------- End Data\n");
++				fprintf(stderr, "\n-------- End Data\n");
 +			}
++
 +			do_read++;
++			free(file_data);
++			free(name);
++			break;
 +		}
 +
++		free(name);
 +		uint64_t inc = (align + (file.offset + file.len) - 1) & (~(align-1));
 +		off += inc;
 +		if (verbose) {
-+			printf("File Off+Len    : %x\n", file.offset + file.len);
-+			printf("Align           : %x\n", align);
-+			printf("Inc             : %lx\n", inc);
-+			printf("Next file align : %lx\n", off);
++			fprintf(stderr, "File Off+Len    : %x\n", file.offset + file.len);
++			fprintf(stderr, "Align           : %x\n", align);
++			fprintf(stderr, "Inc             : %lx\n", inc);
++			fprintf(stderr, "Next file align : %lx\n", off);
 +		}
 +	}
 +
@@ -300,3 +304,61 @@ index 0000000..7e11c88
 +
 +	return EXIT_SUCCESS;
 +}
+diff --git ./flashtool.c ./flashtool.c
+index be429e8..a756519 100644
+--- ./flashtool.c
++++ ./flashtool.c
+@@ -204,8 +204,8 @@ write_to_spi(
+ #ifdef __darwin__
+ #define PCIEXBAR 0xE0000000 // MBP11,2
+ #else
+-#define PCIEXBAR 0x80000000 // Winterfell
+-//#define PCIEXBAR 0xF8000000 // x230
++//#define PCIEXBAR 0x80000000 // Winterfell
++#define PCIEXBAR 0xF8000000 // x230
+ #endif
+ 
+ int
+diff --git ./util.c ./util.c
+index 55ae71f..d79eda7 100644
+--- ./util.c
++++ ./util.c
+@@ -153,3 +153,22 @@ map_physical(
+ 
+         return (void *)(addr + page_offset);
+ }
++
++void
++copy_physical(
++	uint64_t phys_addr,
++	size_t len,
++	volatile void * dest
++)
++{
++	const uint8_t * const buf = map_physical(phys_addr, len);
++	if (buf == NULL)
++	{
++		perror("mmap");
++		exit(EXIT_FAILURE);
++	}
++
++	memcpy(dest, buf, len);
++
++	munmap((uint8_t *)buf, len);
++}
+diff --git ./util.h ./util.h
+index 6846007..d9fb59c 100644
+--- ./util.h
++++ ./util.h
+@@ -34,4 +34,11 @@ memcpy_width(
+ 	mem_op_t op
+ );
+ 
++extern void
++copy_physical(
++	uint64_t phys_addr,
++	size_t len,
++	volatile void *dest
++);
++
+ #endif
