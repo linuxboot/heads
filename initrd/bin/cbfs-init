@@ -8,9 +8,8 @@ if [ -z "$CBFS_PCR" ]; then
 fi
 
 # Load individual files
-cbfsfiles=`cbfs -l 2>/dev/null | grep "^initrd/"` # \
-# || die "cbfs list files failed"
-# qemu dies - ignore check for now
+cbfsfiles=`cbfs -t 50 -l 2>/dev/null | grep "^initrd/"` \
+	|| die "cbfs list files failed"
 
 for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:6}
@@ -18,7 +17,7 @@ for cbfsname in `echo $cbfsfiles`; do
 		echo "Loading $filename from CBFS"
 		mkdir -p `dirname $filename` \
 		|| die "$filename: mkdir failed"
-		cbfs -r $cbfsname > "$filename" \
+		cbfs -t 50 -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TMPFILE=/tmp/cbfs.$$
