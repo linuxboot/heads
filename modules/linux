@@ -62,6 +62,9 @@ linux_modules-$(CONFIG_LINUX_SFC)	+= drivers/net/mdio.ko
 linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_core.ko
 linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
 
+# Broadcom 57302 (25g) for Tioga Pass
+linux_modules-$(CONFIG_LINUX_BCM)	+= drivers/net/ethernet/broadcom/bnxt/bnxt_en.ko
+
 # USB modules for both types of controllers
 # older boards also need ohci and uhci
 linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/uhci-hcd.ko
