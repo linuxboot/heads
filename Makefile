@@ -90,6 +90,8 @@ CROSS_TOOLS_NOCC := \
 	NM="$(CROSS)nm" \
 	OBJCOPY="$(CROSS)objcopy" \
 	OBJDUMP="$(CROSS)objdump" \
+	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
+	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
 
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \
