@@ -470,31 +470,12 @@ $(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/$(BOARD)/coreboot.rom
 	$(call do,EXTRACT,$@,mv "$<" "$@")
 	@sha256sum "$(@:$(pwd)/%=%)"
 
+# List of all modules, excluding the slow to-build modules
+modules-slow := musl musl-cross kernel_headers
+module_dirs := $(foreach m,$(filter-out $(modules-slow),$(modules-y)),$($m_dir))
 
-module_dirs := \
-		$(busybox_dir) \
-		$(cryptsetup_dir) \
-		$(dropbear_dir) \
-		$(flashrom_dir) \
-		$(gpg_dir) \
-		$(kexec_dir) \
-		$(libusb_dir) \
-		$(libusb-compat_dir) \
-		$(lvm2_dir) \
-		$(mbedtls_dir) \
-		$(pciutils_dir) \
-		$(popt_dir) \
-		$(qrencode_dir) \
-		$(tpmtotp_dir) \
-		$(util-linux_dir) \
-		$(zlib_dir) \
-		$(kernel-headers_dir) \
-		$(slang_dir) \
-		$(newt_dir) \
-		$(libpng_dir) \
-		$(pixman_dir) \
-		$(cairo_dir) \
-		$(fbwhiptail_dir)
+echo_modules:
+	echo $(module_dirs)
 
 modules.clean:
 	for dir in $(module_dirs) \
