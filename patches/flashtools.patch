@@ -29,10 +29,10 @@ index 27e28b5..f02daee 100644
  	$(CC) $(LDFLAGS) -o $@ $^
 diff --git ./cbfs.c ./cbfs.c
 new file mode 100644
-index 0000000..bab5f76
+index 0000000..c0ddf48
 --- /dev/null
 +++ ./cbfs.c
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,262 @@
 +#include <stdio.h>
 +#include <fcntl.h>
 +#include <stdlib.h>
@@ -56,7 +56,7 @@ index 0000000..bab5f76
 +	{ "verbose",		0, NULL, 'v' },
 +	{ "read",		1, NULL, 'r' },
 +	{ "list",		0, NULL, 'l' },
-+	{ "type",		0, NULL, 't' },
++	{ "type",		1, NULL, 't' },
 +	{ "help",		0, NULL, 'h' },
 +	{ NULL,			0, NULL, 0 },
 +};
@@ -140,6 +140,11 @@ index 0000000..bab5f76
 +		}
 +	}
 +
++	if (!do_list && !do_read) {
++		fprintf(stderr, "%s", usage);
++		return EXIT_FAILURE;
++	}
++
 +	argc -= optind;
 +	argv += optind;
 +	if (argc != 0)
@@ -148,14 +153,8 @@ index 0000000..bab5f76
 +		return EXIT_FAILURE;
 +	}
 +
-+	int fd;
-+	fd = open("/dev/mem", O_RDONLY);
-+	if (fd < 0) {
-+		fprintf(stderr, "Failed to open /dev/mem : %s\n", strerror(errno));
-+		return EXIT_FAILURE;
-+	}
-+
 +	uint64_t end = 0x100000000;
++
 +	if (verbose) {
 +		fprintf(stderr, "Seeking to %lx\n", end-4);
 +	}
@@ -166,18 +165,13 @@ index 0000000..bab5f76
 +		fprintf(stderr, "Header Offset: %d\n", header_delta);
 +	}
 +
-+	uint64_t header_off;
-+	if (header_delta < 0) {
-+		header_off = end - ((uint64_t)(-header_delta));
-+	} else {
-+		header_off = ((uint64_t)header_delta);
-+	}
++	uint64_t header_off = end + header_delta;
 +
 +	if (verbose) {
 +		fprintf(stderr, "Seeking to %lx\n", header_off);
 +	}
 +	struct cbfs_header header;
-+	copy_physical(header_off, sizeof(struct cbfs_header), &header);
++	copy_physical(header_off, sizeof(header), &header);
 +
 +	header.magic = ntohl(header.magic);
 +	header.version = ntohl(header.version);
@@ -203,15 +197,17 @@ index 0000000..bab5f76
 +	}
 +
 +	uint32_t align = header.align;
++
 +	// loop through files
 +	uint64_t off = end - ((uint64_t) header.romsize) +
 +		((uint64_t) header.offset);
++	void *rom = map_physical(off, end - off);
 +	while (off < end) {
 +		if (verbose) {
 +			fprintf(stderr, "Potential CBFS File Offset: %lx\n", off);
 +		}
 +		struct cbfs_file file;
-+		copy_physical(off, sizeof(struct cbfs_file), &file);
++		memcpy(&file, rom, sizeof(file));
 +
 +		file.len = ntohl(file.len);
 +		file.type = ntohl(file.type);
@@ -230,9 +226,8 @@ index 0000000..bab5f76
 +			break;
 +		}
 +
-+		size_t name_size = file.offset - sizeof(struct cbfs_file);
-+		char *name = calloc(name_size, sizeof(char));
-+		copy_physical(off+sizeof(struct cbfs_file), name_size, name);
++		size_t name_size = file.offset - sizeof(file);
++		char *name = (char *)rom + sizeof(file);
 +
 +		if (verbose) {
 +			fprintf(stderr, "File name              : '%s'\n", name);
@@ -252,14 +247,12 @@ index 0000000..bab5f76
 +				fprintf(stderr, "Seeking to %lx\n-------- Start Data\n", file_off);
 +			}
 +
-+			char *file_data = malloc(file.len);
-+			if (file_data == NULL) {
-+				fprintf(stderr, "Failed to allocate memory for file data: length=%d\n",
-+					file.len);
++			if (file_off + file.len > end) {
++				fprintf(stderr, "File offset/length extends beyond ROM");
 +				return EXIT_FAILURE;
 +			}
-+			copy_physical(file_off, file.len, file_data);
 +
++			char *file_data = (char *) rom + file.offset;
 +			for (size_t offset = 0 ; offset < file.len ; ) {
 +				const ssize_t rc = write(
 +					STDOUT_FILENO,
@@ -281,19 +274,17 @@ index 0000000..bab5f76
 +			}
 +
 +			do_read++;
-+			free(file_data);
-+			free(name);
 +			break;
 +		}
 +
-+		free(name);
 +		uint64_t inc = (align + (file.offset + file.len) - 1) & (~(align-1));
 +		off += inc;
++		rom += inc;
 +		if (verbose) {
 +			fprintf(stderr, "File Off+Len    : %x\n", file.offset + file.len);
 +			fprintf(stderr, "Align           : %x\n", align);
 +			fprintf(stderr, "Inc             : %lx\n", inc);
-+			fprintf(stderr, "Next file align : %lx\n", off);
++			fprintf(stderr, "Next file off   : %lx\n", off);
 +		}
 +	}
 +
@@ -320,13 +311,16 @@ index be429e8..a756519 100644
  
  int
 diff --git ./util.c ./util.c
-index 55ae71f..d79eda7 100644
+index 55ae71f..a3cf593 100644
 --- ./util.c
 +++ ./util.c
-@@ -153,3 +153,22 @@ map_physical(
+@@ -151,5 +151,22 @@ map_physical(
  
-         return (void *)(addr + page_offset);
- }
+ 	close(fd);
+ 
+-        return (void *)(addr + page_offset);
++	return (void *)(addr + page_offset);
++}
 +
 +void
 +copy_physical(
@@ -343,9 +337,7 @@ index 55ae71f..d79eda7 100644
 +	}
 +
 +	memcpy(dest, buf, len);
-+
-+	munmap((uint8_t *)buf, len);
-+}
+ }
 diff --git ./util.h ./util.h
 index 6846007..d9fb59c 100644
 --- ./util.h
