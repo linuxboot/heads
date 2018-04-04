@@ -210,7 +210,12 @@ default_select() {
 	expectedoption=`cat $TMP_DEFAULT_FILE`
 	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
 	if [ "$option" != "$expectedoption" ]; then
-		die "!!! Boot entry has changed - please set a new default"
+		if [ "$gui_menu" = "y" ]; then
+			whiptail --title 'ERROR: Boot Entry Has Changed' \
+				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
+		fi
+		warn "!!! Boot entry has changed - please set a new default"
+    return
 	fi
 	parse_option
 
