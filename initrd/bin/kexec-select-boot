@@ -215,7 +215,7 @@ default_select() {
 				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
 		fi
 		warn "!!! Boot entry has changed - please set a new default"
-    return
+		return
 	fi
 	parse_option
 
