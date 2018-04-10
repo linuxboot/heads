@@ -22,7 +22,12 @@ recovery() {
 	fi
 	echo >&2 "!!!!! Starting recovery shell"
 	sleep 1
-	exec /bin/ash
+
+	if [ -x /bin/setsid ]; then
+		exec /bin/setsid -c /bin/ash
+	else
+		exec /bin/ash
+	fi
 }
 
 pause_recovery() {
