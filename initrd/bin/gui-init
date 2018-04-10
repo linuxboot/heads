@@ -14,7 +14,81 @@ mount_boot()
       || recovery "Unable to mount /boot"
   fi
 }
+verify_global_hashes()
+{
+  # Check the hashes of all the files, ignoring signatures for now
+  check_config /boot force
+  TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+  TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
+  TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
+  if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+    return 0
+  elif [ ! -f $TMP_HASH_FILE ]; then
+    if (whiptail --clear --title 'ERROR: Missing Hash File!' \
+      --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update your list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to update your checksums now?" 30 80) then
+      update_checksums
+    fi
+    return 1
+  else
+    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
+
+    # if files changed before package manager started, show stern warning
+    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
+      PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
+      TEXT="The OS logged that the following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files Heads has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
+
+    # if files changed after package manager started, probably caused by package manager
+    elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then 
+      LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" $TMP_PACKAGE_TRIGGER_POST)
+      UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
+
+      if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
+        TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
+      else
+        TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis might be due to the following package updates:\n$LAST_PACKAGE_LIST.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
+      fi
+
+    else
+      TEXT="The following files failed the verification process:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+    fi
+
+    if (whiptail --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 80) then
+      update_checksums
+    fi
+    return 1
+  fi
+}
+update_checksums()
+{
+  if (whiptail --title 'Update Checksums and sign all files in /boot' \
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 80) then
+    mount_boot
+    mount -o rw,remount /boot
+
+    cd /boot
+    find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
+    DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
+    echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+
+    # Remove any package trigger log files
+    # We don't need them after the user decides to sign
+    rm -f /boot/kexec_package_trigger*
+
+    # sign and auto-roll config counter
+    extparam=
+    if [ "$CONFIG_TPM" = "y" ]; then
+      extparam=-u
+    fi
+    kexec-sign-config -p /boot $extparam \
+    || die "Failed to sign default config"
+
+    # switch back to ro mode
+    mount -o ro,remount /boot
+  else
+    echo "Returning to the main menu"
+  fi
+}
 
 last_half=X
 while true; do
@@ -125,6 +199,13 @@ while true; do
     if (whiptail --title 'Reset the TPM' \
         --yesno "This will clear the TPM, erase the old TPM password and replace it with a new one!\n\nDo you want to proceed?" 16 80) then
       /bin/tpm-reset
+
+      # now that the TPM is reset, remove invalid kexec_rollback.txt file
+      mount_boot
+      mount -o rw,remount /boot
+      rm -f /boot/kexec_rollback.txt 
+      mount -o ro,remount /boot
+
       echo "Scan the QR code to add the new TOTP secret"
       /bin/seal-totp
       echo "Once you have scanned the QR code, hit Enter to reboot"
@@ -139,6 +220,10 @@ while true; do
   if [ "$totp_confirm" = "m" ]; then
     # Try to select a kernel from the menu
     mount_boot
+    verify_global_hashes
+    if [ $? -ne 0 ]; then
+      continue
+    fi
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
     continue
   fi
@@ -156,39 +241,18 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "s" ]; then
-    if (whiptail --title 'Update Checksums and sign all files in /boot' \
-        --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 80) then
-      mount_boot
-      mount -o rw,remount /boot
-
-      cd /boot
-      find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
-      DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-      echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
-
-      # sign and auto-roll config counter
-      extparam=
-      if [ "$CONFIG_TPM" = "y" ]; then
-        extparam=-u
-      fi
-
-      kexec-sign-config -p /boot $extparam 
-      if [ $? -ne 0 ]; then
-        mount -o ro,remount /boot
-        whiptail --title 'ERROR: Signing Failed' \
-          --msgbox "The signing process failed!\n\nReturning to main menu." 16 60
-      else
-        # switch back to ro mode
-        mount -o ro,remount /boot
-      fi
-    fi
+    update_checksums
     continue
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
     # Try to boot the default
     mount_boot
-	  DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
+    verify_global_hashes
+    if [ $? -ne 0 ]; then
+      continue
+    fi
+    DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
     if [ -r "$DEFAULT_FILE" ]; then
       kexec-select-boot -b /boot -c "grub.cfg" -g \
       || recovery "Failed default boot"
