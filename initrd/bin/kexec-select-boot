@@ -312,6 +312,9 @@ while true; do
 # even if hashes don't match
 	if [ "$force_boot" = "y" ]; then
 		scan_options
+		# Remove boot splash and make background red in the event of a forced boot
+		add="$add vt.default_red=0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff"
+		remove="$remove splash quiet"
 		user_select
 	fi
 
