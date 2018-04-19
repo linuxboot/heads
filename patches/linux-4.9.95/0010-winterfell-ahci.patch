@@ -1,6 +1,6 @@
-diff --recursive -u ./clean/linux-4.9.80/drivers/ata/libahci.c linux-4.9.80/drivers/ata/libahci.c
---- ./clean/linux-4.9.80/drivers/ata/libahci.c	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/drivers/ata/libahci.c	2018-02-07 18:02:32.526535910 -0500
+diff --recursive -u ./clean/linux-4.9.95/drivers/ata/libahci.c linux-4.9.95/drivers/ata/libahci.c
+--- ./clean/linux-4.9.95/drivers/ata/libahci.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/drivers/ata/libahci.c	2018-02-07 18:02:32.526535910 -0500
 @@ -537,8 +537,12 @@
  	}
  

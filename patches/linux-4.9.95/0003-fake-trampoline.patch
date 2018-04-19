@@ -1,6 +1,6 @@
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/realmode/init.c linux-4.9.80/arch/x86/realmode/init.c
---- ./clean/linux-4.9.80/arch/x86/realmode/init.c	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/realmode/init.c	2018-02-07 15:51:28.538500435 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/realmode/init.c linux-4.9.95/arch/x86/realmode/init.c
+--- ./clean/linux-4.9.95/arch/x86/realmode/init.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/realmode/init.c	2018-02-07 15:51:28.538500435 -0500
 @@ -35,8 +35,8 @@
  	/* Has to be under 1M so we can execute real-mode AP code. */
  	mem = memblock_find_in_range(0, 1<<20, size, PAGE_SIZE);
