@@ -9,6 +9,13 @@ config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
+# Check that we have a correct version of make
+LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
+include modules/make
+
+ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
+
+
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
@@ -52,12 +59,6 @@ define do =
 endef
 endif
 
-
-# Check that we have a correct version of make
-LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
-include modules/make
-
-ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
 
 # Create a temporary directory for the initrd
 initrd_dir	:= $(shell mktemp -d)
