@@ -9,12 +9,20 @@ config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
+# Controls how many parallel jobs are invoked in subshells
+CPUS		:= $(shell nproc)
+#MAKE_JOBS	?= -j$(CPUS) --max-load 16
+
+# Create the log directory if it doesn't already exist
+BUILD_LOG := $(shell mkdir -p "$(log_dir)" "$(build)/$(BOARD)" )
+
 # Check that we have a correct version of make
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
 include modules/make
 
 ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
 
+# This is the correct version of Make
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
@@ -27,13 +35,6 @@ include $(CONFIG)
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
-
-# Controls how many parallel jobs are invoked in subshells
-CPUS		:= $(shell nproc)
-#MAKE_JOBS	?= -j$(CPUS) --max-load 16
-
-# Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell mkdir -p "$(log_dir)" "$(build)/$(BOARD)" )
 
 # Some things want usernames, we use the current checkout
 # so that they are reproducible
@@ -510,7 +511,7 @@ HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
 all bootstrap linux cpio: $(HEADS_MAKE)
-	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
+	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $(MAKE_JOBS) $@
 %.clean %.intermediate %.vol: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 
