@@ -20,6 +20,7 @@ flashtools_output := \
 	flashtool \
 	peek \
 	poke \
+	cbfs \
 
 flashtools_libraries := \
 
