@@ -15,10 +15,12 @@ slang_configure := ./configure \
 	--with-onig=no \
   && mkdir -p src/elfobjs
 
+# Disable parallel make for the install target
 slang_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	&& $(MAKE) \
+		-j1 \
 		-C "$(build)/$(slang_dir)" \
 		$(CROSS_TOOLS) \
 		DESTDIR="$(INSTALL)" \
