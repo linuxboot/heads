@@ -14,7 +14,7 @@ CPUS		:= $(shell nproc)
 #MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell mkdir -p "$(log_dir)" "$(build)/$(BOARD)" )
+BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
 # Check that we have a correct version of make
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -26,6 +26,9 @@ ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
+
+# Create the board output directory if it doesn't already exist
+BOARD_LOG	:= $(shell mkdir -p "$(build)/$(BOARD)" )
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
