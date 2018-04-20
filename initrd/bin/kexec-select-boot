@@ -246,7 +246,12 @@ user_select() {
 	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
 	do
 		get_menu_option
-		confirm_menu_option
+    # In force boot mode, no need offer the option to set a default, just boot
+		if [ "$force_boot" = "y" ]; then
+			do_boot
+		else
+			confirm_menu_option
+		fi
 
 		if [ "$option_confirm" = 'd' ]; then
 			save_default_option
