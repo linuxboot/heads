@@ -30,4 +30,6 @@ for cbfsname in `echo $cbfsfiles`; do
 done
 
 # TODO: copy CBFS file named "initrd.tgz" to /tmp, measure and extract
-# TODO: key convenience: take "keys/*.asc" and gpg --import them
+
+# Post processing of keys
+gpg --import /.gnupg/keys/* 2>/dev/null || true
