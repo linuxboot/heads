@@ -24,7 +24,7 @@ flashrom \
 	--force \
 	--noverify \
 	--programmer internal \
-	--layout /etc/x230-layout.txt \
+	--ifd \
 	--image BIOS \
 	-w /tmp/x230.rom \
 || die "$ROM: Flash failed"
