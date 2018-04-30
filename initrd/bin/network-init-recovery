@@ -3,23 +3,22 @@
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
 
-if [ -f /lib/modules/e1000.ko ]; then
-	insmod /lib/modules/e1000.ko
-fi
-
-if [ -f /lib/modules/e1000e.ko ]; then
-	insmod /lib/modules/e1000e.ko
-fi
+network_modules="e1000 e1000e igb sfc mdio mlx4_core mlx4_en"
+for module in `echo $network_modules`; do
+	if [ -f /lib/modules/$module.ko ]; then
+		insmod /lib/modules/$module.ko
+	fi
+done
 
 if [ -e /sys/class/net/eth0 ]; then
-	# Setup static IP
+	# Set up static IP
 	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
 		ifconfig eth0 $CONFIG_BOOT_STATIC_IP
 	fi
-	# TODO: setup DHCP if available
+	# TODO: Set up DHCP if available
 	ifconfig eth0 > /dev/ttyprintk
 
-	# Setup the ssh server, allow root logins and log to stderr
+	# Set up the ssh server, allow root logins and log to stderr
 	if [ ! -d /etc/dropbear ]; then
 		mkdir /etc/dropbear
 	fi
