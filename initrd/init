@@ -54,6 +54,10 @@ fi
 if [ "$CONFIG_COREBOOT" = "y" ]; then
 	/bin/cbfs-init
 fi
+if [ "$CONFIG_LINUXBOOT" = "y" ]; then
+	/bin/uefi-init
+fi
+/bin/key-init
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
