@@ -10,8 +10,11 @@ UROOT_CMDS ?=
 
 export GOPATH=$(build)/go
 u-root_src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
-u-root_build := $(shell go get $(u-root_url))
 
+u-root_build := $(GOPATH)/bin/u-root
+
+$(GOPATH)/bin/u-root:
+	go get github.com/u-root/u-root/...
 #
 # If the board directory has its own go commands, copy them
 # into the u-root tree so that they will be bundled into the go initrd
@@ -20,7 +23,7 @@ u-root_build := $(shell go get $(u-root_url))
 #
 ifeq "y" "$(shell [ -r 'boards/$(BOARD)/uinit.go' ] && echo y)"
 u-root_uinit := $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit/uinit.go
-$(u-root_uinit): boards/$(BOARD)/uinit.go
+$(u-root_uinit): $(u-root_build) boards/$(BOARD)/uinit.go
 	$(call install,$<,$@)
 endif
 
