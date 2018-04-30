@@ -24,7 +24,7 @@ $(GOPATH)/bin/u-root:
 ifeq "y" "$(shell [ -r 'boards/$(BOARD)/uinit.go' ] && echo y)"
 u-root_uinit := $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit/uinit.go
 $(u-root_uinit): $(u-root_build) boards/$(BOARD)/uinit.go
-	$(call install,$<,$@)
+	$(call install,boards/$(BOARD)/uinit.go,$@)
 endif
 
 $(u-root_output): $(u-root_build) $(u-root_uinit)
