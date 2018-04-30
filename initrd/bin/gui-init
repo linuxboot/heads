@@ -25,7 +25,7 @@ verify_global_hashes()
   if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
-    if (whiptail --clear --title 'ERROR: Missing Hash File!' \
+    if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Missing Hash File!' \
       --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update your list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to update your checksums now?" 30 80) then
       update_checksums
     fi
@@ -53,7 +53,7 @@ verify_global_hashes()
       TEXT="The following files failed the verification process:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
     fi
 
-    if (whiptail --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 80) then
+    if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 80) then
       update_checksums
     fi
     return 1
@@ -104,7 +104,7 @@ while true; do
     last_half=$half;
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
-      whiptail --clear --title "ERROR: TOTP Generation Failed!" \
+      whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
         --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf you have just reflashed your BIOS, you will need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nIf this is the first time the system has booted, you should reset the TPM and set your own password\n\nHow would you like to proceed?" 30 80 4 \
         'g' ' Generate new TOTP secret' \
         'i' ' Ignore error and continue to default boot menu' \
@@ -163,7 +163,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "n" ]; then
-    if (whiptail --title "TOTP code mismatched" \
+    if (whiptail $CONFIG_WARNING_BG_COLOR --title "TOTP code mismatched" \
       --yesno "TOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 30 80) then
       echo ""
       echo "To correct clock drift: 'date -s HH:MM:SS'"
@@ -230,7 +230,7 @@ while true; do
 
   if [ "$totp_confirm" = "i" ]; then
     # Run the menu selection in "force" mode, bypassing hash checks
-    if (whiptail --title 'Unsafe Forced Boot Selected!' \
+    if (whiptail $CONFIG_WARNING_BG_COLOR --title 'Unsafe Forced Boot Selected!' \
         --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 80) then
       mount_boot
       kexec-select-boot -m -b /boot -c "grub.cfg" -g -f
