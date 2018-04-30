@@ -190,8 +190,10 @@ check_config() {
 		return
 	fi
 
-	if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
-		die 'Invalid signature on kexec boot params'
+	if [ "$2" != "force" ]; then
+		if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
+			die 'Invalid signature on kexec boot params'
+		fi
 	fi
 
 	echo "+++ Found verified kexec boot params"
