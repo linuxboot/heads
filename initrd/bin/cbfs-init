@@ -3,8 +3,8 @@ set -e -o pipefail
 . /etc/functions
 
 # Update initrd with CBFS files
-if [ -z "$CBFS_PCR" ]; then
-	CBFS_PCR=7
+if [ -z "$CONFIG_PCR" ]; then
+	CONFIG_PCR=7
 fi
 
 # Load individual files
@@ -22,13 +22,10 @@ for cbfsname in `echo $cbfsfiles`; do
 			TMPFILE=/tmp/cbfs.$$
 			echo "$filename" > $TMPFILE
 			cat $filename >> $TMPFILE
-			tpm extend -ix "$CBFS_PCR" -if $TMPFILE \
+			tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
 			|| die "$filename: tpm extend failed"
 		fi
 	fi
 done
 
-# TODO: copy CBFS file named "initrd.tgz" to /tmp, measure and extract
-
-# Post processing of keys
-gpg --import /.gnupg/keys/* 2>/dev/null || true
+# TODO: copy CBFS file named "heads/initrd.tgz" to /tmp, measure and extract
