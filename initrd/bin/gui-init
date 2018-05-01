@@ -105,7 +105,7 @@ while true; do
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
       whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
-        --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf you have just reflashed your BIOS, you will need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nIf this is the first time the system has booted,\nyou should reset the TPM and set your own password\n\nHow would you like to proceed?" 30 80 4 \
+        --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf you have just reflashed your BIOS,\nyou will need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nIf this is the first time the system has booted,\nyou should reset the TPM and set your own password\n\nHow would you like to proceed?" 30 80 4 \
         'g' ' Generate new TOTP secret' \
         'i' ' Ignore error and continue to default boot menu' \
         'p' ' Reset the TPM' \
