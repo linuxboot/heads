@@ -18,17 +18,35 @@ fi
 
 # Check for ISO first
 get_menu_option() {
-	echo "+++ Select your ISO boot option:"
-	n=0
-	while read option
-	do
-		n=`expr $n + 1`
-		echo "$n. $option"
-	done < /tmp/iso_menu.txt
+	if [ -x /bin/whiptail ]; then
+		MENU_OPTIONS=""
+		n=0
+		while read option
+		do
+			n=`expr $n + 1`
+			option=$(echo $option | tr " " "_")
+			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+		done < $TMP_MENU_FILE
 
-	read \
-		-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
-		option_index
+		whiptail --clear --title "Select your ISO boot option" \
+			--menu "Choose the ISO boot option [1-$n, s for standard boot, a to abort]:" 20 120 8 \
+			-- $MENU_OPTIONS \
+			2>/tmp/whiptail || die "Aborting boot attempt"
+
+		option_index=$(cat /tmp/whiptail)
+	else
+		echo "+++ Select your ISO boot option:"
+		n=0
+		while read option
+		do
+			n=`expr $n + 1`
+			echo "$n. $option"
+		done < /tmp/iso_menu.txt
+
+		read \
+			-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
+			option_index
+	fi
 
 	if [ "$option_index" = "a" ]; then
 		die "Aborting boot attempt"
@@ -62,6 +80,10 @@ fi
 
 echo "!!! Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
-kexec-select-boot -b /media -c "*.cfg" -u
+if [ -x /bin/whiptail ]; then
+	kexec-select-boot -b /media -c "*.cfg" -u -g
+else
+	kexec-select-boot -b /media -c "*.cfg" -u
+fi
 
 die "Something failed in selecting boot"
