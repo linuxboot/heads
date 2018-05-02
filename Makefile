@@ -394,20 +394,6 @@ $(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
 )
 
-# hack to install busybox into the initrd if busybox is configured
-ifeq "$(CONFIG_BUSYBOX)" "y"
-initrd_bins += $(initrd_bin_dir)/busybox
-endif
-
-$(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/busybox
-	$(do,SYMLINK,$@,$(MAKE) \
-		-C $(build)/$(busybox_dir) \
-		CC="$(heads_cc)" \
-		CONFIG_PREFIX="$(pwd)/initrd" \
-		$(MAKE_JOBS) \
-		install \
-	)
-
 #
 # hack to build cbmem from coreboot
 # this must be built *AFTER* musl, but since coreboot depends on other things
