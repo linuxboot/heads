@@ -3,7 +3,8 @@ modules-$(CONFIG_COREBOOT) += coreboot
 #coreboot_version := git
 #coreboot_repo := https://github.com/osresearch/coreboot
 coreboot_version := 4.7
-coreboot_dir := coreboot-$(coreboot_version)
+coreboot_base_dir := coreboot-$(coreboot_version)
+coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
 coreboot_hash := d68a83f8f687e8ea212b8c5bb501e24444b57c3f73896042d09628188c851368
@@ -15,49 +16,46 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 coreboot_configure := \
-	$(MAKE) \
+	$(MAKE) -C $(build)/$(coreboot_base_dir) \
 		oldconfig \
-		obj=./$(BOARD) \
+		obj=$(build)/$(coreboot_dir) \
 		DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
 		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
-	obj=./$(BOARD) \
+	-C $(build)/$(coreboot_base_dir) \
+	obj=$(build)/$(coreboot_dir) \
 	DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	$(MAKE_JOBS)
 
-coreboot_output := $(BOARD)/coreboot.rom
+coreboot_output := coreboot.rom
+coreboot_depend += linux initrd
 
 # hack to force a build dependency on the cross compiler
-$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
-$(build)/$(coreboot_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc: $(build)/$(coreboot_dir)/.canary
+$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
+$(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc: $(build)/$(coreboot_base_dir)/.canary
 	echo '******* Building crossgcc-i386 (this might take a while) ******'
-	$(MAKE) -C "$(build)/$(coreboot_dir)" CPUS=`nproc` crossgcc-i386
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=`nproc` crossgcc-i386
 	#echo '******* Building crossgcc-arm (this might take a while) ******'
-	#$(MAKE) -C "$(build)/$(coreboot_dir)" crossgcc-arm
+	#$(MAKE) -C "$(build)/$(coreboot_base_dir)" crossgcc-arm
 
-# The coreboot-blobs must be unpacked before we can build coreboot
-# if we are using a tar file; git checkout will clone the submodule.
-# The Linux kernel and Heads initrd must be built before linuxboot
-# unless the user has specified "FAST=1" on the make command line,
-# which will assume that the kernel and initrd are fresh
-ifneq "$(FAST)" "1"
-coreboot_depends := linux initrd
-coreboot.intermediate: $(build)/$(BOARD)/bzImage
-coreboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
-endif
+# Force a rebuild if the inputs have changed
+$(build)/$(coreboot_dir)/.build: \
+	$(build)/$(BOARD)/bzImage \
+	$(build)/$(BOARD)/initrd.cpio.xz \
+
 
 #
 # Helpful target for reconfiguring the coreboot target
 #
 coreboot.menuconfig:
 	$(MAKE) \
-		-C "$(build)/$(coreboot_dir)" \
+		-C "$(build)/$(coreboot_base_dir)" \
 		DOTCONFIG="../../$(CONFIG_COREBOOT_CONFIG)" \
 		menuconfig
 
