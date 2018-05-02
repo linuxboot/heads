@@ -1,6 +1,12 @@
 all:
 -include .config
 
+ifneq "$(TOOLCHAIN)" ""
+$(info Using $(TOOLCHAIN) for cross compiler and packages)
+packages	:= $(TOOLCHAIN)/packages
+CROSS		:= $(TOOLCHAIN)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
+endif
+
 modules-y 	:=
 pwd 		:= $(shell pwd)
 packages 	?= $(pwd)/packages
@@ -190,14 +196,14 @@ endef
 define define_module =
   # if they have not defined a separate base dir, define it
   # as the same as their build dir.
-  $(eval $1_base_dir := $(or $($1_base_dir),$($1_dir)))
+  $(eval $1_base_dir = $(or $($1_base_dir),$($1_dir)))
 
   ifneq ("$($1_repo)","")
     # Checkout the tree instead and touch the canary file so that we know
     # that the files are all present. No signature hashes are checked in
     # this case, since we don't have a stable version to compare against.
     $(build)/$($1_base_dir)/.canary:
-	git clone $($1_repo) "$(build)/$($1_dir)"
+	git clone $($1_repo) "$(build)/$($1_base_dir)"
 	if [ -r patches/$1.patch ]; then \
 		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 			< patches/$1.patch; \
@@ -224,7 +230,7 @@ define define_module =
     $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
-		( cd $(build)/$(1_base_dir) ; patch -p1 ) \
+		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch; \
 	fi
 	if [ -d patches/$1-$($1_version) ] && \
@@ -254,9 +260,18 @@ define define_module =
 	$(call do-copy,$($1_config),$$@)
   endif
 
+  # The first time we have to wait for all the dependencies to be built
+  # before we can configure the target. Once the dep has been built,
+  # we only depend on it for a rebuild.
+  $(eval $1_config_wait := $(foreach d,$($1_depends),\
+	$(shell [ -r $(build)/$($d_dir)/.build ] || echo $d)))
+
   # Use the module's configure variable to build itself
+  # this has to wait for the dependencies to be built since
+  # cross compilers and libraries might be messed up
   $(dir $($1_config_file_path)).configured: \
 		$(build)/$($1_base_dir)/.canary \
+		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
 		$($1_config_file_path) \
 		modules/$1
 	@echo "$(DATE) CONFIG $1"
@@ -290,7 +305,7 @@ define define_module =
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
-	@echo "$(DATE) MAKE $1 --- @=$$@"
+	@echo "$(DATE) MAKE $1 --- $$@"
 	+@( \
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
@@ -324,7 +339,7 @@ endef
 $(call map, define_module, $(modules-y))
 
 # hack to force musl-cross to be built before musl
-#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-gcc
+#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
 
 #
 # Install a file into the initrd, if it changed from
