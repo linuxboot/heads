@@ -506,12 +506,6 @@ $(build)/$(initrd_dir)/tools.cpio: \
 # binaries for it
 $(build)/$(initrd_dir)/tools.cpio: $(foreach d,$(bin_modules-y),$(build)/$($d_dir)/.build)
 
-# This produces a ROM image that is written with the flashrom program
-$(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/.build
-	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
-	$(call do-copy,$(dir $<)coreboot.rom,$@)
-	@touch $@   # update the time stamp
-
 
 # List of all modules, excluding the slow to-build modules
 modules-slow := musl musl-cross kernel_headers
