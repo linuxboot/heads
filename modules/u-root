@@ -47,7 +47,7 @@ CONFIG_HEADS=n
 
 # Since we do not include u-root in modules-y, we have to define our
 # own intermediate and clean targets here
-u-root.intermediate: $(u-root_output)
+$(build)/$(u-root_dir)/.build: $(u-root_output)
 u-root.clean:
 	$(RM) $(u-root_output)
 endif

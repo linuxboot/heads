@@ -42,6 +42,6 @@ pciutils_output := \
 	lspci \
 
 pciutils_libraries := \
-	../../install/lib/libpci.so.3 \
+	lib/libpci.so.3.5.4 \
 
 pciutils_configure := 

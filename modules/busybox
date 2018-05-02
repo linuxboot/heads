@@ -13,7 +13,7 @@ busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
 	$(CROSS_TOOLS) \
-	CONFIG_PREFIX="$(initrd_dir)" \
+	CONFIG_PREFIX="$(initrd_tmp_dir)" \
 	$(MAKE_JOBS) \
 	install
 

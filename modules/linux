@@ -1,7 +1,17 @@
 modules-y += linux
 
 linux_version := 4.9.80
-linux_dir := linux-$(linux_version)
+linux_base_dir := linux-$(linux_version)
+
+# TODO: fixup the patch process
+# input file in the heads config/ dir
+# Allow board config to specialize Linux configuration if necessary
+linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
+
+# Output directory for the Linux kernel build is based on the
+# configuration file name, not the board name
+linux_dir := $(linux_base_dir)/$(notdir $(basename $(linux_kconfig)))
+
 linux_tar := linux-$(linux_version).tar.xz
 linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
@@ -10,28 +20,17 @@ linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de4122
 
 linux_hash := $(linux-$(linux_version)_hash)
 
-# input file in the heads config/ dir
-# Allow board config to specialize Linux configuration if necessary
-linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
-
-# Output directory for the Linux kernel build is based on the
-# configuration file name, not the board name
-linux_board_dir := $(build)/$(linux_dir)/$(notdir $(basename $(linux_kconfig)))
-
 # temp file in the build dir to show that we have run make oldconfig
 linux_config_file := $(notdir $(basename $(linux_kconfig))/.config-$(BOARD))
 
 linux_configure := \
-	$(MAKE) \
+	$(MAKE) -C .. \
 		CROSS_COMPILE="$(CROSS)" \
-		O="$(linux_board_dir)" \
+		O="$(build)/$(linux_dir)" \
 		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		oldconfig \
 
-linux_output += $(build)/$(BOARD)/bzImage
-
-# linux.intermediate: $(linux_output)
-#linux_output += $(build)/$(BOARD)/modules.cpio
+linux_output += arch/x86/boot/bzImage
 
 
 # qemu
@@ -87,7 +86,7 @@ linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
-	O="$(linux_board_dir)" \
+	O="$(build)/$(linux_dir)" \
 	KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
@@ -115,13 +114,13 @@ FOO := $(shell mkdir -p "$(module_initrd_lib_dir)")
 define linux_module =
 
 # Each module depends on building the Linux kernel
-$(linux_board_dir)/$1: linux.intermediate # $(build)/$(BOARD)/bzImage
+$(build)/$(linux_dir)/$1: $(build)/$(BOARD)/bzImage
 
 # The cpio file will depend on every module
 $(build)/$(BOARD)/modules.cpio: $(module_initrd_lib_dir)/$(notdir $1)
 
 # Strip the modules when we install them so that they will be extra small
-$(module_initrd_lib_dir)/$(notdir $1): $(linux_board_dir)/$1
+$(module_initrd_lib_dir)/$(notdir $1): $(build)/$(linux_dir)/$1
 	$(call do,INSTALL-MODULE,$1, \
 		$(CROSS)strip \
 			--preserve-dates \
@@ -134,7 +133,7 @@ endef
 $(call map,linux_module,$(linux_modules-y))
 
 # We can't rebuild the module initrd until the kernel has been rebuilt
-$(build)/$(BOARD)/modules.cpio: linux.intermediate
+$(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build
 	$(call do-cpio,$@,$(module_initrd_dir))
 	@$(RM) -rf "$(module_initrd_dir)"
 
@@ -142,15 +141,14 @@ $(build)/$(BOARD)/modules.cpio: linux.intermediate
 # The output of the linux.intermediate is the bzImage in the
 # linus build directory.  We need to copy it into our board
 # specific directory for ease of locating it later.
-$(linux_board_dir)/arch/x86/boot/bzImage: linux.intermediate
-$(build)/$(BOARD)/bzImage: $(linux_board_dir)/arch/x86/boot/bzImage
+$(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
 	$(call do-copy,$<,$@)
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
 linux.menuconfig:
 	$(MAKE) \
-		-C "$(build)/$(linux_dir)" \
-		O="$(linux_board_dir)" \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
 		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		menuconfig \
