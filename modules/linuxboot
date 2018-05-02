@@ -2,18 +2,19 @@ modules-$(CONFIG_LINUXBOOT) += linuxboot
 
 linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
-linuxboot_dir := linuxboot-$(linuxboot_version)
+linuxboot_base_dir := linuxboot-$(linuxboot_version)
 
 # linuxboot builds are specialized on a per-target basis.
 # They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)
 # otherwise it is assumed that it will have the same name
 # as the Heads BOARD.
 linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
-
+linuxboot_dir := linuxboot-$(linuxboot_version)/build/$(linuxboot_board)
 
 linuxboot_configure := \
 	echo >&2 "Pre-building edk2" ; \
 	$(MAKE) \
+		-C $(build)/$(linuxboot_base_dir) \
 		BOARD=$(linuxboot_board) \
 		edk2.force \
 	|| exit 1 ; \
@@ -29,6 +30,7 @@ ifdef CUSTOM
 endif
 
 linuxboot_target := \
+	-C $(build)/$(linuxboot_base_dir) \
 	BOARD=$(linuxboot_board) \
 	KERNEL=$(build)/$(BOARD)/bzImage \
 	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
@@ -55,8 +57,9 @@ endif
 linuxboot_output := build/$(linuxboot_board)/linuxboot.rom
 linuxboot_rom := $(build)/$(linuxboot_dir)/$(linuxboot_output)
 
-$(build)/$(BOARD)/linuxboot.rom: $(linuxboot_rom)
-	$(call do-copy,$<,$@)
+$(build)/$(BOARD)/linuxboot.rom: $(build)/$(linuxboot_dir)/.build
+	$(call do-copy,$(dir $<)linuxboot.rom,$@)
+	@touch $@
 
 # Also force a rebuild if any of the input files are updated
 $(build)/$(linuxboot_dir)/.build: \
@@ -66,7 +69,7 @@ $(build)/$(linuxboot_dir)/.build: \
 
 
 linuxboot.run: $(build)/$(BOARD)/linuxboot.rom
-	$(MAKE) -C $(build)/$(linuxboot_dir)  \
+	$(MAKE) -C $(build)/$(linuxboot_base_dir)  \
 		BOARD:=$(linuxboot_board) \
 		KERNEL=$(build)/$(BOARD)/bzImage \
 		INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
