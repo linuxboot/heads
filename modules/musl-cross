@@ -2,12 +2,6 @@ ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 
 
-# Allow the path to the musl-cross directory to be passed on
-# the environment so that the full path doens't need to be spelled out
-ifneq "$(MUSL_DIR)" ""
-CROSS := $(MUSL_DIR)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
-endif
-
 ifneq "$(CROSS)" ""
 
 # check that $(CROSS)gcc exists or else things just won't work
@@ -18,6 +12,11 @@ endif
 # The cross compiler has already been built, so the musl-cross target
 # is a NOP.
 #musl-cross.intermediate:
+
+musl-cross_dir := musl-cross-ext
+$(build)/$(musl-cross_dir)/.build:
+	mkdir -p $(dir $@)
+	touch $@
 
 else
 
