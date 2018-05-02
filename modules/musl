@@ -42,9 +42,9 @@ $(build)/$(musl_dir)/.build: $(INSTALL)/include/linux/limits.h
 
 $(INSTALL)/include/linux/limits.h: $(build)/$(linux_base_dir)/.canary
 	$(MAKE) \
-		-C "$(build)/$(linux_dir)" \
+		-C "$(build)/$(linux_base_dir)" \
 		INSTALL_HDR_PATH="$(INSTALL)" \
-		O="$(linux_board_dir)" \
+		O="$(linux_dir)" \
 		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		headers_install
 
