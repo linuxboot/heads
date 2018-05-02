@@ -20,8 +20,9 @@ linuxboot_configure := \
 	|| exit 1 ; \
 	if [ "$(linuxboot_board)" = "qemu" ]; then \
 		echo >&2 "Pre-building edk2 OVMF" ; \
-		( cd edk2/OvmfPkg ; ./build.sh -n `nproc` ) \
-		|| exit 1 ; \
+		( cd $(build)/$(linuxboot_base_dir)/edk2/OvmfPkg ; \
+		./build.sh -n `nproc` \
+		) || exit 1 ; \
 	fi ; \
 	touch .config ; \
 
