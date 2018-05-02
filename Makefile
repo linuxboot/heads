@@ -23,10 +23,11 @@ CPUS		:= $(shell nproc)
 BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
 # Check that we have a correct version of make
+# that matches at least the major version
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
 include modules/make
 
-ifeq "$(LOCAL_MAKE_VERSION)" "$(make_version)"
+ifneq "" "$(filter $(make_version)%,$(LOCAL_MAKE_VERSION))"
 
 # This is the correct version of Make
 
