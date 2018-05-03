@@ -31,6 +31,7 @@ $(initrd_tmp_dir)/bin/busybox: $(build)/$(busybox_dir)/.build
 		| tee -a $(build)/log/busybox.log \
 		$(VERBOSE_REDIRECT) \
 	)
+	@touch $< # ensure that our build file is still newer
 
 
 busybox_depends := $(musl_dep)
