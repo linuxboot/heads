@@ -25,6 +25,6 @@ dropbear_target := \
 	DESTDIR="$(INSTALL)" \
 	dbclient scp dropbear \
 	&& \
-	cp $(build)/$(dropbear_dir)/dbclient $(build)/$(dropbear_dir)/ssh
+	cp -a $(build)/$(dropbear_dir)/dbclient $(build)/$(dropbear_dir)/ssh
 
 dropbear_depends := zlib $(musl_dep)
