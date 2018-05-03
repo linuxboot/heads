@@ -114,7 +114,7 @@ FOO := $(shell mkdir -p "$(module_initrd_lib_dir)")
 define linux_module =
 
 # Each module depends on building the Linux kernel
-$(build)/$(linux_dir)/$1: $(build)/$(BOARD)/bzImage
+$(build)/$(linux_dir)/$1: $(build)/$(linux_dir)/$(linux_output)
 
 # The cpio file will depend on every module
 $(build)/$(BOARD)/modules.cpio: $(module_initrd_lib_dir)/$(notdir $1)
@@ -141,8 +141,9 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build
 # The output of the linux.intermediate is the bzImage in the
 # linus build directory.  We need to copy it into our board
 # specific directory for ease of locating it later.
-$(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/arch/x86/boot/bzImage
-	$(call do-copy,$<,$@)
+$(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/.build
+	$(call do-copy,$(dir $<)/$(linux_output),$@)
+	@touch $@ # force a timestamp update
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
