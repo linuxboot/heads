@@ -179,10 +179,9 @@ endef
 define do-copy =
 	$(call do,INSTALL  ,$1 => $2',\
 		if ! cmp --quiet "$1" "$2" ; then \
-			cp -a "$1" "$2"; \
-		else  \
 			echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		fi
+		cp -a "$1" "$2"; \
 	)
 	@sha256sum "$(2:$(pwd)/%=%)"
 endef
@@ -294,7 +293,7 @@ define define_module =
 
   # Target for all of the outputs, which depend on their dependent modules
   # being built, as well as this module being configured
-  $(call outputs,$1): $(build)/$($1_dir)/.build
+  $(build)/$($1_dir)/.build: $(call outputs,$1)
 
   # If any of the outputs are missing, we should force a rebuild
   # of the entire module
