@@ -13,6 +13,9 @@ coreboot_hash := d68a83f8f687e8ea212b8c5bb501e24444b57c3f73896042d09628188c85136
 # The builds are done in a per-target subdirectory
 CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 
+# Ensure that touching the config file will force a rebuild
+$(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 coreboot_configure := \
