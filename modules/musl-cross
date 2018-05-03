@@ -2,12 +2,6 @@ ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 
 
-# Allow the path to the musl-cross directory to be passed on
-# the environment so that the full path doens't need to be spelled out
-ifneq "$(MUSL_DIR)" ""
-CROSS := $(MUSL_DIR)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
-endif
-
 ifneq "$(CROSS)" ""
 
 # check that $(CROSS)gcc exists or else things just won't work
@@ -17,7 +11,12 @@ endif
 
 # The cross compiler has already been built, so the musl-cross target
 # is a NOP.
-musl-cross.intermediate:
+#musl-cross.intermediate:
+
+musl-cross_dir := musl-cross-ext
+$(build)/$(musl-cross_dir)/.build:
+	mkdir -p $(dir $@)
+	touch $@
 
 else
 
@@ -28,8 +27,9 @@ musl-cross_version := git
 musl-cross_dir := musl-cross-$(musl-cross_version)
 musl-cross_repo := https://github.com/GregorR/musl-cross
 
-CROSS := $(build)/../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
-musl-cross_output := $(CROSS)gcc
+CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS := $(build)/../$(CROSS_TOP)
+musl-cross_output := ../../$(CROSS_TOP)gcc
 
 musl-cross_configure := \
 	/bin/echo -e > Makefile \
