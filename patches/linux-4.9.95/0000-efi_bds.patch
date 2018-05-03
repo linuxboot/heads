@@ -1,6 +1,6 @@
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/early_serial_console.c linux-4.9.80/arch/x86/boot/compressed/early_serial_console.c
---- ./clean/linux-4.9.80/arch/x86/boot/compressed/early_serial_console.c	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/boot/compressed/early_serial_console.c	2018-02-07 15:51:28.534500400 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/boot/compressed/early_serial_console.c linux-4.9.95/arch/x86/boot/compressed/early_serial_console.c
+--- ./clean/linux-4.9.95/arch/x86/boot/compressed/early_serial_console.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/boot/compressed/early_serial_console.c	2018-02-07 15:51:28.534500400 -0500
 @@ -1,5 +1,5 @@
  #include "misc.h"
  
@@ -8,9 +8,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/early_serial_c
 +int early_serial_base = 0x3f8;
  
  #include "../early_serial_console.c"
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/eboot.c linux-4.9.80/arch/x86/boot/compressed/eboot.c
---- ./clean/linux-4.9.80/arch/x86/boot/compressed/eboot.c	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/boot/compressed/eboot.c	2018-02-07 15:51:28.534500400 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/boot/compressed/eboot.c linux-4.9.95/arch/x86/boot/compressed/eboot.c
+--- ./clean/linux-4.9.95/arch/x86/boot/compressed/eboot.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/boot/compressed/eboot.c	2018-02-07 15:51:28.534500400 -0500
 @@ -16,6 +16,71 @@
  #include "../string.h"
  #include "eboot.h"
@@ -584,9 +584,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/eboot.c linux-
 +}
 +
 +#endif
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/head_64.S linux-4.9.80/arch/x86/boot/compressed/head_64.S
---- ./clean/linux-4.9.80/arch/x86/boot/compressed/head_64.S	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/boot/compressed/head_64.S	2018-02-07 15:51:28.534500400 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/boot/compressed/head_64.S linux-4.9.95/arch/x86/boot/compressed/head_64.S
+--- ./clean/linux-4.9.95/arch/x86/boot/compressed/head_64.S	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/boot/compressed/head_64.S	2018-02-07 15:51:28.534500400 -0500
 @@ -268,6 +268,11 @@
  	addq	%rbp, efi64_config+32(%rip)
  
@@ -619,9 +619,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/head_64.S linu
  preferred_addr:
  #endif
  
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/header.S linux-4.9.80/arch/x86/boot/header.S
---- ./clean/linux-4.9.80/arch/x86/boot/header.S	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/boot/header.S	2018-02-07 15:51:28.534500400 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/boot/header.S linux-4.9.95/arch/x86/boot/header.S
+--- ./clean/linux-4.9.95/arch/x86/boot/header.S	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/boot/header.S	2018-02-07 15:51:28.534500400 -0500
 @@ -171,7 +171,11 @@
  
  	.long	0x200				# SizeOfHeaders
@@ -634,9 +634,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/header.S linux-4.9.80/arc
  	.word	0				# DllCharacteristics
  #ifdef CONFIG_X86_32
  	.long	0				# SizeOfStackReserve
-diff --recursive -u ./clean/linux-4.9.80/arch/x86/Kconfig linux-4.9.80/arch/x86/Kconfig
---- ./clean/linux-4.9.80/arch/x86/Kconfig	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/arch/x86/Kconfig	2018-02-07 15:51:28.538500435 -0500
+diff --recursive -u ./clean/linux-4.9.95/arch/x86/Kconfig linux-4.9.95/arch/x86/Kconfig
+--- ./clean/linux-4.9.95/arch/x86/Kconfig	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/arch/x86/Kconfig	2018-02-07 15:51:28.538500435 -0500
 @@ -1786,6 +1786,15 @@
  
  	  See Documentation/efi-stub.txt for more information.
@@ -653,9 +653,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/Kconfig linux-4.9.80/arch/x86/
  config EFI_MIXED
  	bool "EFI mixed-mode support"
  	depends on EFI_STUB && X86_64
-diff --recursive -u ./clean/linux-4.9.80/include/linux/efi.h linux-4.9.80/include/linux/efi.h
---- ./clean/linux-4.9.80/include/linux/efi.h	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/include/linux/efi.h	2018-02-07 15:51:35.130557903 -0500
+diff --recursive -u ./clean/linux-4.9.95/include/linux/efi.h linux-4.9.95/include/linux/efi.h
+--- ./clean/linux-4.9.95/include/linux/efi.h	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.95/include/linux/efi.h	2018-02-07 15:51:35.130557903 -0500
 @@ -287,10 +287,10 @@
  	void *create_event;
  	void *set_timer;

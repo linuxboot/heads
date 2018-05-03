@@ -1,12 +1,11 @@
 modules-y += linux
 
-linux_version := 4.9.80
+linux_version := 4.9.95
 linux_dir := linux-$(linux_version)
 linux_tar := linux-$(linux_version).tar.xz
 linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
-linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
-linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de41226477b
+linux-4.9.95_hash := 9e5a6d27c26d0f978c573449be34d9a3b984e9e6617d1b3f0498d06fb6319ff4
 
 linux_hash := $(linux-$(linux_version)_hash)
 
