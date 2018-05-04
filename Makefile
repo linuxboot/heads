@@ -180,7 +180,7 @@ define do-copy =
 	$(call do,INSTALL  ,$1 => $2',\
 		if ! cmp --quiet "$1" "$2" ; then \
 			echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
-		fi
+		fi ; \
 		cp -a "$1" "$2"; \
 	)
 	@sha256sum "$(2:$(pwd)/%=%)"
@@ -293,7 +293,7 @@ define define_module =
 
   # Target for all of the outputs, which depend on their dependent modules
   # being built, as well as this module being configured
-  $(build)/$($1_dir)/.build: $(call outputs,$1)
+  $(call outputs,$1): $(build)/$($1_dir)/.build
 
   # If any of the outputs are missing, we should force a rebuild
   # of the entire module
@@ -305,7 +305,7 @@ define define_module =
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
-	@echo "$(DATE) MAKE $1 --- $$@"
+	@echo "$(DATE) MAKE $1"
 	+@( \
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
