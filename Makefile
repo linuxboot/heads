@@ -49,6 +49,12 @@ CONFIG_HEADS	?= y
 # Some things want usernames, we use the current checkout
 # so that they are reproducible
 GIT_HASH	:= $(shell git rev-parse HEAD)
+GIT_STATUS	:= $(shell \
+	if git diff --exit-code >/dev/null ; then \
+		echo clean ; \
+	else \
+		echo dirty ; \
+	fi)
 
 # Timestamps should be in ISO format
 DATE=`date --rfc-3339=seconds`
@@ -177,11 +183,11 @@ define do-cpio =
 endef
 
 define do-copy =
-	$(call do,INSTALL  ,$1 => $2',\
-		if ! cmp --quiet "$1" "$2" ; then \
+	$(call do,INSTALL  ,$1 => $2,\
+		if cmp --quiet "$1" "$2" ; then \
 			echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		fi ; \
-		cp -a "$1" "$2"; \
+		cp -a "$1" "$2" ; \
 	)
 	@sha256sum "$(2:$(pwd)/%=%)"
 endef
@@ -476,17 +482,26 @@ $(build)/$(initrd_dir)/heads.cpio: FORCE
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
+	$(initrd_tmp_dir)/etc/config \
 
+	$(call do-cpio,$@,$(initrd_tmp_dir))
+	@$(RM) -rf "$(initrd_tmp_dir)"
+
+$(initrd_tmp_dir)/etc/config: FORCE
+	@mkdir -p $(dir $@)
 	$(call do,INSTALL,$(CONFIG), \
-		mkdir -p "$(initrd_tmp_dir)/etc" ; \
 		export \
 			| grep ' CONFIG_' \
 			| sed -e 's/^declare -x /export /' \
 			-e 's/\\\"//g' \
-			> "$(initrd_tmp_dir)/etc/config" \
+			> $@ \
 	)
-	$(call do-cpio,$@,$(initrd_tmp_dir))
-	@$(RM) -rf "$(initrd_tmp_dir)"
+	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS), \
+		echo export GIT_HASH=\'$(GIT_HASH)\' \
+		>> $@ ; \
+		echo export GIT_STATUS=$(GIT_STATUS) \
+		>> $@ ; \
+	)
 
 # Ensure that the initrd depends on all of the modules that produce
 # binaries for it
