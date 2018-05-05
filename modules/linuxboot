@@ -2,32 +2,40 @@ modules-$(CONFIG_LINUXBOOT) += linuxboot
 
 linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
-linuxboot_dir := linuxboot-$(linuxboot_version)
+linuxboot_base_dir := linuxboot-$(linuxboot_version)
 
 # linuxboot builds are specialized on a per-target basis.
 # They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)
 # otherwise it is assumed that it will have the same name
 # as the Heads BOARD.
 linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
-
+linuxboot_dir := linuxboot-$(linuxboot_version)/build/$(linuxboot_board)
 
 linuxboot_configure := \
 	echo >&2 "Pre-building edk2" ; \
 	$(MAKE) \
+		-C $(build)/$(linuxboot_base_dir) \
 		BOARD=$(linuxboot_board) \
 		edk2.force \
 	|| exit 1 ; \
 	if [ "$(linuxboot_board)" = "qemu" ]; then \
 		echo >&2 "Pre-building edk2 OVMF" ; \
-		( cd edk2/OvmfPkg ; ./build.sh -n `nproc` ) \
-		|| exit 1 ; \
+		( cd $(build)/$(linuxboot_base_dir)/edk2/OvmfPkg ; \
+		./build.sh -n `nproc` \
+		) || exit 1 ; \
 	fi ; \
 	touch .config ; \
 
+ifdef CUSTOM
+	CUSTOMPWD=$(pwd)/$(CUSTOM)
+endif
+
 linuxboot_target := \
+	-C $(build)/$(linuxboot_base_dir) \
 	BOARD=$(linuxboot_board) \
 	KERNEL=$(build)/$(BOARD)/bzImage \
 	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
+	CUSTOM=$(CUSTOMPWD) \
 	$(if $(CONFIG_LINUXBOOT_ROM), ROM=$(pwd)/$(CONFIG_LINUXBOOT_ROM)) \
 	all
 
@@ -40,38 +48,31 @@ ifneq "y" "$(shell [ -r '$(CONFIG_LINUXBOOT_ROM)' ] && echo y)"
 $(error $(CONFIG_LINUXBOOT_ROM): you must provide a ROM file)
 endif
 
-# Force a rebuild of the LinuxBoot ROM if the vendor ROM changes
-linuxboot.intermediate:  $(CONFIG_LINUXBOOT_ROM)
-
 endif
+
 
 # The output file from the LinuxBoot build is a full ROM
 # ready to flash onto the mainboard.  There might be partial
 # firmware volumes as well, but that depends on the board
 # so this only retrieves the final one
-linuxboot_output := $(build)/$(linuxboot_dir)/build/$(linuxboot_board)/linuxboot.rom
+linuxboot_output := build/$(linuxboot_board)/linuxboot.rom
+linuxboot_rom := $(build)/$(linuxboot_dir)/$(linuxboot_output)
 
-$(linuxboot_output): linuxboot.intermediate
+$(build)/$(BOARD)/linuxboot.rom: $(build)/$(linuxboot_dir)/.build
+	$(call do-copy,$(dir $<)linuxboot.rom,$@)
+	@touch $@
 
-$(build)/$(BOARD)/linuxboot.rom: $(linuxboot_output)
-	$(call do-copy,$<,$@)
-
-# The Linux kernel and Heads initrd must be built before linuxboot
-# unless the user has specified "FAST=1" on the make command line,
-# which will assume that the kernel and initrd are fresh
-#
-# There is not an explicit dependency of linuxboot on linux
-# or initrd so that the configuration can pre-build all of edk2
-# overlapping with the other builds.
-ifneq "$(FAST)" "1"
-linuxboot.intermediate: $(build)/$(BOARD)/bzImage
-linuxboot.intermediate: $(build)/$(BOARD)/initrd.cpio.xz
-endif
+# Also force a rebuild if any of the input files are updated
+$(build)/$(linuxboot_dir)/.build: \
+	$(CONFIG_LINUXBOOT_ROM) \
+	$(build)/$(BOARD)/bzImage \
+	$(build)/$(BOARD)/initrd.cpio.xz \
 
 
 linuxboot.run: $(build)/$(BOARD)/linuxboot.rom
-	$(MAKE) -C $(build)/$(linuxboot_dir)  \
+	$(MAKE) -C $(build)/$(linuxboot_base_dir)  \
 		BOARD:=$(linuxboot_board) \
 		KERNEL=$(build)/$(BOARD)/bzImage \
 		INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
+		CUSTOM=$(CUSTOMPWD) \
 		run

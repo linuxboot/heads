@@ -36,7 +36,7 @@ pause_recovery() {
 }
 
 pcrs() {
-	head -7 /sys/class/tpm/tpm0/pcrs
+	head -8 /sys/class/tpm/tpm0/pcrs
 }
 
 confirm_totp()
@@ -190,11 +190,29 @@ check_config() {
 		return
 	fi
 
-	if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
-		die 'Invalid signature on kexec boot params'
+	if [ "$2" != "force" ]; then
+		if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
+			die 'Invalid signature on kexec boot params'
+		fi
 	fi
 
 	echo "+++ Found verified kexec boot params"
 	cp $1/kexec*.txt /tmp/kexec \
 	|| die "Failed to copy kexec boot params to tmp"
+}
+
+preserve_rom() {
+	new_rom="$1"
+	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+
+	for old_file in `echo $old_files`; do
+		new_file=`cbfs -o $1 -l | grep -x $old_file`
+		if [ -z "$new_file" ]; then
+			echo "+++ Adding $old_file to $1"
+			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
+			|| die "Failed to read cbfs file from ROM"
+			cbfs -o $1 -a $old_file -f /tmp/rom.$$ \
+			|| die "Failed to write cbfs file to new ROM file"
+		fi
+	done
 }
