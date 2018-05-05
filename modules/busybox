@@ -13,8 +13,25 @@ busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
 	$(CROSS_TOOLS) \
-	CONFIG_PREFIX="$(initrd_dir)" \
 	$(MAKE_JOBS) \
-	install
+
+# Install symlinks when the busybox program is installed
+
+ifeq "$(CONFIG_BUSYBOX)" "y"
+initrd_bins += $(initrd_bin_dir)/busybox
+endif
+
+$(initrd_tmp_dir)/bin/busybox: $(build)/$(busybox_dir)/.build
+	$(call do,SYMLINK,bin/busybox,\
+		$(MAKE) \
+			-C $(build)/$(busybox_dir) \
+			CC="$(heads_cc)" \
+			CONFIG_PREFIX="$(initrd_bin_dir)/.." \
+			install \
+		| tee -a $(build)/log/busybox.log \
+		$(VERBOSE_REDIRECT) \
+	)
+	@touch $< # ensure that our build file is still newer
+
 
 busybox_depends := $(musl_dep)

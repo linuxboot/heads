@@ -21,6 +21,7 @@ flashtools_output := \
 	peek \
 	poke \
 	cbfs \
+	uefi \
 
 flashtools_libraries := \
 
