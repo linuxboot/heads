@@ -1,0 +1,8 @@
+#!/bin/ash
+set -e -o pipefail
+. /etc/functions
+
+# Post processing of keys
+gpg --import /.gnupg/keys/* 2>/dev/null || true
+
+# TODO: split out gpg keys into multiple rings by function

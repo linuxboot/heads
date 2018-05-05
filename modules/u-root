@@ -11,11 +11,10 @@ UROOT_CMDS ?=
 export GOPATH=$(build)/go
 u-root_src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
 
-$(GOPATH):
-	$(call do,GO GET,$(u-root_url),\
-		go get $(u-root_url) \
-	)
+u-root_build := $(GOPATH)/bin/u-root
 
+$(GOPATH)/bin/u-root:
+	go get github.com/u-root/u-root/...
 #
 # If the board directory has its own go commands, copy them
 # into the u-root tree so that they will be bundled into the go initrd
@@ -24,11 +23,11 @@ $(GOPATH):
 #
 ifeq "y" "$(shell [ -r 'boards/$(BOARD)/uinit.go' ] && echo y)"
 u-root_uinit := $(GOPATH)/src/github.com/u-root/u-root/cmds/uinit/uinit.go
-$(u-root_uinit): boards/$(BOARD)/uinit.go
-	$(call install,$<,$@)
+$(u-root_uinit): $(u-root_build) boards/$(BOARD)/uinit.go
+	$(call install,boards/$(BOARD)/uinit.go,$@)
 endif
 
-$(u-root_output): $(GOPATH) $(u-root_uinit)
+$(u-root_output): $(u-root_build) $(u-root_uinit)
 	$(call do,U-ROOT,$@,\
 		$(GOPATH)/bin/u-root \
 			-build=bb \
@@ -48,7 +47,7 @@ CONFIG_HEADS=n
 
 # Since we do not include u-root in modules-y, we have to define our
 # own intermediate and clean targets here
-u-root.intermediate: $(u-root_output)
+$(build)/$(u-root_dir)/.build: $(u-root_output)
 u-root.clean:
 	$(RM) $(u-root_output)
 endif
