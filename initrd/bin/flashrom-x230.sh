@@ -22,10 +22,10 @@ fi
 
 flashrom \
 	--force \
-	--noverify \
+	--noverify-all \
 	--programmer internal \
 	--ifd \
-	--image BIOS \
+	--image bios \
 	-w /tmp/x230.rom \
 || die "$ROM: Flash failed"
 
