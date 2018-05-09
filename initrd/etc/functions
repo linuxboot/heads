@@ -143,13 +143,19 @@ check_tpm_counter()
 	if [ -r "$1" ]; then
 		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
 	else
+    # Initialize label to default if not set
+		if [ "$2" != "" ]; then
+      LABEL=$2
+		else
+			LABEL=3135106223 
+		fi
 		warn "$BOOT_HASHES does not exist; creating new TPM counter"
 		read -s -p "TPM Owner password: " tpm_password
 		echo
 		tpm counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \
-			-la 3135106223 \
+			-la $LABEL \
 		| tee /tmp/counter \
 		|| die "Unable to create TPM counter"
 		TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
