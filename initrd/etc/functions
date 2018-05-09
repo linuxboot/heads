@@ -145,7 +145,7 @@ check_tpm_counter()
 	else
     # Initialize label to default if not set
 		if [ "$2" != "" ]; then
-      LABEL=$2
+			LABEL=$2
 		else
 			LABEL=3135106223 
 		fi
