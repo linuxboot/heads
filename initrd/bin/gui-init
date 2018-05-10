@@ -148,6 +148,7 @@ while true; do
       'g' ' Generate new TOTP secret' \
       'p' ' Reset the TPM' \
       's' ' Update checksums and sign all files in /boot' \
+      'f' ' Flash the BIOS with a new ROM' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -242,6 +243,13 @@ while true; do
 
   if [ "$totp_confirm" = "s" ]; then
     update_checksums
+    continue
+  fi
+
+  if [ "$totp_confirm" = "f" ]; then
+    if [ -x $CONFIG_FLASHROM_SCRIPT ]; then
+      $CONFIG_FLASHROM_SCRIPT
+    fi
     continue
   fi
 
