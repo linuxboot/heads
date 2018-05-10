@@ -9,7 +9,7 @@ set -e -o pipefail
 
 # Mount the USB boot device
 if ! grep -q /media /proc/mounts ; then
-	mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
+  mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
   if [ $USB_FAILED -ne 0 ]; then
     if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
       if [ -x /bin/whiptail ]; then
@@ -33,48 +33,48 @@ if ! grep -q /media /proc/mounts ; then
 fi
 
 if [ "$1" = "-c" ]; then
-	CLEAN=1
+  CLEAN=1
 else
-	CLEAN=0
+  CLEAN=0
 fi
 
 get_menu_option() {
-	if [ -x /bin/whiptail ]; then
-		MENU_OPTIONS=""
-		n=0
-		while read option
-		do
-			n=`expr $n + 1`
-			option=$(echo $option | tr " " "_")
-			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-		done < /tmp/rom_menu.txt
+  if [ -x /bin/whiptail ]; then
+    MENU_OPTIONS=""
+    n=0
+    while read option
+    do
+      n=`expr $n + 1`
+      option=$(echo $option | tr " " "_")
+      MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+    done < /tmp/rom_menu.txt
 
     MENU_OPTIONS="$MENU_OPTIONS a abort"
-		whiptail --clear --title "Select your ROM" \
-			--menu "Choose the ROM to flash [1-$n, a to abort]:" 20 120 8 \
-			-- $MENU_OPTIONS \
-			2>/tmp/whiptail || die "Aborting flash attempt"
+    whiptail --clear --title "Select your ROM" \
+      --menu "Choose the ROM to flash [1-$n, a to abort]:" 20 120 8 \
+      -- $MENU_OPTIONS \
+      2>/tmp/whiptail || die "Aborting flash attempt"
 
-		option_index=$(cat /tmp/whiptail)
-	else
-		echo "+++ Select your ROM:"
-		n=0
-		while read option
-		do
-			n=`expr $n + 1`
-			echo "$n. $option"
-		done < /tmp/rom_menu.txt
+    option_index=$(cat /tmp/whiptail)
+  else
+    echo "+++ Select your ROM:"
+    n=0
+    while read option
+    do
+      n=`expr $n + 1`
+      echo "$n. $option"
+    done < /tmp/rom_menu.txt
 
-		read \
-			-p "Choose the ROM to flash [1-$n, a to abort]: " \
-			option_index
-	fi
+    read \
+      -p "Choose the ROM to flash [1-$n, a to abort]: " \
+      option_index
+  fi
 
-	if [ "$option_index" = "a" ]; then
-		die "Aborting flash attempt"
-	fi
+  if [ "$option_index" = "a" ]; then
+    die "Aborting flash attempt"
+  fi
 
-	option=`head -n $option_index /tmp/rom_menu.txt | tail -1`
+  option=`head -n $option_index /tmp/rom_menu.txt | tail -1`
 }
 
 flash_rom() {
@@ -95,15 +95,15 @@ flash_rom() {
 # create ROM menu options
 ls -1r /media/*.rom 2>/dev/null > /tmp/rom_menu.txt || true
 if [ `cat /tmp/rom_menu.txt | wc -l` -gt 0 ]; then
-	option_confirm=""
-	while [ -z "$option" ]
-	do
-		get_menu_option
-	done
+  option_confirm=""
+  while [ -z "$option" ]
+  do
+    get_menu_option
+  done
 
-	if [ -n "$option" ]; then
-		MOUNTED_ROM=$option
-		ROM=${option:7} # remove /media/ to get device relative path
+  if [ -n "$option" ]; then
+    MOUNTED_ROM=$option
+    ROM=${option:7} # remove /media/ to get device relative path
 
     if [ -x /bin/whiptail ]; then
       if (whiptail --title 'Flash ROM?' \
@@ -133,8 +133,8 @@ if [ `cat /tmp/rom_menu.txt | wc -l` -gt 0 ]; then
       /bin/reboot
     fi
 
-		die "Something failed in ROM flash"
-	fi
+    die "Something failed in ROM flash"
+  fi
 else
   if [ -x /bin/whiptail ]; then
     whiptail --title 'No ROMs found' \
