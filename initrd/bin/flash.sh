@@ -16,9 +16,6 @@ case "$CONFIG_BOARD" in
   "kgpe-d16" )
     FLASHROM_OPTIONS='--force --noverify --programmer internal'
   ;;
-  "kgpe-d16-openbmc" )
-    FLASHROM_OPTIONS='--programmer="ast1100:spibus=2,cpu=reset" -c "S25FL128P......0"'
-  ;;
   * )
     die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
   ;;
