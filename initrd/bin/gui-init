@@ -247,7 +247,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "f" ]; then
-    flash.sh
+    /bin/flash.sh
     continue
   fi
 
