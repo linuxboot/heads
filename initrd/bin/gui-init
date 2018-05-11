@@ -247,7 +247,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "f" ]; then
-    /bin/flash.sh
+    flash-gui.sh
     continue
   fi
 
