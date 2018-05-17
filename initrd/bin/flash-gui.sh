@@ -1,126 +1,214 @@
 #!/bin/sh
 #
-# based off of flashrom-x230 and usb-scan
-#
 set -e -o pipefail
 . /etc/functions
 . /etc/config
 
+mount_usb(){
 # Mount the USB boot device
-if ! grep -q /media /proc/mounts ; then
-  mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-  if [ $USB_FAILED -ne 0 ]; then
-    if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
-      if [ -x /bin/whiptail ]; then
-        whiptail --title 'USB Drive Missing' \
-          --msgbox "Insert the USB drive containing your ROM and press Enter to continue." 16 60
-      else
-          echo "Insert the USB drive containing your ROM and press Enter to continue."
-      fi
-      USB_FAILED=0
-      mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-    fi
+  if ! grep -q /media /proc/mounts ; then
+    mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
     if [ $USB_FAILED -ne 0 ]; then
-      if [ -x /bin/whiptail ]; then
+      if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
+        whiptail --title 'USB Drive Missing' \
+          --msgbox "Insert your USB drive and press Enter to continue." 16 60 USB_FAILED=0
+        mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
+      fi
+      if [ $USB_FAILED -ne 0 ]; then
         whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Mounting /media Failed' \
           --msgbox "Unable to mount $CONFIG_USB_BOOT_DEV" 16 60
-      else
-        die "ERROR: Unable to mount $CONFIG_USB_BOOT_DEV"
       fi
     fi
   fi
-fi
-
-get_menu_option() {
-  if [ -x /bin/whiptail ]; then
-    MENU_OPTIONS=""
-    n=0
-    while read option
-    do
-      n=`expr $n + 1`
-      option=$(echo $option | tr " " "_")
-      MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-    done < /tmp/rom_menu.txt
-
-    MENU_OPTIONS="$MENU_OPTIONS a abort"
-    whiptail --clear --title "Select your ROM" \
-      --menu "Choose the ROM to flash [1-$n, a to abort]:" 20 120 8 \
-      -- $MENU_OPTIONS \
-      2>/tmp/whiptail || die "Aborting flash attempt"
-
-    option_index=$(cat /tmp/whiptail)
-  else
-    echo "+++ Select your ROM:"
-    n=0
-    while read option
-    do
-      n=`expr $n + 1`
-      echo "$n. $option"
-    done < /tmp/rom_menu.txt
-
-    read \
-      -p "Choose the ROM to flash [1-$n, a to abort]: " \
-      option_index
-  fi
-
-  if [ "$option_index" = "a" ]; then
-    die "Aborting flash attempt"
-  fi
-
-  option=`head -n $option_index /tmp/rom_menu.txt | tail -1`
 }
 
-# create ROM menu options
-ls -1r /media/*.rom 2>/dev/null > /tmp/rom_menu.txt || true
-if [ `cat /tmp/rom_menu.txt | wc -l` -gt 0 ]; then
-  option_confirm=""
-  while [ -z "$option" ]
-  do
-    get_menu_option
-  done
+file_selector() {
+  FILE=""
+  FILE_LIST=$1
+  MENU_MSG=${2:-"Choose the file"}
+# create file menu options
+  if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
+    option=""
+    while [ -z "$option" ]
+    do
+      MENU_OPTIONS=""
+      n=0
+      while read option
+      do
+        n=`expr $n + 1`
+        option=$(echo $option | tr " " "_")
+        MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+      done < $FILE_LIST
 
-  if [ -n "$option" ]; then
-    MOUNTED_ROM=$option
-    ROM=${option:7} # remove /media/ to get device relative path
+      MENU_OPTIONS="$MENU_OPTIONS a Abort"
+      whiptail --clear --title "Select your File" \
+        --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+        -- $MENU_OPTIONS \
+        2>/tmp/whiptail || die "Aborting"
 
-    if [ -x /bin/whiptail ]; then
-      if (whiptail --title 'Flash ROM?' \
-          --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
-        /bin/flash.sh $MOUNTED_ROM
-        whiptail --title 'ROM Flashed Successfully' \
-          --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
-        /bin/reboot
-      else
-        exit 0
-      fi
-    else
-      echo "+++ Flash ROM $ROM?"
-      read \
-        -n 1 \
-        -p "This will replace your old ROM with $ROM, Do you want to proceed? [y/N] " \
-        do_flash
-      echo
-      if [ "$do_flash" != "y" \
-        -a "$do_flash" != "Y" ]; then
-        exit 0
+      option_index=$(cat /tmp/whiptail)
+
+      if [ "$option_index" = "a" ]; then
+        option="a"
+        return
       fi
 
-      /bin/flash.sh $MOUNTED_ROM
-      echo "$ROM flashed successfuly. Press Enter to reboot"
-      read
-      /bin/reboot
+      option=`head -n $option_index $FILE_LIST | tail -1`
+      if [ "$option" == "a" ]; then
+        return
+      fi
+    done
+    if [ -n "$option" ]; then
+      FILE=$option
     fi
-
-    die "Something failed in ROM flash"
-  fi
-else
-  if [ -x /bin/whiptail ]; then
-    whiptail --title 'No ROMs found' \
-      --msgbox "No ROMs found on USB disk" 16 60
   else
-    echo "No ROMs found on USB disk. Press Enter to continue"
-    read
+    whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: No Files Found' \
+      --msgbox "No Files found matching the pattern. Aborting." 16 60
+    exit 1
   fi
-fi
+}
 
+while true; do
+  unset menu_choice
+  whiptail --clear --title "BIOS Management Menu" \
+    --menu 'Select the BIOS function to perform' 20 90 10 \
+    'f' ' Flash the BIOS with a new ROM' \
+    'a' ' Add GPG key to BIOS image' \
+    'r' ' Add GPG key to running BIOS' \
+    'x' ' Exit' \
+    2>/tmp/whiptail || recovery "GUI menu failed"
+
+  menu_choice=$(cat /tmp/whiptail)
+
+  case "$menu_choice" in
+    "x" )
+      exit 0
+    ;;
+    "f" )
+      if (whiptail --title 'Flash the BIOS with a new ROM' \
+          --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+        mount_usb
+        if grep -q /media /proc/mounts ; then
+          find /media -name '*.rom' > /tmp/filelist.txt
+          file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
+          if [ "$FILE" == "" ]; then
+            return
+          else
+            ROM=$FILE
+          fi
+
+          if (whiptail --title 'Flash ROM?' \
+              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
+            /bin/flash.sh $ROM
+            whiptail --title 'ROM Flashed Successfully' \
+              --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
+            umount /media
+            /bin/reboot
+          else
+            exit
+          fi
+        fi
+      fi
+    ;;
+    "a" )
+      if (whiptail --title 'ROM and GPG public key required' \
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+        mount_usb
+        if grep -q /media /proc/mounts ; then
+          find /media -name '*.key' > /tmp/filelist.txt
+          find /media -name '*.asc' >> /tmp/filelist.txt
+          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+          if [ "$FILE" == "" ]; then
+            return
+          else
+            PUBKEY=$FILE
+          fi
+
+          find /media -name '*.rom' > /tmp/filelist.txt
+          file_selector "/tmp/filelist.txt" "Choose the ROM to load your key onto"
+          if [ "$FILE" == "" ]; then
+            return
+          else
+            ROM=$FILE
+          fi
+
+          cat $PUBKEY | gpg --import
+          cp $ROM /tmp/gpg-gui.rom
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+          fi
+          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
+          fi
+          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+
+          if (whiptail --title 'Flash ROM?' \
+              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
+            /bin/flash.sh /tmp/gpg-gui.rom
+            whiptail --title 'ROM Flashed Successfully' \
+              --msgbox "$ROM flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot after you reboot.\n\nPress Enter to reboot" 16 60
+            umount /media
+            /bin/reboot
+          else
+            exit 0
+          fi
+        fi
+      fi
+    ;;
+    "r" )
+      if (whiptail --title 'GPG public key required' \
+          --yesno "Flashing the running BIOS requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+        mount_usb
+        if grep -q /media /proc/mounts ; then
+          find /media -name '*.key' > /tmp/filelist.txt
+          find /media -name '*.asc' >> /tmp/filelist.txt
+          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+          PUBKEY=$FILE
+
+          /bin/flash.sh -r /tmp/gpg-gui.rom
+          if [ ! -s /tmp/gpg-gui.rom ]; then
+            whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
+              --msgbox "Unable to read BIOS" 16 60
+            exit 1
+          fi
+
+          cat $PUBKEY | gpg --import
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+          fi
+          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
+          fi
+          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+
+          if (whiptail --title 'Update ROM?' \
+              --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+            /bin/flash.sh /tmp/gpg-gui.rom
+            whiptail --title 'BIOS Updated Successfully' \
+              --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot after you reboot.\n\nPress Enter to reboot" 16 60
+            umount /media
+            /bin/reboot
+          else
+            exit 0
+          fi
+        fi
+      fi
+    ;;
+    "g" )
+      confirm_gpg_card
+      echo "********************************************************************************"
+      echo "*"
+      echo "* INSTRUCTIONS:"
+      echo "* Type 'admin' and then 'generate' and follow the prompts to generate a GPG key."
+      echo "*"
+      echo "********************************************************************************"
+      gpg --card-edit
+    ;;
+  esac
+
+done
 exit 0
