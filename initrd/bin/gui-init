@@ -148,7 +148,7 @@ while true; do
       'g' ' Generate new TOTP secret' \
       'p' ' Reset the TPM' \
       's' ' Update checksums and sign all files in /boot' \
-      'f' ' Flash the BIOS with a new ROM' \
+      'f' ' Flash/Update the BIOS -->' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
