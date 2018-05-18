@@ -17,7 +17,7 @@ fi
 
 ISO_PATH="${ISO_PATH##/}"
 
-gpgv "$ISOSIG" "$MOUNTED_ISO_PATH" \
+gpgv --homedir=/etc/distro/ "$ISOSIG" "$MOUNTED_ISO_PATH" \
 	|| die 'ISO signature failed'
 
 echo '+++ Mounting ISO and booting'
