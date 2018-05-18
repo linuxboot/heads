@@ -10,7 +10,7 @@ case "$CONFIG_BOARD" in
   librem* )
     FLASHROM_OPTIONS='-p internal:laptop=force_I_want_a_brick,ich_spi_mode=hwseq' 
   ;;
-  "x230" )
+  x230* )
     FLASHROM_OPTIONS='--force --noverify-all --programmer internal --ifd --image bios'
   ;;
   "kgpe-d16" )
