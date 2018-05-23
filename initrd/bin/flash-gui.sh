@@ -148,7 +148,7 @@ while true; do
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
             /bin/flash.sh /tmp/gpg-gui.rom
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot after you reboot.\n\nPress Enter to reboot" 16 60
+              --msgbox "$ROM flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
             umount /media
             /bin/reboot
           else
@@ -189,7 +189,7 @@ while true; do
               --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
             /bin/flash.sh /tmp/gpg-gui.rom
             whiptail --title 'BIOS Updated Successfully' \
-              --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot after you reboot.\n\nPress Enter to reboot" 16 60
+              --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
             umount /media
             /bin/reboot
           else
