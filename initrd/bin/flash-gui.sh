@@ -73,6 +73,7 @@ while true; do
   whiptail --clear --title "BIOS Management Menu" \
     --menu 'Select the BIOS function to perform' 20 90 10 \
     'f' ' Flash the BIOS with a new ROM' \
+    'c' ' Flash the BIOS with a new cleaned ROM' \
     'a' ' Add GPG key to BIOS image' \
     'r' ' Add GPG key to running BIOS' \
     'x' ' Exit' \
@@ -84,7 +85,7 @@ while true; do
     "x" )
       exit 0
     ;;
-    "f" )
+    f|c )
       if (whiptail --title 'Flash the BIOS with a new ROM' \
           --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
         mount_usb
@@ -99,7 +100,11 @@ while true; do
 
           if (whiptail --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
-            /bin/flash.sh $ROM
+            if [ "$menu_choice" == "c" ]; then
+              /bin/flash.sh -c $ROM
+            else
+              /bin/flash.sh $ROM
+            fi
             whiptail --title 'ROM Flashed Successfully' \
               --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
             umount /media
