@@ -225,8 +225,14 @@ define define_module =
 	@touch "$$@"
   else
     # Fetch and verify the source tar file
+    # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
-	wget -O "$$@" $($1_url)
+	$(call do,WGET,$($1_url),\
+		if ! wget -O "$$@" $($1_url) ; then \
+			rm -f "$$@" ; \
+			exit 1 ; \
+		fi \
+	)
     $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
 	@touch "$$@"
