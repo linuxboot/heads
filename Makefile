@@ -395,6 +395,7 @@ bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
 bin_modules-$(CONFIG_NEWT) += newt
 bin_modules-$(CONFIG_CAIRO) += cairo
 bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
+bin_modules-$(CONFIG_NITROKEY) += nitrokey-hotp-verification
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -502,10 +503,12 @@ $(initrd_tmp_dir)/etc/config: FORCE
 			-e 's/\\\"//g' \
 			> $@ \
 	)
-	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS), \
+	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS) $(BOARD), \
 		echo export GIT_HASH=\'$(GIT_HASH)\' \
 		>> $@ ; \
 		echo export GIT_STATUS=$(GIT_STATUS) \
+		>> $@ ; \
+		echo export CONFIG_BOARD=$(BOARD) \
 		>> $@ ; \
 	)
 
