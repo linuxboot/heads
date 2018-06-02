@@ -1,28 +1,5 @@
-diff --git ./src/arch/x86/acpi.c ./src/arch/x86/acpi.c
-index 8b6b2c1..fca4a76 100644
---- ./src/arch/x86/acpi.c
-+++ ./src/arch/x86/acpi.c
-@@ -48,6 +48,7 @@
- #include <cpu/x86/lapic_def.h>
- #include <cpu/cpu.h>
- #include <cbfs.h>
-+#include <security/tpm/tss.h>
- 
- u8 acpi_checksum(u8 *table, u32 length)
- {
-@@ -1020,6 +1021,10 @@ unsigned long write_acpi_tables(unsigned long start)
- 		return current;
- 	}
- 
-+	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
-+	  tlcl_measure(2, (const void*) dsdt_file, dsdt_size);
-+	}
-+
- 	slic_file = cbfs_boot_map_with_leak(CONFIG_CBFS_PREFIX "/slic",
- 				     CBFS_TYPE_RAW, &slic_size);
- 	if (slic_file
 diff --git ./src/arch/x86/postcar.c ./src/arch/x86/postcar.c
-index 6497b73..e846b69 100644
+index 6497b73..485b051 100644
 --- ./src/arch/x86/postcar.c
 +++ ./src/arch/x86/postcar.c
 @@ -19,6 +19,7 @@
@@ -41,12 +18,12 @@ index 6497b73..e846b69 100644
 +void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 +{
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE)) {
-+	  tlcl_measure(2, (const void*) start, size);
++		tlcl_measure(2, (const void*) start, size);
 +	}
 +}
 +
 diff --git ./src/drivers/intel/fsp2_0/memory_init.c ./src/drivers/intel/fsp2_0/memory_init.c
-index 30987ce..124d3fa 100644
+index 30987ce..4957bc0 100644
 --- ./src/drivers/intel/fsp2_0/memory_init.c
 +++ ./src/drivers/intel/fsp2_0/memory_init.c
 @@ -150,10 +150,11 @@ static void do_fsp_post_memory_init(bool s3wake, uint32_t fsp_version)
@@ -58,12 +35,12 @@ index 30987ce..124d3fa 100644
  	 */
  	if (IS_ENABLED(CONFIG_LPC_TPM) &&
 -	    !IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK))
-+	    !IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK) &&
-+			!IS_ENABLED(CONFIG_MEASURED_BOOT))
++		!IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK) &&
++		!IS_ENABLED(CONFIG_MEASURED_BOOT))
  		init_tpm(s3wake);
  }
  
-@@ -483,8 +484,33 @@ void fsp_memory_init(bool s3wake)
+@@ -483,8 +484,29 @@ void fsp_memory_init(bool s3wake)
  	if (status != CB_SUCCESS)
  		die("Loading FSPM failed!\n");
  
@@ -79,14 +56,9 @@ index 30987ce..124d3fa 100644
 +		tlcl_measure(1, _romstage, _eromstage - _romstage);
 +	}
 +
-+	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
-+	  tlcl_measure(1, (const void*) hdr.image_base, hdr.image_size);
-+	}
-+
  	/* Signal that FSP component has been loaded. */
--	prog_segment_loaded(hdr.image_base, hdr.image_size, SEG_FINAL);
 +	// Don't measure since it is relocated at this point
-+	prog_segment_loaded(hdr.image_base, hdr.image_size, SEG_FINAL | SEG_NO_MEASURE);
+ 	prog_segment_loaded(hdr.image_base, hdr.image_size, SEG_FINAL);
  
  	do_fsp_memory_init(&hdr, s3wake, &memmap);
  }
@@ -94,12 +66,12 @@ index 30987ce..124d3fa 100644
 +void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 +{
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE)) {
-+	  tlcl_measure(1, (const void*) start, size);
++		tlcl_measure(1, (const void*) start, size);
 +	}
 +}
 +
 diff --git ./src/drivers/intel/fsp2_0/silicon_init.c ./src/drivers/intel/fsp2_0/silicon_init.c
-index bda88d1..49220af 100644
+index bda88d1..49568f6 100644
 --- ./src/drivers/intel/fsp2_0/silicon_init.c
 +++ ./src/drivers/intel/fsp2_0/silicon_init.c
 @@ -18,6 +18,7 @@
@@ -115,7 +87,7 @@ index bda88d1..49220af 100644
  		die("Failed to read FSPS!\n");
  
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
-+	  tlcl_measure(1, (const void*) dest, size);
++		tlcl_measure(1, (const void*) dest, size);
 +	}
 +
  	if (fsp_component_relocate((uintptr_t)dest, dest, size) < 0)
@@ -130,29 +102,6 @@ index bda88d1..49220af 100644
  	load_done = 1;
  }
  
-diff --git ./src/drivers/intel/gma/opregion.c ./src/drivers/intel/gma/opregion.c
-index 70cbccc..e2cad8f 100644
---- ./src/drivers/intel/gma/opregion.c
-+++ ./src/drivers/intel/gma/opregion.c
-@@ -24,6 +24,7 @@
- #include <device/pci_ops.h>
- #include <console/console.h>
- #include <cbmem.h>
-+#include <security/tpm/tss.h>
- #include "intel_bios.h"
- #include "opregion.h"
- 
-@@ -57,6 +58,10 @@ void *locate_vbt(size_t *vbt_size)
- 	if (vbt_size)
- 		*vbt_size = file_size;
- 
-+	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
-+	  tlcl_measure(2, (const void*) vbt_data, file_size);
-+	}
-+
- 	memcpy(&vbtsig, vbt_data, sizeof(vbtsig));
- 	if (vbtsig != VBT_SIGNATURE) {
- 		printk(BIOS_ERR, "Missing/invalid signature in VBT data file!\n");
 diff --git ./src/drivers/pc80/tpm/Makefile.inc ./src/drivers/pc80/tpm/Makefile.inc
 index 9d428b5..1d2364f 100644
 --- ./src/drivers/pc80/tpm/Makefile.inc
