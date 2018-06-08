@@ -146,7 +146,7 @@ index 87ab387..708d321 100644
  
  static inline int tohex4(unsigned int c)
 diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
-index 6fd55d7..edcc668 100644
+index 6fd55d7..b5b7d91 100644
 --- ./src/lib/hardwaremain.c
 +++ ./src/lib/hardwaremain.c
 @@ -33,6 +33,7 @@
@@ -185,26 +185,28 @@ index 66d5120..b50afe7 100644
  	return 0;
  }
 diff --git ./src/security/tpm/Makefile.inc ./src/security/tpm/Makefile.inc
-index 2385635..52d088c 100644
+index 2385635..0743a84 100644
 --- ./src/security/tpm/Makefile.inc
 +++ ./src/security/tpm/Makefile.inc
-@@ -4,8 +4,12 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+@@ -4,6 +4,15 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
  verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
  verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
  
--ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
- romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++ifneq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
++romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++endif
 +romstage-$(CONFIG_TPM) += sha1.c
 +ramstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
 +ramstage-$(CONFIG_TPM) += sha1.c
++endif # CONFIG_MEASURED_BOOT
 +
-+ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
  romstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
- romstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
- endif # CONFIG_VBOOT_SEPARATE_VERSTAGE
 diff --git ./src/security/tpm/sha1.c ./src/security/tpm/sha1.c
 new file mode 100644
-index 0000000..506907f
+index 0000000..6b154f8
 --- /dev/null
 +++ ./src/security/tpm/sha1.c
 @@ -0,0 +1,175 @@
@@ -437,7 +439,7 @@ index 8f3f1cb..5c569cb 100644
   */
  uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
 diff --git ./src/security/tpm/tss/tcg-1.2/tss.c ./src/security/tpm/tss/tcg-1.2/tss.c
-index 161d29f..4577ec4 100644
+index 161d29f..95e55b9 100644
 --- ./src/security/tpm/tss/tcg-1.2/tss.c
 +++ ./src/security/tpm/tss/tcg-1.2/tss.c
 @@ -17,6 +17,7 @@
