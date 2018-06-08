@@ -115,15 +115,17 @@ index 9d428b5..1d2364f 100644
  
  endif
 diff --git ./src/security/tpm/Makefile.inc ./src/security/tpm/Makefile.inc
-index 2385635..01a70b3 100644
+index 2385635..7ef24cc 100644
 --- ./src/security/tpm/Makefile.inc
 +++ ./src/security/tpm/Makefile.inc
-@@ -4,6 +4,9 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+@@ -4,6 +4,11 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
  verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
  verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
  
++ifeq ($(CONFIG_MEASURED_BOOT),y)
 +postcar-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
 +postcar-$(CONFIG_TPM) += sha1.c
++endif # CONFIG_MEASURED_BOOT
 +
  ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
  romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
