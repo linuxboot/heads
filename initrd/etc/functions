@@ -138,18 +138,13 @@ confirm_gpg_card()
 
 check_tpm_counter()
 {
+  LABEL=${2:-3135106223}
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
 		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
 	else
-    # Initialize label to default if not set
-		if [ "$2" != "" ]; then
-			LABEL=$2
-		else
-			LABEL=3135106223 
-		fi
-		warn "$BOOT_HASHES does not exist; creating new TPM counter"
+		warn "$1 does not exist; creating new TPM counter"
 		read -s -p "TPM Owner password: " tpm_password
 		echo
 		tpm counter_create \
