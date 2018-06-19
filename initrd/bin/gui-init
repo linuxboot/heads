@@ -78,7 +78,14 @@ update_checksums()
     # sign and auto-roll config counter
     extparam=
     if [ "$CONFIG_TPM" = "y" ]; then
-      extparam=-u
+      if [ -x /bin/libremkey_hotp_verification ]; then
+        check_tpm_counter /boot/kexec_hotp_counter hotp \
+        || die "Unable to find/create TPM counter"
+        counter="$TPM_COUNTER"
+        extparam="-c $counter"
+      else
+        extparam=-u
+      fi
     fi
     kexec-sign-config -p /boot $extparam \
     || die "Failed to sign default config"
@@ -240,9 +247,6 @@ while true; do
       check_tpm_counter /boot/kexec_rollback.txt \
       || die "Unable to find/create tpm counter"
       counter="$TPM_COUNTER"
-
-      increment_tpm_counter $counter \
-      || die "Unable to increment tpm counter"
 
       sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
       || die "Unable to create rollback file"
