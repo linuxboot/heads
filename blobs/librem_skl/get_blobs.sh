@@ -20,16 +20,16 @@ SKL_FSP_SPLIT_SHA="f654f6363de68ad78b1baf8b8e573b53715c3bc76f7f3c23562641e49a703
 ME_CLEANER_URL="https://github.com/corna/me_cleaner/raw/9e1611fdf21426d66a29a5ea62b7e30d512859e6/me_cleaner.py"
 ME_CLEANER_SHA="412e95538c46d6d4d456987a8897b3d0ad1df118c51378a350540eef51c242d4"
 
-SKL_DESCRIPTOR_URL="https://code.puri.sm/kakaroto/coreboot-files/raw/master/descriptor-skl.bin"
-SKL_ME_PATCH_URL="https://code.puri.sm/kakaroto/coreboot-files/raw/master/me11.0.18_config.bspatch"
+SKL_DESCRIPTOR_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/descriptor-skl.bin"
+SKL_ME_PATCH_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/me11.0.18_config.bspatch"
 SKL_ME_PATCH_SHA="49019f89206d6371b1377cf738426c3b0ac60c4b1bb89d5d5de00481e7e4fece"
 
 # Link found on : http://www.win-raid.com/t832f39-Intel-Engine-Firmware-Repositories.html
 # Update link if it changes and becomes invalid.
-SKL_ME_RAR_URL="http://www.mediafire.com/file/1angqt361xdf8k0/"
+SKL_ME_RAR_URL="https://mega.nz/#!TZUGyKBI!5rITrOXUUBXaThpWfwxc_Hks-UI64eKi7O_336Vn4og"
 SKL_ME_FILENAME="11.0.18.1002_CON_LP_C0_NPDM_PRD_RGN.bin"
-SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r50/$SKL_ME_FILENAME"
-SKL_ME_RAR_SHA="11a9c199065c513a93c19269ffbb4bb094f8642a97686082e8cd2974673c599d"
+SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r51/$SKL_ME_FILENAME"
+SKL_ME_RAR_SHA="5bce26b267c0e52cdddf1c94fd765571cf1b2e862f322228706d88326eb98310"
 
 # Might be required to compile unrar in case unrar-nonfree is not installed
 RAR_NONFREE_SOURCE_URL="https://www.rarlab.com/rar/unrarsrc-5.5.8.tar.gz"
@@ -158,6 +158,13 @@ get_and_patch_me_11 () {
         fi
         if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
             DIRECT_LINK=$(wget -O - "$SKL_ME_RAR_URL" 2>/dev/null | grep -o -e 'http://download.*.rar' | head -n 1)
+            if [ -z "$DIRECT_LINK" ]; then
+                echo ""
+                echo "Couldn't automatically determine the direct link URL to download the ME from."
+                echo "Please manually download the file from the URL '$SKL_ME_RAR_URL'"
+                echo "And place the file in '`pwd`/$rar_filename'"
+                die "Once done. Please run this script again."
+            fi
             wget -O "$rar_filename" "$DIRECT_LINK"
             sha=$(sha256sum "$rar_filename" | awk '{print $1}')
             if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
