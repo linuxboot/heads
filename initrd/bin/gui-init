@@ -75,7 +75,12 @@ update_checksums()
     # We don't need them after the user decides to sign
     rm -f /boot/kexec_package_trigger*
 
-    kexec-sign-config -p /boot \
+    # sign and auto-roll config counter
+    extparam=
+    if [ "$CONFIG_TPM" = "y" ]; then
+      extparam=-u
+    fi
+    kexec-sign-config -p /boot $extparam \
     || die "Failed to sign default config"
 
     # switch back to ro mode
