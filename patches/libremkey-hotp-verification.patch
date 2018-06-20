@@ -19,3 +19,14 @@
 +SET(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 +
 +INCLUDE_DIRECTORIES(hidapi)
+--- libremkey-hotp-verification/device.c	2018-06-20 16:13:36.417804210 -0700
++++ libremkey-hotp-verification-b/device.c	2018-06-20 16:14:34.532367723 -0700
+@@ -34,7 +34,7 @@
+ const unsigned short m_vid = 0x20a0;
+ const unsigned short m_pid = 0x4108;
+ 
+-static const int CONNECTION_ATTEMPTS_COUNT = 80;
++static const int CONNECTION_ATTEMPTS_COUNT = 2;
+ 
+ static const int CONNECTION_ATTEMPT_DELAY_MICRO_SECONDS = 1000*1000/2;
+ 
