@@ -32,20 +32,23 @@ rm -f "$HOTP_SEALED"
 secret="`cat $HOTP_SECRET`"
 rm -f "$HOTP_SECRET"
 
+# Store counter in file instead of TPM for now, as it conflicts with Heads
+# config TPM counter as TPM 1.2 can only increment one counter between reboots
 # get current value of HOTP counter in TPM, create if absent
 mount_boot
 
-check_tpm_counter $HOTP_COUNTER hotp \
-|| die "Unable to find/create TPM counter"
-counter="$TPM_COUNTER"
+#check_tpm_counter $HOTP_COUNTER hotp \
+#|| die "Unable to find/create TPM counter"
+#counter="$TPM_COUNTER"
+#
+#counter_value=$(read_tpm_counter $counter | cut -f2 -d ' ' | awk 'gsub("^000e","")')
+#if [ "$counter_value" == "" ]; then
+#  die "Unable to read HOTP counter"
+#fi
 
-counter_value=$(read_tpm_counter $counter | cut -f2 -d ' ' | awk 'gsub("^000e","")')
+#counter_value=$(printf "%d" 0x${counter_value})
 
-if [ "$counter_value" == "" ]; then
-  die "Unable to read HOTP TPM counter"
-fi
-
-counter_value=$(printf "%d" 0x${counter_value})
+counter_value=1
 
 enable_usb
 if ! libremkey_hotp_verification info ; then
@@ -68,14 +71,19 @@ fi
 secret=""
 
 # Make sure our counter is incremented ahead of the next check
-increment_tpm_counter $counter > /dev/null \
-|| die "Unable to increment tpm counter"
-increment_tpm_counter $counter > /dev/null \
-|| die "Unable to increment tpm counter"
+#increment_tpm_counter $counter > /dev/null \
+#|| die "Unable to increment tpm counter"
+#increment_tpm_counter $counter > /dev/null \
+#|| die "Unable to increment tpm counter"
 
 mount -o remount,rw /boot
-sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
+
+counter_value=`expr $counter_value + 1`
+echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
+
+#sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
+#|| die "Unable to create hotp counter file"
 mount -o remount,ro /boot
 
 echo "Librem Key initialized successfully. Press Enter to continue."

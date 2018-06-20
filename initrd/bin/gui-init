@@ -234,7 +234,7 @@ while true; do
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
       mount -o rw,remount /boot
-      rm -f /boot/kexec_rollback.txt /boot/kexec_hotp_counter
+      rm -f /boot/kexec_rollback.txt
 
       # create Heads TPM counter before any others
       check_tpm_counter /boot/kexec_rollback.txt \
