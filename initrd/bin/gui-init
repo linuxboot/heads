@@ -107,6 +107,7 @@ update_totp()
 last_half=X
 while true; do
   MAIN_MENU_OPTIONS=""
+  MAIN_MENU_BG_COLOR=""
   unset totp_confirm
   # update the TOTP code every thirty seconds
   date=`date "+%Y-%m-%d %H:%M:%S"`
@@ -142,6 +143,7 @@ while true; do
         ;;
         4 )
           HOTP="invalid code"
+          MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
           HOTP="error checking code"
@@ -151,7 +153,7 @@ while true; do
       HOTP='N/A'
     fi
 
-    whiptail --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
       'r' ' TOTP/HOTP does not match, refresh code' \
