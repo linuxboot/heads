@@ -147,6 +147,7 @@ while true; do
         ;;
         * )
           HOTP="error checking code"
+          MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
     else
