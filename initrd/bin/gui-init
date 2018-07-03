@@ -139,14 +139,14 @@ while true; do
       libremkey_hotp_verification check $HOTP
       case "$?" in
         0 )
-          HOTP="success"
+          HOTP="Success"
         ;;
         4 )
-          HOTP="invalid code"
+          HOTP="Invalid code"
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="error checking code"
+          HOTP="Error checking code, Insert Librem Key and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
