@@ -599,26 +599,6 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/compressed/head_64.S linu
  	call	make_boot_params
  	cmpq	$0,%rax
  	je	fail
-@@ -294,13 +299,18 @@
- 	jne	2f
- fail:
- 	/* EFI init failed, so hang. */
-+	mov $0x3f8, %dx /* ttyS0 */
-+	mov '@', %ax
-+fail_loop:
-+	outb %al, (%dx)
- 	hlt
--	jmp	fail
-+	jmp	fail_loop
- 2:
- 	movl	BP_code32_start(%esi), %eax
- 	leaq	preferred_addr(%rax), %rax
- 	jmp	*%rax
- 
-+.global preferred_addr
- preferred_addr:
- #endif
- 
 diff --recursive -u ./clean/linux-4.9.80/arch/x86/boot/header.S linux-4.9.80/arch/x86/boot/header.S
 --- ./clean/linux-4.9.80/arch/x86/boot/header.S	2018-02-03 11:05:43.000000000 -0500
 +++ linux-4.9.80/arch/x86/boot/header.S	2018-02-07 15:51:28.534500400 -0500
@@ -653,10 +633,9 @@ diff --recursive -u ./clean/linux-4.9.80/arch/x86/Kconfig linux-4.9.80/arch/x86/
  config EFI_MIXED
  	bool "EFI mixed-mode support"
  	depends on EFI_STUB && X86_64
-diff --recursive -u ./clean/linux-4.9.80/include/linux/efi.h linux-4.9.80/include/linux/efi.h
---- ./clean/linux-4.9.80/include/linux/efi.h	2018-02-03 11:05:43.000000000 -0500
-+++ linux-4.9.80/include/linux/efi.h	2018-02-07 15:51:35.130557903 -0500
-@@ -287,10 +287,10 @@
+--- linux-4.14.56/include/linux/efi.h.orig	2018-07-17 05:39:34.000000000 -0400
++++ linux-4.14.56/include/linux/efi.h	2018-07-17 06:32:16.671000000 -0400
+@@ -302,10 +302,10 @@
  	void *create_event;
  	void *set_timer;
  	void *wait_for_event;
@@ -670,7 +649,7 @@ diff --recursive -u ./clean/linux-4.9.80/include/linux/efi.h linux-4.9.80/includ
  	void *reinstall_protocol_interface;
  	void *uninstall_protocol_interface;
  	efi_status_t (*handle_protocol)(efi_handle_t, efi_guid_t *, void **);
-@@ -308,20 +308,20 @@
+@@ -323,20 +323,20 @@
  	void *get_next_monotonic_count;
  	void *stall;
  	void *set_watchdog_timer;
@@ -694,15 +673,13 @@ diff --recursive -u ./clean/linux-4.9.80/include/linux/efi.h linux-4.9.80/includ
  } efi_boot_services_t;
  
  typedef enum {
-@@ -592,6 +592,11 @@
- #define EFI_RNG_PROTOCOL_GUID			EFI_GUID(0x3152bca5, 0xeade, 0x433d,  0x86, 0x2e, 0xc0, 0x1c, 0xdc, 0x29, 0x1f, 0x44)
- #define EFI_MEMORY_ATTRIBUTES_TABLE_GUID	EFI_GUID(0xdcfa911d, 0x26eb, 0x469f,  0xa2, 0x20, 0x38, 0xb7, 0xdc, 0x46, 0x12, 0x20)
- #define EFI_CONSOLE_OUT_DEVICE_GUID		EFI_GUID(0xd3b36f2c, 0xd551, 0x11d4,  0x9a, 0x46, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d)
+@@ -629,6 +629,9 @@
+ #define EFI_IMAGE_SECURITY_DATABASE_GUID	EFI_GUID(0xd719b2cb, 0x3d3a, 0x4596,  0xa3, 0xbc, 0xda, 0xd0, 0x0e, 0x67, 0x65, 0x6f)
+ #define EFI_SHIM_LOCK_GUID			EFI_GUID(0x605dab50, 0xe046, 0x4300,  0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23)
+ 
 +#define EFI_BDS_ARCH_PROTOCOL_GUID		EFI_GUID(0x665E3FF6, 0x46CC, 0x11d4,  0x9A, 0x38, 0x00, 0x90, 0x27, 0x3F, 0xC1, 0x4D)
 +#define EFI_EVENT_GROUP_READY_TO_BOOT		EFI_GUID(0x7ce88fb3, 0x4bd7, 0x4679,  0x87, 0xa8, 0xa8, 0xd8, 0xde, 0xe5, 0x0d, 0x2b)
 +
-+
-+
- 
  /*
   * This GUID is used to pass to the kernel proper the struct screen_info
+  * structure that was populated by the stub based on the GOP protocol instance

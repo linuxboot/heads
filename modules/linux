@@ -1,6 +1,6 @@
 modules-y += linux
 
-linux_version := 4.9.80
+linux_version := 4.14.56
 linux_base_dir := linux-$(linux_version)
 
 # TODO: fixup the patch process
@@ -17,6 +17,7 @@ linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
 linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
 linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de41226477b
+linux-4.14.56_hash := d4f56cfac6d43a349e6172bf84613f788a8481a54a213261cf591ffd133bc42c
 
 linux_hash := $(linux-$(linux_version)_hash)
 
