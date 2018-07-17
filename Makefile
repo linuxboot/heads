@@ -212,14 +212,16 @@ define define_module =
 	git clone $($1_repo) "$(build)/$($1_base_dir)"
 	if [ -r patches/$1.patch ]; then \
 		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
-			< patches/$1.patch; \
+			< patches/$1.patch \
+			|| exit 1 ; \
 	fi
 	if [ -d patches/$1 ] && \
 	   [ -r patches/$1 ] ; then \
 		for patch in patches/$1/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
 			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
-				< $$$$patch ; \
+				< $$$$patch \
+				|| exit 1 ; \
 		done ; \
 	fi
 	@touch "$$@"
@@ -243,14 +245,16 @@ define define_module =
 	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
 		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
-			< patches/$1-$($1_version).patch; \
+			< patches/$1-$($1_version).patch \
+			|| exit 1 ; \
 	fi
 	if [ -d patches/$1-$($1_version) ] && \
 	   [ -r patches/$1-$($1_version) ] ; then \
 		for patch in patches/$1-$($1_version)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
 			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
-				< $$$$patch ; \
+				< $$$$patch \
+				|| exit 1 ; \
 		done ; \
 	fi
 	@touch "$$@"
