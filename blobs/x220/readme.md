@@ -24,5 +24,5 @@ The flash layout will be automatically adjusted and the ME image cleaned and tru
 You can now compile the image with:
 
 ```
-make CONFIG=config/x220-generic.config
+make CONFIG=boards/x220/x220.config
 ```
