@@ -1,0 +1,54 @@
+From 095db339f7463b09b52968fa3747aef329c7b83e Mon Sep 17 00:00:00 2001
+From: Patrick Georgi <pgeorgi@chromium.org>
+Date: Tue, 26 Jun 2018 21:00:58 +0200
+Subject: [PATCH 54/59] util/crossgcc: Allow building a new gcc against new
+ binutils with -D
+
+With -D, the newly built toolchain isn't installed into $prefix/...
+but into $DESTDIR/$prefix/... while being built for $prefix alone.
+
+This is useful for distributions, but it breaks down when the build
+host already has the toolchain installed in $prefix without proper
+build isolation (cf. gentoo):
+
+In such cases libgcc etc are built using the new compiler (as gcc's
+build system is smart enough to state the path explicitly), but that
+compiler then uses its regular algorithm to determine the path to as,
+ld, ...
+That makes it use the tools from $prefix, which might differ in formats
+(assembly, certain object file flags, ...): nds32le-elf in particular
+has rather unstable formats still, and so new compilers can't work
+with old binutils.
+
+The approach to deal with this is to take an unused path that's
+specified by gcc's build system ($out/gcc/$arch/$version) and symlink
+it to the new toolchain - these explicitly given directories take
+precedence over the default search path, and so the new binutils
+are used.
+
+Change-Id: Ia9a262e73f56cd486a2ae07422b598c205a03aed
+Signed-off-by: Patrick Georgi <pgeorgi@chromium.org>
+Reviewed-on: https://review.coreboot.org/27241
+Reviewed-by: Martin Roth <martinroth@google.com>
+Reviewed-by: Stefan Reinauer <stefan.reinauer@coreboot.org>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ util/crossgcc/buildgcc | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
+index cd8a091989..ef0c4d5d8f 100755
+--- a/util/crossgcc/buildgcc
++++ b/util/crossgcc/buildgcc
+@@ -752,6 +752,8 @@ build_cross_GCC() {
+ 		--with-mpc=$DESTDIR$TARGETDIR \
+ 		--with-pkgversion="coreboot toolchain v$CROSSGCC_VERSION $CROSSGCC_DATE" \
+ 		&& \
++	mkdir -p gcc/$TARGETARCH && \
++	ln -s $DESTDIR$TARGETDIR/$TARGETARCH/bin gcc/$TARGETARCH/$GCC_VERSION && \
+ 	$MAKE $JOBS CFLAGS_FOR_BUILD="$HOSTCFLAGS" all-gcc && \
+ 	$MAKE install-gcc DESTDIR=$DESTDIR || touch .failed
+ 
+-- 
+2.17.1
+
