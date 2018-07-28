@@ -1,0 +1,46 @@
+From 11f8c9d9be8eb492d00b8d7a29614fdc0553387e Mon Sep 17 00:00:00 2001
+From: Martin Roth <gaumless@gmail.com>
+Date: Wed, 6 Jun 2018 22:36:14 -0600
+Subject: [PATCH 55/59] crosgcc/patches: Add make patch for GLIBC glob
+ interface v2
+
+Copied from the GNU make repository
+author	Paul Smith <psmith@gnu.org>
+commit 48c8a116
+configure.ac: Support GLIBC glob interface version 2
+
+Change-Id: Id70a2b98dad6349ee56985d8dd6d4f0d87b470e6
+Signed-off-by: Martin Roth <gaumless@gmail.com>
+Reviewed-on: https://review.coreboot.org/26939
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Paul Menzel <paulepanter@users.sourceforge.net>
+Reviewed-by: Patrick Georgi <pgeorgi@google.com>
+---
+ .../make-4.2.1_gnu_glob_interface_v2.patch        | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+ create mode 100644 util/crossgcc/patches/make-4.2.1_gnu_glob_interface_v2.patch
+
+diff --git a/util/crossgcc/patches/make-4.2.1_gnu_glob_interface_v2.patch b/util/crossgcc/patches/make-4.2.1_gnu_glob_interface_v2.patch
+new file mode 100644
+index 0000000000..466d6fdd70
+--- /dev/null
++++ b/util/crossgcc/patches/make-4.2.1_gnu_glob_interface_v2.patch
+@@ -0,0 +1,15 @@
++diff -Naur make-4.2.1/configure.ac make-4.2.1/configure.ac
++--- make-4.2.1/configure.ac
+++++ make-4.2.1/configure.ac
++@@ -399,10 +399,9 @@
++ #include <glob.h>
++ #include <fnmatch.h>
++ 
++-#define GLOB_INTERFACE_VERSION 1
++ #if !defined _LIBC && defined __GNU_LIBRARY__ && __GNU_LIBRARY__ > 1
++ # include <gnu-versions.h>
++-# if _GNU_GLOB_INTERFACE_VERSION == GLOB_INTERFACE_VERSION
+++# if _GNU_GLOB_INTERFACE_VERSION == 1 || _GNU_GLOB_INTERFACE_VERSION == 2
++    gnu glob
++ # endif
++ #endif],
+-- 
+2.17.1
+
