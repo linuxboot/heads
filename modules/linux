@@ -25,11 +25,12 @@ linux_hash := $(linux-$(linux_version)_hash)
 $(build)/$(linux_dir)/.configured: $(linux_kconfig)
 
 linux_configure := \
-	$(MAKE) -C .. \
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C .. \
 		CROSS_COMPILE="$(CROSS)" \
 		O="$(build)/$(linux_dir)" \
-		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
-		oldconfig \
+		olddefconfig \
 
 linux_output += arch/x86/boot/bzImage
 
@@ -88,7 +89,6 @@ EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
 	O="$(build)/$(linux_dir)" \
-	KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
@@ -148,9 +148,18 @@ $(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/.build
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
+# Afterwars make linux.saveconfig to generate a minimal config from it
 linux.menuconfig:
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
-		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		menuconfig \
+
+# The config file in the repo is stored as a "defconfig" format
+# which only includes the options that have changed from the defaults.
+linux.saveconfig:
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		savedefconfig
+	mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
