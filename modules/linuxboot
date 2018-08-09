@@ -36,6 +36,7 @@ linuxboot_target := \
 	KERNEL=$(build)/$(BOARD)/bzImage \
 	INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
 	CUSTOM=$(CUSTOMPWD) \
+	CROSS=$(CROSS) \
 	$(if $(CONFIG_LINUXBOOT_ROM), ROM=$(pwd)/$(CONFIG_LINUXBOOT_ROM)) \
 	all
 
