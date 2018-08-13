@@ -1,6 +1,6 @@
 modules-y += linux
 
-linux_version := 4.9.80
+linux_version := 4.14.62
 linux_base_dir := linux-$(linux_version)
 
 # TODO: fixup the patch process
@@ -17,6 +17,7 @@ linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 
 linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
 linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de41226477b
+linux-4.14.62_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
 
 linux_hash := $(linux-$(linux_version)_hash)
 
@@ -24,11 +25,12 @@ linux_hash := $(linux-$(linux_version)_hash)
 $(build)/$(linux_dir)/.configured: $(linux_kconfig)
 
 linux_configure := \
-	$(MAKE) -C .. \
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C .. \
 		CROSS_COMPILE="$(CROSS)" \
 		O="$(build)/$(linux_dir)" \
-		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
-		oldconfig \
+		olddefconfig \
 
 linux_output += arch/x86/boot/bzImage
 
@@ -87,7 +89,6 @@ EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
 	O="$(build)/$(linux_dir)" \
-	KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 	CROSS_COMPILE="$(CROSS)" \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
@@ -147,9 +148,18 @@ $(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/.build
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
+# Afterwars make linux.saveconfig to generate a minimal config from it
 linux.menuconfig:
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
-		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		menuconfig \
+
+# The config file in the repo is stored as a "defconfig" format
+# which only includes the options that have changed from the defaults.
+linux.saveconfig:
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		savedefconfig
+	mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
