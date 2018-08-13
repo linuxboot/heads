@@ -32,6 +32,19 @@ ifneq "" "$(filter $(make_version)%,$(LOCAL_MAKE_VERSION))"
 # This is the correct version of Make
 
 BOARD		?= qemu-coreboot
+
+ifeq "$(BOARD)" "all"
+# Special case for building all supported boards
+ALL-BOARDS := $(shell ls boards/)
+all:
+	for board in $(ALL-BOARDS); do \
+		echo "------- $$board ------" ; \
+		$(MAKE) BOARD=$$board ; \
+	done
+
+else
+# Building a specific board
+
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
 # Create the board output directory if it doesn't already exist
@@ -547,7 +560,7 @@ real.clean:
 	done
 	rm -rf ./install
 
-
+endif
 else
 # Wrong make version detected -- build our local version
 # and re-invoke the Makefile with it instead.
