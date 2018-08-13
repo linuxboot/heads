@@ -6,7 +6,7 @@ Why replace UEFI with coreboot?
 While Intel's edk2 tree that is the base of UEFI firmware is open source,
 the firmware that vendors install on their machines is proprietary and
 closed source.  Updates for bugs fixes or security vulnerabilities
-are at the vendor's convienence; user specific enhancements are likely not
+are at the vendor's convenience; user specific enhancements are likely not
 possible; and the code is not auditable.
 
 UEFI is much more complex than the BIOS that it replaced.  It consists of
