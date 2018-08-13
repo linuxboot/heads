@@ -19,18 +19,18 @@ $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 coreboot_configure := \
-	$(MAKE) -C $(build)/$(coreboot_base_dir) \
-		oldconfig \
-		obj=$(build)/$(coreboot_dir) \
-		DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
+	mkdir -p "$(build)/$(coreboot_dir)" \
+	&& cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" \
+	&& $(MAKE) olddefconfig \
+		-C "$(build)/$(coreboot_base_dir)" \
+		obj="$(build)/$(coreboot_dir)" \
 		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
-	-C $(build)/$(coreboot_base_dir) \
-	obj=$(build)/$(coreboot_dir) \
-	DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
+	-C "$(build)/$(coreboot_base_dir)" \
+	obj="$(build)/$(coreboot_dir)" \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
@@ -64,8 +64,17 @@ $(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/.build
 coreboot.menuconfig:
 	$(MAKE) \
 		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="../../$(CONFIG_COREBOOT_CONFIG)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		menuconfig
+
+# The config file in the repo is stored as a "defconfig" format
+# which only includes the options that have changed from the defaults.
+coreboot.saveconfig:
+	$(MAKE) \
+		-C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		DEFCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		savedefconfig
 
 
 # if we are not building from a git checkout,
