@@ -1,7 +1,7 @@
 modules-$(CONFIG_LINUXBOOT) += linuxboot
 
 linuxboot_version := git
-linuxboot_repo := https://github.com/osresearch/linuxboot
+linuxboot_repo := https://github.com/osresearch/linuxboot -b hpe3100
 linuxboot_base_dir := linuxboot-$(linuxboot_version)
 
 # linuxboot builds are specialized on a per-target basis.
