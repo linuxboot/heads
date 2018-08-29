@@ -1,12 +1,12 @@
 diff --git ./src/northbridge/intel/sandybridge/romstage.c ./src/northbridge/intel/sandybridge/romstage.c
-index 8608d5a..dac90ee 100644
+index 0426b83..d348b9e 100644
 --- ./src/northbridge/intel/sandybridge/romstage.c
 +++ ./src/northbridge/intel/sandybridge/romstage.c
 @@ -29,6 +29,8 @@
  #include <device/device.h>
  #include <halt.h>
- #include <tpm.h>
-+#include <tpm_lite/tlcl.h>
+ #include <security/tpm/tis.h>
++#include <security/tpm/tss.h>
 +#include <program_loading.h>
  #include <northbridge/intel/sandybridge/chip.h>
  #include "southbridge/intel/bd82x6x/pch.h"
@@ -31,7 +31,7 @@ index 8608d5a..dac90ee 100644
  	/* USB is initialized in MRC if MRC is used.  */
  	if (CONFIG_USE_NATIVE_RAMINIT) {
  		early_usb_init(mainboard_usb_ports);
-@@ -116,9 +131,23 @@ void mainboard_romstage_entry(unsigned long bist)
+@@ -117,9 +132,23 @@ void mainboard_romstage_entry(unsigned long bist)
  
  	northbridge_romstage_finalize(s3resume);
  
