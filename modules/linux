@@ -1,6 +1,6 @@
 modules-y += linux
 
-linux_version := 4.14.62
+linux_version := 4.14.67
 linux_base_dir := linux-$(linux_version)
 
 # TODO: fixup the patch process
