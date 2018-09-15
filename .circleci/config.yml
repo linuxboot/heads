@@ -39,7 +39,7 @@ jobs:
       - run:
           name: Bootstrap musl
           command: |
-            ./build/make-4.2/make -j4 musl-cross
+            ./build/make-4.2/make -j4 musl-cross V=1
       - run:
           name: qemu-coreboot
           command: |
