@@ -5,32 +5,43 @@ jobs:
       - image: ubuntu:18.04
     steps:
       - checkout
-      - run: |
-        apt install -y \
-          build-essential \
-          zlib1g-dev \
-          uuid-dev \
-          libdigest-sha-perl \
-          libelf-dev \
-          bc \
-          bzip2 \
-          bison \
-          flex \
-          git \
-          gnupg \
-          iasl \
-          m4 \
-          nasm \
-          patch \
-          python \
-          wget \
-          gnat \
-          cpio \
-          ccache \
+      - run:
+          name: Install dependencies
+          command: |
+            apt install -y \
+              build-essential \
+              zlib1g-dev \
+              uuid-dev \
+              libdigest-sha-perl \
+              libelf-dev \
+              bc \
+              bzip2 \
+              bison \
+              flex \
+              git \
+              gnupg \
+              iasl \
+              m4 \
+              nasm \
+              patch \
+              python \
+              wget \
+              gnat \
+              cpio \
+              ccache \
 
-      - run: 'git clone https://github.com/osresearch/heads'
-      - run: 'make BOARD=qemu-coreboot'
-      - run: 'make BOARD=qemu-linuxboot'
+      - run:
+          name: Checkout
+          command: |
+            git clone https://github.com/osresearch/heads
+      - run:
+          name: qemu-coreboot
+          command: |
+            make BOARD=qemu-coreboot
+      - run:
+          name: qemu-linuxboot
+          command: |
+            make BOARD=qemu-linuxboot
 workflows:
   version: 2
   build_and_test:
