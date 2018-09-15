@@ -1,0 +1,15 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/buld-image
+    steps:
+      - checkout
+      - run: 'git clone https://github.com/osresearch/heads'
+      - run: 'make BOARD=qemu-coreboot'
+      - run: 'make BOARD=qemu-linuxboot'
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
