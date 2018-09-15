@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: _/ubuntu:18.04
+      - image: ubuntu:18.04
     steps:
       - checkout
       - run: 'git clone https://github.com/osresearch/heads'
