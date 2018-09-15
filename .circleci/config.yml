@@ -32,17 +32,18 @@ jobs:
               ccache \
 
       - run:
-          name: Checkout
+          name: Bootstrap
           command: |
-            git clone https://github.com/osresearch/heads
+            make `pwd`/build/make-4.2/make
+            ./build/make-4.2/make -j4 musl-cross
       - run:
           name: qemu-coreboot
           command: |
-            make BOARD=qemu-coreboot
+            ./build/make-4.2/make -j4 BOARD=qemu-coreboot
       - run:
           name: qemu-linuxboot
           command: |
-            make BOARD=qemu-linuxboot
+            ./build/make-4.2/make -j4 BOARD=qemu-linuxboot
 workflows:
   version: 2
   build_and_test:
