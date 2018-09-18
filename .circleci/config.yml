@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: osresearch/heads-builder:18.04
+      - image: osresearch/heads-ubuntu:18.04
     steps:
       - run:
           name: Install dependencies
