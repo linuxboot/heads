@@ -40,6 +40,7 @@ coreboot_output := coreboot.rom
 coreboot_depend += linux initrd
 
 # hack to force a build dependency on the cross compiler
+coreboot-gcc: $(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
 $(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
 $(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc: $(build)/$(coreboot_base_dir)/.canary
 	echo '******* Building crossgcc-i386 (this might take a while) ******'
