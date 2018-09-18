@@ -155,6 +155,7 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build
 $(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/.build
 	$(call do-copy,$(dir $<)/$(linux_output),$@)
 	@touch $@ # force a timestamp update
+	sha256sum "$@" | tee -a "$(HASHES)"
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
