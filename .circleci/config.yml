@@ -47,13 +47,6 @@ jobs:
                 BOARD=qemu-coreboot \
                 musl-cross
 
-      - run:
-          name: coreboot gcc
-          command: |
-            ./build/make-4.2.1/make \
-                V=1 \
-                BOARD=qemu-coreboot \
-                coreboot-gcc \
 
       - run:
           name: qemu-coreboot
@@ -63,10 +56,12 @@ jobs:
                 -j4 \
                 V=1 \
                 BOARD=qemu-coreboot \
+
       - store-artifacts:
           path: build/qemu-coreboot/coreboot.rom
       - store-artifacts:
           path: build/qemu-coreboot/hashes.txt
+
 
       - run:
           name: qemu-linuxboot
@@ -75,10 +70,26 @@ jobs:
                 -j4 \
                 V=1 \
                 BOARD=qemu-linuxboot \
+
       - store-artifacts:
           path: build/qemu-linuxboot/linuxboot.rom
       - store-artifacts:
           path: build/qemu-linuxboot/hashes.txt
+
+
+      - run:
+          name: x230
+          command: |
+            ./build/make-4.2.1/make \
+                -j4 \
+                V=1 \
+                BOARD=x230 \
+
+      - store-artifacts:
+          path: build/x230/coreboot.rom
+      - store-artifacts:
+          path: build/x230/hashes.txt
+
 
 workflows:
   version: 2
