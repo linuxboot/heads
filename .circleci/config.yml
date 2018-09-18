@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: ubuntu:16.04
+      - image: osresearch/heads-builder:18.04
     steps:
       - run:
           name: Install dependencies
@@ -29,25 +29,34 @@ jobs:
               gnat \
               cpio \
               ccache \
+              lzma \
 
       - checkout
 
       - run:
           name: Bootstrap make
           command: |
-            make `pwd`/build/make-4.2.1/make
-      - run:
-          name: Bootstrap musl
-          command: |
-            ./build/make-4.2.1/make -j4 musl-cross V=1
+            make bootstrap
       - run:
           name: qemu-coreboot
           command: |
-            ./build/make-4.2.1/make -j4 BOARD=qemu-coreboot V=1
+            ./build/make-4.2.1/make \
+                -j4 \
+                V=1 \
+                TOOLCHAIN=/home/builder/heads \
+                packages=`pwd`/packages \
+                BOARD=qemu-coreboot \
+
       - run:
           name: qemu-linuxboot
           command: |
-            ./build/make-4.2.1/make -j4 BOARD=qemu-linuxboot V=1
+            ./build/make-4.2.1/make \
+                -j4 \
+                V=1 \
+                TOOLCHAIN=/home/builder/heads \
+                packages=`pwd`/packages \
+                BOARD=qemu-linuxboot \
+
 workflows:
   version: 2
   build_and_test:
