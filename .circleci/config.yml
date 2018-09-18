@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: ubuntu:16.04
+      - image: osresearch/heads-ubuntu:16.04
     steps:
       - run:
           name: Install dependencies
@@ -36,25 +36,25 @@ jobs:
       - run:
           name: Bootstrap make
           command: |
-            make bootstrap
+            make -j4 bootstrap
 
       - run:
-          name: Bootstrap musl
+          name: Bootstrap coreboot-gcc
           command: |
             ./build/make-4.2.1/make \
-                -j4 \
+		TOOLCHAIN=/home/builder/heads \
                 V=1 \
                 BOARD=qemu-coreboot \
-                musl-cross
+                coreboot-gcc
 
 
       - run:
           name: qemu-coreboot
           command: |
             ./build/make-4.2.1/make \
-                TERM=dumb \
-                -j4 \
+		TOOLCHAIN=/home/builder/heads \
                 V=1 \
+                -j4 \
                 BOARD=qemu-coreboot \
 
       - store-artifacts:
@@ -67,8 +67,9 @@ jobs:
           name: qemu-linuxboot
           command: |
             ./build/make-4.2.1/make \
-                -j4 \
+		TOOLCHAIN=/home/builder/heads \
                 V=1 \
+		-j4 \
                 BOARD=qemu-linuxboot \
 
       - store-artifacts:
@@ -81,6 +82,7 @@ jobs:
           name: x230
           command: |
             ./build/make-4.2.1/make \
+		TOOLCHAIN=/home/builder/heads \
                 -j4 \
                 V=1 \
                 BOARD=x230 \
