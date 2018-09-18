@@ -19,6 +19,6 @@ libassuan_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	install \
 
-libassuan_libraries := src/.libs/libassuan.so
+libassuan_libraries := src/.libs/libassuan.so.0
 
 libassuan_depends := libgpg-error $(musl_dep)

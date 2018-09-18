@@ -21,6 +21,6 @@ libgpg-error_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	install \
 
-libgpg-error_libraries := src/.libs/libgpg-error.so
+libgpg-error_libraries := src/.libs/libgpg-error.so.0
 
 libgpg-error_depends := $(musl_dep)
