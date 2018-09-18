@@ -37,6 +37,7 @@ jobs:
           name: coreboot gcc
           command: |
             /home/builder/heads/build/make-4.2.1/make \
+                TERM=dumb \
                 V=1 \
                 TOOLCHAIN=/home/builder/heads \
                 packages=`pwd`/packages \
@@ -47,6 +48,7 @@ jobs:
           name: qemu-coreboot
           command: |
             /home/builder/heads/build/make-4.2.1/make \
+                TERM=dumb \
                 -j4 \
                 V=1 \
                 TOOLCHAIN=/home/builder/heads \
@@ -57,6 +59,7 @@ jobs:
           name: qemu-linuxboot
           command: |
             /home/builder/heads/build/make-4.2.1/make \
+                TERM=dumb \
                 -j4 \
                 V=1 \
                 TOOLCHAIN=/home/builder/heads \
