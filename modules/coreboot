@@ -55,7 +55,7 @@ $(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
 	#$(MAKE) -C "$(build)/$(coreboot_base_dir)" crossgcc-arm
 else
 # Use the pre-build one from the external toolchain build
-$(COREBOOT_XGCC):
+$(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
 	if [ ! -e "$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" ]; then \
 		echo >&2 "ERROR: TOOLCHAIN=$(TOOLCHAIN) does not have coreboot" ; \
 		exit 1 ; \
