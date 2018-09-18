@@ -34,13 +34,19 @@ jobs:
       - checkout
 
       - run:
-          name: Bootstrap make
+          name: coreboot gcc
           command: |
-            make bootstrap
+            /home/builder/heads/build/make-4.2.1/make \
+                V=1 \
+                TOOLCHAIN=/home/builder/heads \
+                packages=`pwd`/packages \
+                BOARD=qemu-coreboot \
+                coreboot-gcc \
+
       - run:
           name: qemu-coreboot
           command: |
-            ./build/make-4.2.1/make \
+            /home/builder/heads/build/make-4.2.1/make \
                 -j4 \
                 V=1 \
                 TOOLCHAIN=/home/builder/heads \
@@ -50,7 +56,7 @@ jobs:
       - run:
           name: qemu-linuxboot
           command: |
-            ./build/make-4.2.1/make \
+            /home/builder/heads/build/make-4.2.1/make \
                 -j4 \
                 V=1 \
                 TOOLCHAIN=/home/builder/heads \
