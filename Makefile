@@ -137,7 +137,7 @@ $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
 all:
-	sha256sum $< | tee -a "$(HASHES)"
+	@sha256sum $< | tee -a "$(HASHES)"
 
 # Disable all built in rules
 .INTERMEDIATE:
@@ -192,10 +192,13 @@ define do-cpio =
 		echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		rm "$1.tmp" ; \
 	fi
-	$(call do,HASHES, $1,\
+	@sha256sum "$1" | tee -a "$(HASHES)"
+	$(call do,HASHES   , $1,\
 		( cd "$2"; \
+		echo "-----" ; \
 		find . -type f -print0 \
-		| xargs -0 sha256sum \
+		| xargs -0 sha256sum ; \
+		echo "-----" ; \
 		) >> "$(HASHES)" \
 	)
 endef
@@ -488,14 +491,13 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 		-9 \
 	| dd bs=512 conv=sync status=none > "$@.tmp" \
 	)
-	sha256sum "$@" | tee -a "$(HASHES)"
 	@if ! cmp --quiet "$@.tmp" "$@" ; then \
 		mv "$@.tmp" "$@" ; \
-		sha256sum "$(@:$(pwd)/%=%)" ; \
 	else \
 		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
 		rm "$@.tmp" ; \
 	fi
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
 
 #
 # The heads.cpio is built from the initrd directory in the
