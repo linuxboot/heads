@@ -19,6 +19,6 @@ libgcrypt_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	install \
 
-libgcrypt_libraries := src/.libs/libgcrypt.so
+libgcrypt_libraries := src/.libs/libgcrypt.so.20
 
 libgcrypt_depends := libgpg-error $(musl_dep)
