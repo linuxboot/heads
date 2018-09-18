@@ -3,7 +3,7 @@ all:
 
 ifneq "$(TOOLCHAIN)" ""
 $(info Using $(TOOLCHAIN) for cross compiler and packages)
-packages	:= $(TOOLCHAIN)/packages
+packages	?= $(TOOLCHAIN)/packages
 CROSS		:= $(TOOLCHAIN)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
 endif
 
@@ -235,7 +235,7 @@ define define_module =
 		if ! $(WGET) -O "$$@.tmp" $($1_url) ; then \
 			exit 1 ; \
 		fi ; \
-		mv "$$@.tmp" "$@" \
+		mv "$$@.tmp" "$$@" \
 	)
     $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
