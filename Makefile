@@ -31,13 +31,13 @@ include modules/make
 
 ifneq "" "$(filter $(make_version)%,$(LOCAL_MAKE_VERSION))"
 
+# Timestamps should be in ISO format
+DATE=`date --rfc-3339=seconds`
+
 # This is the correct version of Make
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
-
-# Create the board output directory if it doesn't already exist
-BOARD_LOG	:= $(shell mkdir -p "$(build)/$(BOARD)" )
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
@@ -58,8 +58,15 @@ GIT_STATUS	:= $(shell \
 		echo dirty ; \
 	fi)
 
-# Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+# record the build date / git hashes and other files here
+HASHES		:= $(build)/$(BOARD)/hashes.txt
+
+# Create the board output directory if it doesn't already exist
+BOARD_LOG	:= $(shell \
+	mkdir -p "$(build)/$(BOARD)" ; \
+	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
+)
+
 
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
@@ -129,6 +136,9 @@ else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
+all:
+	sha256sum $< | tee -a "$(HASHES)"
+
 # Disable all built in rules
 .INTERMEDIATE:
 .SUFFIXES:
@@ -182,6 +192,12 @@ define do-cpio =
 		echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		rm "$1.tmp" ; \
 	fi
+	$(call do,HASHES, $1,\
+		( cd "$2"; \
+		find . -type f -print0 \
+		| xargs -0 sha256sum \
+		>> "$(HASHES)" \
+	)
 endef
 
 define do-copy =
@@ -472,6 +488,7 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 		-9 \
 	| dd bs=512 conv=sync status=none > "$@.tmp" \
 	)
+	sha256sum "$@" | tee -a "$(HASHES)"
 	@if ! cmp --quiet "$@.tmp" "$@" ; then \
 		mv "$@.tmp" "$@" ; \
 		sha256sum "$(@:$(pwd)/%=%)" ; \
