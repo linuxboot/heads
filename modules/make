@@ -3,11 +3,11 @@
 # target platform.
 #modules += make
 
-make_version := 4.2
+make_version := 4.2.1
 make_dir := make-$(make_version)
 make_tar := make-$(make_version).tar.bz2
 make_url := http://gnu.mirror.constant.com/make/$(make_tar)
-make_hash := 4e5ce3b62fe5d75ff8db92b7f6df91e476d10c3aceebf1639796dc5bfece655f
+make_hash := d6e262bf3601b42d2b1e4ef8310029e1dcf20083c5446b4b7aa67081fdffc589
 
 # This is built for the local machine, not the target, so it doesn't have any
 # of the build instructions.
