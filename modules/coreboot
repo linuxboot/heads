@@ -56,13 +56,13 @@ $(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
 else
 # Use the pre-build one from the external toolchain build
 $(COREBOOT_XGCC):
-	if [ ! -e "$(TOOLCHAIN)/$(COREBOOT_XGCC_REL)" ]; then \
+	if [ ! -e "$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" ]; then \
 		echo >&2 "ERROR: TOOLCHAIN=$(TOOLCHAIN) does not have coreboot" ; \
 		exit 1 ; \
 	fi
 	if [ ! -e "$(COREBOOT_XGCC_PATH)" ]; then \
 		ln -s \
-			"$(TOOLCHAIN)/build/$(coreboot_base_dir)/util/crossgcc/xgcc" \
+			"$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" \
 			"$(COREBOOT_XGCC_PATH)" ; \
 	fi
 endif
