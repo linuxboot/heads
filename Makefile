@@ -22,6 +22,8 @@ CPUS		:= $(shell nproc)
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
+WGET ?= wget
+
 # Check that we have a correct version of make
 # that matches at least the major version
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -230,10 +232,10 @@ define define_module =
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
 	$(call do,WGET,$($1_url),\
-		if ! wget -O "$$@" $($1_url) ; then \
-			rm -f "$$@" ; \
+		if ! $(WGET) -O "$$@.tmp" $($1_url) ; then \
 			exit 1 ; \
-		fi \
+		fi ; \
+		mv "$$@.tmp" "$@" \
 	)
     $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
@@ -555,30 +557,40 @@ $(eval $(shell echo >&2 "$(DATE) Wrong make detected: $(LOCAL_MAKE_VERSION)"))
 HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
-all bootstrap linux cpio: $(HEADS_MAKE)
+all linux cpio run: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $(MAKE_JOBS) $@
-%.clean %.vol: $(HEADS_MAKE)
+%.clean %.vol %.menuconfig: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 
+bootstrap: $(HEADS_MAKE)
+
 # How to download and build the correct version of make
-$(HEADS_MAKE): $(build)/$(make_dir)/Makefile
+$(packages)/$(make_tar):
+	$(WGET) -O "$@.tmp" "$(make_url)"
+	if ! echo "$(make_hash)  $@.tmp" | sha256sum --check -; then \
+		exit 1 ; \
+	fi
+	mv "$@.tmp" "$@"
+
+$(build)/$(make_dir)/.extract: $(packages)/$(make_tar)
+	tar xf "$<" -C "$(build)"
+	touch "$@"
+
+$(build)/$(make_dir)/.patch: patches/make-$(make_version).patch $(build)/$(make_dir)/.extract
+	( cd "$(dir $@)" ; patch -p1 ) < "$<"
+	touch "$@"
+
+$(build)/$(make_dir)/.configured: $(build)/$(make_dir)/.patch
+	cd "$(dir $@)" ; \
+	./configure 2>&1 \
+	| tee "$(log_dir)/make.configure.log" \
+	$(VERBOSE_REDIRECT)
+	touch "$@"
+
+$(HEADS_MAKE): $(build)/$(make_dir)/.configured
 	make -C "$(dir $@)" $(MAKE_JOBS) \
 		2>&1 \
 		| tee "$(log_dir)/make.log" \
 		$(VERBOSE_REDIRECT)
-
-$(build)/$(make_dir)/Makefile: $(packages)/$(make_tar)
-	tar xf "$<" -C build/
-	cd "$(dir $@)" ; ./configure \
-		2>&1 \
-		| tee "$(log_dir)/make.configure.log" \
-		$(VERBOSE_REDIRECT)
-
-$(packages)/$(make_tar):
-	wget -O "$@" "$(make_url)"
-	if ! echo "$(make_hash)  $@" | sha256sum --check -; then \
-		$(MV) "$@" "$@.failed"; \
-		false; \
-	fi
 
 endif
