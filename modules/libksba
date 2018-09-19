@@ -19,6 +19,6 @@ libksba_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	install \
 
-libksba_libraries := src/.libs/libksba.so
+libksba_libraries := src/.libs/libksba.so.8
 
 libksba_depends := libgpg-error $(musl_dep)
