@@ -44,7 +44,7 @@ gpg2_configure := ./configure \
 	--disable-wks-server \
 	--disable-wks-tools \
 	--disable-gnutls \
-	--disable-dirmgnr \
+	--disable-dirmngr \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
@@ -54,6 +54,6 @@ gpg2_target := $(MAKE_JOBS) \
 		DESTDIR="$(INSTALL)" \
 		install
 
-gpg2_output := g10/gpg
+gpg2_output := g10/gpg agent/gpg-agent scd/scdaemon
 
 gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb-compat $(musl_dep)
