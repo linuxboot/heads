@@ -1,0 +1,39 @@
+# pinentry is required for gpg2 to be able to read user passwords
+CONFIG_PINENTRY ?= $(CONFIG_GPG2)
+modules-$(CONFIG_PINENTRY) += pinentry
+
+pinentry_version := 1.1.0
+pinentry_dir := pinentry-$(pinentry_version)
+pinentry_tar := pinentry-$(pinentry_version).tar.bz2
+pinentry_url := https://www.gnupg.org/ftp/gcrypt/pinentry/$(pinentry_tar)
+pinentry_hash := 68076686fa724a290ea49cdf0d1c0c1500907d1b759a3bcbfbec0293e8f56570
+
+# For reproducibility reasons we have to override the exec_prefix
+# and datarootdir on the configure line so that the Makefiles will
+# be generated with the correct paths, but then re-write them when
+# we use the install target so that they will be copied to the correct
+# location.
+pinentry_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+	--enable-pinentry-tty \
+	--disable-pinentry-curses \
+	--disable-pinentry-qt5 \
+	--disable-pinentry-fltk \
+	--disable-pinentry-emacs \
+	--with-libgpg-error-prefix="$(INSTALL)" \
+	--with-libassuan-prefix="$(INSTALL)" \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+pinentry_target := $(MAKE_JOBS) \
+	&& $(MAKE) -C $(build)/$(pinentry_dir) \
+		DESTDIR="$(INSTALL)" \
+		install \
+	&& cp $(build)/$(pinentry_dir)/tty/pinentry-tty $(build)/$(pinentry_dir)/tty/pinentry
+
+pinentry_output := tty/pinentry
+
+pinentry_depends := libgpg-error libassuan $(musl_dep)
