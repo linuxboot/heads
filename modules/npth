@@ -19,6 +19,6 @@ npth_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	install \
 
-npth_libraries := src/.libs/libnpth.so
+npth_libraries := src/.libs/libnpth.so.0
 
 npth_depends := libgpg-error $(musl_dep)
