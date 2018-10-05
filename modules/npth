@@ -1,9 +1,9 @@
 modules-$(CONFIG_GPG2) += npth
-npth_version := 1.5
+npth_version := 1.6
 npth_dir := npth-$(npth_version)
 npth_tar := npth-$(npth_version).tar.bz2
 npth_url := https://gnupg.org/ftp/gcrypt/npth/$(npth_tar)
-npth_hash := 294a690c1f537b92ed829d867bee537e46be93fbd60b16c04630fbbfcd9db3c2
+npth_hash := 1393abd9adcf0762d34798dc34fdcf4d0d22a8410721e76f1e3afcd1daa4e2d1
 
 npth_configure := ./configure \
 	$(CROSS_TOOLS) \
