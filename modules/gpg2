@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += gpg2
 
-gpg2_version := 2.2.4
+gpg2_version := 2.2.10
 gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2
 gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
-gpg2_hash := 401a3e64780fdfa6d7670de0880aa5c9d589b3db7a7098979d7606cec546f2ec
+gpg2_hash := 799dd37a86a1448732e339bd20440f4f5ee6e69755f6fd7a73ee8af30840c915
 
 # For reproducibility reasons we have to override the exec_prefix
 # and datarootdir on the configure line so that the Makefiles will
