@@ -22,6 +22,7 @@ pinentry_configure := ./configure \
 	--disable-pinentry-qt5 \
 	--disable-pinentry-fltk \
 	--disable-pinentry-emacs \
+	--disable-fallback-curses \
 	--with-libgpg-error-prefix="$(INSTALL)" \
 	--with-libassuan-prefix="$(INSTALL)" \
 
