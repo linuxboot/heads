@@ -71,11 +71,11 @@ linux_modules-$(CONFIG_LINUX_BCM)	+= drivers/net/ethernet/broadcom/bnxt/bnxt_en.
 linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/uhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/ohci-pci.ko
-linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-hcd.ko
-linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
-linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
-linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
-linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
+linux_modules-$(CONFIG_LINUX_USB_EHCI)	+= drivers/usb/host/ehci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_EHCI)	+= drivers/usb/host/ehci-pci.ko
+linux_modules-$(CONFIG_LINUX_USB_XHCI)	+= drivers/usb/host/xhci-hcd.ko
+linux_modules-$(CONFIG_LINUX_USB_XHCI)	+= drivers/usb/host/xhci-pci.ko
+linux_modules-$(CONFIG_LINUX_USB_STORAGE)	+= drivers/usb/storage/usb-storage.ko
 
 # NVMe driver for winterfell and other servers
 linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme.ko
