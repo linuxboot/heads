@@ -18,6 +18,7 @@ pinentry_configure := ./configure \
 	--host x86_64-linux-musl \
 	--prefix "/" \
 	--enable-pinentry-tty \
+	--disable-fallback-curses \
 	--disable-pinentry-curses \
 	--disable-pinentry-qt5 \
 	--disable-pinentry-fltk \

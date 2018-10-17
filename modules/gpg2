@@ -22,6 +22,7 @@ gpg2_configure := ./configure \
 	--with-ksba-prefix="$(INSTALL)" \
 	--with-npth-prefix="$(INSTALL)" \
 	--prefix "/" \
+	--libexecdir "/bin" \
 	--enable-scdaemon \
 	--enable-ccid-driver \
 	--disable-tofu \
