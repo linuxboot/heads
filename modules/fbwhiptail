@@ -4,7 +4,7 @@ fbwhiptail_depends := cairo $(musl_dep)
 
 fbwhiptail_version := git
 fbwhiptail_dir := fbwhiptail
-fbwhiptail_repo := https://code.puri.sm/kakaroto/fbwhiptail.git
+fbwhiptail_repo := https://source.puri.sm/coreboot/fbwhiptail.git
 
 fbwhiptail_target := \
 	$(MAKE_JOBS) \
