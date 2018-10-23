@@ -60,6 +60,77 @@ jobs:
 #          path: build/qemu-linuxboot/hashes.txt
 
       - run:
+          name: kgpe-d16_workstation
+          command: |
+            rm -rf build/kgpe-d16_workstation/* build/log/* && \
+            make CPUS=4 V=1 BOARD=kgpe-d16_workstation || \
+            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_workstation hashes
+          command: |
+            cat build/kgpe-d16_workstation/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_workstation
+          command: |
+             tar zcvf build/kgpe-d16_workstation/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_workstation
+     
+      - run:
+          name: kgpe-d16_workstation-usb_keyboard
+          command: |
+            rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && \
+            make CPUS=4 V=1 BOARD=kgpe-d16_workstation-usb_keyboard || \
+            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_workstation-usb_keyboard hashes
+          command: |
+            cat build/kgpe-d16_workstation-usb_keyboard/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_workstation-usb_keyboard
+          command: |
+             tar zcvf build/kgpe-d16_workstation-usb_keyboard/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_workstation-usb_keyboard
+
+      - run:
+          name: kgpe-d16_server
+          command: |
+            rm -rf build/kgpe-d16_server/* build/log/* && \
+            make CPUS=4 V=1 BOARD=kgpe-d16_server || \
+            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_server hashes
+          command: |
+            cat build/kgpe-d16_server/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_server
+          command: |
+             tar zcvf build/kgpe-d16_server/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_server
+
+      - run:
+          name: kgpe-d16_server-whiptail
+          command: |
+            rm -rf build/kgpe-d16_server-whiptail/* build/log/* && \
+            make CPUS=4 V=1 BOARD=kgpe-d16_server-whiptail || \
+            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_server-whiptail hashes
+          command: |
+            cat build/kgpe-d16_server-whiptail/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_server-whiptail
+          command: |
+             tar zcvf build/kgpe-d16_server-whiptail/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_server-whiptail
+      - run:
           name: librem_l1um
           command: |
             rm -rf build/librem_l1um/* build/log/* && make CPUS=4 V=1 BOARD=librem_l1um || touch /tmp/failed_build
@@ -121,7 +192,6 @@ jobs:
 
       - run:
           name: x230-flash
-          #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
             rm -rf build/x230-flash/* build/log/* && make CPUS=4 V=1 BOARD=x230-flash || touch /tmp/failed_build
           no_output_timeout: 3h
