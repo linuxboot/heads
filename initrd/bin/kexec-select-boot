@@ -142,6 +142,8 @@ confirm_menu_option() {
 	else
 		echo "+++ Please confirm the boot details for $name:"
 		echo $option
+		echo "To be appended boot option: $add"
+		echo "To be removed boot option: $remove"
 
 		read \
 			-n 1 \
