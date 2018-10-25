@@ -110,6 +110,7 @@ CROSS_TOOLS_NOCC := \
 	NM="$(CROSS)nm" \
 	OBJCOPY="$(CROSS)objcopy" \
 	OBJDUMP="$(CROSS)objdump" \
+	RANLIB="$(CROSS)ranlib" \
 	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
 	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
 
