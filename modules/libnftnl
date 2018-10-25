@@ -1,0 +1,25 @@
+modules-$(CONFIG_LIBNFTNL) += libnftnl
+
+libnftnl_version := 1.1.1
+libnftnl_dir := libnftnl-$(libnftnl_version)
+libnftnl_tar := libnftnl-$(libnftnl_version).tar.bz2
+libnftnl_url := https://netfilter.org/projects/libnftnl/files/$(libnftnl_tar)
+libnftnl_hash := 5d6a65413f27ec635eedf6aba033f7cf671d462a2afeacc562ba96b19893aff2
+
+libnftnl_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--build i386-elf-linux \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+libnftnl_target := $(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install
+
+libnftnl_libraries := src/.libs/libnftnl.so
+
+libnftnl_depends := libmnl $(musl_dep)

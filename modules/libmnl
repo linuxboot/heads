@@ -1,0 +1,25 @@
+modules-$(CONFIG_LIBMNL) += libmnl
+
+libmnl_version := 1.0.4
+libmnl_dir := libmnl-$(libmnl_version)
+libmnl_tar := libmnl-$(libmnl_version).tar.bz2
+libmnl_url := https://netfilter.org/projects/libmnl/files/$(libmnl_tar)
+libmnl_hash := 171f89699f286a5854b72b91d06e8f8e3683064c5901fb09d954a9ab6f551f81
+
+libmnl_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--build i386-elf-linux \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+libmnl_target := $(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install
+
+libmnl_libraries := src/.libs/libmnl.so
+
+libmnl_depends := $(musl_dep)

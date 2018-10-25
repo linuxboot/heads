@@ -1,0 +1,38 @@
+modules-$(CONFIG_IPTABLES) += iptables
+
+iptables_version := 1.8.1
+iptables_dir := iptables-$(iptables_version)
+iptables_tar := iptables-$(iptables_version).tar.bz2
+iptables_url := https://netfilter.org/projects/iptables/files/$(iptables_tar)
+iptables_hash := 8fe4f297cf9c9bbab4972f95527f3e484f60c17c61800c9bff562f06c45461d8
+
+iptables_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--build i386-elf-linux \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+	--disable-dependency-tracking \
+	--disable-nftables \
+	--disable-shared \
+	--enable-static \
+
+# Not yet:
+NO=\
+	--enable-bpf-compiler \
+
+# Build and install into the install directory, but we copy out the
+# multi-call binary
+iptables_target := $(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install && \
+	cp $(INSTALL)/sbin/iptables $(build)/$(iptables_dir)/iptables/
+
+iptables_output := iptables/iptables
+
+NO-iptables_libraries := \
+	libiptc/.libs/libip4tc.so.0 \
+	libiptc/.libs/libip6tc.so.0 \
+	libxtables/.libs/libxtables.so.12 \
+
+iptables_depends := libnftnl $(musl_dep)
