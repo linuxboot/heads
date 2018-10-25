@@ -1,0 +1,16 @@
+#!/bin/ash
+# Setup the tiny environment for network routing
+. /etc/functions
+
+warn "Starting networks"
+ifconfig lo 127.0.0.1
+ifconfig eth0 10.0.2.15
+
+# Setup the sshd server
+warn "Starting sshd"
+mkdir /etc/dropbear
+echo root::0:0:root:/:/bin/ash > /etc/passwd
+dropbear -B -R
+
+# Setup the recovery shell
+recovery "Interactive shell"
