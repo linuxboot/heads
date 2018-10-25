@@ -124,7 +124,8 @@ all: $(build)/$(BOARD)/coreboot.rom
 else ifeq "$(CONFIG_LINUXBOOT)" "y"
 all: $(build)/$(BOARD)/linuxboot.rom
 else
-$(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
+$(warn "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
+all: $(build)/$(BOARD)/bzImage $(build)/$(BOARD)/initrd.cpio.xz
 endif
 
 # Disable all built in rules
