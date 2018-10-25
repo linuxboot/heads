@@ -36,7 +36,9 @@ if [ -r /etc/motd ]; then
 fi
 
 # Load the date from the hardware clock, setting it in local time
-hwclock -l -s
+if [ -r /dev/misc/rtc ]; then
+	hwclock -l -s
+fi
 
 # Read the system configuration parameters
 . /etc/functions
@@ -57,7 +59,10 @@ fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
 fi
-/bin/key-init
+
+if [ -x /bin/gpg ]; then
+	/bin/key-init
+fi
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
