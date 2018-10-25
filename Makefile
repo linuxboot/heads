@@ -388,6 +388,7 @@ endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
+bin_modules-$(CONFIG_QBOOT) += qboot
 bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils

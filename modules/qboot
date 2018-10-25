@@ -1,0 +1,22 @@
+modules-$(CONFIG_QBOOT) += qboot
+
+qboot_depends := $(musl_dep)
+
+qboot_version := git
+qboot_repo := https://github.com/bonzini/qboot
+
+#qboot_version := 0.3.0
+qboot_dir := qboot-$(qboot_version)
+qboot_tar := qboot-$(qboot_version).tar.gz
+qboot_url := 
+qboot_hash := 
+
+# something is wrong with musl-gcc compiling qboot
+# use the system gcc, which isn't great
+qboot_target := \
+
+qboot_output := bios.bin
+
+qboot_libraries :=
+
+qboot_configure := 
