@@ -24,6 +24,7 @@ coreboot_configure := \
 	&& $(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
@@ -31,6 +32,7 @@ coreboot_configure := \
 coreboot_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
+	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
