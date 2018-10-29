@@ -41,6 +41,7 @@ if ! tpm sealfile2 \
 	-ix 2 X \
 	-ix 3 X \
 	-ix 4 0000000000000000000000000000000000000000 \
+	-ix 7 X \
 ; then
 	rm -f "$TOTP_SECRET"
 	 die "Unable to seal secret"

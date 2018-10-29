@@ -1,5 +1,5 @@
 diff --git ./Makefile ./Makefile
-index 4ebde1e..4257e82 100644
+index 9cf52b2..3bc0d8c 100644
 --- ./Makefile
 +++ ./Makefile
 @@ -214,6 +214,16 @@ UNSUPPORTED_FEATURES += CONFIG_GFXNVIDIA=yes
@@ -88,7 +88,7 @@ index 4ebde1e..4257e82 100644
  PROGRAMMER_OBJS += satasii.o
 diff --git ./ast1100.c ./ast1100.c
 new file mode 100644
-index 0000000..f661271
+index 0000000..cf28422
 --- /dev/null
 +++ ./ast1100.c
 @@ -0,0 +1,421 @@
@@ -286,7 +286,7 @@ index 0000000..f661271
 +		pci_mmio_writel(0x4755, ast1100_device_bar + ASPEED_P2A_OFFSET + AST1100_WDT_APB_BRIDGE_OFFSET + AST1100_WDT1_CTR_RESTART);
 +		pci_mmio_writel(AST1100_WDT_SET_CLOCK, ast1100_device_bar + ASPEED_P2A_OFFSET + AST1100_WDT_APB_BRIDGE_OFFSET + AST1100_WDT1_CTL);
 +		pci_mmio_writel(AST1100_WDT_RESET_SYSTEM | AST1100_WDT_ENABLE, ast1100_device_bar + ASPEED_P2A_OFFSET + AST1100_WDT_APB_BRIDGE_OFFSET + AST1100_WDT1_CTL);
-+	
++
 +	}
 +
 +	return 0;
@@ -945,18 +945,6 @@ index 0000000..01cee76
 +
 +	return 0;
 +}
-diff --git ./board_enable.c ./board_enable.c
-index 2f0c1c0..758aaf4 100644
---- ./board_enable.c
-+++ ./board_enable.c
-@@ -2433,6 +2433,7 @@ const struct board_match board_matches[] = {
- 	{0x8086, 0x27a0, 0x17aa, 0x2017,  0x8086, 0x27b9, 0x17aa, 0x2009, "^ThinkPad T60", NULL, NULL,        P2, "IBM/Lenovo",  "ThinkPad T60(s)",       0,   OK, p2_whitelist_laptop},
- 	{0x8086, 0x2917, 0x17AA, 0x20F5,  0x8086, 0x2930, 0x17AA, 0x20F9, "^ThinkPad X200", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad X200",         0,   OK, p2_whitelist_laptop},
- 	{0x8086, 0x3B07, 0x17AA, 0x2166,  0x8086, 0x3B30, 0x17AA, 0x2167, "^Lenovo X201", NULL, NULL,         P2, "IBM/Lenovo",  "ThinkPad X201",         0,   OK, p2_whitelist_laptop},
-+	{0x8086, 0x1C22, 0x17AA, 0x21DB,  0x8086, 0x1C4F, 0x17AA, 0x21DB, "^ThinkPad X220", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad X220",         0,   OK, p2_whitelist_laptop},
- 	{0x8086, 0x1E22, 0x17AA, 0x21FA,  0x8086, 0x1E55, 0x17AA, 0x21FA, "^ThinkPad X230", NULL, NULL,       P2, "IBM/Lenovo",  "ThinkPad X230",         0,   OK, p2_whitelist_laptop},
- 	{0x8086, 0x27A0, 0x17AA, 0x2017,  0x8086, 0x27B9, 0x17AA, 0x2009, "^ThinkPad X60", NULL, NULL,        P2, "IBM/Lenovo",  "ThinkPad X60(s)",       0,   OK, p2_whitelist_laptop},
- 	{0x8086, 0x2411, 0x8086, 0x2411,  0x8086, 0x7125, 0x0e11, 0xb165, NULL,         NULL, NULL,           P3, "Mitac",       "6513WU",                0,   OK, board_mitac_6513wu},
 diff --git ./chipdrivers.h ./chipdrivers.h
 index c85eac9..20529d5 100644
 --- ./chipdrivers.h
@@ -989,24 +977,24 @@ index c85eac9..20529d5 100644
 +
  #endif /* !__CHIPDRIVERS_H__ */
 diff --git ./cli_output.c ./cli_output.c
-index feafbd2..cb82fa1 100644
+index 61a9af6..4adfd7d 100644
 --- ./cli_output.c
 +++ ./cli_output.c
-@@ -90,7 +90,8 @@ int print(enum msglevel level, const char *fmt, ...)
+@@ -90,7 +90,8 @@ int flashrom_print_cb(enum flashrom_log_level level, const char *fmt, va_list ap
  			fflush(output_type);
  	}
  #ifndef STANDALONE
 -	if ((level <= verbose_logfile) && logfile) {
 +	/* skip of msgs starting from '\b' added to skip progress percents */
 +	if ((level <= verbose_logfile) && logfile && (!fmt || fmt[0] != '\b')) {
- 		va_start(ap, fmt);
- 		ret = vfprintf(logfile, fmt, ap);
- 		va_end(ap);
+ 		ret = vfprintf(logfile, fmt, logfile_args);
+ 		if (level != FLASHROM_MSG_SPEW)
+ 			fflush(logfile);
 diff --git ./flash.h ./flash.h
-index da049d1..0b72439 100644
+index 9c3784b..58ad387 100644
 --- ./flash.h
 +++ ./flash.h
-@@ -123,6 +123,14 @@ enum write_granularity {
+@@ -119,6 +119,14 @@ enum write_granularity {
  #define FEATURE_WRSR_EITHER	(FEATURE_WRSR_EWSR | FEATURE_WRSR_WREN)
  #define FEATURE_OTP		(1 << 8)
  #define FEATURE_QPI		(1 << 9)
@@ -1021,7 +1009,7 @@ index da049d1..0b72439 100644
  
  enum test_state {
  	OK = 0,
-@@ -167,6 +175,14 @@ struct flashchip {
+@@ -164,6 +172,14 @@ struct flashchip {
  	unsigned int page_size;
  	int feature_bits;
  
@@ -1036,9 +1024,9 @@ index da049d1..0b72439 100644
  	/* Indicate how well flashrom supports different operations of this flash chip. */
  	struct tested {
  		enum test_state probe;
-@@ -344,6 +360,11 @@ __attribute__((format(printf, 2, 3)));
- #define msg_pspew(...)	print(MSG_SPEW, __VA_ARGS__)	/* programmer debug spew  */
- #define msg_cspew(...)	print(MSG_SPEW, __VA_ARGS__)	/* chip debug spew  */
+@@ -347,6 +363,11 @@ __attribute__((format(printf, 2, 3)));
+ #define msg_pspew(...)	print(FLASHROM_MSG_SPEW, __VA_ARGS__)	/* programmer debug spew  */
+ #define msg_cspew(...)	print(FLASHROM_MSG_SPEW, __VA_ARGS__)	/* chip debug spew  */
  
 +/* Read progress will be shown for reads more than 256KB */
 +#define MIN_LENGTH_TO_SHOW_READ_PROGRESS 256 * 1024
@@ -1047,9 +1035,9 @@ index da049d1..0b72439 100644
 +
  /* layout.c */
  int register_include_arg(char *name);
- int process_include_args(void);
+ int read_romlayout(const char *name);
 diff --git ./flashchips.c ./flashchips.c
-index 40b6b8e..60baa73 100644
+index 7ef361b..c90fd94 100644
 --- ./flashchips.c
 +++ ./flashchips.c
 @@ -8045,6 +8045,100 @@ const struct flashchip flashchips[] = {
@@ -1218,7 +1206,7 @@ index 40b6b8e..60baa73 100644
  		.bustype	= BUS_SPI,
  		.manufacture_id	= WINBOND_NEX_ID,
 diff --git ./flashchips.h ./flashchips.h
-index 9ffb30f..7171a62 100644
+index 15574bb..62eb9a5 100644
 --- ./flashchips.h
 +++ ./flashchips.h
 @@ -482,6 +482,7 @@
@@ -1230,18 +1218,18 @@ index 9ffb30f..7171a62 100644
  #define MACRONIX_MX25U3235E	0x2536	/* Same as MX25U6435F */
  #define MACRONIX_MX25U6435E	0x2537	/* Same as MX25U6435F */
 diff --git ./flashrom.c ./flashrom.c
-index 25e53f2..d642de8 100644
+index c600efc..767c2c4 100644
 --- ./flashrom.c
 +++ ./flashrom.c
-@@ -5,6 +5,7 @@
-  * Copyright (C) 2004 Tyan Corp <yhlu@tyan.com>
+@@ -6,6 +6,7 @@
   * Copyright (C) 2005-2008 coresystems GmbH
   * Copyright (C) 2008,2009 Carl-Daniel Hailfinger
+  * Copyright (C) 2016 secunet Security Networks AG
 + * Copyright (C) 2016-2017 Raptor Engineering, LLC
+  * (Written by Nico Huber <nico.huber@secunet.com> for secunet)
   *
   * This program is free software; you can redistribute it and/or modify
-  * it under the terms of the GNU General Public License as published by
-@@ -134,6 +135,30 @@ const struct programmer_entry programmer_table[] = {
+@@ -136,6 +137,30 @@ const struct programmer_entry programmer_table[] = {
  	},
  #endif
  
@@ -1272,13 +1260,13 @@ index 25e53f2..d642de8 100644
  #if CONFIG_DRKAISER == 1
  	{
  		.name			= "drkaiser",
-@@ -1527,6 +1552,17 @@ static int walk_eraseregions(struct flashctx *flash, int erasefunction,
- 	unsigned int start = 0;
- 	unsigned int len;
- 	struct block_eraser eraser = flash->chip->block_erasers[erasefunction];
+@@ -1600,6 +1625,18 @@ static int walk_eraseblocks(struct flashctx *const flashctx,
+ 	bool first = true;
+ 	struct block_eraser *const eraser = &flashctx->chip->block_erasers[erasefunction];
+ 
 +	int show_progress = 0;
 +	unsigned int percent_last, percent_current;
-+	unsigned long size = flash->chip->total_size * 1024;
++	unsigned long size = flashctx->chip->total_size * 1024;
 +
 +	/* progress visualizaion init */
 +	if(size >= MIN_LENGTH_TO_SHOW_ERASE_AND_WRITE_PROGRESS) {
@@ -1287,22 +1275,28 @@ index 25e53f2..d642de8 100644
 +		percent_last = percent_current = 0;
 +		show_progress = 1; /* enable progress visualizaion */
 +	}
- 
- 	for (i = 0; i < NUM_ERASEREGIONS; i++) {
- 		/* count==0 for all automatically initialized array
-@@ -1544,8 +1580,20 @@ static int walk_eraseregions(struct flashctx *flash, int erasefunction,
- 				return 1;
- 			}
- 			start += len;
 +
+ 	info->erase_start = 0;
+ 	for (i = 0; i < NUM_ERASEREGIONS; ++i) {
+ 		/* count==0 for all automatically initialized array
+@@ -1620,6 +1657,14 @@ static int walk_eraseblocks(struct flashctx *const flashctx,
+ 				msg_cdbg(", ");
+ 			msg_cdbg("0x%06x-0x%06x:", info->erase_start, info->erase_end);
+ 
 +			if(show_progress) {
-+				percent_current = (unsigned int) ((unsigned long long)start * 100 / size);
++				percent_current = (unsigned int) ((unsigned long long)info->erase_start * 100 / size);
 +				if(percent_current != percent_last) {
 +					msg_cinfo("\b\b\b%2d%%", percent_current);
 +					percent_last = percent_current;
 +				}
 +			}
- 		}
++
+ 			ret = per_blockfn(flashctx, info, eraser->block_erase);
+ 			if (ret)
+ 				return ret;
+@@ -1627,6 +1672,10 @@ static int walk_eraseblocks(struct flashctx *const flashctx,
+ 		if (info->region_end < info->erase_start)
+ 			break;
  	}
 +
 +	if(show_progress)
@@ -1311,25 +1305,7 @@ index 25e53f2..d642de8 100644
  	msg_cdbg("\n");
  	return 0;
  }
-@@ -1801,7 +1849,7 @@ void print_buildinfo(void)
- 
- void print_version(void)
- {
--	msg_ginfo("flashrom v%s", flashrom_version);
-+	msg_ginfo("flashrom %s", flashrom_version);
- 	print_sysinfo();
- 	msg_ginfo("\n");
- }
-@@ -1983,7 +2031,7 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
- 	uint8_t *newcontents;
- 	int ret = 0;
- 	unsigned long size = flash->chip->total_size * 1024;
--	int read_all_first = 1; /* FIXME: Make this configurable. */
-+	int read_all_first = 0; /* FIXME: Make this configurable. */
- 
- 	if (chip_safety_check(flash, force, read_it, write_it, erase_it, verify_it)) {
- 		msg_cerr("Aborting.\n");
-@@ -2001,6 +2049,44 @@ int doit(struct flashctx *flash, int force, const char *filename, int read_it,
+@@ -2223,6 +2272,44 @@ int prepare_flash_access(struct flashctx *const flash,
  	if (flash->chip->unlock)
  		flash->chip->unlock(flash);
  
@@ -1371,31 +1347,11 @@ index 25e53f2..d642de8 100644
 +		}
 +	}
 +
- 	if (read_it) {
- 		return read_flash_to_file(flash, filename);
- 	}
-diff --git ./layout.c ./layout.c
-index f71eeaa..2b8ce3c 100644
---- ./layout.c
-+++ ./layout.c
-@@ -259,6 +259,7 @@ int normalize_romentries(const struct flashctx *flash)
- 
- static int copy_old_content(struct flashctx *flash, int oldcontents_valid, uint8_t *oldcontents, uint8_t *newcontents, unsigned int start, unsigned int size)
- {
-+#if 0
- 	if (!oldcontents_valid) {
- 		/* oldcontents is a zero-filled buffer. By reading the current data into oldcontents here, we
- 		 * avoid a rewrite of identical regions even if an initial full chip read didn't happen. */
-@@ -269,6 +270,7 @@ static int copy_old_content(struct flashctx *flash, int oldcontents_valid, uint8
- 			return 1;
- 		}
- 	}
-+#endif
- 	memcpy(newcontents + start, oldcontents + start, size);
  	return 0;
  }
+ 
 diff --git ./pcidev.c ./pcidev.c
-index 2c78063..34b948b 100644
+index f4e5542..d36e5c4 100644
 --- ./pcidev.c
 +++ ./pcidev.c
 @@ -37,11 +37,13 @@ enum pci_bartype {
@@ -1435,7 +1391,7 @@ index 2c78063..34b948b 100644
  	case TYPE_IOBAR:
  		msg_pdbg("I/O\n");
 diff --git ./programmer.h ./programmer.h
-index bd8e98d..754f3cc 100644
+index a98b713..c9c3a26 100644
 --- ./programmer.h
 +++ ./programmer.h
 @@ -5,6 +5,7 @@
@@ -1459,7 +1415,7 @@ index bd8e98d..754f3cc 100644
  #if CONFIG_DRKAISER == 1
  	PROGRAMMER_DRKAISER,
  #endif
-@@ -399,6 +406,18 @@ int gfxnvidia_init(void);
+@@ -404,6 +411,18 @@ int gfxnvidia_init(void);
  extern const struct dev_entry gfx_nvidia[];
  #endif
  
@@ -1478,7 +1434,7 @@ index bd8e98d..754f3cc 100644
  /* drkaiser.c */
  #if CONFIG_DRKAISER == 1
  int drkaiser_init(void);
-@@ -600,6 +619,14 @@ enum spi_controller {
+@@ -605,6 +624,14 @@ enum spi_controller {
  #if CONFIG_CH341A_SPI == 1
  	SPI_CONTROLLER_CH341A_SPI,
  #endif
@@ -1493,48 +1449,11 @@ index bd8e98d..754f3cc 100644
  };
  
  #define MAX_DATA_UNSPECIFIED 0
-diff --git ./serprog.c ./serprog.c
-index 98aac83..c9d98bf 100644
---- ./serprog.c
-+++ ./serprog.c
-@@ -945,7 +945,10 @@ static int serprog_spi_read(struct flashctx *flash, uint8_t *buf,
- 	for (i = 0; i < len; i += cur_len) {
- 		int ret;
- 		cur_len = min(max_read, (len - i));
--		ret = spi_nbyte_read(flash, start + i, buf + i, cur_len);
-+		ret = (flash->chip->feature_bits & FEATURE_4BA_SUPPORT) == 0
-+			? spi_nbyte_read(flash, start + i, buf + i, cur_len)
-+			: flash->chip->four_bytes_addr_funcs.read_nbyte(flash,
-+						 start + i, buf + i, cur_len);
- 		if (ret)
- 			return ret;
- 	}
 diff --git ./spi.c ./spi.c
-index 894f73f..895b6a3 100644
+index c306ac3..817c8de 100644
 --- ./spi.c
 +++ ./spi.c
-@@ -100,6 +100,20 @@ int default_spi_write_256(struct flashctx *flash, const uint8_t *buf, unsigned i
- 	return spi_write_chunked(flash, buf, start, len, max_data);
- }
- 
-+static int my_ffs(int x)
-+{
-+	int rc = 0;
-+	while(x)
-+	{
-+		if (x & 1)
-+			return rc;
-+		rc++;
-+		x >>= 1;
-+	}
-+
-+	return 0;
-+}
-+
- int spi_chip_read(struct flashctx *flash, uint8_t *buf, unsigned int start,
- 		  unsigned int len)
- {
-@@ -110,7 +124,10 @@ int spi_chip_read(struct flashctx *flash, uint8_t *buf, unsigned int start,
+@@ -112,7 +126,10 @@ int spi_chip_read(struct flashctx *flash, uint8_t *buf, unsigned int start,
  	 * means 0xffffff, the highest unsigned 24bit number.
  	 */
  	addrbase = spi_get_valid_read_addr(flash);
@@ -1546,17 +1465,8 @@ index 894f73f..895b6a3 100644
  		msg_perr("Flash chip size exceeds the allowed access window. ");
  		msg_perr("Read will probably fail.\n");
  		/* Try to get the best alignment subject to constraints. */
-@@ -119,7 +136,7 @@ int spi_chip_read(struct flashctx *flash, uint8_t *buf, unsigned int start,
- 	/* Check if alignment is native (at least the largest power of two which
- 	 * is a factor of the mapped size of the chip).
- 	 */
--	if (ffs(flash->chip->total_size * 1024) > (ffs(addrbase) ? : 33)) {
-+	if (my_ffs(flash->chip->total_size * 1024) > (my_ffs(addrbase) ? : 33)) {
- 		msg_perr("Flash chip is not aligned natively in the allowed "
- 			 "access window.\n");
- 		msg_perr("Read will probably return garbage.\n");
 diff --git ./spi25.c ./spi25.c
-index af4b6db..ae5e51d 100644
+index 76242be..c324835 100644
 --- ./spi25.c
 +++ ./spi25.c
 @@ -28,6 +28,7 @@
@@ -1567,9 +1477,22 @@ index af4b6db..ae5e51d 100644
  
  static int spi_rdid(struct flashctx *flash, unsigned char *readarr, int bytes)
  {
-@@ -948,6 +949,16 @@ int spi_read_chunked(struct flashctx *flash, uint8_t *buf, unsigned int start,
- 	int rc = 0;
- 	unsigned int i, j, starthere, lenhere, toread;
+@@ -967,7 +968,11 @@ int spi_read_chunked(struct flashctx *flash, uint8_t *buf, unsigned int start,
+ 		lenhere = min(start + len, (i + 1) * area_size) - starthere;
+ 		for (j = 0; j < lenhere; j += chunksize) {
+ 			toread = min(chunksize, lenhere - j);
+-			rc = spi_nbyte_read(flash, starthere + j, buf + starthere - start + j, toread);
++			rc = (flash->chip->feature_bits & FEATURE_4BA_SUPPORT) == 0
++				? spi_nbyte_read(flash, starthere + j, buf + starthere - start + j, toread)
++				: flash->chip->four_bytes_addr_funcs.read_nbyte(flash, starthere + j,
++				buf + starthere - start + j, toread);
++
+ 			if (rc)
+ 				break;
+ 		}
+@@ -994,6 +999,16 @@ int spi_write_chunked(struct flashctx *flash, const uint8_t *buf, unsigned int s
+ 	 * we're OK for now.
+ 	 */
  	unsigned int page_size = flash->chip->page_size;
 +	int show_progress = 0;
 +	unsigned int percent_last, percent_current;
@@ -1584,37 +1507,7 @@ index af4b6db..ae5e51d 100644
  
  	/* Warning: This loop has a very unusual condition and body.
  	 * The loop needs to go through each page with at least one affected
-@@ -966,13 +977,28 @@ int spi_read_chunked(struct flashctx *flash, uint8_t *buf, unsigned int start,
- 		lenhere = min(start + len, (i + 1) * page_size) - starthere;
- 		for (j = 0; j < lenhere; j += chunksize) {
- 			toread = min(chunksize, lenhere - j);
--			rc = spi_nbyte_read(flash, starthere + j, buf + starthere - start + j, toread);
-+			rc = (flash->chip->feature_bits & FEATURE_4BA_SUPPORT) == 0
-+				? spi_nbyte_read(flash, starthere + j, buf + starthere - start + j, toread)
-+				: flash->chip->four_bytes_addr_funcs.read_nbyte(flash, starthere + j,
-+					buf + starthere - start + j, toread);
- 			if (rc)
- 				break;
- 		}
- 		if (rc)
- 			break;
-+
-+		if(show_progress) {
-+			percent_current = (unsigned int) ((unsigned long long)(starthere +
-+									lenhere - start) * 100 / len);
-+			if(percent_current != percent_last) {
-+				msg_cinfo("\b\b\b%2d%%", percent_current);
-+				percent_last = percent_current;
- 	}
-+		}
-+	}
-+
-+	if(show_progress && !rc)
-+		msg_cinfo("\b\b\b\b"); /* remove progress percents from the screen */
- 
- 	return rc;
- }
-@@ -1011,7 +1037,10 @@ int spi_write_chunked(struct flashctx *flash, const uint8_t *buf, unsigned int s
+@@ -1012,7 +1027,10 @@ int spi_write_chunked(struct flashctx *flash, const uint8_t *buf, unsigned int s
  		lenhere = min(start + len, (i + 1) * page_size) - starthere;
  		for (j = 0; j < lenhere; j += chunksize) {
  			towrite = min(chunksize, lenhere - j);
@@ -1626,7 +1519,28 @@ index af4b6db..ae5e51d 100644
  			if (rc)
  				break;
  			while (spi_read_status_register(flash) & SPI_SR_WIP)
-@@ -1037,7 +1066,9 @@ int spi_chip_write_1(struct flashctx *flash, const uint8_t *buf, unsigned int st
+@@ -1020,8 +1038,20 @@ int spi_write_chunked(struct flashctx *flash, const uint8_t *buf, unsigned int s
+ 		}
+ 		if (rc)
+ 			break;
++
++		if(show_progress) {
++			percent_current = (unsigned int) ((unsigned long long)(starthere +
++				lenhere - start) * 100 / len);
++			if(percent_current != percent_last) {
++				msg_cinfo("\b\b\b%2d%%", percent_current);
++				percent_last = percent_current;
++			}
++		}
+ 	}
+ 
++	if(show_progress && !rc)
++		msg_cinfo("\b\b\b\b"); /* remove progress percents from the screen */
++
+ 	return rc;
+ }
+ 
+@@ -1038,7 +1068,9 @@ int spi_chip_write_1(struct flashctx *flash, const uint8_t *buf, unsigned int st
  	int result = 0;
  
  	for (i = start; i < start + len; i++) {

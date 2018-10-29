@@ -3,7 +3,7 @@ To build for X220 we need to have the following files in this folder:
 * `gbe.bin` - Network card blob from the original firmware
 * `ifd.bin` - Flash layout file has been provided as text
 
-To get the binaries, start with a copy of the original lenovo firmware image.
+To get the binaries, start with a copy of the original Lenovo firmware image.
 If you do not have one already, you can read one out from the laptops SPI flash.
 
 ```
@@ -23,6 +23,4 @@ The flash layout will be automatically adjusted and the ME image cleaned and tru
 
 You can now compile the image with:
 
-```
-make CONFIG=config/x220-generic.config
-```
+make BOARD=x220 CONFIG=config/x220-generic.config

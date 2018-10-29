@@ -51,6 +51,12 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
+if [ "$CONFIG_COREBOOT" = "y" ]; then
+	/bin/cbfs-init
+fi
+if [ "$CONFIG_LINUXBOOT" = "y" ]; then
+	/bin/uefi-init
+fi
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
@@ -73,13 +79,11 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_RECOVERY_NEED_AUTH" != y ]; then
-		if [ "$CONFIG_TPM" = y ]; then
-			tpm extend -ix 4 -ic recovery
-		fi
-		exec /bin/ash
-	else
+
+  if [ "$CONFIG_RECOVERY_NEED_AUTH" = y ]; then
 		exit 1
+  elif [ "$CONFIG_TPM" = "y" ]; then
+		tpm extend -ix 4 -ic recovery
 	fi
 fi
 
@@ -106,11 +110,9 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_RECOVERY_NEED_AUTH" != y ]; then
-	if [ "$CONFIG_TPM" = y ]; then
-		tpm extend -ix 4 -ic recovery
-	fi
-	exec /bin/ash
-else
+
+if [ "$CONFIG_RECOVERY_NEED_AUTH" = y ]; then
 	exit 1
+elif [ "$CONFIG_TPM" = "y" ]; then
+	tpm extend -ix 4 -ic recovery
 fi
