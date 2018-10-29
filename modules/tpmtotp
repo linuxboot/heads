@@ -2,10 +2,10 @@ modules-$(CONFIG_TPMTOTP) += tpmtotp
 
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
-#tpmtotp_version := git
+tpmtotp_version := git
 tpmtotp_repo := https://github.com/osresearch/tpmtotp
 
-tpmtotp_version := 0.3.0
+#tpmtotp_version := 0.3.0
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
 tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/v$(tpmtotp_version).tar.gz
@@ -18,6 +18,7 @@ tpmtotp_target := \
 
 tpmtotp_output := \
 	totp \
+	hotp \
 	base32 \
 	qrenc \
 	util/tpm \

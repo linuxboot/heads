@@ -1,0 +1,55 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: ubuntu:16.04
+    steps:
+      - run:
+          name: Install dependencies
+          command: |
+            apt update
+            apt install -y \
+              build-essential \
+              zlib1g-dev \
+              uuid-dev \
+              libdigest-sha-perl \
+              libelf-dev \
+              bc \
+              bzip2 \
+              bison \
+              flex \
+              git \
+              gnupg \
+              iasl \
+              m4 \
+              nasm \
+              patch \
+              python \
+              wget \
+              gnat \
+              cpio \
+              ccache \
+
+      - checkout
+
+      - run:
+          name: Bootstrap make
+          command: |
+            make `pwd`/build/make-4.2/make
+      - run:
+          name: Bootstrap musl
+          command: |
+            ./build/make-4.2/make -j4 musl-cross V=1
+      - run:
+          name: qemu-coreboot
+          command: |
+            ./build/make-4.2/make -j4 BOARD=qemu-coreboot V=1
+      - run:
+          name: qemu-linuxboot
+          command: |
+            ./build/make-4.2/make -j4 BOARD=qemu-linuxboot V=1
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build

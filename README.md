@@ -65,7 +65,7 @@ Notes:
 
 * Building coreboot's cross compilers can take a while.  Luckily this is only done once.
 * Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
-* Currently only tested in QEMU, the Thinkpad x230 and the Chell chromebook.
+* Currently only tested in QEMU, the Thinkpad x230 and the Chell Chromebook.
 ** Xen and the TPM do not work in QEMU, so it is only for testing the `initrd` image.
 * Booting Qubes requires patching Xen's real mode startup code
 see `patches/xen-4.6.3.patch` and adding `no-real-mode` to start

@@ -57,7 +57,7 @@ verify_global_hashes()
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail --title 'ERROR: Boot Hash Mismatch' \
+			whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
@@ -210,7 +210,12 @@ default_select() {
 	expectedoption=`cat $TMP_DEFAULT_FILE`
 	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
 	if [ "$option" != "$expectedoption" ]; then
-		die "!!! Boot entry has changed - please set a new default"
+		if [ "$gui_menu" = "y" ]; then
+			whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Boot Entry Has Changed' \
+				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
+		fi
+		warn "!!! Boot entry has changed - please set a new default"
+		return
 	fi
 	parse_option
 
@@ -223,7 +228,7 @@ default_select() {
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail --title 'ERROR: Default Boot Hash Mismatch' \
+			whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Default Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
 		fi
 		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
@@ -241,7 +246,12 @@ user_select() {
 	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
 	do
 		get_menu_option
-		confirm_menu_option
+    # In force boot mode, no need offer the option to set a default, just boot
+		if [ "$force_boot" = "y" ]; then
+			do_boot
+		else
+			confirm_menu_option
+		fi
 
 		if [ "$option_confirm" = 'd' ]; then
 			save_default_option
@@ -294,7 +304,11 @@ do_boot()
 }
 
 while true; do
-	check_config $paramsdir
+	if [ "$force_boot" = "y" ]; then
+	  check_config $paramsdir force
+	else
+	  check_config $paramsdir
+	fi
 	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1` || true
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
@@ -307,6 +321,9 @@ while true; do
 # even if hashes don't match
 	if [ "$force_boot" = "y" ]; then
 		scan_options
+		# Remove boot splash and make background red in the event of a forced boot
+		add="$add vt.default_red=0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff"
+		remove="$remove splash quiet"
 		user_select
 	fi
 
