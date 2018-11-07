@@ -1,0 +1,44 @@
+From 659f40bb348dd2ca02f9483ed2668465177b6a40 Mon Sep 17 00:00:00 2001
+From: Nico Huber <nico.h@gmx.de>
+Date: Wed, 23 May 2018 17:06:53 +0200
+Subject: [PATCH 50/59] buildgcc: Do not try to install GCC if build failed
+
+We didn't bail out if configuring or building of GCC failed but run
+`make install` and later steps instead. This resulted in very confusing
+logs that concealed the actual error.
+
+Change-Id: Ia064e0bfd96f0cbad391da3bb19e4dc304d988ff
+Signed-off-by: Nico Huber <nico.h@gmx.de>
+Reviewed-on: https://review.coreboot.org/26496
+Reviewed-by: Martin Roth <martinroth@google.com>
+Reviewed-by: Patrick Georgi <pgeorgi@google.com>
+Reviewed-by: Paul Menzel <paulepanter@users.sourceforge.net>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ util/crossgcc/buildgcc | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
+index edcea7ab42..53f9782cb5 100755
+--- a/util/crossgcc/buildgcc
++++ b/util/crossgcc/buildgcc
+@@ -751,12 +751,12 @@ build_cross_GCC() {
+ 		--with-gmp=$DESTDIR$TARGETDIR --with-mpfr=$DESTDIR$TARGETDIR \
+ 		--with-mpc=$DESTDIR$TARGETDIR \
+ 		--with-pkgversion="coreboot toolchain v$CROSSGCC_VERSION $CROSSGCC_DATE" \
+-		|| touch .failed
+-	$MAKE $JOBS CFLAGS_FOR_BUILD="$HOSTCFLAGS" all-gcc || touch .failed
++		&& \
++	$MAKE $JOBS CFLAGS_FOR_BUILD="$HOSTCFLAGS" all-gcc && \
+ 	$MAKE install-gcc DESTDIR=$DESTDIR || touch .failed
+ 
+-	if [ "$(echo $TARGETARCH | grep -c -- -mingw32)" -eq 0 ]; then
+-		$MAKE $JOBS CFLAGS_FOR_BUILD="$HOSTCFLAGS" all-target-libgcc || touch .failed
++	if [ ! -f .failed -a "$(echo $TARGETARCH | grep -c -- -mingw32)" -eq 0 ]; then
++		$MAKE $JOBS CFLAGS_FOR_BUILD="$HOSTCFLAGS" all-target-libgcc && \
+ 		$MAKE install-target-libgcc DESTDIR=$DESTDIR || touch .failed
+ 	fi
+ }
+-- 
+2.17.1
+

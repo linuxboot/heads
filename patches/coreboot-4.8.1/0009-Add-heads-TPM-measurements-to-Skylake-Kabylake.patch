@@ -1,0 +1,132 @@
+diff --git ./src/arch/x86/postcar.c ./src/arch/x86/postcar.c
+index 6497b73..485b051 100644
+--- ./src/arch/x86/postcar.c
++++ ./src/arch/x86/postcar.c
+@@ -19,6 +19,7 @@
+ #include <console/console.h>
+ #include <main_decl.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #include <soc/intel/common/util.h>
+ 
+ /*
+@@ -43,3 +44,11 @@ void main(void)
+ 	/* Load and run ramstage. */
+ 	run_ramstage();
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE)) {
++		tlcl_measure(2, (const void*) start, size);
++	}
++}
++
+diff --git ./src/drivers/intel/fsp2_0/memory_init.c ./src/drivers/intel/fsp2_0/memory_init.c
+index 30987ce..4957bc0 100644
+--- ./src/drivers/intel/fsp2_0/memory_init.c
++++ ./src/drivers/intel/fsp2_0/memory_init.c
+@@ -150,10 +150,11 @@ static void do_fsp_post_memory_init(bool s3wake, uint32_t fsp_version)
+ 
+ 	/*
+ 	 * Initialize the TPM, unless the TPM was already initialized
+-	 * in verstage and used to verify romstage.
++	 * in verstage and used to verify romstage, or for measured boot.
+ 	 */
+ 	if (IS_ENABLED(CONFIG_LPC_TPM) &&
+-	    !IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK))
++		!IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK) &&
++		!IS_ENABLED(CONFIG_MEASURED_BOOT))
+ 		init_tpm(s3wake);
+ }
+ 
+@@ -483,8 +484,29 @@ void fsp_memory_init(bool s3wake)
+ 	if (status != CB_SUCCESS)
+ 		die("Loading FSPM failed!\n");
+ 
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && IS_ENABLED(CONFIG_LPC_TPM)) {
++		// we don't know if we are coming out of a resume
++		// at this point, but want to setup the tpm ASAP
++		init_tpm(0);
++		tlcl_lib_init();
++		const void * const bootblock = (const void*) 0xFFFFF800;
++		const unsigned bootblock_size = 0x800;
++		tlcl_measure(0, bootblock, bootblock_size);
++
++		tlcl_measure(1, _romstage, _eromstage - _romstage);
++	}
++
+ 	/* Signal that FSP component has been loaded. */
++	// Don't measure since it is relocated at this point
+ 	prog_segment_loaded(hdr.image_base, hdr.image_size, SEG_FINAL);
+ 
+ 	do_fsp_memory_init(&hdr, s3wake, &memmap);
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE)) {
++		tlcl_measure(1, (const void*) start, size);
++	}
++}
++
+diff --git ./src/drivers/intel/fsp2_0/silicon_init.c ./src/drivers/intel/fsp2_0/silicon_init.c
+index bda88d1..49568f6 100644
+--- ./src/drivers/intel/fsp2_0/silicon_init.c
++++ ./src/drivers/intel/fsp2_0/silicon_init.c
+@@ -18,6 +18,7 @@
+ #include <fsp/api.h>
+ #include <fsp/util.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #include <stage_cache.h>
+ #include <string.h>
+ #include <timestamp.h>
+@@ -101,6 +102,10 @@ void fsps_load(bool s3wake)
+ 	if (rdev_readat(&rdev, dest, 0, size) < 0)
+ 		die("Failed to read FSPS!\n");
+ 
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
++		tlcl_measure(1, (const void*) dest, size);
++	}
++
+ 	if (fsp_component_relocate((uintptr_t)dest, dest, size) < 0)
+ 		die("Unable to relocate FSPS!\n");
+ 
+@@ -115,7 +120,7 @@ void fsps_load(bool s3wake)
+ 	stage_cache_add(STAGE_REFCODE, &fsps);
+ 
+ 	/* Signal that FSP component has been loaded. */
+-	prog_segment_loaded(hdr->image_base, hdr->image_size, SEG_FINAL);
++	prog_segment_loaded(hdr->image_base, hdr->image_size, SEG_FINAL | SEG_NO_MEASURE);
+ 	load_done = 1;
+ }
+ 
+diff --git ./src/drivers/pc80/tpm/Makefile.inc ./src/drivers/pc80/tpm/Makefile.inc
+index 9d428b5..1d2364f 100644
+--- ./src/drivers/pc80/tpm/Makefile.inc
++++ ./src/drivers/pc80/tpm/Makefile.inc
+@@ -3,6 +3,7 @@ ifeq ($(CONFIG_ARCH_X86),y)
+ verstage-$(CONFIG_LPC_TPM) += tis.c
+ romstage-$(CONFIG_LPC_TPM) += tis.c
+ ramstage-$(CONFIG_LPC_TPM) += tis.c
++postcar-$(CONFIG_LPC_TPM) += tis.c
+ romstage-$(CONFIG_LPC_TPM) += romstage.c
+ 
+ endif
+diff --git ./src/security/tpm/Makefile.inc ./src/security/tpm/Makefile.inc
+index 2385635..7ef24cc 100644
+--- ./src/security/tpm/Makefile.inc
++++ ./src/security/tpm/Makefile.inc
+@@ -4,6 +4,11 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
+ 
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++postcar-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++postcar-$(CONFIG_TPM) += sha1.c
++endif # CONFIG_MEASURED_BOOT
++
+ ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ romstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c

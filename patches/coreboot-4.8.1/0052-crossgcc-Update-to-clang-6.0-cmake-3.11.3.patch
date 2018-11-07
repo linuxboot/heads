@@ -1,0 +1,132 @@
+From 575f1d7784041461d02c892b4846165dd742654c Mon Sep 17 00:00:00 2001
+From: Martin Roth <gaumless@gmail.com>
+Date: Tue, 5 Jun 2018 20:56:29 -0600
+Subject: [PATCH 52/59] crossgcc: Update to clang 6.0 & cmake 3.11.3
+
+Change-Id: I1a0db60b527c2f7ffe77743c0d75b78a7c8bc4cc
+Signed-off-by: Martin Roth <gaumless@gmail.com>
+Reviewed-on: https://review.coreboot.org/26877
+Reviewed-by: Patrick Georgi <pgeorgi@google.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ util/crossgcc/buildgcc                                     | 6 +++---
+ util/crossgcc/sum/cfe-4.0.0.src.tar.xz.cksum               | 1 -
+ util/crossgcc/sum/cfe-6.0.0.src.tar.xz.cksum               | 1 +
+ util/crossgcc/sum/clang-tools-extra-4.0.0.src.tar.xz.cksum | 1 -
+ util/crossgcc/sum/clang-tools-extra-6.0.0.src.tar.xz.cksum | 1 +
+ util/crossgcc/sum/cmake-3.11.3.tar.gz.cksum                | 1 +
+ util/crossgcc/sum/cmake-3.9.0-rc3.tar.gz.cksum             | 1 -
+ util/crossgcc/sum/compiler-rt-4.0.0.src.tar.xz.cksum       | 1 -
+ util/crossgcc/sum/compiler-rt-6.0.0.src.tar.xz.cksum       | 1 +
+ util/crossgcc/sum/llvm-4.0.0.src.tar.xz.cksum              | 1 -
+ util/crossgcc/sum/llvm-6.0.0.src.tar.xz.cksum              | 1 +
+ 11 files changed, 8 insertions(+), 8 deletions(-)
+ delete mode 100644 util/crossgcc/sum/cfe-4.0.0.src.tar.xz.cksum
+ create mode 100644 util/crossgcc/sum/cfe-6.0.0.src.tar.xz.cksum
+ delete mode 100644 util/crossgcc/sum/clang-tools-extra-4.0.0.src.tar.xz.cksum
+ create mode 100644 util/crossgcc/sum/clang-tools-extra-6.0.0.src.tar.xz.cksum
+ create mode 100644 util/crossgcc/sum/cmake-3.11.3.tar.gz.cksum
+ delete mode 100644 util/crossgcc/sum/cmake-3.9.0-rc3.tar.gz.cksum
+ delete mode 100644 util/crossgcc/sum/compiler-rt-4.0.0.src.tar.xz.cksum
+ create mode 100644 util/crossgcc/sum/compiler-rt-6.0.0.src.tar.xz.cksum
+ delete mode 100644 util/crossgcc/sum/llvm-4.0.0.src.tar.xz.cksum
+ create mode 100644 util/crossgcc/sum/llvm-6.0.0.src.tar.xz.cksum
+
+diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
+index bbe74eb2b8..addc61f186 100755
+--- a/util/crossgcc/buildgcc
++++ b/util/crossgcc/buildgcc
+@@ -46,9 +46,9 @@ IASL_VERSION=20180531
+ PYTHON_VERSION=3.5.1
+ EXPAT_VERSION=2.2.1
+ # CLANG version number
+-CLANG_VERSION=4.0.0
++CLANG_VERSION=6.0.0
+ MAKE_VERSION=4.2.1
+-CMAKE_VERSION=3.9.0-rc3
++CMAKE_VERSION=3.11.3
+ 
+ # GCC toolchain archive locations
+ # These are sanitized by the jenkins toolchain test builder, so if
+@@ -69,7 +69,7 @@ CFE_ARCHIVE="https://releases.llvm.org/${CLANG_VERSION}/cfe-${CLANG_VERSION}.src
+ CRT_ARCHIVE="https://releases.llvm.org/${CLANG_VERSION}/compiler-rt-${CLANG_VERSION}.src.tar.xz"
+ CTE_ARCHIVE="https://releases.llvm.org/${CLANG_VERSION}/clang-tools-extra-${CLANG_VERSION}.src.tar.xz"
+ MAKE_ARCHIVE="https://ftpmirror.gnu.org/make/make-${MAKE_VERSION}.tar.bz2"
+-CMAKE_ARCHIVE="https://cmake.org/files/v3.9/cmake-${CMAKE_VERSION}.tar.gz"
++CMAKE_ARCHIVE="https://cmake.org/files/v3.11/cmake-${CMAKE_VERSION}.tar.gz"
+ 
+ ALL_ARCHIVES="$GMP_ARCHIVE $MPFR_ARCHIVE $MPC_ARCHIVE \
+ 	$GCC_ARCHIVE $BINUTILS_ARCHIVE $GDB_ARCHIVE $IASL_ARCHIVE \
+diff --git a/util/crossgcc/sum/cfe-4.0.0.src.tar.xz.cksum b/util/crossgcc/sum/cfe-4.0.0.src.tar.xz.cksum
+deleted file mode 100644
+index 00a5596878..0000000000
+--- a/util/crossgcc/sum/cfe-4.0.0.src.tar.xz.cksum
++++ /dev/null
+@@ -1 +0,0 @@
+-e2762800c93d9335781ea6a45af3f80845542ef5  tarballs/cfe-4.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/cfe-6.0.0.src.tar.xz.cksum b/util/crossgcc/sum/cfe-6.0.0.src.tar.xz.cksum
+new file mode 100644
+index 0000000000..523445035f
+--- /dev/null
++++ b/util/crossgcc/sum/cfe-6.0.0.src.tar.xz.cksum
+@@ -0,0 +1 @@
++4cc7bef72fda70ac5e065ca0ae2d66957abe6f2a  tarballs/cfe-6.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/clang-tools-extra-4.0.0.src.tar.xz.cksum b/util/crossgcc/sum/clang-tools-extra-4.0.0.src.tar.xz.cksum
+deleted file mode 100644
+index dbf642c461..0000000000
+--- a/util/crossgcc/sum/clang-tools-extra-4.0.0.src.tar.xz.cksum
++++ /dev/null
+@@ -1 +0,0 @@
+-bdb543c4bb87bd80fe65711114ca0a5c25329ae3  tarballs/clang-tools-extra-4.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/clang-tools-extra-6.0.0.src.tar.xz.cksum b/util/crossgcc/sum/clang-tools-extra-6.0.0.src.tar.xz.cksum
+new file mode 100644
+index 0000000000..9fcb8280d1
+--- /dev/null
++++ b/util/crossgcc/sum/clang-tools-extra-6.0.0.src.tar.xz.cksum
+@@ -0,0 +1 @@
++c960a0d565e46e4c4f6976fac389f753076ca72e  tarballs/clang-tools-extra-6.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/cmake-3.11.3.tar.gz.cksum b/util/crossgcc/sum/cmake-3.11.3.tar.gz.cksum
+new file mode 100644
+index 0000000000..14a4b22c8d
+--- /dev/null
++++ b/util/crossgcc/sum/cmake-3.11.3.tar.gz.cksum
+@@ -0,0 +1 @@
++73261a5b7f71abf7277c1d2a418ca3c4cf170c89  tarballs/cmake-3.11.3.tar.gz
+diff --git a/util/crossgcc/sum/cmake-3.9.0-rc3.tar.gz.cksum b/util/crossgcc/sum/cmake-3.9.0-rc3.tar.gz.cksum
+deleted file mode 100644
+index 809ce3c7ca..0000000000
+--- a/util/crossgcc/sum/cmake-3.9.0-rc3.tar.gz.cksum
++++ /dev/null
+@@ -1 +0,0 @@
+-d568e74e2e4a1cdeae1820cc2cb36fd2d6afc8fe  tarballs/cmake-3.9.0-rc3.tar.gz
+diff --git a/util/crossgcc/sum/compiler-rt-4.0.0.src.tar.xz.cksum b/util/crossgcc/sum/compiler-rt-4.0.0.src.tar.xz.cksum
+deleted file mode 100644
+index 95da5148ed..0000000000
+--- a/util/crossgcc/sum/compiler-rt-4.0.0.src.tar.xz.cksum
++++ /dev/null
+@@ -1 +0,0 @@
+-a879b610e427ef3bba482bdc031ae371cabab81e  tarballs/compiler-rt-4.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/compiler-rt-6.0.0.src.tar.xz.cksum b/util/crossgcc/sum/compiler-rt-6.0.0.src.tar.xz.cksum
+new file mode 100644
+index 0000000000..88186dbf38
+--- /dev/null
++++ b/util/crossgcc/sum/compiler-rt-6.0.0.src.tar.xz.cksum
+@@ -0,0 +1 @@
++5725f19be611034e77196461cdb4989f4258cfa4  tarballs/compiler-rt-6.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/llvm-4.0.0.src.tar.xz.cksum b/util/crossgcc/sum/llvm-4.0.0.src.tar.xz.cksum
+deleted file mode 100644
+index 410f95fb1a..0000000000
+--- a/util/crossgcc/sum/llvm-4.0.0.src.tar.xz.cksum
++++ /dev/null
+@@ -1 +0,0 @@
+-aee4524e2407f9fe5afc6f70c753180b907011d0  tarballs/llvm-4.0.0.src.tar.xz
+diff --git a/util/crossgcc/sum/llvm-6.0.0.src.tar.xz.cksum b/util/crossgcc/sum/llvm-6.0.0.src.tar.xz.cksum
+new file mode 100644
+index 0000000000..ac079eccf5
+--- /dev/null
++++ b/util/crossgcc/sum/llvm-6.0.0.src.tar.xz.cksum
+@@ -0,0 +1 @@
++f61e0a35feb76644ba160a413ee209dd24c88f47  tarballs/llvm-6.0.0.src.tar.xz
+-- 
+2.17.1
+
