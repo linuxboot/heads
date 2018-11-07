@@ -89,10 +89,25 @@ update_checksums()
     echo "Returning to the main menu"
   fi
 }
+update_totp()
+{
+  echo "Scan the QR code to add the new TOTP secret"
+  /bin/seal-totp
+  if [ -x /bin/libremkey_hotp_verification ]; then
+    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key"
+    read
+    /bin/seal-libremkey
+  else
+    echo "Once you have scanned the QR code, hit Enter to reboot"
+    read
+  fi
+  /bin/reboot
+}
 
 last_half=X
 while true; do
   MAIN_MENU_OPTIONS=""
+  MAIN_MENU_BG_COLOR=""
   unset totp_confirm
   # update the TOTP code every thirty seconds
   date=`date "+%Y-%m-%d %H:%M:%S"`
@@ -106,7 +121,7 @@ while true; do
     if [ $? -ne 0 ]; then
       whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
         --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf you just reflashed your BIOS, you'll need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nIf this is the first time the system has booted, you should reset the TPM\nand set your own password\n\nHow would you like to proceed?" 30 90 4 \
-        'g' ' Generate new TOTP secret' \
+        'g' ' Generate new TOTP/HOTP secret' \
         'i' ' Ignore error and continue to default boot menu' \
         'p' ' Reset the TPM' \
         'x' ' Exit to recovery shell' \
@@ -117,11 +132,32 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then 
-    whiptail --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
-      --menu "$date\nTOTP code: $TOTP" 20 90 10 \
+    if [ -x /bin/libremkey_hotp_verification ]; then
+      HOTP=`unseal-hotp`
+      enable_usb
+      # Don't output HOTP codes to screen, so as to make replay attacks harder
+      libremkey_hotp_verification check $HOTP
+      case "$?" in
+        0 )
+          HOTP="Success"
+        ;;
+        4 )
+          HOTP="Invalid code"
+          MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
+        ;;
+        * )
+          HOTP="Error checking code, Insert Librem Key and retry"
+          MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
+        ;;
+      esac
+    else
+      HOTP='N/A'
+    fi
+
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
+      --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
-      'r' ' TOTP does not match, refresh code' \
-      'n' ' TOTP does not match after refresh, troubleshoot' \
+      'r' ' TOTP/HOTP does not match, refresh code' \
       'o' ' Other Boot Options -->' \
       'a' ' Advanced Settings -->' \
       'x' ' Exit to recovery shell' \
@@ -145,10 +181,11 @@ while true; do
   if [ "$totp_confirm" = "a" ]; then
     whiptail --clear --title "Advanced Settings" \
       --menu "Configure Advanced Settings" 20 90 10 \
-      'g' ' Generate new TOTP secret' \
-      'p' ' Reset the TPM' \
+      'g' ' Generate new TOTP/HOTP secret' \
       's' ' Update checksums and sign all files in /boot' \
       'f' ' Flash/Update the BIOS -->' \
+      'p' ' Reset the TPM' \
+      'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -164,14 +201,14 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "n" ]; then
-    if (whiptail $CONFIG_WARNING_BG_COLOR --title "TOTP code mismatched" \
-      --yesno "TOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 30 90) then
+    if (whiptail $CONFIG_WARNING_BG_COLOR --title "TOTP/HOTP code mismatched" \
+      --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 30 90) then
       echo ""
       echo "To correct clock drift: 'date -s HH:MM:SS'"
       echo "and save it to the RTC: 'hwclock -w'"
       echo "then reboot and try again"
       echo ""
-      recovery "TOTP mismatch"
+      recovery "TOTP/HOTP mismatch"
     else
       continue
     fi
@@ -183,13 +220,9 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "g" ]; then
-    if (whiptail --title 'Generate new TOTP secret' \
+    if (whiptail --title 'Generate new TOTP/HOTP secret' \
         --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
-      echo "Scan the QR code to add the new TOTP secret"
-      /bin/seal-totp
-      echo "Once you have scanned the QR code, hit Enter to reboot"
-      read
-      /bin/reboot
+      update_totp
     else
       echo "Returning to the main menu"
     fi
@@ -198,20 +231,27 @@ while true; do
 
   if [ "$totp_confirm" = "p" ]; then
     if (whiptail --title 'Reset the TPM' \
-        --yesno "This will clear the TPM, erase the old TPM password and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
+        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
       /bin/tpm-reset
 
-      # now that the TPM is reset, remove invalid kexec_rollback.txt file
+      # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
       mount -o rw,remount /boot
-      rm -f /boot/kexec_rollback.txt 
+      rm -f /boot/kexec_rollback.txt
+
+      # create Heads TPM counter before any others
+      check_tpm_counter /boot/kexec_rollback.txt \
+      || die "Unable to find/create tpm counter"
+      counter="$TPM_COUNTER"
+
+      increment_tpm_counter $counter \
+      || die "Unable to increment tpm counter"
+
+      sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
+      || die "Unable to create rollback file"
       mount -o ro,remount /boot
 
-      echo "Scan the QR code to add the new TOTP secret"
-      /bin/seal-totp
-      echo "Once you have scanned the QR code, hit Enter to reboot"
-      read
-      /bin/reboot
+      update_totp
     else
       echo "Returning to the main menu"
     fi
