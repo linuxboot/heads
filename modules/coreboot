@@ -2,12 +2,12 @@ modules-$(CONFIG_COREBOOT) += coreboot
 
 #coreboot_version := git
 #coreboot_repo := https://github.com/osresearch/coreboot
-coreboot_version := 4.7
+coreboot_version := 4.8.1
 coreboot_base_dir := coreboot-$(coreboot_version)
 coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
-coreboot_hash := d68a83f8f687e8ea212b8c5bb501e24444b57c3f73896042d09628188c851368
+coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
 
 # Coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -19,18 +19,20 @@ $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 coreboot_configure := \
-	$(MAKE) -C $(build)/$(coreboot_base_dir) \
-		oldconfig \
-		obj=$(build)/$(coreboot_dir) \
-		DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
+	mkdir -p "$(build)/$(coreboot_dir)" \
+	&& cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" \
+	&& $(MAKE) olddefconfig \
+		-C "$(build)/$(coreboot_base_dir)" \
+		obj="$(build)/$(coreboot_dir)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		BUILD_TIMELESS=1 \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 coreboot_target := \
-	-C $(build)/$(coreboot_base_dir) \
-	obj=$(build)/$(coreboot_dir) \
-	DOTCONFIG=../../$(CONFIG_COREBOOT_CONFIG) \
+	-C "$(build)/$(coreboot_base_dir)" \
+	obj="$(build)/$(coreboot_dir)" \
+	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
@@ -64,8 +66,17 @@ $(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/.build
 coreboot.menuconfig:
 	$(MAKE) \
 		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="../../$(CONFIG_COREBOOT_CONFIG)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		menuconfig
+
+# The config file in the repo is stored as a "defconfig" format
+# which only includes the options that have changed from the defaults.
+coreboot.saveconfig:
+	$(MAKE) \
+		-C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		DEFCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		savedefconfig
 
 
 # if we are not building from a git checkout,
@@ -79,7 +90,7 @@ coreboot-blobs_version := $(coreboot_version)
 coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
 coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
 coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
-coreboot-blobs_hash := 443379a2207e350747cbbfe7968ceafddc7dd8563b067476f755ff11791bb5f5
+coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
 
 ## there is nothing to build for the blobs, this should be
 ## made easier to make happen
