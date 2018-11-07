@@ -26,7 +26,7 @@ get_menu_option() {
 			n=`expr $n + 1`
 			option=$(echo $option | tr " " "_")
 			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-		done < $TMP_MENU_FILE
+		done < /tmp/iso_menu.txt
 
 		whiptail --clear --title "Select your ISO boot option" \
 			--menu "Choose the ISO boot option [1-$n, s for standard boot, a to abort]:" 20 120 8 \
