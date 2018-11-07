@@ -1,8 +1,8 @@
 diff --git ./src/Kconfig ./src/Kconfig
-index 6896d0e..577bd52 100644
+index 99a704d..004b4a7 100644
 --- ./src/Kconfig
 +++ ./src/Kconfig
-@@ -253,6 +253,21 @@ config BOOTSPLASH_FILE
+@@ -260,6 +260,21 @@ config BOOTSPLASH_FILE
  	  The path and filename of the file to use as graphical bootsplash
  	  screen. The file format has to be jpg.
  
@@ -25,7 +25,7 @@ index 6896d0e..577bd52 100644
  
  menu "Mainboard"
 diff --git ./src/drivers/pc80/tpm/romstage.c ./src/drivers/pc80/tpm/romstage.c
-index 5531458..95e65f2 100644
+index b8e4705..7732e66 100644
 --- ./src/drivers/pc80/tpm/romstage.c
 +++ ./src/drivers/pc80/tpm/romstage.c
 @@ -48,6 +48,12 @@ static const struct {
@@ -60,10 +60,10 @@ index 5531458..95e65f2 100644
  	}
  
  	tis_close();
-diff --git ./src/drivers/pc80/tpm/tpm.c ./src/drivers/pc80/tpm/tpm.c
-index 574d3af..9bdc73f 100644
---- ./src/drivers/pc80/tpm/tpm.c
-+++ ./src/drivers/pc80/tpm/tpm.c
+diff --git ./src/drivers/pc80/tpm/tis.c ./src/drivers/pc80/tpm/tis.c
+index 3549173..11fc027 100644
+--- ./src/drivers/pc80/tpm/tis.c
++++ ./src/drivers/pc80/tpm/tis.c
 @@ -125,10 +125,11 @@ static const struct device_name atmel_devices[] = {
  
  static const struct device_name infineon_devices[] = {
@@ -78,7 +78,7 @@ index 574d3af..9bdc73f 100644
  #endif
  	{0xffff}
 diff --git ./src/include/program_loading.h ./src/include/program_loading.h
-index 416e2e9..40486cd 100644
+index 7aba302..879c26e 100644
 --- ./src/include/program_loading.h
 +++ ./src/include/program_loading.h
 @@ -24,6 +24,8 @@ enum {
@@ -89,84 +89,12 @@ index 416e2e9..40486cd 100644
 +	SEG_NO_MEASURE = 1 << 1,
  };
  
- enum prog_type {
-diff --git ./src/include/sha1.h ./src/include/sha1.h
-new file mode 100644
-index 0000000..e7e28e6
---- /dev/null
-+++ ./src/include/sha1.h
-@@ -0,0 +1,31 @@
-+/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
-+ * Use of this source code is governed by a BSD-style license that can be
-+ * found in the LICENSE file.
-+ */
-+
-+/* SHA-1 functions */
-+
-+#ifndef _sha1_h_
-+#define _sha1_h_
-+
-+#include <stdint.h>
-+#include <commonlib/helpers.h>
-+
-+#define SHA1_DIGEST_SIZE 20
-+#define SHA1_BLOCK_SIZE 64
-+
-+/* SHA-1 context */
-+struct sha1_ctx {
-+	uint32_t count;
-+	uint32_t state[5];
-+	union {
-+		uint8_t b[SHA1_BLOCK_SIZE];
-+		uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
-+	} buf;
-+};
-+
-+void sha1_init(struct sha1_ctx *ctx);
-+void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len);
-+uint8_t *sha1_final(struct sha1_ctx *ctx);
-+
-+#endif  /* _sha1_h_ */
-diff --git ./src/include/tpm_lite/tlcl.h ./src/include/tpm_lite/tlcl.h
-index 8dd5d80..15fbebf 100644
---- ./src/include/tpm_lite/tlcl.h
-+++ ./src/include/tpm_lite/tlcl.h
-@@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
- 		     uint8_t *out_digest);
- 
- /**
-+ * Perform a SHA1 hash on a region and extend a PCR with the hash.
-+ */
-+uint32_t tlcl_measure(int pcr_num, const void * start, size_t len);
-+
-+/**
-  * Get the entire set of permanent flags.
-  */
- uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
-diff --git ./src/lib/Makefile.inc ./src/lib/Makefile.inc
-index 25537d2..5248483 100644
---- ./src/lib/Makefile.inc
-+++ ./src/lib/Makefile.inc
-@@ -57,8 +57,13 @@ verstage-$(CONFIG_TPM) += tlcl.c
- verstage-$(CONFIG_TPM2) += tpm2_marshaling.c
- verstage-$(CONFIG_TPM2) += tpm2_tlcl.c
- 
--ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
-+# Add the TPM support into the ROM stage for measuring the bootblock
- romstage-$(CONFIG_TPM) += tlcl.c
-+romstage-$(CONFIG_TPM) += sha1.c
-+ramstage-$(CONFIG_TPM) += tlcl.c
-+ramstage-$(CONFIG_TPM) += sha1.c
-+
-+ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
- romstage-$(CONFIG_TPM2) += tpm2_marshaling.c
- romstage-$(CONFIG_TPM2) += tpm2_tlcl.c
- endif # CONFIG_VBOOT_SEPARATE_VERSTAGE
+ // The prog_type is a bit mask, so that in searches one can find, e.g.,
 diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
-index 596abc5..f1928ce 100644
+index 87ab387..708d321 100644
 --- ./src/lib/cbfs.c
 +++ ./src/lib/cbfs.c
-@@ -69,7 +69,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+@@ -70,7 +70,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
  	if (size != NULL)
  		*size = fsize;
  
@@ -181,7 +109,7 @@ index 596abc5..f1928ce 100644
  }
  
  int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
-@@ -97,7 +101,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -98,7 +104,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  			return 0;
  		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
  			return 0;
@@ -191,7 +119,7 @@ index 596abc5..f1928ce 100644
  
  	case CBFS_COMPRESS_LZ4:
  		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
-@@ -115,7 +120,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -116,7 +123,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  		timestamp_add_now(TS_START_ULZ4F);
  		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
  		timestamp_add_now(TS_END_ULZ4F);
@@ -200,7 +128,7 @@ index 596abc5..f1928ce 100644
  
  	case CBFS_COMPRESS_LZMA:
  		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
-@@ -134,11 +139,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+@@ -135,11 +142,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
  
  		rdev_munmap(rdev, map);
  
@@ -218,18 +146,18 @@ index 596abc5..f1928ce 100644
  
  static inline int tohex4(unsigned int c)
 diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
-index 0deab4b..eee5415 100644
+index 6fd55d7..b5b7d91 100644
 --- ./src/lib/hardwaremain.c
 +++ ./src/lib/hardwaremain.c
-@@ -32,6 +32,7 @@
+@@ -33,6 +33,7 @@
  #include <reset.h>
  #include <boot/tables.h>
  #include <program_loading.h>
-+#include <tpm_lite/tlcl.h>
++#include <security/tpm/tss.h>
  #include <lib.h>
  #if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)
  #include <arch/acpi.h>
-@@ -544,3 +545,13 @@ void boot_state_current_unblock(void)
+@@ -545,3 +546,13 @@ void boot_state_current_unblock(void)
  {
  	boot_state_unblock(current_phase.state_id, current_phase.seq);
  }
@@ -256,11 +184,31 @@ index 66d5120..b50afe7 100644
  
  	return 0;
  }
-diff --git ./src/lib/sha1.c ./src/lib/sha1.c
+diff --git ./src/security/tpm/Makefile.inc ./src/security/tpm/Makefile.inc
+index 2385635..0743a84 100644
+--- ./src/security/tpm/Makefile.inc
++++ ./src/security/tpm/Makefile.inc
+@@ -4,6 +4,15 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
+ 
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++ifneq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
++romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++endif
++romstage-$(CONFIG_TPM) += sha1.c
++ramstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++ramstage-$(CONFIG_TPM) += sha1.c
++endif # CONFIG_MEASURED_BOOT
++
+ ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ romstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
+diff --git ./src/security/tpm/sha1.c ./src/security/tpm/sha1.c
 new file mode 100644
-index 0000000..506907f
+index 0000000..6b154f8
 --- /dev/null
-+++ ./src/lib/sha1.c
++++ ./src/security/tpm/sha1.c
 @@ -0,0 +1,175 @@
 +/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
 + * Use of this source code is governed by a BSD-style license that can be
@@ -270,7 +218,7 @@ index 0000000..506907f
 + * Open Source Project (platorm/system/core.git/libmincrypt/sha.c
 + */
 +
-+#include "sha1.h"
++#include <security/tpm/sha1.h>
 +#include <string.h>
 +
 +static uint32_t ror27(uint32_t val)
@@ -437,19 +385,72 @@ index 0000000..506907f
 +	ctx->state[4] = 0xC3D2E1F0;
 +	ctx->count = 0;
 +}
-diff --git ./src/lib/tlcl.c ./src/lib/tlcl.c
-index 49854cb..32eb128 100644
---- ./src/lib/tlcl.c
-+++ ./src/lib/tlcl.c
-@@ -19,6 +19,7 @@
+diff --git ./src/security/tpm/sha1.h ./src/security/tpm/sha1.h
+new file mode 100644
+index 0000000..e7e28e6
+--- /dev/null
++++ ./src/security/tpm/sha1.h
+@@ -0,0 +1,31 @@
++/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++/* SHA-1 functions */
++
++#ifndef _sha1_h_
++#define _sha1_h_
++
++#include <stdint.h>
++#include <commonlib/helpers.h>
++
++#define SHA1_DIGEST_SIZE 20
++#define SHA1_BLOCK_SIZE 64
++
++/* SHA-1 context */
++struct sha1_ctx {
++	uint32_t count;
++	uint32_t state[5];
++	union {
++		uint8_t b[SHA1_BLOCK_SIZE];
++		uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++	} buf;
++};
++
++void sha1_init(struct sha1_ctx *ctx);
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len);
++uint8_t *sha1_final(struct sha1_ctx *ctx);
++
++#endif  /* _sha1_h_ */
+diff --git ./src/security/tpm/tss.h ./src/security/tpm/tss.h
+index 8f3f1cb..5c569cb 100644
+--- ./src/security/tpm/tss.h
++++ ./src/security/tpm/tss.h
+@@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ 		     uint8_t *out_digest);
+ 
+ /**
++ * Perform a SHA1 hash on a region and extend a PCR with the hash.
++ */
++uint32_t tlcl_measure(int pcr_num, const void * start, size_t len);
++
++/**
+  * Get the entire set of permanent flags.
+  */
+ uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
+diff --git ./src/security/tpm/tss/tcg-1.2/tss.c ./src/security/tpm/tss/tcg-1.2/tss.c
+index 161d29f..95e55b9 100644
+--- ./src/security/tpm/tss/tcg-1.2/tss.c
++++ ./src/security/tpm/tss/tcg-1.2/tss.c
+@@ -17,6 +17,7 @@
+ #include <arch/early_variables.h>
+ #include <assert.h>
  #include <string.h>
- #include <tpm_lite/tlcl.h>
- #include <tpm.h>
-+#include <sha1.h>
++#include <security/tpm/sha1.h>
+ #include <security/tpm/tis.h>
  #include <vb2_api.h>
- #include "tlcl_internal.h"
- #include "tlcl_structures.h"
-@@ -351,3 +352,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ #include <security/tpm/tss.h>
+@@ -354,3 +355,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
  		       kPcrDigestLength);
  	return result;
  }
