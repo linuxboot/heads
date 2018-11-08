@@ -9,6 +9,8 @@ we need to have the following files in this folder:
 To get the binaries, run the get_blobs.sh script which will download and
 verify all of the files' hashes, then run me_cleaner on the descriptor.bin and me.bin.
 
+The script depends on: wget sha256sum python2.7 bspatch pv
+
 You can now compile the image with:
 
 ```
