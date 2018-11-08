@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# depends on : wget sha256sum python2.7 bspatch
+# depends on : wget sha256sum python2.7 bspatch pv
 
 # Librem 13 v2 and Librem 15 v3 binary blob hashes
 SKL_UCODE_SHA="9c84936df700d74612a99e6ab581640ecf423d25a0b74a1ea23a6d9872349213"
@@ -20,16 +20,20 @@ SKL_FSP_SPLIT_SHA="f654f6363de68ad78b1baf8b8e573b53715c3bc76f7f3c23562641e49a703
 ME_CLEANER_URL="https://github.com/corna/me_cleaner/raw/9e1611fdf21426d66a29a5ea62b7e30d512859e6/me_cleaner.py"
 ME_CLEANER_SHA="412e95538c46d6d4d456987a8897b3d0ad1df118c51378a350540eef51c242d4"
 
-SKL_DESCRIPTOR_URL="https://code.puri.sm/kakaroto/coreboot-files/raw/master/descriptor-skl.bin"
-SKL_ME_PATCH_URL="https://code.puri.sm/kakaroto/coreboot-files/raw/master/me11.0.18_config.bspatch"
+SKL_DESCRIPTOR_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/descriptor-skl.bin"
+SKL_ME_PATCH_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/me11.0.18_config.bspatch"
 SKL_ME_PATCH_SHA="49019f89206d6371b1377cf738426c3b0ac60c4b1bb89d5d5de00481e7e4fece"
 
 # Link found on : http://www.win-raid.com/t832f39-Intel-Engine-Firmware-Repositories.html
 # Update link if it changes and becomes invalid.
-SKL_ME_RAR_URL="http://www.mediafire.com/file/1angqt361xdf8k0/"
+SKL_ME_RAR_URL="https://mega.nz/#!DNdDVQ7I!hronBMVN8m82JciiT6UQwtwh-LVlHXIo-NzTB0324rk"
 SKL_ME_FILENAME="11.0.18.1002_CON_LP_C0_NPDM_PRD_RGN.bin"
-SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r50/$SKL_ME_FILENAME"
-SKL_ME_RAR_SHA="11a9c199065c513a93c19269ffbb4bb094f8642a97686082e8cd2974673c599d"
+SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r52/$SKL_ME_FILENAME"
+SKL_ME_RAR_SHA="28b7c31ae6888623d2271f0c74cb7bbca55a56af73b26f9796742467a841441a"
+
+# Needed to download SKL_ME_RAR_URL
+MEGADOWN_URL="https://github.com/tonikelope/megadown.git"
+MEGADOWN_GOOD_COMMIT="83c53ddad1c32bf6d35c61fcd12a2fa94271ff77"
 
 # Might be required to compile unrar in case unrar-nonfree is not installed
 RAR_NONFREE_SOURCE_URL="https://www.rarlab.com/rar/unrarsrc-5.5.8.tar.gz"
@@ -157,8 +161,16 @@ get_and_patch_me_11 () {
             unrar="`pwd`/unrar/unrar"
         fi
         if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
-            DIRECT_LINK=$(wget -O - "$SKL_ME_RAR_URL" 2>/dev/null | grep -o -e 'http://download.*.rar' | head -n 1)
-            wget -O "$rar_filename" "$DIRECT_LINK"
+            if [ ! -d megadown ]; then
+                git clone $MEGADOWN_URL
+            fi
+            (
+                cd megadown
+                git checkout $MEGADOWN_GOOD_COMMIT
+                echo -e "\n\nDownloading ME 11 Repository from $SKL_ME_RAR_URL"
+                echo "Please be patient while the download finishes..."
+                ./megadown "$SKL_ME_RAR_URL" -o ../$rar_filename 2>/dev/null
+            )
             sha=$(sha256sum "$rar_filename" | awk '{print $1}')
             if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
                 # We'll assume the rar file was updated again
@@ -215,4 +227,3 @@ check_binary fspm.bin $SKL_FSPM_SHA
 check_binary fsps.bin $SKL_FSPS_SHA
 check_and_get_url vbt.bin $SKL_VBT_URL $SKL_VBT_SHA "Video BIOS Table"
 check_and_get_url cpu_microcode_blob.bin $SKL_UCODE_URL $SKL_UCODE_SHA "Intel Microcode Update"
-
