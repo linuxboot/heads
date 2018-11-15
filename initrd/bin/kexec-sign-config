@@ -49,7 +49,7 @@ if [ -z "$param_files" ]; then
 fi
 
 for tries in 1 2 3; do
-	if sha256sum $param_files | gpg \
+	if sha256sum $param_files | gpg --no-tty\
 		--digest-algo SHA256 \
 		--detach-sign \
 		-a \
