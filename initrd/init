@@ -5,6 +5,9 @@ echo "hello world" > /dev/ttyprintk
 # Setup our path
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 
+#export GPG_TTY STATICALLY (NEED TO FIX)
+export GPG_TTY=/dev/console
+
 # This is the very first script invoked by the Linux kernel and is
 # running out of the ram disk.  There are no fileysstems mounted.
 # It is important to have a way to invoke a recovery shell in case
