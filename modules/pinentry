@@ -36,6 +36,6 @@ pinentry_target := $(MAKE_JOBS) \
 		install \
 	&& cp $(build)/$(pinentry_dir)/tty/pinentry-tty $(build)/$(pinentry_dir)/tty/pinentry
 
-pinentry_output := tty/pinentry
+pinentry_output := tty/pinentry-tty
 
 pinentry_depends := libgpg-error libassuan $(musl_dep)
