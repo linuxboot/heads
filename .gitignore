@@ -15,7 +15,6 @@ config/*.old
 *.log
 *~
 crossgcc
-install
 clean
 *.map
 *.sec

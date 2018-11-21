@@ -545,7 +545,7 @@ real.clean:
 			rm -rf "build/$$dir"; \
 		fi; \
 	done
-	rm -rf ./install
+	cd install && rm -rf -- *
 
 
 else
