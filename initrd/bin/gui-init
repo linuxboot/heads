@@ -119,14 +119,24 @@ while true; do
     last_half=$half;
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
-      whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
-        --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf you just reflashed your BIOS, you'll need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nIf this is the first time the system has booted, you should reset the TPM\nand set your own password\n\nHow would you like to proceed?" 30 90 4 \
-        'g' ' Generate new TOTP/HOTP secret' \
-        'i' ' Ignore error and continue to default boot menu' \
-        'p' ' Reset the TPM' \
-        'x' ' Exit to recovery shell' \
-        2>/tmp/whiptail || recovery "GUI menu failed"
-
+      # detect whether any GPG keys exist in the keyring, if not, initialize that first
+      GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+      if [ $GPG_KEY_COUNT -eq 0 ]; then
+        whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: GPG keyring empty!" \
+          --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted, you should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one public key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
+          'f' ' Add a GPG key to the running BIOS' \
+          'i' ' Ignore error and continue to default boot menu' \
+          'x' ' Exit to recovery shell' \
+          2>/tmp/whiptail || recovery "GUI menu failed"
+      else
+        whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
+          --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf this is the first time the system has booted, you should reset the TPM\nand set your own password\n\nIf you just reflashed your BIOS, you'll need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
+          'g' ' Generate new TOTP/HOTP secret' \
+          'i' ' Ignore error and continue to default boot menu' \
+          'p' ' Reset the TPM' \
+          'x' ' Exit to recovery shell' \
+          2>/tmp/whiptail || recovery "GUI menu failed"
+      fi
       totp_confirm=$(cat /tmp/whiptail)
     fi
   fi
@@ -157,10 +167,24 @@ while true; do
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
-      'r' ' TOTP/HOTP does not match, refresh code' \
-      'o' ' Other Boot Options -->' \
       'a' ' Advanced Settings -->' \
       'x' ' Exit to recovery shell' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    totp_confirm=$(cat /tmp/whiptail)
+  fi
+
+  if [ "$totp_confirm" = "a" ]; then
+    whiptail --clear --title "Advanced Settings" \
+      --menu "Configure Advanced Settings" 20 90 10 \
+      'o' ' Other Boot Options -->' \
+      'r' ' TOTP/HOTP does not match, refresh code' \
+      'g' ' Generate new TOTP/HOTP secret' \
+      's' ' Update checksums and sign all files in /boot' \
+      'f' ' Flash/Update the BIOS -->' \
+      'p' ' Reset the TPM' \
+      'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
+      'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
     totp_confirm=$(cat /tmp/whiptail)
@@ -172,20 +196,6 @@ while true; do
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
       'i' ' Ignore tampering and force a boot (Unsafe!)' \
-      'r' ' <-- Return to main menu' \
-      2>/tmp/whiptail || recovery "GUI menu failed"
-
-    totp_confirm=$(cat /tmp/whiptail)
-  fi
-
-  if [ "$totp_confirm" = "a" ]; then
-    whiptail --clear --title "Advanced Settings" \
-      --menu "Configure Advanced Settings" 20 90 10 \
-      'g' ' Generate new TOTP/HOTP secret' \
-      's' ' Update checksums and sign all files in /boot' \
-      'f' ' Flash/Update the BIOS -->' \
-      'p' ' Reset the TPM' \
-      'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
