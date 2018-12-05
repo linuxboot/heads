@@ -149,6 +149,9 @@ while true; do
     if [ -x /bin/libremkey_hotp_verification ]; then
       HOTP=`unseal-hotp`
       enable_usb
+      if ! libremkey_hotp_verification info ; then
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
+        fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check $HOTP
       case "$?" in
