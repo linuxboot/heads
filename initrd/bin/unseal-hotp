@@ -16,19 +16,24 @@ mount_boot()
   fi
 }
 
-tpm nv_readvalue \
-	-in 4d47 \
-	-sz 312 \
-	-of "$HOTP_SEALED" \
-|| die "Unable to retrieve sealed file from TPM NV"
+if [ "$CONFIG_TPM" = "y" ]; then
+  tpm nv_readvalue \
+    -in 4d47 \
+    -sz 312 \
+    -of "$HOTP_SEALED" \
+  || die "Unable to retrieve sealed file from TPM NV"
 
-tpm unsealfile  \
-	-hk 40000000 \
-	-if "$HOTP_SEALED" \
-	-of "$HOTP_SECRET" \
-|| die "Unable to unseal HOTP secret"
+  tpm unsealfile  \
+    -hk 40000000 \
+    -if "$HOTP_SEALED" \
+    -of "$HOTP_SECRET" \
+  || die "Unable to unseal HOTP secret"
 
-rm -f "$HOTP_SEALED"
+  rm -f "$HOTP_SEALED"
+else
+# without a TPM, use the first 19 characters of the ROM SHA256sum 
+  flash.sh -s /tmp/coreboot.rom | cut -c 1-19 > $HOTP_SECRET
+fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots
