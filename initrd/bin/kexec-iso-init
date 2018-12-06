@@ -2,7 +2,7 @@
 # Boot from signed ISO
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 MOUNTED_ISO_PATH="$1"
 ISO_PATH="$2"

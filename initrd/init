@@ -40,7 +40,8 @@ hwclock -l -s
 
 # Read the system configuration parameters
 . /etc/functions
-. /etc/config
+combine_configs
+. /tmp/config
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
