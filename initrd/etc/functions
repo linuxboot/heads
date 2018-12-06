@@ -218,18 +218,19 @@ preserve_rom() {
 	done
 }
 replace_config() {
-  CONFIG_FILE=$1
-  CONFIG_OPTION=$2
-  NEW_SETTING=$3
+	CONFIG_FILE=$1
+	CONFIG_OPTION=$2
+	NEW_SETTING=$3
 
+	touch $CONFIG_FILE
 # first pull out the existing option from the global config and place in a tmp file
-  awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config > ${CONFIG_FILE}.tmp
-  awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >> ${CONFIG_FILE}.tmp
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config > ${CONFIG_FILE}.tmp
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >> ${CONFIG_FILE}.tmp
 
 # then copy any remaining settings from the existing config file, minus the option you changed
-  grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp
+	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp
 
-  mv ${CONFIG_FILE}.tmp ${CONFIG_FILE}
+	mv ${CONFIG_FILE}.tmp ${CONFIG_FILE}
 }
 combine_configs() {
 	sort /etc/config* | uniq > /tmp/config
