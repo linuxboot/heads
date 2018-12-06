@@ -6,6 +6,7 @@
 HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
+ROM_IMAGE="/tmp/coreboot-notpm.rom"
 
 mount_boot()
 {
@@ -33,7 +34,12 @@ if [ "$CONFIG_TPM" = "y" ]; then
 else
 # without a TPM, use the first 20 characters of the ROM SHA256sum 
   echo "TPM not configured, measuring ROM directly" 1>&2
-  flash.sh -s /tmp/coreboot.rom | cut -c 1-20 | tr -d '\n' > $HOTP_SECRET
+  # use a previously-copied image if it exists
+  if [ -f ${ROM_IMAGE} ]; then
+    sha256sum ${ROM_IMAGE} | cut -f1 -d ' ' | cut -c 1-20 | tr -d '\n' > $HOTP_SECRET
+  else
+    flash.sh -s ${ROM_IMAGE} | cut -c 1-20 | tr -d '\n' > $HOTP_SECRET
+  fi
 fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
