@@ -85,7 +85,15 @@ while true; do
     "u" )
       whiptail --title 'Insert a USB thumb drive' \
         --msgbox "Insert a USB thumb drive so we can detect the device" 16 60
-      mount-usb
+
+      enable_usb
+
+      if ! lsmod | grep -q usb_storage; then
+        insmod /lib/modules/usb-storage.ko \
+        || die "usb_storage: module load failed"
+        sleep 5
+      fi
+
       CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /tmp/config | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default USB boot device.\n\nCurrently set to $CURRENT_OPTION."
