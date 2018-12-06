@@ -93,7 +93,7 @@ while true; do
     "u" )
       whiptail --title 'Insert a USB thumb drive' \
         --msgbox "Insert a USB thumb drive so we can detect the device" 16 60
-      enable_usb
+      mount-usb
       CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /etc/config | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default USB boot device.\n\nCurrently set to $CURRENT_OPTION."
