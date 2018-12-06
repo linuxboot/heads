@@ -37,7 +37,7 @@ flash_rom() {
       die "$ROM: Read inconsistent"
     fi
   elif [ "$SHA" -eq 1 ]; then
-    flashrom $FLASHROM_OPTIONS -r "${ROM}" 2>/dev/null \
+    flashrom $FLASHROM_OPTIONS -r "${ROM}" 1&>2 >/dev/null \
     || die "$ROM: Read failed"
     sha256sum ${ROM} | cut -f1 -d ' '
   else
@@ -69,6 +69,7 @@ elif [ "$1" == "-s" ]; then
   READ=0
   SHA=1
   ROM="$2"
+  touch $ROM
 else
   CLEAN=0
   READ=0

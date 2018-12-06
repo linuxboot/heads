@@ -31,8 +31,9 @@ if [ "$CONFIG_TPM" = "y" ]; then
 
   rm -f "$HOTP_SEALED"
 else
-# without a TPM, use the first 19 characters of the ROM SHA256sum 
-  flash.sh -s /tmp/coreboot.rom | cut -c 1-19 > $HOTP_SECRET
+# without a TPM, use the first 20 characters of the ROM SHA256sum 
+  echo "TPM not configured, measuring ROM directly"
+  flash.sh -s /tmp/coreboot.rom | cut -c 1-20 | tr -d '\n' > $HOTP_SECRET
 fi
 
 secret="`cat $HOTP_SECRET`"
