@@ -2,7 +2,7 @@
 #
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 file_selector() {
   FILE=""
@@ -49,15 +49,6 @@ file_selector() {
     exit 1
   fi
 }
-replace_config() {
-  CONFIG_OPTION=$1
-  NEW_SETTING=$2
-
-  awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /etc/config > /tmp/config
-  awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /etc/config >> /tmp/config
-  grep -v "^export ${CONFIG_OPTION}=" /etc/config | grep -v "^${CONFIG_OPTION}=" >> /tmp/config
-  mv /tmp/config /etc/config
-}
 
 while true; do
   unset menu_choice
@@ -76,7 +67,7 @@ while true; do
       exit 0
     ;;
     "b" )
-      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /etc/config | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION."
       if [ "$FILE" == "" ]; then
@@ -85,7 +76,8 @@ while true; do
         SELECTED_FILE=$FILE
       fi
 
-      replace_config "CONFIG_BOOT_DEV" "$SELECTED_FILE"
+      replace_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
+      combine_configs
 
       whiptail --title 'Config change successful' \
         --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 16 60
@@ -94,7 +86,7 @@ while true; do
       whiptail --title 'Insert a USB thumb drive' \
         --msgbox "Insert a USB thumb drive so we can detect the device" 16 60
       mount-usb
-      CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /etc/config | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /tmp/config | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default USB boot device.\n\nCurrently set to $CURRENT_OPTION."
       if [ "$FILE" == "" ]; then
@@ -103,7 +95,8 @@ while true; do
         SELECTED_FILE=$FILE
       fi
 
-      replace_config "CONFIG_USB_BOOT_DEV" "$SELECTED_FILE"
+      replace_config /etc/config.user "CONFIG_USB_BOOT_DEV" "$SELECTED_FILE"
+      combine_configs
 
       whiptail --title 'Config change successful' \
         --msgbox "The USB boot device was successfully changed to $SELECTED_FILE" 16 60
@@ -116,10 +109,10 @@ while true; do
         exit 1
       fi
 
-      if (cbfs -o /tmp/config-gui.rom -l | grep -q "heads/initrd/etc/config") then
-        cbfs -o /tmp/config-gui.rom -d "heads/initrd/etc/config"
+      if (cbfs -o /tmp/config-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
+        cbfs -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
       fi
-      cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config" -f /etc/config
+      cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 
       if (whiptail --title 'Update ROM?' \
           --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
