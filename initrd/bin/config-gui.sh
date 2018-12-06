@@ -62,7 +62,7 @@ replace_config() {
 while true; do
   unset menu_choice
   whiptail --clear --title "Config Management Menu" \
-    --menu "This menu lets you change existing configuration options for the existing BIOS session.\n\nIf you want those changes to persist after reboot\n\nyou must also save them to the running BIOS." 20 90 10 \
+    --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
     'u' ' Change the USB boot device' \
     's' ' Save the current configuration to the running BIOS' \
