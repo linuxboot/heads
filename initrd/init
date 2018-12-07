@@ -49,18 +49,6 @@ if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
 fi
 
-combine_configs
-. /tmp/config
-
-# Add our boot devices into the /etc/fstab, if they are defined
-# in the configuration file.
-if [ ! -z "$CONFIG_BOOT_DEV" ]; then
-	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
-fi
-if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
-	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
-fi
-
 /bin/key-init
 
 # Setup recovery serial shell
@@ -89,6 +77,18 @@ if [ "$boot_option" = "r" ]; then
 	fi
 	exec /bin/ash
 	exit
+fi
+
+combine_configs
+. /tmp/config
+
+# Add our boot devices into the /etc/fstab, if they are defined
+# in the configuration file.
+if [ ! -z "$CONFIG_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+fi
+if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
