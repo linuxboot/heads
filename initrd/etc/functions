@@ -233,5 +233,5 @@ replace_config() {
 	mv ${CONFIG_FILE}.tmp ${CONFIG_FILE}
 }
 combine_configs() {
-	sort /etc/config* | uniq > /tmp/config
+	cat /etc/config* > /tmp/config
 }
