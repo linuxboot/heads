@@ -67,7 +67,7 @@ while true; do
       exit 0
     ;;
     "b" )
-      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION."
       if [ "$FILE" == "" ]; then
@@ -94,7 +94,7 @@ while true; do
         sleep 5
       fi
 
-      CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /tmp/config | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
       find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose the default USB boot device.\n\nCurrently set to $CURRENT_OPTION."
       if [ "$FILE" == "" ]; then
