@@ -40,6 +40,15 @@ hwclock -l -s
 
 # Read the system configuration parameters
 . /etc/functions
+. /etc/config
+
+if [ "$CONFIG_COREBOOT" = "y" ]; then
+	/bin/cbfs-init
+fi
+if [ "$CONFIG_LINUXBOOT" = "y" ]; then
+	/bin/uefi-init
+fi
+
 combine_configs
 . /tmp/config
 
@@ -52,12 +61,6 @@ if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
 fi
 
-if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
-fi
-if [ "$CONFIG_LINUXBOOT" = "y" ]; then
-	/bin/uefi-init
-fi
 /bin/key-init
 
 # Setup recovery serial shell
