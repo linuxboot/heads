@@ -113,7 +113,7 @@ while true; do
   GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: GPG keyring empty!" \
-      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted, you should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one public key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
+      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
       'f' ' Add a GPG key to the running BIOS' \
       'i' ' Ignore error and continue to default boot menu' \
       'x' ' Exit to recovery shell' \
