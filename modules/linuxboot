@@ -3,6 +3,7 @@ modules-$(CONFIG_LINUXBOOT) += linuxboot
 linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
 linuxboot_base_dir := linuxboot-$(linuxboot_version)
+linuxboot_rev := b5376a441e8e85cbf722e943bb8294958e87c784
 
 # linuxboot builds are specialized on a per-target basis.
 # They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)

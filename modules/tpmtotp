@@ -4,6 +4,7 @@ tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
 tpmtotp_version := git
 tpmtotp_repo := https://github.com/osresearch/tpmtotp
+tpmtotp_rev := 18b860fdcf5a55537c8395b891f2b2a5c24fc00a
 
 #tpmtotp_version := 0.3.0
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)

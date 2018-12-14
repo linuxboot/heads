@@ -5,6 +5,7 @@ libremkey-hotp-verification_depends := libusb $(musl_dep)
 libremkey-hotp-verification_version := git
 libremkey-hotp-verification_dir := libremkey-hotp-verification
 libremkey-hotp-verification_repo := --recursive https://github.com/Nitrokey/nitrokey-hotp-verification
+libremkey-hotp-verification_rev := 5b2bb429777b208b70fea86129b8c26355ef5569
 
 libremkey-hotp-verification_target := \
 	$(MAKE_JOBS) \

@@ -26,6 +26,7 @@ modules-y += musl-cross
 musl-cross_version := git
 musl-cross_dir := musl-cross-$(musl-cross_version)
 musl-cross_repo := https://github.com/GregorR/musl-cross
+musl-cross_rev := abf1dd54ac05f5b2d34d750027fa083b870e069e
 
 CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
 CROSS := $(build)/../$(CROSS_TOP)
