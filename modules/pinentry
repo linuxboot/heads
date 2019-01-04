@@ -22,6 +22,7 @@ pinentry_configure := ./configure \
 	--disable-fallback-curses \
 	--disable-pinentry-curses \
 	--disable-pinentry-qt5 \
+	--disable-pintentry-qt \
 	--disable-pinentry-fltk \
 	--disable-pinentry-emacs \
 	--disable-fallback-curses \
