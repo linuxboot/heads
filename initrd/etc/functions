@@ -217,3 +217,158 @@ preserve_rom() {
 		fi
 	done
 }
+
+gpg_card_factory_reset()
+{
+  confirm_gpg_card
+  {
+    echo admin
+    echo factory-reset
+    echo y
+    echo yes
+  } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit
+  
+  #Setting new passwords
+  gpgcard_user_pass1=1
+  gpgcard_user_pass2=2
+  gpgcard_admin_pass1=3
+  gpgcard_admin_pass2=4
+
+  while [[ "$gpgcard_user_pass1" != "$gpgcard_user_pass2" ]] || [[ ${#gpgcard_user_pass1} -lt 6 || ${#gpgcard_user_pass1} -gt 20 ]];do
+  {
+    echo "Choose a GPG card password that will be typed when using GPG smartcard. It needs to be a least 6 but not more then 20 characters:"
+    read -s gpgcard_user_pass1
+    echo "Retype user passphrase:"
+    read -s gpgcard_user_pass2
+    if [[ "$gpgcard_user_pass1" != "$gpgcard_user_pass2" ]]; then echo "Passwords typed were different."; fi
+  };done
+  gpgcard_user_pass=$gpgcard_user_pass1
+
+  while [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [[ ${#gpgcard_admin_pass1} -lt 8 || ${#gpgcard_admin_pass1} -gt 20 ]]; do
+  {
+    echo "Choose a GPG card password that will be typed when managing GPG smartcard. It needs to be a least 8 but not more then 20 characters:"
+    read -s gpgcard_admin_pass1
+    echo "Retype admin password:"
+    read -s gpgcard_admin_pass2
+    if [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]]; then echo "Passwords typed were different."; fi
+  };done
+  gpgcard_admin_pass=$gpgcard_admin_pass1
+  
+  {
+    echo admin
+    echo passwd
+    echo 1
+    echo 123456 #Default user password after factory reset of card
+    echo "$gpgcard_user_pass"
+    echo "$gpgcard_user_pass"
+    echo 3
+    echo 12345678 #Default administrator password after factory reset of card
+    echo "$gpgcard_admin_pass"
+    echo "$gpgcard_admin_pass"
+    echo Q
+  } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit
+  
+  #Set GPG card key attributes key sizes to 4096bits
+  {
+    echo admin
+    echo key-attr
+    echo 1 # RSA
+    echo 4096 #Signing key size set to maximum supported by SmartCard
+    echo "$gpgcard_admin_pass"
+    echo 1 # RSA
+    echo 4096 #Encryption key size set to maximum supported by SmartCard
+    echo "$gpgcard_admin_pass"
+    echo 1 # RSA
+    echo 4096 #Authentication key size set to maximum supported by SmartCard
+    echo "$gpgcard_admin_pass"
+  } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit
+  
+  #Generate Encryption, Signing and Authentication keys
+  echo -e "\n\n"
+  echo -e "We will generate a GnuPG (GPG) keypair identifiable with the following text form:"
+  echo -e "Real Name (Comment) email@address.org" "\n" "\n"
+  echo -e "Enter your Real Name:"
+  read gpgcard_real_name
+  echo "Enter your email@adress.org:"
+  read gpgcard_email_address
+  echo "Enter Comment:"
+  read gpgcard_comment
+
+  echo "BE PATIENT! Generating 4096 bits Encryption, Signing and Authentication keys take around 5 minutes each! BE PATIENT!"
+
+  {
+    echo admin
+    echo generate
+    echo n
+    echo "$gpgcard_admin_pass"
+    echo "$gpgcard_user_pass"
+    echo 1y
+    echo "$gpgcard_real_name"
+    echo "$gpgcard_email_address"
+    echo "$gpgcard_comment"
+  } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
+  
+  #Export and inject public key and trustdb export into extracted rom with current user keys being wiped
+  rom=/tmp/coreboot.rom
+  
+  #remove invalid kexec_* signed files
+  mount -o remount,rw /boot && rm /boot/kexec* && mount -o remount,ro /boot
+
+  confirm_gpg_card
+  mount-usb
+  
+  #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup: 
+  mount -o remount,rw /media 
+  mkdir -p /media/gpg_keys 
+  gpg --export --armor $gpgcard_email_address  > /media/gpg_keys/public.key
+  gpg --export-ownertrust > /media/gpg_keys/otrust.txt
+  cp -r ./.gnupg/* /media/gpg_keys/ 2> /dev/null
+
+  #Read rom
+  flash.sh -r $rom
+
+  #delete private/public gpg keys and otrust
+  cbfs -o $rom --list|grep -e pubring -e trustdb -e otrust|while read file; do cbfs -o $rom -d $file;done
+
+  #Insert public key and trustdb exports into reproducible rom:
+  cbfs -o $rom -a "heads/initrd/.gnupg/keys/public.key" -f /media/gpg_keys/public.key
+  cbfs -o $rom -a "heads/initrd/.gnupg/keys/otrust.txt" -f /media/gpg_keys/otrust.txt
+
+  #Flush changes to external media: 
+  mount -o remount,ro /media
+
+  #flash back rom with public key and trustdb into SPI flash
+  flash.sh -c $rom
+  
+  echo "Hit enter to reboot"
+  read
+  /bin/reboot
+}
+
+cryptsetup_reencrypt()
+{
+  if [ -s /boot/kexec_key_devices.txt ]; then
+    luks_container=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
+
+    cryptsetup luksDump $luks_container|grep "Key Slot 1: ENABLED"
+    if [[ $? -eq 0 ]]; then
+      echo "We first need to delete the secondary LUKS decryption passphrase enforced when a default boot option was set."
+      echo "To reenforce it, select a new default boot option and answer yes to seal it with TPM measurements. This is advised." 
+      echo "You'll be asked to type the current Recovery LUKS encryption passphrase (slot 0) to delete the secondary passphrase. (slot 1)" 
+      echo "A new LUKS Recovery encryption passphrase of your choice will be asked in the next step."
+      echo -e "\n"
+      cryptsetup luksKillSlot $luks_container 1
+    fi
+
+    echo "We will now reencrypt the LUKS container with your own chosen LUKS recovery decryption passphrase."
+    echo "You will be asked to enter the actual recovery LUKS passphrase before choosing your own."
+    echo "CHOOSE IT CAREFULLY AND DO NOT FORGET IT. Good example: white elephant of Antartica"
+    echo "Reencrypting a fresh installation of QubesOS on a 240GB SSD drive can take up to 30 minutes. Be patient."
+    echo -e "\n"
+    cryptsetup-reencrypt -B 32 --use-directio $luks_container
+  else
+    echo "You have to reown the TPM, sign configurations with your GPG smartcard first and select a new default boot option!"
+    echo "Press enter to continue."
+    read
+  fi
+}

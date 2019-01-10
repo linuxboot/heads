@@ -6,6 +6,52 @@ CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 . /etc/functions
 . /etc/config
 
+file_selector() {
+  FILE=""
+  FILE_LIST=$1
+  MENU_MSG=${2:-"Choose the file"}
+# create file menu options
+  if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
+    option=""
+    while [ -z "$option" ]
+    do
+      MENU_OPTIONS=""
+      n=0
+      while read option
+      do
+        n=`expr $n + 1`
+        option=$(echo $option | tr " " "_")
+        MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+      done < $FILE_LIST
+
+      MENU_OPTIONS="$MENU_OPTIONS a Abort"
+      whiptail --clear --title "Select your File" \
+        --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+        -- $MENU_OPTIONS \
+        2>/tmp/whiptail || die "Aborting"
+
+      option_index=$(cat /tmp/whiptail)
+
+      if [ "$option_index" = "a" ]; then
+        option="a"
+        return
+      fi
+
+      option=`head -n $option_index $FILE_LIST | tail -1`
+      if [ "$option" == "a" ]; then
+        return
+      fi
+    done
+    if [ -n "$option" ]; then
+      FILE=$option
+    fi
+  else
+    whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: No Files Found' \
+      --msgbox "No Files found matching the pattern. Aborting." 16 60
+    exit 1
+  fi
+}
+
 mount_boot()
 {
   # Mount local disk if it is not already mounted
@@ -190,6 +236,8 @@ while true; do
       's' ' Update checksums and sign all files in /boot' \
       'f' ' Flash/Update the BIOS -->' \
       'p' ' Reset the TPM' \
+      'F' ' Factory reset LibremKey/Nitrokey Pro v2' \
+      'R' ' Reencrypt LUKS container' \
       'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -307,6 +355,57 @@ while true; do
     flash-gui.sh
     continue
   fi
+  
+  if [ "$totp_confirm" = "F" ]; then
+    mount_boot
+    gpg_card_factory_reset
+    continue
+  fi
+  
+  if [ "$totp_confirm" = "R" ]; then
+    if (whiptail --title 'Reencrypt LUKS container with a new user selected strong passphrase?' \
+          --yesno "This will replace the actual Disk recovery key OR initially created when the system \nwas installed.\n\n The passphrase associated with this key will be asked to\nthe user in the following conditions:\n1-Every boot if no Disk encryption key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n to the TPM)\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete Disk unlock key released by the TPM into LUKS (slot 1).\n\nIn the next prompt, you'll be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nDo you want to proceed? Else you'll return to the main menu." 30 90) then
+      blkid | cut -d ':' -f 1 | while read device; do cryptsetup luksDump $device 2>&1; done| grep "LUKS header information"| awk -F " " '{print $NF}'|sort > /tmp/luks_devices.txt
+      file_selector "/tmp/luks_devices.txt"
+      if [ "$FILE" == "" ]; then
+        return
+      else
+        LUKS=$FILE
+        mount_boot
+        mount -o remount,rw /boot
+        echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
+        mount -o remount,ro /boot
+      fi
+      
+      whiptail --title 'Reencrypting LUKS container!' --msgbox \
+        "Please enter current Recovery key passphrase (slot 0)\nto reencrypt LUKS container.\n\nThen press Enter to continue." 30 60
+      cryptsetup-reencrypt -B 32 --use-directio $LUKS --key-slot 0
+        if [ $(echo $?) != 0 ]; then
+          whiptail --title 'Invalid LUKS passphrase?' --msgbox \
+            "The LUKS Recovery password was provided to you by the OEM over secure channel.\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\nTo do so, put OS ISO file with it's signature file on USB drive,\n And select Boot from USB\n\nPlease press Enter to continue." 30 60
+          continue
+        fi
+          
+      whiptail --title 'Changing LUKS Recovery key passphrase' --msgbox \
+        "Please enter current Recovery key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nPlease hit Enter to continue" 30 60
+      cryptsetup luksChangeKey $LUKS --tries 3
+        if [ $(echo $?) != 0 ]; then
+          whiptail --title 'Invalid LUKS passphrase?' --msgbox \
+            "The LUKS Recovery password was provided to you by the OEM over secure channel.\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\nTo do so, put OS ISO file with it's signature file on USB drive,\n And select Boot from USB\n\nPlease press Enter to continue." 30 60
+          continue
+        fi
+      whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
+        "You SHOULD SET a Disk unlock key for your own data privacy!!!***\nDoing so, a witness will only be able to type observed Disk unlock\npassphrase from this computer, not on a cloned copy of the disk.\n The TPM release of Disk unlock key happens ONLY if it attests firmware\nintegrity, an only if Disk unlock user passphrase is valid.\n\nPlease hit Enter to continue" 30 60
+      
+      whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
+        "Otherwise, typing Disk recovery key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from cloned\ndisk. This is why strong passphrases are so important to data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
+      
+      whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
+        "To set a Disk Unlock Key, released by the TPM after it attests\nfirwmare integrity when combined with valid passphrase, select\nfrom Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then, answer Y when asked to add disk encryption to the TPM.\n\nPlease hit Enter to continue" 30 60
+      continue
+    fi
+  fi
+
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
     # Try to boot the default
