@@ -328,7 +328,7 @@ gpg_card_factory_reset()
   flash.sh -r $rom
 
   #delete private/public gpg keys and otrust
-  cbfs -o $rom --list|grep -e pubring -e trustdb -e otrust|while read file; do cbfs -o $rom -d $file;done
+  cbfs -o $rom --list|grep -e pubring -e trustdb -e otrust -e public|while read file; do cbfs -o $rom -d $file;done  
 
   #Insert public key and trustdb exports into reproducible rom:
   cbfs -o $rom -a "heads/initrd/.gnupg/keys/public.key" -f /media/gpg_keys/public.key
