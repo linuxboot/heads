@@ -365,17 +365,21 @@ while true; do
   if [ "$totp_confirm" = "R" ]; then
     if (whiptail --title 'Reencrypt LUKS container with a new user selected strong passphrase?' \
           --yesno "This will replace the actual Disk recovery key OR initially created when the system \nwas installed.\n\n The passphrase associated with this key will be asked to\nthe user in the following conditions:\n1-Every boot if no Disk encryption key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n to the TPM)\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete Disk unlock key released by the TPM into LUKS (slot 1).\n\nIn the next prompt, you'll be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nDo you want to proceed? Else you'll return to the main menu." 30 90) then
-      blkid | cut -d ':' -f 1 | while read device; do cryptsetup luksDump $device 2>&1; done| grep "LUKS header information"| awk -F " " '{print $NF}'|sort > /tmp/luks_devices.txt
-      file_selector "/tmp/luks_devices.txt"
-      if [ "$FILE" == "" ]; then
-        return
+      if [ -s /boot/kexec_key_devices.txt ]; then
+        LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
       else
-        LUKS=$FILE
-        mount_boot
-        mount -o remount,rw /boot
-        echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
-        mount -o remount,ro /boot
-      fi
+        #generate a list of devices to choose from that contain a LUKS header
+        blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks $device;if [ $(echo $?) == 0 ]; then echo $device;fi; done | sort > /tmp/luks_devices.txt
+        file_selector "/tmp/luks_devices.txt"
+        if [ "$FILE" == "" ]; then
+          return
+        else
+          LUKS=$FILE
+          mount_boot
+          mount -o remount,rw /boot
+          echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
+          mount -o remount,ro /boot
+        fi
       
       whiptail --title 'Reencrypting LUKS container!' --msgbox \
         "Please enter current Recovery key passphrase (slot 0)\nto reencrypt LUKS container.\n\nThen press Enter to continue." 30 60
