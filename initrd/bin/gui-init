@@ -217,14 +217,47 @@ while true; do
       HOTP='N/A'
     fi
 
-    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
-      --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
-      'y' ' Default boot' \
-      'a' ' Advanced Settings -->' \
-      'x' ' Exit to recovery shell' \
+    if [[ -e /boot/oem ]] && [[ $HOTP = "Success" ]];then
+      whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME ONBOARDING!!!" \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm" 20 90 10 \
+      'O' ' Onboarding Wizard' \
       2>/tmp/whiptail || recovery "GUI menu failed"
+      
+      res=$(grep luks_reencrypted /boot/oem 2>&1 > /dev/null)
+      if [ $? -ne 0 ];then
+        totp_confirm="R"
+        echo $totp_confirm > /tmp/whiptail
+        continue
+      fi
+      res=$(grep luks_passwd_changed /boot/oem 2>&1 > /dev/null)
+      if [ $? -ne 0 ];then
+        totp_confirm="R"
+        echo $totp_confirm > /tmp/whiptail
+        continue
+      fi
+      res=$(grep gpg_factory_resetted /boot/oem 2>&1 > /dev/null)
+      if [ $? -ne 0 ];then
+        totp_confirm="F"
+        echo $totp_confirm > /tmp/whiptail
+        continue
+      fi
+      if [ $(grep -E "luks_reencrypted|luks_passwd_changed|gpg_factory_resetted" /boot/oem | wc -l) -eq 3 ];then
+        mount -o remount,rw /boot
+        rm /boot/oem
+        mount -o remount,ro /boot
+        continue
+      fi
+      totp_confirm=$(cat /tmp/whiptail)
+    else
+      whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm" 20 90 10 \
+        'y' ' Default boot' \
+        'a' ' Advanced Settings -->' \
+        'x' ' Exit to recovery shell' \
+        2>/tmp/whiptail || recovery "GUI menu failed"
 
-    totp_confirm=$(cat /tmp/whiptail)
+      totp_confirm=$(cat /tmp/whiptail)
+    fi
   fi
 
   if [ "$totp_confirm" = "a" ]; then
@@ -380,24 +413,39 @@ while true; do
           echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
           mount -o remount,ro /boot
         fi
-      
+      fi 
       whiptail --title 'Reencrypting LUKS container!' --msgbox \
         "Please enter current Recovery key passphrase (slot 0)\nto reencrypt LUKS container.\n\nThen press Enter to continue." 30 60
       cryptsetup-reencrypt -B 32 --use-directio $LUKS --key-slot 0
-        if [ $(echo $?) != 0 ]; then
+        if [ $(echo $?) -ne 0 ]; then
           whiptail --title 'Invalid LUKS passphrase?' --msgbox \
-            "The LUKS Recovery password was provided to you by the OEM over secure channel.\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\nTo do so, put OS ISO file with it's signature file on USB drive,\n And select Boot from USB\n\nPlease press Enter to continue." 30 60
+            "The LUKS Recovery password was provided to you by the OEM over secure\ncommunication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\n\nTo do so, place ISO file with it's signature file on root of USB drive,\n and select Boot from USB\n\nPlease press Enter to continue." 30 60
           continue
+        else
+          #write state in oem file
+          if [ -e /boot/oem ];then
+            mount -o remount,rw /boot
+            echo "luks_reencrypted" >> /boot/oem
+            mount -o remount,ro /boot
+          fi
         fi
           
       whiptail --title 'Changing LUKS Recovery key passphrase' --msgbox \
         "Please enter current Recovery key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nPlease hit Enter to continue" 30 60
       cryptsetup luksChangeKey $LUKS --tries 3
-        if [ $(echo $?) != 0 ]; then
+        if [ $(echo $?) -ne 0 ]; then
           whiptail --title 'Invalid LUKS passphrase?' --msgbox \
             "The LUKS Recovery password was provided to you by the OEM over secure channel.\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\nTo do so, put OS ISO file with it's signature file on USB drive,\n And select Boot from USB\n\nPlease press Enter to continue." 30 60
           continue
+        else
+          #write success state in oem file
+          if [ -e /boot/oem ];then
+            mount -o remount,rw /boot
+            echo "luks_passwd_changed" >> /boot/oem
+            mount -o remount,ro /boot
+          fi
         fi
+
       whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
         "You SHOULD SET a Disk unlock key for your own data privacy!!!***\nDoing so, a witness will only be able to type observed Disk unlock\npassphrase from this computer, not on a cloned copy of the disk.\n The TPM release of Disk unlock key happens ONLY if it attests firmware\nintegrity, an only if Disk unlock user passphrase is valid.\n\nPlease hit Enter to continue" 30 60
       
@@ -432,7 +480,6 @@ while true; do
       continue
     fi
   fi
-
 done
 
 recovery "Something failed during boot"

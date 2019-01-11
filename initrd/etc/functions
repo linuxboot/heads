@@ -319,6 +319,14 @@ gpg_card_factory_reset()
   
   #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup: 
   mount -o remount,rw /media 
+  
+  #backup existing /media/gpg_keys directory
+  if [ -d /media/gpg_keys ];then
+    newdir="/media/gpg_keys-$(date '+%Y-%m-%d-%H_%M_%S')"
+    echo "Backing up /media/gpg_keys into $newdir"
+    mv /media/gpg_keys $newdir
+  fi
+
   mkdir -p /media/gpg_keys 
   gpg --export --armor $gpgcard_email_address  > /media/gpg_keys/public.key
   gpg --export-ownertrust > /media/gpg_keys/otrust.txt
