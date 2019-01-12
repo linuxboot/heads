@@ -315,6 +315,8 @@ gpg_card_factory_reset()
   mount -o remount,rw /boot && rm /boot/kexec* && mount -o remount,ro /boot
 
   confirm_gpg_card
+  echo "Make sure the USB drive you want your keys backups to is inserted and type Enter key."
+  read
   mount-usb
   
   #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup: 
@@ -348,7 +350,12 @@ gpg_card_factory_reset()
   #flash back rom with public key and trustdb into SPI flash
   flash.sh -c $rom
   
-  echo "Hit enter to reboot"
+  if [ -s /boot/oem ];then
+    mount -o remount,rw /boot
+    echo gpg_factory_resetted >> /boot/oem
+    mount -o remount,ro /boot
+  fi
+
+  echo "press Enter key to continue"
   read
-  /bin/reboot
 }
