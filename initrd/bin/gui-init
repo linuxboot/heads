@@ -149,6 +149,45 @@ update_totp()
   fi
   /bin/reboot
 }
+check_onboarding_progress()
+{
+  mount_boot
+  if [[ -e /boot/oem ]] && [[ ! -s /boot/oem ]] ;then
+      totp_confirm="O"
+      echo $totp_confirm > /tmp/whiptail
+      mount -o remount,rw /boot
+      echo "onboarding" >> /boot/oem
+      mount -o remount,ro /boot
+  elif [[ -s /boot/oem ]];then
+    res=$(grep luks_reencrypted /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      totp_confirm="R"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    res=$(grep luks_passwd_changed /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      totp_confirm="R"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    fi
+    res=$(grep gpg_factory_resetted /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      totp_confirm="F"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    fi
+    if [ $(grep -E "luks_reencrypted|luks_passwd_changed|gpg_factory_resetted" /boot/oem | wc -l) -eq 3 ];then
+      mount -o remount,rw /boot
+      rm /boot/oem
+      mount -o remount,ro /boot
+    fi
+    else
+      #no oem file. Normal boot.
+      totp_confirm="N"
+      echo $totp_confirm > /tmp/whiptail
+    fi
+  fi
+}
 
 last_half=X
 while true; do
@@ -217,38 +256,17 @@ while true; do
       HOTP='N/A'
     fi
 
-    if [[ -e /boot/oem ]] && [[ $HOTP = "Success" ]];then
-      whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME ONBOARDING!!!" \
-        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm" 20 90 10 \
-      'O' ' Onboarding Wizard' \
-      2>/tmp/whiptail || recovery "GUI menu failed"
-      
-      res=$(grep luks_reencrypted /boot/oem 2>&1 > /dev/null)
-      if [ $? -ne 0 ];then
-        totp_confirm="R"
-        echo $totp_confirm > /tmp/whiptail
-        continue
-      fi
-      res=$(grep luks_passwd_changed /boot/oem 2>&1 > /dev/null)
-      if [ $? -ne 0 ];then
-        totp_confirm="R"
-        echo $totp_confirm > /tmp/whiptail
-        continue
-      fi
-      res=$(grep gpg_factory_resetted /boot/oem 2>&1 > /dev/null)
-      if [ $? -ne 0 ];then
-        totp_confirm="F"
-        echo $totp_confirm > /tmp/whiptail
-        continue
-      fi
-      if [ $(grep -E "luks_reencrypted|luks_passwd_changed|gpg_factory_resetted" /boot/oem | wc -l) -eq 3 ];then
-        mount -o remount,rw /boot
-        rm /boot/oem
-        mount -o remount,ro /boot
-        continue
-      fi
+    check_onboarding_progress 
+    if [[ $totp_confirm = "O" ]];then
+      #whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME ONBOARDING!!!" \
+      #  --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm" 20 90 10 \
+      #'O' ' Continue ownership of devices' \
+      #2>/tmp/whiptail || recovery "GUI menu failed"
+      whiptail --title 'OEM Hardware reownership Wizard' --msgbox \
+        "This hardware is currently owned by your OEM. We will now change that. This Wizard will make you own your own hardware by:\n\n1-Reencrypting drive content (LUKS container)\n2-Changing LUKS Recovery key by changing it's passphrase\n3-Resetting to factory defaults your LibremKey/Nitrokey Pro v2\n4-Setting User and Admin passwords into your LibremKey/NitroKey\n4-Generating keys, exporting public key and importing it in the rom\n5-Own you Trusted Platform Module (TPM)\n\nPress the Enter key to continue." 30 60
       totp_confirm=$(cat /tmp/whiptail)
-    else
+      continue
+    elif [[ $totp_confirm = "N" ]]; then
       whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
         --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm" 20 90 10 \
         'y' ' Default boot' \

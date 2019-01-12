@@ -352,31 +352,3 @@ gpg_card_factory_reset()
   read
   /bin/reboot
 }
-
-cryptsetup_reencrypt()
-{
-  if [ -s /boot/kexec_key_devices.txt ]; then
-    luks_container=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
-
-    cryptsetup luksDump $luks_container|grep "Key Slot 1: ENABLED"
-    if [[ $? -eq 0 ]]; then
-      echo "We first need to delete the secondary LUKS decryption passphrase enforced when a default boot option was set."
-      echo "To reenforce it, select a new default boot option and answer yes to seal it with TPM measurements. This is advised." 
-      echo "You'll be asked to type the current Recovery LUKS encryption passphrase (slot 0) to delete the secondary passphrase. (slot 1)" 
-      echo "A new LUKS Recovery encryption passphrase of your choice will be asked in the next step."
-      echo -e "\n"
-      cryptsetup luksKillSlot $luks_container 1
-    fi
-
-    echo "We will now reencrypt the LUKS container with your own chosen LUKS recovery decryption passphrase."
-    echo "You will be asked to enter the actual recovery LUKS passphrase before choosing your own."
-    echo "CHOOSE IT CAREFULLY AND DO NOT FORGET IT. Good example: white elephant of Antartica"
-    echo "Reencrypting a fresh installation of QubesOS on a 240GB SSD drive can take up to 30 minutes. Be patient."
-    echo -e "\n"
-    cryptsetup-reencrypt -B 32 --use-directio $luks_container
-  else
-    echo "You have to reown the TPM, sign configurations with your GPG smartcard first and select a new default boot option!"
-    echo "Press enter to continue."
-    read
-  fi
-}
