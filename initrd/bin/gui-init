@@ -147,6 +147,11 @@ update_checksums()
     kexec-sign-config -p /boot $extparam \
     || die "Failed to sign default config"
 
+    if [ -e /boot/oem ];then
+      mount -o remount,rw /boot
+      echo "checksums_updated" >> /boot/oem
+      mount -o remount,ro /boot
+    fi
     # switch back to ro mode
     mount -o ro,remount /boot
   else
@@ -198,13 +203,37 @@ check_onboarding_progress()
       return
     fi
     if [ $(grep -E "luks_reencrypted|luks_passwd_changed|gpg_factory_resetted|tpm_reowned" /boot/oem | wc -l) -eq 4 ];then
-      mount -o remount,rw /boot
-      rm /boot/oem
-      mount -o remount,ro /boot
-      unset reownership_state
+      if [ $HOTP = "Success" ];then
+        mount -o remount,rw /boot
+        rm /boot/oem
+        rm /boot/kexec_*hashes*
+        mount -o remount,ro /boot
+        unset reownership_state
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
+        "***You SHOULD SET a Disk unlock key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk unlock\n passphrase from this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk unlock key happens ONLY if TPM attests firmware\nintegrity, and only if Disk unlock user passphrase is valid.\n\nPlease hit Enter to continue" 30 60
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
+        "Otherwise, typing your Disk Recovery key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from a cloned\ndisk.\n\nThis is why strong passphrases are so important to data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
+        "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested and when combined with a valid passphrase:\n select from Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add disk encryption to the TPM.\n\nYou will be asked to set one in the following step.\n\nPlease hit Enter to continue" 30 60
+        
+       else
+        #Deal with corner case where after inserting key in previous step, HTOP seal fails with provided good password.
+        #In that case, we regenerate HOTP and TOTP
+        totp_confirm="g"
+        echo $totp_confirm > /tmp/whiptail
+      fi
     fi
     elif [ ! -e /boot/oem ];then
       #no oem file. Normal boot.
+      res=$(grep checksums_updated /boot/oem 2>&1 > /dev/null)
+      if [ $? -ne 0 ];then
+        #Here we hijack the normal boot process, so that we resign all files before normal boot complaints about a missing /boot/oem file
+        verify_global_hashes
+      return
+    fi
       unset totp_confirm
     fi
 }
@@ -284,15 +313,14 @@ while true; do
       echo "onboarding" >> /boot/oem
       mount -o remount,ro /boot
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-        "The hardware received is currently owned by your OEM. We will change that.\n On the next screen, make sure that the HOTP code is valid\nIf it is not, reboot your computer with your Librem/Nitrokey inserted.\n\nThis Wizard will make you own your own hardware by:\n\n1-Reencrypting drive content (LUKS container)\n2-Changing LUKS Recovery key by changing it's passphrase\n3-Resetting to factory defaults your LibremKey/Nitrokey Pro v2\n4-Setting User and Admin passwords into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and \nimporting it in the rom\n5-Own you Trusted Platform Module (TPM)\n\nPress the Enter key to continue." 30 60
-
+        "The received hardware is currently owned by your OEM. We will change that.\n\nOn the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\\nIf it's not, reboot your hardware once with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still bad, your hardware is not trusthworthy.\nReturn it to your OEM at your own cost for reprogramming.\n\nThis Wizard would otherwise make you own your own hardware by:\n\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Recovery key and it's passphrase\n3-Resetting your LibremKey/Nitrokey Pro v2 to factory defaults\n4-Setting User (PIN) and Admin passwords into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI with it\n5-Own you Trusted Platform Module (TPM)\n6-Take integrity measures of all /boot files and sign the resulting\n checksum file with yourLibremKey/Nitrokey Pro\n\nPress the Enter key to continue." 30 60
     elif [[ -s /boot/oem ]];then
       check_onboarding_progress
     	totp_confirm="O"
       echo $totp_confirm > /tmp/whiptail
     else
       whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
-        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP totp_confirm: $totp_confirm $reownership_state" 20 90 10 \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
         'y' ' Default boot' \
         'a' ' Advanced Settings -->' \
         'x' ' Exit to recovery shell' \
@@ -302,8 +330,8 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "O" ]; then
-    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME ONBOARDING!!!" \
-        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP $totp_confirm $reownership_state" 20 90 10 \
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME reownership" \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
         'C' ' Continue ownership of devices' \
         'x' ' Exit to recovery shell' \
         2>/tmp/whiptail || recovery "GUI menu failed"
@@ -453,6 +481,11 @@ while true; do
   
   if [ "$totp_confirm" = "F" ]; then
     
+    #TODO: Circumvent bug with mkdir and chmod to use gpg --home=/media/gpg_keys directly. 
+    #Cannot create a new homedir with right permissions.
+    #Meanwhile, we reuse /.gnupg by deleting it's content.
+    rm -rf .gnupg/*
+
     #Setting new passwords
     gpgcard_user_pass1=1
     gpgcard_user_pass2=2
@@ -461,7 +494,7 @@ while true; do
 
     while [[ "$gpgcard_user_pass1" != "$gpgcard_user_pass2" ]] || [[ ${#gpgcard_user_pass1} -lt 6 || ${#gpgcard_user_pass1} -gt 20 ]];do
     {
-      echo "Choose your new GPG card user password that will be typed when using GPG smartcard (Sign files, encrypt emails and files).\nIt needs to be a least 6 but not more then 20 characters:"
+      echo -e "Choose your new GPG card user password that will be typed when using GPG smartcard (Sign files, encrypt emails and files).\nIt needs to be a least 6 but not more then 20 characters:"
       read -s gpgcard_user_pass1
       echo "Retype user passphrase:"
       read -s gpgcard_user_pass2
@@ -471,7 +504,7 @@ while true; do
 
     while [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [[ ${#gpgcard_admin_pass1} -lt 8 || ${#gpgcard_admin_pass1} -gt 20 ]]; do
     {
-      echo "Choose your new GPG card admin password that will be typed when managing GPG smartcard (HTOP sealing, managing key, etc).\n It needs to be a least 8 but not more then 20 characters:"
+      echo -e "\nChoose your new GPG card admin password that will be typed when managing GPG smartcard (HTOP sealing, managing key, etc).\nIt needs to be a least 8 but not more then 20 characters:"
       read -s gpgcard_admin_pass1
       echo "Retype admin password:"
       read -s gpgcard_admin_pass2
@@ -482,14 +515,31 @@ while true; do
  
     echo -e "\n\n"
     echo -e "We will generate a GnuPG (GPG) keypair identifiable with the following text form:"
-    echo -e "Real Name (Comment) email@address.org" "\n" "\n"
+    echo -e "Real Name (Comment) email@address.org\n"
     echo -e "Enter your Real Name:"
     read gpgcard_real_name
     echo "Enter your email@adress.org:"
     read gpgcard_email_address
-    echo "Enter Comment:"
+    echo "Enter Comment (To distinguish this key from others with same previous attributes):"
     read gpgcard_comment
 
+    echo -e "Make sure the USB drive on which your public key and trustdb backups will be saved to is inserted.\nThose will be saved under the 'gpg_keys' directory.\nPress the Enter key when ready."
+    read
+
+    #TODO whiptail warning loop
+    mount-usb
+
+    #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup:
+    mount -o remount,rw /media
+
+    #backup existing /media/gpg_keys directory
+    if [ -d /media/gpg_keys ];then
+      newdir="/media/gpg_keys-$(date '+%Y-%m-%d-%H_%M_%S')"
+      echo "Backing up /media/gpg_keys into $newdir"
+      mv /media/gpg_keys $newdir
+    fi
+
+    mkdir -p /media/gpg_keys
     
     confirm_gpg_card
     {
@@ -497,7 +547,7 @@ while true; do
       echo factory-reset
       echo y
       echo yes
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit
+    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit --home=/.gnupg/
 
     #Setting new admin and user passwords in GPG key
     {
@@ -512,7 +562,7 @@ while true; do
       echo "$gpgcard_admin_pass"
       echo "$gpgcard_admin_pass"
       echo Q
-    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit
+    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
 
     #Set GPG card key attributes key sizes to 4096bits
     {
@@ -527,7 +577,7 @@ while true; do
       echo 1 # RSA
       echo 4096 #Authentication key size set to maximum supported by SmartCard
       echo "$gpgcard_admin_pass"
-    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit
+    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
 
     #Generate Encryption, Signing and Authentication keys
     #TODO Whitpail warning
@@ -554,27 +604,12 @@ while true; do
     rm /boot/kexec*
     mount -o remount,ro /boot
 
-    confirm_gpg_card
-    echo "Make sure the USB drive you want your keys backups to is inserted and type Enter key."
-    read
-    
-    #TODO whiptail warning loop
-    mount-usb
-
-    #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup:
-    mount -o remount,rw /media
-
-    #backup existing /media/gpg_keys directory
-    if [ -d /media/gpg_keys ];then
-      newdir="/media/gpg_keys-$(date '+%Y-%m-%d-%H_%M_%S')"
-      echo "Backing up /media/gpg_keys into $newdir"
-      mv /media/gpg_keys $newdir
-    fi
-
-    mkdir -p /media/gpg_keys
-    gpg --export --armor $gpgcard_email_address  > /media/gpg_keys/public.key
-    gpg --export-ownertrust > /media/gpg_keys/otrust.txt
+    gpg --home=/.gnupg/ --export --armor $gpgcard_email_address  > /media/gpg_keys/public.key
+    gpg --home=/.gnupg/ --export-ownertrust > /media/gpg_keys/otrust.txt
     cp -r ./.gnupg/* /media/gpg_keys/ 2> /dev/null
+    
+    #Flush changes to external media:
+    mount -o remount,ro /media
 
     #Read rom
     flash.sh -r $rom
@@ -586,10 +621,7 @@ while true; do
     cbfs -o $rom -a "heads/initrd/.gnupg/keys/public.key" -f /media/gpg_keys/public.key
     cbfs -o $rom -a "heads/initrd/.gnupg/keys/otrust.txt" -f /media/gpg_keys/otrust.txt
 
-    #Flush changes to external media:
-    mount -o remount,ro /media
-
-    #flash back rom with public key and trustdb into SPI flash
+    #flash back a "clean" rom with public key and trustdb into SPI flash
     flash.sh -c $rom
 
     if [ -s /boot/oem ];then
@@ -598,16 +630,16 @@ while true; do
       mount -o remount,ro /boot
     fi
 
-    echo "press Enter key to continue"
+    echo "A reboot of the system is required. Press Enter to reboot the system."
     read
 
-    continue
+    /bin/reboot
   fi
   
   if [ "$totp_confirm" = "R" ]; then
     if [[ -z $reownership_state ]] || [[ $reownership_state = "luks_reencryption" ]]; then 
       whiptail --title 'Reencrypt LUKS container with a new user selected strong passphrase?' \
-          --msgbox "This will replace the actual Disk recovery key.\n\n The passphrase associated with this key will be asked to\nthe user in the following conditions:\n1-Every boot if no Disk encryption key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n to the TPM)\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete Disk unlock key released by the TPM into LUKS (slot 1).\n\nIn the next prompt, you'll be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nPlease press the Enter key." 30 90
+          --msgbox "This will replace the actual Disk recovery key.\n\nThe passphrase associated with this key will be asked to\nthe user in the following conditions:\n1-Every boot if no Disk unlock key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n to set a new Disk unlock key\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete the actual Disk unlock key released by the TPM into\n LUKS (slot 1).\n\nAt the next prompt, you may be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nPlease press the Enter key." 30 90
     
       select_luks_container
     
@@ -649,15 +681,6 @@ while true; do
           mount -o remount,ro /boot
         fi
       fi
-    
-      whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
-        "You SHOULD SET a Disk unlock key for your own data privacy!!!***\nDoing so, a witness will only be able to type observed Disk unlock\npassphrase from this computer and won't on a cloned copy of this disk.\n The release of Disk unlock key happens ONLY if TPM attests firmware\nintegrity, and only if Disk unlock user passphrase is valid.\n\nPlease hit Enter to continue" 30 60
-      
-      whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
-        "Otherwise, typing Disk recovery key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from cloned\ndisk. This is why strong passphrases are so important to data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
-      
-      whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
-        "To set a Disk Unlock Key, released by the TPM after it attests\nfirwmare integrity when combined with valid passphrase, select\nfrom Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then, answer Y when asked to add disk encryption to the TPM.\n\nPlease hit Enter to continue" 30 60
       continue
     fi
   fi
