@@ -126,7 +126,7 @@ verify_global_hashes()
 update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered\n with.\n\nYou will need your GPG key to continue and this change will modify your\n disk.\n\nDo you want to continue?" 16 90) then
     mount_boot
     mount -o rw,remount /boot
 
@@ -307,13 +307,13 @@ while true; do
 
     if [[ -e /boot/oem ]] && [[ ! -s /boot/oem ]] ;then
       #oem empty file found. Show Onboarding menu once.
+      whiptail --title 'Hardware reownership Wizard' --msgbox \
+        "The received hardware is currently owned by your OEM. We will change that.\n\nOn the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still bad, your hardware is not trusthworthy.\nReturn it to your OEM at your own cost for reprogramming.\n\nThis Wizard would otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Recovery key and it's passphrase\n3-Resetting your LibremKey/Nitrokey Pro v2 to factory defaults\n4-Setting User (PIN) and Admin passwords into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI with it\n5-Own you Trusted Platform Module (TPM)\n6-Take integrity measures of all /boot files and sign the resulting\n checksum file with yourLibremKey/Nitrokey Pro\n\nPress the Enter key to continue." 30 60
       totp_confirm="O"
       echo $totp_confirm > /tmp/whiptail
       mount -o remount,rw /boot
       echo "onboarding" >> /boot/oem
       mount -o remount,ro /boot
-      whiptail --title 'Hardware reownership Wizard' --msgbox \
-        "The received hardware is currently owned by your OEM. We will change that.\n\nOn the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\\nIf it's not, reboot your hardware once with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still bad, your hardware is not trusthworthy.\nReturn it to your OEM at your own cost for reprogramming.\n\nThis Wizard would otherwise make you own your own hardware by:\n\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Recovery key and it's passphrase\n3-Resetting your LibremKey/Nitrokey Pro v2 to factory defaults\n4-Setting User (PIN) and Admin passwords into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI with it\n5-Own you Trusted Platform Module (TPM)\n6-Take integrity measures of all /boot files and sign the resulting\n checksum file with yourLibremKey/Nitrokey Pro\n\nPress the Enter key to continue." 30 60
     elif [[ -s /boot/oem ]];then
       check_onboarding_progress
     	totp_confirm="O"
@@ -330,7 +330,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "O" ]; then
-    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME reownership" \
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME: Reownership" \
         --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
         'C' ' Continue ownership of devices' \
         'x' ' Exit to recovery shell' \
