@@ -57,6 +57,10 @@ fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
 fi
+
+# Set GPG_TTY before calling gpg in key-init
+export GPG_TTY=$(tty)
+
 /bin/key-init
 
 # Setup recovery serial shell
