@@ -6,6 +6,70 @@ CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 . /etc/functions
 . /etc/config
 
+file_selector() {
+  FILE=""
+  FILE_LIST=$1
+  MENU_MSG=${2:-"Choose the file"}
+# create file menu options
+  if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
+    option=""
+    while [ -z "$option" ]
+    do
+      MENU_OPTIONS=""
+      n=0
+      while read option
+      do
+        n=`expr $n + 1`
+        option=$(echo $option | tr " " "_")
+        MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+      done < $FILE_LIST
+
+      MENU_OPTIONS="$MENU_OPTIONS a Abort"
+      whiptail --clear --title "Select your File" \
+        --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+        -- $MENU_OPTIONS \
+        2>/tmp/whiptail || die "Aborting"
+
+      option_index=$(cat /tmp/whiptail)
+
+      if [ "$option_index" = "a" ]; then
+        option="a"
+        return
+      fi
+
+      option=`head -n $option_index $FILE_LIST | tail -1`
+      if [ "$option" == "a" ]; then
+        return
+      fi
+    done
+    if [ -n "$option" ]; then
+      FILE=$option
+    fi
+  else
+    whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: No Files Found' \
+      --msgbox "No Files found matching the pattern. Aborting." 16 60
+    exit 1
+  fi
+}
+select_luks_container()
+{
+  if [ -s /boot/kexec_key_devices.txt ]; then
+    LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
+  else
+    #generate a list of devices to choose from that contain a LUKS header
+      blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks $device;if [ $(echo $?) == 0 ]; then echo $device;fi; done | sort > /tmp/luks_devices.txt
+      file_selector "/tmp/luks_devices.txt" "Select LUKS container device"
+    if [ "$FILE" == "" ]; then
+      return
+    else
+      LUKS=$FILE
+      mount_boot
+      mount -o remount,rw /boot
+      echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
+      mount -o remount,ro /boot
+    fi
+  fi
+}
 mount_boot()
 {
   # Mount local disk if it is not already mounted
@@ -115,6 +179,7 @@ while true; do
     whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
       'f' ' Add a GPG key to the running BIOS' \
+      'F' ' Factory reset, own GPG card, generate and add key into running BIOS' \
       'i' ' Ignore error and continue to default boot menu' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -190,6 +255,8 @@ while true; do
       's' ' Update checksums and sign all files in /boot' \
       'f' ' Flash/Update the BIOS -->' \
       'p' ' Reset the TPM' \
+      'F' ' Factory reset LibremKey/Nitrokey Pro v2' \
+      'R' ' Reencrypt LUKS container' \
       'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -306,6 +373,202 @@ while true; do
   if [ "$totp_confirm" = "f" ]; then
     flash-gui.sh
     continue
+  fi
+  
+  if [ "$totp_confirm" = "F" ]; then
+    if (whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'Factory Reset and reownership of GPG card' \
+        --yesno "You are about to factory reset your GPG card!\n\nThis will:\n 1-Wipe all PRIVATE keys that were previously kept inside GPG card\n 2-Set default key size to 4096 bits (maximum)\n 3-Ask you to choose two passwords to interact with the card:\n  3.1: An admininstrative passphrase used to manage the card\n  3.2: A user passphrase (PIN) used everytime you sign\n  encrypt/decrypt content\n4-Generate new Encryption, Signing and Authentication keys\n inside your GPG card\n5-Export associated public key, replace the one being\n present and trusted inside running BIOS, and reflash\n SPI flash with resulting rom image.\n\nAs a result, the running BIOS will be modified.\n\nWould you like to continue?" 30 90) then
+      
+      #TODO: Circumvent permission bug with mkdir and chmod permitting to use gpg --home=/media/gpg_keys directly. 
+      #Cannot create a new gpg homedir with right permissions nor chmod 700 that directory.
+      #Meanwhile, we reuse /.gnupg by temporarely deleting it's existing content.
+      rm -rf .gnupg/*
+
+      #Setting new passwords
+      gpgcard_user_pass1=1
+      gpgcard_user_pass2=2
+      gpgcard_admin_pass1=3
+      gpgcard_admin_pass2=4
+
+      while [[ "$gpgcard_user_pass1" != "$gpgcard_user_pass2" ]] || [[ ${#gpgcard_user_pass1} -lt 6 || ${#gpgcard_user_pass1} -gt 20 ]];do
+      {
+        echo -e "Choose your new GPG card user password that will be typed when using GPG smartcard (Sign files, encrypt emails and files).\nIt needs to be a least 6 but not more then 20 characters:"
+        read -s gpgcard_user_pass1
+        echo "Retype user passphrase:"
+        read -s gpgcard_user_pass2
+        if [[ "$gpgcard_user_pass1" != "$gpgcard_user_pass2" ]]; then echo "Passwords typed were different."; fi
+      };done
+      gpgcard_user_pass=$gpgcard_user_pass1
+
+      while [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [[ ${#gpgcard_admin_pass1} -lt 8 || ${#gpgcard_admin_pass1} -gt 20 ]]; do
+      {
+        echo -e "\nChoose your new GPG card admin password that will be typed when managing GPG smartcard (HTOP sealing, managing key, etc).\nIt needs to be a least 8 but not more then 20 characters:"
+        read -s gpgcard_admin_pass1
+        echo "Retype admin password:"
+        read -s gpgcard_admin_pass2
+
+        if [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]]; then echo "Passwords typed were different."; fi
+      };done
+      gpgcard_admin_pass=$gpgcard_admin_pass1
+ 
+      echo -e "\n\n"
+      echo -e "We will generate a GnuPG (GPG) keypair identifiable with the following text form:"
+      echo -e "Real Name (Comment) email@address.org\n"
+      echo -e "Enter your Real Name:"
+      read gpgcard_real_name
+      echo "Enter your email@adress.org:"
+      read gpgcard_email_address
+      echo "Enter Comment (To distinguish this key from others with same previous attributes):"
+      read gpgcard_comment
+
+      whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert A USB Disk' --msgbox \
+      "Please insert a USB disk on which you want to store your\n GPG public key and trustdb.\n\nThose will be backuped under 'gpg_keys' directory.\n\nCombined with this GPG card,\n that public key can be used in normal GPG operations and published to key servers to \n for your peers to privately cummunicate with you over otherwise cleartext and\n untrustable cleartext communication channels such as SMS or EMails. Use it!\n\nMake sure a desired USB disk is connected and press the Enter key to continue." 30 90     
+      
+      #TODO whiptail warning loop
+      mount-usb
+
+      #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup:
+      mount -o remount,rw /media
+
+      #backup existing /media/gpg_keys directory
+      if [ -d /media/gpg_keys ];then
+        newdir="/media/gpg_keys-$(date '+%Y-%m-%d-%H_%M_%S')"
+        echo "Backing up /media/gpg_keys into $newdir"
+        mv /media/gpg_keys $newdir
+      fi
+
+      mkdir -p /media/gpg_keys
+    
+      confirm_gpg_card
+      {
+        echo admin
+        echo factory-reset
+        echo y
+        echo yes
+      } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit --home=/.gnupg/
+
+      #Setting new admin and user passwords in GPG card
+      {
+        echo admin
+        echo passwd
+        echo 1
+        echo 123456 #Default user password after factory reset of card
+        echo "$gpgcard_user_pass"
+        echo "$gpgcard_user_pass"
+        echo 3
+        echo 12345678 #Default administrator password after factory reset of card
+        echo "$gpgcard_admin_pass"
+        echo "$gpgcard_admin_pass"
+        echo Q
+      } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
+
+      #Set GPG card key attributes key sizes to 4096 bits
+      {
+        echo admin
+        echo key-attr
+        echo 1 # RSA
+        echo 4096 #Signing key size set to maximum supported by SmartCard
+        echo "$gpgcard_admin_pass"
+        echo 1 # RSA
+        echo 4096 #Encryption key size set to maximum supported by SmartCard
+        echo "$gpgcard_admin_pass"
+        echo 1 # RSA
+        echo 4096 #Authentication key size set to maximum supported by SmartCard
+        echo "$gpgcard_admin_pass"
+      } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
+
+      #Generate Encryption, Signing and Authentication keys
+      whiptail --clear --title 'GPG card key generation' --msgbox \
+        "BE PATIENT! Generating 4096 bits Encryption, Signing and Authentication keys\n take around 5 minutes each! Be prepared to patient around 15 minutes!\n\nPress the Enter Key to continue" 30 90
+
+      {
+        echo admin
+        echo generate
+        echo n
+        echo "$gpgcard_admin_pass"
+        echo "$gpgcard_user_pass"
+        echo 1y
+        echo "$gpgcard_real_name"
+        echo "$gpgcard_email_address"
+        echo "$gpgcard_comment"
+      } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit --home=/.gnupg/
+
+      #Export and inject public key and trustdb export into extracted rom with current user keys being wiped
+      rom=/tmp/coreboot.rom
+
+      #remove invalid kexec_* signed files
+      mount_boot
+      mount -o remount,rw /boot
+      rm /boot/kexec*
+      mount -o remount,ro /boot
+
+      gpg --home=/.gnupg/ --export --armor $gpgcard_email_address  > /media/gpg_keys/public.key
+      gpg --home=/.gnupg/ --export-ownertrust > /media/gpg_keys/otrust.txt
+      cp -r ./.gnupg/* /media/gpg_keys/ 2> /dev/null
+    
+      #Flush changes to external media:
+      mount -o remount,ro /media
+
+      #Read rom
+      flash.sh -r $rom
+
+      #delete public gpg keys and otrust (trustdb) in extracted running rom
+      cbfs -o $rom --list|grep -e pubring -e trustdb -e otrust -e public|while read file; do cbfs -o $rom -d $file;done
+
+      #Insert public key and trustdb exports into reproducible rom:
+      cbfs -o $rom -a "heads/initrd/.gnupg/keys/public.key" -f /media/gpg_keys/public.key
+      cbfs -o $rom -a "heads/initrd/.gnupg/keys/otrust.txt" -f /media/gpg_keys/otrust.txt
+
+      #flash back a "clean" rom with public key and trustdb into SPI flash
+      flash.sh -c $rom
+      
+      whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Reboot required' --msgbox \
+        "A reboot is required.\n\n Your firmware has been reflashed with your own public key and trustdb\n included.\n\n Heads will detect it and react accordingly:\n It will ask you to regenerate a new TOTP/HOTP code (seal BIOS integrity),\n take /boot integrity measures and sign them with your freshly\n factory resetted GPG card user password (PIN).\n\nPress the Enter key to continue." 30 90
+      /bin/reboot
+    else
+      echo "Returning to the previous menu"
+    fi
+   continue 
+  fi
+
+  if [ "$totp_confirm" = "R" ]; then
+    if [[ -z $reownership_state ]] || [[ $reownership_state = "luks_reencryption" ]]; then 
+      whiptail --title 'Reencrypt LUKS container with a new user selected strong passphrase?' \
+          --msgbox "This will replace the actual Disk recovery key.\n\nThe passphrase associated with this key will be asked to the user in the\n following conditions:\n1-Every boot if no Disk unlock key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete the actual Disk unlock key released by the TPM into\n LUKS (slot 1) if present.\n\nAt the next prompt, you may be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nPress the Enter key." 30 90
+    
+      select_luks_container
+    
+      whiptail --title 'Reencrypting LUKS container!' --msgbox \
+      "Please enter current Recovery key passphrase (slot 0) to reencrypt\n LUKS container with a brand new encryption key\n\nPress Enter to continue." 30 60
+      cryptsetup-reencrypt -B 32 --use-directio $LUKS --key-slot 0
+      
+      if [ $(echo $?) -ne 0 ]; then
+        whiptail --title 'Invalid LUKS passphrase?' --msgbox \
+          "The LUKS Recovery password was provided to you by the OEM over secure\ncommunication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\n\nTo do so, place ISO file with it's signature file on root of USB drive,\n and select Boot from USB\n\nPlease press Enter to continue." 30 60
+        continue
+      else
+          #Successfully reencrypted LUKS container with current passphrase
+          reownership_state="luks_password_change"
+      fi
+    fi
+
+    if [[ -z $reownership_state ]] || [[ $reownership_state == "luks_password_change" ]]; then
+      whiptail --title 'Changing LUKS Recovery key passphrase' --msgbox \
+        "Please enter current Recovery key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nPlease hit Enter to continue" 30 60
+
+      select_luks_container
+    
+      cryptsetup luksChangeKey $LUKS --key-slot 0 --tries 3
+      if [ $(echo $?) -ne 0 ]; then
+        whiptail --title 'Invalid LUKS passphrase?' --msgbox \
+          "The LUKS Recovery password was provided to you by the OEM over secure channel.\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\nTo do so, put OS ISO file with it's signature file on USB drive,\n And select Boot from USB\n\nPlease press Enter to continue." 30 60
+        continue
+      else
+        #Successfully changed passphrase of LUKS Recovery key. Write successful state in oem file
+        echo "luks_passwd_changed" >> /boot/oem
+      fi
+      continue
+    fi
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
