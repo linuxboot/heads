@@ -5,7 +5,12 @@ set -e -o pipefail
 # Post processing of keys
 
 # Import user's keys
-gpg --import /.gnupg/keys/* 2>/dev/null || true
+gpg --import /.gnupg/keys/*.key 2>/dev/null || true
+
+#Import trustdb if it exists
+if [ -s /.gnupg/keys/otrust.txt ]; then
+  gpg --import-ownertrust /.gnupg/keys/otrust.txt
+fi
 
 # Import trusted distro keys allowed for ISO signing
 gpg --homedir=/etc/distro/ --import /etc/distro/keys/* 2>/dev/null || true
