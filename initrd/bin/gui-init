@@ -482,7 +482,7 @@ while true; do
   
   if [ "$totp_confirm" = "F" ]; then
     if (whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'Factory Reset and reownership of GPG card' \
-        --yesno "You are about to factory reset your GPG card!\n\nThis will:\n 1-Wipe all PRIVATE keys that were previously kept inside GPG card\n 2-Set default key size to 4096 bits (maximum)\n 3-Ask you to choose two passwords to interact with the card:\n  3.1: An admininstrative passphrase used to manage the card\n  3.2: A user passphrase (PIN) used everytime you sign\n  encrypt/decrypt content\n4-Generate new Encryption, Signing and Authentication keys\n inside your GPG card\n5-Export associated public key, replace the one being\n present and trusted inside running BIOS, and reflash\n SPI flash with resulting rom image.\n\nAs a result, the running BIOS will be modified.\n\nWould you like to continue?" 30 90) then
+        --yesno "You are about to factory reset your GPG card!\n\nThis will:\n 1-Wipe all PRIVATE keys that were previously kept inside GPG card\n 2-Set default key size to 4096 bits (maximum)\n 3-Ask you to choose two passwords to interact with the card:\n  3.1: An admininstrative passphrase used to manage the card\n  3.2: A user passphrase (PIN) used everytime you sign\n   encrypt/decrypt content\n4-Generate new Encryption, Signing and Authentication keys\n  inside your GPG card\n5-Export associated public key, replace the one being\n  present and trusted inside running BIOS, and reflash\n  SPI flash with resulting rom image.\n\nAs a result, the running BIOS will be modified.\n\nWould you like to continue?" 30 90) then
       
       #TODO: Circumvent permission bug with mkdir and chmod permitting to use gpg --home=/media/gpg_keys directly. 
       #Cannot create a new gpg homedir with right permissions nor chmod 700 that directory.
@@ -527,7 +527,7 @@ while true; do
       read gpgcard_comment
 
       whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert A USB Disk' --msgbox \
-      "Please insert a USB disk on which you want to store your\n GPG public key and trustdb.\n\nThose will be backuped under 'gpg_keys' directory.\n\nCombined with this GPG card,\n that public key can be used in normal GPG operations and published to key servers to \n for your peers to privately cummunicate with you over otherwise cleartext and\n untrustable cleartext communication channels such as SMS or EMails. Use it!\n\nMake sure a desired USB disk is connected and press the Enter key to continue." 30 90     
+      "Please insert a USB disk on which you want to store your GPG public key\n and trustdb.\n\nThose will be backuped under the 'gpg_keys' directory.\n\nPress the Enter key to continue." 30 90     
       
       #TODO whiptail warning loop
       mount-usb
@@ -584,7 +584,7 @@ while true; do
 
       #Generate Encryption, Signing and Authentication keys
       whiptail --clear --title 'GPG card key generation' --msgbox \
-        "BE PATIENT! Generating 4096 bits Encryption, Signing and Authentication keys\n take around 5 minutes each! Be prepared to patient around 15 minutes!\n\nPress the Enter Key to continue" 30 90
+        "BE PATIENT! Generating 4096 bits Encryption, Signing and Authentication\n keys take around 5 minutes each! Be prepared to patient around 15 minutes!\n\nPress the Enter Key to continue" 30 90
 
       {
         echo admin
@@ -645,7 +645,7 @@ while true; do
   if [ "$totp_confirm" = "R" ]; then
     if [[ -z $reownership_state ]] || [[ $reownership_state = "luks_reencryption" ]]; then 
       whiptail --title 'Reencrypt LUKS container with a new user selected strong passphrase?' \
-          --msgbox "This will replace the actual Disk recovery key.\n\nThe passphrase associated with this key will be asked to the user in the\n following conditions:\n1-Every boot if no Disk unlock key was added to the TPM (through\n setting a default boot option and accepting to add Disk encryption key\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete the actual Disk unlock key released by the TPM into\n LUKS (slot 1) if present.\n\nAt the next prompt, you may be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nPress the Enter key." 30 90
+          --msgbox "This will replace the actual Disk recovery key.\n\nThe passphrase associated with this key will be asked to the user in the\n following conditions:\n1-Every boot if no Disk unlock key was added to the TPM\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk recovery key passphrase\nand will delete the actual Disk unlock key released by the TPM into\nLUKS (slot 1) if present.\n\nAt the next prompt, you may be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nPress the Enter key." 30 90
     
       select_luks_container
     
