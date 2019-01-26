@@ -126,7 +126,7 @@ verify_global_hashes()
 update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered\n with.\n\nYou will need your GPG key to continue and this change will modify your\n disk.\n\nDo you want to continue?" 16 90) then
     mount_boot
     mount -o rw,remount /boot
 
@@ -147,6 +147,11 @@ update_checksums()
     kexec-sign-config -p /boot $extparam \
     || die "Failed to sign default config"
 
+    if [ -e /boot/oem ];then
+      mount -o remount,rw /boot
+      echo "checksums_updated" >> /boot/oem
+      mount -o remount,ro /boot
+    fi
     # switch back to ro mode
     mount -o ro,remount /boot
   else
@@ -166,6 +171,71 @@ update_totp()
     read
   fi
   /bin/reboot
+}
+check_onboarding_progress()
+{
+  mount_boot
+  if [[ -e /boot/oem ]];then
+    res=$(grep luks_reencrypted /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      reownership_state="luks_reencryption"
+      totp_confirm="R"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    fi
+    res=$(grep luks_passwd_changed /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      reownership_state="luks_password_change"
+      totp_confirm="R"
+      return
+    fi
+    res=$(grep gpg_factory_resetted /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      reownership_state="gpg_factory_reset"
+      totp_confirm="F"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    fi
+    res=$(grep tpm_reowned /boot/oem 2>&1 > /dev/null)
+    if [ $? -ne 0 ];then
+      totp_confirm="p"
+      echo $totp_confirm > /tmp/whiptail
+      return
+    fi
+    if [ $(grep -E "luks_reencrypted|luks_passwd_changed|gpg_factory_resetted|tpm_reowned" /boot/oem | wc -l) -eq 4 ];then
+      if [ $HOTP = "Success" ];then
+        mount -o remount,rw /boot
+        rm /boot/oem
+        rm /boot/kexec_*hashes*
+        mount -o remount,ro /boot
+        unset reownership_state
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
+        "***You SHOULD SET a Disk unlock key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk unlock\n passphrase from this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk unlock key happens ONLY if TPM attests firmware\nintegrity, and only if Disk unlock user passphrase is valid.\n\nPlease hit Enter to continue" 30 60
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
+        "Otherwise, typing your Disk Recovery key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from a cloned\ndisk.\n\nThis is why strong passphrases are so important to data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
+
+        whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
+        "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested and when combined with a valid passphrase:\n\nSelect from Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add disk encryption to the TPM.\n\nYou will be asked to set one in the following step.\n\nPlease hit Enter to continue" 30 60
+        
+       else
+        #Deal with corner case where after inserting key in previous step, HTOP seal fails with provided good password.
+        #In that case, we regenerate HOTP and TOTP
+        totp_confirm="g"
+        echo $totp_confirm > /tmp/whiptail
+      fi
+    fi
+    elif [ ! -e /boot/oem ];then
+      #no oem file. Normal boot.
+      res=$(grep checksums_updated /boot/oem 2>&1 > /dev/null)
+      if [ $? -ne 0 ];then
+        #Here we hijack the normal boot process, so that we resign all files before normal boot complaints about a missing /boot/oem file
+        verify_global_hashes
+      return
+    fi
+      unset totp_confirm
+    fi
 }
 
 last_half=X
@@ -236,14 +306,41 @@ while true; do
       HOTP='N/A'
     fi
 
-    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
-      --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
-      'y' ' Default boot' \
-      'a' ' Advanced Settings -->' \
-      'x' ' Exit to recovery shell' \
-      2>/tmp/whiptail || recovery "GUI menu failed"
+    if [[ -e /boot/oem ]] && [[ ! -s /boot/oem ]] ;then
+      #oem empty file found. Show Onboarding menu once.
+      whiptail --title 'Hardware reownership Wizard' --msgbox \
+        "The received hardware is currently owned by your OEM. We will change that.\n\nOn the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\nIf the HOTP code is still invalid, return received hardware back to OEM.\n\nThis Wizard would otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Recovery key and it's passphrase\n3-Resetting your LibremKey/Nitrokey Pro v2 to factory defaults\n4-Setting User (PIN) and Admin passwords into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI flash with it\n5-Own your Trusted Platform Module (TPM)\n6-Take integrity measures of all /boot files and sign the resulting\n checksum file with yourLibremKey/Nitrokey Pro\n\nPress the Enter key to continue." 30 60
+      totp_confirm="O"
+      echo $totp_confirm > /tmp/whiptail
+      mount -o remount,rw /boot
+      echo "onboarding" >> /boot/oem
+      mount -o remount,ro /boot
+    elif [[ -s /boot/oem ]];then
+      check_onboarding_progress
+    	totp_confirm="O"
+      echo $totp_confirm > /tmp/whiptail
+    else
+      whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
+        'y' ' Default boot' \
+        'a' ' Advanced Settings -->' \
+        'x' ' Exit to recovery shell' \
+        2>/tmp/whiptail || recovery "GUI menu failed"
+      totp_confirm=$(cat /tmp/whiptail)
+    fi
+  fi
 
-    totp_confirm=$(cat /tmp/whiptail)
+  if [ "$totp_confirm" = "O" ]; then
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME: Reownership" \
+        --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
+        'C' ' Continue ownership of devices' \
+        'x' ' Exit to recovery shell' \
+        2>/tmp/whiptail || recovery "GUI menu failed"
+      totp_confirm=$(cat /tmp/whiptail)
+  fi
+
+  if [ "$totp_confirm" = "C" ]; then
+    check_onboarding_progress
   fi
 
   if [ "$totp_confirm" = "a" ]; then
@@ -317,6 +414,14 @@ while true; do
     if (whiptail --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
       /bin/tpm-reset
+      
+      #set flag in oem file
+      mount_boot
+      if [ -s /boot/oem ];then
+        mount -o remount,rw /boot
+        echo tpm_reowned >> /boot/oem
+        mount -o remount,ro /boot
+      fi
 
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
@@ -521,6 +626,12 @@ while true; do
 
       #flash back a "clean" rom with public key and trustdb into SPI flash
       flash.sh -c $rom
+
+      if [ -s /boot/oem ];then
+        mount -o remount,rw /boot
+        echo gpg_factory_resetted >> /boot/oem
+        mount -o remount,ro /boot
+      fi
       
       whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Reboot required' --msgbox \
         "A reboot is required.\n\n Your firmware has been reflashed with your own public key and trustdb\n included.\n\n Heads will detect it and react accordingly:\n It will ask you to regenerate a new TOTP/HOTP code (seal BIOS integrity),\n take /boot integrity measures and sign them with your freshly\n factory resetted GPG card user password (PIN).\n\nPress the Enter key to continue." 30 90
@@ -547,8 +658,13 @@ while true; do
           "The LUKS Recovery password was provided to you by the OEM over secure\ncommunication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall Linux OS from a USB drive.\n\nTo do so, place ISO file with it's signature file on root of USB drive,\n and select Boot from USB\n\nPlease press Enter to continue." 30 60
         continue
       else
-          #Successfully reencrypted LUKS container with current passphrase
+        #Successfully reencrypted LUKS container with current Recovery key passphrase. Write successful state in oem file
+        if [ -e /boot/oem ];then
+          mount -o remount,rw /boot
+          echo "luks_reencrypted" >> /boot/oem
           reownership_state="luks_password_change"
+          mount -o remount,ro /boot
+        fi
       fi
     fi
 
@@ -565,7 +681,11 @@ while true; do
         continue
       else
         #Successfully changed passphrase of LUKS Recovery key. Write successful state in oem file
-        echo "luks_passwd_changed" >> /boot/oem
+        if [ -e /boot/oem ];then
+          mount -o remount,rw /boot
+          echo "luks_passwd_changed" >> /boot/oem
+          mount -o remount,ro /boot
+        fi
       fi
       continue
     fi
