@@ -26,10 +26,10 @@ SKL_ME_PATCH_SHA="49019f89206d6371b1377cf738426c3b0ac60c4b1bb89d5d5de00481e7e4fe
 
 # Link found on : http://www.win-raid.com/t832f39-Intel-Engine-Firmware-Repositories.html
 # Update link if it changes and becomes invalid.
-SKL_ME_RAR_URL="https://mega.nz/#!DNdDVQ7I!hronBMVN8m82JciiT6UQwtwh-LVlHXIo-NzTB0324rk"
-SKL_ME_FILENAME="11.0.18.1002_CON_LP_C0_NPDM_PRD_RGN.bin"
-SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r52/$SKL_ME_FILENAME"
-SKL_ME_RAR_SHA="28b7c31ae6888623d2271f0c74cb7bbca55a56af73b26f9796742467a841441a"
+SKL_ME_RAR_URL="https://mega.nz/#!2ElyFQDT!cC0gTlH8rB9EWD4MGX0mVElT94BauqFn-dBKuoEselc"
+SKL_ME_FILENAME="11.0.18.1002_CON_LP_C_NPDM_PRD_RGN.bin"
+SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r53/$SKL_ME_FILENAME"
+SKL_ME_RAR_SHA="1450d7ea985fbcf0ea79ba61bdc71ed3c5de52a6a82f14c07120b6b321e97352"
 
 # Needed to download SKL_ME_RAR_URL
 MEGADOWN_URL="https://github.com/tonikelope/megadown.git"
