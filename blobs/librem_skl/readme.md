@@ -1,4 +1,4 @@
-To build for the Librem 2nd generation (Librem 13 v2/v3 and Librem 15 v3/v4),
+To build for the Librem 2nd generation (Librem 13 v2/v3 and Librem 15 v3),
 we need to have the following files in this folder:
 * cpu_microcode_blob.bin  - CPU Microcode
 * descriptor.bin - The Intel Flash Descriptor
