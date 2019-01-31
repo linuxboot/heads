@@ -1,0 +1,92 @@
+From f45b4209ecbd231e3f5077eb90ce29bdc83bd6b3 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Fri, 18 Jan 2019 22:57:33 -0600
+Subject: [PATCH 1/2] mb/purism/librem_skl: add support for 13v4/15v4 boards
+
+Add support for Kabylake Librem 13v4/15v4 boards, reusing existing 13v2/15v3
+variants since board design unchanged (only SoC).
+Adjust identification strings, add Kabylake VGA PCI ID.
+
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+---
+ src/mainboard/purism/librem_skl/Kconfig      | 16 +++++++++++++---
+ src/mainboard/purism/librem_skl/Kconfig.name |  8 ++++++++
+ 2 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/src/mainboard/purism/librem_skl/Kconfig b/src/mainboard/purism/librem_skl/Kconfig
+index bbb6b7443f..36fe04da06 100644
+--- a/src/mainboard/purism/librem_skl/Kconfig
++++ b/src/mainboard/purism/librem_skl/Kconfig
+@@ -25,6 +25,8 @@ config VARIANT_DIR
+ 	string
+ 	default "librem13v2" if BOARD_PURISM_LIBREM13_V2
+ 	default "librem15v3" if BOARD_PURISM_LIBREM15_V3
++	default "librem13v2" if BOARD_PURISM_LIBREM13_V4
++	default "librem15v3" if BOARD_PURISM_LIBREM15_V4
+ 
+ config MAINBOARD_VENDOR
+ 	string
+@@ -34,16 +36,22 @@ config MAINBOARD_FAMILY
+ 	string
+ 	default "Librem 13" if BOARD_PURISM_LIBREM13_V2
+ 	default "Librem 15" if BOARD_PURISM_LIBREM15_V3
++	default "Librem 13" if BOARD_PURISM_LIBREM13_V4
++	default "Librem 15" if BOARD_PURISM_LIBREM15_V4
+ 
+ config MAINBOARD_PART_NUMBER
+ 	string
+ 	default "Librem 13 v2" if BOARD_PURISM_LIBREM13_V2
+ 	default "Librem 15 v3" if BOARD_PURISM_LIBREM15_V3
++	default "Librem 13 v4" if BOARD_PURISM_LIBREM13_V4
++	default "Librem 15 v4" if BOARD_PURISM_LIBREM15_V4
+ 
+ config MAINBOARD_VERSION
+ 	string
+ 	default "2.0" if BOARD_PURISM_LIBREM13_V2
+ 	default "3.0" if BOARD_PURISM_LIBREM15_V3
++	default "4.0" if BOARD_PURISM_LIBREM13_V4
++	default "4.0" if BOARD_PURISM_LIBREM15_V4
+ 
+ config MAINBOARD_DIR
+ 	string
+@@ -51,8 +59,7 @@ config MAINBOARD_DIR
+ 
+ config DEVICETREE
+ 	string
+-	default "variants/librem13v2/devicetree.cb" if BOARD_PURISM_LIBREM13_V2
+-	default "variants/librem15v3/devicetree.cb" if BOARD_PURISM_LIBREM15_V3
++	default "variants/$(CONFIG_VARIANT_DIR)/devicetree.cb"
+ 
+ config MAX_CPUS
+ 	int
+@@ -66,7 +73,10 @@ config NO_POST
+ 
+ config VGA_BIOS_ID
+ 	string
+-	default "8086,1916"
++	default "8086,1916" if BOARD_PURISM_LIBREM13_V2
++	default "8086,1916" if BOARD_PURISM_LIBREM15_V3
++	default "8086,5916" if BOARD_PURISM_LIBREM13_V4
++	default "8086,5916" if BOARD_PURISM_LIBREM15_V4
+ 
+ config DIMM_MAX
+ 	int
+diff --git a/src/mainboard/purism/librem_skl/Kconfig.name b/src/mainboard/purism/librem_skl/Kconfig.name
+index 3f43f68752..6a66e45950 100644
+--- a/src/mainboard/purism/librem_skl/Kconfig.name
++++ b/src/mainboard/purism/librem_skl/Kconfig.name
+@@ -5,3 +5,11 @@ config BOARD_PURISM_LIBREM13_V2
+ config BOARD_PURISM_LIBREM15_V3
+ 	bool "Librem 15 v3"
+ 	select BOARD_PURISM_BASEBOARD_LIBREM_SKL
++
++config BOARD_PURISM_LIBREM13_V4
++	bool "Librem 13 v4"
++	select BOARD_PURISM_BASEBOARD_LIBREM_SKL
++
++config BOARD_PURISM_LIBREM15_V4
++	bool "Librem 15 v4"
++	select BOARD_PURISM_BASEBOARD_LIBREM_SKL
+-- 
+2.19.1
+
