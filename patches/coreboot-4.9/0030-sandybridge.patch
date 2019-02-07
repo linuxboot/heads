@@ -1,0 +1,45 @@
+diff --git a/src/northbridge/intel/sandybridge/romstage.c b/src/northbridge/intel/sandybridge/romstage.c
+index 7345443c3d..7c204072b5 100644
+--- a/src/northbridge/intel/sandybridge/romstage.c
++++ b/src/northbridge/intel/sandybridge/romstage.c
+@@ -27,6 +27,9 @@
+ #include <device/pci_def.h>
+ #include <device/device.h>
+ #include <halt.h>
++#include <security/tpm/tss.h>
++#include <security/tpm/tspi.h>
++#include <program_loading.h>
+ #include <northbridge/intel/sandybridge/chip.h>
+ #include <southbridge/intel/bd82x6x/pch.h>
+ #include <southbridge/intel/common/gpio.h>
+@@ -70,6 +73,19 @@ void mainboard_romstage_entry(unsigned long bist)
+ 	/* Initialize superio */
+ 	mainboard_config_superio();
+ 
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && IS_ENABLED(CONFIG_LPC_TPM)) {
++		// we don't know if we are coming out of a resume
++		// at this point, but want to setup the tpm ASAP
++		tpm_setup(0);
++		tlcl_lib_init();
++		const void *const bootblock = (const void *) 0xFFFFF800;
++		const unsigned int bootblock_size = 0x800;
++		tlcl_measure(0, bootblock, bootblock_size);
++
++		extern char _romstage, _eromstage;
++		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
++	}
++
+ 	/* USB is initialized in MRC if MRC is used.  */
+ 	if (CONFIG_USE_NATIVE_RAMINIT) {
+ 		early_usb_init(mainboard_usb_ports);
+@@ -117,3 +133,10 @@ void mainboard_romstage_entry(unsigned long bist)
+ 
+ 	post_code(0x3f);
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}
++
