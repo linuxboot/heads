@@ -2,7 +2,7 @@
 # Boot from a local disk installation
 
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 mount_boot()
 {
