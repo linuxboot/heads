@@ -1,7 +1,7 @@
 #!/bin/sh
 # Save these options to be the persistent default
 set -e -o pipefail
-. /etc/config
+. /tmp/config
 . /etc/functions
 
 while getopts "b:d:p:i:" arg; do
