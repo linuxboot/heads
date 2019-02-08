@@ -17,6 +17,10 @@ recovery() {
 	# but recreate the directory so that new tools can use it.
 	rm -rf /tmp/secret
 	mkdir -p /tmp/secret
+
+	# ensure /tmp/config exists for recovery scripts that depend on it
+	touch /tmp/config
+
 	if [ "$CONFIG_TPM" = y ]; then
 		tpm extend -ix 4 -ic recovery
 	fi
