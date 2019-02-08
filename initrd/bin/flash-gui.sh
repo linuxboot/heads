@@ -101,9 +101,9 @@ while true; do
           if (whiptail --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
             if [ "$menu_choice" == "c" ]; then
-              /bin/flash.sh -c $ROM
+              /bin/flash.sh -c "$ROM"
             else
-              /bin/flash.sh $ROM
+              /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
               --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
@@ -137,17 +137,42 @@ while true; do
             ROM=$FILE
           fi
 
-          cat $PUBKEY | gpg --import
-          cp $ROM /tmp/gpg-gui.rom
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+          cat "$PUBKEY" | gpg --import
+          #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
+          gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
+          gpg --update-trust
+          
+          cp "$ROM" /tmp/gpg-gui.rom
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.kbx"); then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.kbx"
+            if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg"); then
+              cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+              if [ -e /.gnupg/pubring.gpg ];then
+                rm /.gnupg/pubring.gpg
+              fi
+            fi
           fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+          
+          #to be compatible with gpgv1
+          if [ -e /.gnupg/pubring.kbx ];then
+            cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+            if [ -e /.gnupg/pubring.gpg ];then
+              rm /.gnupg/pubring.gpg
+            fi
+          fi
+          if [ -e /.gnupg/pubring.gpg ];then
+            cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+          fi
 
           if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
             cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
           fi
           cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+
+          #Remove old method owner trust exported file
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
+          fi
 
           if (whiptail --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
@@ -179,16 +204,41 @@ while true; do
             exit 1
           fi
 
-          cat $PUBKEY | gpg --import
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+          cat "$PUBKEY" | gpg --import
+          #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
+          gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
+          gpg --update-trust
+
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.kbx"); then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.kbx"
+            if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg"); then
+              cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+              if [ -e /.gnupg/pubring.gpg ];then
+                rm /.gnupg/pubring.gpg
+              fi
+            fi
           fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+
+          #to be compatible with gpgv1
+          if [ -e /.gnupg/pubring.kbx ];then
+            cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+            if [ -e /.gnupg/pubring.gpg ];then
+              rm /.gnupg/pubring.gpg
+            fi
+          fi
+          if [ -e /.gnupg/pubring.gpg ];then
+            cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+          fi
 
           if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
             cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
           fi
           cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+
+          #Remove old method owner trust exported file
+          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
+            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
+          fi
 
           if (whiptail --title 'Update ROM?' \
               --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then

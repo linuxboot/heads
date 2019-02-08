@@ -1,0 +1,24 @@
+modules-$(CONFIG_GPG2) += libgcrypt
+libgcrypt_version := 1.8.3
+libgcrypt_dir := libgcrypt-$(libgcrypt_version)
+libgcrypt_tar := libgcrypt-$(libgcrypt_version).tar.bz2
+libgcrypt_url := https://gnupg.org/ftp/gcrypt/libgcrypt/$(libgcrypt_tar)
+libgcrypt_hash := 66ec90be036747602f2b48f98312361a9180c97c68a690a5f376fa0f67d0af7c
+
+libgcrypt_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host=x86_64-linux-musl \
+	--prefix "/" \
+	--disable-static \
+	--with-libgpg-error-prefix="$(INSTALL)" \
+	--disable-asm \
+	--disable-nls \
+	
+libgcrypt_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	install \
+
+libgcrypt_libraries := src/.libs/libgcrypt.so.20
+
+libgcrypt_depends := libgpg-error $(musl_dep)
