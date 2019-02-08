@@ -1,7 +1,9 @@
 # GPG 1.4.21 uses an old version of libusb, which
 # is emulated with the compatibility library.
 # This is a bit of a hack to set it up.
+
 modules-$(CONFIG_GPG) += libusb-compat
+modules-$(CONFIG_GPG2) += libusb-compat
 
 libusb-compat_version := 0.1.5
 libusb-compat_dir := libusb-compat-$(libusb-compat_version)
