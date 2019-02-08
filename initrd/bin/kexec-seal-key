@@ -11,7 +11,7 @@ TPM_SEALED="/tmp/secret/secret.sealed"
 RECOVERY_KEY="/tmp/secret/recovery.key"
 
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 paramsdir=$1
 if [ -z "$paramsdir" ]; then

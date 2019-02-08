@@ -2,7 +2,7 @@
 #
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 mount_usb(){
 # Mount the USB boot device

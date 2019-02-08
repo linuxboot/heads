@@ -2,7 +2,7 @@
 # Scan for USB installation options
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then

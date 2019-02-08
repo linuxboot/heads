@@ -2,7 +2,7 @@
 # Boot a USB installation
 
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Extend PCR4 as soon as possible
