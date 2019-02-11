@@ -114,7 +114,7 @@ while true; do
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
-      'f' ' Add a GPG key to the running BIOS' \
+      'G' ' Add a GPG key to the running BIOS' \
       'i' ' Ignore error and continue to default boot menu' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -185,13 +185,11 @@ while true; do
     whiptail --clear --title "Advanced Settings" \
       --menu "Configure Advanced Settings" 20 90 10 \
       'o' ' Other Boot Options -->' \
-      'r' ' TOTP/HOTP does not match, refresh code' \
-      'g' ' Generate new TOTP/HOTP secret' \
+      't' ' TPM/TOTP/HOTP Options -->' \
       's' ' Update checksums and sign all files in /boot' \
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
-      'p' ' Reset the TPM' \
-      'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
+      'G' ' GPG Options -->' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -204,6 +202,19 @@ while true; do
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
       'i' ' Ignore tampering and force a boot (Unsafe!)' \
+      'r' ' <-- Return to main menu' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    totp_confirm=$(cat /tmp/whiptail)
+  fi
+
+  if [ "$totp_confirm" = "t" ]; then
+    whiptail --clear --title "TPM/TOTP/HOTP Options" \
+      --menu "Select An Option" 20 90 10 \
+      'g' ' Generate new TOTP/HOTP secret' \
+      'p' ' Reset the TPM' \
+      'r' ' TOTP/HOTP does not match, refresh code' \
+      'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -311,6 +322,11 @@ while true; do
 
   if [ "$totp_confirm" = "f" ]; then
     flash-gui.sh
+    continue
+  fi
+
+  if [ "$totp_confirm" = "G" ]; then
+    gpg-gui.sh
     continue
   fi
 
