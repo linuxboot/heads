@@ -1,4 +1,4 @@
-To build for the Librem 2nd generation (Librem 13 v2/v3 and Librem 15 v3),
+To build for the Librem 3rd generation (Librem 13 v4 and Librem 15 vv4),
 we need to have the following files in this folder:
 * cpu_microcode_blob.bin  - CPU Microcode
 * descriptor.bin - The Intel Flash Descriptor
@@ -14,5 +14,7 @@ The script depends on: wget sha256sum python2.7 bspatch pv
 You can now compile the image with:
 
 ```
-make BOARD=librem13v2
+make BOARD=librem13v4
+or
+make BOARD=librem15v4
 ```
