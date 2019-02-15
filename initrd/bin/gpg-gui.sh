@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
