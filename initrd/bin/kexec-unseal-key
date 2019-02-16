@@ -38,7 +38,7 @@ for tries in 1 2 3; do
 		-hk 40000000 \
 	; then
 		# should be okay if this fails
-		rm -f /tmp/secret/sealed || true
+		shred -n 10 -z -u /tmp/secret/sealed || true
 		exit 0
 	fi
 
