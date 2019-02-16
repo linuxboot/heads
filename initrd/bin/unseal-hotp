@@ -28,7 +28,7 @@ tpm unsealfile  \
 	-of "$HOTP_SECRET" \
 || die "Unable to unseal HOTP secret"
 
-rm -f "$HOTP_SEALED"
+shred -n 10 -z -u "$HOTP_SEALED"
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots
@@ -51,11 +51,11 @@ fi
 #counter_value=$(printf "%d" 0x${counter_value})
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then
-	rm -f "$HOTP_SECRET"
+	shred -n 10 -z -u "$HOTP_SECRET"
 	die 'Unable to compute HOTP hash?'
 fi
 
-rm -f "$HOTP_SECRET"
+shred -n 10 -z -u "$HOTP_SECRET"
 
 #increment_tpm_counter $counter > /dev/null \
 #|| die "Unable to increment tpm counter"

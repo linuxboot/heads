@@ -28,9 +28,9 @@ tpm unsealfile  \
 	-of "$HOTP_SECRET" \
 || die "Unable to unseal HOTP secret"
 
-rm -f "$HOTP_SEALED"
+shred -n 10 -z -u "$HOTP_SEALED"
 secret="`cat $HOTP_SECRET`"
-rm -f "$HOTP_SECRET"
+shred -n 10 -z -u "$HOTP_SECRET"
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots

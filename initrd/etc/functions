@@ -15,6 +15,7 @@ recovery() {
 
 	# Remove any temporary secret files that might be hanging around
 	# but recreate the directory so that new tools can use it.
+	shred -n 10 -z -u /tmp/secret/* 2> /dev/null
 	rm -rf /tmp/secret
 	mkdir -p /tmp/secret
 
@@ -234,7 +235,7 @@ replace_config() {
 # then copy any remaining settings from the existing config file, minus the option you changed
 	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
   sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
-	rm -f ${CONFIG_FILE}.tmp
+	shred -n 10 -z -u ${CONFIG_FILE}.tmp
 }
 combine_configs() {
 	cat /etc/config* > /tmp/config
