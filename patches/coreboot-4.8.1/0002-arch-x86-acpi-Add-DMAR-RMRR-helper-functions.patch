@@ -1,0 +1,357 @@
+From e40c2710e715fc7fed344189227bd048652268f1 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@gmail.com>
+Date: Thu, 29 Mar 2018 14:59:57 +0200
+Subject: [PATCH 2/2] arch/x86/acpi: Add DMAR RMRR helper functions
+
+Add DMAR RMRR table entry and helper functions, using the existing
+DRHD functions as a model. As the DRHD device scope (DS) functions
+aren't DRHD-specific, genericize them to be used with RMRR tables as
+well. Correct DRHD bar size to match table entry in creator function,
+as noted in comments from patchset below.
+
+Adapted from/supersedes https://review.coreboot.org/25445
+
+Change-Id: I912b1d7244ca4dd911bb6629533d453b1b4a06be
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+Reviewed-on: https://review.coreboot.org/27269
+Reviewed-by: Youness Alaoui <snifikino@gmail.com>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Jay Talbott <JayTalbott@sysproconsulting.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ src/arch/x86/acpi.c                      | 40 ++++++++++++++++++------
+ src/arch/x86/include/arch/acpi.h         | 22 ++++++++++---
+ src/northbridge/intel/gm45/acpi.c        | 14 ++++-----
+ src/northbridge/intel/haswell/acpi.c     |  6 ++--
+ src/northbridge/intel/sandybridge/acpi.c |  8 ++---
+ src/soc/intel/broadwell/acpi.c           |  6 ++--
+ src/soc/intel/fsp_broadwell_de/acpi.c    |  8 ++---
+ src/soc/intel/skylake/acpi.c             |  6 ++--
+ 8 files changed, 71 insertions(+), 39 deletions(-)
+
+diff --git a/src/arch/x86/acpi.c b/src/arch/x86/acpi.c
+index 8b6b2c1d28..60d2879219 100644
+--- a/src/arch/x86/acpi.c
++++ b/src/arch/x86/acpi.c
+@@ -449,7 +449,7 @@ void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
+ }
+ 
+ unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+-	u16 segment, u32 bar)
++	u16 segment, u64 bar)
+ {
+ 	dmar_entry_t *drhd = (dmar_entry_t *)current;
+ 	memset(drhd, 0, sizeof(*drhd));
+@@ -462,6 +462,20 @@ unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+ 	return drhd->length;
+ }
+ 
++unsigned long acpi_create_dmar_rmrr(unsigned long current, u16 segment,
++				    u64 bar, u64 limit)
++{
++	dmar_rmrr_entry_t *rmrr = (dmar_rmrr_entry_t *)current;
++	memset(rmrr, 0, sizeof(*rmrr));
++	rmrr->type = DMAR_RMRR;
++	rmrr->length = sizeof(*rmrr); /* will be fixed up later */
++	rmrr->segment = segment;
++	rmrr->bar = bar;
++	rmrr->limit = limit;
++
++	return rmrr->length;
++}
++
+ unsigned long acpi_create_dmar_atsr(unsigned long current, u8 flags,
+ 	u16 segment)
+ {
+@@ -481,13 +495,19 @@ void acpi_dmar_drhd_fixup(unsigned long base, unsigned long current)
+ 	drhd->length = current - base;
+ }
+ 
++void acpi_dmar_rmrr_fixup(unsigned long base, unsigned long current)
++{
++	dmar_rmrr_entry_t *rmrr = (dmar_rmrr_entry_t *)base;
++	rmrr->length = current - base;
++}
++
+ void acpi_dmar_atsr_fixup(unsigned long base, unsigned long current)
+ {
+ 	dmar_atsr_entry_t *atsr = (dmar_atsr_entry_t *)base;
+ 	atsr->length = current - base;
+ }
+ 
+-static unsigned long acpi_create_dmar_drhd_ds(unsigned long current,
++static unsigned long acpi_create_dmar_ds(unsigned long current,
+ 	enum dev_scope_type type, u8 enumeration_id, u8 bus, u8 dev, u8 fn)
+ {
+ 	/* we don't support longer paths yet */
+@@ -505,31 +525,31 @@ static unsigned long acpi_create_dmar_drhd_ds(unsigned long current,
+ 	return ds->length;
+ }
+ 
+-unsigned long acpi_create_dmar_drhd_ds_pci_br(unsigned long current, u8 bus,
++unsigned long acpi_create_dmar_ds_pci_br(unsigned long current, u8 bus,
+ 	u8 dev, u8 fn)
+ {
+-	return acpi_create_dmar_drhd_ds(current,
++	return acpi_create_dmar_ds(current,
+ 			SCOPE_PCI_SUB, 0, bus, dev, fn);
+ }
+ 
+-unsigned long acpi_create_dmar_drhd_ds_pci(unsigned long current, u8 bus,
++unsigned long acpi_create_dmar_ds_pci(unsigned long current, u8 bus,
+ 	u8 dev, u8 fn)
+ {
+-	return acpi_create_dmar_drhd_ds(current,
++	return acpi_create_dmar_ds(current,
+ 			SCOPE_PCI_ENDPOINT, 0, bus, dev, fn);
+ }
+ 
+-unsigned long acpi_create_dmar_drhd_ds_ioapic(unsigned long current,
++unsigned long acpi_create_dmar_ds_ioapic(unsigned long current,
+ 	u8 enumeration_id, u8 bus, u8 dev, u8 fn)
+ {
+-	return acpi_create_dmar_drhd_ds(current,
++	return acpi_create_dmar_ds(current,
+ 			SCOPE_IOAPIC, enumeration_id, bus, dev, fn);
+ }
+ 
+-unsigned long acpi_create_dmar_drhd_ds_msi_hpet(unsigned long current,
++unsigned long acpi_create_dmar_ds_msi_hpet(unsigned long current,
+ 	u8 enumeration_id, u8 bus, u8 dev, u8 fn)
+ {
+-	return acpi_create_dmar_drhd_ds(current,
++	return acpi_create_dmar_ds(current,
+ 			SCOPE_MSI_HPET, enumeration_id, bus, dev, fn);
+ }
+ 
+diff --git a/src/arch/x86/include/arch/acpi.h b/src/arch/x86/include/arch/acpi.h
+index 5480834eb2..5be2e6399e 100644
+--- a/src/arch/x86/include/arch/acpi.h
++++ b/src/arch/x86/include/arch/acpi.h
+@@ -331,6 +331,15 @@ typedef struct dmar_entry {
+ 	u64 bar;
+ } __packed dmar_entry_t;
+ 
++typedef struct dmar_rmrr_entry {
++	u16 type;
++	u16 length;
++	u16 reserved;
++	u16 segment;
++	u64 bar;
++	u64 limit;
++} __packed dmar_rmrr_entry_t;
++
+ typedef struct dmar_atsr_entry {
+ 	u16 type;
+ 	u16 length;
+@@ -738,19 +747,22 @@ unsigned long acpi_write_dbg2_pci_uart(acpi_rsdp_t *rsdp, unsigned long current,
+ void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
+ 		      unsigned long (*acpi_fill_dmar)(unsigned long));
+ unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+-				    u16 segment, u32 bar);
++				    u16 segment, u64 bar);
++unsigned long acpi_create_dmar_rmrr(unsigned long current, u16 segment,
++				    u64 bar, u64 limit);
+ unsigned long acpi_create_dmar_atsr(unsigned long current, u8 flags,
+ 				    u16 segment);
+ void acpi_dmar_drhd_fixup(unsigned long base, unsigned long current);
++void acpi_dmar_rmrr_fixup(unsigned long base, unsigned long current);
+ void acpi_dmar_atsr_fixup(unsigned long base, unsigned long current);
+-unsigned long acpi_create_dmar_drhd_ds_pci_br(unsigned long current,
++unsigned long acpi_create_dmar_ds_pci_br(unsigned long current,
+ 					   u8 bus, u8 dev, u8 fn);
+-unsigned long acpi_create_dmar_drhd_ds_pci(unsigned long current,
++unsigned long acpi_create_dmar_ds_pci(unsigned long current,
+ 					   u8 bus, u8 dev, u8 fn);
+-unsigned long acpi_create_dmar_drhd_ds_ioapic(unsigned long current,
++unsigned long acpi_create_dmar_ds_ioapic(unsigned long current,
+ 					      u8 enumeration_id,
+ 					      u8 bus, u8 dev, u8 fn);
+-unsigned long acpi_create_dmar_drhd_ds_msi_hpet(unsigned long current,
++unsigned long acpi_create_dmar_ds_msi_hpet(unsigned long current,
+ 						u8 enumeration_id,
+ 						u8 bus, u8 dev, u8 fn);
+ void acpi_write_hest(acpi_hest_t *hest,
+diff --git a/src/northbridge/intel/gm45/acpi.c b/src/northbridge/intel/gm45/acpi.c
+index 73b098f610..d208eed4ab 100644
+--- a/src/northbridge/intel/gm45/acpi.c
++++ b/src/northbridge/intel/gm45/acpi.c
+@@ -78,24 +78,24 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 
+ 	unsigned long tmp = current;
+ 	current += acpi_create_dmar_drhd(current, 0, 0, IOMMU_BASE1);
+-	current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x1b, 0);
++	current += acpi_create_dmar_ds_pci(current, 0, 0x1b, 0);
+ 	acpi_dmar_drhd_fixup(tmp, current);
+ 
+ 	if (stepping != STEPPING_B2) {
+ 		tmp = current;
+ 		current += acpi_create_dmar_drhd(current, 0, 0, IOMMU_BASE2);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x2, 0);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x2, 1);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x2, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x2, 1);
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+ 
+ 	if (me_active) {
+ 		tmp = current;
+ 		current += acpi_create_dmar_drhd(current, 0, 0, IOMMU_BASE3);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x3, 0);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x3, 1);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x3, 2);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 0x3, 3);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x3, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x3, 1);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x3, 2);
++		current += acpi_create_dmar_ds_pci(current, 0, 0x3, 3);
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+ 
+diff --git a/src/northbridge/intel/haswell/acpi.c b/src/northbridge/intel/haswell/acpi.c
+index 9d76ba8ce2..3cd3bc0730 100644
+--- a/src/northbridge/intel/haswell/acpi.c
++++ b/src/northbridge/intel/haswell/acpi.c
+@@ -85,7 +85,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		const unsigned long tmp = current;
+ 
+ 		current += acpi_create_dmar_drhd(current, 0, 0, gfxvtbar);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
+ 
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+@@ -95,11 +95,11 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		const unsigned long tmp = current;
+ 		current += acpi_create_dmar_drhd(current,
+ 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
+-		current += acpi_create_dmar_drhd_ds_ioapic(current,
++		current += acpi_create_dmar_ds_ioapic(current,
+ 				2, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
+ 		size_t i;
+ 		for (i = 0; i < 8; ++i)
+-			current += acpi_create_dmar_drhd_ds_msi_hpet(current,
++			current += acpi_create_dmar_ds_msi_hpet(current,
+ 					0, PCH_HPET_PCI_BUS,
+ 					PCH_HPET_PCI_SLOT, i);
+ 		acpi_dmar_drhd_fixup(tmp, current);
+diff --git a/src/northbridge/intel/sandybridge/acpi.c b/src/northbridge/intel/sandybridge/acpi.c
+index 91ecac5956..88ac2b1e38 100644
+--- a/src/northbridge/intel/sandybridge/acpi.c
++++ b/src/northbridge/intel/sandybridge/acpi.c
+@@ -74,19 +74,19 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 	if (igfx && igfx->enabled) {
+ 		const unsigned long tmp = current;
+ 		current += acpi_create_dmar_drhd(current, 0, 0, IOMMU_BASE1);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 0);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 1);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 1);
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+ 
+ 	const unsigned long tmp = current;
+ 	current += acpi_create_dmar_drhd(current,
+ 			DRHD_INCLUDE_PCI_ALL, 0, IOMMU_BASE2);
+-	current += acpi_create_dmar_drhd_ds_ioapic(current,
++	current += acpi_create_dmar_ds_ioapic(current,
+ 			2, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
+ 	size_t i;
+ 	for (i = 0; i < 8; ++i)
+-		current += acpi_create_dmar_drhd_ds_msi_hpet(current,
++		current += acpi_create_dmar_ds_msi_hpet(current,
+ 				0, PCH_HPET_PCI_BUS, PCH_HPET_PCI_SLOT, i);
+ 	acpi_dmar_drhd_fixup(tmp, current);
+ 
+diff --git a/src/soc/intel/broadwell/acpi.c b/src/soc/intel/broadwell/acpi.c
+index 162542fe3e..a1df089fd7 100644
+--- a/src/soc/intel/broadwell/acpi.c
++++ b/src/soc/intel/broadwell/acpi.c
+@@ -586,7 +586,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		const unsigned long tmp = current;
+ 
+ 		current += acpi_create_dmar_drhd(current, 0, 0, gfxvtbar);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
+ 
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+@@ -596,11 +596,11 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		const unsigned long tmp = current;
+ 		current += acpi_create_dmar_drhd(current,
+ 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
+-		current += acpi_create_dmar_drhd_ds_ioapic(current,
++		current += acpi_create_dmar_ds_ioapic(current,
+ 				2, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
+ 		size_t i;
+ 		for (i = 0; i < 8; ++i)
+-			current += acpi_create_dmar_drhd_ds_msi_hpet(current,
++			current += acpi_create_dmar_ds_msi_hpet(current,
+ 					0, PCH_HPET_PCI_BUS,
+ 					PCH_HPET_PCI_SLOT, i);
+ 		acpi_dmar_drhd_fixup(tmp, current);
+diff --git a/src/soc/intel/fsp_broadwell_de/acpi.c b/src/soc/intel/fsp_broadwell_de/acpi.c
+index 4c6417d5d8..8bb4596ff5 100644
+--- a/src/soc/intel/fsp_broadwell_de/acpi.c
++++ b/src/soc/intel/fsp_broadwell_de/acpi.c
+@@ -331,12 +331,12 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 	current += acpi_create_dmar_drhd(current,
+ 			DRHD_INCLUDE_PCI_ALL, 0, vtbar);
+ 	/* The IIO I/O APIC is fixed on PCI 00:05.4 on Broadwell-DE */
+-	current += acpi_create_dmar_drhd_ds_ioapic(current,
++	current += acpi_create_dmar_ds_ioapic(current,
+ 			9, 0, 5, 4);
+ 	/* Get the PCI BDF for the PCH I/O APIC */
+ 	dev = dev_find_slot(0, LPC_DEV_FUNC);
+ 	bdf = pci_read_config16(dev, 0x6c);
+-	current += acpi_create_dmar_drhd_ds_ioapic(current,
++	current += acpi_create_dmar_ds_ioapic(current,
+ 			8, (bdf >> 8), PCI_SLOT(bdf), PCI_FUNC(bdf));
+ 
+ 	/*
+@@ -365,7 +365,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 	/* Create one HPET entry in DMAR for every unique HPET PCI path. */
+ 	for (i = 0; i < ARRAY_SIZE(hpet_bdf); i++) {
+ 		if (hpet_bdf[i])
+-			current += acpi_create_dmar_drhd_ds_msi_hpet(current,
++			current += acpi_create_dmar_ds_msi_hpet(current,
+ 				0, (hpet_bdf[i] >> 8), PCI_SLOT(hpet_bdf[i]),
+ 				PCI_FUNC(hpet_bdf[i]));
+ 	}
+@@ -380,7 +380,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		dev = dev_find_class(PCI_CLASS_BRIDGE_PCI << 8, dev);
+ 		if (dev && dev->bus->secondary == 0 &&
+ 		    PCI_SLOT(dev->path.pci.devfn) <= 3)
+-			current += acpi_create_dmar_drhd_ds_pci_br(current,
++			current += acpi_create_dmar_ds_pci_br(current,
+ 					dev->bus->secondary,
+ 					PCI_SLOT(dev->path.pci.devfn),
+ 					PCI_FUNC(dev->path.pci.devfn));
+diff --git a/src/soc/intel/skylake/acpi.c b/src/soc/intel/skylake/acpi.c
+index 914b9d51a3..760be590a3 100644
+--- a/src/soc/intel/skylake/acpi.c
++++ b/src/soc/intel/skylake/acpi.c
+@@ -551,7 +551,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 		const unsigned long tmp = current;
+ 
+ 		current += acpi_create_dmar_drhd(current, 0, 0, gfx_vtbar);
+-		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 0);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
+ 
+ 		acpi_dmar_drhd_fixup(tmp, current);
+ 	}
+@@ -576,9 +576,9 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 
+ 		current += acpi_create_dmar_drhd(current,
+ 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
+-		current += acpi_create_dmar_drhd_ds_ioapic(current,
++		current += acpi_create_dmar_ds_ioapic(current,
+ 				2, ibdf >> 8, PCI_SLOT(ibdf), PCI_FUNC(ibdf));
+-		current += acpi_create_dmar_drhd_ds_msi_hpet(current,
++		current += acpi_create_dmar_ds_msi_hpet(current,
+ 				0, hbdf >> 8, PCI_SLOT(hbdf), PCI_FUNC(hbdf));
+ 
+ 		acpi_dmar_drhd_fixup(tmp, current);
+-- 
+2.19.1
+
