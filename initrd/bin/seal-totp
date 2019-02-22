@@ -43,7 +43,7 @@ if ! tpm sealfile2 \
 	-ix 4 0000000000000000000000000000000000000000 \
 	-ix 7 X \
 ; then
-	shred -n 10 -z -u "$TOTP_SECRET"
+	shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 	 die "Unable to seal secret"
 fi
 
@@ -79,7 +79,7 @@ if ! tpm nv_writevalue \
 	|| die "Unable to write sealed secret to NVRAM"
 fi
 
-shred -n 10 -z -u "$TOTP_SEALED"
+shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
 
 url="otpauth://totp/$HOST?secret=$secret"
 secret=""
