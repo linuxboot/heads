@@ -117,7 +117,7 @@ tpm sealfile2 \
 	-ix 7 X \
 || die "Unable to seal secret"
 
-rm -f "$KEY_FILE" \
+shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
 || die "Failed to delete key file"
 
 # try it without the owner password first
