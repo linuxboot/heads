@@ -150,5 +150,5 @@ if ! tpm nv_writevalue \
 	|| die "Unable to write sealed secret to NVRAM"
 fi
 
-rm "$TPM_SEALED" \
+shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
 || warn "Failed to delete the sealed secret - continuing"
