@@ -235,7 +235,7 @@ replace_config() {
 # then copy any remaining settings from the existing config file, minus the option you changed
 	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
   sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
-	shred -n 10 -z -u ${CONFIG_FILE}.tmp
+	rm -f ${CONFIG_FILE}.tmp
 }
 combine_configs() {
 	cat /etc/config* > /tmp/config
