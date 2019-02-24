@@ -44,8 +44,10 @@ if ! tpm sealfile2 \
 	-ix 7 X \
 ; then
 	shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
-	 die "Unable to seal secret"
+	die "Unable to seal secret"
 fi
+
+shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 
 
 # to create an nvram space we need the TPM owner password
