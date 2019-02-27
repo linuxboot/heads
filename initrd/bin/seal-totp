@@ -43,9 +43,11 @@ if ! tpm sealfile2 \
 	-ix 4 0000000000000000000000000000000000000000 \
 	-ix 7 X \
 ; then
-	rm -f "$TOTP_SECRET"
-	 die "Unable to seal secret"
+	shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
+	die "Unable to seal secret"
 fi
+
+shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 
 
 # to create an nvram space we need the TPM owner password
@@ -79,7 +81,7 @@ if ! tpm nv_writevalue \
 	|| die "Unable to write sealed secret to NVRAM"
 fi
 
-rm -f "$TOTP_SEALED"
+shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
 
 url="otpauth://totp/$HOST?secret=$secret"
 secret=""
