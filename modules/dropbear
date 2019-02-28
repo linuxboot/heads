@@ -4,7 +4,7 @@ modules-$(CONFIG_DROPBEAR) += dropbear
 dropbear_version := 2016.74
 dropbear_dir := dropbear-$(dropbear_version)
 dropbear_tar := dropbear-$(dropbear_version).tar.bz2
-dropbear_url := http://matt.ucc.asn.au/dropbear/releases/$(dropbear_tar)
+dropbear_url := https://matt.ucc.asn.au/dropbear/releases/$(dropbear_tar)
 dropbear_hash := 2720ea54ed009af812701bcc290a2a601d5c107d12993e5d92c0f5f81f718891
 
 dropbear_configure := ./configure \
