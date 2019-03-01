@@ -1,43 +1,32 @@
 #!/bin/bash -e
-# depends on : wget sha256sum python2.7 bspatch pv
+# depends on : wget sha256sum gunzip
 
-# Librem 13 v2 and Librem 15 v3 binary blob hashes
+# Purism source
+PURISM_SOURCE="https://source.puri.sm/coreboot/releases/raw/master"
+
+# Librem 13 v2/v3 and Librem 15 v3 binary blob hashes
 SKL_UCODE_SHA="9c84936df700d74612a99e6ab581640ecf423d25a0b74a1ea23a6d9872349213"
-SKL_DESCRIPTOR_SHA="d5110807c9d67cea6d546ac62125d87042a868177241be4ae17a2dbedef10017"
-SKL_ME_NOCONF_SHA="70f07be7934bdbb215c66455a2b0d32651f3b2ecaf2519d83d8ca9cf475cc366"
-SKL_ME_SHA="3042150c7f655293a69bcf886836732fc451439ae551a2babf3173f4f0d9a8d3"
-SKL_FSP_SHA="a7dfec436f5a21a66b5a455775599d73a95170a3446849a34e89a64a2bb69820"
-SKL_FSPM_SHA="7a1acc72073969e6753bbfe145f06c3f4d35e2516cb241641eae968705e2cc46"
-SKL_FSPS_SHA="0dac94d249473e9d366597fd1f96a0232fb7bf045a3d08f16784961273351822"
-SKL_VBT_SHA="51fa214ca44a61b171662d4c2ca6adc1aa3dc6c3d7a24bf9ae5f249f012d61c0"
+SKL_DESCRIPTOR_SHA="642ca36f52aabb5198b82e013bf64a73a5148693a58376fffce322a4d438b524"
+SKL_ME_SHA="cf06d3eb8b24490a1ab46fd988b6cef822e5347cd6a2e92bc332cb4a376eb8bc"
+SKL_FSPM_SHA="5da3ad7718eb3f6700fb9d97be988d9c8bdd2d8b5910273a80928c49122d5b2d"
+SKL_FSPS_SHA="c81ffa40df0b6cd6cfde4f476d452a1f6f2217bc96a3b98a4fa4a037ee7039cf"
+SKL_VBT_SHA="0ba40c1b8c0fb030a0e1a789eda8b2a7369339a410ad8c4620719e451ea69b98"
 
-# FSP downloadable from Github
-SKL_UCODE_URL="https://github.com/platomav/CPUMicrocodes/raw/bfb23e48eb84dff1495d1c8789f133a1b684de27/Intel/cpu406E3_platC0_ver000000C2_2017-11-16_PRD_C6C6F699.bin"
-SKL_FSP_URL="https://github.com/IntelFsp/FSP/raw/8267cde09763c0c699704fbae10e6bd121f01b6a/KabylakeFspBinPkg/Fsp.fd"
-SKL_VBT_URL="https://github.com/IntelFsp/FSP/raw/8267cde09763c0c699704fbae10e6bd121f01b6a/KabylakeFspBinPkg/SampleCode/Vbt/Vbt.bin"
-SKL_FSP_SPLIT_URL="https://raw.githubusercontent.com/tianocore/edk2/e8a70885d8f34533b6dd69878fe95a249e9af086/IntelFsp2Pkg/Tools/SplitFspBin.py"
-SKL_FSP_SPLIT_SHA="f654f6363de68ad78b1baf8b8e573b53715c3bc76f7f3c23562641e49a7033f3"
-ME_CLEANER_URL="https://github.com/corna/me_cleaner/raw/9e1611fdf21426d66a29a5ea62b7e30d512859e6/me_cleaner.py"
-ME_CLEANER_SHA="412e95538c46d6d4d456987a8897b3d0ad1df118c51378a350540eef51c242d4"
+# cbfstool, ifdtool, coreboot image from Purism repo
+CBFSTOOL_FILE="cbfstool.gz"
+CBFSTOOL_URL="$PURISM_SOURCE/tools/$CBFSTOOL_FILE"
+CBFSTOOL_SHA="3994cba01a51dd34388c8be89fd329f91575c12e499dfe1b81975d9fd115ce58"
+CBFSTOOL_BIN="./cbfstool"
 
-SKL_DESCRIPTOR_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/descriptor-skl.bin"
-SKL_ME_PATCH_URL="https://source.puri.sm/coreboot/coreboot-files/raw/master/me11.0.18_config.bspatch"
-SKL_ME_PATCH_SHA="49019f89206d6371b1377cf738426c3b0ac60c4b1bb89d5d5de00481e7e4fece"
+IFDTOOL_FILE="ifdtool.gz"
+IFDTOOL_URL="$PURISM_SOURCE/tools/$IFDTOOL_FILE"
+IFDTOOL_SHA="08228ece4968794499ebd49a851f7d3f7f1b81352da8cd6e0c7916ac931a7d72"
+IFDTOOL_BIN="./ifdtool"
 
-# Link found on : http://www.win-raid.com/t832f39-Intel-Engine-Firmware-Repositories.html
-# Update link if it changes and becomes invalid.
-SKL_ME_RAR_URL="https://mega.nz/#!2ElyFQDT!cC0gTlH8rB9EWD4MGX0mVElT94BauqFn-dBKuoEselc"
-SKL_ME_FILENAME="11.0.18.1002_CON_LP_C_NPDM_PRD_RGN.bin"
-SKL_ME_FULL_FILENAME="Intel CSME 11.0 Firmware Repository Pack r53/$SKL_ME_FILENAME"
-SKL_ME_RAR_SHA="1450d7ea985fbcf0ea79ba61bdc71ed3c5de52a6a82f14c07120b6b321e97352"
-
-# Needed to download SKL_ME_RAR_URL
-MEGADOWN_URL="https://github.com/tonikelope/megadown.git"
-MEGADOWN_GOOD_COMMIT="83c53ddad1c32bf6d35c61fcd12a2fa94271ff77"
-
-# Might be required to compile unrar in case unrar-nonfree is not installed
-RAR_NONFREE_SOURCE_URL="https://www.rarlab.com/rar/unrarsrc-5.5.8.tar.gz"
-RAR_NONFREE_SOURCE_SHA="9b66e4353a9944bc140eb2a919ff99482dd548f858f5e296d809e8f7cdb2fcf4"
+COREBOOT_IMAGE="coreboot-l13v3.rom"
+COREBOOT_IMAGE_FILE="$COREBOOT_IMAGE.gz"
+COREBOOT_IMAGE_URL="$PURISM_SOURCE/librem_13v3/$COREBOOT_IMAGE_FILE"
+COREBOOT_IMAGE_SHA="34276a7b82624cfb29aed688df7f2b4e747a9e951196e376732e972c8575ece6"
 
 die () {
     local msg=$1
@@ -47,183 +36,89 @@ die () {
     exit 1
 }
 
-check_binary () {
-    local filename=$1
-    local hash=$2
-
-    if [ ! -f "$filename" ]; then
-        die "Binary blob file '$filename' does not exist"
-    fi
-    sha=$(sha256sum "$filename" | awk '{print $1}')
-    if [ "$sha" != "$hash" ]; then
-        die "Extracted binary '$filename' has the wrong SHA256 hash"
-    fi
-}
-
 check_and_get_url () {
-    filename=$1
-    url=$2
-    hash=$3
-    description=$4
+    local filename=$1
+    local url=$2
+    local hash=$3
+    local description=$4
 
     if [ -f "$filename" ]; then
         sha=$(sha256sum "$filename" | awk '{print $1}')
     fi
     if [ "$sha" != "$hash" ]; then
-        wget -O "$filename" "$url"
+        echo "    Downloading $description..."
+        wget -O "$filename" "$url" >/dev/null 2>&1
         sha=$(sha256sum "$filename" | awk '{print $1}')
         if [ "$sha" != "$hash" ]; then
             die "Downloaded $description has the wrong SHA256 hash"
+        fi
+        if [ "${filename: -3}" == ".gz" ]; then
+            gunzip -k $filename
         fi
     fi
     
 }
 
-get_and_split_fsp () {
-    fsp="fsp.fd"
-    fsp_M="fsp_M.fd"
-    fsp_S="fsp_S.fd"
-    fsp_T="fsp_T.fd"
-    fspm="fspm.bin"
-    fsps="fsps.bin"
-    fsp_split="SplitFspBin.py"
+check_and_get_blob () {
+    local filename=$1
+    local hash=$2
+    local description=$3
 
-    if [ -f "$fspm" ]; then
-        fspm_sha=$(sha256sum "$fspm" | awk '{print $1}')
+    echo "Checking $filename"
+    if [ -f "$filename" ]; then
+        sha=$(sha256sum "$filename" | awk '{print $1}')
     fi
-    if [ -f "$fsps" ]; then
-        fsps_sha=$(sha256sum "$fsps" | awk '{print $1}')
-    fi
-    # No FSP-M or FSP-S
-    if [ "$fspm_sha" != "$SKL_FSPM_SHA" ] || [ "$fsps_sha" != "$SKL_FSPS_SHA" ]; then
-        if [ -f "$fsp" ]; then
-            fsp_sha=$(sha256sum "$fsp" | awk '{print $1}')
-        fi
-        # No FSP.fd
-        if [ "$fsp_sha" != "$SKL_FSP_SHA" ]; then
-            wget -O "$fsp" "$SKL_FSP_URL"
-            fsp_sha=$(sha256sum "$fsp" | awk '{print $1}')
-            if [ "$fsp_sha" != "$SKL_FSP_SHA" ]; then
-                die "Downloaded FSP image has the wrong SHA256 hash"
-            fi
-        fi
-        # No FspSplit
-        if [ -f "$fsp_split" ]; then
-            split_sha=$(sha256sum "$fsp_split" | awk '{print $1}')
-        fi
-        if [ "$split_sha" != "$SKL_FSP_SHA" ]; then
-            wget -O "$fsp_split" "$SKL_FSP_SPLIT_URL"
-            split_sha=$(sha256sum "$fsp_split" | awk '{print $1}')
-            if [ "$split_sha" != "$SKL_FSP_SPLIT_SHA" ]; then
-                die "Downloaded FSP Split Tool has the wrong SHA256 hash"
-            fi
-        fi
-        python2 "$fsp_split" split -f "$fsp"
-        if [ -f "$fsp_M" ]; then
-            mv "$fsp_M" "$fspm"
-        fi
-        if [ -f "$fsp_S" ]; then
-            mv "$fsp_S" "$fsps"
-        fi
-        fspm_sha=$(sha256sum "$fspm" | awk '{print $1}')
-        fsps_sha=$(sha256sum "$fsps" | awk '{print $1}')
-        if [ "$fspm_sha" != "$SKL_FSPM_SHA" ] || [ "$fsps_sha" != "$SKL_FSPS_SHA" ]; then
-            die "Extracted FSP images have the wrong SHA256 hash"
-        fi
-        rm -f "$fsp"
-        rm -f "$fsp_split"
-        rm -f "$fsp_T"
-    fi
-}
-
-get_and_patch_me_11 () {
-    if [ -f "me.bin" ]; then
-        sha=$(sha256sum "me.bin" | awk '{print $1}')
-    fi
-    if [ "$sha" != "$SKL_ME_SHA" ]; then
-        local rar_filename=me_11_repository.rar
-        local unrar='unrar-nonfree'
-
-        if [ -f "$rar_filename" ]; then
-            sha=$(sha256sum "$rar_filename" | awk '{print $1}')
-        fi
-        if ! type "$unrar" &> /dev/null; then
-            wget -O unrar.tar.gz "$RAR_NONFREE_SOURCE_URL"
-            sha=$(sha256sum unrar.tar.gz | awk '{print $1}')
-            if [ "$sha" != "$RAR_NONFREE_SOURCE_SHA" ]; then
-                die "Unrar source package has the wrong SHA256 hash"
-            fi
-            tar -xzvf unrar.tar.gz
-            (
-                cd unrar
-                make
-            )
-            unrar="`pwd`/unrar/unrar"
-        fi
-        if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
-            if [ ! -d megadown ]; then
-                git clone $MEGADOWN_URL
-            fi
-            (
-                cd megadown
-                git checkout $MEGADOWN_GOOD_COMMIT
-                echo -e "\n\nDownloading ME 11 Repository from $SKL_ME_RAR_URL"
-                echo "Please be patient while the download finishes..."
-                ./megadown "$SKL_ME_RAR_URL" -o ../$rar_filename 2>/dev/null
-            )
-            sha=$(sha256sum "$rar_filename" | awk '{print $1}')
-            if [ "$sha" != "$SKL_ME_RAR_SHA" ]; then
-                # We'll assume the rar file was updated again
-                me_dirname=$("$unrar" l "$rar_filename" | grep '\.\.\.D\.\.\.' | tr  -s [:blank:] | cut -d' ' -f 6-)
-                SKL_ME_FULL_FILENAME="$me_dirname/$SKL_ME_FILENAME"
-            fi
-        fi
-        if type "$unrar" &> /dev/null; then
-            "$unrar" e -y "$rar_filename" "$SKL_ME_FULL_FILENAME"
+    if [ "$sha" != "$hash" ]; then
+        # get tools
+        check_and_get_tools
+        # extract from coreboot image
+        check_and_get_url $COREBOOT_IMAGE_FILE $COREBOOT_IMAGE_URL $COREBOOT_IMAGE_SHA "precompiled coreboot image"
+        echo "Extracting $filename"
+        if [ $filename = "descriptor.bin" ]; then
+            $IFDTOOL_BIN -x $COREBOOT_IMAGE >/dev/null 2>&1
+            mv flashregion_0_flashdescriptor.bin descriptor.bin
+            echo "Extracting me.bin"
+            mv flashregion_2_intel_me.bin me.bin
+            rm flashregion_* > /dev/null 2>&1
+        elif [ $filename = "me.bin" ]; then
+            $IFDTOOL_BIN -x $COREBOOT_IMAGE >/dev/null 2>&1
+            mv flashregion_2_intel_me.bin me.bin
+            rm flashregion_* > /dev/null 2>&1
         else
-            die "Couldn't extract ME image. Requires unrar-nonfree"
+            $CBFSTOOL_BIN $COREBOOT_IMAGE extract -n $filename -f $filename >/dev/null 2>&1
         fi
-        sha=""
-        if [ -f "$SKL_ME_FILENAME" ]; then
-            sha=$(sha256sum "$SKL_ME_FILENAME" | awk '{print $1}')
+        sha=$(sha256sum "$filename" | awk '{print $1}')
+        if [ "$sha" != "$hash" ]; then
+            die "Downloaded $description has the wrong SHA256 hash"
         fi
-        if [ "$sha" != "$SKL_ME_NOCONF_SHA" ]; then
-            die "Couldn't extract ME image with the correct SHA256 hash"
-        fi
-        check_and_get_url me11.0.18_config.bspatch $SKL_ME_PATCH_URL $SKL_ME_PATCH_SHA "ME Patch"
-        bspatch "$SKL_ME_FILENAME" "me.bin" me11.0.18_config.bspatch
-        rm -f me11.0.18_config.bspatch
-        rm -f "$SKL_ME_FILENAME"
-        rm -f "$rar_filename"
     fi
 }
 
-apply_me_cleaner() {
-    if [ -f "me_cleaner.py" ]; then
-        sha=$(sha256sum "me_cleaner.py" | awk '{print $1}')
-    fi
-    if [ "$sha" != "$ME_CLEANER_SHA" ]; then
-        wget -O "me_cleaner.py" "$ME_CLEANER_URL"
-        sha=$(sha256sum "me_cleaner.py" | awk '{print $1}')
-        if [ "$sha" != "$ME_CLEANER_SHA" ]; then
-            die "Downloaded ME Cleaner has the wrong SHA256 hash"
-        fi
-    fi
-    cat descriptor.bin me.bin > desc_me.bin
-    python2 "me_cleaner.py" -s desc_me.bin
-    python2 "me_cleaner.py" -w "MFS" me.bin
-    dd if=desc_me.bin of=descriptor.bin bs=4096 count=1
-    rm -f desc_me.bin
-    rm -f me_cleaner.py
+echo ""
+
+check_and_get_tools() {
+    check_and_get_url $CBFSTOOL_FILE $CBFSTOOL_URL $CBFSTOOL_SHA "cbfstool"
+    chmod +x $CBFSTOOL_BIN
+    check_and_get_url $IFDTOOL_FILE $IFDTOOL_URL $IFDTOOL_SHA "ifdtool"
+    chmod +x $IFDTOOL_BIN
 }
 
-check_and_get_url descriptor.bin $SKL_DESCRIPTOR_URL $SKL_DESCRIPTOR_SHA "Intel Flash Descriptor"
-check_binary descriptor.bin $SKL_DESCRIPTOR_SHA
-get_and_patch_me_11
-check_binary me.bin $SKL_ME_SHA
-apply_me_cleaner
-get_and_split_fsp
-check_binary fspm.bin $SKL_FSPM_SHA
-check_binary fsps.bin $SKL_FSPS_SHA
-check_and_get_url vbt.bin $SKL_VBT_URL $SKL_VBT_SHA "Video BIOS Table"
-check_and_get_url cpu_microcode_blob.bin $SKL_UCODE_URL $SKL_UCODE_SHA "Intel Microcode Update"
+# get tools for extraction
+#check_and_get_tools
+
+# get/verify blobs
+check_and_get_blob descriptor.bin $SKL_DESCRIPTOR_SHA "Intel Flash Descriptor"
+check_and_get_blob me.bin $SKL_ME_SHA "Intel ME firmware"
+check_and_get_blob fspm.bin $SKL_FSPM_SHA "FSP-M"
+check_and_get_blob fsps.bin $SKL_FSPS_SHA "FSP-S"
+check_and_get_blob vbt.bin $SKL_VBT_SHA "Video BIOS Table"
+check_and_get_blob cpu_microcode_blob.bin $SKL_UCODE_SHA "Intel Microcode Update"
+
+#clean up after ourselves
+rm -f $CBFSTOOL_BIN >/dev/null 2>&1
+rm -f $IFDTOOL_BIN >/dev/null 2>&1
+rm -f $COREBOOT_IMAGE >/dev/null 2>&1
+rm -f *.gz >/dev/null 2>&1
+
+echo ""
+echo "All blobs have been verified and are ready for use"
