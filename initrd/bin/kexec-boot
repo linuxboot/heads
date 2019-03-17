@@ -70,7 +70,7 @@ do
 		if [ "$kexectype" = "xen" ]; then
 			# always use xen with custom arguments
 			kexeccmd="$kexeccmd -l $filepath"
-			kexeccmd="$kexeccmd --command-line \"no-real-mode reboot=no vga=current\""
+			kexeccmd="$kexeccmd --command-line \"$restval no-real-mode reboot=no vga=current\""
 		elif [ "$kexectype" = "multiboot" ]; then
 			kexeccmd="$kexeccmd -l $filepath"
 			kexeccmd="$kexeccmd --command-line \"$restval\""
