@@ -5,6 +5,8 @@ function printusage {
   exit 0
 }
 
+BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 if [ "$#" -eq 0 ]; then printusage; fi
 
 while getopts ":f:m:i:" opt; do
@@ -26,7 +28,7 @@ while getopts ":f:m:i:" opt; do
 done
 
 if [ -z "$MECLEAN" ]; then
-  MECLEAN=`command -v me_cleaner.py 2>&1`
+  MECLEAN=`command -v $BLOBDIR/../../build/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1`
   if [ -z "$MECLEAN" ]; then
     echo "me_cleaner.py required but not found or specified with -m. Aborting."
     exit 1;
@@ -34,7 +36,7 @@ if [ -z "$MECLEAN" ]; then
 fi
 
 if [ -z "$IFDTOOL" ]; then
-  IFDTOOL=`command -v ifdtool 2>&1`
+  IFDTOOL=`command -v $BLOBDIR/../../build/coreboot-*/util/ifdtool/ifdtool 2>&1`
   if [ -z "$IFDTOOL" ]; then
     echo "ifdtool required but not found or specified with -m. Aborting."
     exit 1;
@@ -47,7 +49,6 @@ echo "IFD: $IFDTOOL"
 
 bioscopy=$(mktemp)
 extractdir=$(mktemp -d)
-BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 cp "$FILE" $bioscopy
 
