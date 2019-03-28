@@ -13,11 +13,17 @@ case "$CONFIG_BOARD" in
   x230* )
     FLASHROM_OPTIONS='--force --noverify-all --programmer internal --ifd --image bios'
   ;;
+  t420* )
+    FLASHROM_OPTIONS='--force --noverify-all -p internal:laptop=force_I_want_a_brick --ifd --image bios'
+  ;;
+  x220* )
+    FLASHROM_OPTIONS='--force --noverify-all -p internal:laptop=force_I_want_a_brick --ifd --image bios'
+  ;;
   "kgpe-d16" )
     FLASHROM_OPTIONS='--force --noverify --programmer internal'
   ;;
   * )
-    die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
+    die "ERROR: No board has been configured!\nEach board requires specific flashrom options and it's unsafe to flash without them.\nAborting."
   ;;
 esac
 
