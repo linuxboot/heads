@@ -20,7 +20,7 @@ echo ''
 echo 'To install from flash drive:'
 echo ''
 echo '  mount -o ro /dev/sdb1 /media'
-echo '  flashrom-x230.sh /media/x230.rom'
+echo '  flash.sh /media/<rom-file-name>'
 echo ''
 
 exec /bin/ash
