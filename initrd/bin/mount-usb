@@ -36,17 +36,29 @@ if [ -z `cat /tmp/usb_block_devices` ]; then
   fi
 fi
 
+USB_MOUNT_DEVICE=""
 # Check for the common case: a single USB disk with one partition
 if [ `cat /tmp/usb_block_devices | wc -l` -eq 1 ]; then
-  USB_MOUNT_DEVICE=`cat /tmp/usb_block_devices`
-  if [ `ls -1 ${USB_MOUNT_DEVICE}* | wc -l` -eq 2 ]; then
-    USB_MOUNT_DEVICE=`ls -1 ${USB_MOUNT_DEVICE}* | tail -n1`
+  USB_BLOCK_DEVICE=`cat /tmp/usb_block_devices`
+  # Subtract out block device
+  let USB_NUM_PARTITIONS=`ls -1 ${USB_BLOCK_DEVICE}* | wc -l`-1
+  if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
+    USB_MOUNT_DEVICE=${USB_BLOCK_DEVICE}
+  elif [ ${USB_NUM_PARTITIONS} -eq 1 ]; then
+    USB_MOUNT_DEVICE=`ls -1 ${USB_BLOCK_DEVICE}* | tail -n1`
   fi
+fi
 # otherwise, let the user pick
-else
+if [ -z ${USB_MOUNT_DEVICE} ]; then
   > /tmp/usb_disk_list
   for i in `cat /tmp/usb_block_devices`; do
-    ls $i* >> /tmp/usb_disk_list
+    # remove block device from list if numeric partitions exist, since not bootable
+    let USB_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+    if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
+      echo $i >> /tmp/usb_disk_list
+    else
+      ls $i* | tail -${USB_NUM_PARTITIONS} >> /tmp/usb_disk_list
+    fi
   done
 
   if [ -x /bin/whiptail ]; then
