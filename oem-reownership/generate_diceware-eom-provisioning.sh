@@ -30,7 +30,7 @@ echo "#" >> ./oem-provisioning.generated
 echo "###########" >> ./oem-provisioning.generated
 echo "#   GPG   #" >> ./oem-provisioning.generated
 echo "###########" >> ./oem-provisioning.generated
-echo "#The following GPG Key Admin PIN will be required from you to manage your LibremKey/Nitrokey" >> ./oem-provisioning.generated
+echo "#The following GPG Key Admin PIN will be required from you to manage your Librem Key/Nitrokey" >> ./oem-provisioning.generated
 echo "#It will be prompted from you under Heads through HOTP code generation to confirm firmware changes were yours" >> ./oem-provisioning.generated
 while [[ ${#oem_gpg_Admin_PIN} -lt 8 || ${#oem_gpg_Admin_PIN} -gt 20 ]];do
   oem_gpg_Admin_PIN=$(diceware -n 2)
@@ -39,7 +39,7 @@ echo "oem_gpg_Admin_PIN=$oem_gpg_Admin_PIN" >> ./oem-provisioning.generated
 while [[ ${#oem_gpg_User_PIN} -lt 6 || ${#oem_gpg_User_PIN} -gt 20 ]];do
   oem_gpg_User_PIN=$(diceware -n 2)
 done
-echo "#The following GPG Key User PIN will be required from you to Sign/Encrypt/Authenticate with your LibremKey/Nitrokey" >> ./oem-provisioning.generated
+echo "#The following GPG Key User PIN will be required from you to Sign/Encrypt/Authenticate with your Librem Key/Nitrokey" >> ./oem-provisioning.generated
 echo "#It will be prompted from you under Heads to confirm you are aware of /boot related changes" >> ./oem-provisioning.generated
 echo "oem_gpg_User_PIN=$oem_gpg_User_PIN" >> ./oem-provisioning.generated
 echo "#The following will be used to identify you publicly in generated public key from Heads." >> ./oem-provisioning.generated

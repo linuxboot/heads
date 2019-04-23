@@ -29,7 +29,7 @@
 #  GPG  #
 #########
 # GPG card function in Heads:
-#   The LibremKey/NitroKey is a traditional GPG card added with HMAC-based One-time Password (HOTP) which permits 
+#   The Librem Key/NitroKey is a traditional GPG card added with HMAC-based One-time Password (HOTP) which permits 
 #     to seal integrity measurements into the GPG card memory. 
 #     
 #     As a functional result, at each boot, the card will flash its LED green if the measured boot integrity 
@@ -45,10 +45,10 @@
 #
 #     *** You should use both TOTP/HOTP so you can still validate attested integiryt in case your GPG card gets lost ***
 #
-#     HOTP/TOTP are functionally similar, while the LibremKey/Nitrokey permits to validate integrity visually in an 
+#     HOTP/TOTP are functionally similar, while the Librem Key/Nitrokey permits to validate integrity visually in an 
 #       instant without having to unlock the smartphone, open the OTP application and verify that a 6 digits code there 
 #       is the same that is shown on the screen. 
-#       HOTP LibremKey/Nitrokey feature is complementory to the TOTP and shares the same codebase.
+#       HOTP Librem Key/Nitrokey feature is complementory to the TOTP and shares the same codebase.
 #
 #     Heads also depends on the GPG card to store used private key outside of prying eyes, securely stored on the
 #       Smartcard. When factory resetting the card, only the public key is inserted into the rom, which is used
@@ -90,7 +90,7 @@
 #
 #GPG SmartCard desired Admin PIN to provision GPG factory reset. 
 # Admin PIN manages Admin functions of the card through gpg --edit-card admin functions, 
-# In Heads, the Admin PIN is required to seal HOTP secret into NitroKey/LibremKey when firmware has been modified.
+# In Heads, the Admin PIN is required to seal HOTP secret into NitroKey/Librem Key when firmware has been modified.
 # 
 # NOTES: If the GPG card is lost, the user won't be able to seal firmware changes through HOTP.
 # Size constaints: minimum 8 characters, maximum 20 characters, WITHOUT SPACES! 
@@ -115,7 +115,7 @@ oem_gpg_User_PIN=Insurgo
 # This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
 # 
 # Size constaints: minimum 5 characters. 
-oem_gpg_real_name=Insurgo Integrity Delivered Attestation Attestation LibremKey
+oem_gpg_real_name=Insurgo Integrity Delivered Attestation Attestation Librem Key
 #GPG SmartCard desired E-mail address to provision GPG factory reset. 
 # This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
 #   Note that some services requires that e-mail address to be real and will send an e-mail to validate it.

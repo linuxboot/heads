@@ -131,11 +131,11 @@ update_totp()
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp $CONFIG_BOARD
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your LibremKey/Nitrokey"
+    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key/Nitrokey"
     read
     /bin/seal-libremkey
     while [ $? -ne 0 ];do
-      echo -e "\n\nSealing HOTP secret into LibremKey/Nitrokey failed. Let's try again by resealing both TOTP and HOTP."
+      echo -e "\n\nSealing HOTP secret into Librem Key/Nitrokey failed. Let's try again by resealing both TOTP and HOTP."
       update_totp
       /bin/seal-libremkey
     done
@@ -224,7 +224,7 @@ check_onboarding_progress()
     if [ $? -ne 0 ];then
       #Show Onboarding menu once.
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Disk Recovery Key and it's passphrase\n3-Resetting your LibremKey/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your LibremKey/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with yourLibremKey/Nitrokey Pro\n6-Owning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
+       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Disk Recovery Key and it's passphrase\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n4-Generating keys in it, exporting public key and\n importing it in the rom prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with yourLibrem Key/Nitrokey Pro\n6-Owning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
       whiptail --title 'Hardware reownership Wizard' --msgbox \
        "On the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\n\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still invalid, your hardware may been tampered with in\ntransit. Contact $oem_name." 20 20
       totp_confirm="O"
@@ -301,7 +301,7 @@ reset_disk_unlock_key()
       HOTP=`unseal-hotp`
       enable_usb
       if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your LibremKey/Nitrokey' --msgbox "Your LibremKey/Nitrokey was not detected.\n\nPlease insert your LibremKey/Nitrokey" 30 90
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key/Nitrokey' --msgbox "Your Librem Key/Nitrokey was not detected.\n\nPlease insert your Librem Key/Nitrokey" 30 90
       fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check "$HOTP"
@@ -314,7 +314,7 @@ reset_disk_unlock_key()
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert LibremKey/Nitrokey and retry"
+          HOTP="Error checking code, Insert Librem Key/Nitrokey and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
@@ -415,7 +415,7 @@ while true; do
       HOTP=`unseal-hotp`
       enable_usb
       if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your LibremKey/Nitrokey' --msgbox "Your LibremKey/Nitrokey was not detected.\n\nPlease insert your LibremKey/Nitrokey" 30 90
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key/Nitrokey' --msgbox "Your Librem Key/Nitrokey was not detected.\n\nPlease insert your Librem Key/Nitrokey" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check "$HOTP"
@@ -428,7 +428,7 @@ while true; do
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert LibremKey/Nitrokey and retry"
+          HOTP="Error checking code, Insert Librem Key/Nitrokey and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
