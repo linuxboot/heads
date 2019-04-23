@@ -35,11 +35,11 @@ while [ "$key_password" != "$key_password2" ]; do
 tpm physicalpresence -s
 tpm physicalenable
 tpm physicalsetdeactivated -c
-tpm forceclear
+tpm forceclear 
 tpm physicalenable
 tpm takeown -pwdo "$key_password" >/dev/null 2>&1 
 
 # And now turn it all back on
 tpm physicalpresence -s
-tpm physicalenable
+tpm physicalenable >/dev/null
 tpm physicalsetdeactivated -c
