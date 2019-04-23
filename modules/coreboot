@@ -41,13 +41,33 @@ coreboot_target := \
 coreboot_output := coreboot.rom
 coreboot_depend += linux initrd
 
+COREBOOT_XGCC_REL := $(coreboot_base_dir)/util/crossgcc/xgcc
+COREBOOT_XGCC_PATH := $(build)/$(COREBOOT_XGCC_REL)
+COREBOOT_XGCC := $(COREBOOT_XGCC_PATH)/bin/i386-elf-gcc
+
 # hack to force a build dependency on the cross compiler
-$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc
-$(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/i386-elf-gcc: $(build)/$(coreboot_base_dir)/.canary
+coreboot-gcc $(build)/$(coreboot_dir)/.configured: $(COREBOOT_XGCC)
+
+ifeq "$(TOOLCHAIN)" ""
+# Force a rebuild of the entire coreboot toolchain
+$(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
 	echo '******* Building crossgcc-i386 (this might take a while) ******'
 	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=`nproc` crossgcc-i386
 	#echo '******* Building crossgcc-arm (this might take a while) ******'
 	#$(MAKE) -C "$(build)/$(coreboot_base_dir)" crossgcc-arm
+else
+# Use the pre-build one from the external toolchain build
+$(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
+	if [ ! -e "$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" ]; then \
+		echo >&2 "ERROR: TOOLCHAIN=$(TOOLCHAIN) does not have coreboot" ; \
+		exit 1 ; \
+	fi
+	if [ ! -e "$(COREBOOT_XGCC_PATH)" ]; then \
+		ln -s \
+			"$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" \
+			"$(COREBOOT_XGCC_PATH)" ; \
+	fi
+endif
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
