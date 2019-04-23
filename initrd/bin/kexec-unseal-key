@@ -1,5 +1,5 @@
 #!/bin/sh
-# This will unseal and unecncrypt the drive encryption key from the TPM
+# This will unseal and unencrypt the drive encryption key from the TPM
 # The TOTP secret will be shown to the user on each encryption attempt.
 # It will then need to be bundled into initrd that is booted with Qubes.
 set -e -o pipefail
@@ -24,11 +24,11 @@ tpm nv_readvalue \
 || die "Unable to read key from TPM NVRAM"
 
 for tries in 1 2 3; do
-	read -s -p "Enter unlock password (blank to abort): " tpm_password
+	read -s -p "Enter LUKS Disk Unlock Key passphrase (blank to abort): " tpm_password
 	echo
 
 	if [ -z "$tpm_password" ]; then
-		die "Aborting unseal disk encryption key"
+		die "Aborting unsealing LUKS Disk Unlock Key since no Disk Unlock Key passphrase was provided."
 	fi
 
 	if tpm unsealfile \
@@ -43,7 +43,7 @@ for tries in 1 2 3; do
 	fi
 
 	pcrs
-	warn "Unable to unseal disk encryption key"
+	warn "Unable to unseal Disk Unlock Key from TPM."
 done
 
 die "Retry count exceeded..."

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Unseal a disk key from TPM and add to a new initramfs
+# Unseal a Disk Unlock Key from TPM and add to a new initramfs
 set -e -o pipefail
 . /etc/functions
 
@@ -23,10 +23,10 @@ if [ -r "$TMP_KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
 	lvm vgchange -a y $VOLUME_GROUP \
-		|| die "$VOLUME_GROUP: unable to activate volume group"
+		|| die "$VOLUME_GROUP: Unable to activate volume group"
 fi
 
-# Measure the LUKS headers before we unseal the disk key
+# Measure the LUKS headers before we unseal the Disk Unock Key
 cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "LUKS measure failed"
 
@@ -37,12 +37,12 @@ INITRD_DIR=/tmp/secret/initrd
 SECRET_CPIO=/tmp/secret/initrd.cpio
 mkdir -p "$INITRD_DIR/etc"
 
-# Attempt to unseal the disk key from the TPM
+# Attempt to unseal the Disk Unlock Key from the TPM
 # should we give this some number of tries?
 unseal_failed="n"
 if ! kexec-unseal-key "$INITRD_DIR/secret.key" ; then
 	unseal_failed="y"
-	echo "!!! Failed to unseal the TPM LUKS disk key"
+	echo "!!! Failed to unseal the TPM LUKS Disk Unlock Key"
 fi
 
 # Override PCR 4 so that user can't read the key
@@ -54,14 +54,14 @@ if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
 	read \
 		-n 1 \
-		-p "Do you wish to boot and use the disk recovery key? [Y/n] " \
+		-p "Do you wish to boot and use the Disk Recovery Key? [Y/n] " \
 		confirm_boot
 
 	if [ "$confirm_boot" != 'y' \
 		-a "$confirm_boot" != 'Y' \
 		-a -n "$confirm_boot" ] \
 	; then
-		die "!!! Aborting boot due to failure to unseal TPM disk key"
+		die "!!! Aborting boot due to failure to unseal TPM Disk Unlock Key"
 	fi
 fi
 

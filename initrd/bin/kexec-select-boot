@@ -135,7 +135,7 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		whiptail --clear --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$option\n\n" 20 120 8 \
-			-- 'y' "Boot $name" 'd' "Make $name the default" \
+			-- 'd' "Make $name the default" 'y' "Boot $name" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
 		option_confirm=$(cat /tmp/whiptail)
@@ -176,11 +176,11 @@ scan_options() {
 save_default_option() {
 	read \
 		-n 1 \
-		-p "Saving a default will modify the disk. Proceed? (y/n): " \
+		-p "Saving a default will modify the disk. Proceed? (Y/n): " \
 		default_confirm
 	echo
 
-	if [ "$default_confirm" = "y" ]; then
+	if [ "$default_confirm" = "y" ] || [ "$default_confirm" = "Y" ] || [ -z "$default_confirm" ]; then
 		if kexec-save-default \
 			-b "$bootdir" \
 			-d "$paramsdev" \
@@ -191,9 +191,16 @@ save_default_option() {
 			sleep 2
 			default_failed="n"
 			force_menu="n"
+			if [ -e /boot/reset_disk_unlock_key ]; then
+        			mount -o remount,rw /boot
+        			rm -f /boot/reset_disk_unlock_key
+        			mount -o remount,ro /boot
+      			fi
 			return
 		else
 			echo "Failed to save defaults"
+			echo "Press Enter to continue"
+			read
 		fi
 	fi
 

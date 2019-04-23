@@ -14,7 +14,6 @@ libgpg-error_configure := ./configure \
 	--disable-languages \
 	--disable-doc \
 	--disable-tests \
-	--disable-asm \
 
 libgpg-error_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \

@@ -5,24 +5,24 @@ set -e -o pipefail
 . /etc/functions
 
 while getopts "b:d:p:i:" arg; do
-	case $arg in
-		b) bootdir="$OPTARG" ;;
-		d) paramsdev="$OPTARG" ;;
-		p) paramsdir="$OPTARG" ;;
-		i) index="$OPTARG" ;;
-	esac
+  case $arg in
+    b) bootdir="$OPTARG" ;;
+    d) paramsdev="$OPTARG" ;;
+    p) paramsdir="$OPTARG" ;;
+    i) index="$OPTARG" ;;
+  esac
 done
 
 if [ -z "$bootdir" -o -z "$index" ]; then
-	die "Usage: $0 -b /boot -i menu_option "
+  die "Usage: $0 -b /boot -i menu_option "
 fi
 
 if [ -z "$paramsdev" ]; then
-	paramsdev="$bootdir"
+  paramsdev="$bootdir"
 fi
 
 if [ -z "$paramsdir" ]; then
-	paramsdir="$bootdir"
+  paramsdir="$bootdir"
 fi
 
 bootdir="${bootdir%%/}"
@@ -33,106 +33,213 @@ TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
 HASH_FILE="$paramsdir/kexec_default_hashes.txt"
 
-if [ ! -r "$TMP_MENU_FILE" ]; then
-	die "No menu options available, please run kexec-select-boot"
+
+lvm_suggest=$(lvm vgscan|awk -F '"' {'print $1'}|tail -n +2)
+num_lvm=$(echo "$lvm_suggest"|wc -l)
+if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
+  lvm_volume_group=$lvm_suggest
+elif [ -z "$lvm_suggest" ]; then
+  num_lvm=0
 fi
 
-entry=`head -n $index $TMP_MENU_FILE | tail -1`
+devices_suggest=$(blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks "$device";if [ $(echo $?) == 0 ]; then echo "$device";fi; done | sort)
+num_devices=$(echo "$devices_suggest"|wc -l)
+if [ "$num_devices" -eq 1 ]; then
+  key_devices=$devices_suggest
+else
+  devices_suggest=$(echo $devices_suggest)
+fi
+
+
+if [ ! -r "$TMP_MENU_FILE" ]; then
+  die "No menu options available, please run kexec-select-boot"
+fi
+
+entry=$(head -n "$index" $TMP_MENU_FILE | tail -1)
 if [ -z "$entry" ]; then
-	die "Invalid menu index $index"
+  die "Invalid menu index $index"
 fi
 
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
+
 if [ "$CONFIG_TPM" = "y" ]; then
-	if [ ! -r "$KEY_DEVICES" ]; then
-		read \
-			-n 1 \
-			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
-			add_key_confirm
-		echo
+  if [ ! -s "$KEY_DEVICES" ]; then
+    read \
+      -n 1 \
+      -p "Do you wish to add a Disk Unlock Key to the TPM [Y/n]: " \
+      add_key_confirm
+    echo
 
-		if [ "$add_key_confirm" = "y" \
-			-o "$add_key_confirm" = "Y" ]; then
-			lvm_suggest="e.g. qubes_dom0 or blank"
-			devices_suggest="e.g. /dev/sda2 or blank"
-			save_key="y"
-		fi
-	else
-		read \
-			-n 1 \
-			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
-			change_key_confirm
-		echo
+    if [ "$add_key_confirm" = "y" ] || [ "$add_key_confirm" = "Y" ] || [ -z "$add_key_confirm" ]; then
+      if [ "$num_lvm" -gt 1 ]; then
+        //untested
+        selected_lvmdev_not_existing=1
+        while [ $selected_lvmdev_not_existing -ne 0 ];do
+        {
+            read \
+              -p "Encrypted LVM group? choose between: $lvm_suggest: " \
+              lvm_volume_group
 
-		if [ "$change_key_confirm" = "y" \
-			-o "$change_key_confirm" = "Y" ]; then
-			old_lvm_volume_group=""
-			if [ -r "$KEY_LVM" ]; then
-				old_lvm_volume_group=`cat $KEY_LVM` || true
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 \
-				| grep -v "$old_lvm_volume_group" \
-				| xargs` || true
-			else
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 | xargs` || true
-			fi
+            result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
+            if [ $? == 0 ]; then
+              selected_lvmdev_not_existing=0
+            fi
+        };done  
+      elif [ "$num_lvm" -eq 1 ]; then
+        echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
+        lvm_volume_group=$lvm_suggest
+      else
+        echo "No encrypted LVM Group found."
+      fi
 
-			lvm_suggest="was '$old_lvm_volume_group'"
-			devices_suggest="was '$old_key_devices'"
-			save_key="y"
-		fi
-	fi
+      if [ "$num_devices" -gt 1 ]; then
+        selected_luksdev_not_existing=1
+        while [ $selected_luksdev_not_existing -ne 0 ];do
+        {
+          read \
+          -p "Encrypted devices? (choose between: $devices_suggest): " \
+          key_devices
 
-	if [ "$save_key" = "y" ]; then
-		echo "+++ LVM volume groups (lvm vgscan): "
-		lvm vgscan || true
+          result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
+          if [ $? == 0 ]; then
+            selected_luksdev_not_existing=0
+          fi
+        };done
+      elif [ "$num_devices" -eq 1 ]; then
+        echo "Single Encrypted Disk found at $devices_suggest. Using it."
+        key_devices=$devices_suggest
+      else
+        echo "No encrypted devices found."
+      fi
 
-		read \
-			-p "Encrypted LVM group? ($lvm_suggest): " \
-			lvm_volume_group
+    save_key="y"
+    else
+      die "User chose to not add Disk Unlock Key to the TPM"
+    fi
+  else
+    read \
+      -n 1 \
+      -p "Do you want to reseal a Disk Unlock Key to the TPM [Y/n]: " \
+      change_key_confirm
+    echo
 
-		echo "+++ Block devices (blkid): "
-		blkid || true
+    if [ "$change_key_confirm" = "y" ] || [ "$change_key_confirm" = "Y" ] || [ -z "$change_key_confirm" ]; then
+      old_lvm_volume_group=""
+      if [ -r "$KEY_LVM" ]; then
+        old_lvm_volume_group=$(cat "$KEY_LVM") || true
+        old_key_devices=$(cat "$KEY_DEVICES" \
+        | cut -d\  -f1 \
+        | grep -v "$old_lvm_volume_group" \
+        | xargs) || true
+      else
+        old_key_devices=$(cat "$KEY_DEVICES" \
+        | cut -d\  -f1 | xargs) || true
+      fi
 
-		read \
-			-p "Encrypted devices? ($devices_suggest): " \
-			key_devices
+      lvm_suggest="$old_lvm_volume_group"
+      devices_suggest="$old_key_devices"
+      save_key="y"
+    else
+      echo -e "\n\nTo set a new Disk Unlock Key passphrase, different then Disk Recovery Key passphrase, resealing the Disk Unlock key to the TPM is needed.\n\nThe actual default boot option have been invalidated by a firmware upgrade or a firmware tampering.\nIf you are the origin of the change, you have already resealed TOTP/HOTP, prompted from TPM measurements mismatches.\n\nIt is strongly advised to set a new default boot option, which will add the Disk Unlock Key to the TPM.\n\nThe Disk Unlock Key passphrase you will choose at this step will be required of you at each machine startup and will protect the Disk Recovery Key passphrase from interested eyes.\n\nBy selecting a Disk Unlock Key passphrase, a camera that would see you type your Disk Unlock Key passphrase will only be able to access the content of your hard drive on this computer.\n\nMore critically, someone knowing your Disk Recovery Key passphrase would just have to clone your disk (which takes 30 minutes) and be able to access its content from any other computer later on.\nConsider yourself warned.\n"
+      die "User refused to reseal the Disk Unlock Key to the TPM"
+    fi
+  fi
 
-		save_key_params="-s -p $paramsdev"
-		if [ -n "$lvm_volume_group" ]; then
-			save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
-		else
-			save_key_params="$save_key_params $key_devices"
-		fi
-		echo "Running kexec-save-key with params: $save_key_params"
-		kexec-save-key $save_key_params \
-			|| die "Failed to save the disk key"
-	fi
+  if [ "$save_key" = "y" ]; then
+    if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
+      read \
+        -n 1 \
+        -p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
+        reuse_past_devices
+       echo
+      if [ "$reuse_past_devices" = "y" ] || [ "$reuse_past_devices" = "Y" ] || [ -z "$reuse_past_devices" ]; then
+        if [ -z "$key_devices" ] && [ -n "$old_key_devices" ]; then
+          key_devices="$old_key_devices"
+        fi
+        if [ -z "$lvm_volume_group" ] && [ -n "$old_lvm_volume_group" ]; then
+          lvm_volume_group="$old_lvm_volume_group"
+        fi
+      else
+        if [ "$num_lvm" -eq 1 ]; then
+          echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
+          lvm_volume_group="$lvm_suggest"
+        elif [ "$num_lvm" -gt 1 ]; then
+          //untested
+          selected_lvmdev_not_existing=1
+          while [ $selected_lvmdev_not_existing -ne 0 ];do
+          {
+              read \
+                -p "Encrypted LVM group? (choose between: $lvm_suggest): " \
+                lvm_volume_group
+
+              result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
+              if [ $? == 0 ]; then
+                selected_lvmdev_not_existing=0
+              fi
+          };done
+        else
+          echo "No encrypted LVM Group found."
+        fi
+
+        if [ "$num_devices" -eq 1 ]; then
+          echo "Single Encrypted Disk found at $devices_suggest. Using it."
+          key_devices="$devices_suggest"
+        elif [ "$num_devices" -gt 1 ]; then
+          selected_luksdev_not_existing=1
+            while [ $selected_luksdev_not_existing -ne 0 ];do
+            {
+              read \
+              -p "Encrypted devices? (choose between: $devices_suggest): " \
+              key_devices
+
+              result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
+              if [ $? == 0 ]; then
+                selected_luksdev_not_existing=0
+              fi
+            };done
+        else
+          echo "No encrypted devices found."
+        fi
+      fi
+    fi
+
+    save_key_params="-s -p $paramsdev"
+    if [ -n "$lvm_volume_group" ]; then
+      save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
+    elif [ -n "$key_devices" ]; then
+      save_key_params="$save_key_params $key_devices"
+    else
+      die "No LVM Group nor encrypted devices provided."
+    fi
+  fi  
+  
+  echo -e "\nRunning kexec-save-key with params: $save_key_params\n"
+  kexec-save-key $save_key_params \
+  || die "Failed to save the Disk Unlock Key"
 fi
 
 # try to switch to rw mode
 mount -o rw,remount $paramsdev
 
 if [ ! -d $paramsdir ]; then
-	mkdir -p $paramsdir \
-	|| die "Failed to create params directory"
+  mkdir -p $paramsdir \
+  || die "Failed to create params directory"
 fi
 rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
 echo "$entry" > $ENTRY_FILE
 cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f | \
-	xargs sha256sum > $HASH_FILE \
+  xargs sha256sum > $HASH_FILE \
 || die "Failed to create hashes of boot files"
 if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
-	die "Failed to write default config"
+  die "Failed to write default config"
 fi
 
 # sign and auto-roll config counter
 extparam=
 if [ "$CONFIG_TPM" = "y" ]; then
-	extparam=-u
+  extparam=-u
 fi
 kexec-sign-config -p $paramsdir $extparam \
 || die "Failed to sign default config"

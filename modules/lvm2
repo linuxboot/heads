@@ -30,6 +30,8 @@ lvm2_configure := \
 	--disable-blkid_wiping \
 	--disable-cmirrord \
 	--disable-cache_check_needs_check \
+	--with-thin=internal \
+	--with-snapshots=internal \
 	--disable-thin_check_needs_check \
 	--with-cluster=none \
 

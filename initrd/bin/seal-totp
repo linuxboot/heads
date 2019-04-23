@@ -50,7 +50,7 @@ fi
 shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 
 
-# to create an nvram space we need the TPM owner password
+# to create an nvram space we need the TPM Owner password
 # and the TPM physical presence must be asserted.
 #
 # The permissions are 0 since there is nothing special

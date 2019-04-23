@@ -76,6 +76,7 @@ while true; do
     'a' ' Add GPG key to standalone BIOS image + flash' \
     'l' ' List GPG keys in your keyring' \
     'g' ' Generate GPG keys on a USB security token' \
+    'F' ' Factory Reset Nitrokey Pro v2/LibremKey GPG Card' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -88,7 +89,7 @@ while true; do
     "a" )
       if (whiptail --title 'ROM and GPG public key required' \
           --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
+        mount_usb || die "Unable to mount USB device"
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
@@ -159,8 +160,8 @@ while true; do
     ;;
     "r" )
       if (whiptail --title 'GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nNormally, the file should be named public.key\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+        mount_usb || die "Unable to mount USB device"
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
@@ -238,7 +239,10 @@ while true; do
       echo "********************************************************************************"
       gpg --card-edit
     ;;
+    "F" )
+      /bin/factory-reset-nitrokey-libremkey.sh 
+    ;;
   esac
 
 done
-exit 0
+exit 0 

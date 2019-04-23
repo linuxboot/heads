@@ -16,7 +16,7 @@ mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev 2>/dev/ttyprintk
 mount /proc 2>/dev/ttyprintk
 mount /sys 2>/dev/ttyprintk
-mount /sys/firmware/efi/efivars
+mount /sys/firmware/efi/efivars 2>/dev/ttyprintk
 
 # Setup the pty psudeo filesystem
 mkdir /dev/pts
@@ -31,7 +31,6 @@ mkdir -p /tmp/secret
 
 # Now it is safe to print a banner
 if [ -r /etc/motd ]; then
-	cat /etc/motd
 	cat /etc/motd > /dev/tty0
 fi
 
@@ -41,6 +40,15 @@ hwclock -l -s
 # Read the system configuration parameters
 . /etc/functions
 . /etc/config
+
+# Add our boot devices into the /etc/fstab, if they are defined
+# in the configuration file.
+if [ ! -z "$CONFIG_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+fi
+if [ ! -z "$CONFIG_USB_BOOT_DEV" ]; then
+	echo >> /etc/fstab "$CONFIG_USB_BOOT_DEV /media auto defaults,ro 0 0"
+fi
 
 if [ "$CONFIG_COREBOOT" = "y" ]; then
 	/bin/cbfs-init

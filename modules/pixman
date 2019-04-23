@@ -3,7 +3,7 @@ modules-$(CONFIG_CAIRO) += pixman
 pixman_version := 0.34.0
 pixman_dir := pixman-$(pixman_version)
 pixman_tar := pixman-$(pixman_version).tar.gz
-pixman_url := https://www.cairographics.org/releases/$(pixman_tar)
+pixman_url := https://ftp.osuosl.org/pub/blfs/conglomeration/pixman/$(pixman_tar)
 pixman_hash := 21b6b249b51c6800dc9553b65106e1e37d0e25df942c90531d4c3997aa20a88e
 
 pixman_configure := \
