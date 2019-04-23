@@ -1,5 +1,5 @@
 #!/bin/sh
-# Retrieve the sealed TOTP secret and initialize a Librem Key with it
+# Retrieve the sealed TOTP secret and initialize a LibremKey/NitroKey with it
 
 . /etc/functions
 
@@ -29,7 +29,7 @@ tpm unsealfile  \
 || die "Unable to unseal HOTP secret"
 
 shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
-secret="`cat $HOTP_SECRET`"
+secret="$(cat $HOTP_SECRET)"
 shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
@@ -52,19 +52,24 @@ counter_value=1
 
 enable_usb
 if ! libremkey_hotp_verification info ; then
-  echo "Insert your Librem Key and press Enter to configure it"
+  echo "Insert your LibremKey/NitroKey and press Enter to configure it"
   read
   libremkey_hotp_verification info \
-  || die "Unable to find Librem Key"
+  || die "Unable to find LibremKey/NitroKey"
 fi
 
-read -s -p "Enter your Librem Key Admin PIN" admin_pin
-echo
+if [ -z "$oem_gpg_Admin_PIN" ]; then
+  read -s -p "Enter your LibremKey/NitroKey Admin PIN:" admin_pin
+  echo
+else
+  admin_pin=$(echo -n "$oem_gpg_Admin_PIN")
+fi
 
-libremkey_hotp_initialize $admin_pin $secret $counter_value 
+libremkey_hotp_initialize "$admin_pin" "$secret" $counter_value 
 if [ $? -ne 0 ]; then
-  read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again:" admin_pin
-  libremkey_hotp_initialize $admin_pin $secret $counter_value \
+  read -r -s -p "Error setting HOTP secret, re-enter Admin PIN and try again:" admin_pin
+  echo
+  libremkey_hotp_initialize "$admin_pin" "$secret" $counter_value \
   || die "Setting HOTP secret failed"
 fi
 
@@ -78,15 +83,15 @@ secret=""
 
 mount -o remount,rw /boot
 
-counter_value=`expr $counter_value + 1`
-echo $counter_value > $HOTP_COUNTER \
-|| die "Unable to create hotp counter file"
+counter_value=$(expr $counter_value + 1)
+echo "$counter_value" > $HOTP_COUNTER \
+|| die "Unable to create HOTP counter file"
 
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
-#|| die "Unable to create hotp counter file"
+#|| die "Unable to create HOTP counter file"
 mount -o remount,ro /boot
 
-echo "Librem Key initialized successfully. Press Enter to continue."
+echo "LibremKey/NitroKey initialized successfully. Press Enter to continue."
 read
 
 exit 0

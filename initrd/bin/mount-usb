@@ -4,6 +4,17 @@
 
 enable_usb
 
+#OEM reownership, when attempting to load /media/oem-provisioning, 
+#requires usb-storage.ko module loaded, loaded here, modifying 
+#PCR 5, through /sbin/insmod script.
+#
+#We bypass that measurement here, so the PCR 5 is the same
+#when calling kexec-seal-key in OEM mode then when calling 
+#kexec-unseal-key in normal boot mode.
+if [ -e /boot/oem ]; then
+  alias insmod='busybox insmod'
+fi
+
 if ! lsmod | grep -q usb_storage; then
   insmod /lib/modules/usb-storage.ko \
   || die "usb_storage: module load failed"

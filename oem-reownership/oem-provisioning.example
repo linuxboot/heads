@@ -1,0 +1,198 @@
+###########
+#   OEM   #
+###########   
+# To activate OEM reownership wizard, under Heads recovery console, do:
+#   mount /boot
+#   mount -o remount,rw /boot
+#   echo "oem_name=COMPANY NAME" > /boot/oem
+#   mount -o remount,ro /boot
+#   reboot
+#
+# To activate OEM automatic provisioning, the content of this file needs to be found by Heads under:
+#  /media/oem-provisioning
+# By default, the USB drive is mounted from /dev/sdb1 but "mount-usb" will find the usb drive and mount it under /media
+# 
+# Replace variables content with your own!
+#
+#The following needs to be put in /boot/oem for OEM name to be shown at OEM Reownership wizard first screen. Else it is going to be "your OEM".
+#oem_name=Insurgo Open Technologies
+#
+#On a recovery shell, type the UP arrow key until you reach top of the history buffer. A command is proposed for you to change "YOUR COMPANY"
+# to your own. The hardware is then ready to ship and the wizard will accompany the user in reowning the hardware and OEM secrets on next reboot.
+#
+# You should invite the user into using "generate_diceware-eom-provisioning.sh" script in the current directory, 
+#   which uses diceware to prefeed "oem-provisioning.generated" with proper secrets.
+# The user would then need to put that file under "oem-provisioning" on the root of a dedicated USB drive and connect on first boot of 
+#   received hardware to reduce user errors and friction of having to enter those secrets manually.  
+
+#########
+#  GPG  #
+#########
+# GPG card function in Heads:
+#   The LibremKey/NitroKey is a traditional GPG card added with HMAC-based One-time Password (HOTP) which permits 
+#     to seal integrity measurements into the GPG card memory. 
+#     
+#     As a functional result, at each boot, the card will flash its LED green if the measured boot integrity 
+#       is atttested or red in case of a mismatch. This provable security measure is called tamper-evidence and
+#       informs the user that the Firmware (BIOS chips content) has been tampered with, or modified, and doesn't
+#       match expected measurements expected by the Trusted Platform Module (TPM) and validated by the GPG card.
+# 
+#     Heads traditionally stores Trusted Module Platform (TPM) Time-based One-time Password (TOTP) code in a 
+#       smartphone through the scanning of a QR code into an OTP authenticator application when the TPM is reowned or
+#       when a firmware update is applied. Through the reownership process, the firmware will be modified by inserting
+#       public PGP key into the firmware, which will invalidate measurements and require the TOTP/HOTP to be resealed.
+#       The TPM itself will be reowned by the user, requesting him to set a passphrase. 
+#
+#     *** You should use both TOTP/HOTP so you can still validate attested integiryt in case your GPG card gets lost ***
+#
+#     HOTP/TOTP are functionally similar, while the LibremKey/Nitrokey permits to validate integrity visually in an 
+#       instant without having to unlock the smartphone, open the OTP application and verify that a 6 digits code there 
+#       is the same that is shown on the screen. 
+#       HOTP LibremKey/Nitrokey feature is complementory to the TOTP and shares the same codebase.
+#
+#     Heads also depends on the GPG card to store used private key outside of prying eyes, securely stored on the
+#       Smartcard. When factory resetting the card, only the public key is inserted into the rom, which is used
+#       to automatically validate the integiryt of /boot files through checksuming and validating the the result
+#       matches what is signed with the private key on the GPG card.
+#
+#     Heads will warn the user each time boot configuration changes. 
+#       That will happen when the Operating System applies core system updates (Xen, Kernel, initrd (drivers) 
+#       and grub configuration) while notifying the user of any addition/supression of files expected to be found 
+#       in the /boot partition.
+#
+# GPG usage in Heads:
+#   Heads will prompt the user for:
+#     User PIN: 
+#       Sign boot configuration changes.
+#     Admin PIN:
+#       Seal Firmware changes through HOTP
+#     
+#  IMPORTANT: 
+#   The user should always reboot the system and sign configuration changes as soon as possible after system upgrades
+#   to attest the responsibility and ownership of the changes.
+#
+#   The user should always be cautious about TOTP/HOTP errors if he didn't update the firmware himself.
+#     
+#   Heads primary goal is to attest of the integrity of the firmware and /boot files.
+#     That integrity attestation is based on those two practices that REQUIRES TO BE FOLLOWED. 
+#
+# PIN Notes: GPG PINs are protected in the SmartCard. After 3 bad attempts, the SmartCard locks that account.
+#  When the User PIN is locked, the Admin PIN can be used to unlock User PIN.
+#  When the Admin PIN is locked, a Reset Code can be used to unlock Admin PIN.
+#   This is not provisioned by default. You will have to set one manually yourself.
+#   
+#  You can define an additional "Reset Code" to reset the Admin PIN manually by doing:
+#    gpg --card-edit
+#       admin
+#       passwd
+#         4 - set the Reset Code
+#           Type Admin PIN
+#
+#GPG SmartCard desired Admin PIN to provision GPG factory reset. 
+# Admin PIN manages Admin functions of the card through gpg --edit-card admin functions, 
+# In Heads, the Admin PIN is required to seal HOTP secret into NitroKey/LibremKey when firmware has been modified.
+# 
+# NOTES: If the GPG card is lost, the user won't be able to seal firmware changes through HOTP.
+# Size constaints: minimum 8 characters, maximum 20 characters, WITHOUT SPACES! 
+#     (Else HOTP cannot be sealed. It's a seal-libremkey limitation)
+#   No need to go crazy here. Remember that 3 bad attempts locks the account. One or two Diceware words are enough.
+#     Use KeepassXC password manager or something like https://www.rempe.us/diceware/#eff
+oem_gpg_Admin_PIN=InsurgoTech
+#
+#GPG SmartCard desired User PIN to provision GPG factory reset.
+# User PIN manages user functions of the card. It is used to encrypt files and e-mails, sign files and e-mails 
+#   and authenticate the user in daily operations when used in combination with the public key generated.
+#     That public key needs to be kept, as it is impossible to export it from the smartcard.
+# In Heads, the User PIN is required to sign boot configuration changes.
+#   At each boot, the imported public key counterpart is used to validate the checksums of the files signed with the card.
+# 
+# NOTES: If the GPG card is lost, the user won't be able to sign system changes.
+# Size constaints: minimum 6 characters, maximum 20 characters 
+#   No need to go crazy here. Remember that 3 bad attempts locks the account. One or two Diceware words are enough.
+#     Use KeepassXC password manager or something like https://www.rempe.us/diceware/#eff
+oem_gpg_User_PIN=Insurgo
+#GPG SmartCard desired Real Name to provision GPG factory reset. 
+# This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
+# 
+# Size constaints: minimum 5 characters. 
+oem_gpg_real_name=Insurgo Integrity Delivered Attestation Attestation LibremKey
+#GPG SmartCard desired E-mail address to provision GPG factory reset. 
+# This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
+#   Note that some services requires that e-mail address to be real and will send an e-mail to validate it.
+#     If you intend to use the GPG card to encrypt/sign e-mails, this is a good idea to provide main e-mail account here. 
+oem_gpg_email=insurgo@riseup.net
+#GPG SmartCard desired Comment to provision GPG factory reset. 
+# This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
+#   If you have multiple cards associated with the same E-mail address, this is a good place to name it's usage difference 
+oem_gpg_comment=FACTORY RESET ME
+
+##########
+#  LUKS  #
+##########
+# LUKS containers are used in Linux to encrypt whole filesystems.
+# The whole idea behind OEM reownership depends on the LUKS reencryption of the container from the user when hardware
+#   is received. Otherwise, the OEM would know the cloned image LUKS Disk Recovery Key and could hand it to authorities.
+#   This provisioning wizard starts by asking you to enter the actual LUKS Disk Recovery Key passphrase to reencrypt the 
+#   container completely, before changing it's passphrase with user selected one.
+#
+#   This LUKS Disk Recovery Key, if provided by the OEM **** SHOULD NOT BE MODIFIED *****
+oem_luks_actual_Disk_Recovery_Key=InsurgoTech
+# This is where you want to define your new Disk Recovery Key passphrase, which will be associated to the reencrypted LUKS 
+#   container after the OEM wizard is over and become the Disk Recovery Key passphrase.
+#
+#   This provisioning wizard continues by asking you to enter the desired LUKS Disk Recovery Key passphrase and changes 
+#   it.
+#
+#   The Disk Recovery Key will be prompted to the user in the following cases:
+#     1-Every boot if no Disk Unlock Key was added to the TPM (NOT RECOMMENDED! could be captured and used on cloned disk)
+#     2-If the TPM fails (Hardware failure)
+#     3-If the firmware has been tampered with/upgraded/modified by the user
+#
+# NOTES: If the Disk Recovery Key Passphrase is lost, the user won't be able to set a new Disk Unlock Key.
+#   More importantly, in the case of a Operating System core update (Xen, Kernel, initrd (drivers) or grub config,
+#     the Default Boot option will be invalidated, and the only way to boot the system will be by typing this
+#     Disk Recovery Key Passphrase. ********** CHOOSE IT CAREFULLY SO YOU CAN EASILY REMEMBER IT ***********
+#
+# Size constaints: select a Diceware passphrase of at least 3 words. 6 is better. 
+#   No need to go crazy here. It's better to have a shorter but strong passphrase you remember and not type often
+#     then a strong passphrase that locks you out of the system and requires you to reinstall.
+#       Use KeepassXC password manager or something alike https://www.rempe.us/diceware/#eff
+oem_luks_new_Disk_Recovery_Key=InsurgoTech
+# Disk Unlock Key Passphrase is the passphrase the user will be required to type under Heads to start the system.
+#
+# The Disk Unlock Key is another security feature enforced by Heads that makes your computer more trustworthy.
+#   The Disk Unlock Key is released by the Trusted Platform Module (TPM), a cryptographic component on which
+#   depends Heads to measure and attest firmware integrity, and released only if the measurements of the firmware 
+#   are intact (sealed). In the case the firmware has been modified, that the user lost/forgot his GPG card, 
+#   the Disk Unlock key passphrase will refuse to release the actual Disk Unlock Key and will not boot, unless 
+#   you to type the Disk Recovery Key passphrase. 
+#
+#   Heads would not be able to unseal neither TOTP/HOTP in case measurements mismatche and will warn the user. 
+#
+#   The Disk Unlock Key passphrase will also not be able to unlock the disk if the LUKS header is not 
+#   consistent with what was sealed into the TPM when selecting a default boot option.
+#
+#   Functionnaly, selecting a default boot option and setting a Disk Unlock Key is a good security measure against 
+#     prying eyes, let them be camera recording or over the shoulder passphrase capture. 
+#     Since that Key is bounded with firmware integrity measurements from the TPM, that passphrase is bound to this 
+#     computer only. 
+#
+#     A third party which would clone the disk and attempt to access its content later would succeed only if 
+#     Disk Recovery Key passphrase was typed, not the Disk Unlock Key passphrase. 
+#
+# Size constaints: Best is to select a Diceware passphrase of at least 4 words. 6+ is better. 
+# Use KeypassXC password manager or something like https://www.rempe.us/diceware/#eff
+#   No need to go crazy here. An attacker would have 3 attempts at a time when booting Heads.
+#     Use KeepassXC password manager or something like https://www.rempe.us/diceware/#eff
+#   You will be prompted to change this passphrase at every core Operating System upgrades since the default boot
+#     option will be modified.
+oem_luks_Disk_Unlock_Key=Insurgo
+
+###################################
+#  Trusted Platform Module (TPM)  #
+###################################
+# The TPM passphrase is required when sealing the Disk Unlock Key when selecting a new default boot option, 
+#   combined with the GPG User PIN.
+# 
+# It is recommended to reuse GPG Admin Passphrase/Password here, to not unecessarily multiply secrets to remember.
+oem_TPM_Owner_Password=InsurgoTech

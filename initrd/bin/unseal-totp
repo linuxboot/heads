@@ -16,7 +16,7 @@ tpm unsealfile  \
 	-hk 40000000 \
 	-if "$TOTP_SEALED" \
 	-of "$TOTP_SECRET" \
-|| die "Unable to unseal totp secret"
+|| die "Unable to unseal TOTP secret"
 
 shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
 

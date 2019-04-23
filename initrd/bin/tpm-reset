@@ -5,30 +5,41 @@ echo '*****'
 echo '***** WARNING: This will erase all keys and secrets from the TPM'
 echo '*****'
 
-read -s -p "New TPM owner password: " key_password
-echo
-
-if [ -z "$key_password" ]; then
-	die "Empty owner password is not allowed"
+if [ -z "$oem_TPM_Owner_Password" ]; then
+  key_password="1"
+  key_password2="2"
+else
+  key_password="$oem_TPM_Owner_Password"
+  key_password2="$oem_TPM_Owner_Password"
 fi
 
-read -s -p "Repeat owner password: " key_password2
-echo
+while [ "$key_password" != "$key_password2" ]; do
+{
+  read -r -s -p "New TPM owner password: " key_password
+  echo
 
+  if [ -z "$key_password" ]; then
+	  die "Empty TPM Owner password is not allowed"
+  fi
 
-if [ "$key_password" != "$key_password2" ]; then
-	die "Key passwords do not match"
-fi
+  read -r -s -p "Repeat TPM owner password: " key_password2
+  echo
+
+  if [ "$key_password" != "$key_password2" ]; then
+	  die "TPM Owner passwords did not match"
+  fi
+};done
+
 
 # Make sure the TPM is ready to be reset
 tpm physicalpresence -s
 tpm physicalenable
 tpm physicalsetdeactivated -c
-tpm forceclear
+tpm forceclear 
 tpm physicalenable
-tpm takeown -pwdo "$key_password"
+tpm takeown -pwdo "$key_password" >/dev/null 2>&1 
 
 # And now turn it all back on
 tpm physicalpresence -s
-tpm physicalenable
+tpm physicalenable >/dev/null
 tpm physicalsetdeactivated -c

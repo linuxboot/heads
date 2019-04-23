@@ -1,5 +1,5 @@
 #!/bin/sh
-# This will generate a disk encryption key and seal / ecncrypt
+# This will generate a Disk Unlock Key and seal / encrypt
 # with the current PCRs and then store it in the TPM NVRAM.
 # It will then need to be bundled into initrd that is booted.
 set -e -o pipefail
@@ -32,23 +32,37 @@ if [ -r "$KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
 	lvm vgchange -a y $VOLUME_GROUP \
-		|| die "$VOLUME_GROUP: unable to activate volume group"
+		|| die "$VOLUME_GROUP: Unable to activate volume group"
 fi
 
-# Key slot 0 is the manual recovery pass phrase
-# that they user entered when they installed Qubes,
-# key slot 1 is the one that we've generated.
-read -s -p "Enter disk recovery key: " disk_password
-echo -n "$disk_password" > "$RECOVERY_KEY"
-echo
+# Key slot 0 is the Disk Recovery Key pass phrase
+# that the user/OEM entered when they installed/reencrypted the Operating System (LUKS container)
+# key slot 1 is the Disk Unlock Key that the user generated.
+if [ -z "$oem_luks_new_Disk_Recovery_Key" ]; then
+  read -s -p "Enter Disk Recovery Key passphrase: " disk_password
+  echo -n "$disk_password" > "$RECOVERY_KEY"
+  echo
+else
+  echo -n "$oem_luks_new_Disk_Recovery_Key" > "$RECOVERY_KEY"
+fi
 
-read -s -p "New disk unlock password for booting: " key_password
-echo
-read -s -p "Repeat unlock code: " key_password2
-echo
+if [ -z "$oem_luks_Disk_Unlock_Key" ]; then
+  password_mismatch=1
+  while [ "$password_mismatch" -ne 0 ];do
+  {
+    read -s -p "New Disk Unlock Key passphrase for booting Operating System: " key_password
+    echo
+    read -s -p "Repeat Disk Unlock Key passphrase: " key_password2
+    echo
 
-if [ "$key_password" != "$key_password2" ]; then
-	die "Key passwords do not match"
+    if [ "$key_password" != "$key_password2" ]; then
+	    echo "Disk Unlock Key passphrases did not match"
+    else
+      password_mismatch=0
+    fi
+  };done
+else
+  key_password=$(echo -n "$oem_luks_Disk_Unlock_Key")
 fi
 
 # Generate key file
@@ -62,18 +76,18 @@ dd \
 
 # Remove all the old keys from slot 1
 for dev in `cat "$KEY_DEVICES" | cut -d\  -f1`; do
-	echo "++++++ $dev: Removing old key slot"
-	cryptsetup luksKillSlot \
-		--key-file "$RECOVERY_KEY" \
-		$dev 1 \
-	|| warn "$dev: ignoring problem"
+  echo "++++++ $dev: Removing key slot 1"
+  cryptsetup luksKillSlot \
+    --key-file "$RECOVERY_KEY" \
+    $dev 1 \
+  || warn "Removing LUKS Disk Unlock Key on $dev (key slot 1) failed. Bad passphrase or key slot 1 not existing. Continuing..."
 
-	echo "++++++ $dev: Adding key"
-	cryptsetup luksAddKey \
-		--key-file "$RECOVERY_KEY" \
-		--key-slot 1 \
-		$dev "$KEY_FILE" \
-	|| die "$dev: Unable to add key"
+  echo "++++++ $dev: Adding key"
+  cryptsetup luksAddKey \
+    --key-file "$RECOVERY_KEY" \
+    --key-slot 1 \
+    $dev "$KEY_FILE" \
+  || die "Unable to add key to $dev key slot 1. Please try again with actual LUKS Disk Recovery Key Password."
 done
 
 # Now that we have setup the new keys, measure the PCRs
@@ -84,8 +98,8 @@ cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
-# Librem Key loads USB modules which changes PCR5.
-# In the event Librem Key is enabled, skip verification of PCR5
+# LibremKey/Nitrokey loads USB modules which changes PCR5.
+# In the event LibremKey/Nitrokey is enabled, skip verification of PCR5
 if [ -x /bin/libremkey_hotp_verification ]; then
   pcr_5="X"
 else
@@ -132,9 +146,13 @@ if ! tpm nv_writevalue \
 	# about the sealed file
 	tpm physicalpresence -s \
 	|| warn "Warning: Unable to assert physical presence"
-
-	read -s -p "TPM Owner password: " tpm_password
-	echo
+  
+  if [ -z "$oem_TPM_Owner_Password" ]; then
+	  read -s -p "TPM Owner password: " tpm_password
+	  echo
+  else
+    tpm_password=$(echo -n "$oem_TPM_Owner_Password")
+  fi
 
 	tpm nv_definespace \
 		-in $TPM_INDEX \

@@ -1,0 +1,25 @@
+image: insurgotech/fedora-29_heads-ci
+
+stages:
+  - build
+
+build:
+  stage: build
+  cache:
+    paths:
+      - ./
+  cache:
+    untracked: true
+    paths:
+      - ./git
+  script:
+    - make BOARD=x230-flash
+    - make BOARD=x230
+    - echo "x230-flash hashes:"
+    - cat ./build/x230-flash/hashes.txt
+    - echo "x230 hashes:"
+    - cat ./build/x230/hashes.txt
+  artifacts:
+    paths:
+      - ./build/x230-flash/x230-flash.rom
+      - ./build/x230/coreboot.rom

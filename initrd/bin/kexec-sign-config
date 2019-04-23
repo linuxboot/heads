@@ -48,17 +48,39 @@ if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
 
-for tries in 1 2 3; do
-	if sha256sum $param_files | gpg \
-		--digest-algo SHA256 \
-		--detach-sign \
-		-a \
-		> $paramsdir/kexec.sig \
-	; then
-		# successful - update the validated params
-		check_config $paramsdir
-		exit 0
-	fi
-done
+echo -e "\nEnrolled GPG card will now digitally sign /boot config files for future tamper evidence."
+echo -e "As a result, Heads will prompt you to resign those files if any modification is detected at each reboot.\n"
+echo -e "Please note that system updates will modify boot configurations. The kernel, initrd, Xen and grub files are normally modified."
+echo -e "As a consequence, it is recommended that you reboot and sign /boot configuration changes after upgrading system components."
+echo -e "Heads will prompt you on reboot to resign those files to attest that you approve those changes.\n"
 
+if [ -z "$oem_gpg_User_PIN" ]; then
+  for tries in 1 2 3; do
+    echo -e "\nPlease enter your GPG card's User PIN to unlock card and sign /boot config files."
+	  if sha256sum $param_files | gpg \
+		  --digest-algo SHA256 \
+		  --detach-sign \
+		  -a \
+		  > $paramsdir/kexec.sig \
+	  ; then
+		  # successful - update the validated params
+		  check_config $paramsdir
+		  exit 0
+	  fi
+  done
+else
+  echo -n "$oem_gpg_User_PIN" > /tmp/oem_gpg_User_PIN
+  if sha256sum $param_files | gpg --pinentry-mode loopback --batch --passphrase-file /tmp/oem_gpg_User_PIN \
+    --detach-sign \
+    --digest-algo SHA256 \
+    -a \
+    > $paramsdir/kexec.sig \
+  ; then
+    # successful - update the validated params
+    shred -n 10 -z -u /tmp/oem_gpg_User_PIN 2> /dev/null
+    check_config $paramsdir
+    exit 0
+  fi
+fi
+shred -n 10 -z -u /tmp/oem_gpg_User_PIN 2> /dev/null
 die "$paramsdir: Unable to sign kexec hashes"
