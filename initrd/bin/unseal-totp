@@ -18,12 +18,12 @@ tpm unsealfile  \
 	-of "$TOTP_SECRET" \
 || die "Unable to unseal totp secret"
 
-rm -f "$TOTP_SEALED"
+shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
 
 if ! totp -q < "$TOTP_SECRET"; then
-	rm -f "$TOTP_SECRET"
+	shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 	die 'Unable to compute TOTP hash?'
 fi
 
-rm -f "$TOTP_SECRET"
+shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
 exit 0
