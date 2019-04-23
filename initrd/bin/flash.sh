@@ -4,7 +4,7 @@
 #
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 case "$CONFIG_BOARD" in
   librem* )

@@ -11,7 +11,7 @@ TPM_SEALED="/tmp/secret/secret.sealed"
 RECOVERY_KEY="/tmp/secret/recovery.key"
 
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 paramsdir=$1
 if [ -z "$paramsdir" ]; then
@@ -84,6 +84,14 @@ cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
+# Librem Key loads USB modules which changes PCR5.
+# In the event Librem Key is enabled, skip verification of PCR5
+if [ -x /bin/libremkey_hotp_verification ]; then
+  pcr_5="X"
+else
+  pcr_5="0000000000000000000000000000000000000000"
+fi
+
 # Note that PCR 4 needs to be set with the "normal-boot"
 # path value, which we do not have right now since we are
 # in a recovery shell.
@@ -104,12 +112,12 @@ tpm sealfile2 \
 	-ix 2 X \
 	-ix 3 X \
 	-ix 4 0000000000000000000000000000000000000000 \
-	-ix 5 0000000000000000000000000000000000000000 \
+	-ix 5 $pcr_5 \
 	-ix 6 $luks_pcr \
 	-ix 7 X \
 || die "Unable to seal secret"
 
-rm -f "$KEY_FILE" \
+shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
 || die "Failed to delete key file"
 
 # try it without the owner password first
@@ -142,5 +150,5 @@ if ! tpm nv_writevalue \
 	|| die "Unable to write sealed secret to NVRAM"
 fi
 
-rm "$TPM_SEALED" \
+shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
 || warn "Failed to delete the sealed secret - continuing"

@@ -1,0 +1,29 @@
+From 8ba9e8cf63f92902cdb71eb5c4d3b3ea579380f4 Mon Sep 17 00:00:00 2001
+From: Tom Hiller <thrilleratplay@gmail.com>
+Date: Sat, 21 Jul 2018 00:14:00 -0400
+Subject: [PATCH 59/59] util: Add description.md to each util
+
+Descriptions are taken from the files themselves or READMEs. Description
+followed by a space with the language in marked up as code.
+
+Change-Id: I5f91e85d1034736289aedf27de00df00db3ff19c
+Signed-off-by: Tom Hiller <thrilleratplay@gmail.com>
+Reviewed-on: https://review.coreboot.org/27563
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Philipp Deppenwiese <zaolin.daisuki@gmail.com>
+Reviewed-by: Paul Menzel <paulepanter@users.sourceforge.net>
+---
+ util/crossgcc/description.md | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 util/crossgcc/description.md
+
+diff --git a/util/crossgcc/description.md b/util/crossgcc/description.md
+new file mode 100644
+index 0000000000..fa37c2b6ab
+--- /dev/null
++++ b/util/crossgcc/description.md
+@@ -0,0 +1 @@
++A cross toolchain builder for -elf toolchains (ie. no libc support)
+-- 
+2.17.1
+

@@ -15,8 +15,13 @@ recovery() {
 
 	# Remove any temporary secret files that might be hanging around
 	# but recreate the directory so that new tools can use it.
+	shred -n 10 -z -u /tmp/secret/* 2> /dev/null
 	rm -rf /tmp/secret
 	mkdir -p /tmp/secret
+
+	# ensure /tmp/config exists for recovery scripts that depend on it
+	touch /tmp/config
+
 	if [ "$CONFIG_TPM" = y ]; then
 		tpm extend -ix 4 -ic recovery
 	fi
@@ -138,18 +143,13 @@ confirm_gpg_card()
 
 check_tpm_counter()
 {
+  LABEL=${2:-3135106223}
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
 		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
 	else
-    # Initialize label to default if not set
-		if [ "$2" != "" ]; then
-			LABEL=$2
-		else
-			LABEL=3135106223 
-		fi
-		warn "$BOOT_HASHES does not exist; creating new TPM counter"
+		warn "$1 does not exist; creating new TPM counter"
 		read -s -p "TPM Owner password: " tpm_password
 		echo
 		tpm counter_create \
@@ -221,4 +221,22 @@ preserve_rom() {
 			|| die "Failed to write cbfs file to new ROM file"
 		fi
 	done
+}
+replace_config() {
+	CONFIG_FILE=$1
+	CONFIG_OPTION=$2
+	NEW_SETTING=$3
+
+	touch $CONFIG_FILE
+# first pull out the existing option from the global config and place in a tmp file
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config > ${CONFIG_FILE}.tmp
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >> ${CONFIG_FILE}.tmp
+
+# then copy any remaining settings from the existing config file, minus the option you changed
+	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
+  sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
+	rm -f ${CONFIG_FILE}.tmp
+}
+combine_configs() {
+	cat /etc/config* > /tmp/config
 }

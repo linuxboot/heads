@@ -29,6 +29,8 @@ lvm2_configure := \
 	--disable-use-lvmpolld \
 	--disable-blkid_wiping \
 	--disable-cmirrord \
+	--disable-cache_check_needs_check \
+	--disable-thin_check_needs_check \
 	--with-cluster=none \
 
 # not sure why LIB_SUFFIX is not defined in the cross build

@@ -1,0 +1,476 @@
+diff --git ./src/Kconfig ./src/Kconfig
+index 99a704d..004b4a7 100644
+--- ./src/Kconfig
++++ ./src/Kconfig
+@@ -260,6 +260,21 @@ config BOOTSPLASH_FILE
+ 	  The path and filename of the file to use as graphical bootsplash
+ 	  screen. The file format has to be jpg.
+ 
++config MEASURED_BOOT
++	bool "Enable TPM measured boot"
++	default n
++	select TPM
++	depends on MAINBOARD_HAS_LPC_TPM
++	depends on !VBOOT
++	help
++	  Enable this option to measure the bootblock, romstage and
++	  CBFS files into TPM PCRs.  This does not verify these values
++	  (that is the job of something like vboot), but makes it possible
++	  for the payload to validate the boot path and allow something
++	  like Heads to attest to the user that the system is likely safe.
++
++	  You probably want to say N.
++
+ endmenu
+ 
+ menu "Mainboard"
+diff --git ./src/drivers/pc80/tpm/romstage.c ./src/drivers/pc80/tpm/romstage.c
+index b8e4705..7732e66 100644
+--- ./src/drivers/pc80/tpm/romstage.c
++++ ./src/drivers/pc80/tpm/romstage.c
+@@ -48,6 +48,12 @@ static const struct {
+ 
+ static const struct {
+ 	u8 buffer[12];
++} tpm2_startup_cmd = {
++	{0x80, 0x01, 0x0, 0x0, 0x0, 0xc, 0x0, 0x0, 0x01, 0x44, 0x0, 0x0 }
++};
++
++static const struct {
++	u8 buffer[12];
+ } tpm_deactivate_cmd = {
+ 	{0x0, 0xc1, 0x0, 0x0, 0x0, 0xc, 0x0, 0x0, 0x0, 0x99, 0x0, 0x3 }
+ };
+@@ -229,9 +235,15 @@ void init_tpm(int s3resume)
+ 			return;
+ 		}
+ 	} else {
+-		printk(BIOS_SPEW, "TPM: Startup\n");
+-		result = TlclSendReceive(tpm_startup_cmd.buffer,
+-					response, sizeof(response));
++		if (IS_ENABLED(CONFIG_TPM2)) {
++			printk(BIOS_SPEW, "TPM2: Startup\n");
++			result = TlclSendReceive(tpm2_startup_cmd.buffer,
++						response, sizeof(response));
++		} else {
++			printk(BIOS_SPEW, "TPM: Startup\n");
++			result = TlclSendReceive(tpm_startup_cmd.buffer,
++						response, sizeof(response));
++		}
+ 	}
+ 
+ 	tis_close();
+diff --git ./src/drivers/pc80/tpm/tis.c ./src/drivers/pc80/tpm/tis.c
+index 3549173..11fc027 100644
+--- ./src/drivers/pc80/tpm/tis.c
++++ ./src/drivers/pc80/tpm/tis.c
+@@ -125,10 +125,11 @@ static const struct device_name atmel_devices[] = {
+ 
+ static const struct device_name infineon_devices[] = {
+ 	{0x000b, "SLB9635 TT 1.2"},
+-	{0x001a, "SLB9660 TT 1.2"},
+ #if IS_ENABLED(CONFIG_TPM2)
++	{0x001a, "SLB9665 TT 2.0"},
+ 	{0x001b, "SLB9670 TT 2.0"},
+ #else
++	{0x001a, "SLB9660 TT 1.2"},
+ 	{0x001b, "SLB9670 TT 1.2"},
+ #endif
+ 	{0xffff}
+diff --git ./src/include/program_loading.h ./src/include/program_loading.h
+index 7aba302..879c26e 100644
+--- ./src/include/program_loading.h
++++ ./src/include/program_loading.h
+@@ -24,6 +24,8 @@ enum {
+ 	/* Last segment of program. Can be used to take different actions for
+ 	 * cache maintenance of a program load. */
+ 	SEG_FINAL = 1 << 0,
++	/* Indicate that the program segment should not be measured */
++	SEG_NO_MEASURE = 1 << 1,
+ };
+ 
+ // The prog_type is a bit mask, so that in searches one can find, e.g.,
+diff --git ./src/lib/cbfs.c ./src/lib/cbfs.c
+index 87ab387..708d321 100644
+--- ./src/lib/cbfs.c
++++ ./src/lib/cbfs.c
+@@ -70,7 +70,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+ 	if (size != NULL)
+ 		*size = fsize;
+ 
+-	return rdev_mmap(&fh.data, 0, fsize);
++	void * buffer = rdev_mmap(&fh.data, 0, fsize);
++
++#ifndef __SMM__
++	prog_segment_loaded((uintptr_t)buffer, fsize, 0);
++#endif
++
++	return buffer;
+ }
+ 
+ int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
+@@ -98,7 +104,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 			return 0;
+ 		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
+ 			return 0;
+-		return in_size;
++		out_size = in_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZ4:
+ 		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
+@@ -116,7 +123,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 		timestamp_add_now(TS_START_ULZ4F);
+ 		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
+ 		timestamp_add_now(TS_END_ULZ4F);
+-		return out_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZMA:
+ 		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
+@@ -135,11 +142,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 
+ 		rdev_munmap(rdev, map);
+ 
+-		return out_size;
++		break;
+ 
+ 	default:
+ 		return 0;
+ 	}
++
++	prog_segment_loaded((uintptr_t)buffer, out_size, 0);
++
++	return out_size;
+ }
+ 
+ static inline int tohex4(unsigned int c)
+diff --git ./src/lib/hardwaremain.c ./src/lib/hardwaremain.c
+index 6fd55d7..b5b7d91 100644
+--- ./src/lib/hardwaremain.c
++++ ./src/lib/hardwaremain.c
+@@ -33,6 +33,7 @@
+ #include <reset.h>
+ #include <boot/tables.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #include <lib.h>
+ #if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)
+ #include <arch/acpi.h>
+@@ -545,3 +546,13 @@ void boot_state_current_unblock(void)
+ {
+ 	boot_state_unblock(current_phase.state_id, current_phase.seq);
+ }
++
++// ramstage measurements go into PCR3 if we are doing measured boot
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++	{
++		tlcl_measure(3, (const void*) start, size);
++	}
++}
++
+diff --git ./src/lib/rmodule.c ./src/lib/rmodule.c
+index 66d5120..b50afe7 100644
+--- ./src/lib/rmodule.c
++++ ./src/lib/rmodule.c
+@@ -198,7 +198,7 @@ int rmodule_load(void *base, struct rmodule *module)
+ 	rmodule_clear_bss(module);
+ 
+ 	prog_segment_loaded((uintptr_t)module->location,
+-				rmodule_memory_size(module), SEG_FINAL);
++				rmodule_memory_size(module), SEG_FINAL | SEG_NO_MEASURE);
+ 
+ 	return 0;
+ }
+diff --git ./src/security/tpm/Makefile.inc ./src/security/tpm/Makefile.inc
+index 2385635..0743a84 100644
+--- ./src/security/tpm/Makefile.inc
++++ ./src/security/tpm/Makefile.inc
+@@ -4,6 +4,15 @@ verstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
+ verstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss.c
+ 
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++ifneq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
++romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++endif
++romstage-$(CONFIG_TPM) += sha1.c
++ramstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
++ramstage-$(CONFIG_TPM) += sha1.c
++endif # CONFIG_MEASURED_BOOT
++
+ ifeq ($(CONFIG_VBOOT_SEPARATE_VERSTAGE),y)
+ romstage-$(CONFIG_TPM) += tss/tcg-1.2/tss.c
+ romstage-$(CONFIG_TPM2) += tss/tcg-2.0/tss_marshaling.c
+diff --git ./src/security/tpm/sha1.c ./src/security/tpm/sha1.c
+new file mode 100644
+index 0000000..6b154f8
+--- /dev/null
++++ ./src/security/tpm/sha1.c
+@@ -0,0 +1,175 @@
++/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * SHA-1 implementation largely based on libmincrypt in the the Android
++ * Open Source Project (platorm/system/core.git/libmincrypt/sha.c
++ */
++
++#include <security/tpm/sha1.h>
++#include <string.h>
++
++static uint32_t ror27(uint32_t val)
++{
++	return (val >> 27) | (val << 5);
++}
++static uint32_t ror2(uint32_t val)
++{
++	return (val >> 2) | (val << 30);
++}
++static uint32_t ror31(uint32_t val)
++{
++	return (val >> 31) | (val << 1);
++}
++
++static void sha1_transform(struct sha1_ctx *ctx)
++{
++	uint32_t W[80];
++	register uint32_t A, B, C, D, E;
++	int t;
++
++	A = ctx->state[0];
++	B = ctx->state[1];
++	C = ctx->state[2];
++	D = ctx->state[3];
++	E = ctx->state[4];
++
++#define SHA_F1(A, B, C, D, E, t)					\
++	E += ror27(A) +							\
++			(W[t] = __builtin_bswap32(ctx->buf.w[t])) +	\
++			(D^(B&(C^D))) + 0x5A827999;			\
++	B = ror2(B);
++
++	for (t = 0; t < 15; t += 5) {
++		SHA_F1(A, B, C, D, E, t + 0);
++		SHA_F1(E, A, B, C, D, t + 1);
++		SHA_F1(D, E, A, B, C, t + 2);
++		SHA_F1(C, D, E, A, B, t + 3);
++		SHA_F1(B, C, D, E, A, t + 4);
++	}
++	SHA_F1(A, B, C, D, E, t + 0);  /* 16th one, t == 15 */
++
++#undef SHA_F1
++
++#define SHA_F1(A, B, C, D, E, t)					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(D^(B&(C^D))) + 0x5A827999;			      \
++	B = ror2(B);
++
++	SHA_F1(E, A, B, C, D, t + 1);
++	SHA_F1(D, E, A, B, C, t + 2);
++	SHA_F1(C, D, E, A, B, t + 3);
++	SHA_F1(B, C, D, E, A, t + 4);
++
++#undef SHA_F1
++
++#define SHA_F2(A, B, C, D, E, t)					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0x6ED9EBA1;				      \
++	B = ror2(B);
++
++	for (t = 20; t < 40; t += 5) {
++		SHA_F2(A, B, C, D, E, t + 0);
++		SHA_F2(E, A, B, C, D, t + 1);
++		SHA_F2(D, E, A, B, C, t + 2);
++		SHA_F2(C, D, E, A, B, t + 3);
++		SHA_F2(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F2
++
++#define SHA_F3(A, B, C, D, E, t)					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			((B&C)|(D&(B|C))) + 0x8F1BBCDC;			      \
++	B = ror2(B);
++
++	for (; t < 60; t += 5) {
++		SHA_F3(A, B, C, D, E, t + 0);
++		SHA_F3(E, A, B, C, D, t + 1);
++		SHA_F3(D, E, A, B, C, t + 2);
++		SHA_F3(C, D, E, A, B, t + 3);
++		SHA_F3(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F3
++
++#define SHA_F4(A, B, C, D, E, t)					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0xCA62C1D6;				      \
++	B = ror2(B);
++
++	for (; t < 80; t += 5) {
++		SHA_F4(A, B, C, D, E, t + 0);
++		SHA_F4(E, A, B, C, D, t + 1);
++		SHA_F4(D, E, A, B, C, t + 2);
++		SHA_F4(C, D, E, A, B, t + 3);
++		SHA_F4(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F4
++
++	ctx->state[0] += A;
++	ctx->state[1] += B;
++	ctx->state[2] += C;
++	ctx->state[3] += D;
++	ctx->state[4] += E;
++}
++
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len)
++{
++	int i = ctx->count % sizeof(ctx->buf);
++	const uint8_t *p = (const uint8_t *)data;
++
++	ctx->count += len;
++
++	while (len > sizeof(ctx->buf) - i) {
++		memcpy(&ctx->buf.b[i], p, sizeof(ctx->buf) - i);
++		len -= sizeof(ctx->buf) - i;
++		p += sizeof(ctx->buf) - i;
++		sha1_transform(ctx);
++		i = 0;
++	}
++
++	while (len--) {
++		ctx->buf.b[i++] = *p++;
++		if (i == sizeof(ctx->buf)) {
++			sha1_transform(ctx);
++			i = 0;
++		}
++	}
++}
++
++
++uint8_t *sha1_final(struct sha1_ctx *ctx)
++{
++	uint32_t cnt = ctx->count * 8;
++	int i;
++
++	sha1_update(ctx, (uint8_t *)"\x80", 1);
++	while ((ctx->count % sizeof(ctx->buf)) != (sizeof(ctx->buf) - 8))
++		sha1_update(ctx, (uint8_t *)"\0", 1);
++
++	for (i = 0; i < 8; ++i) {
++		uint8_t tmp = cnt >> ((7 - i) * 8);
++		sha1_update(ctx, &tmp, 1);
++	}
++
++	for (i = 0; i < 5; i++)
++		ctx->buf.w[i] = __builtin_bswap32(ctx->state[i]);
++
++	return ctx->buf.b;
++}
++
++void sha1_init(struct sha1_ctx *ctx)
++{
++	ctx->state[0] = 0x67452301;
++	ctx->state[1] = 0xEFCDAB89;
++	ctx->state[2] = 0x98BADCFE;
++	ctx->state[3] = 0x10325476;
++	ctx->state[4] = 0xC3D2E1F0;
++	ctx->count = 0;
++}
+diff --git ./src/security/tpm/sha1.h ./src/security/tpm/sha1.h
+new file mode 100644
+index 0000000..e7e28e6
+--- /dev/null
++++ ./src/security/tpm/sha1.h
+@@ -0,0 +1,31 @@
++/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++/* SHA-1 functions */
++
++#ifndef _sha1_h_
++#define _sha1_h_
++
++#include <stdint.h>
++#include <commonlib/helpers.h>
++
++#define SHA1_DIGEST_SIZE 20
++#define SHA1_BLOCK_SIZE 64
++
++/* SHA-1 context */
++struct sha1_ctx {
++	uint32_t count;
++	uint32_t state[5];
++	union {
++		uint8_t b[SHA1_BLOCK_SIZE];
++		uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++	} buf;
++};
++
++void sha1_init(struct sha1_ctx *ctx);
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len);
++uint8_t *sha1_final(struct sha1_ctx *ctx);
++
++#endif  /* _sha1_h_ */
+diff --git ./src/security/tpm/tss.h ./src/security/tpm/tss.h
+index 8f3f1cb..5c569cb 100644
+--- ./src/security/tpm/tss.h
++++ ./src/security/tpm/tss.h
+@@ -147,6 +147,11 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ 		     uint8_t *out_digest);
+ 
+ /**
++ * Perform a SHA1 hash on a region and extend a PCR with the hash.
++ */
++uint32_t tlcl_measure(int pcr_num, const void * start, size_t len);
++
++/**
+  * Get the entire set of permanent flags.
+  */
+ uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
+diff --git ./src/security/tpm/tss/tcg-1.2/tss.c ./src/security/tpm/tss/tcg-1.2/tss.c
+index 161d29f..95e55b9 100644
+--- ./src/security/tpm/tss/tcg-1.2/tss.c
++++ ./src/security/tpm/tss/tcg-1.2/tss.c
+@@ -17,6 +17,7 @@
+ #include <arch/early_variables.h>
+ #include <assert.h>
+ #include <string.h>
++#include <security/tpm/sha1.h>
+ #include <security/tpm/tis.h>
+ #include <vb2_api.h>
+ #include <security/tpm/tss.h>
+@@ -354,3 +355,23 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ 		       kPcrDigestLength);
+ 	return result;
+ }
++
++
++uint32_t tlcl_measure(int pcr_num, const void * start, size_t len)
++{
++	VBDEBUG("TPM: pcr %d measure %p @ %zu: ", pcr_num, start, len);
++
++	struct sha1_ctx sha;
++	sha1_init(&sha);
++	sha1_update(&sha, start, len);
++
++	const uint8_t * hash = sha1_final(&sha);
++	for(unsigned i = 0 ; i < SHA1_DIGEST_SIZE ; i++)
++		VBDEBUG("%02x", hash[i]);
++	VBDEBUG("\n");
++
++	//hexdump(start, 128);
++
++	return tlcl_extend(pcr_num, hash, NULL);
++}
++

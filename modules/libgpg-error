@@ -1,0 +1,26 @@
+modules-$(CONFIG_GPG2) += libgpg-error
+libgpg-error_version := 1.32
+libgpg-error_dir := libgpg-error-$(libgpg-error_version)
+libgpg-error_tar := libgpg-error-$(libgpg-error_version).tar.bz2
+libgpg-error_url := https://gnupg.org/ftp/gcrypt/libgpg-error/$(libgpg-error_tar)
+libgpg-error_hash := c345c5e73cc2332f8d50db84a2280abfb1d8f6d4f1858b9daa30404db44540ca
+
+libgpg-error_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--prefix "/" \
+	--host=x86_64-linux-musl \
+	--disable-static \
+	--disable-nls \
+	--disable-languages \
+	--disable-doc \
+	--disable-tests \
+	--disable-asm \
+
+libgpg-error_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	install \
+
+libgpg-error_libraries := src/.libs/libgpg-error.so.0
+
+libgpg-error_depends := $(musl_dep)

@@ -2,7 +2,7 @@
 #
 set -e -o pipefail
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 mount_usb(){
 # Mount the USB boot device
@@ -70,12 +70,10 @@ file_selector() {
 
 while true; do
   unset menu_choice
-  whiptail --clear --title "BIOS Management Menu" \
-    --menu 'Select the BIOS function to perform' 20 90 10 \
-    'f' ' Flash the BIOS with a new ROM' \
-    'c' ' Flash the BIOS with a new cleaned ROM' \
-    'a' ' Add GPG key to BIOS image' \
-    'r' ' Add GPG key to running BIOS' \
+  whiptail --clear --title "Firmware Management Menu" \
+    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
+    'f' ' Flash the firmware with a new ROM, retain settings' \
+    'c' ' Flash the firmware with a new ROM, erase settings' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -101,12 +99,12 @@ while true; do
           if (whiptail --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
             if [ "$menu_choice" == "c" ]; then
-              /bin/flash.sh -c $ROM
+              /bin/flash.sh -c "$ROM"
             else
-              /bin/flash.sh $ROM
+              /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
+              --msgbox "$ROM flashed successfully.\nPress Enter to reboot" 16 60
             umount /media
             /bin/reboot
           else
@@ -114,104 +112,6 @@ while true; do
           fi
         fi
       fi
-    ;;
-    "a" )
-      if (whiptail --title 'ROM and GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
-        if grep -q /media /proc/mounts ; then
-          find /media -name '*.key' > /tmp/filelist.txt
-          find /media -name '*.asc' >> /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-          if [ "$FILE" == "" ]; then
-            return
-          else
-            PUBKEY=$FILE
-          fi
-
-          find /media -name '*.rom' > /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose the ROM to load your key onto"
-          if [ "$FILE" == "" ]; then
-            return
-          else
-            ROM=$FILE
-          fi
-
-          cat $PUBKEY | gpg --import
-          cp $ROM /tmp/gpg-gui.rom
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
-          fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
-
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
-          fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
-
-          if (whiptail --title 'Flash ROM?' \
-              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
-            /bin/flash.sh /tmp/gpg-gui.rom
-            whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
-            umount /media
-            /bin/reboot
-          else
-            exit 0
-          fi
-        fi
-      fi
-    ;;
-    "r" )
-      if (whiptail --title 'GPG public key required' \
-          --yesno "Flashing the running BIOS requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
-        if grep -q /media /proc/mounts ; then
-          find /media -name '*.key' > /tmp/filelist.txt
-          find /media -name '*.asc' >> /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-          PUBKEY=$FILE
-
-          /bin/flash.sh -r /tmp/gpg-gui.rom
-          if [ ! -s /tmp/gpg-gui.rom ]; then
-            whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
-              --msgbox "Unable to read BIOS" 16 60
-            exit 1
-          fi
-
-          cat $PUBKEY | gpg --import
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
-          fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
-
-          if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
-            cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
-          fi
-          cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
-
-          if (whiptail --title 'Update ROM?' \
-              --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
-            /bin/flash.sh /tmp/gpg-gui.rom
-            whiptail --title 'BIOS Updated Successfully' \
-              --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
-            umount /media
-            /bin/reboot
-          else
-            exit 0
-          fi
-        fi
-      fi
-    ;;
-    "g" )
-      confirm_gpg_card
-      echo "********************************************************************************"
-      echo "*"
-      echo "* INSTRUCTIONS:"
-      echo "* Type 'admin' and then 'generate' and follow the prompts to generate a GPG key."
-      echo "*"
-      echo "********************************************************************************"
-      gpg --card-edit
     ;;
   esac
 
