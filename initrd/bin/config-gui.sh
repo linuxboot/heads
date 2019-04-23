@@ -55,7 +55,6 @@ while true; do
   whiptail --clear --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
-    'u' ' Change the USB boot device' \
     's' ' Save the current configuration to the running BIOS' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -81,33 +80,6 @@ while true; do
 
       whiptail --title 'Config change successful' \
         --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 16 60
-    ;;
-    "u" )
-      whiptail --title 'Insert a USB thumb drive' \
-        --msgbox "Insert a USB thumb drive so we can detect the device" 16 60
-
-      enable_usb
-
-      if ! lsmod | grep -q usb_storage; then
-        insmod /lib/modules/usb-storage.ko \
-        || die "usb_storage: module load failed"
-        sleep 5
-      fi
-
-      CURRENT_OPTION=`grep 'CONFIG_USB_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
-      find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
-      file_selector "/tmp/filelist.txt" "Choose the default USB boot device.\n\nCurrently set to $CURRENT_OPTION."
-      if [ "$FILE" == "" ]; then
-        return
-      else
-        SELECTED_FILE=$FILE
-      fi
-
-      replace_config /etc/config.user "CONFIG_USB_BOOT_DEV" "$SELECTED_FILE"
-      combine_configs
-
-      whiptail --title 'Config change successful' \
-        --msgbox "The USB boot device was successfully changed to $SELECTED_FILE" 16 60
     ;;
     "s" )
       /bin/flash.sh -r /tmp/config-gui.rom
