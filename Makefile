@@ -414,13 +414,15 @@ bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom
 bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 bin_modules-$(CONFIG_GPG) += gpg
+bin_modules-$(CONFIG_GPG2) += gpg2
+bin_modules-$(CONFIG_PINENTRY) += pinentry
 bin_modules-$(CONFIG_LVM2) += lvm2
 bin_modules-$(CONFIG_DROPBEAR) += dropbear
 bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
 bin_modules-$(CONFIG_NEWT) += newt
 bin_modules-$(CONFIG_CAIRO) += cairo
 bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
-bin_modules-$(CONFIG_NITROKEY) += nitrokey-hotp-verification
+bin_modules-$(CONFIG_LIBREMKEY) += libremkey-hotp-verification
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -566,7 +568,7 @@ real.clean:
 			rm -rf "build/$$dir"; \
 		fi; \
 	done
-	rm -rf ./install
+	cd install && rm -rf -- *
 
 
 else

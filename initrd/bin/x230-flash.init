@@ -3,7 +3,7 @@
 # invoke a recovery shell and prompt the user for how to proceed
 
 . /etc/functions
-. /etc/config
+. /tmp/config
 
 insmod /lib/modules/ehci-hcd.ko
 insmod /lib/modules/ehci-pci.ko

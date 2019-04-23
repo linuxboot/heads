@@ -6,6 +6,7 @@
 make_version := 4.2.1
 make_dir := make-$(make_version)
 make_tar := make-$(make_version).tar.bz2
+
 make_url := http://gnu.mirror.constant.com/make/$(make_tar)
 make_hash := d6e262bf3601b42d2b1e4ef8310029e1dcf20083c5446b4b7aa67081fdffc589
 

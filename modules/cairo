@@ -15,7 +15,13 @@ cairo_configure := \
 	--disable-xlib --disable-xcb --disable-pdf \
 	--disable-ps --disable-svg --disable-script \
 	--disable-ft --disable-fc --disable-pthread \
-	--disable-glib --disable-gobject
+	--disable-gobject \
+	&& sed \
+		-e 's/^hardcode_libdir_flag_spec.*/hardcode_libdir_flag_spec=" -D__LIBTOOL_RPATH_DISABLE__ "/' \
+		< libtool \
+		> libtool-2 \
+	&& mv libtool-2 libtool \
+	&& chmod 755 libtool
 
 cairo_target := \
 	$(MAKE_JOBS) \

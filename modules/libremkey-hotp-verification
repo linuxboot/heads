@@ -1,0 +1,19 @@
+modules-$(CONFIG_LIBREMKEY) += libremkey-hotp-verification
+
+libremkey-hotp-verification_depends := libusb $(musl_dep)
+
+libremkey-hotp-verification_version := git
+libremkey-hotp-verification_dir := libremkey-hotp-verification
+libremkey-hotp-verification_repo := --recursive https://github.com/Nitrokey/nitrokey-hotp-verification
+
+libremkey-hotp-verification_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+
+libremkey-hotp-verification_output := \
+	libremkey_hotp_verification \
+	libremkey_hotp_initialize
+
+libremkey-hotp-verification_configure := \
+  INSTALL="$(INSTALL)" \
+  cmake -DCMAKE_TOOLCHAIN_FILE=./Toolchain-heads.cmake -DCMAKE_AR="$(CROSS)ar" . 

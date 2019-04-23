@@ -1,0 +1,80 @@
+From 7267021c2a36ecd92aafdad2cae9ecab09e7e20d Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@gmail.com>
+Date: Mon, 25 Jun 2018 14:40:53 -0500
+Subject: [PATCH 3/3] soc/intel/skylake: Generate ACPI RMRR table
+
+An ACPI RMRR table is requried for IOMMU to work properly with an
+iGPU (without using passthrough mode), so create one along with the
+DRHD DMAR table if the iGPU is present and enabled.
+
+Test: build/boot google/chell and purism/librem13v2 with kernel
+parameter 'intel_iommu=on' but without 'iommu=pt;' observe integrated
+graphics functional without corruption.
+
+Change-Id: I202fb3eb8618f99d41f3d1c5bbb83b2ec982aca4
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+Reviewed-on: https://review.coreboot.org/27270
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Youness Alaoui <snifikino@gmail.com>
+---
+ .../common/block/include/intelblocks/systemagent.h     |  2 ++
+ .../intel/common/block/systemagent/systemagent_early.c |  2 +-
+ src/soc/intel/skylake/acpi.c                           | 10 +++++++++-
+ 3 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/soc/intel/common/block/include/intelblocks/systemagent.h b/src/soc/intel/common/block/include/intelblocks/systemagent.h
+index a731b9cb0b..babf9cec95 100644
+--- a/src/soc/intel/common/block/include/intelblocks/systemagent.h
++++ b/src/soc/intel/common/block/include/intelblocks/systemagent.h
+@@ -77,6 +77,8 @@ void enable_power_aware_intr(void);
+ uintptr_t sa_get_tolud_base(void);
+ /* API to get DSM size */
+ size_t sa_get_dsm_size(void);
++/* API to get GSM base address */
++uintptr_t sa_get_gsm_base(void);
+ /* API to get GSM size */
+ size_t sa_get_gsm_size(void);
+ /* API to get TSEG base address */
+diff --git a/src/soc/intel/common/block/systemagent/systemagent_early.c b/src/soc/intel/common/block/systemagent/systemagent_early.c
+index 609e1596c9..c1cef5daf1 100644
+--- a/src/soc/intel/common/block/systemagent/systemagent_early.c
++++ b/src/soc/intel/common/block/systemagent/systemagent_early.c
+@@ -174,7 +174,7 @@ size_t sa_get_dsm_size(void)
+ 		return (prealloc_memory - 0xEF) * 4*MiB;
+ }
+ 
+-static uintptr_t sa_get_gsm_base(void)
++uintptr_t sa_get_gsm_base(void)
+ {
+ 	/* All regions concerned for have 1 MiB alignment. */
+ 	return ALIGN_DOWN(pci_read_config32(SA_DEV_ROOT, BGSM), 1*MiB);
+diff --git a/src/soc/intel/skylake/acpi.c b/src/soc/intel/skylake/acpi.c
+index 760be590a3..eac9e0ac91 100644
+--- a/src/soc/intel/skylake/acpi.c
++++ b/src/soc/intel/skylake/acpi.c
+@@ -548,12 +548,20 @@ static unsigned long acpi_fill_dmar(unsigned long current)
+ 	/* iGFX has to be enabled, GFXVTBAR set and in 32-bit space. */
+ 	if (igfx_dev && igfx_dev->enabled && gfxvten &&
+ 	    gfx_vtbar && !MCHBAR32(GFXVTBAR + 4)) {
+-		const unsigned long tmp = current;
++		unsigned long tmp = current;
+ 
+ 		current += acpi_create_dmar_drhd(current, 0, 0, gfx_vtbar);
+ 		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
+ 
+ 		acpi_dmar_drhd_fixup(tmp, current);
++
++		/* Add RMRR entry */
++		tmp = current;
++
++		current += acpi_create_dmar_rmrr(current, 0,
++				sa_get_gsm_base(), sa_get_tolud_base() - 1);
++		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
++		acpi_dmar_rmrr_fixup(tmp, current);
+ 	}
+ 
+ 	struct device *const p2sb_dev = dev_find_slot(0, PCH_DEVFN_P2SB);
+-- 
+2.19.1
+
