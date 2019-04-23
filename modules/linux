@@ -34,6 +34,16 @@ linux_configure := \
 
 linux_output += arch/x86/boot/bzImage
 
+# Once we have extracted the kernel tar file, install the headers
+# so that other submodules can make use of them.
+$(INSTALL)/include/linux/limits.h: $(build)/$(linux_base_dir)/.canary
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		INSTALL_HDR_PATH="$(INSTALL)" \
+		O="$(linux_dir)" \
+		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
+		headers_install
+
 
 # qemu
 linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
@@ -145,6 +155,7 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build
 $(build)/$(BOARD)/bzImage: $(build)/$(linux_dir)/.build
 	$(call do-copy,$(dir $<)/$(linux_output),$@)
 	@touch $@ # force a timestamp update
+	@sha256sum "$@" | tee -a "$(HASHES)"
 
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
