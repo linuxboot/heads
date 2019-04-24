@@ -104,7 +104,7 @@ while true; do
               /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
+              --msgbox "$ROM flashed successfully.\nPress Enter to reboot" 16 60 
             umount /media
             /bin/reboot
           else

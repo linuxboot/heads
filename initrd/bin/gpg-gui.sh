@@ -89,7 +89,7 @@ while true; do
     "a" )
       if (whiptail --title 'ROM and GPG public key required' \
           --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb || die "Unable to mount USB device"
+        mount_usb
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
@@ -161,7 +161,7 @@ while true; do
     "r" )
       if (whiptail --title 'GPG public key required' \
           --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nNormally, the file should be named public.key\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb || die "Unable to mount USB device"
+        mount_usb
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
