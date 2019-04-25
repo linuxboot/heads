@@ -1,0 +1,21 @@
+#OEM name shown on onboarding screen if found under /boot/oem when OEM Reownership Wizard starts
+oem_name=Insurgo Open Technologies
+#
+#The following are states being checked against prior to entering that specific stage. 
+# Once a stage is done, it is appended under /boot/oem
+#
+#If not found in file, shows Onboarding first message containing oem_name above if defined, else "your OEM" is shown
+onboarding
+#When not present in this file, reencrypts LUKS container with oem_luks_actual_Disk_Recovery_Key defined under /media/oem-provisioning
+luks_reencrypted
+#When not present in this file, changes oem_luks_actual_Disk_Recovery_Key with oem_luks_new_Disk_Recovery_Key defined under /media/oem-provisioning
+luks_passwd_changed
+#When not present in this file, factory resets Librem Key/NitroKey with: oem_gpg_Admin_PIN, oem_gpg_User_PIN, oem_gpg_real_name, oem_gpg_email, oem_gpg_comment, defined under /media/oem-provisioning.
+#The wizard generates new keypairs, injects the public key and trust database into the ROM and reboots. 
+#Upon reboot, the oem_gpg_Admin_PIN is used to automatically seal HOTP secret into the Librem Key/NitroKey
+gpg_factory_resetted
+#When not present in this file, reown the TPM with oem_TPM_Owner_Password, which is recommended to be the same as oem_gpg_Admin_PIN
+tpm_reowned
+#Once all stages are done, the Wizard removes /boot/oem, and ensures that /boot file checksum file is generated and signed with oem_gpg_User_PIN.
+#
+#Then the wizard finally launches the selection of a new boot default, and asks the user if he wants to modifie the disk and if he wants to define a Disk Unlock Key. In such case, oem_TPM_Owner_Password is used to seal a new TOTP secret, oem_gpg_Admin_PIN is used to seal a new HOTP secret, and oem_gpg_User_PIN is used to sign configuration files checksums that changed under /boot. 
