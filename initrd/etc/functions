@@ -491,7 +491,7 @@ reset_disk_unlock_key()
       
     if [ $HOTP = "Success" ];then
       mount -o remount,rw /boot
-      rm /boot/reset_disk_unlock_key
+      rm -f /boot/reset_disk_unlock_key
       mount -o remount,ro /boot
       verify_global_hashes
       kexec-select-boot -m -b /boot -c "grub.cfg" -g
