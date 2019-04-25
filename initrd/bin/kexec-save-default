@@ -50,6 +50,47 @@ else
   devices_suggest=$(echo $devices_suggest)
 fi
 
+if [ "$num_lvm" -gt 1 ]; then
+  //untested
+  selected_lvmdev_not_existing=1
+  while [ $selected_lvmdev_not_existing -ne 0 ];do
+  {
+    read \
+      -p "Encrypted LVM group? choose between: $lvm_suggest: " \
+      lvm_volume_group
+
+    result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
+    if [ $? == 0 ]; then
+      selected_lvmdev_not_existing=0
+    fi
+  };done  
+elif [ "$num_lvm" -eq 1 ]; then
+  echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
+  lvm_volume_group=$lvm_suggest
+else
+  echo "No encrypted LVM Group found."
+fi
+
+if [ "$num_devices" -gt 1 ]; then
+  selected_luksdev_not_existing=1
+  while [ $selected_luksdev_not_existing -ne 0 ];do
+  {
+    read \
+    -p "Encrypted devices? (choose between: $devices_suggest): " \
+    key_devices
+
+    result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
+    if [ $? == 0 ]; then
+      selected_luksdev_not_existing=0
+    fi
+  };done
+elif [ "$num_devices" -eq 1 ]; then
+  echo "Single Encrypted Disk found at $devices_suggest. Using it."
+  key_devices=$devices_suggest
+else
+  echo "No encrypted devices found."
+fi
+
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
   die "No menu options available, please run kexec-select-boot"
@@ -73,50 +114,9 @@ if [ "$CONFIG_TPM" = "y" ]; then
     echo
 
     if [ "$add_key_confirm" = "y" ] || [ "$add_key_confirm" = "Y" ] || [ -z "$add_key_confirm" ]; then
-      if [ "$num_lvm" -gt 1 ]; then
-        //untested
-        selected_lvmdev_not_existing=1
-        while [ $selected_lvmdev_not_existing -ne 0 ];do
-        {
-            read \
-              -p "Encrypted LVM group? choose between: $lvm_suggest: " \
-              lvm_volume_group
-
-            result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
-            if [ $? == 0 ]; then
-              selected_lvmdev_not_existing=0
-            fi
-        };done  
-      elif [ "$num_lvm" -eq 1 ]; then
-        echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
-        lvm_volume_group=$lvm_suggest
-      else
-        echo "No encrypted LVM Group found."
-      fi
-
-      if [ "$num_devices" -gt 1 ]; then
-        selected_luksdev_not_existing=1
-        while [ $selected_luksdev_not_existing -ne 0 ];do
-        {
-          read \
-          -p "Encrypted devices? (choose between: $devices_suggest): " \
-          key_devices
-
-          result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
-          if [ $? == 0 ]; then
-            selected_luksdev_not_existing=0
-          fi
-        };done
-      elif [ "$num_devices" -eq 1 ]; then
-        echo "Single Encrypted Disk found at $devices_suggest. Using it."
-        key_devices=$devices_suggest
-      else
-        echo "No encrypted devices found."
-      fi
-
-    save_key="y"
+      save_key="y"
     else
-      die "User chose to not add Disk Unlock Key to the TPM"
+      warn "User chose to not add Disk Unlock Key to the TPM. It can be done manually later on by selecting a new default boot option."
     fi
   else
     read \
@@ -161,47 +161,6 @@ if [ "$CONFIG_TPM" = "y" ]; then
         if [ -z "$lvm_volume_group" ] && [ -n "$old_lvm_volume_group" ]; then
           lvm_volume_group="$old_lvm_volume_group"
         fi
-      else
-        if [ "$num_lvm" -eq 1 ]; then
-          echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
-          lvm_volume_group="$lvm_suggest"
-        elif [ "$num_lvm" -gt 1 ]; then
-          //untested
-          selected_lvmdev_not_existing=1
-          while [ $selected_lvmdev_not_existing -ne 0 ];do
-          {
-              read \
-                -p "Encrypted LVM group? (choose between: $lvm_suggest): " \
-                lvm_volume_group
-
-              result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
-              if [ $? == 0 ]; then
-                selected_lvmdev_not_existing=0
-              fi
-          };done
-        else
-          echo "No encrypted LVM Group found."
-        fi
-
-        if [ "$num_devices" -eq 1 ]; then
-          echo "Single Encrypted Disk found at $devices_suggest. Using it."
-          key_devices="$devices_suggest"
-        elif [ "$num_devices" -gt 1 ]; then
-          selected_luksdev_not_existing=1
-            while [ $selected_luksdev_not_existing -ne 0 ];do
-            {
-              read \
-              -p "Encrypted devices? (choose between: $devices_suggest): " \
-              key_devices
-
-              result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
-              if [ $? == 0 ]; then
-                selected_luksdev_not_existing=0
-              fi
-            };done
-        else
-          echo "No encrypted devices found."
-        fi
       fi
     fi
 
@@ -213,11 +172,11 @@ if [ "$CONFIG_TPM" = "y" ]; then
     else
       die "No LVM Group nor encrypted devices provided."
     fi
+
+    echo -e "\nRunning kexec-save-key with params: $save_key_params\n"
+    kexec-save-key $save_key_params \
+    || die "Failed to save the Disk Unlock Key"
   fi  
-  
-  echo -e "\nRunning kexec-save-key with params: $save_key_params\n"
-  kexec-save-key $save_key_params \
-  || die "Failed to save the Disk Unlock Key"
 fi
 
 # try to switch to rw mode
