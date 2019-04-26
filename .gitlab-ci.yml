@@ -12,7 +12,7 @@ build:
   cache:
     untracked: true
     paths:
-      - ./git
+      - ./.git
   script:
     - make BOARD=x230-flash
     - make BOARD=x230
