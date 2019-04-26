@@ -65,7 +65,7 @@ if [ "$num_lvm" -gt 1 ]; then
     fi
   };done  
 elif [ "$num_lvm" -eq 1 ]; then
-  echo "Single Encrypted LVM group found at $lvm_suggest. Using it."
+  echo "Single Encrypted LVM group found at $lvm_suggest."
   lvm_volume_group=$lvm_suggest
 else
   echo "No encrypted LVM Group found."
@@ -85,7 +85,7 @@ if [ "$num_devices" -gt 1 ]; then
     fi
   };done
 elif [ "$num_devices" -eq 1 ]; then
-  echo "Single Encrypted Disk found at $devices_suggest. Using it."
+  echo "Single Encrypted Disk found at $devices_suggest."
   key_devices=$devices_suggest
 else
   echo "No encrypted devices found."
@@ -105,7 +105,7 @@ KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
 
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" = "y" ]; then
   if [ ! -s "$KEY_DEVICES" ]; then
     read \
       -n 1 \

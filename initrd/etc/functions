@@ -431,14 +431,16 @@ check_onboarding_progress()
         mount -o remount,ro /boot
         unset totp_confirm
         unset reownership_state
-        whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
-          "***You SHOULD SET a new Disk Unlock Key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk Unlock\n Key passphrase from this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk Unlock Key happens ONLY if TPM attests firmware\nintegrity, and only if Disk Unlock Key passphrase is valid.\n\nPlease hit Enter to continue" 30 60
+        if [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" = "y" ]; then
+          whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
+            "***You SHOULD SET a new Disk Unlock Key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk Unlock\n Key passphrase from this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk Unlock Key happens ONLY if TPM attests firmware\nintegrity, and only if Disk Unlock Key passphrase is valid.\n\nPlease hit Enter to continue" 30 60
 
-        whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
-          "Otherwise, typing your Disk Recovery Key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from a cloned\ndisk.\n\nCoupled with a strong passphrase, this improves your data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
+          whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
+            "Otherwise, typing your Disk Recovery Key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from a cloned\ndisk.\n\nCoupled with a strong passphrase, this improves your data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
 
-        whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
-          "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested:\n\nSelect from Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add Disk Unlock Key to the TPM.\n\nYou will be prompted to set one in the following steps.\n\nPlease hit Enter to continue" 30 60
+          whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
+            "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested:\n\nSelect from Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add Disk Unlock Key to the TPM.\n\nYou will be prompted to set one in the following steps.\n\nPlease hit Enter to continue" 30 60
+        fi
         return 
       else
         #Deal with corner case where after inserting key in previous step, HOTP seal fails with provided good password.
