@@ -91,6 +91,10 @@ else
   echo "No encrypted devices found."
 fi
 
+if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]
+  #No encrypted partition found.
+  no_encrypted_partition=1
+fi
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
   die "No menu options available, please run kexec-select-boot"
@@ -105,7 +109,8 @@ KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
 
-if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" = "y" ] && [ "$no_encrypted_partition" != "1" ]; then
+  #Go forward and propose to seal Disk Unlock Key with TPM only if at least a disk encrypted partition was found.
   if [ ! -s "$KEY_DEVICES" ]; then
     read \
       -n 1 \
