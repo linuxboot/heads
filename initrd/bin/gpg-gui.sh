@@ -22,51 +22,6 @@ mount_usb(){
   fi
 }
 
-file_selector() {
-  FILE=""
-  FILE_LIST=$1
-  MENU_MSG=${2:-"Choose the file"}
-# create file menu options
-  if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
-    option=""
-    while [ -z "$option" ]
-    do
-      MENU_OPTIONS=""
-      n=0
-      while read option
-      do
-        n=`expr $n + 1`
-        option=$(echo $option | tr " " "_")
-        MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-      done < $FILE_LIST
-
-      MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail --clear --title "Select your File" \
-        --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
-        -- $MENU_OPTIONS \
-        2>/tmp/whiptail || die "Aborting"
-
-      option_index=$(cat /tmp/whiptail)
-
-      if [ "$option_index" = "a" ]; then
-        option="a"
-        return
-      fi
-
-      option=`head -n $option_index $FILE_LIST | tail -1`
-      if [ "$option" == "a" ]; then
-        return
-      fi
-    done
-    if [ -n "$option" ]; then
-      FILE=$option
-    fi
-  else
-    whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: No Files Found' \
-      --msgbox "No Files found matching the pattern. Aborting." 16 60
-    exit 1
-  fi
-}
 
 while true; do
   unset menu_choice
