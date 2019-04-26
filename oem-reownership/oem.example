@@ -18,4 +18,4 @@ gpg_factory_resetted
 tpm_reowned
 #Once all stages are done, the Wizard removes /boot/oem, and ensures that /boot file checksum file is generated and signed with oem_gpg_User_PIN.
 #
-#Then the wizard finally launches the selection of a new boot default, and asks the user if he wants to modifie the disk and if he wants to define a Disk Unlock Key. In such case, oem_TPM_Owner_Password is used to seal a new TOTP secret, oem_gpg_Admin_PIN is used to seal a new HOTP secret, and oem_gpg_User_PIN is used to sign configuration files checksums that changed under /boot. 
+#Then the wizard finally launches the selection of a new boot default, and asks the user if he wants to modify the disk and if he wants to define a Disk Unlock Key. In such case, oem_TPM_Owner_Password is used to seal a new TOTP secret, oem_gpg_Admin_PIN is used to seal a new HOTP secret, and oem_gpg_User_PIN is used to sign configuration files checksums that changed under /boot. 
