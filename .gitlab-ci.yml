@@ -8,6 +8,7 @@ build:
   cache:
     paths:
       - ./
+    key: "$CI_COMMIT_REF_SLUG"
   cache:
     untracked: true
     paths:
