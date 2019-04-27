@@ -31,7 +31,7 @@ while true; do
     'a' ' Add GPG key to standalone BIOS image + flash' \
     'l' ' List GPG keys in your keyring' \
     'g' ' Generate GPG keys on a USB security token' \
-    'F' ' Factory Reset Nitrokey Pro v2/Librem Key GPG Card' \
+    'F' ' Factory Reset Librem Key/Nitrokey Pro v2 GPG Card + keygen + flash' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
