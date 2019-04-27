@@ -22,6 +22,8 @@ pinentry_configure := ./configure \
 	--disable-fallback-curses \
 	--disable-pinentry-curses \
 	--disable-pinentry-qt \
+	--disable-pinentry-gtk2 \
+	--disable-pinentry-gnome3 \
 	--disable-pinentry-fltk \
 	--disable-pinentry-emacs \
 	--disable-fallback-curses \
