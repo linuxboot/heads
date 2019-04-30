@@ -35,7 +35,7 @@ HASH_FILE="$paramsdir/kexec_default_hashes.txt"
 
 
 lvm_suggest=$(lvm vgscan|awk -F '"' {'print $1'}|tail -n +2)
-num_lvm=$(echo "$lvm_suggest"|wc -l)
+num_lvm=$(echo -n "$lvm_suggest"|wc -l)
 if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
   lvm_volume_group=$lvm_suggest
 elif [ -z "$lvm_suggest" ]; then
@@ -43,8 +43,8 @@ elif [ -z "$lvm_suggest" ]; then
 fi
 
 devices_suggest=$(blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks "$device";if [ $(echo $?) == 0 ]; then echo "$device";fi; done | sort)
-num_devices=$(echo "$devices_suggest"|wc -l)
-if [ "$num_devices" -eq 1 ]; then
+num_devices=$(echo -n "$devices_suggest"|wc -l)
+if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
   key_devices=$devices_suggest
 else
   devices_suggest=$(echo $devices_suggest)
@@ -64,7 +64,7 @@ if [ "$num_lvm" -gt 1 ]; then
       selected_lvmdev_not_existing=0
     fi
   };done  
-elif [ "$num_lvm" -eq 1 ]; then
+elif [ "$num_lvm" -eq 1 ] && [ -s $lvm_suggest ]; then
   echo "Single Encrypted LVM group found at $lvm_suggest."
   lvm_volume_group=$lvm_suggest
 else
@@ -91,7 +91,7 @@ else
   echo "No encrypted devices found."
 fi
 
-if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]
+if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
   #No encrypted partition found.
   no_encrypted_partition=1
 fi
