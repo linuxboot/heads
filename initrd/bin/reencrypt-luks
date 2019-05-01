@@ -10,21 +10,34 @@ select_luks_container()
     LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
   else
     #generate a list of devices to choose from that contain a LUKS header
-      blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks $device;if [ $(echo $?) == 0 ]; then echo $device;fi; done | sort > /tmp/luks_devices.txt
+    lvm vgscan||true
+    blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks $device;if [ $(echo $?) == 0 ]; then echo $device;fi; done | sort > /tmp/luks_devices.txt
+    if [ $(cat /tmp/luks_devices.txt | wc -l) -gt 0 ]; then
       file_selector "/tmp/luks_devices.txt" "Select LUKS container device"
-    if [ "$FILE" == "" ]; then
-      return
+      if [ "$FILE" == "" ]; then
+        return
+      else
+        LUKS=$FILE
+        mount_boot
+        mount -o remount,rw /boot
+        echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
+        mount -o remount,ro /boot
+      fi
     else
-      LUKS=$FILE
-      mount_boot
-      mount -o remount,rw /boot
-      echo "$LUKS $(cryptsetup luksUUID $LUKS)" > /boot/kexec_key_devices.txt
-      mount -o remount,ro /boot
+      #There is no LUKS device, we skip LUKS reencryption process in OEM reownership wizard
+      if [ -e /boot/oem ];then
+        mount -o remount,rw /boot
+        echo "luks_reencrypted" >> /boot/oem
+        echo "luks_passwd_changed" >> /boot/oem
+        unset reownership_state
+        mount -o remount,ro /boot
+      fi
+      die "No encrypted device found."
     fi
   fi
 }
 
-if [ $reownership_state = "luks_reencryption" ]; then 
+if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]; then
   #if no USB oem-privisioning file provides actual Disk Recovery Key
   if [ -z "$oem_luks_actual_Disk_Recovery_Key" ]; then
     whiptail --title 'Reencrypt actual LUKS container with a new user selected strong passphrase?' \
@@ -38,26 +51,27 @@ if [ $reownership_state = "luks_reencryption" ]; then
     echo -n "$oem_luks_actual_Disk_Recovery_Key" > /tmp/oem_luks_actual_Disk_Recovery_Key
     select_luks_container
     cryptsetup-reencrypt -B 32 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/oem_luks_actual_Disk_Recovery_Key -h sha256
-  fi
-  if [ $(echo $?) -ne 0 ]; then
-    whiptail --title 'Invalid LUKS Disk Recovery Key passphrase?' --msgbox \
-      "The LUKS Disk Recovery Key password was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\n\nTo do so, place ISO file and its signature file on root of USB drive,\n and select Boot from USB\n\nHit Enter to continue." 30 60
-    shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
-    continue
-  else
-  #Successfully reencrypted LUKS container with current Disk Recovery Key passphrase. Write successful state in oem file
-    if [ -e /boot/oem ];then
-      mount -o remount,rw /boot
-      echo "luks_reencrypted" >> /boot/oem
-      reownership_state="luks_password_change"
-      mount -o remount,ro /boot
+    if [ $(echo $?) -ne 0 ]; then
+      whiptail --title 'Invalid LUKS Disk Recovery Key passphrase?' --msgbox \
+        "The LUKS Disk Recovery Key password was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\n\nTo do so, place ISO file and its signature file on root of USB drive,\n and select Boot from USB\n\nHit Enter to continue." 30 60
       shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
+      unset oem_luks_actual_Disk_Recovery_Key
+      continue
+    else
+    #Successfully reencrypted LUKS container with current Disk Recovery Key passphrase. Write successful state in oem file
+      if [ -e /boot/oem ];then
+        mount -o remount,rw /boot
+        echo "luks_reencrypted" >> /boot/oem
+        reownership_state="luks_password_change"
+        mount -o remount,ro /boot
+        shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
+      fi
     fi
-  fi
   continue
+  fi
 fi
 
-if [ $reownership_state == "luks_password_change" ]; then
+if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_password_change" ]; then
   #if actual or new Disk Recovery Key is not provisioned by USB oem-provisioning file
   if [ -z "$oem_luks_actual_Disk_Recovery_Key" ] || [ -z "$oem_luks_new_Disk_Recovery_Key" ] ; then
     whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
@@ -72,21 +86,21 @@ if [ $reownership_state == "luks_password_change" ]; then
     echo -n "$oem_luks_new_Disk_Recovery_Key" > /tmp/oem_luks_new_Disk_Recovery_Key
     echo -n "$oem_luks_actual_Disk_Recovery_Key" > /tmp/oem_luks_actual_Disk_Recovery_Key
     cryptsetup luksChangeKey "$LUKS" --key-slot 0 --key-file=/tmp/oem_luks_actual_Disk_Recovery_Key /tmp/oem_luks_new_Disk_Recovery_Key
-  fi
-  if [ $(echo $?) -ne 0 ]; then
-    whiptail --title 'Invalid LUKS passphrase?' --msgbox \
-      "The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\nTo do so, put OS ISO file and it's signature file on root of USB drive,\n And select Boot from USB\n\nHit Enter to continue." 30 60
-    shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
-    shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
-    continue
-  else
-  #Successfully changed LUKS Disk Recovery Key passphrase. Write successful state in oem file
-    if [ -e /boot/oem ];then
-      mount -o remount,rw /boot
-      echo "luks_passwd_changed" >> /boot/oem
-      mount -o remount,ro /boot
+    if [ $(echo $?) -ne 0 ]; then
+      whiptail --title 'Invalid LUKS passphrase?' --msgbox \
+        "The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\nTo do so, put OS ISO file and it's signature file on root of USB drive,\n And select Boot from USB\n\nHit Enter to continue." 30 60
       shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
       shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
+      continue
+    else
+    #Successfully changed LUKS Disk Recovery Key passphrase. Write successful state in oem file
+      if [ -e /boot/oem ];then
+        mount -o remount,rw /boot
+        echo "luks_passwd_changed" >> /boot/oem
+        mount -o remount,ro /boot
+        shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
+        shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
+      fi
     fi
   fi
   continue
