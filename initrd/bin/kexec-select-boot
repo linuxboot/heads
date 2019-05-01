@@ -162,6 +162,11 @@ scan_options() {
 	if [ -r $option_file ]; then rm $option_file; fi
 	for i in `find $bootdir -name "$config"`; do
 		kexec-parse-boot "$bootdir" "$i" >> $option_file
+		# FC29/30+ may use BLS format grub config files
+		# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+		if [ -d "$bootdir/loader/entries" ]; then
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
+		fi
 	done
 	if [ ! -r $option_file ]; then
 		die "Failed to parse any boot options"
