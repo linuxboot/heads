@@ -25,7 +25,7 @@ mount_usb(){
 while true; do
   unset menu_choice
   whiptail --clear --title "Firmware Management Menu" \
-    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
+    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps Heads configuration changes\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
     'c' ' Flash the firmware with a new ROM, erase settings' \
     'x' ' Exit' \
