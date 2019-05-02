@@ -9,10 +9,6 @@ build:
     paths:
       - ./
     key: "$CI_COMMIT_REF_SLUG"
-  cache:
-    untracked: true
-    paths:
-      - ./.git
   script:
     - make BOARD=x230-flash
     - make BOARD=x230
