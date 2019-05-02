@@ -23,6 +23,6 @@ build:
   artifacts:
     paths:
       - ./build/x230-flash/x230-flash.rom
-      - ./build/x230-flash/hashes.txt
+      - ./build/x230-flash/x230-flash-hashes.txt
       - ./build/x230/coreboot.rom
-      - ./build/x230/hashes.txt
+      - ./build/x230/x230-hashes.txt
