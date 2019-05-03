@@ -6,6 +6,10 @@ stages:
 build:
   stage: build
   cache:
+    untracked: true
+    paths:
+      - ./git
+  cache:
     paths:
       - ./
     key: "$CI_COMMIT_REF_SLUG"
