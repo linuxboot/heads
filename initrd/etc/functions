@@ -52,7 +52,7 @@ pause_recovery() {
 }
 
 pcrs() {
-	head -9 /sys/class/tpm/tpm0/pcrs
+	head -8 /sys/class/tpm/tpm0/pcrs
 }
 
 confirm_totp()

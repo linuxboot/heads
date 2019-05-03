@@ -26,7 +26,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 		|| die "$VOLUME_GROUP: Unable to activate volume group"
 fi
 
-# Measure the LUKS headers before we unseal the Disk Unock Key
+# Measure the LUKS headers before we unseal the Disk Unlock Key
 cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "LUKS measure failed"
 
