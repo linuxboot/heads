@@ -50,8 +50,7 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]
     #USB "oem-privisioning" file provides actual Disk Recovery Key
     echo -n "$oem_luks_actual_Disk_Recovery_Key" > /tmp/oem_luks_actual_Disk_Recovery_Key
     select_luks_container
-    cryptsetup-reencrypt -B 32 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/oem_luks_actual_Disk_Recovery_Key -h sha256
-    #TODO: is -h sha256 required?
+    cryptsetup-reencrypt -B 32 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/oem_luks_actual_Disk_Recovery_Key
   fi
   
   #Validate past cryptsetup attempts
