@@ -59,7 +59,7 @@ GIT_STATUS	:= $(shell \
 	fi)
 
 # record the build date / git hashes and other files here
-HASHES		:= $(build)/$(BOARD)/$(BOARD)-hashes.txt
+HASHES		:= $(build)/$(BOARD)/hashes.txt
 
 # Create the board output directory if it doesn't already exist
 BOARD_LOG	:= $(shell \
