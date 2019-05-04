@@ -126,7 +126,7 @@ fi
 #Check if $USB_MOUNT_DEVICE is a LUKS encrypted device.Ff so, luksOpen it and replace $USB_MOUNT_DEVICE with /dev/mapper/usbdev
 is_Luks_luksOpen
 if [ "$1" = "rw" ]; then
-  mount -o rw $USB_MOUNT_DEVICE /media
+  mount -o rw $USB_MOUNT_DEVICE /media || die "Unable to remount /media into Read Write mode. Is the device write protected?" 
 else
-  mount -o ro $USB_MOUNT_DEVICE /media
+  mount -o ro $USB_MOUNT_DEVICE /media || || die "Unable to mount $USB_MOUNT_DEVICE."
 fi
