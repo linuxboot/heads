@@ -2,6 +2,16 @@
 # Mount a USB device
 . /etc/functions
 
+is_Luks_luksOpen()
+{
+  cryptsetup isLuks $USB_MOUNT_DEVICE
+  if [ $(echo $?) == 0 ]; then
+    echo -e "USB Device $USB_MOUNT_DEVICE is encrypted.\n"
+    cryptsetup luksOpen $USB_MOUNT_DEVICE usbdev
+    USB_MOUNT_DEVICE="/dev/mapper/usbdev"
+  fi
+}
+
 enable_usb
 
 #OEM reownership, when attempting to load /media/oem-provisioning, 
@@ -26,7 +36,7 @@ if [ ! -d /media ]; then
 fi
 
 #In case CONFIG_USB_BOOT_DEV was just a secondary device, attempt to mount it prior to search for it.
-mount $CONFIG_USB_BOOT_DEV /media || MOUNT_CONFIG_USB_BOOT_DEV_FAILED=1
+mount $CONFIG_USB_BOOT_DEV /media >/dev/null 2>&1|| MOUNT_CONFIG_USB_BOOT_DEV_FAILED=1
 if [ $MOUNT_CONFIG_USB_BOOT_DEV_FAILED -eq 1 ]; then
   stat -c %N /sys/block/sd* | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
   if [ -z `cat /tmp/usb_block_devices` ]; then
@@ -112,6 +122,8 @@ if [ $MOUNT_CONFIG_USB_BOOT_DEV_FAILED -eq 1 ]; then
     USB_MOUNT_DEVICE=`head -n $option_index /tmp/usb_disk_list | tail -1`
   fi
 
+  #Check if $USB_MOUNT_DEVICE is a LUKS encrypted device.Ff so, luksOpen it and replace $USB_MOUNT_DEVICE with /dev/mapper/usbdev
+  is_Luks_luksOpen
   if [ "$1" = "rw" ]; then
     mount -o rw $USB_MOUNT_DEVICE /media
   else
