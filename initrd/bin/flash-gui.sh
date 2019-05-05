@@ -4,24 +4,6 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-mount_usb(){
-# Mount the USB boot device
-  if ! grep -q /media /proc/mounts ; then
-    mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-    if [ $USB_FAILED -ne 0 ]; then
-      if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
-        whiptail --title 'USB Drive Missing' \
-          --msgbox "Insert your USB drive and press Enter to continue." 16 60 USB_FAILED=0
-        mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-      fi
-      if [ $USB_FAILED -ne 0 ]; then
-        whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Mounting /media Failed' \
-          --msgbox "Unable to mount $CONFIG_USB_BOOT_DEV" 16 60
-      fi
-    fi
-  fi
-}
-
 while true; do
   unset menu_choice
   whiptail --clear --title "Firmware Management Menu" \
@@ -40,7 +22,7 @@ while true; do
     f|c )
       if (whiptail --title 'Flash the BIOS with a new ROM' \
           --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
+        mount-usb || die "Unable to mount USB device."
         if grep -q /media /proc/mounts ; then
           find /media -name '*.rom' > /tmp/filelist.txt
           file_selector "/tmp/filelist.txt" "Choose the ROM to flash"

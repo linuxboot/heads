@@ -4,24 +4,6 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-mount_usb(){
-# Mount the USB boot device
-  if ! grep -q /media /proc/mounts ; then
-    mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-    if [ $USB_FAILED -ne 0 ]; then
-      if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
-        whiptail --title 'USB Drive Missing' \
-          --msgbox "Insert your USB drive and press Enter to continue." 16 60 USB_FAILED=0
-        mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-      fi
-      if [ $USB_FAILED -ne 0 ]; then
-        whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Mounting /media Failed' \
-          --msgbox "Unable to mount $CONFIG_USB_BOOT_DEV" 16 60
-      fi
-    fi
-  fi
-}
-
 gpg_flash_rom() {
   cat "$PUBKEY" | gpg --import
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
@@ -69,8 +51,8 @@ gpg_post_gen_mgmt() {
   gpg --export --armor $GPG_GEN_KEY > "/tmp/${GPG_GEN_KEY}.asc"
   if (whiptail --title 'Add Public Key to USB disk?' \
       --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nOtherwise you will not be able to copy it outside of Heads later\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
-    mount_usb
-    mount -o remount,rw /media
+    mount-usb || die "Unable to mount USB device."
+    mount -o remount,rw /media || die "Unable to remount /media in Read-Write mode. Is the device Write protected?"
     cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
     if [ $? -eq 0 ]; then
       whiptail --title "The GPG Key Copied Successfully" \
@@ -139,7 +121,7 @@ while true; do
     "a" )
       if (whiptail --title 'ROM and GPG public key required' \
           --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
+        mount-usb || die "Unable to mount USB device."
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
@@ -171,7 +153,7 @@ while true; do
     "r" )
       if (whiptail --title 'GPG public key required' \
           --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
+        mount-usb || die "Unable to mount USB device."
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt

@@ -314,71 +314,93 @@ combine_configs() {
 read_oem_file()
 {
   echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
-  /bin/mount-usb || warn "Unable to mount USB device. Continuing"
+  /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
   if [ -e /media/oem-provisioning ]; then
-    oem_gpg_Admin_PIN=$(grep "oem_gpg_Admin_PIN" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_Admin_PIN" ]; then
+    oem_gpg_Admin_PIN=$(grep "oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_gpg_Admin_PIN" ] && [ $(echo "$oem_gpg_Admin_PIN" | wc -l ) -eq 1 ]; then
       export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
     else
+      warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
       unset oem_gpg_Admin_PIN
+      error=1
     fi
   
-    oem_gpg_User_PIN=$(grep "oem_gpg_User_PIN" /media/oem-provisioning | cut -d "=" -f2) 
-    if [ -n "$oem_gpg_User_PIN" ]; then
+    oem_gpg_User_PIN=$(grep "oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
+    if [ -n "$oem_gpg_User_PIN" ] && [ $(echo "$oem_gpg_User_PIN" | wc -l ) -eq 1 ]; then
       export oem_gpg_User_PIN="$oem_gpg_User_PIN"
     else
-      unset oem_gpg_User_PIN 
+      warn "Multiple 'oem_gpg_User_PIN=' statements found. None retained."
+      unset oem_gpg_User_PIN
+      error=1
     fi
 
-    oem_gpg_real_name=$(grep "oem_gpg_real_name" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_real_name" ]; then
+    oem_gpg_real_name=$(grep "oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_gpg_real_name" ] && [ $(echo "$oem_gpg_real_name" | wc -l ) -eq 1 ]; then
       export oem_gpg_real_name="$oem_gpg_real_name"
     else
+      warn "Multiple 'oem_gpg_real_name=' statements found. None retained."
       unset oem_gpg_real_name
+      error=1
     fi
 
-    oem_gpg_email=$(grep "oem_gpg_email" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_email" ]; then
+    oem_gpg_email=$(grep "oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_gpg_email" ] && [ $(echo "$oem_gpg_email" | wc -l ) -eq 1 ]; then
       export oem_gpg_email="$oem_gpg_email"
     else
-      unset oem_gpg_email 
+      warn  "Multiple 'oem_gpg_email=' statements found. None retained."
+      unset oem_gpg_email
+      error=1 
     fi
 
-    oem_gpg_comment=$(grep "oem_gpg_comment" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_comment" ]; then
+    oem_gpg_comment=$(grep "oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_gpg_comment" ] && [ $(echo "$oem_gpg_comment" | wc -l ) -eq 1 ]; then
       export oem_gpg_comment="$oem_gpg_comment"
     else
+      warn "Multiple 'oem_gpg_comment=' statements found. None retained."
       unset oem_gpg_comment
+      error=1
     fi
 
-    oem_luks_actual_Disk_Recovery_Key=$(grep "oem_luks_actual_Disk_Recovery_Key" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_actual_Disk_Recovery_Key" ]; then
+    oem_luks_actual_Disk_Recovery_Key=$(grep "oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_luks_actual_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
     else
+      warn "Multiple 'oem_luks_actual_Disk_Recovery_Key=' statements found. None retained."
       unset oem_luks_actual_Disk_Recovery_Key
+      error=1
     fi
 
-    oem_luks_new_Disk_Recovery_Key=$(grep "oem_luks_new_Disk_Recovery_Key" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_new_Disk_Recovery_Key" ]; then
+    oem_luks_new_Disk_Recovery_Key=$(grep "oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_luks_new_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
     else
+      warn "Multiple 'oem_luks_new_Disk_Recovery_Key=' statements found. None retained."
       unset oem_luks_new_Disk_Recovery_Key
+      error=1
     fi
 
-    oem_luks_Disk_Unlock_Key=$(grep "oem_luks_Disk_Unlock_Key" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_Disk_Unlock_Key" ]; then
+    oem_luks_Disk_Unlock_Key=$(grep "oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_luks_Disk_Unlock_Key" ] && [ $(echo "$oem_luks_Disk_Unlock_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
     else
+      warn "Multiple 'oem_luks_Disk_Unlock_Key=' statements found. None retained."
       unset oem_luks_Disk_Unlock_Key
+      error=1
     fi
 
-    oem_TPM_Owner_Password=$(grep "oem_TPM_Owner_Password" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_TPM_Owner_Password" ]; then
+    oem_TPM_Owner_Password=$(grep "oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
+    if [ -n "$oem_TPM_Owner_Password" ] && [ $(echo "$oem_TPM_Owner_Password" | wc -l ) -eq 1 ]; then
       export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
     else
+      warn "Multiple 'oem_TPM_Owner_Password=' statements found. None retained."
       unset oem_TPM_Owner_Password
+      error=1
     fi
-  
+    
+    if [ -n $error ] && [ "$error" -eq 1 ]; then
+      recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter', then 'unmount /media' and 'reboot'."
+    fi
+
     export oem_configuration_read=1
     umount /media
   fi
