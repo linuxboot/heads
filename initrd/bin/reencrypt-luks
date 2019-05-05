@@ -55,8 +55,8 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]
   
   #Validate past cryptsetup attempts
   if [ $(echo $?) -ne 0 ]; then
-    whiptail --title 'Invalid LUKS Disk Recovery Key passphrase?' --msgbox \
-      "The LUKS Disk Recovery Key password was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\n\nTo do so, place ISO file and its signature file on root of USB drive,\n and select Boot from USB\n\nHit Enter to continue." 30 60
+    whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
+      "The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\n\nTo do so, place ISO file and its signature file on root of USB drive,\n and select Boot from USB\n\nHit Enter to continue." 30 60
     shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
     #unsetting oem_luks_actual_Disk_Recovery_Key will prompt user for Disk Recovery Key passphrase prompt on next round
     unset oem_luks_actual_Disk_Recovery_Key
