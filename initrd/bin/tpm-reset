@@ -37,9 +37,9 @@ tpm physicalenable
 tpm physicalsetdeactivated -c
 tpm forceclear
 tpm physicalenable
-tpm takeown -pwdo "$key_password" >/dev/null 2>&1 
+tpm takeown -pwdo "$key_password" >/dev/null 2>&1
 
 # And now turn it all back on
 tpm physicalpresence -s
-tpm physicalenable >/dev/null
+tpm physicalenable
 tpm physicalsetdeactivated -c

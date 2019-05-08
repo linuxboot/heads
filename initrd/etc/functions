@@ -347,7 +347,7 @@ read_oem_file()
     if [ -n "$oem_gpg_email" ] && [ $(echo "$oem_gpg_email" | wc -l ) -eq 1 ]; then
       export oem_gpg_email="$oem_gpg_email"
     else
-      warn  "Multiple 'oem_gpg_email=' statements found. None retained."
+      warn "Multiple 'oem_gpg_email=' statements found. None retained."
       unset oem_gpg_email
       error=1 
     fi
@@ -398,13 +398,14 @@ read_oem_file()
     fi
     
     if [ -n $error ] && [ "$error" -eq 1 ]; then
-      recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter', then 'unmount /media' and 'reboot'."
+      recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter' key, then 'unmount /media' and 'reboot'."
     fi
 
     export oem_configuration_read=1
     umount /media
   fi
 }
+
 check_onboarding_progress()
 {
   mount_boot
@@ -422,25 +423,25 @@ check_onboarding_progress()
       echo "onboarding" >> /boot/oem
       mount -o remount,ro /boot
     fi
-    res=$(grep luks_reencrypted /boot/oem 2>&1 > /dev/null)
+    res=$(grep luks_reencrypted /boot/oem > /dev/null 2>&1)
     if [ $? -ne 0 ];then
       export reownership_state="luks_reencryption"
       totp_confirm="R"
       echo $totp_confirm > /tmp/whiptail
       return
     fi
-    res=$(grep luks_passwd_changed /boot/oem 2>&1 > /dev/null)
+    res=$(grep luks_passwd_changed /boot/oem > /dev/null 2>&1)
     if [ $? -ne 0 ];then
       export reownership_state="luks_password_change"
       totp_confirm="R"
       return
     fi
-    res=$(grep gpg_factory_resetted /boot/oem 2>&1 > /dev/null)
+    res=$(grep gpg_factory_resetted /boot/oem > /dev/null 2>&1)
     if [ $? -ne 0 ];then
       /bin/factory-reset-nitrokey-libremkey.sh
       return
     fi
-    res=$(grep tpm_reowned /boot/oem 2>&1 > /dev/null)
+    res=$(grep tpm_reowned /boot/oem > /dev/null 2>&1)
     if [ $? -ne 0 ];then
       totp_confirm="p"
       echo $totp_confirm > /tmp/whiptail
@@ -476,6 +477,7 @@ check_onboarding_progress()
     return
   fi  
 }
+
 reset_disk_unlock_key()
 {
   mount_boot
