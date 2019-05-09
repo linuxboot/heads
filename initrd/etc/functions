@@ -316,7 +316,7 @@ read_oem_file()
   echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
   /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
   if [ -e /media/oem-provisioning ]; then
-    oem_gpg_Admin_PIN=$(grep "oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_gpg_Admin_PIN" ] && [ $(echo "$oem_gpg_Admin_PIN" | wc -l ) -eq 1 ]; then
       export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
     else
@@ -325,7 +325,7 @@ read_oem_file()
       error=1
     fi
   
-    oem_gpg_User_PIN=$(grep "oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
+    oem_gpg_User_PIN=$(grep "^oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
     if [ -n "$oem_gpg_User_PIN" ] && [ $(echo "$oem_gpg_User_PIN" | wc -l ) -eq 1 ]; then
       export oem_gpg_User_PIN="$oem_gpg_User_PIN"
     else
@@ -334,7 +334,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_gpg_real_name=$(grep "oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_gpg_real_name=$(grep "^oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_gpg_real_name" ] && [ $(echo "$oem_gpg_real_name" | wc -l ) -eq 1 ]; then
       export oem_gpg_real_name="$oem_gpg_real_name"
     else
@@ -343,7 +343,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_gpg_email=$(grep "oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_gpg_email=$(grep "^oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_gpg_email" ] && [ $(echo "$oem_gpg_email" | wc -l ) -eq 1 ]; then
       export oem_gpg_email="$oem_gpg_email"
     else
@@ -352,7 +352,7 @@ read_oem_file()
       error=1 
     fi
 
-    oem_gpg_comment=$(grep "oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_gpg_comment=$(grep "^oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_gpg_comment" ] && [ $(echo "$oem_gpg_comment" | wc -l ) -eq 1 ]; then
       export oem_gpg_comment="$oem_gpg_comment"
     else
@@ -361,7 +361,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_luks_actual_Disk_Recovery_Key=$(grep "oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_luks_actual_Disk_Recovery_Key=$(grep "^oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_luks_actual_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
     else
@@ -370,7 +370,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_luks_new_Disk_Recovery_Key=$(grep "oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_luks_new_Disk_Recovery_Key=$(grep "^oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_luks_new_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
     else
@@ -379,7 +379,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_luks_Disk_Unlock_Key=$(grep "oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_luks_Disk_Unlock_Key=$(grep "^oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_luks_Disk_Unlock_Key" ] && [ $(echo "$oem_luks_Disk_Unlock_Key" | wc -l ) -eq 1 ]; then
       export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
     else
@@ -388,7 +388,7 @@ read_oem_file()
       error=1
     fi
 
-    oem_TPM_Owner_Password=$(grep "oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
+    oem_TPM_Owner_Password=$(grep "^oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
     if [ -n "$oem_TPM_Owner_Password" ] && [ $(echo "$oem_TPM_Owner_Password" | wc -l ) -eq 1 ]; then
       export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
     else
