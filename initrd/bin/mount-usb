@@ -38,10 +38,6 @@ fi
 #Only mount /media device if not mounted. Calling scripts are responsible to unmount when done if another script might need a different USB drive.
 if ! grep -q /media /proc/mounts ; then
   stat -c %N /sys/block/sd* | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-  #In case CONFIG_USB_BOOT_DEV was just a secondary device specified in board configuration and found, add it to the list
-  stat -c %N $CONFIG_USB_BOOT_DEV | grep -v usb| cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" >> /tmp/usb_block_devices
-  devices=$(cat /tmp/usb_block_devices |uniq|sort)
-  echo "$devices" > /tmp/usb_block_devices
   if [ -z `cat /tmp/usb_block_devices` ]; then
     if [ -x /bin/whiptail ]; then
       whiptail --title 'USB Drive Missing' \
@@ -52,10 +48,6 @@ if ! grep -q /media /proc/mounts ; then
     fi
     sleep 1
     stat -c %N /sys/block/sd* | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-    #In case CONFIG_USB_BOOT_DEV was just a secondary device specified in board configuration and found, add it to the list
-    stat -c %N $CONFIG_USB_BOOT_DEV | grep -v usb| cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" >> /tmp/usb_block_devices 
-    devices=$(cat /tmp/usb_block_devices |uniq|sort) 
-    echo "$devices" > /tmp/usb_block_devices
     if [ -z `cat /tmp/usb_block_devices` ]; then
       if [ -x /bin/whiptail ]; then
         whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: USB Drive Missing' \
