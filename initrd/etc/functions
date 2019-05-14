@@ -317,88 +317,179 @@ read_oem_file()
   /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
   if [ -e /media/oem-provisioning ]; then
     oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_Admin_PIN" ] && [ $(echo "$oem_gpg_Admin_PIN" | wc -l ) -eq 1 ]; then
-      export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
+    oem_gpg_Admin_PIN_count=$(echo "$oem_gpg_Admin_PIN" | wc -l )
+    if [ -n "$oem_gpg_Admin_PIN" ]; then
+      if [ $oem_gpg_Admin_PIN_count -eq 1 ]; then
+        export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
+      elif [ $oem_gpg_Admin_PIN_count -gt 1 ]; then
+        warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
+        unset oem_gpg_Admin_PIN
+        error=1
+      fi
     else
-      warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
-      unset oem_gpg_Admin_PIN
-      error=1
+      warn "No 'oem_gpg_Admin_PIN=' statement found."
+      prompt_user_provisioning=1
     fi
-  
+
     oem_gpg_User_PIN=$(grep "^oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
-    if [ -n "$oem_gpg_User_PIN" ] && [ $(echo "$oem_gpg_User_PIN" | wc -l ) -eq 1 ]; then
-      export oem_gpg_User_PIN="$oem_gpg_User_PIN"
+    oem_gpg_User_PIN_count=$(echo "$oem_gpg_User_PIN" | wc -l )
+    if [ -n "$oem_gpg_User_PIN" ]; then
+      if [ $oem_gpg_User_PIN_count -eq 1 ]; then
+        export oem_gpg_User_PIN="$oem_gpg_User_PIN"
+      elif [ $oem_gpg_User_PIN_count -gt 1 ]; then
+        warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
+        unset oem_gpg_User_PIN
+        error=1
+      fi
     else
-      warn "Multiple 'oem_gpg_User_PIN=' statements found. None retained."
-      unset oem_gpg_User_PIN
-      error=1
+      warn "No 'oem_gpg_User_PIN=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_gpg_real_name=$(grep "^oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_real_name" ] && [ $(echo "$oem_gpg_real_name" | wc -l ) -eq 1 ]; then
-      export oem_gpg_real_name="$oem_gpg_real_name"
+    oem_gpg_real_name_count=$(echo "$oem_gpg_real_name" | wc -l )
+    if [ -n "$oem_gpg_real_name" ]; then
+      if [ $oem_gpg_real_name_count -eq 1 ]; then
+        export oem_gpg_real_name="$oem_gpg_real_name"
+      elif [ $oem_gpg_real_name_count -gt 1 ]; then
+        warn "Multiple 'oem_gpg_real_name=' statements found. None retained."
+        unset oem_gpg_real_name
+        error=1
+      fi
     else
-      warn "Multiple 'oem_gpg_real_name=' statements found. None retained."
-      unset oem_gpg_real_name
-      error=1
+      warn "No 'oem_gpg_real_name=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_gpg_email=$(grep "^oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_email" ] && [ $(echo "$oem_gpg_email" | wc -l ) -eq 1 ]; then
-      export oem_gpg_email="$oem_gpg_email"
+    oem_gpg_email_count=$(echo "$oem_gpg_email" | wc -l )
+    if [ -n "$oem_gpg_email" ]; then
+      if [ $oem_gpg_email_count -eq 1 ]; then
+        export oem_gpg_email="$oem_gpg_email"
+      elif [ $oem_gpg_email_count -gt 1 ]; then
+        warn "Multiple 'oem_gpg_email=' statements found. None retained."
+        unset oem_gpg_email
+        error=1
+      fi
     else
-      warn "Multiple 'oem_gpg_email=' statements found. None retained."
-      unset oem_gpg_email
-      error=1 
+      warn "No 'oem_gpg_email=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_gpg_comment=$(grep "^oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_comment" ] && [ $(echo "$oem_gpg_comment" | wc -l ) -eq 1 ]; then
-      export oem_gpg_comment="$oem_gpg_comment"
+    oem_gpg_comment_count=$(echo "$oem_gpg_comment" | wc -l )
+    if [ -n "$oem_gpg_comment" ]; then
+      if [ $oem_gpg_comment_count -eq 1 ]; then
+        export oem_gpg_comment="$oem_gpg_comment"
+      elif [ $oem_gpg_comment -gt 1 ]; then
+        warn "Multiple 'oem_gpg_comment=' statements found. None retained."
+        unset oem_gpg_comment
+        error=1
+      fi
     else
-      warn "Multiple 'oem_gpg_comment=' statements found. None retained."
-      unset oem_gpg_comment
-      error=1
+      warn "No 'oem_gpg_comment=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_luks_actual_Disk_Recovery_Key=$(grep "^oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_actual_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
+    oem_luks_actual_Disk_Recovery_Key_count=$(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l )
+    if [ -n "$oem_luks_actual_Disk_Recovery_Key" ]; then
+      if [ $oem_luks_actual_Disk_Recovery_Key_count -eq 1 ]; then
+        export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
+      elif [ $oem_luks_actual_Disk_Recovery_Key_count -gt 1 ]; then
+        warn "Multiple 'oem_luks_actual_Disk_Recovery_Key=' statements found. None retained."
+        unset oem_luks_actual_Disk_Recovery_Key
+        error=1
+      fi
     else
-      warn "Multiple 'oem_luks_actual_Disk_Recovery_Key=' statements found. None retained."
-      unset oem_luks_actual_Disk_Recovery_Key
-      error=1
+      warn "No 'oem_luks_actual_Disk_Recovery_Key=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_luks_new_Disk_Recovery_Key=$(grep "^oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_new_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
+    oem_luks_new_Disk_Recovery_Key_count=$(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l )
+    if [ -n "$oem_luks_new_Disk_Recovery_Key" ]; then
+      if [ $oem_luks_new_Disk_Recovery_Key_count -eq 1 ]; then
+        export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
+      elif [ $oem_luks_new_Disk_Recovery_Key_count -gt 1 ]; then
+        warn "Multiple 'oem_luks_new_Disk_Recovery_Key=' statements found. None retained."
+        unset oem_luks_new_Disk_Recovery_Key
+        error=1
+      fi
     else
-      warn "Multiple 'oem_luks_new_Disk_Recovery_Key=' statements found. None retained."
-      unset oem_luks_new_Disk_Recovery_Key
-      error=1
+      warn "No 'oem_luks_new_Disk_Recovery_Key=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_luks_Disk_Unlock_Key=$(grep "^oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_Disk_Unlock_Key" ] && [ $(echo "$oem_luks_Disk_Unlock_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
+    oem_luks_Disk_Unlock_Key_count=$(echo "$oem_luks_Disk_Unlock_Key" | wc -l )
+    if [ -n "$oem_luks_Disk_Unlock_Key" ]; then
+      if [ $oem_luks_Disk_Unlock_Key_count -eq 1 ]; then
+        export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
+      elif [ $oem_luks_Disk_Unlock_Key_count -gt 1 ]; then
+        warn "Multiple 'oem_luks_Disk_Unlock_Key=' statements found. None retained."
+        unset oem_luks_Disk_Unlock_Key
+        error=1
+      fi
     else
-      warn "Multiple 'oem_luks_Disk_Unlock_Key=' statements found. None retained."
-      unset oem_luks_Disk_Unlock_Key
-      error=1
+      warn "No 'oem_luks_Disk_Unlock_Key=' statement found."
+      prompt_user_provisioning=1
     fi
 
     oem_TPM_Owner_Password=$(grep "^oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_TPM_Owner_Password" ] && [ $(echo "$oem_TPM_Owner_Password" | wc -l ) -eq 1 ]; then
-      export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
+    oem_TPM_Owner_Password_count=$(echo "$oem_TPM_Owner_Password" | wc -l )
+    if [ -n "$oem_TPM_Owner_Password" ]; then
+      if [ $oem_TPM_Owner_Password_count -eq 1 ]; then
+        export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
+      elif [ $oem_TPM_Owner_Password_count -gt 1 ]; then
+        warn "Multiple 'oem_TPM_Owner_Password=' statements found. None retained."
+        unset oem_TPM_Owner_Password
+        error=1
+      fi
     else
-      warn "Multiple 'oem_TPM_Owner_Password=' statements found. None retained."
-      unset oem_TPM_Owner_Password
-      error=1
+      warn "No 'oem_TPM_Owner_Password=' statement found."
+      prompt_user_provisioning=1
     fi
-    
+
     if [ -n $error ] && [ "$error" -eq 1 ]; then
       recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter' key, then 'unmount /media' and 'reboot'."
+    fi
+
+    if [ -n $prompt_user_provisioning ] && [ "$prompt_user_provisioning" -eq 1 ];then
+      #TODO prompt for provisioning of unfilled variables
+      #TODO: Put provisioning tracker into /boot/oem
+      #TODO: Put /media/provisioning provisioning partition tracker into /boot/oem
+      
+      for to_provision in oem_gpg_Admin_PIN oem_gpg_User_PIN oem_gpg_real_name oem_gpg_email oem_gpg_comment oem_luks_actual_Disk_Recovery_Key oem_luks_new_Disk_Recovery_Key oem_luks_Disk_Unlock_Key
+      do
+        iterator=$(eval echo \$$to_provision)
+        debug "1-to_provision = $to_provision"
+        debug "2-iterator = $iterator"
+        
+        to_provision_cnt="$to_provision_count"
+        debug "3-to_provision_cnt = $to_provision_cnt"
+
+        if [ "$to_provision_cnt" -eq 0 ];then
+
+          if [ "$iterator" == "oem_gpg_Admin_PIN" ] ;then
+            echo "We have limitations for Admin Pin"
+            echo "Value of oem_gpg_Admin_PIN = $(echo eval \$$iterator)"
+            debug "check above"
+          fi
+
+        fi
+      done
+
+      recovery "this is where we would prompt user to provision once automatic provisioning of secrets in the EOM reownership Wizard."
+    
+      #Could be a for loop of all undefined variables?
+        #Do prompt of specifc constraints
+            #GPG Admin: no space. 
+            #Admin PIN: >8 chars. User Pins > 6 chars
+          #GPG email format validation
+          #GPG Name > 5 char < 30
+        #Validate double prompt validated input
+        #Store by appending to /media/oem-provisioning
     fi
 
     export oem_configuration_read=1
