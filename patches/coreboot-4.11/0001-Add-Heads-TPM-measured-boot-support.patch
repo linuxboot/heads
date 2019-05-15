@@ -1,0 +1,476 @@
+From 0f2e1f9a4703786f16e21448975dde094f892a1e Mon Sep 17 00:00:00 2001
+From: Martin Kepplinger <martink@posteo.de>
+Date: Wed, 15 May 2019 11:55:24 +0200
+Subject: [PATCH 1/3] Add Heads TPM measured boot support
+
+Change-Id: I3a64998de2fbb7f2059cb8c68cfbf949b0665665
+Signed-off-by: Martin Kepplinger <martink@posteo.de>
+---
+ src/Kconfig                        |  15 +++
+ src/include/program_loading.h      |   2 +
+ src/lib/cbfs.c                     |  19 ++-
+ src/lib/hardwaremain.c             |   8 ++
+ src/lib/rmodule.c                  |   3 +-
+ src/security/tpm/Makefile.inc      |   5 +
+ src/security/tpm/sha1.c            | 180 +++++++++++++++++++++++++++++
+ src/security/tpm/sha1.h            |  47 ++++++++
+ src/security/tpm/tspi/tspi.c       |   2 +-
+ src/security/tpm/tss.h             |   5 +
+ src/security/tpm/tss/tcg-1.2/tss.c |  19 +++
+ 11 files changed, 299 insertions(+), 6 deletions(-)
+ create mode 100644 src/security/tpm/sha1.c
+ create mode 100644 src/security/tpm/sha1.h
+
+diff --git a/src/Kconfig b/src/Kconfig
+index ba9ae86067..e5facc40df 100644
+--- a/src/Kconfig
++++ b/src/Kconfig
+@@ -329,6 +329,21 @@ config BOOTSPLASH_FILE
+ 	  The path and filename of the file to use as graphical bootsplash
+ 	  screen. The file format has to be jpg.
+ 
++config MEASURED_BOOT
++	bool "Enable TPM measured boot"
++	default n
++	select TPM1
++	depends on MAINBOARD_HAS_LPC_TPM
++	depends on !VBOOT
++	help
++	  Enable this option to measure the bootblock, romstage and
++	  CBFS files into TPM PCRs.  This does not verify these values
++	  (that is the job of something like vboot), but makes it possible
++	  for the payload to validate the boot path and allow something
++	  like Heads to attest to the user that the system is likely safe.
++
++	  You probably want to say N.
++
+ config HAVE_RAMPAYLOAD
+ 	bool
+ 
+diff --git a/src/include/program_loading.h b/src/include/program_loading.h
+index 1b71fadb1b..afd8ba0c54 100644
+--- a/src/include/program_loading.h
++++ b/src/include/program_loading.h
+@@ -26,6 +26,8 @@ enum {
+ 	/* Last segment of program. Can be used to take different actions for
+ 	 * cache maintenance of a program load. */
+ 	SEG_FINAL = 1 << 0,
++	/* Indicate that the program segment should not be measured */
++	SEG_NO_MEASURE = 1 << 1,
+ };
+ 
+ enum prog_type {
+diff --git a/src/lib/cbfs.c b/src/lib/cbfs.c
+index fbe6e43496..b0a4f8843a 100644
+--- a/src/lib/cbfs.c
++++ b/src/lib/cbfs.c
+@@ -97,7 +97,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+ 	if (size != NULL)
+ 		*size = fsize;
+ 
+-	return rdev_mmap(&fh.data, 0, fsize);
++	void *buffer = rdev_mmap(&fh.data, 0, fsize);
++
++#ifndef __SMM__
++	prog_segment_loaded((uintptr_t)buffer, fsize, 0);
++#endif
++
++	return buffer;
+ }
+ 
+ int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
+@@ -125,7 +131,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 			return 0;
+ 		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
+ 			return 0;
+-		return in_size;
++		out_size = in_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZ4:
+ 		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
+@@ -143,7 +150,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 		timestamp_add_now(TS_START_ULZ4F);
+ 		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
+ 		timestamp_add_now(TS_END_ULZ4F);
+-		return out_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZMA:
+ 		/* We assume here romstage and postcar are never compressed. */
+@@ -165,11 +172,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 
+ 		rdev_munmap(rdev, map);
+ 
+-		return out_size;
++		break;
+ 
+ 	default:
+ 		return 0;
+ 	}
++
++	prog_segment_loaded((uintptr_t)buffer, out_size, 0);
++
++	return out_size;
+ }
+ 
+ static inline int tohex4(unsigned int c)
+diff --git a/src/lib/hardwaremain.c b/src/lib/hardwaremain.c
+index 3fcf8829f3..d72bf1345e 100644
+--- a/src/lib/hardwaremain.c
++++ b/src/lib/hardwaremain.c
+@@ -32,6 +32,7 @@
+ #include <stdlib.h>
+ #include <boot/tables.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #if CONFIG(HAVE_ACPI_RESUME)
+ #include <arch/acpi.h>
+ #endif
+@@ -548,3 +549,10 @@ void boot_state_current_unblock(void)
+ {
+ 	boot_state_unblock(current_phase.state_id, current_phase.seq);
+ }
++
++// ramstage measurements go into PCR3 if we are doing measured boot
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(3, (const void *) start, size);
++}
+diff --git a/src/lib/rmodule.c b/src/lib/rmodule.c
+index 56529d2fb2..2702b9d36e 100644
+--- a/src/lib/rmodule.c
++++ b/src/lib/rmodule.c
+@@ -197,7 +197,8 @@ int rmodule_load(void *base, struct rmodule *module)
+ 	rmodule_clear_bss(module);
+ 
+ 	prog_segment_loaded((uintptr_t)module->location,
+-				rmodule_memory_size(module), SEG_FINAL);
++			    rmodule_memory_size(module),
++			    SEG_FINAL | SEG_NO_MEASURE);
+ 
+ 	return 0;
+ }
+diff --git a/src/security/tpm/Makefile.inc b/src/security/tpm/Makefile.inc
+index a2d32cff89..e9a785b797 100644
+--- a/src/security/tpm/Makefile.inc
++++ b/src/security/tpm/Makefile.inc
+@@ -18,6 +18,11 @@ romstage-y += tspi/tspi.c
+ verstage-$(CONFIG_VBOOT) += tspi/tspi.c
+ postcar-$(CONFIG_VBOOT) += tspi/tspi.c
+ 
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++romstage-y += sha1.c
++ramstage-y += sha1.c
++endif # CONFIG_MEASURED_BOOT
++
+ ramstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+ romstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+ verstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+diff --git a/src/security/tpm/sha1.c b/src/security/tpm/sha1.c
+new file mode 100644
+index 0000000000..9879f729b1
+--- /dev/null
++++ b/src/security/tpm/sha1.c
+@@ -0,0 +1,180 @@
++/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * SHA-1 implementation largely based on libmincrypt in the the Android
++ * Open Source Project (platorm/system/core.git/libmincrypt/sha.c
++ */
++
++#include <security/tpm/sha1.h>
++#include <string.h>
++
++static uint32_t ror27(uint32_t val)
++{
++	return (val >> 27) | (val << 5);
++}
++static uint32_t ror2(uint32_t val)
++{
++	return (val >> 2) | (val << 30);
++}
++static uint32_t ror31(uint32_t val)
++{
++	return (val >> 31) | (val << 1);
++}
++
++static void sha1_transform(struct sha1_ctx *ctx)
++{
++	uint32_t W[80];
++	register uint32_t A, B, C, D, E;
++	int t;
++
++	A = ctx->state[0];
++	B = ctx->state[1];
++	C = ctx->state[2];
++	D = ctx->state[3];
++	E = ctx->state[4];
++
++#define SHA_F1(A, B, C, D, E, t) do {					\
++	E += ror27(A) +							\
++			(W[t] = __builtin_bswap32(ctx->buf.w[t])) +	\
++			(D^(B&(C^D))) + 0x5A827999;			\
++	B = ror2(B);							\
++	} while (0)
++
++	for (t = 0; t < 15; t += 5) {
++		SHA_F1(A, B, C, D, E, t + 0);
++		SHA_F1(E, A, B, C, D, t + 1);
++		SHA_F1(D, E, A, B, C, t + 2);
++		SHA_F1(C, D, E, A, B, t + 3);
++		SHA_F1(B, C, D, E, A, t + 4);
++	}
++	SHA_F1(A, B, C, D, E, t + 0);  /* 16th one, t == 15 */
++
++#undef SHA_F1
++
++#define SHA_F1(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(D^(B&(C^D))) + 0x5A827999;			      \
++	B = ror2(B);							      \
++	} while (0)
++
++	SHA_F1(E, A, B, C, D, t + 1);
++	SHA_F1(D, E, A, B, C, t + 2);
++	SHA_F1(C, D, E, A, B, t + 3);
++	SHA_F1(B, C, D, E, A, t + 4);
++
++#undef SHA_F1
++
++#define SHA_F2(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0x6ED9EBA1;				      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (t = 20; t < 40; t += 5) {
++		SHA_F2(A, B, C, D, E, t + 0);
++		SHA_F2(E, A, B, C, D, t + 1);
++		SHA_F2(D, E, A, B, C, t + 2);
++		SHA_F2(C, D, E, A, B, t + 3);
++		SHA_F2(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F2
++
++#define SHA_F3(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			((B&C)|(D&(B|C))) + 0x8F1BBCDC;			      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (; t < 60; t += 5) {
++		SHA_F3(A, B, C, D, E, t + 0);
++		SHA_F3(E, A, B, C, D, t + 1);
++		SHA_F3(D, E, A, B, C, t + 2);
++		SHA_F3(C, D, E, A, B, t + 3);
++		SHA_F3(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F3
++
++#define SHA_F4(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0xCA62C1D6;				      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (; t < 80; t += 5) {
++		SHA_F4(A, B, C, D, E, t + 0);
++		SHA_F4(E, A, B, C, D, t + 1);
++		SHA_F4(D, E, A, B, C, t + 2);
++		SHA_F4(C, D, E, A, B, t + 3);
++		SHA_F4(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F4
++
++	ctx->state[0] += A;
++	ctx->state[1] += B;
++	ctx->state[2] += C;
++	ctx->state[3] += D;
++	ctx->state[4] += E;
++}
++
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len)
++{
++	int i = ctx->count % sizeof(ctx->buf);
++	const uint8_t *p = (const uint8_t *)data;
++
++	ctx->count += len;
++
++	while (len > sizeof(ctx->buf) - i) {
++		memcpy(&ctx->buf.b[i], p, sizeof(ctx->buf) - i);
++		len -= sizeof(ctx->buf) - i;
++		p += sizeof(ctx->buf) - i;
++		sha1_transform(ctx);
++		i = 0;
++	}
++
++	while (len--) {
++		ctx->buf.b[i++] = *p++;
++		if (i == sizeof(ctx->buf)) {
++			sha1_transform(ctx);
++			i = 0;
++		}
++	}
++}
++
++
++uint8_t *sha1_final(struct sha1_ctx *ctx)
++{
++	uint32_t cnt = ctx->count * 8;
++	int i;
++
++	sha1_update(ctx, (uint8_t *)"\x80", 1);
++	while ((ctx->count % sizeof(ctx->buf)) != (sizeof(ctx->buf) - 8))
++		sha1_update(ctx, (uint8_t *)"\0", 1);
++
++	for (i = 0; i < 8; ++i) {
++		uint8_t tmp = cnt >> ((7 - i) * 8);
++		sha1_update(ctx, &tmp, 1);
++	}
++
++	for (i = 0; i < 5; i++)
++		ctx->buf.w[i] = __builtin_bswap32(ctx->state[i]);
++
++	return ctx->buf.b;
++}
++
++void sha1_init(struct sha1_ctx *ctx)
++{
++	ctx->state[0] = 0x67452301;
++	ctx->state[1] = 0xEFCDAB89;
++	ctx->state[2] = 0x98BADCFE;
++	ctx->state[3] = 0x10325476;
++	ctx->state[4] = 0xC3D2E1F0;
++	ctx->count = 0;
++}
+diff --git a/src/security/tpm/sha1.h b/src/security/tpm/sha1.h
+new file mode 100644
+index 0000000000..bc3faa58ea
+--- /dev/null
++++ b/src/security/tpm/sha1.h
+@@ -0,0 +1,47 @@
++/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++/* SHA-1 functions */
++
++#ifndef _sha1_h_
++#define _sha1_h_
++
++#include <stdint.h>
++#include <commonlib/helpers.h>
++
++#define SHA1_DIGEST_SIZE 20
++#define SHA1_BLOCK_SIZE 64
++
++/*
++ * FIXME the DIV_ROUND_UP statement expression blows up here:
++	In file included from src/security/tpm/sha1.h:12,
++			 from src/security/tpm/sha1.c:9:
++	src/commonlib/include/commonlib/helpers.h:81:28: error: braced-group
++		within expression allowed only inside a function
++	 #define DIV_ROUND_UP(x, y) ({ \
++				    ^
++	src/security/tpm/sha1.h:23:14: note: in expansion of macro'DIV_ROUND_UP'
++	   uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++		      ^~~~~~~~~~~~
++	make[1]: *** [Makefile:356: x230/romstage/security/tpm/sha1.o] Error 1
++ */
++#undef DIV_ROUND_UP
++#define DIV_ROUND_UP(x, y) (((x) + (y) - 1) / (y))
++
++/* SHA-1 context */
++struct sha1_ctx {
++	uint32_t count;
++	uint32_t state[5];
++	union {
++		uint8_t b[SHA1_BLOCK_SIZE];
++		uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++	} buf;
++};
++
++void sha1_init(struct sha1_ctx *ctx);
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len);
++uint8_t *sha1_final(struct sha1_ctx *ctx);
++
++#endif  /* _sha1_h_ */
+diff --git a/src/security/tpm/tspi/tspi.c b/src/security/tpm/tspi/tspi.c
+index 966b8b7c77..9076ced37a 100644
+--- a/src/security/tpm/tspi/tspi.c
++++ b/src/security/tpm/tspi/tspi.c
+@@ -20,8 +20,8 @@
+ #include <security/tpm/tspi.h>
+ #include <security/tpm/tss.h>
+ #include <stdlib.h>
+-#if CONFIG(VBOOT)
+ #include <vb2_api.h>
++#if CONFIG(VBOOT)
+ #include <vb2_sha.h>
+ #include <assert.h>
+ #endif
+diff --git a/src/security/tpm/tss.h b/src/security/tpm/tss.h
+index 336935d911..90a96621ed 100644
+--- a/src/security/tpm/tss.h
++++ b/src/security/tpm/tss.h
+@@ -52,6 +52,11 @@ uint32_t tlcl_get_flags(uint8_t *disable, uint8_t *deactivated,
+  */
+ uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
+ 
++/**
++ * Perform a SHA1 hash on a region and extend a PCR with the hash.
++ */
++uint32_t tlcl_measure(int pcr_num, const void *start, size_t len);
++
+ #endif
+ 
+ #if CONFIG(TPM2)
+diff --git a/src/security/tpm/tss/tcg-1.2/tss.c b/src/security/tpm/tss/tcg-1.2/tss.c
+index b11d6a3d16..ef4f4d8b86 100644
+--- a/src/security/tpm/tss/tcg-1.2/tss.c
++++ b/src/security/tpm/tss/tcg-1.2/tss.c
+@@ -17,6 +17,7 @@
+ #include <arch/early_variables.h>
+ #include <assert.h>
+ #include <string.h>
++#include <security/tpm/sha1.h>
+ #include <security/tpm/tis.h>
+ #include <vb2_api.h>
+ #include <security/tpm/tss.h>
+@@ -361,3 +362,21 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ 		       kPcrDigestLength);
+ 	return result;
+ }
++
++uint32_t tlcl_measure(int pcr_num, const void *start, size_t len)
++{
++	VBDEBUG("TPM: pcr %d measure %p @ %zu: ", pcr_num, start, len);
++
++	struct sha1_ctx sha;
++	sha1_init(&sha);
++	sha1_update(&sha, start, len);
++
++	const uint8_t *hash = sha1_final(&sha);
++	for (unsigned int i = 0; i < SHA1_DIGEST_SIZE; i++)
++		VBDEBUG("%02x", hash[i]);
++	VBDEBUG("\n");
++
++	//hexdump(start, 128);
++
++	return tlcl_extend(pcr_num, hash, NULL);
++}
+-- 
+2.20.1
+

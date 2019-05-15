@@ -1,0 +1,58 @@
+From ad5a4b674828fd1bb0d55282c24dbaec47c6b5fe Mon Sep 17 00:00:00 2001
+From: Martin Kepplinger <martin.kepplinger@puri.sm>
+Date: Tue, 19 Nov 2019 17:21:32 +0100
+Subject: [PATCH 2/3] sandybridge: support Heads TPM measured boot
+
+Change-Id: I97b554718f9b868581102abc0a54895e512b3d43
+Signed-off-by: Martin Kepplinger <martin.kepplinger@puri.sm>
+---
+ src/northbridge/intel/sandybridge/romstage.c | 22 ++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/northbridge/intel/sandybridge/romstage.c b/src/northbridge/intel/sandybridge/romstage.c
+index 079e1b13ba..04b4aa6dbd 100644
+--- a/src/northbridge/intel/sandybridge/romstage.c
++++ b/src/northbridge/intel/sandybridge/romstage.c
+@@ -25,6 +25,9 @@
+ #include <arch/romstage.h>
+ #include <device/pci_def.h>
+ #include <device/device.h>
++#include <security/tpm/tss.h>
++#include <security/tpm/tspi.h>
++#include <program_loading.h>
+ #include <northbridge/intel/sandybridge/chip.h>
+ #include <southbridge/intel/bd82x6x/pch.h>
+ #include <southbridge/intel/common/pmclib.h>
+@@ -63,6 +66,19 @@ void mainboard_romstage_entry(void)
+ 	/* Init LPC, GPIO, BARs, disable watchdog ... */
+ 	early_pch_init();
+ 
++	if (CONFIG(MEASURED_BOOT) && CONFIG(LPC_TPM)) {
++		// we don't know if we are coming out of a resume
++		// at this point, but want to setup the tpm ASAP
++		tpm_setup(0);
++		tlcl_lib_init();
++		const void *const bootblock = (const void *) 0xFFFFF800;
++		const unsigned int bootblock_size = 0x800;
++		tlcl_measure(0, bootblock, bootblock_size);
++
++		extern char _romstage, _eromstage;
++		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
++	}
++
+ 	/* USB is initialized in MRC if MRC is used.  */
+ 	if (CONFIG(USE_NATIVE_RAMINIT)) {
+ 		early_usb_init(mainboard_usb_ports);
+@@ -106,3 +122,9 @@ void mainboard_romstage_entry(void)
+ 
+ 	post_code(0x3f);
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}
+-- 
+2.20.1
+

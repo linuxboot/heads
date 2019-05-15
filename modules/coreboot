@@ -1,13 +1,13 @@
 modules-$(CONFIG_COREBOOT) += coreboot
 
-#coreboot_version := git
-#coreboot_repo := https://github.com/osresearch/coreboot
-coreboot_version := 4.8.1
+# coreboot_version := git
+# coreboot_repo := https://review.coreboot.org/coreboot.git
+coreboot_version := 4.11
 coreboot_base_dir := coreboot-$(coreboot_version)
 coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
-coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
+coreboot_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -96,7 +96,7 @@ coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
 coreboot-blobs_tar_opt := --strip 3
 coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
 coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
-coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
+coreboot-blobs_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
 
 ## there is nothing to build for the blobs, this should be
 ## made easier to make happen

@@ -1,0 +1,125 @@
+From 486fed0712f2d1ce16bf6b0c400b1a0b0d51ec3f Mon Sep 17 00:00:00 2001
+From: Martin Kepplinger <martin.kepplinger@puri.sm>
+Date: Tue, 19 Nov 2019 17:34:28 +0100
+Subject: [PATCH 3/3] skylake/kabylake: support Heads TPM measured boot
+
+Change-Id: I2f687a19c584522c736402acc0d8683950cb4a5e
+Signed-off-by: Martin Kepplinger <martin.kepplinger@puri.sm>
+---
+ src/arch/x86/postcar.c                  |  7 +++++++
+ src/drivers/intel/fsp2_0/memory_init.c  | 19 +++++++++++++++++++
+ src/drivers/intel/fsp2_0/silicon_init.c |  7 ++++++-
+ src/security/tpm/Makefile.inc           |  2 ++
+ 4 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/src/arch/x86/postcar.c b/src/arch/x86/postcar.c
+index add72c2cda..bcee804d22 100644
+--- a/src/arch/x86/postcar.c
++++ b/src/arch/x86/postcar.c
+@@ -17,6 +17,7 @@
+ #include <cpu/x86/mtrr.h>
+ #include <main_decl.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #include <timestamp.h>
+ 
+ /*
+@@ -44,3 +45,9 @@ void main(void)
+ 	/* Load and run ramstage. */
+ 	run_ramstage();
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}
+diff --git a/src/drivers/intel/fsp2_0/memory_init.c b/src/drivers/intel/fsp2_0/memory_init.c
+index 455dfa5029..2b434e3dca 100644
+--- a/src/drivers/intel/fsp2_0/memory_init.c
++++ b/src/drivers/intel/fsp2_0/memory_init.c
+@@ -31,6 +31,7 @@
+ #include <timestamp.h>
+ #include <security/vboot/vboot_common.h>
+ #include <security/tpm/tspi.h>
++#include <security/tpm/tss.h>
+ #include <vb2_api.h>
+ #include <fsp/memory_init.h>
+ #include <types.h>
+@@ -416,6 +417,18 @@ void fsp_memory_init(bool s3wake)
+ 	if (status != CB_SUCCESS)
+ 		die("Loading FSPM failed!\n");
+ 
++	if (CONFIG(MEASURED_BOOT) && CONFIG(LPC_TPM)) {
++		// we don't know if we are coming out of a resume
++		// at this point, but want to setup the tpm ASAP
++		tpm_setup(0);
++		tlcl_lib_init();
++		const void * const bootblock = (const void *) 0xFFFFF800;
++		const unsigned int bootblock_size = 0x800;
++		tlcl_measure(0, bootblock, bootblock_size);
++
++		tlcl_measure(1, _romstage, _eromstage - _romstage);
++	}
++
+ 	/* Signal that FSP component has been loaded. */
+ 	prog_segment_loaded(hdr.image_base, hdr.image_size, SEG_FINAL);
+ 
+@@ -425,3 +438,9 @@ void fsp_memory_init(bool s3wake)
+ 
+ 	timestamp_add_now(TS_AFTER_INITRAM);
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(1, (const void *) start, size);
++}
+diff --git a/src/drivers/intel/fsp2_0/silicon_init.c b/src/drivers/intel/fsp2_0/silicon_init.c
+index f58851d8c0..4c41f2fb30 100644
+--- a/src/drivers/intel/fsp2_0/silicon_init.c
++++ b/src/drivers/intel/fsp2_0/silicon_init.c
+@@ -20,6 +20,7 @@
+ #include <fsp/api.h>
+ #include <fsp/util.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #include <soc/intel/common/vbt.h>
+ #include <stage_cache.h>
+ #include <string.h>
+@@ -124,6 +125,9 @@ void fsps_load(bool s3wake)
+ 	if (rdev_readat(&rdev, dest, 0, size) < 0)
+ 		die("Failed to read FSPS!\n");
+ 
++	if (CONFIG(MEASURED_BOOT))
++		tlcl_measure(1, (const void *) dest, size);
++
+ 	if (fsp_component_relocate((uintptr_t)dest, dest, size) < 0)
+ 		die("Unable to relocate FSPS!\n");
+ 
+@@ -138,7 +142,8 @@ void fsps_load(bool s3wake)
+ 	stage_cache_add(STAGE_REFCODE, &fsps);
+ 
+ 	/* Signal that FSP component has been loaded. */
+-	prog_segment_loaded(hdr->image_base, hdr->image_size, SEG_FINAL);
++	prog_segment_loaded(hdr->image_base, hdr->image_size,
++			    SEG_FINAL | SEG_NO_MEASURE);
+ 	load_done = 1;
+ }
+ 
+diff --git a/src/security/tpm/Makefile.inc b/src/security/tpm/Makefile.inc
+index e9a785b797..5d261a6e52 100644
+--- a/src/security/tpm/Makefile.inc
++++ b/src/security/tpm/Makefile.inc
+@@ -21,6 +21,8 @@ postcar-$(CONFIG_VBOOT) += tspi/tspi.c
+ ifeq ($(CONFIG_MEASURED_BOOT),y)
+ romstage-y += sha1.c
+ ramstage-y += sha1.c
++postcar-y += tss/tcg-1.2/tss.c
++postcar-y += sha1.c
+ endif # CONFIG_MEASURED_BOOT
+ 
+ ramstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+-- 
+2.20.1
+
