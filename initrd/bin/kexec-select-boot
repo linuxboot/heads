@@ -175,7 +175,7 @@ scan_options() {
 		die "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
-		sort $option_file | uniq > $TMP_MENU_FILE
+		sort -r $option_file | uniq > $TMP_MENU_FILE
 	else
 		cp $option_file $TMP_MENU_FILE
 	fi
