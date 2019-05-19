@@ -88,7 +88,7 @@ while true; do
           --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
         mount_usb
         if grep -q /media /proc/mounts ; then
-          find /media -name '*.rom' > /tmp/filelist.txt
+          find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
           file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
           if [ "$FILE" == "" ]; then
             return
