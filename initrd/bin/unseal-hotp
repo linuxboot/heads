@@ -16,6 +16,11 @@ mount_boot_or_die()
   fi
 }
 
+# Store counter in file instead of TPM for now, as it conflicts with Heads
+# config TPM counter as TPM 1.2 can only increment one counter between reboots
+# get current value of HOTP counter in TPM, create if absent
+mount_boot_or_die
+
 tpm nv_readvalue \
 	-in 4d47 \
 	-sz 312 \
@@ -30,10 +35,6 @@ tpm unsealfile  \
 
 shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
 
-# Store counter in file instead of TPM for now, as it conflicts with Heads
-# config TPM counter as TPM 1.2 can only increment one counter between reboots
-# get current value of HOTP counter in TPM, create if absent
-mount_boot_or_die
 
 #check_tpm_counter $HOTP_COUNTER hotp \
 #|| die "Unable to find/create TPM counter"
