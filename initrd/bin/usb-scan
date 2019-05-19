@@ -81,9 +81,9 @@ fi
 echo "!!! Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
 if [ -x /bin/whiptail ]; then
-	kexec-select-boot -b /media -c "*.cfg" -u -g
+	kexec-select-boot -b /media -c "*.cfg" -u -g -s
 else
-	kexec-select-boot -b /media -c "*.cfg" -u
+	kexec-select-boot -b /media -c "*.cfg" -u -s
 fi
 
 die "Something failed in selecting boot"
