@@ -21,6 +21,10 @@ significant frustration.
 
 More information is available in [the 33C3 presentation of building "Slightly more secure systems"](https://trmm.net/Heads_33c3).
 
+Documentation
+===
+Please refer to [Heads-wiki](https://github.com/osresearch/heads-wiki/blob/master/index.md) for your Heads' documentation needs.
+
 
 Building heads
 ===
@@ -56,7 +60,7 @@ directory and include:
 * [Xen hypervisor](https://www.xenproject.org/)
 
 We also recommend installing [Qubes OS](https://www.qubes-os.org/),
-although there Heads can `kexec` into any (?) Linux or
+although there Heads can `kexec` into any Linux or
 [multiboot](https://www.gnu.org/software/grub/manual/multiboot/multiboot.html)
 kernel.
 
@@ -67,40 +71,10 @@ Notes:
 * Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
 * Currently only tested in QEMU, the Thinkpad x230 and the Chell Chromebook.
 ** Xen and the TPM do not work in QEMU, so it is only for testing the `initrd` image.
-* Booting Qubes requires patching Xen's real mode startup code
-see `patches/xen-4.6.3.patch` and adding `no-real-mode` to start
-of the Xen command line.  Booting or installing Qubes is a bit hacky and needs to be documented.
 * Building for the Lenovo X220 requires binary blobs to be placed in the blobs/x220/ folder.
 See the readme.md file in that folder
 * Building for the Librem 13 v2/v3 or Librem 15 v3/v4 requires binary blobs to be placed in
 the blobs/librem_skl folder. See the readme.md file in that folder
-
-Signing with GPG
----
-`gpgv` is a stripped down version of GPG that can be used to verify
-signatures without extraneous libraries.  This works well with the
-Free Software workflow that we want to use.
-
-	gpg --clearsign roothash
-
-The `roothash` and `roothash.sig` files can be embedded into the
-HDD image and then extracted at firmware boot time:
-
-	gpgv --keyring /trustedkeys.gpg roothash.sig roothash \
-	|| echo "FAILED"
-
-The `mount-boot` script is a start at doing this automatically.
-There needs to be an empty block at the end of the partition
-that includes a signed script to be executed; typically it will
-contain the dm-verity parameters to build the `dmsetup` command
-line to mount `/boot`.
-
-The boot script can't be stored in the boot filesystem since the
-dm-verity hashes that protect the filesystem would need to have their
-own hash pre-computed, which is not feasible with a good hashing
-algorithm.  You could store the hashes in the ROM, but that would
-not allow upgrades without rewriting the ROM.
-
 
 coreboot console messages
 ---
