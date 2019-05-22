@@ -2,8 +2,6 @@ To build for the Librem 2nd generation (Librem 13 v2/v3 and Librem 15 v3),
 we need to have the following files in this folder:
 * cpu_microcode_blob.bin  - CPU Microcode
 * descriptor.bin - The Intel Flash Descriptor
-* fspm.bin - FSP 2.0 Memory Init blob
-* fsps.bin - FSP 2.0 Silicon Init blob
 * me.bin - Intel Management Engine
 
 To get the binaries, run the get_blobs.sh script which will download and
@@ -15,4 +13,5 @@ You can now compile the image with:
 
 ```
 make BOARD=librem13v2
-```
+or
+make BOARD=librem15v3
