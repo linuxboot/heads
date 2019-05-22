@@ -313,9 +313,20 @@ combine_configs() {
 }
 read_oem_file()
 {
+  #TODO: check if /boot/oem contains past USB disk and automount it. see tracing TODO below
+  oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
+  if [ -n "$oem_name" ]; then
+    export oem_name="$oem_name"
+  else
+    oem_name="your OEM"
+    export oem_name="$oem_name"
+  fi
+
   echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
   /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
   if [ -e /media/oem-provisioning ]; then
+    #TODO: trace mounted USB disk into /boot/oem
+
     oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
     oem_gpg_Admin_PIN_count=$(echo "$oem_gpg_Admin_PIN" | wc -l )
     if [ -n "$oem_gpg_Admin_PIN" ]; then
@@ -460,27 +471,94 @@ read_oem_file()
       #TODO: Put provisioning tracker into /boot/oem
       #TODO: Put /media/provisioning provisioning partition tracker into /boot/oem
       
-      for to_provision in oem_gpg_Admin_PIN oem_gpg_User_PIN oem_gpg_real_name oem_gpg_email oem_gpg_comment oem_luks_actual_Disk_Recovery_Key oem_luks_new_Disk_Recovery_Key oem_luks_Disk_Unlock_Key
+      for to_provision in oem_gpg_Admin_PIN oem_gpg_User_PIN oem_gpg_real_name oem_gpg_email oem_gpg_comment oem_luks_actual_Disk_Recovery_Key oem_luks_new_Disk_Recovery_Key oem_luks_Disk_Unlock_Key oem_TPM_Owner_Password
       do
-        iterator=$(eval echo \$$to_provision)
-        debug "1-to_provision = $to_provision"
-        debug "2-iterator = $iterator"
+        provisioned_value=$(eval echo \$$to_provision)
+        #debug "1-to_provision = $to_provision"
+        #debug "2-indirector = $provisioned_value"
+       
+        #count_str="_count" 
+        #to_provision_count="$to_provision$count_str"
+				#to_provision_count_value=$(eval echo \$$to_provision_count)
         
-        to_provision_cnt="$to_provision_count"
-        debug "3-to_provision_cnt = $to_provision_cnt"
+        #We don't need that. We can check existence of $provisioned_value 
+        #debug "3-to_provision_count = $to_provision_count"
+				#debug "4-to_provision_count_value= $to_provision_count_value"
 
-        if [ "$to_provision_cnt" -eq 0 ];then
+        if [ -z "$provisioned_value" ];then
 
-          if [ "$iterator" == "oem_gpg_Admin_PIN" ] ;then
-            echo "We have limitations for Admin Pin"
-            echo "Value of oem_gpg_Admin_PIN = $(echo eval \$$iterator)"
-            debug "check above"
+          echo "$to_provision is not set."
+
+          if [ "$to_provision" == "oem_gpg_Admin_PIN" ] ;then
+            echo "We have limitations for Admin Pin: minimal 8 characters, no space."
+            echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard."
+            echo "Suggested length: 2 random words diceware passphrase."
+            echo "Chosen GPG Admin PIN will be requested from you inside of Heads to seal HOTP firmware integrity measurements."
+            echo "Outside of Heads, your GPG User PIN will be prompted from you to sign/encrypt/authenticate with your GPG card."
+            passphrase=$(diceware-eff.sh 2 UpperFirstLetter Nospace)
+            #TODO:validate user choice
+            export oem_gpg_Admin_PIN=$passphrase
+            debug "oem_gpg_Admin_PIN=$oem_gpg_Admin_PIN"
           fi
+          if [ "$to_provision" == "oem_gpg_User_PIN" ] ;then
+            echo "We have limitations for GPG Admin Pin: minimal 6 characters."
+            echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard."
+            echo "Suggested length: 2 random words diceware passphrase."
+            echo "Chosen GPG User PIN will be requested from you from Heads each time a /boot configuration change is detected so you can validate it originated from you. From a QubesOS perspective, upgrading AdminVM (dom0) will most probably result in Heads requesting you to sign /boot integrity changes."
+            echo "Outside of Heads, the chosen GPG User PIN will be prompted from you to sign/encrypt/authenticate with your GPG card."
+            passphrase=$(diceware-eff.sh 2 UpperFirstLetter Nospace)
+            export oem_gpg_User_PIN=$passphrase
+            debug "oem_gpg_User_PIN=$oem_gpg_User_PIN"
+          fi
+          if [ "$to_provision" == "oem_luks_actual_Disk_Recovery_Key" ]; then
+            echo "The actual LUKS Recovery Key passphrase was provided to you from $oem_name."
+            echo "The actual LUKS Recovery Key passphrase is used to decrypt both USB and internal disk until reencrypted."
+            read -s -r -p "Please enter LUKS Recovery Key passphrase provided by $oem_name:" oem_luks_actual_Disk_Recovery_Key
+            #TODO: Validate that something was entered
+            echo
+            debug "oem_luks_actual_Disk_Recovery_Key=$oem_luks_actual_Disk_Recovery_Key"
+            #TODO: actual should be replaced by new LUKS recovery key after reencryption.
+          fi
+          if [ "$to_provision" == "oem_luks_new_Disk_Recovery_Key" ]; then
+            echo "Chosen new LUKS recovery Key passphrase needs to be remembered of you at all time."
+            echo "If forgotten, the content of both $oem_name shipped USB disk and computer internal disk will be lost forever."
+            echo "It is suggested that you choose a diceware passphrase of 6+ words."
+            #TODO replicate this with validation
+            password=$(diceware-eff.sh 7 UpperFirstLetter Nospace)
+            export oem_luks_new_Disk_Recovery_Key="$password"
+            debug "oem_luks_new_Disk_Recovery_Key=$oem_luks_new_Disk_Recovery_Key"
 
+          fi
+          if [ "$to_provision" == "oem_luks_Disk_Unlock_Key" ] && [ "$CONFIG_TPM" == "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" == "y" ]; then
+            echo "Chosen LUKS Disk Unlock Key will be requested at each boot until the next OS boot default."
+            echo "As opposed to the Disk Recovery Key passphrase, the Disk Unlock Key passphrase can be of a smaller length."
+            echo "A diceware randomly selected passphrase of 3 words is enough, considering that the TPM is rate limiting the attempts."
+            echo "Heads will prompt the user to boot with the Disk Recovery passphrase after 3 failed attempts on each reboot."
+            echo
+            echo "The Chosen LUKS Disk Unlock Key is an additional security measure of Heads, which permits disk decryption only if the firmware measurements valid."
+            echo "As a consequence, the Disk Unlock Key passphrase is bound to this computer and this computer only."
+            echo "As a result, someone cloning your disk and trying to decrypt its content by typing this passphrase will be unsuccessful."
+            echo "If forgotten, no problem. Select a new boot default and you will be prompted to enter chosen Disk Recovery Key Passphrase prior to defining a new Disk Unlock Key passphrase."
+            password=$(diceware-eff.sh 3 UpperFirstLetter Nospace)
+            export oem_luks_Disk_Unlock_Key="$password"
+            debug "oem_luks_Disk_Unlock_Key=$oem_luks_Disk_Unlock_Key"
+          fi
+          if [ "$to_provision" == "oem_TPM_Owner_Password" ] && [ "$CONFIG_TPM" == "y" ]; then
+            echo "Chosen TPM Owner Password will never be requested from Heads but in the reownership process to initialize it."
+            echo "A diceware randomly selected passphrase of 2 words is enough."
+            echo "It is recommended to reuse GPG Admin Passphrase/Password here, to not unecessarily multiply secrets to remember."
+            oem_TPM_Owner_Password="$oem_gpg_Admin_PIN"
+            #TODO: validate if ok with user, else generate
+            #password=$(diceware-eff.sh 2 UpperFirstLetter Nospace)
+            export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
+            debug "oem_TPM_Owner_Password=$oem_TPM_Owner_Password"
+          fi
+        else
+          echo "$to_provision is $provisioned_value."
         fi
       done
 
-      recovery "this is where we would prompt user to provision once automatic provisioning of secrets in the EOM reownership Wizard."
+      recovery "this is where we would prompt user to provisidon once automatic provisioning of secrets in the EOM reownership Wizard."
     
       #Could be a for loop of all undefined variables?
         #Do prompt of specifc constraints

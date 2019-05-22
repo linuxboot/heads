@@ -107,14 +107,6 @@ if [ -e /boot/oem ];then
   if [ -z "$oem_configuration_read" ]; then
     #Read /media/oem-provisioning file once to read provisioned secrets
     read_oem_file
-    
-    oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
-    if [ -n "$oem_name" ]; then
-      export oem_name="$oem_name"
-    else
-      oem_name="your OEM"
-      export oem_name="$oem_name"
-    fi
   fi
 fi
 
