@@ -175,6 +175,7 @@ while true; do
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
       'a' ' Advanced Settings -->' \
+      'P' ' Power Off' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -328,6 +329,10 @@ while true; do
   if [ "$totp_confirm" = "G" ]; then
     gpg-gui.sh
     continue
+  fi
+
+  if [ "$totp_confirm" = "P" ]; then
+    poweroff
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
