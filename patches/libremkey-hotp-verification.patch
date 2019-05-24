@@ -29,4 +29,33 @@
 +static const int CONNECTION_ATTEMPTS_COUNT = 2;
  
  static const int CONNECTION_ATTEMPT_DELAY_MICRO_SECONDS = 1000*1000/2;
+
+--- libremkey-hotp-verification/libremkey_hotp_initialize
++++ libremkey-hotp-verification-b/libremkey_hotp_initialize
+@@ -14,7 +14,7 @@ fi
+ PIN=$1
+ SECRET=$2
+ COUNTER=$3
+-SECRET_B32=$(echo -n $SECRET | base32)
++SECRET_B32=$(cat $SECRET | base32)
  
+ libremkey_hotp_verification set $SECRET_B32 $PIN 
+ if [ $? -ne 0 ]; then
+@@ -25,7 +25,7 @@ fi
+ i=9
+ while [ "$i" -lt "$COUNTER" ]; do
+   echo "Updating counter to $i"
+-  HOTP_CODE=$(echo $SECRET | hotp $i)
++  HOTP_CODE=$(hotp $i < $SECRET)
+   libremkey_hotp_verification check $HOTP_CODE > /dev/null
+   if [ $? -ne 0 ]; then
+     echo "HOTP check failed for counter=$i, code=$HOTP_CODE"
+@@ -34,7 +34,7 @@ while [ "$i" -lt "$COUNTER" ]; do
+   let "i += 10"
+ done
+ 
+-HOTP_CODE=$(echo $SECRET | hotp $COUNTER)
++HOTP_CODE=$(hotp $COUNTER < $SECRET)
+ libremkey_hotp_verification check $HOTP_CODE > /dev/null
+ if [ $? -ne 0 ]; then
+   echo "HOTP check failed for counter=$COUNTER, code=$HOTP_CODE"
