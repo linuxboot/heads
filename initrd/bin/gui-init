@@ -176,7 +176,6 @@ while true; do
       'y' ' Default boot' \
       'a' ' Advanced Settings -->' \
       'P' ' Power Off' \
-      'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
     totp_confirm=$(cat /tmp/whiptail)
@@ -191,6 +190,7 @@ while true; do
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
+      'x' ' Exit to recovery shell' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
