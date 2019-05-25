@@ -174,7 +174,7 @@ while true; do
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
-      'a' ' Advanced Settings -->' \
+      'a' ' Settings -->' \
       'P' ' Power Off' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -182,8 +182,8 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "a" ]; then
-    whiptail --clear --title "Advanced Settings" \
-      --menu "Configure Advanced Settings" 20 90 10 \
+    whiptail --clear --title "Settings" \
+      --menu "Configure Settings" 20 90 10 \
       'o' ' Other Boot Options -->' \
       't' ' TPM/TOTP/HOTP Options -->' \
       's' ' Update checksums and sign all files in /boot' \
