@@ -174,22 +174,24 @@ while true; do
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
-      'a' ' Advanced Settings -->' \
-      'x' ' Exit to recovery shell' \
+      'r' ' Refresh TOTP/HOTP' \
+      'a' ' Settings -->' \
+      'P' ' Power Off' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
     totp_confirm=$(cat /tmp/whiptail)
   fi
 
   if [ "$totp_confirm" = "a" ]; then
-    whiptail --clear --title "Advanced Settings" \
-      --menu "Configure Advanced Settings" 20 90 10 \
+    whiptail --clear --title "Settings" \
+      --menu "Configure Settings" 20 90 10 \
       'o' ' Other Boot Options -->' \
       't' ' TPM/TOTP/HOTP Options -->' \
       's' ' Update checksums and sign all files in /boot' \
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
+      'x' ' Exit to recovery shell' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -213,7 +215,6 @@ while true; do
       --menu "Select An Option" 20 90 10 \
       'g' ' Generate new TOTP/HOTP secret' \
       'p' ' Reset the TPM' \
-      'r' ' TOTP/HOTP does not match, refresh code' \
       'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -328,6 +329,10 @@ while true; do
   if [ "$totp_confirm" = "G" ]; then
     gpg-gui.sh
     continue
+  fi
+
+  if [ "$totp_confirm" = "P" ]; then
+    poweroff
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
