@@ -311,7 +311,7 @@ replace_config() {
 combine_configs() {
 	cat /etc/config* > /tmp/config
 }
-read_oem_file()
+read_oem_files()
 {
   #TODO: check if /boot/oem contains past microsd disk and automount it. see tracing TODO below
   oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
@@ -325,10 +325,13 @@ read_oem_file()
   if ! [ $(grep "no_automatic_provisioning" /boot/oem) ]; then
     
     echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
-    /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
+    /bin/mount-usb || warn "Unable to mount USB device. Continuing"
     #By default, OEM should provide oem-provisioning file with at least "oem_luks_actual_Disk_Recovery_Key" defined and reach this point.
     #If the user decides to not provision OEM through this file, that file will be deleted, and no_automatic_provisioning outputted in /boot/oem
-    
+   
+    #TODO: OEM PROVISIONING SHOULD HAPPEN ONLY OVER ENCRYPTED PARTITION. 
+    #   FILES CANNOT BE DELETED ON FLASH (BE IT SSD OR SD DEVICES APPLYING WEAR LEVELING)
+
     #ICI valider mount point
     if [ -e /media/oem-provisioning ]; then
       #TODO: trace mounted USB disk into /boot/oem
@@ -469,7 +472,12 @@ read_oem_file()
       fi
 
       if [ -n "$error" ] && [ "$error" -eq 1 ]; then
-        recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter' key, then 'unmount /media' and 'reboot'."
+        mount -o remount,rw /media 
+        #sed -i '1s;^;#This is vi Editor. To edit this file, press "i" to enter Insert mode.\n#Then edit as you want\n#When done, press the "Esc" escape key\n#Then type ":wq" and press 'Enter' key.\n' /media/oem-provisioning        
+        awk '{print "#This is vi Editor. To edit this file, press 'i' to enter Insert mode.\n#Then edit as you want\n#When done, pres 'Esc' escape key\n#Then type  ':wq' and press 'Enter' key to save and exit.\n" $0}' file
+        vi /media/oem-provisioning
+        mount -o remount,ro /media
+        reboot
       fi
 
       if [ -n "$prompt_user_provisioning" ] && [ "$prompt_user_provisioning" -eq 1 ];then
@@ -660,7 +668,7 @@ read_oem_file()
         fi
 
         
-        recovery "this is where we would prompt user to provisidon once automatic provisioning of secrets in the EOM ReOwnership Wizard."
+        #recovery "this is where we would prompt user to provisidon once automatic provisioning of secrets in the EOM ReOwnership Wizard."
       
         #Could be a for loop of all undefined variables?
           #Do prompt of specifc constraints

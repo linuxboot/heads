@@ -106,7 +106,7 @@ mount_boot
 if [ -e /boot/oem ];then
   if [ -z "$oem_configuration_read" ]; then
     #Read /media/oem-provisioning file once to read provisioned secrets
-    read_oem_file
+    read_oem_files
   fi
 fi
 
