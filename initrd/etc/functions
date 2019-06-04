@@ -12,6 +12,11 @@ debug(){
   read -p 'Hit enter to continue.'
 }
 
+notify(){
+  echo >&2 "$*";
+  read -p 'Hit enter to continue.'
+}
+
 error() {
 	echo >&2 "$*";
   exit 1;
@@ -92,6 +97,28 @@ confirm_totp()
 
 	# clean up with a newline
 	echo
+}
+
+enable_sdcard()
+{
+  if [ "$CONFIG_LINUX_SDHCI" = "y" ]; then
+    if ! lsmod | grep -q mmc_core; then
+      insmod /lib/modules/mmc_core.ko \
+      || die "mmc_core: module load failed"
+    fi
+    if ! lsmod | grep -q mmc_block; then
+      insmod /lib/modules/mmc_block.ko \
+      || die "mmc_block: module load failed"
+    fi
+    if ! lsmod | grep -q sdhci; then
+      insmod /lib/modules/sdhci.ko \
+      || die "sdhci: module load failed"
+    fi
+    if ! lsmod | grep -q sdhci_pci; then
+      insmod /lib/modules/sdhci-pci.ko \
+      || die "sdhci-pci: module load failed"
+    fi
+  fi
 }
 
 enable_usb()
@@ -321,20 +348,11 @@ read_oem_files()
     oem_name="your OEM"
     export oem_name="$oem_name"
   fi
-  
+ 
   if ! [ $(grep "no_automatic_provisioning" /boot/oem) ]; then
-    
-    echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
-    /bin/mount-usb || warn "Unable to mount USB device. Continuing"
-    #By default, OEM should provide oem-provisioning file with at least "oem_luks_actual_Disk_Recovery_Key" defined and reach this point.
-    #If the user decides to not provision OEM through this file, that file will be deleted, and no_automatic_provisioning outputted in /boot/oem
-   
-    #TODO: OEM PROVISIONING SHOULD HAPPEN ONLY OVER ENCRYPTED PARTITION. 
-    #   FILES CANNOT BE DELETED ON FLASH (BE IT SSD OR SD DEVICES APPLYING WEAR LEVELING)
-
-    #ICI valider mount point
+    echo "Mounting memory card reader drive provision OEM reownership from /media/oem-provisioning..."
+    /bin/mount-sdcard || recovery "Unable to mount sdcard from memory card reader. Make sure the card is pushed in and type 'reboot' to continue."
     if [ -e /media/oem-provisioning ]; then
-      #TODO: trace mounted USB disk into /boot/oem
       echo "Found /media/oem-provisioning. Parsing..."
       oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
       oem_gpg_Admin_PIN_count=$(echo "$oem_gpg_Admin_PIN" | wc -l )
@@ -472,41 +490,26 @@ read_oem_files()
       fi
 
       if [ -n "$error" ] && [ "$error" -eq 1 ]; then
+        notify "Please take note of precedent errors detected in /media/oem-provisioning content."
         mount -o remount,rw /media 
-        #sed -i '1s;^;#This is vi Editor. To edit this file, press "i" to enter Insert mode.\n#Then edit as you want\n#When done, press the "Esc" escape key\n#Then type ":wq" and press 'Enter' key.\n' /media/oem-provisioning        
-        awk '{print "#This is vi Editor. To edit this file, press 'i' to enter Insert mode.\n#Then edit as you want\n#When done, pres 'Esc' escape key\n#Then type  ':wq' and press 'Enter' key to save and exit.\n" $0}' file
+        sed -i '/^#/d' /media/oem-provisioning
+        sed -i '1i #This is vi Editor.\n#\n#Please delete duplicate values to be fed to the OEM Rownership Wizard.\n#To edit this file, press "i" to enter Insert mode.\n#Delete duplicates and undesired values.\n#Required format is: "to_be_provided_value=value"\n#\n#When done, press the "Esc" escape key\n#Then type ":wq" and press the 'Enter' key.\n#The wizard will then validate you input for length requirements only.\n#\n#\n#' /media/oem-provisioning
         vi /media/oem-provisioning
+        sed -i '/^#/d' /media/oem-provisioning
         mount -o remount,ro /media
-        reboot
+        unset error
+        read_oem_files 
       fi
 
       if [ -n "$prompt_user_provisioning" ] && [ "$prompt_user_provisioning" -eq 1 ];then
 
-        #TODO: Put provisioning tracker into /boot/oem
-        #TODO: Put /media/provisioning provisioning partition tracker into /boot/oem
-        
         if (whiptail $CONFIG_WARNING_BG_COLOR --title "OEM Reownership Wizard lacks some provisioning information" \
           --yesno "Would you like to feed the OEM Reownership Wizard once with all required\ninformation to automate its process?\n\n Those will be saved securely on OEM provided USB disk encrypted container.\n\n Provisioning those secrets here will automate Reownership Wizard process.\n  Those information will be stored under /media/oem-provisioning.\n\nOtherwise, you will be prompted to enter them several times manually.\nYou won't either have an external backup of those information in case\nthey were forgotten.\n\nContinue with one time OEM Reownership information provisioning?" 30 90) then
-          #TODO: explain each option: n to generate diceware passwords until k, or m to show 500 to pick from, unvalidated.
-          #TODO: Put mounted partition in /boot/oem for automounting
           for to_provision in oem_gpg_Admin_PIN oem_gpg_User_PIN oem_gpg_real_name oem_gpg_email oem_gpg_comment oem_luks_actual_Disk_Recovery_Key oem_luks_new_Disk_Recovery_Key oem_luks_Disk_Unlock_Key oem_TPM_Owner_Password
           do
             provisioned_value=$(eval echo \$$to_provision)
-            #debug "1-to_provision = $to_provision"
-            #debug "2-indirector = $provisioned_value"
-           
-            #count_str="_count" 
-            #to_provision_count="$to_provision$count_str"
-            #to_provision_count_value=$(eval echo \$$to_provision_count)
-            
-            #We don't need that. We can check existence of $provisioned_value 
-            #debug "3-to_provision_count = $to_provision_count"
-            #debug "4-to_provision_count_value= $to_provision_count_value"
-
             if [ -z "$provisioned_value" ];then
-
               echo "$to_provision is not set."
-
               if [ "$to_provision" == "oem_gpg_Admin_PIN" ]; then
                 clear
                 echo "$to_provision: GPG Admin PIN"
@@ -528,7 +531,6 @@ read_oem_files()
                   echo "We have limitations on Admin Pin: minimal 8 and maximal length of 20 characters, NO SPACE!"
                   validate_input_passphrases_are_equal
                 done
-                #TODO:validate user choice
                 export oem_gpg_Admin_PIN="$passphrase"
                 debug "oem_gpg_Admin_PIN=$oem_gpg_Admin_PIN"
               fi
@@ -660,28 +662,20 @@ read_oem_files()
               echo "$to_provision is $provisioned_value."
             fi
           done
-          env|grep "oem_"|sort > /media/oem_provisioning
+
+          mount -o remount,rw /media
+          env|grep "oem_" | sort > /media/oem_provisioning
           mount -o remount,ro /media
+
         else
+          mount -o remount,rw /boot
           echo "no_automatic_provisioning" >> /boot/oem
+          mount -o remount,ro /boot
           debug "no automatic provisioning"
         fi
-
-        
-        #recovery "this is where we would prompt user to provisidon once automatic provisioning of secrets in the EOM ReOwnership Wizard."
-      
-        #Could be a for loop of all undefined variables?
-          #Do prompt of specifc constraints
-              #GPG Admin: no space. 
-              #Admin PIN: >8 chars. User Pins > 6 chars
-            #GPG email format validation
-            #GPG Name > 5 char < 30
-          #Validate double prompt validated input
-          #Store by appending to /media/oem-provisioning
       fi
-
       export oem_configuration_read=1
-      umount /media
+      mount -o remount,ro /media
     fi
   fi
 }
@@ -842,8 +836,8 @@ randomize_diceware_passphrases_until_chosen_or_manual()
     elif [ "$keep_passphrase" = "m" ]; then
       unset passphrase
       echo "It is suggested that you pick EFF diceware words to construct this passphrase."
-      echo "Shuffling EFF Diceware dictionary and sampling 500 words out of it..."
-      diceware-eff.sh 500 Capitalize
+      echo "Shuffling EFF Diceware dictionary and sampling 1000 words out of it..."
+      diceware-eff.sh 1000 Capitalize
     fi
     done
 }
