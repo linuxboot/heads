@@ -105,8 +105,15 @@ update_totp()
 mount_boot
 if [ -e /boot/oem ];then
   if [ -z "$oem_configuration_read" ]; then
-    #Read /media/oem-provisioning file once to read provisioned secrets
-    read_oem_files
+    #make sure the system is powered by AC outlet
+    if [ $(cat /sys/class/power_supply/AC/online) -eq 1 ]; then
+      #Read /media/oem-provisioning file once to read provisioned secrets
+      read_oem_files
+    else
+      clear
+      notify "You must run the Reownership Wizard from a safe place with power outlet connected. OWM Reownership will require around an hour. Sytem will now power off."
+      poweroff
+    fi
   fi
 fi
 
