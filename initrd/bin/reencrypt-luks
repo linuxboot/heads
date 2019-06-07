@@ -138,7 +138,7 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_password_change
   shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
   unset oem_luks_actual_Disk_Recovery_Key
   unset oem_luks_new_Disk_Recovery_Key
-  notify "Your new Disk Recovery Key is now effective. The system will now reboot."
+  notify "Your new Disk Recovery Key and its passphrase is now effective and replaced old ones. The system will now reboot."
   #TODO: Shall we set marker to set disk unlock key here?
   reboot
   continue
