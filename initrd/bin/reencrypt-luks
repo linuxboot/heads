@@ -38,7 +38,7 @@ select_luks_container()
 }
 
 if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]; then
-  #if no USB oem-privisioning file provides actual Disk Recovery Key
+  #if no oem-privisioning file provides actual Disk Recovery Key
   if [ -z "$oem_luks_actual_Disk_Recovery_Key" ]; then
     whiptail --title 'Reencrypt actual LUKS container with a new user selected strong passphrase?' \
       --msgbox "This will replace the actual Disk Recovery Key.\n\nThe passphrase associated with this key will be asked to the user in the\n following conditions:\n1-Every boot if no Disk unlock key was added to the TPM\n2-If the TPM fails (Hardware failure)\n3-If the firmware has been tampered with/upgraded/modified by the user\n\nThis process requires you to type the actual Disk Recovery Key passphrase\nand will delete the actual Disk unlock key released by the TPM into\nLUKS (slot 1) if present.\n\nAt the next prompt, you may be asked to select which file corresponds to\nthe LUKS device container. Normally, it should be /dev/sda2.\n\nHit Enter to continue." 30 90
@@ -50,6 +50,7 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]
     #USB "oem-privisioning" file provides actual Disk Recovery Key
     echo -n "$oem_luks_actual_Disk_Recovery_Key" > /tmp/oem_luks_actual_Disk_Recovery_Key
     select_luks_container
+    warn "Reencrypting "$LUKS" LUKS encrypted drive content with actual Recovery Disk Key passphrase..."
     cryptsetup-reencrypt -B 32 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/oem_luks_actual_Disk_Recovery_Key
   fi
   
@@ -64,6 +65,29 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]
   else
   #Successfully reencrypted LUKS container with current Disk Recovery Key passphrase. Write successful state in oem file
     if [ -e /boot/oem ];then
+      #Reencrypting OEM provided sdcard
+      SDCARD_MOUNT_DEVICE=$(grep "^oem_provisioning_partition=" /boot/oem | cut -d "=" -f2)
+      if [ -n "$SDCARD_MOUNT_DEVICE" ]; then
+        umount /media 2> /dev/null         
+        cryptsetup luksClose /dev/mapper/sdcarddev 2> /dev/null 
+        warn "Reencrypting $SDCARD_MOUNT_DEVICE LUKS encrypted drive content with actual LUKS Recovery Disk Key passphrase..."
+        cryptsetup-reencrypt "$SDCARD_MOUNT_DEVICE" --key-slot 0 --key-file /tmp/oem_luks_actual_Disk_Recovery_Key
+      fi
+      if [ $(echo $?) -ne 0 ]; then
+        #TODO: Would be awesome to thread a watcher that would check in kernel output for sector errors and kill cryptsetup-reencrypt.
+        #Otherwise, reencrypting sdcard can take forever, and the result is corrupted LUKS container anyway....
+        #For the moment, we catch it only when it fails.
+        warn "An error occured when reencrypting $SDCARD_MOUNT_DEVICE device. Probably sector corruption of unreliable sdcard flash..."
+        error "Outputing kernel log when ready:"
+        dmesg
+        warn "Unfortunately, the one-shot provisioning of OEM Reownership won't be able to provide automatic storing/fetching of credentials."
+        mount -o remount,rw /boot
+        echo "no_automatic_provisioning" >> /boot/oem
+        mount -o remount,ro /boot
+        warn "The OEM Reownership Wizard is now set to be fed manually by the user at each steps, without backup. Take notes of your secrets!" 
+        error "Rebooting"
+        reboot
+      fi
       mount -o remount,rw /boot
       echo "luks_reencrypted" >> /boot/oem
       reownership_state="luks_password_change"
@@ -75,17 +99,18 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_reencryption" ]
 fi
 
 if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_password_change" ]; then
-  #if actual or new Disk Recovery Key is not provisioned by USB oem-provisioning file
+  #if actual or new Disk Recovery Key is not provisioned by oem-provisioning file
   if [ -z "$oem_luks_actual_Disk_Recovery_Key" ] || [ -z "$oem_luks_new_Disk_Recovery_Key" ] ; then
     whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
       "Please enter current Disk Recovery Key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nHit Enter to continue" 30 60
     select_luks_container
     cryptsetup luksChangeKey "$LUKS" --key-slot 0 --tries 3
   else
-    #if actual and new Disk Recovery Key is provisioned by USB oem-provisioning file
+    #if actual and new Disk Recovery Key is provisioned by oem-provisioning file
     select_luks_container
     echo -n "$oem_luks_new_Disk_Recovery_Key" > /tmp/oem_luks_new_Disk_Recovery_Key
     echo -n "$oem_luks_actual_Disk_Recovery_Key" > /tmp/oem_luks_actual_Disk_Recovery_Key
+    warn "Changing "$LUKS" LUKS encrypted disk passphrase to new Disk Recovery Key passphrase..."
     cryptsetup luksChangeKey "$LUKS" --key-slot 0 --key-file=/tmp/oem_luks_actual_Disk_Recovery_Key /tmp/oem_luks_new_Disk_Recovery_Key
   fi
   #Validate past cryptsetup attempts
@@ -93,19 +118,28 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_password_change
     #Cryptsetup was unsuccessful
     whiptail --title 'Invalid LUKS passphrase?' --msgbox \
       "The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\nTo do so, put OS ISO file and it's signature file on root of USB drive,\n And select Boot from USB\n\nHit Enter to continue." 30 60
-    shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
-    shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
   else
     #Cryptsetup was successful
-    if [ -e /boot/oem ];then
+    if [ -e /boot/oem ]; then
+      SDCARD_MOUNT_DEVICE=$(grep "^oem_provisioning_partition=" /boot/oem | cut -d "=" -f2)
+      if [ -n "$SDCARD_MOUNT_DEVICE" ]; then
+        umount /media 2> /dev/null 
+        cryptsetup luksClose /dev/mapper/sdcarddev 2> /dev/null 
+        warn "Changing $SDCARD_MOUNT_DEVICE LUKS encrypted disk passphrase to new Recovery Disk Key passphrase..."
+        cryptsetup luksChangeKey "$SDCARD_MOUNT_DEVICE" --key-slot 0 --key-file=/tmp/oem_luks_actual_Disk_Recovery_Key /tmp/oem_luks_new_Disk_Recovery_Key
+      fi
       mount -o remount,rw /boot
       echo "luks_passwd_changed" >> /boot/oem
       mount -o remount,ro /boot
-      shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
-      shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
-      unset oem_luks_actual_Disk_Recovery_Key
-      unset oem_luks_new_Disk_Recovery_Key
     fi
   fi
+  #Cleanup
+  shred -n 10 -z -u /tmp/oem_luks_new_Disk_Recovery_Key 2> /dev/null
+  shred -n 10 -z -u /tmp/oem_luks_actual_Disk_Recovery_Key 2> /dev/null
+  unset oem_luks_actual_Disk_Recovery_Key
+  unset oem_luks_new_Disk_Recovery_Key
+  notify "Your new Disk Recovery Key is now effective. The system will now reboot."
+  #TODO: Shall we set marker to set disk unlock key here?
+  reboot
   continue
 fi

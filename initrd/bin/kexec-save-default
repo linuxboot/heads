@@ -42,8 +42,13 @@ elif [ -z "$lvm_suggest" ]; then
   num_lvm=0
 fi
 
+#TODO: validate if "$device" or $device should be passed here. Think it should be $device so that we have a list of items on each line
 devices_suggest=$(blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks "$device";if [ $(echo $?) == 0 ]; then echo "$device";fi; done | sort)
+#TODO: shall we remove mmc device (OEM provisioning device) from encrypted boot device selection?
+#devices_suggest_without_mmc=$(echo $devices_suggest|grep -v "mmc")
+#devices_suggest="$devices_suggest_without_mmc"
 num_devices=$(echo "$devices_suggest"|wc -l)
+
 if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
   key_devices=$devices_suggest
 else

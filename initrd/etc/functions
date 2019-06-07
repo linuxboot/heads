@@ -99,28 +99,6 @@ confirm_totp()
 	echo
 }
 
-enable_sdcard()
-{
-  if [ "$CONFIG_LINUX_SDHCI" = "y" ]; then
-    if ! lsmod | grep -q mmc_core; then
-      insmod /lib/modules/mmc_core.ko \
-      || die "mmc_core: module load failed"
-    fi
-    if ! lsmod | grep -q mmc_block; then
-      insmod /lib/modules/mmc_block.ko \
-      || die "mmc_block: module load failed"
-    fi
-    if ! lsmod | grep -q sdhci; then
-      insmod /lib/modules/sdhci.ko \
-      || die "sdhci: module load failed"
-    fi
-    if ! lsmod | grep -q sdhci_pci; then
-      insmod /lib/modules/sdhci-pci.ko \
-      || die "sdhci-pci: module load failed"
-    fi
-  fi
-}
-
 enable_usb()
 {
 	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
@@ -296,7 +274,8 @@ check_config() {
 	if [ "$2" != "force" ]; then
 		if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
 			die 'Invalid signature on kexec boot params. Investigate/Update checksums and sign all files in /boot.'
-      #TODO: Show which files failed integrity check!
+      #TODO: Show which files failed integrity check! copy logic from gui-init kexec-select-boot verify_global_hashes()
+      # Note: not here to do but in gui-init. But generic-init is lacking such info.
 		fi
 	fi
 
@@ -340,7 +319,6 @@ combine_configs() {
 }
 read_oem_files()
 {
-  #TODO: check if /boot/oem contains past microsd disk and automount it. see tracing TODO below
   oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
   if [ -n "$oem_name" ]; then
     export oem_name="$oem_name"
@@ -351,7 +329,7 @@ read_oem_files()
  
   if ! [ $(grep "no_automatic_provisioning" /boot/oem) ]; then
     echo "Mounting memory card reader drive provision OEM reownership from /media/oem-provisioning..."
-    /bin/mount-sdcard || recovery "Unable to mount sdcard from memory card reader. Make sure the card is pushed in and type 'reboot' to continue."
+    mount-sdcard || recovery "Unable to mount sdcard from memory card reader. Make sure the card is pushed in and type 'reboot' to continue."
     if [ -e /media/oem-provisioning ]; then
       echo "Found /media/oem-provisioning. Parsing..."
       oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
@@ -528,11 +506,11 @@ read_oem_files()
                 echo "Suggested passphrase length: 2 words diceware passphrase."
                 randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
                 while [[ ${#passphrase} -lt 8 || ${#passphrase} -gt 20 ]] || [ "$passphrase" != "${passphrase% *}" ]; do
-                  echo "We have limitations on Admin Pin: minimal 8 and maximal length of 20 characters, NO SPACE!"
+                  echo "We have limitations on Admin PIN: minimal 8 and maximal length of 20 characters, NO SPACE!"
                   validate_input_passphrases_are_equal
                 done
+                notify "oem_gpg_Admin_PIN=$passphrase"
                 export oem_gpg_Admin_PIN="$passphrase"
-                debug "oem_gpg_Admin_PIN=$oem_gpg_Admin_PIN"
               fi
               if [ "$to_provision" == "oem_gpg_User_PIN" ] ;then
                 clear
@@ -545,11 +523,11 @@ read_oem_files()
                 echo "Suggested length: 2 random words diceware passphrase."
                 randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
                 while [[ ${#passphrase} -lt 6 || ${#passphrase} -gt 20 ]]; do
-                  echo "We have limitations for GPG Admin Pin: minimal 6 and maximal length of 20 characters"
+                  echo "We have limitations for GPG User PIN: minimal 6 and maximal length of 20 characters"
                   validate_input_passphrases_are_equal
                 done
+                notify "oem_gpg_User_PIN=$passphrase"
                 export oem_gpg_User_PIN="$passphrase"
-                debug "oem_gpg_User_PIN=$oem_gpg_User_PIN"
               fi
               if [ "$to_provision" == "oem_gpg_real_name" ]; then
                 clear
@@ -561,7 +539,6 @@ read_oem_files()
                   validate_input_passphrases_are_equal
                 done
                 export oem_gpg_real_name="$passphrase"
-                debug "oem_gpg_real_name=$oem_gpg_real_name"
               fi
               if [ "$to_provision" == "oem_gpg_email" ]; then
                 clear
@@ -573,7 +550,6 @@ read_oem_files()
                   validate_input_passphrases_are_equal
                 done
                 export oem_gpg_email="$passphrase"
-                debug "oem_gpg_email=$oem_gpg_email"
               fi
               if [ "$to_provision" == "oem_gpg_comment" ]; then
                 clear
@@ -586,7 +562,6 @@ read_oem_files()
                   validate_input_passphrases_are_equal
                 done
                 export oem_gpg_comment="$passphrase"
-                debug "oem_gpg_comment=$oem_gpg_comment"
               fi
               if [ "$to_provision" == "oem_luks_actual_Disk_Recovery_Key" ]; then
                 clear
@@ -601,8 +576,8 @@ read_oem_files()
                   echo "Make sure that this corresponds to the Disk Recovery Key passphrase provided by $oem_name."
                   validate_input_passphrases_are_equal
                 done
+                notify "oem_luks_actual_Disk_Recovery_Key=$passphrase"
                 export oem_luks_actual_Disk_Recovery_Key="$passphrase"
-                debug "oem_luks_actual_Disk_Recovery_Key=$oem_luks_actual_Disk_Recovery_Key"
                 #TODO: actual should be replaced by new LUKS recovery key after reencryption.
               fi
               if [ "$to_provision" == "oem_luks_new_Disk_Recovery_Key" ]; then
@@ -623,8 +598,8 @@ read_oem_files()
                   echo "Your brain remembers anything that is emotionnaly bonding. Create a story that your brain will remember."
                   validate_input_passphrases_are_equal
                 done
+                notify "oem_luks_new_Disk_Recovery_Key=$passphrase"
                 export oem_luks_new_Disk_Recovery_Key="$passphrase"
-                debug "oem_luks_new_Disk_Recovery_Key=$oem_luks_new_Disk_Recovery_Key"
 
               fi
               if [ "$to_provision" == "oem_luks_Disk_Unlock_Key" ] && [ "$CONFIG_TPM" == "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" == "y" ]; then
@@ -644,7 +619,6 @@ read_oem_files()
                 randomize_diceware_passphrases_until_chosen_or_manual 3 UpperFirstLetter Nospace
                 validate_input_passphrases_are_equal
                 export oem_luks_Disk_Unlock_Key="$passphrase"
-                debug "oem_luks_Disk_Unlock_Key=$oem_luks_Disk_Unlock_Key"
               fi
               if [ "$to_provision" == "oem_TPM_Owner_Password" ] && [ "$CONFIG_TPM" == "y" ]; then
                 clear
@@ -655,8 +629,8 @@ read_oem_files()
                 echo "It is recommended to reuse GPG Admin Passphrase/Password here, to not unecessarily multiply secrets to remember."
                 echo "We reused the GPG Admin PIN to set the TPM Owner Passphrase."
                 oem_TPM_Owner_Password="$oem_gpg_Admin_PIN"
+                notify "oem_TPM_Owner_Password=$oem_gpg_Admin_PIN"
                 export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
-                debug "oem_TPM_Owner_Password=$oem_TPM_Owner_Password"
               fi
             else
               echo "$to_provision is $provisioned_value."
@@ -664,19 +638,21 @@ read_oem_files()
           done
 
           mount -o remount,rw /media
-          env|grep "oem_" | sort > /media/oem_provisioning
+          env|grep "oem_" > /media/oem-provisioning
           mount -o remount,ro /media
 
         else
+          #Provisiong the wizard once was refused
           mount -o remount,rw /boot
           echo "no_automatic_provisioning" >> /boot/oem
           mount -o remount,ro /boot
-          debug "no automatic provisioning"
         fi
       fi
       export oem_configuration_read=1
       mount -o remount,ro /media
     fi
+  else
+    warn "'no_automatic_provisioning' flag found under /boot/oem. You'll have to enter provisioning information manually in the OEM Wizard."
   fi
 }
 
@@ -688,7 +664,7 @@ check_onboarding_progress()
     if [ $? -ne 0 ];then
       #Show Onboarding menu once.
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Disk Recovery Key and it's passphrase\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n5-Generating keys in it, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key/Nitrokey Pro\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
+       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drives content (LUKS containers)\n2-Changing their LUKS Disk Recovery Keys and their passphrases\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n5-Generating keys into its smartcard, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key/Nitrokey Pro\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
       whiptail --title 'Hardware reownership Wizard' --msgbox \
        "On the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\n\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still invalid, your hardware may been tampered with in\ntransit. Contact $oem_name." 20 20
       totp_confirm="O"
@@ -836,8 +812,9 @@ randomize_diceware_passphrases_until_chosen_or_manual()
     elif [ "$keep_passphrase" = "m" ]; then
       unset passphrase
       echo "It is suggested that you pick EFF diceware words to construct this passphrase."
-      echo "Shuffling EFF Diceware dictionary and sampling 1000 words out of it..."
-      diceware-eff.sh 1000 Capitalize
+      echo "Shuffling EFF Diceware dictionary and sampling words out of it..."
+      diceware-eff.sh 800 Capitalize
+      echo
     fi
     done
 }
@@ -850,12 +827,10 @@ validate_input_passphrases_are_equal()
     read \
       -p "Please type desired value: " \
       passphrase1
-    echo
     
     read \
       -p "Please retype desired value: " \
       passphrase2
-    echo
     
     if [ "$passphrase1" != "$passphrase2" ] || [ -z "$passphrase1" ]; then
       echo "Entered value were different. Please type them again so they match."
