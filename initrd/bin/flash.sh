@@ -13,6 +13,9 @@ case "$CONFIG_BOARD" in
   x230* )
     FLASHROM_OPTIONS='--force --noverify-all --programmer internal --ifd --image bios'
   ;;
+  t430* )
+    FLASHROM_OPTIONS='--force --noverify-all --programmer internal:laptop=force_I_want_a_brick --ifd --image bios'
+  ;;
   "kgpe-d16" )
     FLASHROM_OPTIONS='--force --noverify --programmer internal'
   ;;
