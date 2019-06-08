@@ -234,7 +234,7 @@ while true; do
     #    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
     #  fi
     
-    #TODO: modify TOTP HOTP lign to contain: HASH:OK/NOT OK
+    #TODO: modify TOTP HOTP line to contain: HASH:OK/NOT OK
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME: Reownership" \
         --menu "Greenwich Mean Time (GMT) : $date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
         'C' ' Continue ownership of devices' \

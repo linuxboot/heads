@@ -49,6 +49,8 @@ devices_suggest=$(blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLu
 #TODO: shall we remove mmc device (OEM provisioning device) from encrypted boot device selection?
 #devices_suggest_without_mmc=$(echo $devices_suggest|grep -v "mmc")
 #devices_suggest="$devices_suggest_without_mmc"
+#NOW: mitgated by taking prior existing envrypted devices.
+#Requires the OEM to set a LUKS Disk Unlock passphrase, which outputs current encrypted device under /boot/kexec_key_devices
 num_devices=$(echo "$devices_suggest"|wc -l)
 
 if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
