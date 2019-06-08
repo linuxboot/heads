@@ -1,0 +1,208 @@
+#!/bin/sh
+# Mount a SDCARD device
+. /etc/functions
+
+enable_sdcard()
+{
+  #OEM ReOwnership Wizard, when attempting to load /media/oem-provisioning,
+  #requires mmc and sdhci kernel modules to be inserted here, which would 
+  #normally modify PCR 5 by calling the /sbin/insmod wrapper, which 
+  #measures the modules prior to loading them.
+  #
+  #We bypass those measurements here by calling busybox's insmod directly,
+  #keeping PCR5 intact so that calling kexec-seal-key (to add Disk Unlock Key)
+  #in OEM mode gives the same measurements then when calling kexec-unseal-key
+  #in normal boot mode after OEM reownership, making the release of the Disk
+  #Unlock Key consistent.
+  mount_boot
+  if [ -e /boot/oem ]; then
+    warn "Loading card reader (sdcard) related modules..."
+    #TODO: understand why conditional aliases don't work. It works on mount-usb :|
+    #alias insmod='busybox insmod'
+    #debug "Testing insmod in enable_sdcard just after alias: $(insmod)"
+    #even last debug happens after PCR5 being modified.... Changing tactic. Duplicating logic.
+    if [ "$CONFIG_LINUX_SDHCI" = "y" ]; then
+      if ! lsmod | grep -q mmc_core; then
+        busybox insmod /lib/modules/mmc_core.ko \
+        || die "mmc_core: module load failed"
+      fi
+      if ! lsmod | grep -q mmc_block; then
+        busybox insmod /lib/modules/mmc_block.ko \
+        || die "mmc_block: module load failed"
+      fi
+      if ! lsmod | grep -q sdhci; then
+        busybox insmod /lib/modules/sdhci.ko \
+        || die "sdhci: module load failed"
+      fi
+      if ! lsmod | grep -q sdhci_pci; then
+        busybox insmod /lib/modules/sdhci-pci.ko \
+        || die "sdhci-pci: module load failed"
+      fi
+    fi
+  else
+    #TODO: For some reason, the alias is not kept outside of the if so we replicate here with insmod which measures modules
+    if [ "$CONFIG_LINUX_SDHCI" = "y" ]; then
+      if ! lsmod | grep -q mmc_core; then
+        insmod /lib/modules/mmc_core.ko \
+        || die "mmc_core: module load failed"
+      fi
+      if ! lsmod | grep -q mmc_block; then
+        insmod /lib/modules/mmc_block.ko \
+        || die "mmc_block: module load failed"
+      fi
+      if ! lsmod | grep -q sdhci; then
+        insmod /lib/modules/sdhci.ko \
+        || die "sdhci: module load failed"
+      fi
+      if ! lsmod | grep -q sdhci_pci; then
+        insmod /lib/modules/sdhci-pci.ko \
+        || die "sdhci-pci: module load failed"
+      fi
+    fi
+  fi
+}
+
+is_Luks_luksOpen()
+{
+  cryptsetup isLuks $SDCARD_MOUNT_DEVICE
+  if [ $(echo $?) == 0 ]; then
+    echo -e "\n\nSDCARD Device $SDCARD_MOUNT_DEVICE is encrypted.\n"
+    
+    if [ -e /boot/oem ]; then
+      if ! grep -q luks_reencrypted /boot/oem ; then
+        echo -e "Please type provided $oem_name actual Disk Recovery Key passphrase at next prompt.\n"
+      else
+        echo -e "Please type your chosen new Disk Recovery Key passphrase at next prompt.\n"
+      fi
+    fi
+
+    cryptsetup luksOpen $SDCARD_MOUNT_DEVICE sdcarddev
+    if [ $(echo $?) == 0 ]; then
+      mount_boot
+      if [ -e /boot/oem ]; then
+        if ! grep -q ^oem_provisioning_partition /boot/oem ; then
+          mount -o remount,rw /boot
+          echo "oem_provisioning_partition=$SDCARD_MOUNT_DEVICE" >> /boot/oem
+          mount -o remount,ro /boot
+        fi
+      fi
+    fi
+    SDCARD_MOUNT_DEVICE="/dev/mapper/sdcarddev"
+  else
+    clear
+    if [ -e /boot/oem ]; then
+      notify "OEM Reownership Wizard only supports auto-provisioning to/from a LUKS encrypted partition. Provisioning fallsback into manual mode. System will now power reboot."
+      mount -o remount,rw /boot
+      echo "no_automatic_provisioning" >> /boot/oem
+      mount -o remount,ro /boot
+      reboot
+    fi
+  fi
+}
+
+if [ -e /boot/oem ]; then
+  SDCARD_MOUNT_DEVICE=$(grep "^oem_provisioning_partition=" /boot/oem | cut -d "=" -f2)
+fi
+
+enable_sdcard
+sleep 1 
+
+if [ ! -d /media ]; then
+  mkdir /media
+fi
+
+#Only mount /media device if not mounted. Calling scripts are responsible to unmount when done if another script might need a different SDCARD drive.
+if ! grep -q /media /proc/mounts ; then
+  if [ -z "$SDCARD_MOUNT_DEVICE" ]; then
+    stat -c %N /sys/block/mmc* | grep mmc | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/sdcard_block_devices
+    if [ -z `cat /tmp/sdcard_block_devices` ]; then
+      if [ -x /bin/whiptail ]; then
+        whiptail --title 'SDCARD Drive Missing' \
+          --msgbox "Insert your SDCARD in memory card slot and press Enter to continue." 16 60
+      else
+        echo "+++ SDCARD Missing! Insert your SDCARD in memory card slot and press Enter to continue."
+        read
+      fi
+      stat -c %N /sys/block/mmc* | grep mmc | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/sdcard_block_devices
+      if [ -z `cat /tmp/sdcard_block_devices` ]; then
+        if [ -x /bin/whiptail ]; then
+          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: SDCARD Missing' \
+            --msgbox "SDCARD Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
+        else
+          echo "!!! ERROR: SDCARD in memory card slot Missing! Aborting mount. Press Enter to continue."
+        fi
+        exit 1
+      fi
+    fi
+
+    SDCARD_MOUNT_DEVICE=""
+    # Check for the common case: a single SDCARD disk with one partition
+    if [ `cat /tmp/sdcard_block_devices | wc -l` -eq 1 ]; then
+      SDCARD_BLOCK_DEVICE=`cat /tmp/sdcard_block_devices`
+      # Subtract out block device
+      let SDCARD_NUM_PARTITIONS=`ls -1 ${SDCARD_BLOCK_DEVICE}* | wc -l`-1
+      if [ ${SDCARD_NUM_PARTITIONS} -eq 0 ]; then
+        SDCARD_MOUNT_DEVICE=${SDCARD_BLOCK_DEVICE}
+      elif [ ${SDCARD_NUM_PARTITIONS} -eq 1 ]; then
+        SDCARD_MOUNT_DEVICE=`ls -1 ${SDCARD_BLOCK_DEVICE}* | tail -n1`
+      fi
+    fi
+    # otherwise, let the user pick
+    if [ -z ${SDCARD_MOUNT_DEVICE} ]; then
+      > /tmp/sdcard_disk_list
+      for i in `cat /tmp/sdcard_block_devices`; do
+        # remove block device from list if numeric partitions exist, since not bootable
+        let SDCARD_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+        if [ ${SDCARD_NUM_PARTITIONS} -eq 0 ]; then
+          echo $i >> /tmp/sdcard_disk_list
+        else
+          ls $i* | tail -${SDCARD_NUM_PARTITIONS} >> /tmp/sdcard_disk_list
+        fi
+      done
+
+      if [ -x /bin/whiptail ]; then
+        MENU_OPTIONS=""
+        n=0
+        while read option
+        do
+          n=`expr $n + 1`
+          option=$(echo $option | tr " " "_")
+          MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
+        done < /tmp/sdcard_disk_list
+
+        MENU_OPTIONS="$MENU_OPTIONS a Abort"
+        whiptail --clear --title "Select your SDCARD disk" \
+          --menu "Choose your SDCARD disk [1-$n, a to abort]:" 20 120 8 \
+          -- $MENU_OPTIONS \
+          2>/tmp/whiptail
+
+        option_index=$(cat /tmp/whiptail)
+      else
+        echo "+++ Select your SDCARD disk:"
+        n=0
+        while read option
+        do
+          n=`expr $n + 1`
+          echo "$n. $option"
+        done < /tmp/sdcard_disk_list
+
+        read \
+          -p "Choose your SDCARD disk [1-$n, a to abort]: " \
+          option_index
+      fi
+
+      if [ "$option_index" = "a" ]; then
+        exit 1
+      fi
+      SDCARD_MOUNT_DEVICE=`head -n $option_index /tmp/sdcard_disk_list | tail -1`
+    fi
+  fi
+
+  #Check if $SDCARD_MOUNT_DEVICE is a LUKS encrypted device. If so, luksOpen it and replace $SDCARD_MOUNT_DEVICE with /dev/mapper/sdcarddev
+  is_Luks_luksOpen
+  if [ "$1" = "rw" ]; then
+    mount -o rw $SDCARD_MOUNT_DEVICE /media
+  else
+    mount -o ro $SDCARD_MOUNT_DEVICE /media
+  fi
+fi

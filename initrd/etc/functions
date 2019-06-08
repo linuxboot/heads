@@ -12,6 +12,11 @@ debug(){
   read -p 'Hit enter to continue.'
 }
 
+notify(){
+  echo >&2 "$*";
+  read -p 'Hit enter to continue.'
+}
+
 error() {
 	echo >&2 "$*";
   exit 1;
@@ -269,7 +274,8 @@ check_config() {
 	if [ "$2" != "force" ]; then
 		if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
 			die 'Invalid signature on kexec boot params. Investigate/Update checksums and sign all files in /boot.'
-      #TODO: Show which files failed integrity check!
+      #TODO: Show which files failed integrity check! copy logic from gui-init kexec-select-boot verify_global_hashes()
+      # Note: not here to do but in gui-init. But generic-init is lacking such info.
 		fi
 	fi
 
@@ -311,98 +317,342 @@ replace_config() {
 combine_configs() {
 	cat /etc/config* > /tmp/config
 }
-read_oem_file()
+read_oem_files()
 {
-  echo "Mounting USB drive to provision OEM reownership from /media/oem-provisioning..."
-  /bin/mount-usb rw || warn "Unable to mount USB device. Continuing"
-  if [ -e /media/oem-provisioning ]; then
-    oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_Admin_PIN" ] && [ $(echo "$oem_gpg_Admin_PIN" | wc -l ) -eq 1 ]; then
-      export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
-    else
-      warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
-      unset oem_gpg_Admin_PIN
-      error=1
-    fi
-  
-    oem_gpg_User_PIN=$(grep "^oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
-    if [ -n "$oem_gpg_User_PIN" ] && [ $(echo "$oem_gpg_User_PIN" | wc -l ) -eq 1 ]; then
-      export oem_gpg_User_PIN="$oem_gpg_User_PIN"
-    else
-      warn "Multiple 'oem_gpg_User_PIN=' statements found. None retained."
-      unset oem_gpg_User_PIN
-      error=1
-    fi
+  oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
+  if [ -n "$oem_name" ]; then
+    export oem_name="$oem_name"
+  else
+    oem_name="your OEM"
+    export oem_name="$oem_name"
+  fi
+ 
+  if ! [ $(grep "no_automatic_provisioning" /boot/oem) ]; then
+    echo "Mounting memory card reader drive provision OEM reownership from /media/oem-provisioning..."
+    mount-sdcard || recovery "Unable to mount sdcard from memory card reader. Make sure the card is pushed in and type 'reboot' to continue."
+    if [ -e /media/oem-provisioning ]; then
+      echo "Found /media/oem-provisioning. Parsing..."
+      oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_gpg_Admin_PIN_count=$(echo "$oem_gpg_Admin_PIN" | wc -l )
+      if [ -n "$oem_gpg_Admin_PIN" ]; then
+        if [ $oem_gpg_Admin_PIN_count -eq 1 ]; then
+          export oem_gpg_Admin_PIN="$oem_gpg_Admin_PIN"
+        elif [ $oem_gpg_Admin_PIN_count -gt 1 ]; then
+          warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
+          unset oem_gpg_Admin_PIN
+          error=1
+        fi
+      else
+        warn "No 'oem_gpg_Admin_PIN=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_gpg_real_name=$(grep "^oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_real_name" ] && [ $(echo "$oem_gpg_real_name" | wc -l ) -eq 1 ]; then
-      export oem_gpg_real_name="$oem_gpg_real_name"
-    else
-      warn "Multiple 'oem_gpg_real_name=' statements found. None retained."
-      unset oem_gpg_real_name
-      error=1
-    fi
+      oem_gpg_User_PIN=$(grep "^oem_gpg_User_PIN=" /media/oem-provisioning | cut -d "=" -f2) 
+      oem_gpg_User_PIN_count=$(echo "$oem_gpg_User_PIN" | wc -l )
+      if [ -n "$oem_gpg_User_PIN" ]; then
+        if [ $oem_gpg_User_PIN_count -eq 1 ]; then
+          export oem_gpg_User_PIN="$oem_gpg_User_PIN"
+        elif [ $oem_gpg_User_PIN_count -gt 1 ]; then
+          warn "Multiple 'oem_gpg_Admin_PIN=' statements found. None retained."
+          unset oem_gpg_User_PIN
+          error=1
+        fi
+      else
+        warn "No 'oem_gpg_User_PIN=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_gpg_email=$(grep "^oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_email" ] && [ $(echo "$oem_gpg_email" | wc -l ) -eq 1 ]; then
-      export oem_gpg_email="$oem_gpg_email"
-    else
-      warn "Multiple 'oem_gpg_email=' statements found. None retained."
-      unset oem_gpg_email
-      error=1 
-    fi
+      oem_gpg_real_name=$(grep "^oem_gpg_real_name=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_gpg_real_name_count=$(echo "$oem_gpg_real_name" | wc -l )
+      if [ -n "$oem_gpg_real_name" ]; then
+        if [ $oem_gpg_real_name_count -eq 1 ]; then
+          export oem_gpg_real_name="$oem_gpg_real_name"
+        elif [ $oem_gpg_real_name_count -gt 1 ]; then
+          warn "Multiple 'oem_gpg_real_name=' statements found. None retained."
+          unset oem_gpg_real_name
+          error=1
+        fi
+      else
+        warn "No 'oem_gpg_real_name=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_gpg_comment=$(grep "^oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_gpg_comment" ] && [ $(echo "$oem_gpg_comment" | wc -l ) -eq 1 ]; then
-      export oem_gpg_comment="$oem_gpg_comment"
-    else
-      warn "Multiple 'oem_gpg_comment=' statements found. None retained."
-      unset oem_gpg_comment
-      error=1
-    fi
+      oem_gpg_email=$(grep "^oem_gpg_email=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_gpg_email_count=$(echo "$oem_gpg_email" | wc -l )
+      if [ -n "$oem_gpg_email" ]; then
+        if [ $oem_gpg_email_count -eq 1 ]; then
+          export oem_gpg_email="$oem_gpg_email"
+        elif [ $oem_gpg_email_count -gt 1 ]; then
+          warn "Multiple 'oem_gpg_email=' statements found. None retained."
+          unset oem_gpg_email
+          error=1
+        fi
+      else
+        warn "No 'oem_gpg_email=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_luks_actual_Disk_Recovery_Key=$(grep "^oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_actual_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
-    else
-      warn "Multiple 'oem_luks_actual_Disk_Recovery_Key=' statements found. None retained."
-      unset oem_luks_actual_Disk_Recovery_Key
-      error=1
-    fi
+      oem_gpg_comment=$(grep "^oem_gpg_comment=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_gpg_comment_count=$(echo "$oem_gpg_comment" | wc -l )
+      if [ -n "$oem_gpg_comment" ]; then
+        if [ $oem_gpg_comment_count -eq 1 ]; then
+          export oem_gpg_comment="$oem_gpg_comment"
+        elif [ $oem_gpg_comment -gt 1 ]; then
+          warn "Multiple 'oem_gpg_comment=' statements found. None retained."
+          unset oem_gpg_comment
+          error=1
+        fi
+      else
+        warn "No 'oem_gpg_comment=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_luks_new_Disk_Recovery_Key=$(grep "^oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_new_Disk_Recovery_Key" ] && [ $(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
-    else
-      warn "Multiple 'oem_luks_new_Disk_Recovery_Key=' statements found. None retained."
-      unset oem_luks_new_Disk_Recovery_Key
-      error=1
-    fi
+      oem_luks_actual_Disk_Recovery_Key=$(grep "^oem_luks_actual_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_luks_actual_Disk_Recovery_Key_count=$(echo "$oem_luks_actual_Disk_Recovery_Key" | wc -l )
+      if [ -n "$oem_luks_actual_Disk_Recovery_Key" ]; then
+        if [ $oem_luks_actual_Disk_Recovery_Key_count -eq 1 ]; then
+          export oem_luks_actual_Disk_Recovery_Key="$oem_luks_actual_Disk_Recovery_Key"
+        elif [ $oem_luks_actual_Disk_Recovery_Key_count -gt 1 ]; then
+          warn "Multiple 'oem_luks_actual_Disk_Recovery_Key=' statements found. None retained."
+          unset oem_luks_actual_Disk_Recovery_Key
+          error=1
+        fi
+      else
+        warn "No 'oem_luks_actual_Disk_Recovery_Key=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_luks_Disk_Unlock_Key=$(grep "^oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_luks_Disk_Unlock_Key" ] && [ $(echo "$oem_luks_Disk_Unlock_Key" | wc -l ) -eq 1 ]; then
-      export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
-    else
-      warn "Multiple 'oem_luks_Disk_Unlock_Key=' statements found. None retained."
-      unset oem_luks_Disk_Unlock_Key
-      error=1
-    fi
+      oem_luks_new_Disk_Recovery_Key=$(grep "^oem_luks_new_Disk_Recovery_Key=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_luks_new_Disk_Recovery_Key_count=$(echo "$oem_luks_new_Disk_Recovery_Key" | wc -l )
+      if [ -n "$oem_luks_new_Disk_Recovery_Key" ]; then
+        if [ $oem_luks_new_Disk_Recovery_Key_count -eq 1 ]; then
+          export oem_luks_new_Disk_Recovery_Key="$oem_luks_new_Disk_Recovery_Key"
+        elif [ $oem_luks_new_Disk_Recovery_Key_count -gt 1 ]; then
+          warn "Multiple 'oem_luks_new_Disk_Recovery_Key=' statements found. None retained."
+          unset oem_luks_new_Disk_Recovery_Key
+          error=1
+        fi
+      else
+        warn "No 'oem_luks_new_Disk_Recovery_Key=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    oem_TPM_Owner_Password=$(grep "^oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
-    if [ -n "$oem_TPM_Owner_Password" ] && [ $(echo "$oem_TPM_Owner_Password" | wc -l ) -eq 1 ]; then
-      export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
-    else
-      warn "Multiple 'oem_TPM_Owner_Password=' statements found. None retained."
-      unset oem_TPM_Owner_Password
-      error=1
-    fi
-    
-    if [ -n $error ] && [ "$error" -eq 1 ]; then
-      recovery "Please run 'vi /media/oem-provisioning' to correct previous warnings. ('i': insert, modify, 'Esc' key, then ':wq', 'Enter' key, then 'unmount /media' and 'reboot'."
-    fi
+      oem_luks_Disk_Unlock_Key=$(grep "^oem_luks_Disk_Unlock_Key=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_luks_Disk_Unlock_Key_count=$(echo "$oem_luks_Disk_Unlock_Key" | wc -l )
+      if [ -n "$oem_luks_Disk_Unlock_Key" ]; then
+        if [ $oem_luks_Disk_Unlock_Key_count -eq 1 ]; then
+          export oem_luks_Disk_Unlock_Key="$oem_luks_Disk_Unlock_Key"
+        elif [ $oem_luks_Disk_Unlock_Key_count -gt 1 ]; then
+          warn "Multiple 'oem_luks_Disk_Unlock_Key=' statements found. None retained."
+          unset oem_luks_Disk_Unlock_Key
+          error=1
+        fi
+      else
+        warn "No 'oem_luks_Disk_Unlock_Key=' statement found."
+        prompt_user_provisioning=1
+      fi
 
-    export oem_configuration_read=1
-    umount /media
+      oem_TPM_Owner_Password=$(grep "^oem_TPM_Owner_Password=" /media/oem-provisioning | cut -d "=" -f2)
+      oem_TPM_Owner_Password_count=$(echo "$oem_TPM_Owner_Password" | wc -l )
+      if [ -n "$oem_TPM_Owner_Password" ]; then
+        if [ $oem_TPM_Owner_Password_count -eq 1 ]; then
+          export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
+        elif [ $oem_TPM_Owner_Password_count -gt 1 ]; then
+          warn "Multiple 'oem_TPM_Owner_Password=' statements found. None retained."
+          unset oem_TPM_Owner_Password
+          error=1
+        fi
+      else
+        warn "No 'oem_TPM_Owner_Password=' statement found."
+        prompt_user_provisioning=1
+      fi
+
+      if [ -n "$error" ] && [ "$error" -eq 1 ]; then
+        notify "Please take note of precedent errors detected in /media/oem-provisioning content."
+        mount -o remount,rw /media 
+        sed -i '/^#/d' /media/oem-provisioning
+        sed -i '1i #This is vi Editor.\n#\n#Please delete duplicate values to be fed to the OEM Rownership Wizard.\n#To edit this file, press "i" to enter Insert mode.\n#Delete duplicates and undesired values.\n#Required format is: "to_be_provided_value=value"\n#\n#When done, press the "Esc" escape key\n#Then type ":wq" and press the 'Enter' key.\n#The wizard will then validate you input for length requirements only.\n#\n#\n#' /media/oem-provisioning
+        vi /media/oem-provisioning
+        sed -i '/^#/d' /media/oem-provisioning
+        mount -o remount,ro /media
+        unset error
+        read_oem_files 
+      fi
+
+      if [ -n "$prompt_user_provisioning" ] && [ "$prompt_user_provisioning" -eq 1 ];then
+
+        if (whiptail $CONFIG_WARNING_BG_COLOR --title "OEM Reownership Wizard lacks some provisioning information" \
+          --yesno "Would you like to feed the OEM Reownership Wizard once with all required\ninformation to automate its process?\n\n Those will be saved securely on OEM provided USB disk encrypted container.\n\n Provisioning those secrets here will automate Reownership Wizard process.\n  Those information will be stored under /media/oem-provisioning.\n\nOtherwise, you will be prompted to enter them several times manually.\nYou won't either have an external backup of those information in case\nthey were forgotten.\n\nContinue with one time OEM Reownership information provisioning?" 30 90) then
+          for to_provision in oem_gpg_Admin_PIN oem_gpg_User_PIN oem_gpg_real_name oem_gpg_email oem_gpg_comment oem_luks_actual_Disk_Recovery_Key oem_luks_new_Disk_Recovery_Key oem_luks_Disk_Unlock_Key oem_TPM_Owner_Password
+          do
+            provisioned_value=$(eval echo \$$to_provision)
+            if [ -z "$provisioned_value" ];then
+              echo "$to_provision is not set."
+              if [ "$to_provision" == "oem_gpg_Admin_PIN" ]; then
+                clear
+                echo "$to_provision: GPG Admin PIN"
+                echo
+                echo "Here chosen GPG Admin PIN will be requested from you under Heads to visually attest integrity measurements on NitroKey/Librem Key (HOTP)."
+                echo "Outside of Heads, your GPG Admin PIN will be prompted from you to manage your Nitrokey/Librem Key. (e.g: Change user PIN.)" 
+                echo "IMPORTANT: GPG Admin PIN is required to unlock GPG User PIN locked from 3 consecutive bad User PINs."
+                echo "If you mistyped your GPG Admin PIN 2 times in a subsequently, MAKE SURE YOUR THIRD ATTEMPT IS VALID by checking oem-provisioning file, created from this Wizard on OEM provided sdcard's encrypted container."
+                echo
+                echo "IMPORTANT: If the GPG Admin PIN becomes locked in smartcard THE CARD WILL NEED TO BE FACTORY RESETTED!"
+                echo "Factory reset of the GPG card deletes everything on it, including your private keys stored in its embedded GPG smartcard."
+                echo "Consequently, you won't be able to decrypt previous files and emails with your Nitrokey/Librem Key like prior to the reset."
+                echo
+                echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard itself."
+                echo "Better choose a simple, short passphrase that you'll remember forever then one long that would lock yourself off because forgotten."
+                echo "Suggested passphrase length: 2 words diceware passphrase."
+                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
+                while [[ ${#passphrase} -lt 8 || ${#passphrase} -gt 20 ]] || [ "$passphrase" != "${passphrase% *}" ]; do
+                  echo "We have limitations on Admin PIN: minimal 8 and maximal length of 20 characters, NO SPACE!"
+                  validate_input_passphrases_are_equal
+                done
+                notify "oem_gpg_Admin_PIN=$passphrase"
+                export oem_gpg_Admin_PIN="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_gpg_User_PIN" ] ;then
+                clear
+                echo "$to_provision: GPG User PIN"
+                echo
+                echo "Chosen GPG User PIN will be requested from you from Heads each time a /boot configuration change is detected so you can sign it originated from you. From a QubesOS perspective, upgrading AdminVM (dom0) will most certainly result in Heads requesting you to sign /boot integrity changes."
+                echo "Outside of Heads, the chosen GPG User PIN will be prompted from you to sign/encrypt/authenticate with your GPG card."
+                echo 
+                echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard."
+                echo "Suggested length: 2 random words diceware passphrase."
+                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
+                while [[ ${#passphrase} -lt 6 || ${#passphrase} -gt 20 ]]; do
+                  echo "We have limitations for GPG User PIN: minimal 6 and maximal length of 20 characters"
+                  validate_input_passphrases_are_equal
+                done
+                notify "oem_gpg_User_PIN=$passphrase"
+                export oem_gpg_User_PIN="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_gpg_real_name" ]; then
+                clear
+                echo "$to_provision: GPG public key associated Real Name"
+                echo
+                passphrase=""
+                while [[ ${#passphrase} -lt 5 || ${#passphrase} -gt 255 ]]; do
+                  echo "We have limitations for GPG Real Name: minimal 5 and maximal length of 255 characters"
+                  validate_input_passphrases_are_equal
+                done
+                export oem_gpg_real_name="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_gpg_email" ]; then
+                clear
+                echo "$to_provision: GPG public key associated primary E-Mail"
+                echo
+                passphrase=""
+                while ! $(expr "$passphrase" : '.*@' >/dev/null); do
+                  echo "Please provide a valid GPG E-Mail format adress (name@domain), even if public key will not associated with any."
+                  validate_input_passphrases_are_equal
+                done
+                export oem_gpg_email="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_gpg_comment" ]; then
+                clear
+                echo "$to_provision: GPG public key associated comment" 
+                echo
+                echo "Differenciates usage of public keys that would be associated with same Real Name and E-Mails addresses if many. (e.g: for E-Mail correspondants)"
+                passphrase=""
+                while [[ ${#passphrase} -gt 60 ]] || [[ -z "$passphrase" ]]; do
+                  echo "We have limitations for GPG public key associated comment: maximal length of 60 characters"
+                  validate_input_passphrases_are_equal
+                done
+                export oem_gpg_comment="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_luks_actual_Disk_Recovery_Key" ]; then
+                clear
+                echo "$to_provision: actual Disk Recovery Key passphrase"
+                echo
+                echo "After disks reencryption, you'll have to enter your own, new Disk Recovery Key passphrase to unlock both OEM provided microsd card and insternal disks."
+                echo
+                echo "The actual LUKS Disk Recovery Key passphrase was provided to you from $oem_name. Type it here as provided."
+                echo "The actual LUKS Disk Recovery Key passphrase is used to decrypt both microsd and internal disks until reencrypted by this Wizard."
+                passphrase=""
+                while [[ -z "$passphrase" ]]; do
+                  echo "Make sure that this corresponds to the Disk Recovery Key passphrase provided by $oem_name."
+                  validate_input_passphrases_are_equal
+                done
+                notify "oem_luks_actual_Disk_Recovery_Key=$passphrase"
+                export oem_luks_actual_Disk_Recovery_Key="$passphrase"
+                #TODO: actual should be replaced by new LUKS recovery key after reencryption.
+              fi
+              if [ "$to_provision" == "oem_luks_new_Disk_Recovery_Key" ]; then
+                clear
+                echo "$to_provision: new Disk Recovery Key passphrase"
+                echo
+                echo "Chosen new LUKS recovery Key passphrase NEEDS TO BE REMEMBERED of you at all time!!!"
+                echo "LUKS Disk Recovery key Passphrase will be used to decrypt the content of your USB and computer disk content, from any computer."
+                echo 
+                echo "If forgotten, the content of both $oem_name shipped microsd disk and computer internal disk will be lost forever."
+                echo "It is suggested that you pick a diceware passphrase of 6+ words. Make something emotionnaly involving from those words."
+                #TODO replicate this with validation
+                randomize_diceware_passphrases_until_chosen_or_manual 6 UpperFirstLetter Nospace
+                while [[ ${#passphrase} -lt 25 ]]; do
+                  echo "We impose a minimal requirement of 25 characters for LUKS Disk Recovery Passphrase."
+                  echo "Remember that a 5 words diceware passphrase would have took 165 days to break in 2013 for the NSA." 
+                  echo "A 6 words diceware passphrase would have took 3505 years. Choose carefully following your threat model."
+                  echo "Your brain remembers anything that is emotionnaly bonding. Create a story that your brain will remember."
+                  validate_input_passphrases_are_equal
+                done
+                notify "oem_luks_new_Disk_Recovery_Key=$passphrase"
+                export oem_luks_new_Disk_Recovery_Key="$passphrase"
+
+              fi
+              if [ "$to_provision" == "oem_luks_Disk_Unlock_Key" ] && [ "$CONFIG_TPM" == "y" ] && [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" == "y" ]; then
+                clear
+                echo "$to_provision: Disk Unlock Key passphrase"
+                echo
+                echo "Chosen LUKS Disk Unlock Key passphrase will be requested at each boot until the a next OS boot default will be requested from OS upgrade."
+                echo "The LUKS Disk Unlock Key is an additional security measure of Heads which permits disk decryption only if the firmware measurements valid."
+                echo "As a consequence, the Disk Unlock Key passphrase is bound to this computer Trusted Platform Module (TPM) only."
+                echo "As a result, someone cloning your disk and trying to decrypt its content by typing this Disk Unlock Key passphrase will be unsuccessful."
+                echo "If forgotten, no problem. Select a new boot default and you will be prompted to enter chosen Disk Recovery Key Passphrase prior to defining a new Disk Unlock Key passphrase."
+                echo
+                echo "As opposed to the Disk Recovery Key passphrase, the Disk Unlock Key passphrase can be of a smaller length."
+                echo "A diceware randomly selected passphrase of 3 words is more then enough, considering that the TPM is rate limiting the attempts."
+                echo "Heads will force the user to boot with the Disk Recovery passphrase after 3 failed attempts on each reboot, making this password practically difficult to bruteforce."
+                echo
+                randomize_diceware_passphrases_until_chosen_or_manual 3 UpperFirstLetter Nospace
+                validate_input_passphrases_are_equal
+                export oem_luks_Disk_Unlock_Key="$passphrase"
+              fi
+              if [ "$to_provision" == "oem_TPM_Owner_Password" ] && [ "$CONFIG_TPM" == "y" ]; then
+                clear
+                echo "$to_provision: TPM Owner Passphrase"
+                echo
+                echo "Chosen TPM Owner Passphrase will never be requested from Heads but in the reownership process to initialize it once."
+                echo "A diceware randomly selected passphrase of 2 words is enough."
+                echo "It is recommended to reuse GPG Admin Passphrase/Password here, to not unecessarily multiply secrets to remember."
+                echo "We reused the GPG Admin PIN to set the TPM Owner Passphrase."
+                oem_TPM_Owner_Password="$oem_gpg_Admin_PIN"
+                notify "oem_TPM_Owner_Password=$oem_gpg_Admin_PIN"
+                export oem_TPM_Owner_Password="$oem_TPM_Owner_Password"
+              fi
+            else
+              echo "$to_provision is $provisioned_value."
+            fi
+          done
+
+          mount -o remount,rw /media
+          env|grep "oem_" > /media/oem-provisioning
+          mount -o remount,ro /media
+
+        else
+          #Provisiong the wizard once was refused
+          mount -o remount,rw /boot
+          echo "no_automatic_provisioning" >> /boot/oem
+          mount -o remount,ro /boot
+        fi
+      fi
+      export oem_configuration_read=1
+      mount -o remount,ro /media
+    fi
+  else
+    warn "'no_automatic_provisioning' flag found under /boot/oem. You'll have to enter provisioning information manually in the OEM Wizard."
   fi
 }
 
@@ -414,7 +664,7 @@ check_onboarding_progress()
     if [ $? -ne 0 ];then
       #Show Onboarding menu once.
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drive content (LUKS container)\n2-Changing LUKS Disk Recovery Key and it's passphrase\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n5-Generating keys in it, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key/Nitrokey Pro\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
+       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drives content (LUKS containers)\n2-Changing their LUKS Disk Recovery Keys and their passphrases\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n5-Generating keys into its smartcard, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key/Nitrokey Pro\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
       whiptail --title 'Hardware reownership Wizard' --msgbox \
        "On the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\n\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still invalid, your hardware may been tampered with in\ntransit. Contact $oem_name." 20 20
       totp_confirm="O"
@@ -529,4 +779,65 @@ reset_disk_unlock_key()
     fi
     continue
   fi
+}
+randomize_diceware_passphrases_until_chosen_or_manual()
+{
+  #We generate passwords folowing callers restriction until user chooses to keep it
+  keep=0
+  unset keep_passphrase
+
+  while [ "$keep" -eq 0 ] &&  [ "$keep" -eq 0 -a "$keep_passphrase" != "m" ]; do
+    echo "Generating passphrase..."
+    passphrase=$(diceware-eff.sh $1 $2 $3)
+    input_ok="n"
+    
+    while [ "$input_ok" != "y" ]; do
+      echo "Generated passphrase is: $passphrase"
+      read \
+        -n 1 \
+        -p "Keep this passphrase (k), generate a new one (n), or enter it manually [k/n/m]: " \
+        keep_passphrase
+      echo
+      if [ "$keep_passphrase" = "k" ] || [ "$keep_passphrase" = "n" ] || [ "$keep_passphrase" = "m" ]; then
+        input_ok="y"
+      else
+        echo "invalid input. Valid choices were: k,n or m."
+      fi
+    done
+
+    if [ "$keep_passphrase" = "k" ]; then
+      keep=1  
+    elif [ "$keep_passphrase" = "n" ]; then
+      randomize_diceware_passphrases_until_chosen_or_manual $1 $2 $3
+    elif [ "$keep_passphrase" = "m" ]; then
+      unset passphrase
+      echo "It is suggested that you pick EFF diceware words to construct this passphrase."
+      echo "Shuffling EFF Diceware dictionary and sampling words out of it..."
+      diceware-eff.sh 800 Capitalize
+      echo
+    fi
+    done
+}
+validate_input_passphrases_are_equal()
+{
+  passphrase1="1"
+  passphrase2="2"
+  
+  while [ "$passphrase1" != "$passphrase2" ]; do
+    read \
+      -p "Please type desired value: " \
+      passphrase1
+    
+    read \
+      -p "Please retype desired value: " \
+      passphrase2
+    
+    if [ "$passphrase1" != "$passphrase2" ] || [ -z "$passphrase1" ]; then
+      echo "Entered value were different. Please type them again so they match."
+    else
+      passphrase="$passphrase1"
+      unset passphrase1
+      unset passphrase2
+    fi
+  done
 }

@@ -95,6 +95,12 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
+# MMC/sdard support through Secure Digital Host Controller Interface support
+linux_modules-$(CONFIG_LINUX_SDHCI) += drivers/mmc/core/mmc_core.ko
+linux_modules-$(CONFIG_LINUX_SDHCI) += drivers/mmc/core/mmc_block.ko 
+linux_modules-$(CONFIG_LINUX_SDHCI) += drivers/mmc/host/sdhci.ko
+linux_modules-$(CONFIG_LINUX_SDHCI) += drivers/mmc/host/sdhci-pci.ko
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \

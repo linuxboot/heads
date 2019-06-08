@@ -106,15 +106,13 @@ update_totp()
 mount_boot
 if [ -e /boot/oem ];then
   if [ -z "$oem_configuration_read" ]; then
-    #Read /media/oem-provisioning file once to read provisioned secrets
-    read_oem_file
-    
-    oem_name=$(grep "oem_name" /boot/oem | awk -F '=' {'print $2'})
-    if [ -n "$oem_name" ]; then
-      export oem_name="$oem_name"
+    #make sure the system is powered by AC outlet
+    if [ $(cat /sys/class/power_supply/AC/online) -eq 1 ]; then
+      #Read /media/oem-provisioning file once to read provisioned secrets
+      read_oem_files
     else
-      oem_name="your OEM"
-      export oem_name="$oem_name"
+      notify "You must run the Reownership Wizard from a safe place with power outlet connected. OEM Reownership will require around an hour. Sytem will now power off."
+      poweroff
     fi
   fi
 fi
@@ -213,6 +211,30 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "O" ]; then
+    #Taken from gui-init:verify_global_hashes()
+    #
+    #TODO: Fix checkup so that we give a report on /boot integrity if /boot/oem doesn't include gpg related tasks, which invalidates signature.
+    #The goal being to make sure nothing has been modified BUT /boot/oem. The rest should be intact.
+    #  check_config only checks for kexec_*
+    #
+    # Check the hashes of all the files, ignoring signatures for now
+    #check_config /boot force
+    #TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+
+    #if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+      # HASH="OK" 
+    #elif [ ! -f $TMP_HASH_FILE ]; then
+    #  if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Missing Hash File!' \
+    #    --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
+    #    HASH="COMPROMISED"
+    #    #update_checksums
+    #  fi
+    #  return 1
+    #  else
+    #    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
+    #  fi
+    
+    #TODO: modify TOTP HOTP lign to contain: HASH:OK/NOT OK
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME: Reownership" \
         --menu "Greenwich Mean Time (GMT) : $date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
         'C' ' Continue ownership of devices' \
@@ -230,11 +252,10 @@ while true; do
       --menu "Configure Settings" 20 90 10 \
       'o' ' Other Boot Options -->' \
       't' ' TPM/TOTP/HOTP Options -->' \
-      's' ' Update checksums and sign all files in /boot' \
-      'c' ' Change configuration settings -->' \
-      'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
-      'x' ' Exit to recovery shell' \
+      'f' ' Flash/Update the BIOS -->' \
+      'c' ' Change configuration settings -->' \
+      's' ' Update checksums and sign all files in /boot' \
       'R' ' Reencrypt LUKS container' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -305,7 +326,7 @@ while true; do
 
   if [ "$totp_confirm" = "p" ]; then
     if (whiptail --title 'Reset the TPM' \
-        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
+        --yesno "This will clear the TPM content and reset TPM Owner password.\n\nDo you want to proceed?" 16 90) then
       /bin/tpm-reset
       
       #set flag in oem file
@@ -386,6 +407,9 @@ while true; do
   if [ "$totp_confirm" = "R" ]; then
     /bin/reencrypt-luks
     continue
+
+  if [ "$totp_confirm" = "P" ]; then
+    poweroff
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
