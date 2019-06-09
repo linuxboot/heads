@@ -217,7 +217,7 @@ while true; do
     if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
       HASH="OK"
       #Else there is errors from cryptsetup-reencrypt complaining to not be able to create logfile
-      cd / 
+      cd /
     else
      HASH="ALTERED" 
     fi

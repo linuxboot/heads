@@ -49,7 +49,7 @@ flash_rom() {
     
     if [ -e /boot/kexec_key_devices.txt ] || [ -e /boot/kexec_key_lvm.txt ]; then
       echo -e "\n\nBoth your TOTP/HOTP codes and TPM released Disk Unlock Key were invalidated since measured boot integrity changed."
-      notify "You will be requested to reseal TOTP/HOTP secrets, to set a new default boot option and define a new Disk Unlock Key passphrase.\n\n"
+      notify "You will be requested to reseal TOTP/HOTP secrets, to set a new default boot option and define a new Disk Unlock Key passphrase."
       mount_boot
       mount -o remount,rw /boot
       touch /boot/reset_disk_unlock_key
