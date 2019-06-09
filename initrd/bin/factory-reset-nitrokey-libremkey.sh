@@ -5,7 +5,7 @@ set -e -o pipefail
 . /tmp/config
 
 if (whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'Factory Reset and reownership of GPG card' \
-  --yesno "You are about to factory reset your GPG card!\n\nThis will:\n 1-Wipe all PRIVATE keys that were previously kept inside GPG card\n 2-Set default key size to 4096 bits (maximum)\n 3-Set two passwphrases to interact with the card:\n  3.1: An administrative passphrase used to manage the card\n  3.2: A user passphrase (PIN) used everytime you sign\n   encrypt/decrypt content\n4-Generate new Encryption, Signing and Authentication keys\n  inside your GPG smartcard\n5-Export associated public key into mounted /media/gpg_keys/, replace the one being\n  present and trusted inside running BIOS, and reflash\n ROM with resulting image.\n\nAs a result, the running BIOS will be modified. Would you like to continue?" 30 90) then
+  --yesno "You are about to factory reset your GPG card!\n\nThis will:\n 1-Wipe all PRIVATE keys that were previously kept inside GPG card\n 2-Set default key size to 4096 bits (maximum)\n 3-Set two passwphrases to interact with the card:\n  3.1: An administrative passphrase used to manage the card\n  3.2: A user passphrase (PIN) used everytime you sign\n   encrypt/decrypt content\n4-Generate new Encryption, Signing and Authentication keys\n  inside your GPG smartcard\n5-Export associated public key into mounted /media/gpg_keys/, replace the\n  one being present and trusted inside running BIOS, and reflash\n  ROM with resulting image.\n\nAs a result, the running BIOS will be modified. Would you like to continue?" 30 90) then
 
   mount-usb || die "Unable to mount USB device."
   #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup:
