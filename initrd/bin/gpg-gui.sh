@@ -108,7 +108,7 @@ while true; do
     'l' ' List GPG keys in your keyring' \
     'm' ' Manually generate GPG keys on a USB security token' \
     'o' ' OEM Factory reset + auto keygen USB security token' \
-    'F' ' Factory Reset Librem Key/Nitrokey Pro v2 GPG Card + keygen + flash' \
+    'F' ' Factory Reset Librem Key GPG Card + keygen + flash' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -215,7 +215,7 @@ while true; do
       fi
     ;;
     "F" )
-      /bin/factory-reset-nitrokey-libremkey.sh 
+      /bin/factory-reset-libremkey.sh 
     ;;
   esac
 

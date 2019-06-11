@@ -329,7 +329,8 @@ read_oem_files()
  
   if ! [ $(grep "no_automatic_provisioning" /boot/oem) ]; then
     echo "Mounting memory card reader drive provision OEM reownership from /media/oem-provisioning..."
-    mount-sdcard || recovery "Unable to mount sdcard from memory card reader. Make sure the card is pushed in and type 'reboot' to continue."
+    mount-sdcard || notify "Unable to mount sdcard from memory card reader. Make sure the card is pushed in the expension slot and type Enter to continue."
+    mount-sdcard || $(mount -o remount,rw /boot && echo "no_automatic_provisioning" >> /boot/oem && mount -o remount,ro /boot && reboot)
     if [ -e /media/oem-provisioning ]; then
       echo "Found /media/oem-provisioning. Parsing..."
       oem_gpg_Admin_PIN=$(grep "^oem_gpg_Admin_PIN=" /media/oem-provisioning | cut -d "=" -f2)
@@ -492,14 +493,14 @@ read_oem_files()
                 clear
                 echo "$to_provision: GPG Admin PIN"
                 echo
-                echo "Here chosen GPG Admin PIN will be requested from you under Heads to visually attest integrity measurements on NitroKey/Librem Key (HOTP)."
-                echo "Outside of Heads, your GPG Admin PIN will be prompted from you to manage your Nitrokey/Librem Key. (e.g: Change user PIN.)" 
+                echo "Here chosen GPG Admin PIN will be requested from you under Heads to visually attest integrity measurements on your Librem Key (HOTP)."
+                echo "Outside of Heads, your GPG Admin PIN will be prompted from you to manage your Librem Key. (e.g: Change user PIN.)" 
                 echo "IMPORTANT: GPG Admin PIN is required to unlock GPG User PIN locked from 3 consecutive bad User PINs."
                 echo "If you mistyped your GPG Admin PIN 2 times in a subsequently, MAKE SURE YOUR THIRD ATTEMPT IS VALID by checking oem-provisioning file, created from this Wizard on OEM provided sdcard's encrypted container."
                 echo
                 echo "IMPORTANT: If the GPG Admin PIN becomes locked in smartcard THE CARD WILL NEED TO BE FACTORY RESETTED!"
                 echo "Factory reset of the GPG card deletes everything on it, including your private keys stored in its embedded GPG smartcard."
-                echo "Consequently, you won't be able to decrypt previous files and emails with your Nitrokey/Librem Key like prior to the reset."
+                echo "Consequently, you won't be able to decrypt previous files and emails with your Librem Key like prior to the reset."
                 echo
                 echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard itself."
                 echo "Better choose a simple, short passphrase that you'll remember forever then one long that would lock yourself off because forgotten."
@@ -578,7 +579,6 @@ read_oem_files()
                 done
                 notify "oem_luks_actual_Disk_Recovery_Key=$passphrase"
                 export oem_luks_actual_Disk_Recovery_Key="$passphrase"
-                #TODO: actual should be replaced by new LUKS recovery key after reencryption.
               fi
               if [ "$to_provision" == "oem_luks_new_Disk_Recovery_Key" ]; then
                 clear
@@ -589,7 +589,6 @@ read_oem_files()
                 echo 
                 echo "If forgotten, the content of both $oem_name shipped microsd disk and computer internal disk will be lost forever."
                 echo "It is suggested that you pick a diceware passphrase of 6+ words. Make something emotionnaly involving from those words."
-                #TODO replicate this with validation
                 randomize_diceware_passphrases_until_chosen_or_manual 6 UpperFirstLetter Nospace
                 while [[ ${#passphrase} -lt 25 ]]; do
                   echo "We impose a minimal requirement of 25 characters for LUKS Disk Recovery Passphrase."
@@ -664,9 +663,9 @@ check_onboarding_progress()
     if [ $? -ne 0 ];then
       #Show Onboarding menu once.
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drives content (LUKS containers)\n2-Changing their LUKS Disk Recovery Keys and their passphrases\n3-Resetting your Librem Key/Nitrokey Pro v2 to factory defaults\n4-Setting User and Admin PINs into your Librem Key/NitroKey\n5-Generating keys into its smartcard, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key/Nitrokey Pro\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
+       "The received hardware is currently owned by $oem_name.\nWe will change that.\n\nThis Wizard will otherwise make you own your own hardware by:\n1-Reencrypting encrypted drives content (LUKS containers)\n2-Changing their LUKS Disk Recovery Keys and their passphrases\n3-Resetting your Librem Key to factory defaults\n4-Setting User and Admin PINs into your Librem Key\n5-Generating keys into its smartcard, exporting public key and\n importing it in the ROM prior to reprogramming the SPI flash with it\n6-Taking integrity measures of all /boot files and sign the resulting\n checksum file with your Librem Key\n7-Reowning your Trusted Platform Module (TPM)\n\nScan the QR Code with an OTP app only after Reset the TPM last phase.\n\nHit Enter to continue." 20 20
       whiptail --title 'Hardware reownership Wizard' --msgbox \
-       "On the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\n\nIf it's not, reboot your hardware with your Librem/Nitrokey inserted.\n\nIf the HOTP code is still invalid, your hardware may been tampered with in\ntransit. Contact $oem_name." 20 20
+       "On the next screen, MAKE SURE THAT THE HOTP CODE IS: 'Success'\n\nIf it's not, reboot your hardware with your Librem Key inserted.\n\nIf the HOTP code is still invalid, your hardware may been tampered with in\ntransit. Contact $oem_name." 20 20
       totp_confirm="O"
       echo $totp_confirm > /tmp/whiptail
       mount -o remount,rw /boot
@@ -688,7 +687,7 @@ check_onboarding_progress()
     fi
     res=$(grep gpg_factory_resetted /boot/oem > /dev/null 2>&1)
     if [ $? -ne 0 ];then
-      /bin/factory-reset-nitrokey-libremkey.sh
+      /bin/factory-reset-libremkey.sh
       return
     fi
     res=$(grep tpm_reowned /boot/oem > /dev/null 2>&1)
@@ -706,13 +705,13 @@ check_onboarding_progress()
         unset reownership_state
         if [ "$CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY" = "y" ]; then
           whiptail --title 'DISK UNLOCK KEY ADVICE 1/3' --msgbox \
-            "***You SHOULD SET a new Disk Unlock Key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk Unlock\n Key passphrase from this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk Unlock Key happens ONLY if TPM attests firmware\nintegrity, and only if Disk Unlock Key passphrase is valid.\n\nPlease hit Enter to continue" 30 60
+            "***You SHOULD SET a new Disk Unlock Key for your own data privacy!!!***\n\nDoing so, a witness will only be able to type observed Disk Unlock\n Key passphrase on this computer and won't be able on a cloned\n copy of this disk.\n\nThe release of Disk Unlock Key happens ONLY if TPM attests firmware\nintegrity, and only if Disk Unlock Key passphrase is valid.\n\nPlease hit Enter to continue" 30 60
 
           whiptail --title 'DISK UNLOCK KEY ADVICE 2/3' --msgbox \
             "Otherwise, typing your Disk Recovery Key passphrase at boot puts you\nat risk. Someone could clone your disk and type that witnessed\npassphrase and access your data both locally and from a cloned\ndisk.\n\nCoupled with a strong passphrase, this improves your data privacy.\nCONSIDER YOURSELF WARNED.\n\nPlease hit Enter to continue" 30 60
 
           whiptail --title 'DISK UNLOCK KEY ADVICE 3/3' --msgbox \
-            "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested:\n\nSelect from Main menu:\n\nAdvanced Options menu -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add Disk Unlock Key to the TPM.\n\nYou will be prompted to set one in the following steps.\n\nPlease hit Enter to continue" 30 60
+            "To set Disk Unlock Key, released by the TPM only if firmware integrity\n is attested:\n\nSelect from Main menu:\n\nSettings -> Other Boot Options -> Show OS boot menu\n1-Then select the first boot option proposed (dynamic option)\n2-Then,answer Y when asked to add Disk Unlock Key to the TPM.\n\nYou will be prompted to set one in the following steps.\n\nPlease hit Enter to continue" 30 60
         fi
         return 
       else
@@ -744,7 +743,7 @@ reset_disk_unlock_key()
       HOTP=`unseal-hotp`
       enable_usb
       if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key/Nitrokey' --msgbox "Your Librem Key/Nitrokey was not detected.\n\nPlease insert your Librem Key/Nitrokey" 30 90
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
       fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check "$HOTP"
@@ -757,7 +756,7 @@ reset_disk_unlock_key()
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert Librem Key/Nitrokey and retry"
+          HOTP="Error checking code, Insert Librem Key and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac

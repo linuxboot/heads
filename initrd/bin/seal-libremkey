@@ -1,5 +1,5 @@
 #!/bin/sh
-# Retrieve the sealed TOTP secret and initialize a Librem Key/NitroKey with it
+# Retrieve the sealed TOTP secret and initialize a Librem Key with it
 
 . /etc/functions
 
@@ -52,14 +52,14 @@ counter_value=1
 
 enable_usb
 if ! libremkey_hotp_verification info ; then
-  echo "Insert your Librem Key/NitroKey and press Enter to configure it"
+  echo "Insert your Librem Key and press Enter to configure it"
   read
   libremkey_hotp_verification info \
-  || die "Unable to find Librem Key/NitroKey"
+  || die "Unable to find Librem Key"
 fi
 
 if [ -z "$oem_gpg_Admin_PIN" ]; then
-  read -s -p "Enter your Librem Key/NitroKey Admin PIN:" admin_pin
+  read -s -p "Enter your Librem Key Admin PIN:" admin_pin
   echo
 else
   admin_pin=$(echo -n "$oem_gpg_Admin_PIN")
@@ -91,7 +91,7 @@ echo "$counter_value" > $HOTP_COUNTER \
 #|| die "Unable to create HOTP counter file"
 mount -o remount,ro /boot
 
-echo "Librem Key/NitroKey initialized successfully. Press Enter to continue."
+echo "Librem Key initialized successfully. Press Enter to continue."
 read
 
 exit 0
