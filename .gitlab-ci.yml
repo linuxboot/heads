@@ -5,10 +5,11 @@ stages:
 
 build:
   stage: build
-  cache:
-    untracked: true
-    paths:
-      - ./git
+  #This doesn't work.... For some reason, current gitlab has cached version of initrd/bin/gui-init for which sha256sum is fb989c27e035c20cb04df9f01696aa5d585d2e79d826cc740d169545b6de3f42 when local git is 4d4e3ad88cae723094eafbc66d2266e65d70cee8f660d52602ddbb8ee0283838... I don't get those corruptions.
+  #cache:
+  #  untracked: true
+  #  paths:
+  #    - ./git
   cache:
     paths:
       - ./
