@@ -12,7 +12,7 @@ fi
 
 # Mount the USB boot device
 if ! grep -q /media /proc/mounts ; then
-	mount-usb "$CONFIG_USB_BOOT_DEV" \
+	mount-usb \
 		|| die "Unable to mount /media"
 fi
 
@@ -72,7 +72,7 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 	if [ -n "$option" ]; then
 		MOUNTED_ISO=$option
 		ISO=${option:7} # remove /media/ to get device relative path
-		kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
+		kexec-iso-init $MOUNTED_ISO $ISO $(grep "/media" /proc/mounts | awk -F " " '{print $1}')
 
 		die "Something failed in iso init"
 	fi
