@@ -10,6 +10,8 @@ build:
       - ./
     key: "$CI_COMMIT_REF_SLUG"
   script:
+    - git fetch origin 
+    - git reset --hard origin/$CI_COMMIT_REF_NAME
     - make BOARD=x230-flash
     - make BOARD=x230-libremkey
     - echo "x230-flash hashes:"
