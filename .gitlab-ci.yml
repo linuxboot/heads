@@ -7,7 +7,7 @@ build:
   stage: build
   cache:
     paths:
-      - ./build
+      - ./
     key: "$CI_COMMIT_REF_SLUG"
   script:
     - make BOARD=x230-flash
