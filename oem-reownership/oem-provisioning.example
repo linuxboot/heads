@@ -2,24 +2,26 @@
 #   OEM   #
 ###########   
 # Requirements
-#   - Stable, OEM ReOwnership branch of Heads (should be streamlines soon) is flashed.
-#     - (Recommended) Intel ME is neutered per Heads wiki instructions (TODO: PUT HERE)
+#   - Stable, OEM ReOwnership branch of Heads (should be upstreamed soon) is flashed.
+#     - (Recommended) Intel ME is neutered per Heads wiki instructions: 
+#       https://github.com/osresearch/heads-wiki/blob/master/Clean-the-ME-firmware.md
 #
-#   - OS is preinstalled under LUKS container. (QubesOS recommended)
+#   - OS is preinstalled under SSD LUKS container. (QubesOS recommended)
 #   - Heads /boot files checksum digest file (/boot/kexec_hashes.txt) is signed (/boot/kexec.sig)  
 #       and boot integrity is validated by OEM's public key already present in rom.
-#     The OEM is encouraged to use the OEM wizard himself to randomly generate strong passphrases.
+#       The OEM is encouraged to use the OEM wizard himself to randomly generate strong passphrases.
 #   - TPMTOTP/HOTP is already sealed
-#   - (Recommended) A Disk Unlock Key is set, which partition is defined under /boot/kexec_key_devices.txt)
-#       - Otherwise, the OEM wizard will prompt the user at Disk Unlock Key to choose between /dev/sda2 and /dev/mmcblk0p2
-#   - A prepared sdcard with a LUKS container containing an ext4 partition of ~32Mb is required
+#   - (Recommended) A Disk Unlock Key is set, for which partition is defined under /boot/kexec_key_devices.txt by Heads
+#       - Otherwise, the OEM wizard will prompt the user at Disk Unlock Key to choose between /dev/sda2 and /dev/mmcblk0p2 which might
+#         confuse user
+#   - A prepared sdcard with a LUKS container containing an ext4 partition is required (32Mb suggested.)
 #       The encryption passphrase is REQUIRED TO BE THE SAME OF THE OS DISK INSTALLATION (Named: actual Recovery Key passphrase) 
 #         A 16Gb sdcard, with a second partition containing QubesOS latest iso and signature file is recommended.
 #
 #   The OEM is advised to use the OEM Wizard himself after having cloned its OEM OS installation onto internal SSD drive.
 #     The OEM having completed OEM reownership should be able to boot OS with Disk Unlock Key,
-#       for which Heads validates all prior steps automatically, including the sdcard reencryption, which could fail on cheap
-#         flash memory.
+#       for which Heads validates integrity automatically. Doing so, he also tests sdcard reencryption, which could fail 
+#       on cheap flash memory.
 #     Having done so, from Heads recovery:
 #       The OEM inserts preformated sdcard in ssdcard memory expension slot then:
 #         "mount-sdcard rw" and then "touch /media/oem-provisioning" and "umount /media"
@@ -32,15 +34,26 @@
 #   reboot
 #
 # To activate OEM automatic provisioning, the content of this file needs to be found by Heads under:
-#  /media/oem-provisioning by calling "mount-sdcard"
-# 
-# Replace variables content with your own manually, or provide a blank or partial file, the OEM Reownership Wizard will take care of the rest!
-#   BE CONSCIOUS THAT MANUALLY ENTERED VALUES HERE WON'T BE VALIDATED BUT LATER IN THE OEM PROCESS (mainly GPG related ones wich could cause problem). 
-#The following needs to be put in /boot/oem for OEM name to be shown at OEM Reownership wizard first screen. Else it is going to be "your OEM".
-#oem_name=Insurgo Open Technologies
+#  /media/oem-provisioning after having called "mount-sdcard rw" and selecting "/dev/mmcblk0p1", "touch /media/oem-provisioning" and "umount /media"
 #
-#On a recovery shell, type the UP arrow key until you reach top of the history buffer. A command is proposed for you to change "YOUR COMPANY"
-# to your own. The hardware is then ready to ship and the wizard will accompany the user in reowning the hardware and OEM secrets on next reboot.
+#   The first shell history command (using up arrow in Recovery Shell) contains all the required commands to initiate OEM ReOwnership on next boot:
+#     mount-sdcard && mount -o remount,rw /media && touch /media/oem-provisioning && mount -o remount,ro /media && mount /boot||true && mount -o remount,rw /boot && echo "oem_name=COMPANY NAME" > /boot/oem && echo "oem_provisioning_partition=/dev/mmcblk0p1" >> /boot/oem && mount -o remount,ro /boot && reboot
+#   Just replace COMPANY NAME with your own OEM name and you are ready to go,
+#     keeping a postit on hardware of new Disk Recovery Key passphrase, to be sent with QR Code to customer.
+#
+#   As an OEM, it is suggested that you keep an oem-provisioning file containing
+#     - actual Disk Recovery Key passphrase (cloned disk OS installation LUKS passphrase)
+#     - GPG name, e-mail and comment
+#
+#   After having done the Reownership (mostly to reencrypt devices), go on recovery console:
+#     - mount-sdcard rw
+#     - vi /media/oem-provisioning
+#       - Remove everything but "oem_luks_new_Disk_Recovery_Key=InsurgoTech" line and rename it to "oem_luks_actual_Disk_Recovery_Key=InsurgoTech"
+#         else the user will have to enter it himself in the Wizard, after having already entered it once.
+#     - umount /media
+#
+# Replace variables content with your own manually, or provide a blank or partial file. The OEM Reownership Wizard will take care of the rest!
+#   BE CONSCIOUS THAT MANUALLY ENTERED VALUES HERE WON'T BE VALIDATED BUT LATER IN THE OEM PROCESS (mainly GPG related ones wich could cause problem). 
 #
 # A manual script "generate_diceware-eom-provisioning.sh" is provided in the current directory, but OEM ReOwnership itself is recommended. 
 #   It uses install diceware (in your disto repositories) to prefeed "oem-provisioning.generated" with proper secrets.
