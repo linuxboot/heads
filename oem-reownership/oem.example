@@ -4,13 +4,21 @@ oem_name=Insurgo Open Technologies
 #The following are states being checked against prior to entering that specific stage. 
 # Once a stage is done, it is appended under /boot/oem
 #
+#If not found in file, shows user mmc partitions (sdcard found in memory expension slot) by mount-sdcard script. 
+# /boot/oem presence forces the selection of a LUKS encrypted partition to fetch/store secrets from.
+# memory card expension slot is enforced through the x230-libremkey board config: "export CONFIG_LINUX_SDHCI=y"
+oem_provisioning_partition=/dev/mmcblk0p1
+#In the case such LUKS prepared partition is not found on sdcard inserted in memory expension slot, the following is injected, 
+# telling the OEM wizard to prompt the user manually for each information it requires
+no_automatic_provisioning
 #If not found in file, shows Onboarding first message containing oem_name above if defined, else "your OEM" is shown
 onboarding
 #When not present in this file, reencrypts LUKS container with oem_luks_actual_Disk_Recovery_Key defined under /media/oem-provisioning
 luks_reencrypted
 #When not present in this file, changes oem_luks_actual_Disk_Recovery_Key with oem_luks_new_Disk_Recovery_Key defined under /media/oem-provisioning
 luks_passwd_changed
-#When not present in this file, factory resets Librem Key/NitroKey with: oem_gpg_Admin_PIN, oem_gpg_User_PIN, oem_gpg_real_name, oem_gpg_email, oem_gpg_comment, defined under /media/oem-provisioning.
+#When not present in this file, factory resets Librem Key/NitroKey with: 
+# oem_gpg_Admin_PIN, oem_gpg_User_PIN, oem_gpg_real_name, oem_gpg_email, oem_gpg_comment, defined under /media/oem-provisioning.
 #The wizard generates new keypairs, injects the public key and trust database into the ROM and reboots. 
 #Upon reboot, the oem_gpg_Admin_PIN is used to automatically seal HOTP secret into the Librem Key/NitroKey
 gpg_factory_resetted
@@ -18,4 +26,7 @@ gpg_factory_resetted
 tpm_reowned
 #Once all stages are done, the Wizard removes /boot/oem, and ensures that /boot file checksum file is generated and signed with oem_gpg_User_PIN.
 #
-#Then the wizard finally launches the selection of a new boot default, and asks the user if he wants to modify the disk and if he wants to define a Disk Unlock Key. In such case, oem_TPM_Owner_Password is used to seal a new TOTP secret, oem_gpg_Admin_PIN is used to seal a new HOTP secret, and oem_gpg_User_PIN is used to sign configuration files checksums that changed under /boot. 
+#Then the wizard finally launches the selection of a new boot default, and asks the user if he wants to modify the disk by defining a Disk Unlock Key
+# (depends on the following x230-libremkey board config: "CONFIG_OFFER_TPM_LUKS_DISK_UNLOCK_KEY=y"). 
+#   In such case, oem_TPM_Owner_Password is used to seal a new TOTP secret, oem_gpg_Admin_PIN is used to seal a new HOTP secret, 
+#   and oem_gpg_User_PIN is used to sign configuration files checksums digest (kexec_hashes.txt) for which signature is found under /boot/kexec.sig. 

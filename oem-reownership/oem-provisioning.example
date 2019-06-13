@@ -1,6 +1,29 @@
 ###########
 #   OEM   #
 ###########   
+# Requirements
+#   - Stable, OEM ReOwnership branch of Heads (should be streamlines soon) is flashed.
+#     - (Recommended) Intel ME is neutered per Heads wiki instructions (TODO: PUT HERE)
+#
+#   - OS is preinstalled under LUKS container. (QubesOS recommended)
+#   - Heads /boot files checksum digest file (/boot/kexec_hashes.txt) is signed (/boot/kexec.sig)  
+#       and boot integrity is validated by OEM's public key already present in rom.
+#     The OEM is encouraged to use the OEM wizard himself to randomly generate strong passphrases.
+#   - TPMTOTP/HOTP is already sealed
+#   - (Recommended) A Disk Unlock Key is set, which partition is defined under /boot/kexec_key_devices.txt)
+#       - Otherwise, the OEM wizard will prompt the user at Disk Unlock Key to choose between /dev/sda2 and /dev/mmcblk0p2
+#   - A prepared sdcard with a LUKS container containing an ext4 partition of ~32Mb is required
+#       The encryption passphrase is REQUIRED TO BE THE SAME OF THE OS DISK INSTALLATION (Named: actual Recovery Key passphrase) 
+#         A 16Gb sdcard, with a second partition containing QubesOS latest iso and signature file is recommended.
+#
+#   The OEM is advised to use the OEM Wizard himself after having cloned its OEM OS installation onto internal SSD drive.
+#     The OEM having completed OEM reownership should be able to boot OS with Disk Unlock Key,
+#       for which Heads validates all prior steps automatically, including the sdcard reencryption, which could fail on cheap
+#         flash memory.
+#     Having done so, from Heads recovery:
+#       The OEM inserts preformated sdcard in ssdcard memory expension slot then:
+#         "mount-sdcard rw" and then "touch /media/oem-provisioning" and "umount /media"
+#
 # To activate OEM reownership wizard, under Heads recovery console, do:
 #   mount /boot
 #   mount -o remount,rw /boot
@@ -9,27 +32,27 @@
 #   reboot
 #
 # To activate OEM automatic provisioning, the content of this file needs to be found by Heads under:
-#  /media/oem-provisioning
-# By default, the USB drive is mounted from /dev/sdb1 but "mount-usb" will find the usb drive and mount it under /media
+#  /media/oem-provisioning by calling "mount-sdcard"
 # 
-# Replace variables content with your own!
-#
+# Replace variables content with your own manually, or provide a blank or partial file, the OEM Reownership Wizard will take care of the rest!
+#   BE CONSCIOUS THAT MANUALLY ENTERED VALUES HERE WON'T BE VALIDATED BUT LATER IN THE OEM PROCESS (mainly GPG related ones wich could cause problem). 
 #The following needs to be put in /boot/oem for OEM name to be shown at OEM Reownership wizard first screen. Else it is going to be "your OEM".
 #oem_name=Insurgo Open Technologies
 #
 #On a recovery shell, type the UP arrow key until you reach top of the history buffer. A command is proposed for you to change "YOUR COMPANY"
 # to your own. The hardware is then ready to ship and the wizard will accompany the user in reowning the hardware and OEM secrets on next reboot.
 #
-# You should invite the user into using "generate_diceware-eom-provisioning.sh" script in the current directory, 
-#   which uses diceware to prefeed "oem-provisioning.generated" with proper secrets.
-# The user would then need to put that file under "oem-provisioning" on the root of a dedicated USB drive and connect on first boot of 
-#   received hardware to reduce user errors and friction of having to enter those secrets manually.  
+# A manual script "generate_diceware-eom-provisioning.sh" is provided in the current directory, but OEM ReOwnership itself is recommended. 
+#   It uses install diceware (in your disto repositories) to prefeed "oem-provisioning.generated" with proper secrets.
+# The user would then need to put that file under "oem-provisioning" on the root of a dedicated sdcard LUKS contained ext4 partition 
+#   and insert it on first boot. Not having that sdcard in place nor oem-provisioning file will result in "no_automatic_provisioning"
+#     appended in /boot/oem and will force the OEM ReOwnership Wizard to request the user to enter all informatio nmanually through the process.
 
 #########
 #  GPG  #
 #########
 # GPG card function in Heads:
-#   The Librem Key/NitroKey is a traditional GPG card added with HMAC-based One-time Password (HOTP) which permits 
+#   The Librem Key/NitroKey Pro is a traditional GPG card added with HMAC-based One-time Password (HOTP) which permits 
 #     to seal integrity measurements into the GPG card memory. 
 #     
 #     As a functional result, at each boot, the card will flash its LED green if the measured boot integrity 
@@ -45,10 +68,10 @@
 #
 #     *** You should use both TOTP/HOTP so you can still validate attested integiryt in case your GPG card gets lost ***
 #
-#     HOTP/TOTP are functionally similar, while the Librem Key/Nitrokey permits to validate integrity visually in an 
+#     HOTP/TOTP are functionally similar, while the Librem Key/Nitrokey Pro permits to validate integrity visually in an 
 #       instant without having to unlock the smartphone, open the OTP application and verify that a 6 digits code there 
 #       is the same that is shown on the screen. 
-#       HOTP Librem Key/Nitrokey feature is complementory to the TOTP and shares the same codebase.
+#       HOTP Librem Key / Nitrokey Pro/Storage feature is complementory to the TOTP and shares the same codebase.
 #
 #     Heads also depends on the GPG card to store used private key outside of prying eyes, securely stored on the
 #       Smartcard. When factory resetting the card, only the public key is inserted into the rom, which is used
@@ -90,7 +113,7 @@
 #
 #GPG SmartCard desired Admin PIN to provision GPG factory reset. 
 # Admin PIN manages Admin functions of the card through gpg --edit-card admin functions, 
-# In Heads, the Admin PIN is required to seal HOTP secret into NitroKey/Librem Key when firmware has been modified.
+# In Heads, the Admin PIN is required to seal HOTP secret into NitroKey Pro/Librem Key when firmware has been modified.
 # 
 # NOTES: If the GPG card is lost, the user won't be able to seal firmware changes through HOTP.
 # Size constaints: minimum 8 characters, maximum 20 characters, WITHOUT SPACES! 
@@ -115,7 +138,7 @@ oem_gpg_User_PIN=Insurgo
 # This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
 # 
 # Size constaints: minimum 5 characters. 
-oem_gpg_real_name=Insurgo Integrity Delivered Attestation Attestation Librem Key
+oem_gpg_real_name=Insurgo Shipped Integrity Attestation Librem Key
 #GPG SmartCard desired E-mail address to provision GPG factory reset. 
 # This will be used to construct the ID of the public key: "Real Name (Comment) email@address.org" 
 #   Note that some services requires that e-mail address to be real and will send an e-mail to validate it.
@@ -130,15 +153,16 @@ oem_gpg_comment=FACTORY RESET ME
 #  LUKS  #
 ##########
 # LUKS containers are used in Linux to encrypt whole filesystems.
-# The whole idea behind OEM reownership depends on the LUKS reencryption of the container from the user when hardware
+# The whole idea behind OEM ReOwnership depends on the LUKS reencryption of the container from the user when hardware
 #   is received. Otherwise, the OEM would know the cloned image LUKS Disk Recovery Key and could hand it to authorities.
 #   This provisioning wizard starts by asking you to enter the actual LUKS Disk Recovery Key passphrase to reencrypt the 
-#   container completely, before changing it's passphrase with user selected one.
+#   containers completely, BOTH sdcard and SSD driver, before changing it's passphrase with user selected one:
+#     then "new Disk Recovery Passphrase" below.
 #
-#   This LUKS Disk Recovery Key, if provided by the OEM **** SHOULD NOT BE MODIFIED *****
+#   This LUKS Disk Recovery Key, if provided by the OEM **** SHOULD BE ENTERED AS IS *****
 oem_luks_actual_Disk_Recovery_Key=InsurgoTech
 # This is where you want to define your new Disk Recovery Key passphrase, which will be associated to the reencrypted LUKS 
-#   container after the OEM wizard is over and become the Disk Recovery Key passphrase.
+#   containers (both sdcard and internal SSD drive) after the OEM wizard is over and become the Disk Recovery Key passphrase.
 #
 #   This provisioning wizard continues by asking you to enter the desired LUKS Disk Recovery Key passphrase and changes 
 #   it.
@@ -147,11 +171,14 @@ oem_luks_actual_Disk_Recovery_Key=InsurgoTech
 #     1-Every boot if no Disk Unlock Key was added to the TPM (NOT RECOMMENDED! could be captured and used on cloned disk)
 #     2-If the TPM fails (Hardware failure)
 #     3-If the firmware has been tampered with/upgraded/modified by the user
+#     4-When OS upgrades affected the default boot option, to set a new Disk Unlock Key, 
+#       bound to measurements and released by the TPM
 #
-# NOTES: If the Disk Recovery Key Passphrase is lost, the user won't be able to set a new Disk Unlock Key.
+# NOTES: If the Disk Recovery Key Passphrase is forgotten, the user won't be able to set a new Disk Unlock Key.
 #   More importantly, in the case of a Operating System core update (Xen, Kernel, initrd (drivers) or grub config,
 #     the Default Boot option will be invalidated, and the only way to boot the system will be by typing this
-#     Disk Recovery Key Passphrase. ********** CHOOSE IT CAREFULLY SO YOU CAN EASILY REMEMBER IT ***********
+#     Disk Recovery Key Passphrase, to boot or set a new Disk Unlock Key passphrase. 
+#     ********** CHOOSE IT CAREFULLY SO YOU CAN EASILY REMEMBER IT. FOREVER ***********
 #
 # Size constaints: select a Diceware passphrase of at least 3 words. 6 is better. 
 #   No need to go crazy here. It's better to have a shorter but strong passphrase you remember and not type often
@@ -162,12 +189,15 @@ oem_luks_new_Disk_Recovery_Key=InsurgoTech
 #
 # The Disk Unlock Key is another security feature enforced by Heads that makes your computer more trustworthy.
 #   The Disk Unlock Key is released by the Trusted Platform Module (TPM), a cryptographic component on which
-#   depends Heads to measure and attest firmware integrity, and released only if the measurements of the firmware 
-#   are intact (sealed). In the case the firmware has been modified, that the user lost/forgot his GPG card, 
-#   the Disk Unlock key passphrase will refuse to release the actual Disk Unlock Key and will not boot, unless 
-#   you to type the Disk Recovery Key passphrase. 
+#   depends Heads to measure and attest firmware integrity. The key being released only if the measurements of 
+#   the firmware are intact (sealed). In the case the firmware is modified, the Disk Unlock would not unlock 
+#   the disk, and consequently, will be asked from you to be changed, requiring you to confirm you are 
+#   responsible for those firmware changes. Since its passphrase is useless without TPM released key, the 
+#   TOTP/HOTP would also be invalidated. In corner cases, eg. the TPM fails (hardware), TOTP/HOTP challenges 
+#   would be invalid and your Disk Unlock Key passphrase would not boot the system, unless you to type the 
+#   Disk Recovery Key passphrase. 
 #
-#   Heads would not be able to unseal neither TOTP/HOTP in case measurements mismatche and will warn the user. 
+#   Heads would not be able to unseal neither TOTP/HOTP in case of measurements mismatch and will warn the user. 
 #
 #   The Disk Unlock Key passphrase will also not be able to unlock the disk if the LUKS header is not 
 #   consistent with what was sealed into the TPM when selecting a default boot option.
