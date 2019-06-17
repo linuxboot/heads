@@ -636,7 +636,7 @@ read_oem_files()
           done
 
           mount -o remount,rw /media
-          env|grep "oem_" > /media/oem-provisioning
+          env|grep "oem_" | sort > /media/oem-provisioning
           mount -o remount,ro /media
 
         else
