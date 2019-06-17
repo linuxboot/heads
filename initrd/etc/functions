@@ -616,7 +616,6 @@ read_oem_files()
                 echo "Heads will force the user to boot with the Disk Recovery passphrase after 3 failed attempts on each reboot, making this password practically difficult to bruteforce."
                 echo
                 randomize_diceware_passphrases_until_chosen_or_manual 3 UpperFirstLetter Nospace
-                validate_input_passphrases_are_equal
                 export oem_luks_Disk_Unlock_Key="$passphrase"
               fi
               if [ "$to_provision" == "oem_TPM_Owner_Password" ] && [ "$CONFIG_TPM" == "y" ]; then
