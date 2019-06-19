@@ -117,7 +117,10 @@ update_totp()
   /bin/reboot
 }
 
-# ensure /boot is sane and mount it before anything else
+# enable USB to load modules for external kb
+enable_usb
+
+# ensure /boot is sane and mount it
 mount_boot
 
 last_half=X
