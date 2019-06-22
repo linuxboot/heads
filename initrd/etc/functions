@@ -559,7 +559,7 @@ read_oem_files()
                 echo "Differenciates usage of public keys that would be associated with same Real Name and E-Mails addresses if many. (e.g: for E-Mail correspondants)"
                 passphrase=""
                 while [[ ${#passphrase} -gt 60 ]] || [[ -z "$passphrase" ]]; do
-                  echo "We have limitations for GPG public key associated comment: maximal length of 60 characters"
+                  echo "We have limitations for GPG public key associated comment: maximal length of 60 characters. Cannot be empty."
                   validate_input_passphrases_are_equal
                 done
                 export oem_gpg_comment="$passphrase"
