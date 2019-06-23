@@ -725,6 +725,9 @@ check_onboarding_progress()
       fi
     fi
   else
+    #We just deleted the /boot/oem file and are at the last possible iteration of this function. 
+    whiptail --title 'OEM ReOwnership Wizard last step!' --msgbox \
+      "Time to set a new boot default and set a Disk Unlock Key passphrase\n\nPlease hit Enter to continue" 30 60
     reset_disk_unlock_key
     return
   fi  
