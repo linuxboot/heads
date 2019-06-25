@@ -8,10 +8,23 @@ CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 
 mount_boot()
 {
+  # ensure default boot device is set
+  if [ ! -e "$CONFIG_BOOT_DEV" ]; then
+    if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: $CONFIG_BOOT_DEV missing!" \
+    --yesno "The /boot device $CONFIG_BOOT_DEV could not be found!\n\nYou will need to configure the correct device for /boot.\n\nWould you like to configure the /boot device now?" 30 90) then
+    config-gui.sh
+    fi
   # Mount local disk if it is not already mounted
-  if ! grep -q /boot /proc/mounts ; then
-    mount -o ro /boot \
-      || recovery "Unable to mount /boot"
+  elif ! grep -q /boot /proc/mounts ; then
+    mount -o ro /boot 
+    if [ $? -ne 0 ]; then
+      if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Cannot mount /boot' \
+      --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
+        config-gui.sh
+      else
+        recovery "Unable to mount /boot"
+      fi
+    fi
   fi
 }
 verify_global_hashes()
@@ -103,6 +116,12 @@ update_totp()
   fi
   /bin/reboot
 }
+
+# enable USB to load modules for external kb
+enable_usb
+
+# ensure /boot is sane and mount it
+mount_boot
 
 last_half=X
 while true; do
