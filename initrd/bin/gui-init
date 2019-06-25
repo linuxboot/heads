@@ -6,7 +6,27 @@ CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 . /etc/functions
 . /tmp/config
 
-
+mount_boot()
+{
+  # ensure default boot device is set
+  if [ ! -e "$CONFIG_BOOT_DEV" ]; then
+    if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: $CONFIG_BOOT_DEV missing!" \
+    --yesno "The /boot device $CONFIG_BOOT_DEV could not be found!\n\nYou will need to configure the correct device for /boot.\n\nWould you like to configure the /boot device now?" 30 90) then
+    config-gui.sh
+    fi
+  # Mount local disk if it is not already mounted
+  elif ! grep -q /boot /proc/mounts ; then
+    mount -o ro /boot 
+    if [ $? -ne 0 ]; then
+      if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Cannot mount /boot' \
+      --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
+        config-gui.sh
+      else
+        recovery "Unable to mount /boot"
+      fi
+    fi
+  fi
+}
 verify_global_hashes()
 {
   # Check the hashes of all the files, ignoring signatures for now
@@ -55,7 +75,7 @@ verify_global_hashes()
 update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered\n with.\n\nYou will need your GPG key to continue and this change will modify your\n disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
     mount_boot
     mount -o rw,remount /boot
 
@@ -87,7 +107,7 @@ update_totp()
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp $CONFIG_BOARD
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key."
+    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key"
     read
     /bin/seal-libremkey
 		#Sometimes HOTP sealing fails. We do until it works.
@@ -103,6 +123,7 @@ update_totp()
   /bin/reboot
 }
 
+# ensure /boot is sane and mount it
 mount_boot
 if [ -e /boot/oem ];then
   if [ -z "$oem_configuration_read" ]; then
@@ -125,6 +146,9 @@ if [ -e /boot/reset_disk_unlock_key ] && [ ! -e /boot/oem ]; then
     recovery "User refused to update TOTP/HOTP following what seemed to be a ROM update. Time to investigate changes manually."
   fi
 fi
+
+# enable USB to load modules for external kb
+enable_usb
 
 last_half=X
 while true; do
@@ -172,10 +196,10 @@ while true; do
       HOTP=`unseal-hotp`
       enable_usb
       if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key ' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
-      libremkey_hotp_verification check "$HOTP"
+      libremkey_hotp_verification check $HOTP
       case "$?" in
         0 )
           HOTP="Success"
@@ -322,7 +346,7 @@ while true; do
 
   if [ "$totp_confirm" = "p" ]; then
     if (whiptail --title 'Reset the TPM' \
-        --yesno "This will clear the TPM content and reset TPM Owner password.\n\nDo you want to proceed?" 16 90) then
+        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
       /bin/tpm-reset
       
       #set flag in oem file
