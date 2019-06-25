@@ -506,8 +506,8 @@ read_oem_files()
                 echo "Better choose a simple, short passphrase that you'll remember forever then one long that would lock yourself off because forgotten."
                 echo "Suggested passphrase length: 2 words diceware passphrase."
                 randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
-                while [[ ${#passphrase} -lt 8 || ${#passphrase} -gt 20 ]] || [ "$passphrase" != "${passphrase% *}" ]; do
-                  echo "We have limitations on Admin PIN: minimal 8 and maximal length of 20 characters, NO SPACE!"
+                while [[ ${#passphrase} -lt 8 || ${#passphrase} -gt 20 ]]; do
+                  echo "We have limitations on Admin PIN: minimal 8 and maximal length of 20 characters"
                   validate_input_passphrases_are_equal
                 done
                 notify "oem_gpg_Admin_PIN=$passphrase"
