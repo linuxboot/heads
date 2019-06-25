@@ -7,14 +7,19 @@ HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
 
-mount_boot()
+mount_boot_or_die()
 {
   # Mount local disk if it is not already mounted
   if ! grep -q /boot /proc/mounts ; then
     mount -o ro /boot \
-      || recovery "Unable to mount /boot"
+      || die "Unable to mount /boot"
   fi
 }
+
+# Store counter in file instead of TPM for now, as it conflicts with Heads
+# config TPM counter as TPM 1.2 can only increment one counter between reboots
+# get current value of HOTP counter in TPM, create if absent
+mount_boot_or_die
 
 tpm nv_readvalue \
 	-in 4d47 \
@@ -30,10 +35,6 @@ tpm unsealfile  \
 
 shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
 
-# Store counter in file instead of TPM for now, as it conflicts with Heads
-# config TPM counter as TPM 1.2 can only increment one counter between reboots
-# get current value of HOTP counter in TPM, create if absent
-mount_boot
 
 #check_tpm_counter $HOTP_COUNTER hotp \
 #|| die "Unable to find/create TPM counter"

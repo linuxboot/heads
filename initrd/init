@@ -16,7 +16,9 @@ mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev 2>/dev/ttyprintk
 mount /proc 2>/dev/ttyprintk
 mount /sys 2>/dev/ttyprintk
-mount /sys/firmware/efi/efivars
+if [ "$CONFIG_LINUXBOOT" = "y" ]; then
+	mount /sys/firmware/efi/efivars
+fi
 
 # Setup the pty psudeo filesystem
 mkdir /dev/pts
