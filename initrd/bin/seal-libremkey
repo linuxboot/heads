@@ -59,8 +59,12 @@ if ! libremkey_hotp_verification info ; then
   fi
 fi
 
-read -s -p "Enter your Librem Key Admin PIN" admin_pin
-echo
+if [ -z "$oem_gpg_Admin_PIN" ]; then
+  read -s -p "Enter your Librem Key Admin PIN" admin_pin
+  echo
+else
+  admin_pin=$(echo -n "$oem_gpg_Admin_PIN")
+fi
 
 libremkey_hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value 
 if [ $? -ne 0 ]; then
