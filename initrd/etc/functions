@@ -505,7 +505,7 @@ read_oem_files()
                 echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard itself."
                 echo "Better choose a simple, short passphrase that you'll remember forever then one long that would lock yourself off because forgotten."
                 echo "Suggested passphrase length: 2 words diceware passphrase."
-                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
+                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter
                 while [[ ${#passphrase} -lt 8 || ${#passphrase} -gt 20 ]]; do
                   echo "We have limitations on Admin PIN: minimal 8 and maximal length of 20 characters"
                   validate_input_passphrases_are_equal
@@ -522,7 +522,7 @@ read_oem_files()
                 echo 
                 echo "There is no need to have a super strong passphrase here, it will be locked after 3 bad attempts in the GPG smartcard."
                 echo "Suggested length: 2 random words diceware passphrase."
-                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter Nospace
+                randomize_diceware_passphrases_until_chosen_or_manual 2 UpperFirstLetter
                 while [[ ${#passphrase} -lt 6 || ${#passphrase} -gt 20 ]]; do
                   echo "We have limitations for GPG User PIN: minimal 6 and maximal length of 20 characters"
                   validate_input_passphrases_are_equal
@@ -589,7 +589,7 @@ read_oem_files()
                 echo 
                 echo "If forgotten, the content of both $oem_name shipped microsd disk and computer internal disk will be lost forever."
                 echo "It is suggested that you pick a diceware passphrase of 6+ words. Make something emotionnaly involving from those words."
-                randomize_diceware_passphrases_until_chosen_or_manual 6 UpperFirstLetter Nospace
+                randomize_diceware_passphrases_until_chosen_or_manual 6 UpperFirstLetter
                 while [[ ${#passphrase} -lt 25 ]]; do
                   echo "We impose a minimal requirement of 25 characters for LUKS Disk Recovery Passphrase."
                   echo "Remember that a 5 words diceware passphrase would have took 165 days to break in 2013 for the NSA." 
@@ -615,7 +615,7 @@ read_oem_files()
                 echo "A diceware randomly selected passphrase of 3 words is more then enough, considering that the TPM is rate limiting the attempts."
                 echo "Heads will force the user to boot with the Disk Recovery passphrase after 3 failed attempts on each reboot, making this password practically difficult to bruteforce."
                 echo
-                randomize_diceware_passphrases_until_chosen_or_manual 3 UpperFirstLetter Nospace
+                randomize_diceware_passphrases_until_chosen_or_manual 3 UpperFirstLetter
                 while [[ ${#passphrase} -lt 6 ]]; do
                   echo "We impose a minimal passphrase length of 6 characters."
                   validate_input_passphrases_are_equal
