@@ -194,7 +194,7 @@ while true; do
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
       'r' ' Refresh TOTP/HOTP' \
-      'a' ' Settings -->' \
+      'a' ' Options -->' \
       'P' ' Power Off' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -202,9 +202,9 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "a" ]; then
-    whiptail --clear --title "Settings" \
-      --menu "Configure Settings" 20 90 10 \
-      'o' ' Other Boot Options -->' \
+    whiptail --clear --title "HEADS Options" \
+      --menu "" 20 90 10 \
+      'o' ' Boot Options -->' \
       't' ' TPM/TOTP/HOTP Options -->' \
       's' ' Update checksums and sign all files in /boot' \
       'c' ' Change configuration settings -->' \
@@ -218,7 +218,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "o" ]; then
-    whiptail --clear --title "Other Boot Options" \
+    whiptail --clear --title "Boot Options" \
       --menu "Select A Boot Option" 20 90 10 \
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
