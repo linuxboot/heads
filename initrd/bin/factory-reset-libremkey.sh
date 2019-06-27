@@ -40,14 +40,12 @@ if (whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'Factory Reset and reowner
   };done
   gpgcard_user_pass=$gpgcard_user_pass1
 
-  while [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [[ ${#gpgcard_admin_pass1} -lt 8 || ${#gpgcard_admin_pass1} -gt 20 ]] || [ "$gpgcard_admin_pass1" != "${gpgcard_admin_pass1% *}" ]; do
+  while [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [[ ${#gpgcard_admin_pass1} -lt 8 || ${#gpgcard_admin_pass1} -gt 20 ]]; do
   {
-    echo -e "\nChoose your new GPG card admin password that will be typed when managing GPG smartcard (HOTP sealing, managing key, etc).\nIt needs to be a least 8 but not more then 20 characters WHILE NOT CONTAINING SPACES:"
+    echo -e "\nChoose your new GPG card admin password that will be typed when managing GPG smartcard (HOTP sealing, managing key, etc).\nIt needs to be a least 8 but not more then 20 characters:"
     read -s gpgcard_admin_pass1
     echo -e "\nRetype admin password:"
     read -s gpgcard_admin_pass2
-
-    if [[ "$gpgcard_admin_pass1" != "$gpgcard_admin_pass2" ]] || [ "$gpgcard_admin_pass1" != "${gpgcard_admin_pass1% *}" ]; then echo "Passwords typed were different or contained spaces."; fi
   };done
   gpgcard_admin_pass=$gpgcard_admin_pass1
 
