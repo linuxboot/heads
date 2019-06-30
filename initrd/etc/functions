@@ -568,7 +568,7 @@ read_oem_files()
                 clear
                 echo "$to_provision: actual Disk Recovery Key passphrase"
                 echo
-                echo "After disks reencryption, you'll have to enter your own, new Disk Recovery Key passphrase to unlock both OEM provided microsd card and insternal disks."
+                echo "After disks reencryption, you'll have to enter your own, new Disk Recovery Key passphrase to unlock both OEM provided microsd card and internal disks."
                 echo
                 echo "The actual LUKS Disk Recovery Key passphrase was provided to you from $oem_name. Type it here as provided."
                 echo "The actual LUKS Disk Recovery Key passphrase is used to decrypt both microsd and internal disks until reencrypted by this Wizard."
@@ -606,7 +606,7 @@ read_oem_files()
                 echo "$to_provision: Disk Unlock Key passphrase"
                 echo
                 echo "Chosen LUKS Disk Unlock Key passphrase will be requested at each boot until the a next OS boot default will be requested from OS upgrade."
-                echo "The LUKS Disk Unlock Key is an additional security measure of Heads which permits disk decryption only if the firmware measurements valid."
+                echo "The LUKS Disk Unlock Key is an additional security measure of Heads which permits disk decryption only if the firmware measurements are valid."
                 echo "As a consequence, the Disk Unlock Key passphrase is bound to this computer Trusted Platform Module (TPM) only."
                 echo "As a result, someone cloning your disk and trying to decrypt its content by typing this Disk Unlock Key passphrase will be unsuccessful."
                 echo "If forgotten, no problem. Select a new boot default and you will be prompted to enter chosen Disk Recovery Key Passphrase prior to defining a new Disk Unlock Key passphrase."
