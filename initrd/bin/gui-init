@@ -75,7 +75,7 @@ verify_global_hashes()
 update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered\n with.\n\nYou will need your GPG key to continue and this change will modify your\n disk.\n\nDo you want to continue?" 16 90) then
     mount_boot
     mount -o rw,remount /boot
 
