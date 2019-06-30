@@ -620,6 +620,7 @@ read_oem_files()
                   echo "We impose a minimal passphrase length of 6 characters."
                   validate_input_passphrases_are_equal
                 done
+                notify "oem_luks_Disk_Unlock_Key=$passphrase"
                 export oem_luks_Disk_Unlock_Key="$passphrase"
               fi
               if [ "$to_provision" == "oem_TPM_Owner_Password" ] && [ "$CONFIG_TPM" == "y" ]; then
