@@ -125,7 +125,7 @@ if [ -n "$reownership_state" ] && [ "$reownership_state" = "luks_password_change
       if [ -n "$SDCARD_MOUNT_DEVICE" ]; then
         umount /media 2> /dev/null 
         cryptsetup luksClose /dev/mapper/sdcarddev 2> /dev/null 
-        warn "Changing $SDCARD_MOUNT_DEVICE LUKS encrypted disk passphrase to new Recovery Disk Key passphrase..."
+        warn "Changing $SDCARD_MOUNT_DEVICE LUKS encrypted disk passphrase to new Disk Recovery Key passphrase..."
         cryptsetup luksChangeKey "$SDCARD_MOUNT_DEVICE" --key-slot 0 --key-file=/tmp/oem_luks_actual_Disk_Recovery_Key /tmp/oem_luks_new_Disk_Recovery_Key
       fi
       mount -o remount,rw /boot
