@@ -40,7 +40,7 @@ verify_global_hashes()
   elif [ ! -f $TMP_HASH_FILE ]; then
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Missing Hash File!' \
       --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
-      update_checksums
+      prompt_update_checksums
     fi
     return 1
   else
@@ -67,37 +67,16 @@ verify_global_hashes()
     fi
 
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
-      update_checksums
+      prompt_update_checksums
     fi
     return 1
   fi
 }
-update_checksums()
+prompt_update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
-    mount_boot
-    mount -o rw,remount /boot
-
-    cd /boot
-    find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
-    DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-    echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
-
-    # Remove any package trigger log files
-    # We don't need them after the user decides to sign
-    rm -f /boot/kexec_package_trigger*
-
-    # sign and auto-roll config counter
-    extparam=
-    if [ "$CONFIG_TPM" = "y" ]; then
-      extparam=-u
-    fi
-    kexec-sign-config -p /boot $extparam \
-    || die "Failed to sign default config"
-
-    # switch back to ro mode
-    mount -o ro,remount /boot
+    update_checksums
   else
     echo "Returning to the main menu"
   fi
@@ -331,7 +310,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "s" ]; then
-    update_checksums
+    prompt_update_checksums
     continue
   fi
 
