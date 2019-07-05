@@ -105,9 +105,18 @@ gpg_flash_rom() {
   fi
 
   /bin/flash.sh /tmp/gpg-gui.rom
-  whiptail --title 'BIOS Flashed Successfully' \
-    --msgbox "BIOS flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
+
+  if (whiptail --title 'BIOS Flashed Successfully' \
+      --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 16 90) then
+    update_checksums
+  else
+    /bin/reboot
+  fi
+
+  whiptail --title 'Files in /boot Updated Successfully'\
+    --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 16 60
   /bin/reboot
+  
 }
 gpg_post_gen_mgmt() {
   GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
