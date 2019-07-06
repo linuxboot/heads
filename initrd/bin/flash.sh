@@ -17,7 +17,7 @@ case "$CONFIG_BOARD" in
     FLASHROM_OPTIONS='--force --noverify-all -p internal:laptop=force_I_want_a_brick --ifd --image bios'
   ;;
   x220* )
-    FLASHROM_OPTIONS='--force --noverify-all -p internal --ifd --image bios -c MX25L6405D'
+    FLASHROM_OPTIONS='--force --noverify-all -p internal:laptop=force_I_want_a_brick --ifd --image bios'
   ;;
   "kgpe-d16" )
     FLASHROM_OPTIONS='--force --noverify --programmer internal'
