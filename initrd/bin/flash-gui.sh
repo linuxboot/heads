@@ -70,10 +70,10 @@ file_selector() {
 
 while true; do
   unset menu_choice
-  whiptail --clear --title "BIOS Management Menu" \
-    --menu 'Select the BIOS function to perform' 20 90 10 \
-    'f' ' Flash the BIOS with a new ROM' \
-    'c' ' Flash the BIOS with a new cleaned ROM' \
+  whiptail --clear --title "Firmware Management Menu" \
+    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
+    'f' ' Flash the firmware with a new ROM, retain settings' \
+    'c' ' Flash the firmware with a new ROM, erase settings' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -88,7 +88,7 @@ while true; do
           --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
         mount_usb
         if grep -q /media /proc/mounts ; then
-          find /media -name '*.rom' > /tmp/filelist.txt
+          find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
           file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
           if [ "$FILE" == "" ]; then
             return
@@ -104,7 +104,7 @@ while true; do
               /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully. Press Enter to reboot" 16 60
+              --msgbox "$ROM flashed successfully.\nPress Enter to reboot" 16 60
             umount /media
             /bin/reboot
           else

@@ -14,7 +14,8 @@ valid_rollback="n"
 force_menu="n"
 gui_menu="n"
 force_boot="n"
-while getopts "b:d:p:a:r:c:uimgf" arg; do
+skip_confirm="n"
+while getopts "b:d:p:a:r:c:uimgfs" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -27,6 +28,7 @@ while getopts "b:d:p:a:r:c:uimgf" arg; do
 		i) valid_hash="y"; valid_rollback="y" ;;
 		g) gui_menu="y" ;;
 		f) force_boot="y"; valid_hash="y"; valid_rollback="y" ;;
+		s) skip_confirm="y" ;;
 	esac
 done
 
@@ -163,11 +165,19 @@ scan_options() {
 	for i in `find $bootdir -name "$config"`; do
 		kexec-parse-boot "$bootdir" "$i" >> $option_file
 	done
+	# FC29/30+ may use BLS format grub config files
+	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+	# only parse these if $option_file is still empty
+	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
+		for i in `find $bootdir -name "$config"`; do
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
+		done
+	fi
 	if [ ! -r $option_file ]; then
 		die "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
-		sort $option_file | uniq > $TMP_MENU_FILE
+		sort -r $option_file | uniq > $TMP_MENU_FILE
 	else
 		cp $option_file $TMP_MENU_FILE
 	fi
@@ -247,7 +257,7 @@ user_select() {
 	do
 		get_menu_option
     # In force boot mode, no need offer the option to set a default, just boot
-		if [ "$force_boot" = "y" ]; then
+		if [[ "$force_boot" = "y" || "$skip_confirm" = "y" ]]; then
 			do_boot
 		else
 			confirm_menu_option
