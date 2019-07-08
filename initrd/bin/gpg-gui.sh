@@ -104,6 +104,12 @@ gpg_flash_rom() {
     cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
   fi
 
+  # persist user config changes
+  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
+    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/etc/config.user"
+  fi
+  cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+
   /bin/flash.sh /tmp/gpg-gui.rom
 
   if (whiptail --title 'BIOS Flashed Successfully' \
