@@ -8,6 +8,7 @@ file_selector() {
   FILE=""
   FILE_LIST=$1
   MENU_MSG=${2:-"Choose the file"}
+  MENU_TITLE=${3:-"Select your File"}
 # create file menu options
   if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
     option=""
@@ -23,7 +24,7 @@ file_selector() {
       done < $FILE_LIST
 
       MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail --clear --title "Select your File" \
+      whiptail --clear --title "${MENU_TITLE}" \
         --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
         -- $MENU_OPTIONS \
         2>/tmp/whiptail || die "Aborting"
