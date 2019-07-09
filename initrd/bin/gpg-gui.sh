@@ -68,6 +68,14 @@ file_selector() {
   fi
 }
 gpg_flash_rom() {
+
+  if [ "$1" = "replace" ]; then
+    # clear local keyring
+    [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
+    [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
+    [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
+  fi
+
   cat "$PUBKEY" | gpg --import
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
   gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
@@ -177,12 +185,40 @@ gpg_sc_oem_reset() {
   } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit > /tmp/gpg_card_edit_output || return 2
 }
 
+gpg_add_key_reflash() {
+  if (whiptail --title 'GPG public key required' \
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+    mount_usb
+    if grep -q /media /proc/mounts ; then
+      find /media -name '*.key' > /tmp/filelist.txt
+      find /media -name '*.asc' >> /tmp/filelist.txt
+      file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+      PUBKEY=$FILE
+
+      /bin/flash.sh -r /tmp/gpg-gui.rom
+      if [ ! -s /tmp/gpg-gui.rom ]; then
+        whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
+          --msgbox "Unable to read BIOS" 16 60
+        exit 1
+      fi
+
+      if (whiptail --title 'Update ROM?' \
+          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+        gpg_flash_rom
+      else
+        exit 0
+      fi
+    fi
+  fi
+}
+
 while true; do
   unset menu_choice
   whiptail --clear --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 20 90 10 \
     'r' ' Add GPG key to running BIOS + reflash' \
     'a' ' Add GPG key to standalone BIOS image + flash' \
+    'e' ' Replace GPG key(s) in the current ROM + reflash' \
     'l' ' List GPG keys in your keyring' \
     'g' ' Generate GPG keys manually on a USB security token' \
     'o' ' OEM Factory reset + auto keygen USB security token' \
@@ -228,30 +264,16 @@ while true; do
       fi
     ;;
     "r" )
-      if (whiptail --title 'GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
-        if grep -q /media /proc/mounts ; then
-          find /media -name '*.key' > /tmp/filelist.txt
-          find /media -name '*.asc' >> /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-          PUBKEY=$FILE
-
-          /bin/flash.sh -r /tmp/gpg-gui.rom
-          if [ ! -s /tmp/gpg-gui.rom ]; then
-            whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
-              --msgbox "Unable to read BIOS" 16 60
-            exit 1
-          fi
-
-          if (whiptail --title 'Update ROM?' \
-              --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
-            gpg_flash_rom
-          else
-            exit 0
-          fi
-        fi
-      fi
+      gpg_add_key_reflash
+      exit 0;
+    ;;
+    "e" )
+      # clear local keyring
+      [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
+      [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
+      [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
+      # add key and reflash
+      gpg_add_key_reflash
     ;;
     "l" )
       GPG_KEYRING=`gpg -k`
