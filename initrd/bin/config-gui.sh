@@ -64,6 +64,7 @@ while true; do
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
+    'r' ' Clear GPG key(s) and reset all user settings' \
     'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -115,15 +116,40 @@ while true; do
         cbfs -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
       fi
       cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
-
-      if (whiptail --title 'Update ROM?' \
-          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
-        /bin/flash.sh /tmp/config-gui.rom
-        whiptail --title 'BIOS Updated Successfully' \
-          --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
+    ;;
+    "r" )
+      # prompt for confirmation
+      if (whiptail --title 'Reset Configuration?' \
+           --yesno "This will clear all GPG keys, clear boot signatures and checksums,
+                  \nreset the /boot device, clear/reset the TPM (if present),
+                  \nand reflash your BIOS with the cleaned configuration.
+                  \n\nDo you want to proceed?" 16 90) then
+        # read current firmware
+        /bin/flash.sh -r /tmp/config-gui.rom
+        if [ ! -s /tmp/config-gui.rom ]; then
+          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
+            --msgbox "Unable to read BIOS" 16 60
+          exit 1
+        fi
+        # clear local keyring
+        rm /.gnupg/* | true
+        # clear /boot signatures/checksums
+        mount -o remount,rw /boot
+        rm /boot/kexec* | true
+        mount -o remount,ro /boot
+        # clear GPG keys and user settings
+        for i in `cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"`; do
+          cbfs -o /tmp/config-gui.rom -d $i
+        done
+        # flash cleared ROM
+        /bin/flash.sh -c /tmp/config-gui.rom
+        # reset TPM if present
+        if [ "$CONFIG_TPM" = "y" ]; then
+          /bin/tpm-reset
+        fi
+        whiptail --title 'Configuration Reset Updated Successfully' \
+          --msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 16 60
         /bin/reboot
-      else
-        exit 0
       fi
     ;;
   esac
