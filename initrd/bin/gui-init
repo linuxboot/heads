@@ -15,7 +15,7 @@ mount_boot()
     if [ ! -e "$CONFIG_BOOT_DEV" ]; then
       if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: $CONFIG_BOOT_DEV missing!" \
           --yesno "The /boot device $CONFIG_BOOT_DEV could not be found!\n\nYou will need to configure the correct device for /boot.\n\nWould you like to configure the /boot device now?" 30 90) then
-        config-gui.sh
+        config-gui.sh boot_device_select
       else
         # exit to main menu
         break
@@ -27,7 +27,7 @@ mount_boot()
     if [ $? -ne 0 ]; then
       if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Cannot mount /boot' \
       --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
-        config-gui.sh
+        config-gui.sh boot_device_select
       else
         recovery "Unable to mount /boot"
       fi
