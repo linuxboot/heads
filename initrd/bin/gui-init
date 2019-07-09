@@ -97,10 +97,9 @@ update_totp()
     read
     /bin/seal-libremkey
   else
-    echo "Once you have scanned the QR code, hit Enter to reboot"
+    echo "Once you have scanned the QR code, hit Enter to continue"
     read
   fi
-  /bin/reboot
 }
 
 # enable USB to load modules for external kb
