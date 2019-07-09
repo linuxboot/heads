@@ -196,7 +196,12 @@ gpg_add_key_reflash() {
       find /media -name '*.key' > /tmp/filelist.txt
       find /media -name '*.asc' >> /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-      PUBKEY=$FILE
+      # bail if user didn't select a file
+      if [ "$FILE" = "" ]; then
+        return
+      else
+        PUBKEY=$FILE
+      fi
 
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
