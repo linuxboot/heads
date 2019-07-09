@@ -59,15 +59,15 @@ while true; do
     menu_choice=${param::1}
     unset param
   else
-  unset menu_choice
-  whiptail --clear --title "Config Management Menu" \
+    unset menu_choice
+    whiptail --clear --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
     'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
-  menu_choice=$(cat /tmp/whiptail)
+    menu_choice=$(cat /tmp/whiptail)
   fi
 
   case "$menu_choice" in
@@ -76,8 +76,21 @@ while true; do
     ;;
     "b" )
       CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
-      find /dev -name 'sd*' -o -name 'nvme*' > /tmp/filelist.txt
-      file_selector "/tmp/filelist.txt" "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION."
+      fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
+      # filter out extraneous options
+      > /tmp/boot_device_list.txt
+      for i in `cat /tmp/disklist.txt`; do
+        # remove block device from list if numeric partitions exist, since not bootable
+        let DEV_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+        if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+          echo $i >> /tmp/boot_device_list.txt
+        else
+          ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
+        fi
+      done
+      file_selector "/tmp/boot_device_list.txt" \
+          "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION." \
+          "Boot Device Selection"
       if [ "$FILE" == "" ]; then
         return
       else
