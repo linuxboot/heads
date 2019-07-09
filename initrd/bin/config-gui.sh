@@ -51,16 +51,24 @@ file_selector() {
   fi
 }
 
+param=$1
+
 while true; do
+  if [ ! -z "$param" ]; then
+    # use first char from parameter
+    menu_choice=${param::1}
+    unset param
+  else
   unset menu_choice
   whiptail --clear --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
-    'x' ' Exit' \
+    'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
   menu_choice=$(cat /tmp/whiptail)
+  fi
 
   case "$menu_choice" in
     "x" )
