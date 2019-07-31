@@ -7,7 +7,7 @@ To get the binaries, start with a copy of the original Lenovo firmware image.
 If you do not have one already, you can read one out from the laptops SPI flash.
 
 ```
-flashrom --programmer internal:laptop=force_I_want_a_brick -r original.bin
+flashrom --programmer internal -r original.bin
 ```
 
 Once you have the image, the provided extraction script will extract the files needed.
