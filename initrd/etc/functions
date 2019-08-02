@@ -240,3 +240,36 @@ replace_config() {
 combine_configs() {
 	cat /etc/config* > /tmp/config
 }
+
+update_checksums()
+{
+	# clear screen
+	printf "\033c"
+	# ensure /boot mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+		|| recovery "Unable to mount /boot"
+	fi
+	# remount RW
+    	mount -o rw,remount /boot
+	cd /boot
+	find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
+	if [ -e /boot/kexec_default_hashes.txt ]; then
+	  DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
+	  echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+	fi
+	# Remove any package trigger log files
+	# We don't need them after the user decides to sign
+	rm -f /boot/kexec_package_trigger*
+
+	# sign and auto-roll config counter
+	extparam=
+	if [ "$CONFIG_TPM" = "y" ]; then
+	extparam=-u
+	fi
+	kexec-sign-config -p /boot $extparam \
+	|| die "Failed to sign default config"
+
+	# switch back to ro mode
+	mount -o ro,remount /boot
+}
