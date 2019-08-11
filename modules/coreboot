@@ -1,8 +1,9 @@
 modules-$(CONFIG_COREBOOT) += coreboot
 
-#coreboot_version := git
-#coreboot_repo := https://github.com/osresearch/coreboot
-coreboot_version := 4.8.1
+# For the supermicro we're pulling from gerrit review 32734
+coreboot_version := git
+coreboot_repo := https://review.coreboot.org/coreboot
+#coreboot_version := 4.8.1
 coreboot_base_dir := coreboot-$(coreboot_version)
 coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz

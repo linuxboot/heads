@@ -1,0 +1,1179 @@
+From 2d795267e2fe78af4eb4070e2562aed5fec25dde Mon Sep 17 00:00:00 2001
+From: Christian Walter <christian.walter@9elements.com>
+Date: Fri, 10 May 2019 15:52:00 +0200
+Subject: [PATCH] mb/supermicro/x11ssh: Add Supermicro X11SSH-TF
+
+Add support for the X11SSH-TF which is based on Intel KBL.
+
+Working:
+* SeaBios payload
+* LinuxBoot payload
+* IPMI of BMC
+* PCIe, SATA, USB ports
+* RS232 serial
+* Native graphics init
+
+Not working:
+* Tianocore doesn't work yet as the Aspeed NGI is text mode only.
+* Intel SGX, due to random crashes in soc/intel/common
+
+For more details have a look at the documentation.
+
+Please apply those patches as well for good user experience:
+
+I456be647b159f7a2ea7d94986a24424e56dcc8c4
+I22c6885eae6fd7c778ac37b18f95b8775e9064e3
+Ica0c20255f661dd61edc3a7d15646b7447c4658e
+
+Signed-off-by: Christian Walter <christian.walter@9elements.com>
+Signed-off-by: Patrick Rudolph <patrick.rudolph@9elements.com>
+Change-Id: I2edaa4a928de3a065e517c0f20e3302b4b702323
+---
+
+diff --git a/Documentation/mainboard/index.md b/Documentation/mainboard/index.md
+index 0f3105f..08689b7 100644
+--- a/Documentation/mainboard/index.md
++++ b/Documentation/mainboard/index.md
+@@ -111,6 +111,7 @@
+ ## Supermicro
+ 
+ - [X10SLM+-F](supermicro/x10slm-f.md)
++- [X11SSH-TF](supermicro/x11ssh-tf.md)
+ 
+ ## UP
+ 
+diff --git a/Documentation/mainboard/supermicro/x11ssh-tf.md b/Documentation/mainboard/supermicro/x11ssh-tf.md
+new file mode 100644
+index 0000000..e23309d
+--- /dev/null
++++ b/Documentation/mainboard/supermicro/x11ssh-tf.md
+@@ -0,0 +1,73 @@
++# Supermicro X11SSH-TF
++
++This section details how to run coreboot on the [Supermicro X11SSH-TF].
++
++## Required proprietary blobs
++
++* [Intel FSP2.0]
++* Intel ME
++
++## Flashing coreboot
++
++The board can be flashed externally using *some* programmers.
++The CH341 was found working, while Dediprog won't detect the chip.
++
++For more details have a look at the [Flashing tutorial].
++
++The flash IC can be found between the two PCIe slots near the southbridge:
++![](x11ssh_flash.jpg)
++
++## BMC (IPMI)
++
++This board has an ASPEED [AST2400], which has BMC functionality. The
++BMC firmware resides in a 32 MiB SOIC-16 chip in the corner of the
++mainboard near the [AST2400]. This chip is an [MX25L25635F].
++
++## Known issues
++
++- Intel SGX causes secondary APs to crash (disabled for now).
++- MP init causes secondary APs to crash (fix in gerrit).
++- Tianocore doesn't work with Aspeed NGI, as it's text mode only.
++- The IPMI driver times out on cold boot (fix in gerrit).
++
++## Working
++
++- USB
++- 2x 10GB Ethernet
++- SATA
++- RS232
++- VGA on Aspeed
++- SuperIO initialisation
++- ECC DRAM detection
++- PCIe slots
++- TPM on TPM expansion header
++- BMC (IPMI)
++
++## Technology
++
++```eval_rst
+++------------------+--------------------------------------------------+
++| CPU              | Intel Kaby Lake                                  |
+++------------------+--------------------------------------------------+
++| PCH              | Intel C236                                       |
+++------------------+--------------------------------------------------+
++| Super I/O        | ASPEED AST2400                                   |
+++------------------+--------------------------------------------------+
++| Coprocessor      | Intel SPS (server version of the ME)             |
+++------------------+--------------------------------------------------+
++| Coprocessor      | ASPEED AST2400                                   |
+++------------------+--------------------------------------------------+
++```
++
++## Extra links
++
++- [Board manual]
++
++[AST2400]: https://www.aspeedtech.com/products.php?fPath=20&rId=376
++[Board manual]: https://www.supermicro.com/manuals/motherboard/C236/MNL-1783.pdf
++[flashrom]: https://flashrom.org/Flashrom
++[MX25L25635F]: https://media.digikey.com/pdf/Data%20Sheets/Macronix/MX25L25635F.pdf
++[N25Q128A]: https://www.micron.com/~/media/Documents/Products/Data%20Sheet/NOR%20Flash/Serial%20NOR/N25Q/n25q_128mb_3v_65nm.pdf
++[Flashing tutorial]: ../../flash_tutorial/ext_power.md
++[Intel FSP2.0]: ../../soc/intel/fsp/index.md
++[Supermicro X11SSH-TF]: https://www.supermicro.com/en/products/motherboard/X11SSH-TF
+diff --git a/Documentation/mainboard/supermicro/x11ssh_flash.jpg b/Documentation/mainboard/supermicro/x11ssh_flash.jpg
+new file mode 100644
+index 0000000..8ab07f2
+--- /dev/null
++++ b/Documentation/mainboard/supermicro/x11ssh_flash.jpg
+Binary files differ
+diff --git a/src/mainboard/supermicro/x11ssh/Kconfig b/src/mainboard/supermicro/x11ssh/Kconfig
+new file mode 100644
+index 0000000..517551f
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/Kconfig
+@@ -0,0 +1,76 @@
++config BOARD_SUPERMICRO_BASEBOARD_X11SSH
++	def_bool n
++	select BOARD_ROMSIZE_KB_16384
++	select HAVE_ACPI_RESUME
++	select HAVE_ACPI_TABLES
++	select HAVE_OPTION_TABLE
++	select SOC_INTEL_KABYLAKE
++	select SKYLAKE_SOC_PCH_H
++	select MAINBOARD_USES_FSP2_0
++	select MAINBOARD_HAS_LPC_TPM
++	select DRIVERS_ASPEED_AST2050
++	select SUPERIO_ASPEED_AST2400
++	select GENERATE_SMBIOS_TABLES
++	select IPMI_KCS
++
++if BOARD_SUPERMICRO_BASEBOARD_X11SSH
++
++config SOC_INTEL_COMMON_BLOCK_SGX
++	bool
++	default y
++
++config VBOOT
++	select VBOOT_NO_BOARD_SUPPORT
++	select GBB_FLAG_DISABLE_LID_SHUTDOWN
++	select GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
++	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
++	select GBB_FLAG_DISABLE_FWMP
++
++config VBOOT_SLOTS_RW_AB
++	default y
++
++config VBOOT_VBNV_OFFSET
++	hex
++	default 0x2a
++
++config FMDFILE
++	string
++	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-ro-rwab.fmd" if VBOOT_SLOTS_RW_AB
++
++config CBFS_SIZE
++	hex
++	default 0x009aa000 if !VBOOT
++
++config IRQ_SLOT_COUNT
++	int
++	default 18
++
++config MAINBOARD_DIR
++	string
++	default "supermicro/x11ssh"
++
++config VARIANT_DIR
++	string
++	default "tf" if BOARD_SUPERMICRO_X11SSH_PLUS_TF
++
++config DEVICETREE
++	string
++	default "variants/$(CONFIG_VARIANT_DIR)/devicetree.cb"
++
++config MAINBOARD_PART_NUMBER
++	string
++	default "X11SSH-TF" if BOARD_SUPERMICRO_X11SSH_PLUS_TF
++
++config MAX_CPUS
++	int
++	default 8
++
++config SUBSYSTEM_VENDOR_ID
++	hex
++	default 0x8086
++
++config CONSOLE_POST
++	bool
++	default y
++
++endif
+diff --git a/src/mainboard/supermicro/x11ssh/Kconfig.name b/src/mainboard/supermicro/x11ssh/Kconfig.name
+new file mode 100644
+index 0000000..a9b351b
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/Kconfig.name
+@@ -0,0 +1,3 @@
++config BOARD_SUPERMICRO_X11SSH_PLUS_TF
++	bool "X11SSH+-TF"
++	select BOARD_SUPERMICRO_BASEBOARD_X11SSH
+diff --git a/src/mainboard/supermicro/x11ssh/Makefile.inc b/src/mainboard/supermicro/x11ssh/Makefile.inc
+new file mode 100644
+index 0000000..3c79bd4
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/Makefile.inc
+@@ -0,0 +1,23 @@
++##
++## This file is part of the coreboot project.
++##
++## Copyright (C) 2013 Google Inc.
++## Copyright (C) 2016 Intel Corporation.
++##
++## This program is free software; you can redistribute it and/or modify
++## it under the terms of the GNU General Public License as published by
++## the Free Software Foundation; version 2 of the License.
++##
++## This program is distributed in the hope that it will be useful,
++## but WITHOUT ANY WARRANTY; without even the implied warranty of
++## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++## GNU General Public License for more details.
++##
++
++bootblock-y += bootblock.c
++
++ramstage-y += mainboard.c
++ramstage-y += ramstage.c
++
++subdirs-y += variants/$(VARIANT_DIR)
++CPPFLAGS_common += -I$(src)/mainboard/$(MAINBOARDDIR)/variants/$(VARIANT_DIR)/include
+diff --git a/src/mainboard/supermicro/x11ssh/acpi/ec.asl b/src/mainboard/supermicro/x11ssh/acpi/ec.asl
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/acpi/ec.asl
+diff --git a/src/mainboard/supermicro/x11ssh/acpi/mainboard.asl b/src/mainboard/supermicro/x11ssh/acpi/mainboard.asl
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/acpi/mainboard.asl
+diff --git a/src/mainboard/supermicro/x11ssh/acpi/superio.asl b/src/mainboard/supermicro/x11ssh/acpi/superio.asl
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/acpi/superio.asl
+diff --git a/src/mainboard/supermicro/x11ssh/acpi_tables.c b/src/mainboard/supermicro/x11ssh/acpi_tables.c
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/acpi_tables.c
+diff --git a/src/mainboard/supermicro/x11ssh/board_info.txt b/src/mainboard/supermicro/x11ssh/board_info.txt
+new file mode 100644
+index 0000000..029d2a9
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/board_info.txt
+@@ -0,0 +1,6 @@
++Vendor name: Supermicro
++Board name: X11SSH Baseboard
++Category: server
++ROM protocol: SPI
++ROM socketed: n
++Flashrom support: y
+diff --git a/src/mainboard/supermicro/x11ssh/bootblock.c b/src/mainboard/supermicro/x11ssh/bootblock.c
+new file mode 100644
+index 0000000..8bc8ab0
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/bootblock.c
+@@ -0,0 +1,48 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * Copyright 2016 Google Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <bootblock_common.h>
++#include <soc/gpio.h>
++#include "gpio.h"
++#include <superio/aspeed/common/aspeed.h>
++#include <superio/aspeed/ast2400/ast2400.h>
++#include <delay.h>
++#include <console/uart.h>
++
++static void early_config_gpio(void)
++{
++	/* This is a hack for FSP because it does things in MemoryInit()
++	 * which it shouldn't do. We have to prepare certain gpios here
++	 * because of the brokenness in FSP. */
++	gpio_configure_pads(early_gpio_table, ARRAY_SIZE(early_gpio_table));
++}
++
++static void early_config_superio(void)
++{
++	const pnp_devfn_t serial_dev = PNP_DEV(0x2e, AST2400_SUART1);
++	if (CONFIG(CONSOLE_SERIAL)) {
++		aspeed_enable_serial(serial_dev, CONFIG_TTYS0_BASE);
++		/* The serial output is garbeled before this timeout.
++		 * FIXME: Find out why and remove delay.
++		 */
++		mdelay(1000);
++	}
++}
++
++void bootblock_mainboard_early_init(void)
++{
++	early_config_gpio();
++	early_config_superio();
++}
+diff --git a/src/mainboard/supermicro/x11ssh/cmos.layout b/src/mainboard/supermicro/x11ssh/cmos.layout
+new file mode 100644
+index 0000000..201ca33
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/cmos.layout
+@@ -0,0 +1,62 @@
++##
++## This file is part of the coreboot project.
++##
++## Copyright (C) 2007-2008 coresystems GmbH
++##
++## This program is free software; you can redistribute it and/or modify
++## it under the terms of the GNU General Public License as published by
++## the Free Software Foundation; version 2 of the License.
++##
++## This program is distributed in the hope that it will be useful,
++## but WITHOUT ANY WARRANTY; without even the implied warranty of
++## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++## GNU General Public License for more details.
++##
++
++# -----------------------------------------------------------------
++entries
++
++#start-bit length  config config-ID    name
++
++0          120       r       0        reserved_memory
++
++# -----------------------------------------------------------------
++# RTC_BOOT_BYTE (coreboot hardcoded)
++384          1       e       4        boot_option
++388          4       h       0        reboot_counter
++
++# -----------------------------------------------------------------
++# coreboot config options: console
++395          4       e       6        debug_level
++448          128      r      0        vbnv
++
++# coreboot config options: check sums
++984         16       h       0        check_sum
++
++# -----------------------------------------------------------------
++
++enumerations
++
++#ID value   text
++1     0     Disable
++1     1     Enable
++2     0     Enable
++2     1     Disable
++4     0     Fallback
++4     1     Normal
++6     0     Emergency
++6     1     Alert
++6     2     Critical
++6     3     Error
++6     4     Warning
++6     5     Notice
++6     6     Info
++6     7     Debug
++6     8     Spew
++7     0     Disable
++7     1     Enable
++7     2     Keep
++# -----------------------------------------------------------------
++checksums
++
++checksum 392 415 984
+diff --git a/src/mainboard/supermicro/x11ssh/dsdt.asl b/src/mainboard/supermicro/x11ssh/dsdt.asl
+new file mode 100644
+index 0000000..ac929a6
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/dsdt.asl
+@@ -0,0 +1,50 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * Copyright (C) 2007-2009 coresystems GmbH
++ * Copyright (C) 2015 Google Inc.
++ * Copyright (C) 2016 Intel Corporation
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <arch/acpi.h>
++DefinitionBlock(
++	"dsdt.aml",
++	"DSDT",
++	0x02,		// DSDT revision: ACPI v2.0 and up
++	OEM_ID,
++	ACPI_TABLE_CREATOR,
++	0x20110725	// OEM revision
++)
++{
++	// Some generic macros
++	#include <soc/intel/skylake/acpi/platform.asl>
++
++	// global NVS and variables
++	#include <soc/intel/skylake/acpi/globalnvs.asl>
++
++	// CPU
++	#include <cpu/intel/common/acpi/cpu.asl>
++
++	Scope (\_SB) {
++		Device (PCI0)
++		{
++			#include <soc/intel/skylake/acpi/systemagent.asl>
++			#include <soc/intel/skylake/acpi/pch.asl>
++		}
++	}
++
++	// Chipset specific sleep states
++	#include <soc/intel/skylake/acpi/sleepstates.asl>
++
++	// Mainboard specific
++	#include "acpi/mainboard.asl"
++}
+diff --git a/src/mainboard/supermicro/x11ssh/gpio.h b/src/mainboard/supermicro/x11ssh/gpio.h
+new file mode 100644
+index 0000000..04857c6
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/gpio.h
+@@ -0,0 +1,256 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * Copyright (C) 2018 Intel Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _GPIOX11SSHTF_H
++#define _GPIOX11SSHTF_H
++
++#include <soc/gpe.h>
++#include <soc/gpio.h>
++
++
++/* GPP_B16 is WLAN_WAKE. GPP_B group is routed to DW0 in the GPE0 block */
++#define GPE_WLAN_WAKE		GPE0_DW0_16
++
++/* BIOS Flash Write Protect */
++#define GPIO_PCH_WP		GPP_C23
++
++#ifndef __ACPI__
++/*** XXX TODO XXX */
++static const struct pad_config gpio_table[] = {
++/* RCIN# */	_PAD_CFG_STRUCT(GPP_A0, 0x44000702, 0x00000000),
++/* LAD0 */	_PAD_CFG_STRUCT(GPP_A1, 0x44000702, 0x00000000),
++/* LAD1 */	_PAD_CFG_STRUCT(GPP_A2, 0x44000700, 0x00000000),
++/* LAD2 */	_PAD_CFG_STRUCT(GPP_A3, 0x44000702, 0x00000000),
++/* LAD3 */	_PAD_CFG_STRUCT(GPP_A4, 0x44000700, 0x00000000),
++/* LFRAME# */	_PAD_CFG_STRUCT(GPP_A5, 0x44000700, 0x00000000),
++/* SERIRQ */	_PAD_CFG_STRUCT(GPP_A6, 0x44000700, 0x00000000),
++/* PIRQA# */	_PAD_CFG_STRUCT(GPP_A7, 0x44000702, 0x00000000),
++/* CLKRUN# */	_PAD_CFG_STRUCT(GPP_A8, 0x44000700, 0x00000000),
++/* CLKOUT_LPC0 */	_PAD_CFG_STRUCT(GPP_A9, 0x44000700, 0x00000000),
++/* CLKOUT_LPC1 */	_PAD_CFG_STRUCT(GPP_A10, 0x44000700, 0x00000000),
++/* PME# */	_PAD_CFG_STRUCT(GPP_A11, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A12, 0x80080201, 0x00000000),
++/* SUSWARN# */	_PAD_CFG_STRUCT(GPP_A13, 0x44000700, 0x00000000),
++/* SUS_STAT# */	_PAD_CFG_STRUCT(GPP_A14, 0x44000700, 0x00000000),
++/* SUS_ACK# */	_PAD_CFG_STRUCT(GPP_A15, 0x44000702, 0x00000000),
++/* CLKOUT_48 */	_PAD_CFG_STRUCT(GPP_A16, 0x44000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A17, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A18, 0x84000100, 0x00000000),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_A19, 0xffffffff, 0xffffff00),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A20, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A21, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A22, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_A23, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B0, 0x44000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B1, 0x44000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B2, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B3, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B4, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B5, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B6, 0x84000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B7, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B8, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B9, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B10, 0x44000301, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B11, 0x44000200, 0x00000000),
++/* SLP_S0# */	_PAD_CFG_STRUCT(GPP_B12, 0x44000700, 0x00000000),
++/* PLTRST# */	_PAD_CFG_STRUCT(GPP_B13, 0x44000700, 0x00000000),
++/* SPKR */	_PAD_CFG_STRUCT(GPP_B14, 0x84000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B15, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B16, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B17, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B18, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B19, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B20, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B21, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_B22, 0x44000300, 0x00000000),
++/* PCHHOT# */	_PAD_CFG_STRUCT(GPP_B23, 0x40000b00, 0x00000000),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C0, 0xffffffff, 0xffffff00),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C1, 0xffffffff, 0xffffff00),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C2, 0x44000300, 0x00000000),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C3, 0xffffffff, 0xffffff00),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C4, 0xffffffff, 0xffffff00),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C5, 0x44000201, 0x00000000),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C6, 0xffffffff, 0xffffff00),
++/* RESERVED */	_PAD_CFG_STRUCT(GPP_C7, 0xffffffff, 0xffffff00),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C8, 0x84000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C9, 0x84000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C10, 0x84000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C11, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C12, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C13, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C14, 0x84000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C15, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C16, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C17, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C18, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C19, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C20, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C21, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C22, 0x42040102, 0x00003000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_C23, 0x84000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D0, 0x84000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D1, 0x44000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D2, 0x42020102, 0x00003000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D3, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D4, 0x84000200, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D5, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D6, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D7, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D8, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D9, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D10, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D11, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D12, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D13, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D14, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D15, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D16, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D17, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D18, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D19, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D20, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D21, 0x44000200, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D22, 0x04000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_D23, 0x44000300, 0x00000000),
++/* SATAXPCIE0 */	_PAD_CFG_STRUCT(GPP_E0, 0x44000502, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E1, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E2, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E3, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E4, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E5, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E6, 0x82020102, 0x00003000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_E7, 0x44000300, 0x00000000),
++/* SATA_LED# */	_PAD_CFG_STRUCT(GPP_E8, 0x44000700, 0x00000000),
++/* USB_OC0# */	_PAD_CFG_STRUCT(GPP_E9, 0x44000702, 0x00000000),
++/* USB_OC1# */	_PAD_CFG_STRUCT(GPP_E10, 0x44000702, 0x00000000),
++/* USB_OC2# */	_PAD_CFG_STRUCT(GPP_E11, 0x44000702, 0x00000000),
++/* USB_OC3# */	_PAD_CFG_STRUCT(GPP_E12, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F0, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F1, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F2, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F3, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F4, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F5, 0x80100102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F6, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F7, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F8, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F9, 0x84000102, 0x00000000),
++/* SATA_SCLOCK */	_PAD_CFG_STRUCT(GPP_F10, 0x44000700, 0x00000000),
++/* SATA_SLOAD */	_PAD_CFG_STRUCT(GPP_F11, 0x44000700, 0x00000000),
++/* SATA_SDATAOUT1 */	_PAD_CFG_STRUCT(GPP_F12, 0x44000700, 0x00000000),
++/* SATA_SDATAOUT2 */	_PAD_CFG_STRUCT(GPP_F13, 0x44000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F14, 0x44000300, 0x00000000),
++/* USB_OC4# */	_PAD_CFG_STRUCT(GPP_F15, 0x44000702, 0x00000000),
++/* USB_OC5# */	_PAD_CFG_STRUCT(GPP_F16, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F17, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F18, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F19, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F20, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F21, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F22, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_F23, 0x04000200, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G0, 0x44000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G1, 0x44000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G2, 0x44000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G3, 0x44000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G4, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G5, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G6, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G7, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G8, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G9, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G10, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G11, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G12, 0x84000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G13, 0x84000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G14, 0x84000102, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G15, 0x84000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G16, 0x84000100, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G17, 0x44000300, 0x00000000),
++/* NMI# */	_PAD_CFG_STRUCT(GPP_G18, 0x44000700, 0x00000000),
++/* SMI# */	_PAD_CFG_STRUCT(GPP_G19, 0x44000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G20, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G21, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G22, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_G23, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H0, 0x44000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H1, 0x84000103, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H2, 0x44000201, 0x00000000),
++/* SRCCLKREQ9# */	_PAD_CFG_STRUCT(GPP_H3, 0x44000602, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H4, 0x84000103, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H5, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H6, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H7, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H8, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H9, 0x84000201, 0x00000000),
++/* SML2CLK */	_PAD_CFG_STRUCT(GPP_H10, 0x44000702, 0x00000000),
++/* SML2DATA */	_PAD_CFG_STRUCT(GPP_H11, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H12, 0x44000300, 0x00000000),
++/* SML3CLK */	_PAD_CFG_STRUCT(GPP_H13, 0x44000702, 0x00000000),
++/* SML3DATA */	_PAD_CFG_STRUCT(GPP_H14, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H15, 0x44000300, 0x00000000),
++/* SML4CLK */	_PAD_CFG_STRUCT(GPP_H16, 0x44000702, 0x00000000),
++/* SML4DATA */	_PAD_CFG_STRUCT(GPP_H17, 0x44000702, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H18, 0x44000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H19, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H20, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H21, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H22, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_H23, 0x84000201, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD0, 0x04000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD1, 0x04000300, 0x00000000),
++/* LAN_WAKE# */	_PAD_CFG_STRUCT(GPD2, 0x04000702, 0x00000000),
++/* PWRBTN# */	_PAD_CFG_STRUCT(GPD3, 0x04000702, 0x00000000),
++/* SLP_S3# */	_PAD_CFG_STRUCT(GPD4, 0x04000700, 0x00000000),
++/* SLP_S4# */	_PAD_CFG_STRUCT(GPD5, 0x04000700, 0x00000000),
++/* SLP_A# */	_PAD_CFG_STRUCT(GPD6, 0x04000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD7, 0x04000301, 0x00000000),
++/* SUSCLK */	_PAD_CFG_STRUCT(GPD8, 0x04000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD9, 0x04000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD10, 0x04000300, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPD11, 0x04000300, 0x00000000),
++/* DDPB_HPD0 */	_PAD_CFG_STRUCT(GPP_I0, 0x44000700, 0x00000000),
++/* DDPC_HPD1 */	_PAD_CFG_STRUCT(GPP_I1, 0x44000700, 0x00000000),
++/* DDPD_HPD2 */	_PAD_CFG_STRUCT(GPP_I2, 0x44000700, 0x00000000),
++/* DDPE_HPD3 */	_PAD_CFG_STRUCT(GPP_I3, 0x84000700, 0x00000000),
++/* GPIO */	_PAD_CFG_STRUCT(GPP_I4, 0x44000300, 0x00000000),
++/* DDPB_CTRLCLK */	_PAD_CFG_STRUCT(GPP_I5, 0x44000700, 0x00000000),
++/* DDPB_CTRLDATA */	_PAD_CFG_STRUCT(GPP_I6, 0x44000700, 0x00000000),
++/* DDPC_CTRLCLK */	_PAD_CFG_STRUCT(GPP_I7, 0x44000700, 0x00000000),
++/* DDPC_CTRLDATA */	_PAD_CFG_STRUCT(GPP_I8, 0x44000700, 0x00000000),
++/* DDPD_CTRLCLK */	_PAD_CFG_STRUCT(GPP_I9, 0x44000700, 0x00000000),
++/* DDPD_CTRLDATA */	_PAD_CFG_STRUCT(GPP_I10, 0x44000700, 0x00000000),
++};
++
++
++/*** XXX TODO XXX */
++/* Early pad configuration in romstage. */
++static const struct pad_config early_gpio_table[] = {
++/* LPC */
++
++/* LAD0 */	_PAD_CFG_STRUCT(GPP_A1, 0x44000702, 0x00000000),
++/* LAD1 */	_PAD_CFG_STRUCT(GPP_A2, 0x44000700, 0x00000000),
++/* LAD2 */	_PAD_CFG_STRUCT(GPP_A3, 0x44000702, 0x00000000),
++/* LAD3 */	_PAD_CFG_STRUCT(GPP_A4, 0x44000700, 0x00000000),
++/* LFRAME# */	_PAD_CFG_STRUCT(GPP_A5, 0x44000700, 0x00000000),
++/* SERIRQ */	_PAD_CFG_STRUCT(GPP_A6, 0x44000700, 0x00000000),
++/* CLKRUN# */	_PAD_CFG_STRUCT(GPP_A8, 0x44000700, 0x00000000),
++/* CLKOUT_LPC0 */	_PAD_CFG_STRUCT(GPP_A9, 0x44000700, 0x00000000),
++/* CLKOUT_LPC1 */	_PAD_CFG_STRUCT(GPP_A10, 0x44000700, 0x00000000),
++};
++
++#endif /* __ACPI__ */
++#endif /* _GPIOX11SSHTF_H */
+diff --git a/src/mainboard/supermicro/x11ssh/mainboard.c b/src/mainboard/supermicro/x11ssh/mainboard.c
+new file mode 100644
+index 0000000..d09a373
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/mainboard.c
+@@ -0,0 +1,26 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * Copyright (C) 2007-2009 coresystems GmbH
++ * Copyright (C) 2013 Google Inc.
++ * Copyright (C) 2016 Intel Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <device/device.h>
++
++static void mainboard_enable(struct device *dev)
++{
++}
++
++struct chip_operations mainboard_ops = {
++	.enable_dev = mainboard_enable,
++};
+diff --git a/src/mainboard/supermicro/x11ssh/ramstage.c b/src/mainboard/supermicro/x11ssh/ramstage.c
+new file mode 100644
+index 0000000..2672f73
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/ramstage.c
+@@ -0,0 +1,27 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <bootstate.h>
++#include <soc/ramstage.h>
++#include "gpio.h"
++
++void mainboard_silicon_init_params(FSP_SIL_UPD *params)
++{
++	/* Configure pads prior to SiliconInit() in case there's any
++	 * dependencies during hardware initialization. */
++	gpio_configure_pads(gpio_table, ARRAY_SIZE(gpio_table));
++	params->CdClock = 3;
++
++	/* This must be one, otherwise FSP crashes ... */
++	params->PchHdaVcType = 0x1;
++}
+diff --git a/src/mainboard/supermicro/x11ssh/romstage.c b/src/mainboard/supermicro/x11ssh/romstage.c
+new file mode 100644
+index 0000000..cb1f105
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/romstage.c
+@@ -0,0 +1,37 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <fsp/api.h>
++#include <soc/romstage.h>
++#include <spd_bin.h>
++
++void mainboard_memory_init_params(FSPM_UPD *mupd)
++{
++	FSP_M_CONFIG *mem_cfg;
++	mem_cfg = &mupd->FspmConfig;
++
++	struct spd_block blk = {
++		.addr_map = { 0x50, 0x51, 0x52, 0x53, },
++	};
++
++	mem_cfg->DqPinsInterleaved = 1;
++	get_spd_smbus(&blk);
++	mem_cfg->MemorySpdDataLen = blk.len;
++	mem_cfg->MemorySpdPtr00 = (uintptr_t)blk.spd_array[0];
++	mem_cfg->MemorySpdPtr10 = (uintptr_t)blk.spd_array[2];
++	mem_cfg->MemorySpdPtr01 = (uintptr_t)blk.spd_array[1];
++	mem_cfg->MemorySpdPtr11 = (uintptr_t)blk.spd_array[3];
++	mem_cfg->UserBd = BOARD_TYPE_SERVER;
++
++	mupd->FspmTestConfig.DmiVc1 = 1;
++}
+diff --git a/src/mainboard/supermicro/x11ssh/variants/tf/board_info.txt b/src/mainboard/supermicro/x11ssh/variants/tf/board_info.txt
+new file mode 100644
+index 0000000..f3eb3ef
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/variants/tf/board_info.txt
+@@ -0,0 +1,6 @@
++Vendor name: Supermicro
++Board name: X11SSH-TF
++Category: server
++ROM protocol: SPI
++ROM socketed: n
++Flashrom support: y
+diff --git a/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb b/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb
+new file mode 100644
+index 0000000..dbb589f
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb
+@@ -0,0 +1,290 @@
++chip soc/intel/skylake
++
++	# Enable deep Sx states
++	register "deep_s5_enable_ac" = "0"
++	register "deep_s5_enable_dc" = "0"
++	register "deep_sx_config" = "DSX_EN_LAN_WAKE_PIN"
++
++	# GPE configuration
++	# Note that GPE events called out in ASL code rely on this
++	# route. i.e. If this route changes then the affected GPE
++	# offset bits also need to be changed.
++	register "gpe0_dw0" = "GPP_B"
++	register "gpe0_dw1" = "GPP_D"
++	register "gpe0_dw2" = "GPP_E"
++
++	register "gen1_dec" = "0x007c0a01" # Super IO
++	register "gen2_dec" = "0x000c0ca1" # IPMI KCS
++	register "gen3_dec" = "0x000c03e1" # UART3/4
++
++	# Enable "Intel Speed Shift Technology"
++	register "speed_shift_enable" = "1"
++
++	# FSP Configuration
++	register "SmbusEnable" = "1"
++	register "ScsEmmcEnabled" = "0"
++	register "ScsEmmcHs400Enabled" = "0"
++	register "ScsSdCardEnabled" = "0"
++	register "SkipExtGfxScan" = "1"
++	register "Device4Enable" = "1"
++	register "SaGv" = "SaGv_Enabled"
++
++	# Disable SGX
++	register "sgx_enable" = "0" # SGX is broken in coreboot
++	register "PrmrrSize" = "128 * MiB"
++
++	register "pirqa_routing" = "PCH_IRQ11"
++	register "pirqb_routing" = "PCH_IRQ10"
++	register "pirqc_routing" = "PCH_IRQ11"
++	register "pirqd_routing" = "PCH_IRQ11"
++	register "pirqe_routing" = "PCH_IRQ11"
++	register "pirqf_routing" = "PCH_IRQ11"
++	register "pirqg_routing" = "PCH_IRQ11"
++	register "pirqh_routing" = "PCH_IRQ11"
++
++	register "SataMode" = "0"
++	register "EnableSata" = "1"
++	register "SataSalpSupport" = "1"
++	register "SataPortsEnable" = "{ \
++		[0]	= 1, \
++		[1]	= 1, \
++		[2]	= 1, \
++		[3]	= 1, \
++		[4]	= 1, \
++		[5]	= 1, \
++		[6]	= 1, \
++		[7]	= 1, \
++	}"
++
++	register "SataPortsDevSlp" = "{\
++		[0]	= 0, \
++		[1]	= 0, \
++		[2]	= 0, \
++		[3]	= 0, \
++		[4]	= 0, \
++		[5]	= 0, \
++		[6]	= 0, \
++		[7]	= 0, \
++	}"
++
++	# USB related
++	register "SsicPortEnable" = "1"
++
++	register "usb2_ports[0]" = "USB2_PORT_MID(OC0)"  # OTG
++	register "usb2_ports[1]" = "USB2_PORT_MID(OC0)"  # Touch Pad
++	register "usb2_ports[14]" = "USB2_PORT_MID(OC0)"  # OTG
++	register "usb2_ports[15]" = "USB2_PORT_MID(OC0)"  # Touch Pad
++
++	register "usb2_ports[2]" = "USB2_PORT_MID(OC1)"  # OTG
++	register "usb2_ports[3]" = "USB2_PORT_MID(OC1)"  # Touch Pad
++
++	register "usb2_ports[4]" = "USB2_PORT_MID(OC2)"  # OTG
++	register "usb2_ports[5]" = "USB2_PORT_MID(OC2)"  # Touch Pad
++
++	register "usb2_ports[8]" = "USB2_PORT_MID(OC3)"  # OTG
++	register "usb2_ports[12]" = "USB2_PORT_MID(OC3)"  # Touch Pad
++
++	register "usb2_ports[10]" = "USB2_PORT_MID(OC4)"  # OTG
++	register "usb2_ports[11]" = "USB2_PORT_MID(OC4)"  # Touch Pad
++
++	register "usb2_ports[9]" = "USB2_PORT_MID(OC5)"  # Touch Pad
++
++	register "usb2_ports[13]" = "USB2_PORT_MID(OC_SKIP)"  # IPMI USB HUB
++
++	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC3)" # OTG
++	register "usb3_ports[4]" = "USB3_PORT_DEFAULT(OC3)" # M.2 WWAN
++
++	register "usb3_ports[1]" = "USB3_PORT_DEFAULT(OC4)" # OTG
++	register "usb3_ports[2]" = "USB3_PORT_DEFAULT(OC4)" # M.2 WWAN
++
++	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC5)" # M.2 WWAN
++
++	register "serirq_mode" = "SERIRQ_CONTINUOUS"
++
++	# Enable PCIE slot
++	register "PcieRpEnable[0]" = "1"
++	register "PcieRpClkReqSupport[0]" = "0"
++
++	# Enable PCIE slot
++	register "PcieRpEnable[2]" = "1"
++	register "PcieRpClkReqSupport[2]" = "0"
++
++	# Enable PCIE slot
++	register "PcieRpEnable[4]" = "1"
++	register "PcieRpClkReqSupport[4]" = "0"
++
++	# Enabling SLP_S3#, SLP_S4#, SLP_SUS and SLP_A Stretch
++	# SLP_S3 Minimum Assertion Width. Values 0: 60us, 1: 1ms, 2: 50ms, 3: 2s
++	register "PmConfigSlpS3MinAssert" = "0x02"
++
++	# SLP_S4 Minimum Assertion Width. Values 0: default, 1: 1s, 2: 2s, 3: 3s, 4: 4s
++	register "PmConfigSlpS4MinAssert" = "0x04"
++
++	# SLP_SUS Minimum Assertion Width. Values 0: 0ms, 1: 500ms, 2: 1s, 3: 4s
++	register "PmConfigSlpSusMinAssert" = "0x03"
++
++	# SLP_A Minimum Assertion Width. Values 0: 0ms, 1: 4s, 2: 98ms, 3: 2s
++	register "PmConfigSlpAMinAssert" = "0x03"
++
++
++	# VR Settings Configuration for 4 Domains
++	#+----------------+-------+-------+-------+-------+
++	#| Domain/Setting |  SA   |  IA   | GTUS  |  GTS  |
++	#+----------------+-------+-------+-------+-------+
++	#| Psi1Threshold  | 20A   | 20A   | 20A   | 20A   |
++	#| Psi2Threshold  | 5A    | 5A    | 5A    | 5A    |
++	#| Psi3Threshold  | 1A    | 1A    | 1A    | 1A    |
++	#| Psi3Enable     | 1     | 1     | 1     | 1     |
++	#| Psi4Enable     | 1     | 1     | 1     | 1     |
++	#| ImonSlope      | 0     | 0     | 0     | 0     |
++	#| ImonOffset     | 0     | 0     | 0     | 0     |
++	#| IccMax         | 7A    | 34A   | 35A   | 35A   |
++	#| VrVoltageLimit | 1.52V | 1.52V | 1.52V | 1.52V |
++	#+----------------+-------+-------+-------+-------+
++	register "domain_vr_config[VR_SYSTEM_AGENT]" = "{
++		.vr_config_enable = 1, \
++		.psi1threshold = 0x50, \
++		.psi2threshold = 0x10, \
++		.psi3threshold = 0x4, \
++		.psi3enable = 1, \
++		.psi4enable = 1, \
++		.imon_slope = 0x0, \
++		.imon_offset = 0x0, \
++		.icc_max = 0x1C, \
++		.voltage_limit = 0x5F0 \
++	}"
++
++	register "domain_vr_config[VR_IA_CORE]" = "{
++		.vr_config_enable = 1, \
++		.psi1threshold = 0x50, \
++		.psi2threshold = 0x14, \
++		.psi3threshold = 0x4, \
++		.psi3enable = 1, \
++		.psi4enable = 1, \
++		.imon_slope = 0x0, \
++		.imon_offset = 0x0, \
++		.icc_max = 0x88, \
++		.voltage_limit = 0x5F0 \
++	}"
++
++	register "domain_vr_config[VR_GT_UNSLICED]" = "{
++		.vr_config_enable = 1, \
++		.psi1threshold = 0x50, \
++		.psi2threshold = 0x14, \
++		.psi3threshold = 0x4, \
++		.psi3enable = 1, \
++		.psi4enable = 1, \
++		.imon_slope = 0x0, \
++		.imon_offset = 0x0, \
++		.icc_max = 0x8C ,\
++		.voltage_limit = 0x5F0 \
++	}"
++
++	register "domain_vr_config[VR_GT_SLICED]" = "{
++		.vr_config_enable = 1, \
++		.psi1threshold = 0x50, \
++		.psi2threshold = 0x14, \
++		.psi3threshold = 0x4, \
++		.psi3enable = 1, \
++		.psi4enable = 1, \
++		.imon_slope = 0x0, \
++		.imon_offset = 0x0, \
++		.icc_max = 0x8C, \
++		.voltage_limit = 0x5F0 \
++	}"
++
++	# Send an extra VR mailbox command for the PS4 exit issue
++	register "SendVrMbxCmd" = "2"
++
++	# Lock Down
++	register "common_soc_config" = "{
++	.chipset_lockdown = CHIPSET_LOCKDOWN_COREBOOT,
++	}"
++
++	device cpu_cluster 0 on
++		device lapic 0 on end
++	end
++	device domain 0 on
++		device pci 00.0 on  end # Host Bridge
++		device pci 01.0 on  end # PCI Slot
++		device pci 01.1 on
++			smbios_slot_desc "SlotTypePciExpressGen3X8" "SlotLengthShort" "CPU SLOT6 PCI-E 3.0 X8" "SlotDataBusWidth4X"
++		end # PCIE Slot (JPCIE1)
++		device pci 14.0 on  end # USB xHCI
++		device pci 14.2 on  end # Thermal Subsystem
++		device pci 16.0 on  end # Management Engine Interface 1
++		device pci 16.1 on end # Management Engine Interface 2
++		device pci 17.0 on end # SATA
++		device pci 1c.0 on
++			smbios_slot_desc "SlotTypePciExpressGen3X4" "SlotLengthLong" "PCH SLOT4 PCI-E 3.0 X2(IN X4)" "SlotDataBusWidth2X"
++		end # PCI Express Port 1 (Slot JPCIE1)
++		device pci 1c.2 on
++			device pci 00.0 on
++				device pci 00.0 on end #Aspeed 2400 VGA
++			end
++		end # PCI Express Port 3
++		device pci 1c.4 on
++			device pci 00.0 on  end # 10GBE
++			device pci 00.1 on  end # 10GBE
++		end # PCI Express Port 5
++		device pci 1f.0 on
++			chip drivers/ipmi
++				device pnp ca2.0 on
++				end         # IPMI KCS
++			end
++			chip superio/common
++				device pnp 2e.0 on
++					chip superio/aspeed/ast2400
++						device pnp 2e.0 off  end
++						device pnp 2e.2 on # SUART1
++							io 0x60 = 0x3f8
++							irq 0x70 = 4
++						end
++						device pnp 2e.3 on # SUART2
++							io 0x60 = 0x2f8
++							irq 0x70 = 3
++						end
++						device pnp 2e.4 on # SWC
++							io 0x60 = 0xa00
++							io 0x62 = 0xa10
++							io 0x64 = 0xa20
++							io 0x66 = 0xa30
++							irq 0x70 = 0
++						end
++						device pnp 2e.5 on #  Keyboard
++							io 0x60 = 0x60
++							io 0x62 = 0x64
++							irq 0x70 = 1
++							irq 0x72 = 0xc
++						end
++						device pnp 2e.7 on #  GPIO
++							irq 0x70 = 0
++						end
++						device pnp 2e.b on #  SUART3
++							io 0x60 = 0x3e8
++							irq 0x70 = 6
++						end
++						device pnp 2e.c on # SUART4
++							io 0x60 = 0x2e8
++							irq 0x70 = 5
++						end
++						device pnp 2e.d on #  iLPC2AHB
++							irq 0x70 = 0
++						end
++						device pnp 2e.e on #  Mailbox
++							io 0x60 = 0xa40
++							irq 0x70 = 0x00
++						end
++					end
++				end
++			end
++			chip drivers/pc80/tpm
++				device pnp 0c31.0 on end
++			end
++		end # LPC Interface
++		device pci 1f.1 off end # P2SB
++		device pci 1f.2 on  end # Power Management Controller
++		device pci 1f.4 on  end # SMBus
++		device pci 1f.5 on  end # SPI Controller
++	end
++end
+diff --git a/src/mainboard/supermicro/x11ssh/vboot-ro-rwab.fmd b/src/mainboard/supermicro/x11ssh/vboot-ro-rwab.fmd
+new file mode 100644
+index 0000000..a295680
+--- /dev/null
++++ b/src/mainboard/supermicro/x11ssh/vboot-ro-rwab.fmd
+@@ -0,0 +1,36 @@
++FLASH 16M {
++	SI_ALL@0x0 0x500000 {
++		SI_DESC@0x0 0x1000
++		SI_ME@0x1000 0x4ff000
++	}
++	SI_BIOS@0x500000 0xb00000 {
++		RW_SECTION_A@0x0 0x33e000 {
++			VBLOCK_A@0x0 0x20000
++			FW_MAIN_A(CBFS)@0x20000 0x31dfc0
++			RW_FWID_A@0x33dfc0 0x40
++		}
++		RW_SECTION_B@0x33e000 0x33e000 {
++			VBLOCK_B@0x0 0x20000
++			FW_MAIN_B(CBFS)@0x20000 0x31dfc0
++			RW_FWID_B@0x33dfc0 0x40
++		}
++		MISC_RW@0x67d000 0x62000 {
++			UNIFIED_MRC_CACHE@0x0 0x20000 {
++				RECOVERY_MRC_CACHE@0x0 0x10000
++				RW_MRC_CACHE@0x10000 0x10000
++			}
++			RW_VPD(PRESERVE)@0x20000 0x2000
++			SMMSTORE(PRESERVE)@0x22000 0x40000
++		}
++		WP_RO@0x6df000 0x421000 {
++			RO_VPD(PRESERVE)@0x0 0x4000
++			RO_SECTION@0x4000 0x41d000 {
++				FMAP@0x0 0x800
++				RO_FRID@0x800 0x40
++				RO_FRID_PAD@0x840 0x7c0
++				GBB@0x1000 0xef000
++				COREBOOT(CBFS)@0xf0000 0x32d000
++			}
++		}
++	}
++}
