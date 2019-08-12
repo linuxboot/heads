@@ -1,0 +1,14 @@
+#!/bin/sh
+# Setup the devices for SATA
+. /etc/functions
+
+for mod in libata libahci ahci; do
+	if ! lsmod | grep -q "^$mod " ; then
+		insmod "/lib/modules/$mod.ko" \
+		|| die "$mod: Unable to load module"
+	fi
+done
+
+if [ ! -z "$1" ]; then
+	exec mount "$@"
+fi
