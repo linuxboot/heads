@@ -102,11 +102,43 @@ update_totp()
   fi
 }
 
+clean_boot_check()
+{
+  # assume /boot mounted
+  if ! grep -q /boot /proc/mounts ; then
+    return
+  fi
+
+  # check for any kexec files in /boot
+  kexec_files=`find /boot -name kexec*.txt`
+  [ ! -z "$kexec_files" ] && return
+  
+  #check for GPG key in keyring
+  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+  [ $GPG_KEY_COUNT -ne 0 ] && return
+
+   # check for USB security token
+  if ! gpg --card-status > /dev/null ; then
+   return
+  fi
+
+  # OS is installed, no kexec files present, no GPG keys in keyring, security token present
+  # prompt user to run OEM factory reset
+  oem-factory-reset \
+    "Clean Boot Detected - Perform OEM Factory Reset?" "$CONFIG_WARNING_BG_COLOR"
+}
+
 # enable USB to load modules for external kb
 enable_usb
 
-# ensure /boot is sane and mount it
-mount_boot
+if detect_boot_device ; then
+  # /boot device with installed OS found
+  clean_boot_check
+else
+  # can't determine /boot device or no OS installed, 
+  # so fall back to interactive selection
+  mount_boot
+fi
 
 last_half=X
 while true; do
