@@ -293,3 +293,50 @@ update_checksums()
 	# switch back to ro mode
 	mount -o ro,remount /boot
 }
+
+# detect and set /boot device
+# mount /boot if successful
+detect_boot_device()
+{
+	# unmount /boot to be safe
+	umount /boot 2>/dev/null
+
+	# check $CONFIG_BOOT_DEV if set/valid
+	if [ -e "$CONFIG_BOOT_DEV" ]; then
+		mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1
+		if [[ $? && -d /boot/grub ]]; then
+			# CONFIG_BOOT_DEV is valid device and contains an installed OS
+			return 0
+		fi
+	fi
+
+	# generate list of possible boot devices
+	fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
+	
+	# filter out extraneous options
+	> /tmp/boot_device_list
+	for i in `cat /tmp/disklist`; do
+		# remove block device from list if numeric partitions exist, since not bootable
+		let DEV_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+			echo $i >> /tmp/boot_device_list
+		else
+			ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
+		fi
+	done
+	
+	# iterate thru possible options and check for grub dir
+	for i in `cat /tmp/boot_device_list`; do
+		umount /boot 2>/dev/null
+		mount -o ro $i /boot >/dev/null 2>&1
+		if [[ $? && -d /boot/grub ]]; then
+			CONFIG_BOOT_DEV="$i"
+			return 0
+		fi
+	done
+
+	# no valid boot device found
+	echo "Unable to locate /boot files on any mounted disk"
+	umount /boot 2>/dev/null
+	return 1
+}
