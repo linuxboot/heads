@@ -43,6 +43,12 @@ flash_rom() {
       preserve_rom /tmp/${CONFIG_BOARD}.rom \
       || die "$ROM: Config preservation failed"
     fi
+    # persist serial number from CBFS
+    if cbfs -r serial_number > /tmp/serial 2>/dev/null; then
+      echo "Persisting system serial"
+      cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
+      cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
+    fi
 
     flashrom $FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \
     || die "$ROM: Flash failed"
