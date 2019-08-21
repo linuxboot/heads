@@ -90,11 +90,9 @@ prompt_update_checksums()
 }
 update_totp()
 {
-  echo "Scan the QR code to add the new TOTP secret"
+  echo -e "Scan the QR code to add the new TOTP secret...\n\n"
   /bin/seal-totp
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key"
-    read
     /bin/seal-libremkey
   else
     echo "Once you have scanned the QR code, hit Enter to continue"
