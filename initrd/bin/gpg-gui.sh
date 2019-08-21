@@ -105,7 +105,9 @@ gpg_flash_rom() {
   if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
     cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
   fi
-  cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+  if [ -e /.gnupg/trustdb.gpg ]; then
+    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+  fi
 
   #Remove old method owner trust exported file
   if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
@@ -116,8 +118,9 @@ gpg_flash_rom() {
   if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
     cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/etc/config.user"
   fi
-  cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
-
+  if [ -e /etc/config.user ]; then
+    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+  fi
   /bin/flash.sh /tmp/gpg-gui.rom
 
   if (whiptail --title 'BIOS Flashed Successfully' \
@@ -193,7 +196,12 @@ gpg_add_key_reflash() {
       find /media -name '*.key' > /tmp/filelist.txt
       find /media -name '*.asc' >> /tmp/filelist.txt
       file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-      PUBKEY=$FILE
+      # bail if user didn't select a file
+      if [ "$FILE" = "" ]; then
+        return
+      else
+        PUBKEY=$FILE
+      fi
 
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
