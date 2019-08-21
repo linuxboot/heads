@@ -19,6 +19,13 @@ mount_boot()
 
 TRACE "Under /bin/seal-hotpkey"
 
+fatal_error()
+{
+  echo -e "\nERROR: ${1}; press Enter to continue."
+  read
+  die "$1"
+}
+
 # Use stored HOTP key branding (this might be useful after OEM reset)
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
@@ -29,7 +36,7 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" \
-		|| die "Unable to unseal HOTP secret"
+		|| fatal_error "Unable to unseal HOTP secret"
 else
 	# without a TPM, use the first 20 characters of the ROM SHA256sum 
 	secret_from_rom_hash > "$HOTP_SECRET"
@@ -55,12 +62,12 @@ counter_value=1
 
 enable_usb
 if ! hotp_verification info ; then
-  echo "Insert your $HOTPKEY_BRANDING and press Enter to configure it"
+  echo -e "\nInsert your $HOTPKEY_BRANDING and press Enter to configure it"
   read
   if ! hotp_verification info ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-    die "Unable to find $HOTPKEY_BRANDING"
+    fatal_error "Unable to find $HOTPKEY_BRANDING"
   fi
 fi
 
@@ -73,20 +80,29 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-echo -e ""
-read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
-echo -e "\n"
-
-hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
+# try using factory default admin PIN
+admin_pin="12345678"
+hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
 if [ $? -ne 0 ]; then
+  # prompt user for PIN and retry
+  echo ""
+  read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
   echo -e "\n"
-  read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
-  echo -e "\n"
-  if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
-    # don't leak key on failure
-    shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-    die "Setting HOTP secret failed"
+  
+  hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
+  if [ $? -ne 0 ]; then
+    echo -e "\n"
+    read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
+    echo -e "\n"
+    if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
+      # don't leak key on failure
+      shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
+      fatal_error "Setting HOTP secret failed"
+    fi
   fi
+else 
+  # remind user to change admin password
+  echo -e "\nWARNING: default GPG admin PIN detected: please change this as soon as possible."
 fi
 
 # HOTP key no longer needed
@@ -102,7 +118,7 @@ mount -o remount,rw /boot
 
 counter_value=`expr $counter_value + 1`
 echo $counter_value > $HOTP_COUNTER \
-|| die "Unable to create hotp counter file"
+|| fatal_error "Unable to create hotp counter file"
 
 # Store/overwrite HOTP USB Security Dongle branding found out beforehand
 echo $HOTPKEY_BRANDING > $HOTP_KEY \
