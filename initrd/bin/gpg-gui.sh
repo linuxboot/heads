@@ -164,29 +164,6 @@ gpg_post_gen_mgmt() {
       gpg_flash_rom
   fi
 }
-gpg_sc_oem_reset() {
-  GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
-  # Factory reset GPG card
-  {
-    echo admin
-    echo factory-reset
-    echo y
-    echo yes
-  } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit > /tmp/gpg_card_edit_output || return 1
-  # Generate OEM GPG keys
-  {
-    echo admin
-    echo generate
-    echo n
-    echo 12345678
-    echo 123456
-    echo 0
-    echo y
-    echo "OEM Key"
-    echo "oem-${GPG_KEY_NAME}@example.com"
-    echo "OEM-generated key"
-  } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit > /tmp/gpg_card_edit_output || return 2
-}
 
 gpg_add_key_reflash() {
   if (whiptail --title 'GPG public key required' \
@@ -229,7 +206,6 @@ while true; do
     'e' ' Replace GPG key(s) in the current ROM + reflash' \
     'l' ' List GPG keys in your keyring' \
     'g' ' Generate GPG keys manually on a USB security token' \
-    'o' ' OEM Factory reset + auto keygen USB security token' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -301,24 +277,6 @@ while true; do
       gpg --card-edit > /tmp/gpg_card_edit_output
       if [ $? -eq 0 ]; then
         gpg_post_gen_mgmt
-      fi
-    ;;
-    "o" )
-      if (whiptail $CONFIG_WARNING_BG_COLOR --title 'WARNING: Factory Reset USB Security Token?' \
-          --yesno "This will perform a FACTORY RESET of the USB security token!\n\nThis will:\n* Reset all security token passwords to default\n* Erase any keys on the security token\n* Generate new automated GPG keys on the token\n\nAny data now on the USB security token will be LOST!\n\nDo you want to proceed?" 16 120) then
-        confirm_gpg_card
-        gpg_sc_oem_reset
-        if [ $? -eq 0 ]; then
-          gpg_post_gen_mgmt
-        elif [ $? -eq 1 ]; then
-          GPG_OUTPUT=`cat /tmp/gpg_card_edit_output`
-          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Factory Reset Failed!' \
-            --msgbox "Factory Reset Failed!\n\n$GPG_OUTPUT" 16 120
-        elif [ $? -eq 2 ]; then
-          GPG_OUTPUT=`cat /tmp/gpg_card_edit_output`
-          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Automatic Keygen Failed!' \
-            --msgbox "Automatic Keygen Failed!\n\n$GPG_OUTPUT" 16 120
-        fi
       fi
     ;;
   esac
