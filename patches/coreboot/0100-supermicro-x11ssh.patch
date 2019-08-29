@@ -1,4 +1,4 @@
-From 2d795267e2fe78af4eb4070e2562aed5fec25dde Mon Sep 17 00:00:00 2001
+From c933f4972abb7acca4981d193cfddd9d4290f3ff Mon Sep 17 00:00:00 2001
 From: Christian Walter <christian.walter@9elements.com>
 Date: Fri, 10 May 2019 15:52:00 +0200
 Subject: [PATCH] mb/supermicro/x11ssh: Add Supermicro X11SSH-TF
@@ -9,7 +9,7 @@ Working:
 * SeaBios payload
 * LinuxBoot payload
 * IPMI of BMC
-* PCIe, SATA, USB ports
+* PCIe, SATA, USB and M.2 ports
 * RS232 serial
 * Native graphics init
 
@@ -44,10 +44,10 @@ index 0f3105f..08689b7 100644
  
 diff --git a/Documentation/mainboard/supermicro/x11ssh-tf.md b/Documentation/mainboard/supermicro/x11ssh-tf.md
 new file mode 100644
-index 0000000..e23309d
+index 0000000..b35874d
 --- /dev/null
 +++ b/Documentation/mainboard/supermicro/x11ssh-tf.md
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,74 @@
 +# Supermicro X11SSH-TF
 +
 +This section details how to run coreboot on the [Supermicro X11SSH-TF].
@@ -76,13 +76,14 @@ index 0000000..e23309d
 +## Known issues
 +
 +- Intel SGX causes secondary APs to crash (disabled for now).
-+- MP init causes secondary APs to crash (fix in gerrit).
 +- Tianocore doesn't work with Aspeed NGI, as it's text mode only.
-+- The IPMI driver times out on cold boot (fix in gerrit).
++- After S5 resume coreboot detects more DIMMs than installed, causing FSP-M
++  to fail.
 +
-+## Working
++## Tested and working
 +
-+- USB
++- USB ports
++- M.2 2280 NVMe slot
 +- 2x 10GB Ethernet
 +- SATA
 +- RS232
@@ -841,10 +842,10 @@ index 0000000..f3eb3ef
 +Flashrom support: y
 diff --git a/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb b/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb
 new file mode 100644
-index 0000000..dbb589f
+index 0000000..38699ee
 --- /dev/null
 +++ b/src/mainboard/supermicro/x11ssh/variants/tf/devicetree.cb
-@@ -0,0 +1,290 @@
+@@ -0,0 +1,289 @@
 +chip soc/intel/skylake
 +
 +	# Enable deep Sx states
@@ -860,9 +861,10 @@ index 0000000..dbb589f
 +	register "gpe0_dw1" = "GPP_D"
 +	register "gpe0_dw2" = "GPP_E"
 +
-+	register "gen1_dec" = "0x007c0a01" # Super IO
++	register "gen1_dec" = "0x007c0a01" # Super IO SWC
 +	register "gen2_dec" = "0x000c0ca1" # IPMI KCS
-+	register "gen3_dec" = "0x000c03e1" # UART3/4
++	register "gen3_dec" = "0x000c03e1" # UART3
++	register "gen4_dec" = "0x000c02e1" # UART4
 +
 +	# Enable "Intel Speed Shift Technology"
 +	register "speed_shift_enable" = "1"
@@ -874,7 +876,7 @@ index 0000000..dbb589f
 +	register "ScsSdCardEnabled" = "0"
 +	register "SkipExtGfxScan" = "1"
 +	register "Device4Enable" = "1"
-+	register "SaGv" = "SaGv_Enabled"
++	register "SaGv" = "SaGv_Disabled"
 +
 +	# Disable SGX
 +	register "sgx_enable" = "0" # SGX is broken in coreboot
@@ -889,7 +891,8 @@ index 0000000..dbb589f
 +	register "pirqg_routing" = "PCH_IRQ11"
 +	register "pirqh_routing" = "PCH_IRQ11"
 +
-+	register "SataMode" = "0"
++	# SATA configuration
++	register "SataMode" = "0" # AHCI
 +	register "EnableSata" = "1"
 +	register "SataSalpSupport" = "1"
 +	register "SataPortsEnable" = "{ \
@@ -914,51 +917,55 @@ index 0000000..dbb589f
 +		[7]	= 0, \
 +	}"
 +
-+	# USB related
-+	register "SsicPortEnable" = "1"
++	# superspeed_inter-chip_supplement (SSIC) disabled
++	register "SsicPortEnable" = "0"
 +
-+	register "usb2_ports[0]" = "USB2_PORT_MID(OC0)"  # OTG
-+	register "usb2_ports[1]" = "USB2_PORT_MID(OC0)"  # Touch Pad
-+	register "usb2_ports[14]" = "USB2_PORT_MID(OC0)"  # OTG
-+	register "usb2_ports[15]" = "USB2_PORT_MID(OC0)"  # Touch Pad
++	# USB configuration
++	register "usb2_ports[0]" = "USB2_PORT_MID(OC0)" # USB2/3
++	register "usb2_ports[1]" = "USB2_PORT_MID(OC0)" # USB2/3
++	register "usb2_ports[14]" = "USB2_PORT_MID(OC0)" # ?
++	register "usb2_ports[15]" = "USB2_PORT_MID(OC0)" # ?
 +
-+	register "usb2_ports[2]" = "USB2_PORT_MID(OC1)"  # OTG
-+	register "usb2_ports[3]" = "USB2_PORT_MID(OC1)"  # Touch Pad
++	register "usb2_ports[2]" = "USB2_PORT_MID(OC1)" # USB4/5
++	register "usb2_ports[3]" = "USB2_PORT_MID(OC1)" # USB4/5
 +
-+	register "usb2_ports[4]" = "USB2_PORT_MID(OC2)"  # OTG
-+	register "usb2_ports[5]" = "USB2_PORT_MID(OC2)"  # Touch Pad
++	register "usb2_ports[4]" = "USB2_PORT_MID(OC2)" # USB0/1
++	register "usb2_ports[5]" = "USB2_PORT_MID(OC2)" # USB0/1
 +
-+	register "usb2_ports[8]" = "USB2_PORT_MID(OC3)"  # OTG
-+	register "usb2_ports[12]" = "USB2_PORT_MID(OC3)"  # Touch Pad
++	register "usb2_ports[8]" = "USB2_PORT_MID(OC3)" # USB9/10 (USB3.0)
++	register "usb2_ports[12]" = "USB2_PORT_MID(OC3)" # USB9/10 (USB3.0)
++	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC3)"
++	register "usb3_ports[4]" = "USB3_PORT_DEFAULT(OC3)"
 +
-+	register "usb2_ports[10]" = "USB2_PORT_MID(OC4)"  # OTG
-+	register "usb2_ports[11]" = "USB2_PORT_MID(OC4)"  # Touch Pad
++	register "usb2_ports[10]" = "USB2_PORT_MID(OC4)" # USB6/7 (USB3.0)
++	register "usb2_ports[11]" = "USB2_PORT_MID(OC4)" # USB6/7 (USB3.0)
++	register "usb3_ports[1]" = "USB3_PORT_DEFAULT(OC4)"
++	register "usb3_ports[2]" = "USB3_PORT_DEFAULT(OC4)"
 +
-+	register "usb2_ports[9]" = "USB2_PORT_MID(OC5)"  # Touch Pad
++	register "usb2_ports[9]" = "USB2_PORT_MID(OC5)" # USB8 (USB3.0)
++	register "usb3_ports[0]" = "USB3_PORT_DEFAULT(OC5)"
 +
-+	register "usb2_ports[13]" = "USB2_PORT_MID(OC_SKIP)"  # IPMI USB HUB
++	register "usb2_ports[13]" = "USB2_PORT_MID(OC_SKIP)" # IPMI USB HUB
 +
-+	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC3)" # OTG
-+	register "usb3_ports[4]" = "USB3_PORT_DEFAULT(OC3)" # M.2 WWAN
-+
-+	register "usb3_ports[1]" = "USB3_PORT_DEFAULT(OC4)" # OTG
-+	register "usb3_ports[2]" = "USB3_PORT_DEFAULT(OC4)" # M.2 WWAN
-+
-+	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC5)" # M.2 WWAN
-+
++	# LPC
 +	register "serirq_mode" = "SERIRQ_CONTINUOUS"
 +
-+	# Enable PCIE slot
++	# PCIe configuration
++	# Enable JPCIE1
 +	register "PcieRpEnable[0]" = "1"
 +	register "PcieRpClkReqSupport[0]" = "0"
 +
-+	# Enable PCIE slot
++	# Enable ASpeed PCI bridge
 +	register "PcieRpEnable[2]" = "1"
 +	register "PcieRpClkReqSupport[2]" = "0"
 +
-+	# Enable PCIE slot
++	# Enable X550T
 +	register "PcieRpEnable[4]" = "1"
 +	register "PcieRpClkReqSupport[4]" = "0"
++
++	# Enable M.2
++	register "PcieRpEnable[8]" = "1"
++	register "PcieRpClkReqSupport[8]" = "0"
 +
 +	# Enabling SLP_S3#, SLP_S4#, SLP_SUS and SLP_A Stretch
 +	# SLP_S3 Minimum Assertion Width. Values 0: 60us, 1: 1ms, 2: 50ms, 3: 2s
@@ -973,75 +980,65 @@ index 0000000..dbb589f
 +	# SLP_A Minimum Assertion Width. Values 0: 0ms, 1: 4s, 2: 98ms, 3: 2s
 +	register "PmConfigSlpAMinAssert" = "0x03"
 +
-+
 +	# VR Settings Configuration for 4 Domains
-+	#+----------------+-------+-------+-------+-------+
-+	#| Domain/Setting |  SA   |  IA   | GTUS  |  GTS  |
-+	#+----------------+-------+-------+-------+-------+
-+	#| Psi1Threshold  | 20A   | 20A   | 20A   | 20A   |
-+	#| Psi2Threshold  | 5A    | 5A    | 5A    | 5A    |
-+	#| Psi3Threshold  | 1A    | 1A    | 1A    | 1A    |
-+	#| Psi3Enable     | 1     | 1     | 1     | 1     |
-+	#| Psi4Enable     | 1     | 1     | 1     | 1     |
-+	#| ImonSlope      | 0     | 0     | 0     | 0     |
-+	#| ImonOffset     | 0     | 0     | 0     | 0     |
-+	#| IccMax         | 7A    | 34A   | 35A   | 35A   |
-+	#| VrVoltageLimit | 1.52V | 1.52V | 1.52V | 1.52V |
-+	#+----------------+-------+-------+-------+-------+
++	# ICC_MAX = 0 (Auto)
++	# Voltage limit 1.52V (not used on KBL-S and KBL-DT)
++	# Disable PS4 powerstate in S0ix, thus no package C10 support
++	# psi threshold is using FSP default values
 +	register "domain_vr_config[VR_SYSTEM_AGENT]" = "{
 +		.vr_config_enable = 1, \
-+		.psi1threshold = 0x50, \
-+		.psi2threshold = 0x10, \
-+		.psi3threshold = 0x4, \
++		.psi1threshold = VR_CFG_AMP(20),
++		.psi2threshold = VR_CFG_AMP(5),
++		.psi3threshold = VR_CFG_AMP(1),
 +		.psi3enable = 1, \
-+		.psi4enable = 1, \
++		.psi4enable = 0, \
 +		.imon_slope = 0x0, \
 +		.imon_offset = 0x0, \
-+		.icc_max = 0x1C, \
-+		.voltage_limit = 0x5F0 \
++		.icc_max = 0, \
++		.voltage_limit = 1520 \
 +	}"
 +
 +	register "domain_vr_config[VR_IA_CORE]" = "{
 +		.vr_config_enable = 1, \
-+		.psi1threshold = 0x50, \
-+		.psi2threshold = 0x14, \
-+		.psi3threshold = 0x4, \
++		.psi1threshold = VR_CFG_AMP(20),
++		.psi2threshold = VR_CFG_AMP(5),
++		.psi3threshold = VR_CFG_AMP(1),
 +		.psi3enable = 1, \
-+		.psi4enable = 1, \
++		.psi4enable = 0, \
 +		.imon_slope = 0x0, \
 +		.imon_offset = 0x0, \
-+		.icc_max = 0x88, \
-+		.voltage_limit = 0x5F0 \
++		.icc_max = 0, \
++		.voltage_limit = 1520 \
 +	}"
 +
 +	register "domain_vr_config[VR_GT_UNSLICED]" = "{
 +		.vr_config_enable = 1, \
-+		.psi1threshold = 0x50, \
-+		.psi2threshold = 0x14, \
-+		.psi3threshold = 0x4, \
++		.psi1threshold = VR_CFG_AMP(20),
++		.psi2threshold = VR_CFG_AMP(5),
++		.psi3threshold = VR_CFG_AMP(1),
 +		.psi3enable = 1, \
-+		.psi4enable = 1, \
++		.psi4enable = 0, \
 +		.imon_slope = 0x0, \
 +		.imon_offset = 0x0, \
-+		.icc_max = 0x8C ,\
-+		.voltage_limit = 0x5F0 \
++		.icc_max = 0 ,\
++		.voltage_limit = 1520 \
 +	}"
 +
 +	register "domain_vr_config[VR_GT_SLICED]" = "{
 +		.vr_config_enable = 1, \
-+		.psi1threshold = 0x50, \
-+		.psi2threshold = 0x14, \
-+		.psi3threshold = 0x4, \
++		.psi1threshold = VR_CFG_AMP(20),
++		.psi2threshold = VR_CFG_AMP(5),
++		.psi3threshold = VR_CFG_AMP(1),
 +		.psi3enable = 1, \
-+		.psi4enable = 1, \
++		.psi4enable = 0, \
 +		.imon_slope = 0x0, \
 +		.imon_offset = 0x0, \
-+		.icc_max = 0x8C, \
-+		.voltage_limit = 0x5F0 \
++		.icc_max = 0, \
++		.voltage_limit = 1520 \
 +	}"
 +
-+	# Send an extra VR mailbox command for the PS4 exit issue
-+	register "SendVrMbxCmd" = "2"
++	# No extra VR mailbox command
++	register "SendVrMbxCmd" = "0"
 +
 +	# Lock Down
 +	register "common_soc_config" = "{
@@ -1052,14 +1049,14 @@ index 0000000..dbb589f
 +		device lapic 0 on end
 +	end
 +	device domain 0 on
-+		device pci 00.0 on  end # Host Bridge
-+		device pci 01.0 on  end # PCI Slot
++		device pci 00.0 on end # Host Bridge
++		device pci 01.0 on end # unused
 +		device pci 01.1 on
 +			smbios_slot_desc "SlotTypePciExpressGen3X8" "SlotLengthShort" "CPU SLOT6 PCI-E 3.0 X8" "SlotDataBusWidth4X"
 +		end # PCIE Slot (JPCIE1)
-+		device pci 14.0 on  end # USB xHCI
-+		device pci 14.2 on  end # Thermal Subsystem
-+		device pci 16.0 on  end # Management Engine Interface 1
++		device pci 14.0 on end # USB xHCI
++		device pci 14.2 on end # Thermal Subsystem
++		device pci 16.0 on end # Management Engine Interface 1
 +		device pci 16.1 on end # Management Engine Interface 2
 +		device pci 17.0 on end # SATA
 +		device pci 1c.0 on
@@ -1067,17 +1064,22 @@ index 0000000..dbb589f
 +		end # PCI Express Port 1 (Slot JPCIE1)
 +		device pci 1c.2 on
 +			device pci 00.0 on
-+				device pci 00.0 on end #Aspeed 2400 VGA
++				device pci 00.0 on end # Aspeed 2400 VGA
 +			end
 +		end # PCI Express Port 3
 +		device pci 1c.4 on
-+			device pci 00.0 on  end # 10GBE
-+			device pci 00.1 on  end # 10GBE
++			device pci 00.0 on end # 10GBE
++			device pci 00.1 on end # 10GBE
 +		end # PCI Express Port 5
++		device pci 1d.0 on
++			smbios_slot_desc "SlotTypeM2Socket3" "SlotLengthOther" "M.2 2280" "SlotDataBusWidth4X"
++		end # PCI Express Port 9
 +		device pci 1f.0 on
 +			chip drivers/ipmi
-+				device pnp ca2.0 on
-+				end         # IPMI KCS
++				# On cold boot it takes a while for the BMC to start the IPMI service
++				register "wait_for_bmc" = "1"
++				register "bmc_boot_timeout" = "60"
++				device pnp ca2.0 on end # IPMI KCS
 +			end
 +			chip superio/common
 +				device pnp 2e.0 on
@@ -1096,7 +1098,7 @@ index 0000000..dbb589f
 +							io 0x62 = 0xa10
 +							io 0x64 = 0xa20
 +							io 0x66 = 0xa30
-+							irq 0x70 = 0
++							irq 0x70 = 0xb
 +						end
 +						device pnp 2e.5 on #  Keyboard
 +							io 0x60 = 0x60
@@ -1105,18 +1107,16 @@ index 0000000..dbb589f
 +							irq 0x72 = 0xc
 +						end
 +						device pnp 2e.7 on #  GPIO
-+							irq 0x70 = 0
 +						end
 +						device pnp 2e.b on #  SUART3
 +							io 0x60 = 0x3e8
-+							irq 0x70 = 6
++							irq 0x70 = 4
 +						end
 +						device pnp 2e.c on # SUART4
 +							io 0x60 = 0x2e8
-+							irq 0x70 = 5
++							irq 0x70 = 3
 +						end
 +						device pnp 2e.d on #  iLPC2AHB
-+							irq 0x70 = 0
 +						end
 +						device pnp 2e.e on #  Mailbox
 +							io 0x60 = 0xa40
@@ -1129,10 +1129,10 @@ index 0000000..dbb589f
 +				device pnp 0c31.0 on end
 +			end
 +		end # LPC Interface
-+		device pci 1f.1 off end # P2SB
-+		device pci 1f.2 on  end # Power Management Controller
-+		device pci 1f.4 on  end # SMBus
-+		device pci 1f.5 on  end # SPI Controller
++		device pci 1f.1 on end # P2SB
++		device pci 1f.2 on end # Power Management Controller
++		device pci 1f.4 on end # SMBus
++		device pci 1f.5 on end # SPI Controller
 +	end
 +end
 diff --git a/src/mainboard/supermicro/x11ssh/vboot-ro-rwab.fmd b/src/mainboard/supermicro/x11ssh/vboot-ro-rwab.fmd
