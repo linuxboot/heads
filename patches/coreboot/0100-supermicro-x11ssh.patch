@@ -1,4 +1,4 @@
-From c933f4972abb7acca4981d193cfddd9d4290f3ff Mon Sep 17 00:00:00 2001
+From a9d9dc521e5cac7a044a3f238e731265e967bdb0 Mon Sep 17 00:00:00 2001
 From: Christian Walter <christian.walter@9elements.com>
 Date: Fri, 10 May 2019 15:52:00 +0200
 Subject: [PATCH] mb/supermicro/x11ssh: Add Supermicro X11SSH-TF
@@ -460,7 +460,7 @@ index 0000000..ac929a6
 +}
 diff --git a/src/mainboard/supermicro/x11ssh/gpio.h b/src/mainboard/supermicro/x11ssh/gpio.h
 new file mode 100644
-index 0000000..04857c6
+index 0000000..90647b7
 --- /dev/null
 +++ b/src/mainboard/supermicro/x11ssh/gpio.h
 @@ -0,0 +1,256 @@
@@ -514,7 +514,7 @@ index 0000000..04857c6
 +/* CLKOUT_48 */	_PAD_CFG_STRUCT(GPP_A16, 0x44000700, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_A17, 0x44000300, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_A18, 0x84000100, 0x00000000),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_A19, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_A19, 0xffffffff, 0xffffff00),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_A20, 0x44000300, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_A21, 0x44000300, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_A22, 0x44000300, 0x00000000),
@@ -543,14 +543,14 @@ index 0000000..04857c6
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_B21, 0x44000300, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_B22, 0x44000300, 0x00000000),
 +/* PCHHOT# */	_PAD_CFG_STRUCT(GPP_B23, 0x40000b00, 0x00000000),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C0, 0xffffffff, 0xffffff00),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C1, 0xffffffff, 0xffffff00),
++/* RESERVED */  //_PAD_CFG_STRUCT(GPP_C0, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_C1, 0xffffffff, 0xffffff00),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_C2, 0x44000300, 0x00000000),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C3, 0xffffffff, 0xffffff00),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C4, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_C3, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_C4, 0xffffffff, 0xffffff00),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_C5, 0x44000201, 0x00000000),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C6, 0xffffffff, 0xffffff00),
-+/* RESERVED */	_PAD_CFG_STRUCT(GPP_C7, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_C6, 0xffffffff, 0xffffff00),
++/* RESERVED */	//_PAD_CFG_STRUCT(GPP_C7, 0xffffffff, 0xffffff00),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_C8, 0x84000102, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_C9, 0x84000100, 0x00000000),
 +/* GPIO */	_PAD_CFG_STRUCT(GPP_C10, 0x84000102, 0x00000000),
