@@ -6,6 +6,7 @@ libremkey-hotp-verification_version := git
 libremkey-hotp-verification_dir := libremkey-hotp-verification
 libremkey-hotp-verification_repo := --recursive https://github.com/Nitrokey/nitrokey-hotp-verification
 
+libremkey-hotp-verification_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 libremkey-hotp-verification_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

@@ -14,6 +14,7 @@ qrencode_configure := ./configure \
 	--without-tools \
 	--host i386-elf-linux \
 
+qrencode_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 qrencode_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

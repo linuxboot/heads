@@ -50,6 +50,7 @@ gpg2_configure := ./configure \
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
 # into our actual target location
+gpg2_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 gpg2_target := $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(gpg2_dir) \
 		DESTDIR="$(INSTALL)" \

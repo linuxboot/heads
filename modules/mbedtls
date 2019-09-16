@@ -10,6 +10,7 @@ mbedtls_libraries := library/libmbedcrypto.so.0
 
 mbedtls_configure :=
 
+mbedtls_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 mbedtls_target := \
 	SHARED=1 \
 	DESTDIR=$(INSTALL) \

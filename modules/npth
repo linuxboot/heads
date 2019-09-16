@@ -14,6 +14,7 @@ npth_configure := ./configure \
 	--with-libgpg-error-prefix="$(INSTALL)" \
 	--disable-asm \
 
+npth_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 npth_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
 	$(CROSS_TOOLS) \

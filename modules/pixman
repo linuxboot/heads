@@ -13,6 +13,7 @@ pixman_configure := \
 	--prefix="/" \
 	--disable-gtk
 
+pixman_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 pixman_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

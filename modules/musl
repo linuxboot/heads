@@ -24,6 +24,7 @@ musl_configure := ./configure \
 	--enable-gcc-wrapper \
 	--enable-shared \
 
+musl_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 musl_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS_NOCC) \

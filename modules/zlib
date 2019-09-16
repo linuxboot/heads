@@ -12,6 +12,7 @@ zlib_configure := \
 	./configure \
 	--prefix="/" \
 
+zlib_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 zlib_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

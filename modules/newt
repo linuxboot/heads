@@ -8,6 +8,7 @@ newt_tar := newt-$(newt_version).tar.gz
 newt_url := https://releases.pagure.org/newt/$(newt_tar)
 newt_hash := 8d66ba6beffc3f786d4ccfee9d2b43d93484680ef8db9397a4fb70b5adbb6dbc
 
+newt_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 newt_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

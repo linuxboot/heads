@@ -34,6 +34,7 @@ lvm2_configure := \
 	--with-cluster=none \
 
 # not sure why LIB_SUFFIX is not defined in the cross build
+lvm2_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 lvm2_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

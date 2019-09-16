@@ -14,6 +14,7 @@ libassuan_configure := ./configure \
 	--with-libgpg-error-prefix="$(INSTALL)" \
 	--disable-asm \
 
+libassuan_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 libassuan_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
 	$(CROSS_TOOLS) \

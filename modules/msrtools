@@ -11,6 +11,7 @@ msrtools_tar := msr-tools-$(msrtools_version).tar.gz
 msrtools_url := https://github.com/intel/msr-tools/archive/msr-tools-$(msrtools_version).tar.gz
 msrtools_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
 
+msrtools_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 msrtools_target := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-I$(INSTALL)/include" \

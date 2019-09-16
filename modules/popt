@@ -11,6 +11,7 @@ popt_configure := ./configure \
 	--prefix "/" \
 	--host i386-elf-linux \
 
+popt_make_environment := CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH=
 popt_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
