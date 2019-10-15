@@ -458,7 +458,7 @@ $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 : $(build)/$(coreboot_base_dir)/.canary \
 	$(build)/$(musl_dir)/.build
 	+$(call do,MAKE,$(notdir $@),\
-		CPATH= C_INCLUDE_PATH= CPLUS_INCLUDE_PATH= LIBRARY_PATH= $(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
+		CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)" $(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
 
 # superio depends on zlib and pciutils
