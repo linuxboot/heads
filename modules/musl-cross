@@ -29,7 +29,7 @@ musl-cross_url := https://github.com/GregorR/musl-cross/archive/$(musl-cross_ver
 musl-cross_tar := musl-cross-$(musl-cross_version).tar.gz
 musl-cross_hash := 6362751b2442dc273c0889e5ef3ce6306a38b9c415cbe8cb4cfe3b8c6d776e96
 
-CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
 CROSS := $(build)/../$(CROSS_TOP)
 musl-cross_output := ../../$(CROSS_TOP)gcc
 
