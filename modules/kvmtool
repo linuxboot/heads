@@ -1,0 +1,36 @@
+# Linux KVM launcher
+# This only makes sense if you also define CONFIG_LINUX_KVM.
+# You probably also want CONFIG_LINUX_VIRTIO
+modules-$(CONFIG_KVMTOOL) += kvmtool
+
+ifneq "$(CONFIG_LINUX_VIRTIO)" "y"
+$(warn "$(BOARD): kvmtool included without CONFIG_LINUX_VIRTIO")
+endif
+ifneq "$(CONFIG_LINUX_KVM)" "y"
+$(error "$(BOARD): kvmtool included without CONFIG_LINUX_KVM")
+endif
+
+kvmtool_depends := mbedtls $(musl_dep)
+
+#kvmtool_version := git
+#kvmtool_repo := https://github.com/osresearch/kvmtool
+
+kvmtool_version := 0e1882a
+kvmtool_dir := kvmtool-$(kvmtool_version)
+kvmtool_tar := kvmtool-$(kvmtool_version).tar.gz
+kvmtool_url := https://github.com/kvmtool/kvmtool/archive/$(kvmtool_version).tar.gz
+kvmtool_hash := bf58194ab5c4ff7abdad48150d54c52c0e8bee485084e3f09adb9eec023756b8
+
+kvmtool_target := \
+	$(CROSS_TOOLS) \
+	ARCH_HAS_FRAMEBUFFER=n \
+	V=1
+	#CPPFLAGS="-I$(INSTALL)/include" \
+	#LDFLAGS="-L$(INSTALL)/lib" \
+
+kvmtool_output := \
+	lkvm \
+
+kvmtool_libraries := \
+
+kvmtool_configure := 
