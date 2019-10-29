@@ -95,6 +95,25 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
+# IDE drivers for qemu or legacy systems
+linux_modules-$(CONFIG_LINUX_IDE)	+= drivers/ide/ide-core.ko
+linux_modules-$(CONFIG_LINUX_IDE)	+= drivers/ide/ide-pci-generic.ko
+linux_modules-$(CONFIG_LINUX_IDE)	+= drivers/ide/ide-cd_mod.ko
+linux_modules-$(CONFIG_LINUX_IDE)	+= drivers/ide/ide-gd_mod.ko
+
+# KVM virtualization
+# Choose one of the Intel or AMD modules
+linux_modules-$(CONFIG_LINUX_KVM)	+= arch/x86/kvm/kvm.ko
+linux_modules-$(CONFIG_LINUX_KVM)	+= virt/lib/irqbypass.ko
+linux_modules-$(CONFIG_LINUX_KVM)	+= arch/x86/kvm/kvm-intel.ko
+#linux_modules-$(CONFIG_LINUX_KVM)	+= arch/x86/kvm/kvm-amd.ko
+
+# KVM virtual devices
+linux_modules-$(CONFIG_LINUX_VIRTIO)	+= drivers/vhost/vhost.ko
+linux_modules-$(CONFIG_LINUX_VIRTIO)	+= drivers/scsi/virtio_scsi.ko
+linux_modules-$(CONFIG_LINUX_VIRTIO)	+= drivers/block/virtio_blk.ko
+linux_modules-$(CONFIG_LINUX_VIRTIO)	+= drivers/net/virtio_net.ko
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
