@@ -15,11 +15,11 @@ kvmtool_depends := mbedtls $(musl_dep)
 #kvmtool_version := git
 #kvmtool_repo := https://github.com/osresearch/kvmtool
 
-kvmtool_version := 0e1882a
+kvmtool_version := 207fb98
 kvmtool_dir := kvmtool-$(kvmtool_version)
 kvmtool_tar := kvmtool-$(kvmtool_version).tar.gz
-kvmtool_url := https://github.com/kvmtool/kvmtool/archive/$(kvmtool_version).tar.gz
-kvmtool_hash := bf58194ab5c4ff7abdad48150d54c52c0e8bee485084e3f09adb9eec023756b8
+kvmtool_url := https://git.kernel.org/pub/scm/linux/kernel/git/will/kvmtool.git/snapshot/$(kvmtool_tar)
+kvmtool_hash := 3b4262ab5a1604152f74c43a7ef3aa89ee5216cf650c805e48140e9c31fdb5f0
 
 kvmtool_target := \
 	$(CROSS_TOOLS) \
