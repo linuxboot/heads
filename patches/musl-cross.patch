@@ -1,5 +1,5 @@
 diff --git a/config.sh b/config.sh
-index 4e321c9..6d9ea32 100644
+index ec3c1ce..844fb3d 100644
 --- a/config.sh
 +++ b/config.sh
 @@ -1,13 +1,15 @@
@@ -20,7 +20,7 @@ index 4e321c9..6d9ea32 100644
  
  # If you use arm, you may need more fine-tuning:
  # arm hardfloat v7
-@@ -20,7 +22,10 @@ CC_BASE_PREFIX=/opt/cross
+@@ -20,11 +22,14 @@ CC_BASE_PREFIX=/opt/cross
  #GCC_BOOTSTRAP_CONFFLAGS="--with-arch=armv7-a --with-float=softfp"
  #GCC_CONFFLAGS="--with-arch=armv7-a --with-float=softfp"
  
@@ -29,6 +29,10 @@ index 4e321c9..6d9ea32 100644
  
  # Enable this to build the bootstrap gcc (thrown away) without optimization, to reduce build time
  GCC_STAGE1_NOOPT=1
-+
+ 
 +# Build GMP, MPFR and MPC
 +GCC_BUILTIN_PREREQS=yes
++
+ # uncomment these to get smaller/stripped binaries
+ #export CFLAGS="-Os -g0 -s"
+ #export CXXFLAGS="-Os -g0"
