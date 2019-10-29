@@ -36,3 +36,15 @@ index ec3c1ce..844fb3d 100644
  # uncomment these to get smaller/stripped binaries
  #export CFLAGS="-Os -g0 -s"
  #export CXXFLAGS="-Os -g0"
+--- /dev/null	2019-10-28 16:42:28.211999999 +0100
++++ musl-cross/hashes/gmp-6.1.0.tar.bz2.sha256	2019-10-29 13:08:53.288687684 +0100
+@@ -0,0 +1 @@
++498449a994efeba527885c10405993427995d3f86b8768d8cdf8d9dd7c6b73e8  gmp-6.1.0.tar.bz2
+--- /dev/null	2019-10-28 16:42:28.211999999 +0100
++++ musl-cross/hashes/mpfr-3.1.4.tar.bz2.sha256	2019-10-29 13:08:53.292687684 +0100
+@@ -0,0 +1 @@
++d3103a80cdad2407ed581f3618c4bed04e0c92d1cf771a65ead662cc397f7775  mpfr-3.1.4.tar.bz2
+--- /dev/null	2019-10-28 16:42:28.211999999 +0100
++++ musl-cross/hashes/mpc-1.0.3.tar.gz.sha256	2019-10-29 13:08:53.296687684 +0100
+@@ -0,0 +1 @@
++617decc6ea09889fb08ede330917a00b16809b8db88c29c31bfbb49cbf88ecc3  mpc-1.0.3.tar.gz
