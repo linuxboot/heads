@@ -264,9 +264,10 @@ define define_module =
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
     $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
-	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
+	mkdir -p "$$(dir $$@)"
+	tar -xf "$(packages)/$($1_tar)" --strip 1 -C "$$(dir $$@)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
-		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+		( cd $$(dir $$@) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch \
 			|| exit 1 ; \
 	fi
@@ -274,7 +275,7 @@ define define_module =
 	   [ -r patches/$1-$($1_version) ] ; then \
 		for patch in patches/$1-$($1_version)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+			( cd $$(dir $$@) ; patch -p1 ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
