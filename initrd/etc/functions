@@ -305,10 +305,11 @@ detect_boot_device()
 
 	# check $CONFIG_BOOT_DEV if set/valid
 	if [ -e "$CONFIG_BOOT_DEV" ]; then
-		mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1
-		if [[ $? && -d /boot/grub ]]; then
-			# CONFIG_BOOT_DEV is valid device and contains an installed OS
-			return 0
+		if mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				# CONFIG_BOOT_DEV is valid device and contains an installed OS
+				return 0
+			fi
 		fi
 	fi
 
@@ -330,10 +331,11 @@ detect_boot_device()
 	# iterate thru possible options and check for grub dir
 	for i in `cat /tmp/boot_device_list`; do
 		umount /boot 2>/dev/null
-		mount -o ro $i /boot >/dev/null 2>&1
-		if [[ $? && -d /boot/grub ]]; then
-			CONFIG_BOOT_DEV="$i"
-			return 0
+		if mount -o ro $i /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				CONFIG_BOOT_DEV="$i"
+				return 0
+			fi
 		fi
 	done
 
