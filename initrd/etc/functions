@@ -287,8 +287,10 @@ update_checksums()
 	if [ "$CONFIG_TPM" = "y" ]; then
 	extparam=-u
 	fi
-	kexec-sign-config -p /boot $extparam \
-	|| die "Failed to sign default config"
+	if ! kexec-sign-config -p /boot $extparam ; then
+	  echo "Failed to sign default config; press Enter to continue."
+	  read
+	fi
 
 	# switch back to ro mode
 	mount -o ro,remount /boot
