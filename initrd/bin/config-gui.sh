@@ -116,6 +116,16 @@ while true; do
         cbfs -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
       fi
       cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+
+      if (whiptail --title 'Update ROM?' \
+          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+        /bin/flash.sh /tmp/config-gui.rom
+        whiptail --title 'BIOS Updated Successfully' \
+          --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
+        /bin/reboot
+      else
+        exit 0
+      fi
     ;;
     "r" )
       # prompt for confirmation
@@ -150,6 +160,8 @@ while true; do
         whiptail --title 'Configuration Reset Updated Successfully' \
           --msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 16 60
         /bin/reboot
+      else
+        exit 0
       fi
     ;;
   esac
