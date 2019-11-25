@@ -71,7 +71,7 @@ file_selector() {
 while true; do
   unset menu_choice
   whiptail --clear --title "Firmware Management Menu" \
-    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
+    --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n* Clears out /boot signatures\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
     'c' ' Flash the firmware with a new ROM, erase settings' \
     'x' ' Exit' \
@@ -100,6 +100,14 @@ while true; do
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
             if [ "$menu_choice" == "c" ]; then
               /bin/flash.sh -c "$ROM"
+              # after flash, /boot signatures are now invalid so go ahead and clear them
+              if ls /boot/kexec* >/dev/null 2>&1 ; then
+                (
+                  mount -o remount,rw /boot 2>/dev/null
+                  rm /boot/kexec* 2>/dev/null
+                  mount -o remount,ro /boot 2>/dev/null
+                )
+              fi
             else
               /bin/flash.sh "$ROM"
             fi
