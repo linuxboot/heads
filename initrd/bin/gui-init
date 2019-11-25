@@ -152,8 +152,10 @@ generate_totp_hotp()
 {
   tpm_password="$1"	# May be empty, will prompt if needed and empty
   TRACE "Under /bin/gui-init:generate_totp_hotp"
-  echo "Scan the QR code to add the new TOTP secret"
-  if /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
+  if [ "$CONFIG_TPM" != "y" ]; then
+    echo "Generating new HOTP secret"
+    /bin/seal-hotpkey
+  elif echo "Scan the QR code to add the new TOTP secret" && /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
     if [ -x /bin/hotp_verification ]; then
       echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
       read
@@ -262,6 +264,31 @@ update_hotp()
     esac
   else
     HOTP='N/A'
+  fi
+
+  if [[ "$CONFIG_TPM" = n && "$HOTP" = "Invalid code" ]]; then
+    whiptail $BG_COLOR_ERROR --title "ERROR: HOTP Validation Failed!" \
+      --menu "ERROR: Heads couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+      'g' ' Generate new TOTP/HOTP secret' \
+      'i' ' Ignore error and continue to main menu' \
+      'x' ' Exit to recovery shell' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    option=$(cat /tmp/whiptail)
+    case "$option" in 
+      g )
+        if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
+            --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
+          generate_totp_hotp && BG_COLOR_MAIN_MENU=""
+        fi
+        ;;
+      i )
+        return 1
+        ;;
+      x )
+        recovery "User requested recovery shell"
+        ;;
+    esac
   fi
 }
 

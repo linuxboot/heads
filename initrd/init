@@ -59,7 +59,6 @@ TRACE "Under init"
 if [ ! -e /dev/tpm0 ]; then
 	CONFIG_TPM='n'
 	CONFIG_TPM2_TOOLS='n'
-	warn 'No TPM found...'
 fi
 
 #Specify whiptail background colors cues under FBWhiptail only
