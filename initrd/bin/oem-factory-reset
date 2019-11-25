@@ -242,14 +242,21 @@ if ! whiptail --yesno "
 fi
 
 # Prompt to change default passwords
-echo -e -n "Would you like to set a custom password? [y/N]:"
+echo -e -n "Would you like to set a custom password? [y/N]: "
 read -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
 ; then
-  echo -e -n "Enter the custom password: "
-  read CUSTOM_PASS
+  echo -e "\nThe custom password will be used for the
+TPM admin and GPG user/admin passwords.
+It must be at least 8 characters in length.\n"
+  CUSTOM_PASS=""
+  echo
+  while [[  ${#CUSTOM_PASS} -lt 8 ]] ; do
+    echo -e -n "Enter the custom password: "
+    read CUSTOM_PASS
+  done
   echo
   TPM_PASS_DEF=$CUSTOM_PASS
 fi
