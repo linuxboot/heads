@@ -284,6 +284,19 @@ replace_config() {
 	rm -f ${CONFIG_FILE}.tmp
 }
 
+# Generate secret value using first 20 chars of ROM SHA256 hash
+secret_from_rom_hash() {
+	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
+
+	echo -e "\nTPM not detected; measuring ROM directly\n" 1>&2
+	# use a previously-copied image if it exists
+	if [ -f ${ROM_IMAGE} ]; then
+		sha256sum ${ROM_IMAGE} | cut -f1 -d ' ' | cut -c 1-20 | tr -d '\n'
+	else
+		flash.sh -s ${ROM_IMAGE} | cut -c 1-20 | tr -d '\n'
+	fi
+}
+
 update_checksums()
 {
 	TRACE "Under /etc/functions:update_checksums"

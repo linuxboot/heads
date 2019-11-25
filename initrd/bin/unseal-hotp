@@ -40,6 +40,9 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"
+else
+	# without a TPM, use the first 20 characters of the ROM SHA256sum 
+	secret_from_rom_hash > "$HOTP_SECRET"
 fi
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then
