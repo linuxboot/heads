@@ -402,7 +402,7 @@ whiptail --msgbox "
     The OEM Factory Reset has completed successfully\n\n
     After rebooting, you will need to generate new TOTP/HOTP secrets\n
     when prompted in order to complete the setup process.\n\n
-    Press any key to reboot.\n" \
+    Press Enter to reboot.\n" \
     $WIDTH $HEIGHT --title "OEM Factory Reset Complete"
 
 reboot
