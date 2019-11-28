@@ -43,3 +43,12 @@ diff -u --recursive ../../clean/linux-4.14.62/arch/x86/boot/compressed/eboot.c l
  
  	return boot_params;
  fail2:
+--- clean/linux-4.14.62/arch/x86/boot/compressed/early_serial_console.c	2018-08-09 12:16:40.000000000 +0200
++++ linux-4.14.62/arch/x86/boot/compressed/early_serial_console.c	2018-09-28 11:59:36.824015244 +0200
+@@ -1,5 +1,5 @@
+ #include "misc.h"
+ 
+-int early_serial_base;
++int early_serial_base = 0x3f8;
+ 
+ #include "../early_serial_console.c"
