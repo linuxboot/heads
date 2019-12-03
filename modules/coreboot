@@ -108,6 +108,7 @@ modules-y += coreboot-blobs
 
 coreboot-blobs_version := $(coreboot_version)
 coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
+coreboot-blobs_tar_opt := --strip 3
 coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
 coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
 coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
