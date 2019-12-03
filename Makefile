@@ -265,7 +265,7 @@ define define_module =
     # that the files are all present
     $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
 	mkdir -p "$$(dir $$@)"
-	tar -xf "$(packages)/$($1_tar)" --strip 1 -C "$$(dir $$@)"
+	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
 		( cd $$(dir $$@) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch \
