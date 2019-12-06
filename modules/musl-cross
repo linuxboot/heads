@@ -23,11 +23,13 @@ else
 # Force a full build of the cross compiler
 
 modules-y += musl-cross
-musl-cross_version := git
-musl-cross_dir := musl-cross-$(musl-cross_version)
-musl-cross_repo := https://github.com/GregorR/musl-cross
+musl-cross_version := 1952975
+musl-cross_dir := musl-cross
+musl-cross_url := https://github.com/GregorR/musl-cross/archive/$(musl-cross_version).tar.gz
+musl-cross_tar := musl-cross-$(musl-cross_version).tar.gz
+musl-cross_hash := dea10cfe4bfe5f5b131d8f98e65127cf5093477af56054d15563e858dc3b25cb
 
-CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-
+CROSS_TOP := crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
 CROSS := $(build)/../$(CROSS_TOP)
 musl-cross_output := ../../$(CROSS_TOP)gcc
 
