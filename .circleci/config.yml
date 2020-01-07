@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/ubuntu:18.04
+      - image: ubuntu-1804
     steps:
       - run:
           name: Install dependencies
