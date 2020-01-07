@@ -51,39 +51,13 @@ jobs:
           name: qemu-coreboot
           command: |
             ./build/make-4.2.1/make \
-                -j4 \
+                -j2 \
                 BOARD=qemu-coreboot \
 
       - store-artifacts:
           path: build/qemu-coreboot/coreboot.rom
       - store-artifacts:
           path: build/qemu-coreboot/hashes.txt
-
-
-      - run:
-          name: qemu-linuxboot
-          command: |
-            ./build/make-4.2.1/make \
-                -j4 \
-                BOARD=qemu-linuxboot \
-
-      - store-artifacts:
-          path: build/qemu-linuxboot/linuxboot.rom
-      - store-artifacts:
-          path: build/qemu-linuxboot/hashes.txt
-
-
-      - run:
-          name: x230
-          command: |
-            ./build/make-4.2.1/make \
-                -j4 \
-                BOARD=x230 \
-
-      - store-artifacts:
-          path: build/x230/coreboot.rom
-      - store-artifacts:
-          path: build/x230/hashes.txt
 
 
 workflows:
