@@ -2,35 +2,8 @@ version: 2
 jobs:
   build:
     docker:
-      - image: osresearch/heads-ubuntu:16.04
+      - image: osresearch/musl-cross:38e52db
     steps:
-      - run:
-          name: Install dependencies
-          command: |
-            apt update
-            apt install -y \
-              build-essential \
-              zlib1g-dev \
-              uuid-dev \
-              libdigest-sha-perl \
-              libelf-dev \
-              bc \
-              bzip2 \
-              bison \
-              flex \
-              git \
-              gnupg \
-              iasl \
-              m4 \
-              nasm \
-              patch \
-              python \
-              wget \
-              gnat \
-              cpio \
-              ccache \
-              lzma \
-
       - checkout
 
       - run:
@@ -39,21 +12,10 @@ jobs:
             make -j4 bootstrap
 
       - run:
-          name: Bootstrap coreboot-gcc
-          command: |
-            ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
-                V=1 \
-                BOARD=qemu-coreboot \
-                coreboot-gcc
-
-
-      - run:
           name: qemu-coreboot
           command: |
             ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
-                V=1 \
+                CROSS=/cross/bin/x86_64-linux-musl- \
                 -j4 \
                 BOARD=qemu-coreboot \
 
@@ -67,7 +29,7 @@ jobs:
           name: qemu-linuxboot
           command: |
             ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
+                CROSS=/cross/bin/x86_64-linux-musl- \
                 V=1 \
                 -j4 \
                 BOARD=qemu-linuxboot \
@@ -82,7 +44,7 @@ jobs:
           name: x230
           command: |
             ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
+                CROSS=/cross/bin/x86_64-linux-musl- \
                 -j4 \
                 V=1 \
                 BOARD=x230 \
