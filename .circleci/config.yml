@@ -26,6 +26,7 @@ jobs:
             ./build/make-4.2.1/make \
                 CROSS=/cross/bin/x86_64-linux-musl- \
                 --load 2 \
+                V=1 \
                 BOARD=qemu-linuxboot \
 
       - store-artifacts:
@@ -40,6 +41,7 @@ jobs:
             ./build/make-4.2.1/make \
                 CROSS=/cross/bin/x86_64-linux-musl- \
                 --load 2 \
+                V=1 \
                 BOARD=qemu-coreboot \
 
       - store-artifacts:
@@ -53,6 +55,7 @@ jobs:
             ./build/make-4.2.1/make \
                 CROSS=/cross/bin/x86_64-linux-musl- \
                 --load 2 \
+                V=1 \
                 BOARD=x230 \
 
       - store-artifacts:
