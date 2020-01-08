@@ -17,8 +17,8 @@ jobs:
             ./build/make-4.2.1/make \
                 CROSS=/cross/bin/x86_64-linux-musl- \
                 BOARD=qemu-linuxboot \
-		`/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
-		# Run first to avoid too many processes
+                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
+                # Run first to avoid too many processes
 
       - run:
           name: qemu-linuxboot
