@@ -12,6 +12,29 @@ jobs:
             make -j4 bootstrap
 
       - run:
+          name: qemu-linuxboot-edk2
+          command: |
+            ./build/make-4.2.1/make \
+                CROSS=/cross/bin/x86_64-linux-musl- \
+                BOARD=qemu-linuxboot \
+		`/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
+		# Run first to avoid too many processes
+
+      - run:
+          name: qemu-linuxboot
+          command: |
+            ./build/make-4.2.1/make \
+                CROSS=/cross/bin/x86_64-linux-musl- \
+                -j4 \
+                BOARD=qemu-linuxboot \
+
+      - store-artifacts:
+          path: build/qemu-linuxboot/linuxboot.rom
+      - store-artifacts:
+          path: build/qemu-linuxboot/hashes.txt
+
+
+      - run:
           name: qemu-coreboot
           command: |
             ./build/make-4.2.1/make \
@@ -24,29 +47,12 @@ jobs:
       - store-artifacts:
           path: build/qemu-coreboot/hashes.txt
 
-
-      - run:
-          name: qemu-linuxboot
-          command: |
-            ./build/make-4.2.1/make \
-                CROSS=/cross/bin/x86_64-linux-musl- \
-                V=1 \
-                -j4 \
-                BOARD=qemu-linuxboot \
-
-      - store-artifacts:
-          path: build/qemu-linuxboot/linuxboot.rom
-      - store-artifacts:
-          path: build/qemu-linuxboot/hashes.txt
-
-
       - run:
           name: x230
           command: |
             ./build/make-4.2.1/make \
                 CROSS=/cross/bin/x86_64-linux-musl- \
                 -j4 \
-                V=1 \
                 BOARD=x230 \
 
       - store-artifacts:
