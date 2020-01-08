@@ -9,7 +9,7 @@ coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
 coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
 
-# Coreboot builds are specialized on a per-target basis.
+# coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
 CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 
@@ -29,9 +29,18 @@ coreboot_configure := \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
+COREBOOT_IASL="$(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/iasl"
+
+# coreboot is built with the 32-bit compiler; ideally we could use the same
+# x86_64-linux-musl -m32 to build it, but this causes some link errors that need
+# to be tracked down.
+#	CROSS="$(CROSS)" \
+
 coreboot_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
+	CROSS="$(dir $(CROSS))i386-linux-musl-" \
+	IASL="$(COREBOOT_IASL)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
@@ -39,35 +48,11 @@ coreboot_target := \
 	$(MAKE_JOBS)
 
 coreboot_output := coreboot.rom
-coreboot_depend += linux initrd
+coreboot_depend += linux initrd $(musl_dep)
 
-COREBOOT_XGCC_REL := $(coreboot_base_dir)/util/crossgcc/xgcc
-COREBOOT_XGCC_PATH := $(build)/$(COREBOOT_XGCC_REL)
-COREBOOT_XGCC := $(COREBOOT_XGCC_PATH)/bin/i386-elf-gcc
-
-# hack to force a build dependency on the cross compiler
-coreboot-gcc $(build)/$(coreboot_dir)/.configured: $(COREBOOT_XGCC)
-
-ifeq "$(TOOLCHAIN)" ""
-# Force a rebuild of the entire coreboot toolchain
-$(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
-	echo '******* Building crossgcc-i386 (this might take a while) ******'
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=`nproc` crossgcc-i386
-	#echo '******* Building crossgcc-arm (this might take a while) ******'
-	#$(MAKE) -C "$(build)/$(coreboot_base_dir)" crossgcc-arm
-else
-# Use the pre-build one from the external toolchain build
-$(COREBOOT_XGCC): $(build)/$(coreboot_base_dir)/.canary
-	if [ ! -e "$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" ]; then \
-		echo >&2 "ERROR: TOOLCHAIN=$(TOOLCHAIN) does not have coreboot" ; \
-		exit 1 ; \
-	fi
-	if [ ! -e "$(COREBOOT_XGCC_PATH)" ]; then \
-		ln -s \
-			"$(TOOLCHAIN)/build/$(COREBOOT_XGCC_REL)" \
-			"$(COREBOOT_XGCC_PATH)" ; \
-	fi
-endif
+$(build)/$(coreboot_dir)/.configured: $(COREBOOT_IASL)
+$(COREBOOT_IASL): $(build)/$(coreboot_base_dir)/.canary
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=`nproc` iasl
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
