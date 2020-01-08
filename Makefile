@@ -106,11 +106,13 @@ SHELL := /bin/bash
 # be defined prior to any other module.
 include modules/musl-cross
 
-musl_dep	:= musl
-heads_cc	:= $(INSTALL)/bin/musl-gcc \
+musl_dep	:= musl-cross
+heads_cc	:= $(CROSS)gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 	-D__MUSL__ \
+	-I$(INSTALL)/include \
+	-L$(INSTALL)/lib \
 
 CROSS_TOOLS_NOCC := \
 	AR="$(CROSS)ar" \
@@ -145,8 +147,9 @@ all:
 FORCE:
 
 # Make helpers to operate on lists of things
+# Prefix is "smart" and doesn't add the prefix for absolute file paths
 define prefix =
-$(foreach _, $2, $1$_)
+$(foreach _, $2, $(if $(patsubst /%,,$_),$1$_,$_))
 endef
 define map =
 $(foreach _,$2,$(eval $(call $1,$_)))
@@ -410,6 +413,7 @@ endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
+#bin_modules-$(CONFIG_MUSL) += musl-cross
 bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
@@ -451,8 +455,7 @@ endif
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-: $(build)/$(coreboot_base_dir)/.canary \
-	$(build)/$(musl_dir)/.build
+: $(build)/$(coreboot_base_dir)/.canary
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
@@ -564,7 +567,6 @@ modules.clean:
 real.clean:
 	for dir in \
 		$(module_dirs) \
-		$(musl_dir) \
 		$(kernel_headers) \
 	; do \
 		if [ ! -z "$$dir" ]; then \
