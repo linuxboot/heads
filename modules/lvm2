@@ -1,7 +1,7 @@
 modules-$(CONFIG_LVM2) += lvm2
 
 lvm2_version := 2.02.168
-lvm2_dir := LVM2.$(lvm2_version)
+lvm2_dir := lvm2.$(lvm2_version)
 lvm2_tar := LVM2.$(lvm2_version).tgz
 lvm2_url := https://mirrors.kernel.org/sourceware/lvm2/$(lvm2_tar)
 lvm2_hash := 23a3d1cddd41b3ef51812ebf83e9fa491f502fe74130d4263be327a91914660d
