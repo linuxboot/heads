@@ -2,35 +2,8 @@ version: 2
 jobs:
   build:
     docker:
-      - image: osresearch/heads-ubuntu:16.04
+      - image: osresearch/musl-cross:38e52db
     steps:
-      - run:
-          name: Install dependencies
-          command: |
-            apt update
-            apt install -y \
-              build-essential \
-              zlib1g-dev \
-              uuid-dev \
-              libdigest-sha-perl \
-              libelf-dev \
-              bc \
-              bzip2 \
-              bison \
-              flex \
-              git \
-              gnupg \
-              iasl \
-              m4 \
-              nasm \
-              patch \
-              python \
-              wget \
-              gnat \
-              cpio \
-              ccache \
-              lzma \
-
       - checkout
 
       - run:
@@ -38,23 +11,39 @@ jobs:
           command: |
             make -j4 bootstrap
 
-      - run:
-          name: Bootstrap coreboot-gcc
-          command: |
-            ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
-                V=1 \
-                BOARD=qemu-coreboot \
-                coreboot-gcc
+# linuxboot steps need something to pass in the kernel header path
+# skipping for now
+#      - run:
+#          name: qemu-linuxboot-edk2
+#          command: |
+#            ./build/make-4.2.1/make \
+#                CROSS=/cross/bin/x86_64-linux-musl- \
+#                BOARD=qemu-linuxboot \
+#                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
+#                # Run first to avoid too many processes
+#
+#      - run:
+#          name: qemu-linuxboot
+#          command: |
+#            ./build/make-4.2.1/make \
+#                CROSS=/cross/bin/x86_64-linux-musl- \
+#                --load 2 \
+#                V=1 \
+#                BOARD=qemu-linuxboot \
+#
+#      - store-artifacts:
+#          path: build/qemu-linuxboot/linuxboot.rom
+#      - store-artifacts:
+#          path: build/qemu-linuxboot/hashes.txt
 
 
       - run:
           name: qemu-coreboot
           command: |
             ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
+                CROSS=/cross/bin/x86_64-linux-musl- \
+                --load 2 \
                 V=1 \
-                -j4 \
                 BOARD=qemu-coreboot \
 
       - store-artifacts:
@@ -62,28 +51,12 @@ jobs:
       - store-artifacts:
           path: build/qemu-coreboot/hashes.txt
 
-
-      - run:
-          name: qemu-linuxboot
-          command: |
-            ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
-                V=1 \
-                -j4 \
-                BOARD=qemu-linuxboot \
-
-      - store-artifacts:
-          path: build/qemu-linuxboot/linuxboot.rom
-      - store-artifacts:
-          path: build/qemu-linuxboot/hashes.txt
-
-
       - run:
           name: x230
           command: |
             ./build/make-4.2.1/make \
-                TOOLCHAIN=/home/builder/heads \
-                -j4 \
+                CROSS=/cross/bin/x86_64-linux-musl- \
+                --load 2 \
                 V=1 \
                 BOARD=x230 \
 
