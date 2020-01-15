@@ -1,0 +1,23 @@
+--- clean/libksba-1.3.5/src/asn1-gentables.c	2016-08-22 11:38:21.000000000 +0200
++++ libksba-1.3.5/src/asn1-gentables.c	2020-01-08 10:00:27.297737650 +0100
+@@ -109,10 +109,17 @@
+ static int
+ cmp_string (const void *aptr, const void *bptr)
+ {
+-  const struct name_list_s **a = (const struct name_list_s **)aptr;
+-  const struct name_list_s **b = (const struct name_list_s **)bptr;
++  const char *a = (*(const struct name_list_s **)aptr)->name;
++  const char *b = (*(const struct name_list_s **)bptr)->name;
+ 
+-  return strlen ((*a)->name) < strlen ((*b)->name);
++  const size_t len_a = strlen(a);
++  const size_t len_b = strlen(b);
++
++  if (len_a < len_b)
++    return -1;
++  if (len_a > len_b)
++    return +1;
++  return strcmp(a, b);
+ }
+ 
+ static void
