@@ -1,6 +1,6 @@
-diff -u --recursive ../clean/LVM2.2.02.168/lib/mm/memlock.c LVM2.2.02.168/lib/mm/memlock.c
---- ../clean/LVM2.2.02.168/lib/mm/memlock.c	2016-11-30 18:17:29.000000000 -0500
-+++ LVM2.2.02.168/lib/mm/memlock.c	2017-04-12 08:18:18.533783802 -0400
+diff --recursive -u clean/LVM2.2.02.168/lib/mm/memlock.c lvm2.2.02.168/lib/mm/memlock.c
+--- clean/LVM2.2.02.168/lib/mm/memlock.c	2016-12-01 00:17:29.000000000 +0100
++++ lvm2.2.02.168/lib/mm/memlock.c	2020-01-09 13:23:14.017310025 +0100
 @@ -150,6 +150,7 @@
  
  static void _allocate_memory(void)
@@ -9,7 +9,7 @@ diff -u --recursive ../clean/LVM2.2.02.168/lib/mm/memlock.c LVM2.2.02.168/lib/mm
  #ifndef VALGRIND_POOL
  	void *stack_mem;
  	struct rlimit limit;
-@@ -208,6 +209,7 @@
+@@ -208,11 +209,14 @@
  	for (i = 0; i < area; ++i)
  		free(areas[i]);
  #endif
@@ -17,7 +17,14 @@ diff -u --recursive ../clean/LVM2.2.02.168/lib/mm/memlock.c LVM2.2.02.168/lib/mm
  }
  
  static void _release_memory(void)
-@@ -288,7 +290,7 @@
+ {
++#if 0
+ 	free(_malloc_mem);
++#endif
+ }
+ 
+ /*
+@@ -288,7 +292,7 @@
  
  	if (lock == LVM_MLOCK) {
  		if (mlock((const void*)from, sz) < 0) {
@@ -26,9 +33,9 @@ diff -u --recursive ../clean/LVM2.2.02.168/lib/mm/memlock.c LVM2.2.02.168/lib/mm
  			return 0;
  		}
  	} else {
-diff -u --recursive ../clean/LVM2.2.02.168/libdm/libdm-stats.c LVM2.2.02.168/libdm/libdm-stats.c
---- ../clean/LVM2.2.02.168/libdm/libdm-stats.c	2016-11-30 18:17:30.000000000 -0500
-+++ LVM2.2.02.168/libdm/libdm-stats.c	2017-04-10 16:50:01.622529656 -0400
+diff --recursive -u clean/LVM2.2.02.168/libdm/libdm-stats.c lvm2.2.02.168/libdm/libdm-stats.c
+--- clean/LVM2.2.02.168/libdm/libdm-stats.c	2016-12-01 00:17:30.000000000 +0100
++++ lvm2.2.02.168/libdm/libdm-stats.c	2020-01-09 13:23:14.017310025 +0100
 @@ -17,7 +17,24 @@
  
  #include "dmlib.h"
@@ -90,9 +97,9 @@ diff -u --recursive ../clean/LVM2.2.02.168/libdm/libdm-stats.c LVM2.2.02.168/lib
  			buflen += id_len + 1; /* range end plus "-" */
  		}
  		buflen++;
-diff -u --recursive ../clean/LVM2.2.02.168/libdm/Makefile.in LVM2.2.02.168/libdm/Makefile.in
---- ../clean/LVM2.2.02.168/libdm/Makefile.in	2016-11-30 18:17:30.000000000 -0500
-+++ LVM2.2.02.168/libdm/Makefile.in	2017-04-10 16:50:01.622529656 -0400
+diff --recursive -u clean/LVM2.2.02.168/libdm/Makefile.in lvm2.2.02.168/libdm/Makefile.in
+--- clean/LVM2.2.02.168/libdm/Makefile.in	2016-12-01 00:17:30.000000000 +0100
++++ lvm2.2.02.168/libdm/Makefile.in	2020-01-09 13:23:14.017310025 +0100
 @@ -56,7 +56,8 @@
  
  CFLAGS += $(UDEV_CFLAGS) $(VALGRIND_CFLAGS)
@@ -103,9 +110,9 @@ diff -u --recursive ../clean/LVM2.2.02.168/libdm/Makefile.in LVM2.2.02.168/libdm
  
  device-mapper: all
  
-diff -u --recursive ../clean/LVM2.2.02.168/make.tmpl.in LVM2.2.02.168/make.tmpl.in
---- ../clean/LVM2.2.02.168/make.tmpl.in	2016-11-30 18:17:30.000000000 -0500
-+++ LVM2.2.02.168/make.tmpl.in	2017-04-10 16:50:01.626529699 -0400
+diff --recursive -u clean/LVM2.2.02.168/make.tmpl.in lvm2.2.02.168/make.tmpl.in
+--- clean/LVM2.2.02.168/make.tmpl.in	2016-12-01 00:17:30.000000000 +0100
++++ lvm2.2.02.168/make.tmpl.in	2020-01-09 13:23:14.017310025 +0100
 @@ -142,7 +142,7 @@
  M_INSTALL_PROGRAM = -m 555
  M_INSTALL_DATA = -m 444
@@ -126,9 +133,9 @@ diff -u --recursive ../clean/LVM2.2.02.168/make.tmpl.in LVM2.2.02.168/make.tmpl.
  
  LVM_VERSION := $(shell cat $(top_srcdir)/VERSION)
  
-diff -u --recursive ../clean/LVM2.2.02.168/tools/lvmcmdline.c LVM2.2.02.168/tools/lvmcmdline.c
---- ../clean/LVM2.2.02.168/tools/lvmcmdline.c	2016-11-30 18:17:32.000000000 -0500
-+++ LVM2.2.02.168/tools/lvmcmdline.c	2017-04-10 16:50:01.626529699 -0400
+diff --recursive -u clean/LVM2.2.02.168/tools/lvmcmdline.c lvm2.2.02.168/tools/lvmcmdline.c
+--- clean/LVM2.2.02.168/tools/lvmcmdline.c	2016-12-01 00:17:32.000000000 +0100
++++ lvm2.2.02.168/tools/lvmcmdline.c	2020-01-09 13:23:49.057418263 +0100
 @@ -1817,6 +1817,7 @@
  {
  	int err = is_valid_fd(STDERR_FILENO);
@@ -145,3 +152,12 @@ diff -u --recursive ../clean/LVM2.2.02.168/tools/lvmcmdline.c LVM2.2.02.168/tool
  
  	return 1;
  }
+@@ -2023,7 +2025,7 @@
+ 	 */
+ 	dm_set_name_mangling_mode(DM_STRING_MANGLING_NONE);
+ 
+-	if (!(cmd = create_toolcontext(0, NULL, 1, 0,
++	if (!(cmd = create_toolcontext(0, NULL, 0, 0,
+ 			set_connections, set_filters))) {
+ 		udev_fin_library_context();
+ 		return_NULL;
