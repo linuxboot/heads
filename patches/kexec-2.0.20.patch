@@ -1,0 +1,76 @@
+diff --git ./Makefile.in ./Makefile.in
+index fb01134..bf1973e 100644
+--- ./Makefile.in
++++ ./Makefile.in
+@@ -157,12 +157,12 @@ include $(srcdir)/kexec/Makefile
+ 
+ # vmcore-dmesg (read dmesg from a vmcore)
+ #
+-include $(srcdir)/vmcore-dmesg/Makefile
++#include $(srcdir)/vmcore-dmesg/Makefile
+ 
+ #
+ # kexec_test (test program)
+ #
+-include $(srcdir)/kexec_test/Makefile
++#include $(srcdir)/kexec_test/Makefile
+ 
+ SPEC=$(PACKAGE_NAME).spec
+ GENERATED_SRCS:= $(SPEC)
+diff --git ./kexec/kexec.c ./kexec/kexec.c
+index bc6ab3d..b82725b 100644
+--- ./kexec/kexec.c
++++ ./kexec/kexec.c
+@@ -805,6 +805,27 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
+ 	if (sort_segments(&info) < 0) {
+ 		return -1;
+ 	}
++
++#if 1
++	// force segment 0 to have memsz == bufsz
++	// so that it won't overwrite EBDA
++	if (info.segment[0].mem == 0)
++	{
++		if (kexec_debug)
++			printf("hack ebda into segment 0!\n");
++
++		uint8_t * ebda = calloc(1, info.segment[0].memsz);
++		memcpy(ebda, info.segment[0].buf, info.segment[0].bufsz);
++		info.segment[0].bufsz = info.segment[0].memsz;
++		info.segment[0].buf = ebda;
++
++		// install some default EBDA values that are off scale,
++		// which will force Xen to use the multiboot info
++		*(uint16_t*)(ebda + 0x40e) = 0xFFFF; // segment
++		*(uint16_t*)(ebda + 0x413) = 0xFFFF; // size
++	}
++#endif
++
+ 	/* if purgatory is loaded update it */
+ 	update_purgatory(&info);
+ 	if (entry)
+diff --git ./purgatory/Makefile ./purgatory/Makefile
+index 2dd6c47..2de8f07 100644
+--- ./purgatory/Makefile
++++ ./purgatory/Makefile
+@@ -44,7 +44,6 @@ purgatory/sha256.o: $(srcdir)/util_lib/sha256.c
+ 	mkdir -p $(@D)
+ 	$(COMPILE.c) -o $@ $^
+ 
+-$(PURGATORY): CC=$(TARGET_CC)
+ $(PURGATORY): CFLAGS=$(PURGATORY_EXTRA_CFLAGS) \
+ 		      $($(ARCH)_PURGATORY_EXTRA_CFLAGS) \
+ 		      -Os -fno-builtin -ffreestanding \
+diff --git ./util/Makefile ./util/Makefile
+index 948ee63..833a897 100644
+--- ./util/Makefile
++++ ./util/Makefile
+@@ -2,7 +2,7 @@ BIN_TO_HEX:= bin/bin-to-hex
+ 
+ $(BIN_TO_HEX): $(srcdir)/util/bin-to-hex.c
+ 	@$(MKDIR) -p $(@D)
+-	$(LINK.o) $(CFLAGS) -o $@ $^
++	$(BUILD_CC) $(BUILD_CFLAGS) -o $@ $^
+ 
+ $(BIN_TO_HEX): CC=$(BUILD_CC)
+ $(BIN_TO_HEX): CFLAGS=$(BUILD_CFLAGS)
