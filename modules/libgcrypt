@@ -12,8 +12,7 @@ libgcrypt_configure := ./configure \
 	--disable-static \
 	--with-libgpg-error-prefix="$(INSTALL)" \
 	--disable-asm \
-	--disable-nls \
-	
+
 libgcrypt_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
 	$(CROSS_TOOLS) \
