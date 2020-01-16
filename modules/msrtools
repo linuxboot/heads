@@ -5,7 +5,7 @@ msrtools_depends := $(musl_dep)
 #msrtools_version := git
 #msrtools_repo := https://github.com/osresearch/msr-tools
 
-msrtools_version := 572ef8a
+msrtools_version := 572ef8a2b873eda15a322daa48861140a078b92c
 msrtools_dir := msrtools-$(msrtools_version)
 msrtools_tar := msr-tools-$(msrtools_version).tar.gz
 #msrtools_url := https://github.com/intel/msr-tools/archive/msr-tools-$(msrtools_version).tar.gz
