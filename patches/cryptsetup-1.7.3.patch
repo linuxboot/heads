@@ -1,6 +1,512 @@
-diff -u --recursive ../../clean/cryptsetup-1.7.3/src/Makefile.in ./cryptsetup-1.7.3/src/Makefile.in
---- ../../clean/cryptsetup-1.7.3/src/Makefile.in	2016-10-28 09:45:06.000000000 -0400
-+++ cryptsetup-1.7.3/src/Makefile.in	2017-01-27 17:24:13.115962328 -0500
+diff -u -r cryptsetup-1.7.3-clean/configure cryptsetup-1.7.3/configure
+--- cryptsetup-1.7.3-clean/configure	2016-10-28 06:45:06.000000000 -0700
++++ cryptsetup-1.7.3/configure	2020-01-12 14:12:13.835035728 -0800
+@@ -10113,7 +10113,7 @@
+   hardcode_automatic=no
+   hardcode_direct=no
+   hardcode_direct_absolute=no
+-  hardcode_libdir_flag_spec=
++  hardcode_libdir_flag_spec=" "
+   hardcode_libdir_separator=
+   hardcode_minus_L=no
+   hardcode_shlibpath_var=unsupported
+@@ -10197,7 +10197,7 @@
+     # are reset later if shared libraries are not supported. Putting them
+     # here allows them to be overridden if necessary.
+     runpath_var=LD_RUN_PATH
+-    hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++    hardcode_libdir_flag_spec=" "
+     export_dynamic_flag_spec='$wl--export-dynamic'
+     # ancient GNU ld didn't support --whole-archive et. al.
+     if $LD --help 2>&1 | $GREP 'no-whole-archive' > /dev/null; then
+@@ -10243,7 +10243,7 @@
+         ;;
+       m68k)
+             archive_cmds='$RM $output_objdir/a2ixlibrary.data~$ECHO "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$ECHO "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$ECHO "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$ECHO "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
+-            hardcode_libdir_flag_spec='-L$libdir'
++            hardcode_libdir_flag_spec=" "
+             hardcode_minus_L=yes
+         ;;
+       esac
+@@ -10263,7 +10263,7 @@
+     cygwin* | mingw* | pw32* | cegcc*)
+       # _LT_TAGVAR(hardcode_libdir_flag_spec, ) is actually meaningless,
+       # as there is no search path for DLLs.
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       export_dynamic_flag_spec='$wl--export-all-symbols'
+       allow_undefined_flag=unsupported
+       always_export_symbols=no
+@@ -10293,7 +10293,7 @@
+       ;;
+ 
+     os2*)
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_minus_L=yes
+       allow_undefined_flag=unsupported
+       shrext_cmds=.dll
+@@ -10323,7 +10323,7 @@
+     interix[3-9]*)
+       hardcode_direct=no
+       hardcode_shlibpath_var=no
+-      hardcode_libdir_flag_spec='$wl-rpath,$libdir'
++      hardcode_libdir_flag_spec=" "
+       export_dynamic_flag_spec='$wl-E'
+       # Hack: On Interix 3.x, we cannot compile PIC because of a broken gcc.
+       # Instead, shared libraries are loaded at an image base (0x10000000 by
+@@ -10399,7 +10399,7 @@
+ 	xlf* | bgf* | bgxlf* | mpixlf*)
+ 	  # IBM XL Fortran 10.1 on PPC cannot create shared libs itself
+ 	  whole_archive_flag_spec='--whole-archive$convenience --no-whole-archive'
+-	  hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++	  hardcode_libdir_flag_spec=" "
+ 	  archive_cmds='$LD -shared $libobjs $deplibs $linker_flags -soname $soname -o $lib'
+ 	  if test yes = "$supports_anon_versioning"; then
+ 	    archive_expsym_cmds='echo "{ global:" > $output_objdir/$libname.ver~
+@@ -10466,7 +10466,7 @@
+ 	  # DT_RUNPATH tag from executables and libraries.  But doing so
+ 	  # requires that you compile everything twice, which is a pain.
+ 	  if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+-	    hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++	    hardcode_libdir_flag_spec=" "
+ 	    archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags $wl-soname $wl$soname -o $lib'
+ 	    archive_expsym_cmds='$CC -shared $libobjs $deplibs $compiler_flags $wl-soname $wl$soname $wl-retain-symbols-file $wl$export_symbols -o $lib'
+ 	  else
+@@ -10495,7 +10495,7 @@
+ 
+     if test no = "$ld_shlibs"; then
+       runpath_var=
+-      hardcode_libdir_flag_spec=
++      hardcode_libdir_flag_spec=" "
+       export_dynamic_flag_spec=
+       whole_archive_flag_spec=
+     fi
+@@ -10613,7 +10613,7 @@
+ 	  # path is not listed in the libpath.  Setting hardcode_minus_L
+ 	  # to unsupported forces relinking
+ 	  hardcode_minus_L=yes
+-	  hardcode_libdir_flag_spec='-L$libdir'
++	  hardcode_libdir_flag_spec=" "
+ 	  hardcode_libdir_separator=
+ 	  fi
+ 	  ;;
+@@ -10697,11 +10697,11 @@
+   aix_libpath=$lt_cv_aix_libpath_
+ fi
+ 
+-        hardcode_libdir_flag_spec='$wl-blibpath:$libdir:'"$aix_libpath"
++        hardcode_libdir_flag_spec=" "
+         archive_expsym_cmds='$CC -o $output_objdir/$soname $libobjs $deplibs $wl'$no_entry_flag' $compiler_flags `if test -n "$allow_undefined_flag"; then func_echo_all "$wl$allow_undefined_flag"; else :; fi` $wl'$exp_sym_flag:\$export_symbols' '$shared_flag
+       else
+ 	if test ia64 = "$host_cpu"; then
+-	  hardcode_libdir_flag_spec='$wl-R $libdir:/usr/lib:/lib'
++	  hardcode_libdir_flag_spec=" "
+ 	  allow_undefined_flag="-z nodefs"
+ 	  archive_expsym_cmds="\$CC $shared_flag"' -o $output_objdir/$soname $libobjs $deplibs '"\$wl$no_entry_flag"' $compiler_flags $wl$allow_undefined_flag '"\$wl$exp_sym_flag:\$export_symbols"
+ 	else
+@@ -10750,7 +10750,7 @@
+   aix_libpath=$lt_cv_aix_libpath_
+ fi
+ 
+-	 hardcode_libdir_flag_spec='$wl-blibpath:$libdir:'"$aix_libpath"
++	 hardcode_libdir_flag_spec=" "
+ 	  # Warning - without using the other run time loading flags,
+ 	  # -berok will link without error, but may produce a broken library.
+ 	  no_undefined_flag=' $wl-bernotok'
+@@ -10790,7 +10790,7 @@
+         ;;
+       m68k)
+             archive_cmds='$RM $output_objdir/a2ixlibrary.data~$ECHO "#define NAME $libname" > $output_objdir/a2ixlibrary.data~$ECHO "#define LIBRARY_ID 1" >> $output_objdir/a2ixlibrary.data~$ECHO "#define VERSION $major" >> $output_objdir/a2ixlibrary.data~$ECHO "#define REVISION $revision" >> $output_objdir/a2ixlibrary.data~$AR $AR_FLAGS $lib $libobjs~$RANLIB $lib~(cd $output_objdir && a2ixlibrary -32)'
+-            hardcode_libdir_flag_spec='-L$libdir'
++            hardcode_libdir_flag_spec=" "
+             hardcode_minus_L=yes
+         ;;
+       esac
+@@ -10808,7 +10808,7 @@
+       case $cc_basename in
+       cl*)
+ 	# Native MSVC
+-	hardcode_libdir_flag_spec=' '
++	hardcode_libdir_flag_spec=" "
+ 	allow_undefined_flag=unsupported
+ 	always_export_symbols=yes
+ 	file_list_spec='@'
+@@ -10849,7 +10849,7 @@
+ 	;;
+       *)
+ 	# Assume MSVC wrapper
+-	hardcode_libdir_flag_spec=' '
++	hardcode_libdir_flag_spec=" "
+ 	allow_undefined_flag=unsupported
+ 	# Tell ltmain to make .lib files, not .a files.
+ 	libext=lib
+@@ -10900,7 +10900,7 @@
+ 
+     dgux*)
+       archive_cmds='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_shlibpath_var=no
+       ;;
+ 
+@@ -10910,7 +10910,7 @@
+     # extra space).
+     freebsd2.2*)
+       archive_cmds='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags /usr/lib/c++rt0.o'
+-      hardcode_libdir_flag_spec='-R$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_direct=yes
+       hardcode_shlibpath_var=no
+       ;;
+@@ -10926,7 +10926,7 @@
+     # FreeBSD 3 and greater uses gcc -shared to do shared libraries.
+     freebsd* | dragonfly*)
+       archive_cmds='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec='-R$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_direct=yes
+       hardcode_shlibpath_var=no
+       ;;
+@@ -10937,7 +10937,7 @@
+       else
+ 	archive_cmds='$RM $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test "x$output_objdir/$soname" = "x$lib" || mv $output_objdir/$soname $lib'
+       fi
+-      hardcode_libdir_flag_spec='$wl+b $wl$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_libdir_separator=:
+       hardcode_direct=yes
+ 
+@@ -10954,7 +10954,7 @@
+ 	archive_cmds='$LD -b +h $soname +b $install_libdir -o $lib $libobjs $deplibs $linker_flags'
+       fi
+       if test no = "$with_gnu_ld"; then
+-	hardcode_libdir_flag_spec='$wl+b $wl$libdir'
++	hardcode_libdir_flag_spec=" "
+ 	hardcode_libdir_separator=:
+ 	hardcode_direct=yes
+ 	hardcode_direct_absolute=yes
+@@ -11031,7 +11031,7 @@
+ 	esac
+       fi
+       if test no = "$with_gnu_ld"; then
+-	hardcode_libdir_flag_spec='$wl+b $wl$libdir'
++	hardcode_libdir_flag_spec=" "
+ 	hardcode_libdir_separator=:
+ 
+ 	case $host_cpu in
+@@ -11090,7 +11090,7 @@
+ 	archive_expsym_cmds='$CC -shared $libobjs $deplibs $compiler_flags -soname $soname `test -n "$verstring" && func_echo_all "-set_version $verstring"` -update_registry $output_objdir/so_locations -exports_file $export_symbols -o $lib'
+       fi
+       archive_cmds_need_lc='no'
+-      hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_libdir_separator=:
+       inherit_rpath=yes
+       link_all_deplibs=yes
+@@ -11112,7 +11112,7 @@
+       else
+ 	archive_cmds='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+-      hardcode_libdir_flag_spec='-R$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_direct=yes
+       hardcode_shlibpath_var=no
+       ;;
+@@ -11120,7 +11120,7 @@
+     newsos6)
+       archive_cmds='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+       hardcode_direct=yes
+-      hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_libdir_separator=:
+       hardcode_shlibpath_var=no
+       ;;
+@@ -11136,11 +11136,11 @@
+ 	if test -z "`echo __ELF__ | $CC -E - | $GREP __ELF__`"; then
+ 	  archive_cmds='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
+ 	  archive_expsym_cmds='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags $wl-retain-symbols-file,$export_symbols'
+-	  hardcode_libdir_flag_spec='$wl-rpath,$libdir'
++	  hardcode_libdir_flag_spec=" "
+ 	  export_dynamic_flag_spec='$wl-E'
+ 	else
+ 	  archive_cmds='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
+-	  hardcode_libdir_flag_spec='$wl-rpath,$libdir'
++	  hardcode_libdir_flag_spec=" "
+ 	fi
+       else
+ 	ld_shlibs=no
+@@ -11148,7 +11148,7 @@
+       ;;
+ 
+     os2*)
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_minus_L=yes
+       allow_undefined_flag=unsupported
+       shrext_cmds=.dll
+@@ -11184,7 +11184,7 @@
+ 	archive_cmds='$CC -shared$allow_undefined_flag $libobjs $deplibs $compiler_flags -soname $soname `test -n "$verstring" && func_echo_all "-set_version $verstring"` -update_registry $output_objdir/so_locations -o $lib'
+       fi
+       archive_cmds_need_lc='no'
+-      hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_libdir_separator=:
+       ;;
+ 
+@@ -11192,7 +11192,7 @@
+       if test yes = "$GCC"; then
+ 	allow_undefined_flag=' $wl-expect_unresolved $wl\*'
+ 	archive_cmds='$CC -shared$allow_undefined_flag $pic_flag $libobjs $deplibs $compiler_flags $wl-msym $wl-soname $wl$soname `test -n "$verstring" && func_echo_all "$wl-set_version $wl$verstring"` $wl-update_registry $wl$output_objdir/so_locations -o $lib'
+-	hardcode_libdir_flag_spec='$wl-rpath $wl$libdir'
++	hardcode_libdir_flag_spec=" "
+       else
+ 	allow_undefined_flag=' -expect_unresolved \*'
+ 	archive_cmds='$CC -shared$allow_undefined_flag $libobjs $deplibs $compiler_flags -msym -soname $soname `test -n "$verstring" && func_echo_all "-set_version $verstring"` -update_registry $output_objdir/so_locations -o $lib'
+@@ -11200,7 +11200,7 @@
+           $CC -shared$allow_undefined_flag $wl-input $wl$lib.exp $compiler_flags $libobjs $deplibs -soname $soname `test -n "$verstring" && $ECHO "-set_version $verstring"` -update_registry $output_objdir/so_locations -o $lib~$RM $lib.exp'
+ 
+ 	# Both c and cxx compiler support -rpath directly
+-	hardcode_libdir_flag_spec='-rpath $libdir'
++	hardcode_libdir_flag_spec=" "
+       fi
+       archive_cmds_need_lc='no'
+       hardcode_libdir_separator=:
+@@ -11229,7 +11229,7 @@
+ 	  ;;
+ 	esac
+       fi
+-      hardcode_libdir_flag_spec='-R$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_shlibpath_var=no
+       case $host_os in
+       solaris2.[0-5] | solaris2.[0-5].*) ;;
+@@ -11256,7 +11256,7 @@
+       else
+ 	archive_cmds='$LD -assert pure-text -Bstatic -o $lib $libobjs $deplibs $linker_flags'
+       fi
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_direct=yes
+       hardcode_minus_L=yes
+       hardcode_shlibpath_var=no
+@@ -11326,7 +11326,7 @@
+       allow_undefined_flag='$wl-z,nodefs'
+       archive_cmds_need_lc=no
+       hardcode_shlibpath_var=no
+-      hardcode_libdir_flag_spec='$wl-R,$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_libdir_separator=':'
+       link_all_deplibs=yes
+       export_dynamic_flag_spec='$wl-Bexport'
+@@ -11343,7 +11343,7 @@
+ 
+     uts4*)
+       archive_cmds='$LD -G -h $soname -o $lib $libobjs $deplibs $linker_flags'
+-      hardcode_libdir_flag_spec='-L$libdir'
++      hardcode_libdir_flag_spec=" "
+       hardcode_shlibpath_var=no
+       ;;
+ 
+@@ -11711,7 +11711,7 @@
+   version_type=linux # correct to gnu/linux during the next big refactor
+   need_lib_prefix=no
+   need_version=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test ia64 = "$host_cpu"; then
+     # AIX 5 supports IA64
+     library_names_spec='$libname$release$shared_ext$major $libname$release$shared_ext$versuffix $libname$shared_ext'
+@@ -12001,16 +12001,16 @@
+     ;;
+   freebsd3.[01]* | freebsdelf3.[01]*)
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   freebsd3.[2-9]* | freebsdelf3.[2-9]* | \
+   freebsd4.[0-5] | freebsdelf4.[0-5] | freebsd4.1.1 | freebsdelf4.1.1)
+     shlibpath_overrides_runpath=no
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   *) # from 4.6 on, and DragonFly
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   esac
+   ;;
+@@ -12025,7 +12025,7 @@
+   shlibpath_var=LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   sys_lib_dlsearch_path_spec='/boot/home/config/lib /boot/common/lib /boot/system/lib'
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ hpux9* | hpux10* | hpux11*)
+@@ -12037,7 +12037,7 @@
+   case $host_cpu in
+   ia64*)
+     shrext_cmds='.so'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.so"
+     shlibpath_var=LD_LIBRARY_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -12053,7 +12053,7 @@
+     ;;
+   hppa*64*)
+     shrext_cmds='.sl'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.sl"
+     shlibpath_var=LD_LIBRARY_PATH # How should we handle SHLIB_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -12086,7 +12086,7 @@
+   dynamic_linker='Interix 3.x ld.so.1 (PE, like ELF)'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ irix5* | irix6* | nonstopux*)
+@@ -12123,7 +12123,7 @@
+   shlibpath_overrides_runpath=no
+   sys_lib_search_path_spec="/usr/lib$libsuff /lib$libsuff /usr/local/lib$libsuff"
+   sys_lib_dlsearch_path_spec="/usr/lib$libsuff /lib$libsuff"
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ # No shared lib support for Linux oldld, aout, or coff.
+@@ -12144,11 +12144,11 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   dynamic_linker='Android linker'
+   # Don't embed -rpath directories since the linker doesn't support them.
+-  hardcode_libdir_flag_spec='-L$libdir'
++  hardcode_libdir_flag_spec=" "
+   ;;
+ 
+ # This must be glibc/ELF.
+@@ -12199,7 +12199,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   # Ideally, we could use ldconfig to report *all* directores which are
+   # searched for libraries, however this is still not possible.  Aside from not
+@@ -12229,7 +12229,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+@@ -12248,7 +12248,7 @@
+   fi
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ newsos6)
+@@ -12266,7 +12266,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='ldqnx.so'
+   ;;
+ 
+@@ -12338,7 +12338,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   # ldd complains unless libraries are executable
+   postinstall_cmds='chmod +x $lib'
+   ;;
+@@ -12395,7 +12395,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test yes = "$with_gnu_ld"; then
+     sys_lib_search_path_spec='/usr/local/lib /usr/gnu/lib /usr/ccs/lib /usr/lib /lib'
+   else
+@@ -12417,7 +12417,7 @@
+   library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ uts4*)
+@@ -14964,7 +14964,7 @@
+   wl="$acl_cv_wl"
+   libext="$acl_cv_libext"
+   shlibext="$acl_cv_shlibext"
+-  hardcode_libdir_flag_spec="$acl_cv_hardcode_libdir_flag_spec"
++  hardcode_libdir_flag_spec=" "
+   hardcode_libdir_separator="$acl_cv_hardcode_libdir_separator"
+   hardcode_direct="$acl_cv_hardcode_direct"
+   hardcode_minus_L="$acl_cv_hardcode_minus_L"
+@@ -19683,7 +19683,7 @@
+ with_gnu_ld='`$ECHO "$with_gnu_ld" | $SED "$delay_single_quote_subst"`'
+ allow_undefined_flag='`$ECHO "$allow_undefined_flag" | $SED "$delay_single_quote_subst"`'
+ no_undefined_flag='`$ECHO "$no_undefined_flag" | $SED "$delay_single_quote_subst"`'
+-hardcode_libdir_flag_spec='`$ECHO "$hardcode_libdir_flag_spec" | $SED "$delay_single_quote_subst"`'
++hardcode_libdir_flag_spec=" "
+ hardcode_libdir_separator='`$ECHO "$hardcode_libdir_separator" | $SED "$delay_single_quote_subst"`'
+ hardcode_direct='`$ECHO "$hardcode_direct" | $SED "$delay_single_quote_subst"`'
+ hardcode_direct_absolute='`$ECHO "$hardcode_direct_absolute" | $SED "$delay_single_quote_subst"`'
+@@ -19714,7 +19714,7 @@
+ postuninstall_cmds='`$ECHO "$postuninstall_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_cmds='`$ECHO "$finish_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_eval='`$ECHO "$finish_eval" | $SED "$delay_single_quote_subst"`'
+-hardcode_into_libs='`$ECHO "$hardcode_into_libs" | $SED "$delay_single_quote_subst"`'
++hardcode_into_libs=no
+ sys_lib_search_path_spec='`$ECHO "$sys_lib_search_path_spec" | $SED "$delay_single_quote_subst"`'
+ configure_time_dlsearch_path='`$ECHO "$configure_time_dlsearch_path" | $SED "$delay_single_quote_subst"`'
+ configure_time_lt_sys_library_path='`$ECHO "$configure_time_lt_sys_library_path" | $SED "$delay_single_quote_subst"`'
+@@ -20877,7 +20877,7 @@
+ finish_eval=$lt_finish_eval
+ 
+ # Whether we should hardcode library paths into libraries.
+-hardcode_into_libs=$hardcode_into_libs
++hardcode_into_libs=no
+ 
+ # Compile-time system search path for libraries.
+ sys_lib_search_path_spec=$lt_sys_lib_search_path_spec
+@@ -20974,7 +20974,7 @@
+ 
+ # Flag to hardcode \$libdir into a binary during linking.
+ # This must work even if \$libdir does not exist
+-hardcode_libdir_flag_spec=$lt_hardcode_libdir_flag_spec
++hardcode_libdir_flag_spec=" "
+ 
+ # Whether we need a single "-rpath" flag with a separated argument.
+ hardcode_libdir_separator=$lt_hardcode_libdir_separator
+diff -u -r cryptsetup-1.7.3-clean/src/Makefile.in cryptsetup-1.7.3/src/Makefile.in
+--- cryptsetup-1.7.3-clean/src/Makefile.in	2016-10-28 06:45:06.000000000 -0700
++++ cryptsetup-1.7.3/src/Makefile.in	2020-01-12 13:42:22.744734385 -0800
 @@ -479,6 +479,8 @@
  cryptsetup_LDADD = \
  	$(top_builddir)/lib/libcryptsetup.la	\
