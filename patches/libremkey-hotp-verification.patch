@@ -1,15 +1,24 @@
 --- nitrokey-hotp-verification-a/Toolchain-heads.cmake	2018-05-22 09:55:46.907209235 -0700
 +++ nitrokey-hotp-verification-b/Toolchain-heads.cmake	2018-05-22 09:55:26.659371966 -0700
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,27 @@
 +SET(CMAKE_SYSTEM_NAME Linux)
 +SET(CMAKE_SYSTEM_VERSION 1)
 +
 +# Specify the cross compiler
-+SET(CMAKE_C_COMPILER $ENV{INSTALL}/bin/musl-gcc)
-+SET(CMAKE_CXX_COMPILER $ENV{INSTALL}/bin/musl-gcc)
++SET(CMAKE_C_COMPILER $ENV{CROSS}gcc)
++SET(CMAKE_CXX_COMPILER $ENV{CROSS}gcc)
++
++#sysroot location
++set(MYSYSROOT $ENV{INSTALL})
++
++# compiler/linker flags
++set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --sysroot=${MYSYSROOT}" CACHE INTERNAL "" FORCE)
++set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} --sysroot=${MYSYSROOT}" CACHE INTERNAL "" FORCE)
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --sysroot=${MYSYSROOT}" CACHE INTERNAL "" FORCE)
++set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} --sysroot=${MYSYSROOT}" CACHE INTERNAL "" FORCE)
 +
 +# Where is the target environment
-+SET(CMAKE_FIND_ROOT_PATH $ENV{INSTALL})
++SET(CMAKE_FIND_ROOT_PATH "${MYSYSROOT}")
 +
 +# Search for programs only in the build host directories
 +SET(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
