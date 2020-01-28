@@ -16,4 +16,5 @@ libremkey-hotp-verification_output := \
 
 libremkey-hotp-verification_configure := \
   INSTALL="$(INSTALL)" \
+  CROSS="$(CROSS)" \
   cmake -DCMAKE_TOOLCHAIN_FILE=./Toolchain-heads.cmake -DCMAKE_AR="$(CROSS)ar" . 
