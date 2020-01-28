@@ -52,7 +52,7 @@ if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 fi
 
 # Set GPG_TTY before calling gpg in key-init
-export GPG_TTY=$(tty)
+export GPG_TTY=/dev/console
 
 /bin/key-init
 
