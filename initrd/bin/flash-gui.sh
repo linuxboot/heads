@@ -7,7 +7,7 @@ set -e -o pipefail
 mount_usb(){
 # Mount the USB boot device
   if ! grep -q /media /proc/mounts ; then
-    mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
+    mount-usb "$CONFIG_USB_BOOT_DEV" && USB_FAILED=0 || USB_FAILED=1
     if [ $USB_FAILED -ne 0 ]; then
       if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
         whiptail --title 'USB Drive Missing' \
