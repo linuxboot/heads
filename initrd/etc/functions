@@ -136,8 +136,28 @@ confirm_gpg_card()
 	# setup the USB so we can reach the GPG card
 	enable_usb
 
-	gpg --card-status \
-	|| die "gpg card read failed"
+	echo -e "\nVerifying presence of GPG card...\n"
+	# ensure we don't exit without retrying
+	errexit=$(set -o | grep errexit | awk '{print $2}')
+	set +e
+	gpg --card-status > /dev/null
+	if [ $? -ne 0 ]; then
+	  # prompt for reinsertion and try a second time
+	  read -n1 -r -p \
+	      "Can't access GPG key; remove and reinsert, then press Enter to retry. " \
+	      ignored
+	  # restore prev errexit state
+	  if [ "$errexit" = "on" ]; then
+	    set -e
+	  fi
+	  # retry card status
+	  gpg --card-status > /dev/null \
+	  	|| die "gpg card read failed"
+	fi
+	# restore prev errexit state
+	if [ "$errexit" = "on" ]; then
+	  set -e
+	fi
 }
 
 
@@ -239,4 +259,88 @@ replace_config() {
 }
 combine_configs() {
 	cat /etc/config* > /tmp/config
+}
+
+update_checksums()
+{
+	# clear screen
+	printf "\033c"
+	# ensure /boot mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+		|| recovery "Unable to mount /boot"
+	fi
+	# remount RW
+    	mount -o rw,remount /boot
+	cd /boot
+	find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
+	if [ -e /boot/kexec_default_hashes.txt ]; then
+	  DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
+	  echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+	fi
+	# Remove any package trigger log files
+	# We don't need them after the user decides to sign
+	rm -f /boot/kexec_package_trigger*
+
+	# sign and auto-roll config counter
+	extparam=
+	if [ "$CONFIG_TPM" = "y" ]; then
+	extparam=-u
+	fi
+	if ! kexec-sign-config -p /boot $extparam ; then
+	  echo "Failed to sign default config; press Enter to continue."
+	  read
+	fi
+
+	# switch back to ro mode
+	mount -o ro,remount /boot
+}
+
+# detect and set /boot device
+# mount /boot if successful
+detect_boot_device()
+{
+	# unmount /boot to be safe
+	umount /boot 2>/dev/null
+
+	# check $CONFIG_BOOT_DEV if set/valid
+	if [ -e "$CONFIG_BOOT_DEV" ]; then
+		if mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				# CONFIG_BOOT_DEV is valid device and contains an installed OS
+				return 0
+			fi
+		fi
+	fi
+
+	# generate list of possible boot devices
+	fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
+	
+	# filter out extraneous options
+	> /tmp/boot_device_list
+	for i in `cat /tmp/disklist`; do
+		# remove block device from list if numeric partitions exist, since not bootable
+		let DEV_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+			echo $i >> /tmp/boot_device_list
+		else
+			ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
+		fi
+	done
+	
+	# iterate thru possible options and check for grub dir
+	for i in `cat /tmp/boot_device_list`; do
+		umount /boot 2>/dev/null
+		if mount -o ro $i /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				CONFIG_BOOT_DEV="$i"
+				return 0
+			fi
+		fi
+	done
+
+	# no valid boot device found
+	echo "Unable to locate /boot files on any mounted disk"
+	umount /boot 2>/dev/null
+	return 1
 }

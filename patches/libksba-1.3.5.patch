@@ -1,0 +1,200 @@
+diff -u -r libksba-1.3.5-clean/configure libksba-1.3.5/configure
+--- libksba-1.3.5-clean/configure	2016-08-22 02:56:54.000000000 -0700
++++ libksba-1.3.5/configure	2020-01-12 13:34:53.557259138 -0800
+@@ -10734,7 +10734,7 @@
+   version_type=linux # correct to gnu/linux during the next big refactor
+   need_lib_prefix=no
+   need_version=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test "$host_cpu" = ia64; then
+     # AIX 5 supports IA64
+     library_names_spec='${libname}${release}${shared_ext}$major ${libname}${release}${shared_ext}$versuffix $libname${shared_ext}'
+@@ -10973,16 +10973,16 @@
+     ;;
+   freebsd3.[01]* | freebsdelf3.[01]*)
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   freebsd3.[2-9]* | freebsdelf3.[2-9]* | \
+   freebsd4.[0-5] | freebsdelf4.[0-5] | freebsd4.1.1 | freebsdelf4.1.1)
+     shlibpath_overrides_runpath=no
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   *) # from 4.6 on, and DragonFly
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   esac
+   ;;
+@@ -10995,7 +10995,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ haiku*)
+@@ -11008,7 +11008,7 @@
+   shlibpath_var=LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+   sys_lib_dlsearch_path_spec='/boot/home/config/lib /boot/common/lib /boot/system/lib'
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ hpux9* | hpux10* | hpux11*)
+@@ -11020,7 +11020,7 @@
+   case $host_cpu in
+   ia64*)
+     shrext_cmds='.so'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.so"
+     shlibpath_var=LD_LIBRARY_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -11035,7 +11035,7 @@
+     ;;
+   hppa*64*)
+     shrext_cmds='.sl'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.sl"
+     shlibpath_var=LD_LIBRARY_PATH # How should we handle SHLIB_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -11068,7 +11068,7 @@
+   dynamic_linker='Interix 3.x ld.so.1 (PE, like ELF)'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ irix5* | irix6* | nonstopux*)
+@@ -11105,7 +11105,7 @@
+   shlibpath_overrides_runpath=no
+   sys_lib_search_path_spec="/usr/lib${libsuff} /lib${libsuff} /usr/local/lib${libsuff}"
+   sys_lib_dlsearch_path_spec="/usr/lib${libsuff} /lib${libsuff}"
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ # No shared lib support for Linux oldld, aout, or coff.
+@@ -11126,7 +11126,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   dynamic_linker='Android linker'
+   # Don't embed -rpath directories since the linker doesn't support them.
+@@ -11181,7 +11181,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   # Append ld.so.conf contents to the search path
+   if test -f /etc/ld.so.conf; then
+@@ -11206,7 +11206,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+@@ -11225,7 +11225,7 @@
+   fi
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ newsos6)
+@@ -11243,7 +11243,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='ldqnx.so'
+   ;;
+ 
+@@ -11305,7 +11305,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   # ldd complains unless libraries are executable
+   postinstall_cmds='chmod +x $lib'
+   ;;
+@@ -11362,7 +11362,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test "$with_gnu_ld" = yes; then
+     sys_lib_search_path_spec='/usr/local/lib /usr/gnu/lib /usr/ccs/lib /usr/lib /lib'
+   else
+@@ -11384,7 +11384,7 @@
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ uts4*)
+@@ -15804,7 +15804,7 @@
+ postuninstall_cmds='`$ECHO "$postuninstall_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_cmds='`$ECHO "$finish_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_eval='`$ECHO "$finish_eval" | $SED "$delay_single_quote_subst"`'
+-hardcode_into_libs='`$ECHO "$hardcode_into_libs" | $SED "$delay_single_quote_subst"`'
++hardcode_into_libs=no
+ sys_lib_search_path_spec='`$ECHO "$sys_lib_search_path_spec" | $SED "$delay_single_quote_subst"`'
+ sys_lib_dlsearch_path_spec='`$ECHO "$sys_lib_dlsearch_path_spec" | $SED "$delay_single_quote_subst"`'
+ hardcode_action='`$ECHO "$hardcode_action" | $SED "$delay_single_quote_subst"`'
+@@ -17021,7 +17021,7 @@
+ finish_eval=$lt_finish_eval
+ 
+ # Whether we should hardcode library paths into libraries.
+-hardcode_into_libs=$hardcode_into_libs
++hardcode_into_libs=no
+ 
+ # Compile-time system search path for libraries.
+ sys_lib_search_path_spec=$lt_sys_lib_search_path_spec
+diff -u -r libksba-1.3.5-clean/src/asn1-gentables.c libksba-1.3.5/src/asn1-gentables.c
+--- libksba-1.3.5-clean/src/asn1-gentables.c	2016-08-22 02:38:21.000000000 -0700
++++ libksba-1.3.5/src/asn1-gentables.c	2020-01-12 13:34:45.877191990 -0800
+@@ -109,10 +109,17 @@
+ static int
+ cmp_string (const void *aptr, const void *bptr)
+ {
+-  const struct name_list_s **a = (const struct name_list_s **)aptr;
+-  const struct name_list_s **b = (const struct name_list_s **)bptr;
++  const char *a = (*(const struct name_list_s **)aptr)->name;
++  const char *b = (*(const struct name_list_s **)bptr)->name;
+ 
+-  return strlen ((*a)->name) < strlen ((*b)->name);
++  const size_t len_a = strlen(a);
++  const size_t len_b = strlen(b);
++
++  if (len_a < len_b)
++    return -1;
++  if (len_a > len_b)
++    return +1;
++  return strcmp(a, b);
+ }
+ 
+ static void

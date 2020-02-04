@@ -1,0 +1,176 @@
+diff -u -r libassuan-2.5.1-clean/configure libassuan-2.5.1/configure
+--- libassuan-2.5.1-clean/configure	2017-12-07 06:55:50.000000000 -0800
++++ libassuan-2.5.1/configure	2020-01-12 13:39:50.655638965 -0800
+@@ -10781,7 +10781,7 @@
+   version_type=linux # correct to gnu/linux during the next big refactor
+   need_lib_prefix=no
+   need_version=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test "$host_cpu" = ia64; then
+     # AIX 5 supports IA64
+     library_names_spec='${libname}${release}${shared_ext}$major ${libname}${release}${shared_ext}$versuffix $libname${shared_ext}'
+@@ -11020,16 +11020,16 @@
+     ;;
+   freebsd3.[01]* | freebsdelf3.[01]*)
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   freebsd3.[2-9]* | freebsdelf3.[2-9]* | \
+   freebsd4.[0-5] | freebsdelf4.[0-5] | freebsd4.1.1 | freebsdelf4.1.1)
+     shlibpath_overrides_runpath=no
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   *) # from 4.6 on, and DragonFly
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   esac
+   ;;
+@@ -11042,7 +11042,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ haiku*)
+@@ -11055,7 +11055,7 @@
+   shlibpath_var=LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+   sys_lib_dlsearch_path_spec='/boot/home/config/lib /boot/common/lib /boot/system/lib'
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ hpux9* | hpux10* | hpux11*)
+@@ -11067,7 +11067,7 @@
+   case $host_cpu in
+   ia64*)
+     shrext_cmds='.so'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.so"
+     shlibpath_var=LD_LIBRARY_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -11082,7 +11082,7 @@
+     ;;
+   hppa*64*)
+     shrext_cmds='.sl'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.sl"
+     shlibpath_var=LD_LIBRARY_PATH # How should we handle SHLIB_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -11115,7 +11115,7 @@
+   dynamic_linker='Interix 3.x ld.so.1 (PE, like ELF)'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ irix5* | irix6* | nonstopux*)
+@@ -11152,7 +11152,7 @@
+   shlibpath_overrides_runpath=no
+   sys_lib_search_path_spec="/usr/lib${libsuff} /lib${libsuff} /usr/local/lib${libsuff}"
+   sys_lib_dlsearch_path_spec="/usr/lib${libsuff} /lib${libsuff}"
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ # No shared lib support for Linux oldld, aout, or coff.
+@@ -11173,7 +11173,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   dynamic_linker='Android linker'
+   # Don't embed -rpath directories since the linker doesn't support them.
+@@ -11228,7 +11228,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   # Append ld.so.conf contents to the search path
+   if test -f /etc/ld.so.conf; then
+@@ -11253,7 +11253,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+@@ -11272,7 +11272,7 @@
+   fi
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ newsos6)
+@@ -11290,7 +11290,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='ldqnx.so'
+   ;;
+ 
+@@ -11352,7 +11352,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   # ldd complains unless libraries are executable
+   postinstall_cmds='chmod +x $lib'
+   ;;
+@@ -11409,7 +11409,7 @@
+   soname_spec='${libname}${release}${shared_ext}$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test "$with_gnu_ld" = yes; then
+     sys_lib_search_path_spec='/usr/local/lib /usr/gnu/lib /usr/ccs/lib /usr/lib /lib'
+   else
+@@ -11431,7 +11431,7 @@
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ uts4*)
+@@ -15680,7 +15680,7 @@
+ postuninstall_cmds='`$ECHO "$postuninstall_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_cmds='`$ECHO "$finish_cmds" | $SED "$delay_single_quote_subst"`'
+ finish_eval='`$ECHO "$finish_eval" | $SED "$delay_single_quote_subst"`'
+-hardcode_into_libs='`$ECHO "$hardcode_into_libs" | $SED "$delay_single_quote_subst"`'
++hardcode_into_libs=no
+ sys_lib_search_path_spec='`$ECHO "$sys_lib_search_path_spec" | $SED "$delay_single_quote_subst"`'
+ sys_lib_dlsearch_path_spec='`$ECHO "$sys_lib_dlsearch_path_spec" | $SED "$delay_single_quote_subst"`'
+ hardcode_action='`$ECHO "$hardcode_action" | $SED "$delay_single_quote_subst"`'
+@@ -16896,7 +16896,7 @@
+ finish_eval=$lt_finish_eval
+ 
+ # Whether we should hardcode library paths into libraries.
+-hardcode_into_libs=$hardcode_into_libs
++hardcode_into_libs=no
+ 
+ # Compile-time system search path for libraries.
+ sys_lib_search_path_spec=$lt_sys_lib_search_path_spec

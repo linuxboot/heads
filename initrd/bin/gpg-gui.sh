@@ -68,6 +68,14 @@ file_selector() {
   fi
 }
 gpg_flash_rom() {
+
+  if [ "$1" = "replace" ]; then
+    # clear local keyring
+    [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
+    [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
+    [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
+  fi
+
   cat "$PUBKEY" | gpg --import
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
   gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
@@ -97,17 +105,35 @@ gpg_flash_rom() {
   if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
     cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
   fi
-  cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+  if [ -e /.gnupg/trustdb.gpg ]; then
+    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+  fi
 
   #Remove old method owner trust exported file
   if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
     cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
   fi
 
+  # persist user config changes
+  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
+    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/etc/config.user"
+  fi
+  if [ -e /etc/config.user ]; then
+    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+  fi
   /bin/flash.sh /tmp/gpg-gui.rom
-  whiptail --title 'BIOS Flashed Successfully' \
-    --msgbox "BIOS flashed successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
+
+  if (whiptail --title 'BIOS Flashed Successfully' \
+      --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 16 90) then
+    update_checksums
+  else
+    /bin/reboot
+  fi
+
+  whiptail --title 'Files in /boot Updated Successfully'\
+    --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 16 60
   /bin/reboot
+  
 }
 gpg_post_gen_mgmt() {
   GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
@@ -138,28 +164,37 @@ gpg_post_gen_mgmt() {
       gpg_flash_rom
   fi
 }
-gpg_sc_oem_reset() {
-  GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
-  # Factory reset GPG card
-  {
-    echo admin
-    echo factory-reset
-    echo y
-    echo yes
-  } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit > /tmp/gpg_card_edit_output || return 1
-  # Generate OEM GPG keys
-  {
-    echo admin
-    echo generate
-    echo n
-    echo 12345678
-    echo 123456
-    echo 0
-    echo y
-    echo "OEM Key"
-    echo "oem-${GPG_KEY_NAME}@example.com"
-    echo "OEM-generated key"
-  } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit > /tmp/gpg_card_edit_output || return 2
+
+gpg_add_key_reflash() {
+  if (whiptail --title 'GPG public key required' \
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+    mount_usb
+    if grep -q /media /proc/mounts ; then
+      find /media -name '*.key' > /tmp/filelist.txt
+      find /media -name '*.asc' >> /tmp/filelist.txt
+      file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+      # bail if user didn't select a file
+      if [ "$FILE" = "" ]; then
+        return
+      else
+        PUBKEY=$FILE
+      fi
+
+      /bin/flash.sh -r /tmp/gpg-gui.rom
+      if [ ! -s /tmp/gpg-gui.rom ]; then
+        whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
+          --msgbox "Unable to read BIOS" 16 60
+        exit 1
+      fi
+
+      if (whiptail --title 'Update ROM?' \
+          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+        gpg_flash_rom
+      else
+        exit 0
+      fi
+    fi
+  fi
 }
 
 while true; do
@@ -168,9 +203,9 @@ while true; do
     --menu 'Select the GPG function to perform' 20 90 10 \
     'r' ' Add GPG key to running BIOS + reflash' \
     'a' ' Add GPG key to standalone BIOS image + flash' \
+    'e' ' Replace GPG key(s) in the current ROM + reflash' \
     'l' ' List GPG keys in your keyring' \
     'g' ' Generate GPG keys manually on a USB security token' \
-    'o' ' OEM Factory reset + auto keygen USB security token' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -213,30 +248,16 @@ while true; do
       fi
     ;;
     "r" )
-      if (whiptail --title 'GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
-        mount_usb
-        if grep -q /media /proc/mounts ; then
-          find /media -name '*.key' > /tmp/filelist.txt
-          find /media -name '*.asc' >> /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
-          PUBKEY=$FILE
-
-          /bin/flash.sh -r /tmp/gpg-gui.rom
-          if [ ! -s /tmp/gpg-gui.rom ]; then
-            whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: BIOS Read Failed!' \
-              --msgbox "Unable to read BIOS" 16 60
-            exit 1
-          fi
-
-          if (whiptail --title 'Update ROM?' \
-              --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
-            gpg_flash_rom
-          else
-            exit 0
-          fi
-        fi
-      fi
+      gpg_add_key_reflash
+      exit 0;
+    ;;
+    "e" )
+      # clear local keyring
+      [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
+      [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
+      [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
+      # add key and reflash
+      gpg_add_key_reflash
     ;;
     "l" )
       GPG_KEYRING=`gpg -k`
@@ -256,24 +277,6 @@ while true; do
       gpg --card-edit > /tmp/gpg_card_edit_output
       if [ $? -eq 0 ]; then
         gpg_post_gen_mgmt
-      fi
-    ;;
-    "o" )
-      if (whiptail $CONFIG_WARNING_BG_COLOR --title 'WARNING: Factory Reset USB Security Token?' \
-          --yesno "This will perform a FACTORY RESET of the USB security token!\n\nThis will:\n* Reset all security token passwords to default\n* Erase any keys on the security token\n* Generate new automated GPG keys on the token\n\nAny data now on the USB security token will be LOST!\n\nDo you want to proceed?" 16 120) then
-        confirm_gpg_card
-        gpg_sc_oem_reset
-        if [ $? -eq 0 ]; then
-          gpg_post_gen_mgmt
-        elif [ $? -eq 1 ]; then
-          GPG_OUTPUT=`cat /tmp/gpg_card_edit_output`
-          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Factory Reset Failed!' \
-            --msgbox "Factory Reset Failed!\n\n$GPG_OUTPUT" 16 120
-        elif [ $? -eq 2 ]; then
-          GPG_OUTPUT=`cat /tmp/gpg_card_edit_output`
-          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Automatic Keygen Failed!' \
-            --msgbox "Automatic Keygen Failed!\n\n$GPG_OUTPUT" 16 120
-        fi
       fi
     ;;
   esac
