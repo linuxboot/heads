@@ -1,0 +1,27 @@
+modules-$(CONFIG_MSRTOOLS) += msrtools
+
+msrtools_depends := $(musl_dep)
+
+#msrtools_version := git
+#msrtools_repo := https://github.com/osresearch/msr-tools
+
+msrtools_version := 572ef8a2b873eda15a322daa48861140a078b92c
+msrtools_dir := msrtools-$(msrtools_version)
+msrtools_tar := msr-tools-$(msrtools_version).tar.gz
+#msrtools_url := https://github.com/intel/msr-tools/archive/msr-tools-$(msrtools_version).tar.gz
+msrtools_url := https://github.com/osresearch/msr-tools/archive/$(msrtools_version).tar.gz
+msrtools_hash := 80554790d0a404205fe215c9ae8d2de159e980ec23821d636f201f12550e6ac0
+
+msrtools_target := \
+	$(CROSS_TOOLS) \
+	CFLAGS="-I$(INSTALL)/include" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+
+msrtools_output := \
+	wrmsr \
+	rdmsr \
+	cpuid \
+
+msrtools_libraries := \
+
+msrtools_configure := 
