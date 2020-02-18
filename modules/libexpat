@@ -1,0 +1,29 @@
+modules-$(CONFIG_THIN-PROVISIONING-TOOLS) += libexpat
+
+libexpat_version := R_2_2_9
+libexpat_dir := libexpat-$(libexpat_version)
+libexpat_tar := libexpat-$(libexpat_version).tar.gz
+libexpat_url := https://codeload.github.com/libexpat/libexpat/tar.gz/$(libexpat_version)
+libexpat_hash := c341ac8c79e021cc3392a6d76e138e62d1dd287592cb455148540331756a2208
+
+libexpat_configure := \
+  cd expat && \
+  ./buildconf.sh && \
+  ./configure \
+  $(CROSS_TOOLS) \
+  --host i386-elf-linux \
+  --prefix "/" \
+  --libexecdir "/bin" \
+
+libexpat_target := \
+  $(MAKE_JOBS); \
+	$(MAKE) -C $(build)/$(libexpat_dir)/expat \
+  $(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+  install-strip
+
+libexpat_libraries := \
+	expat/./lib/.libs/libexpat.so.1 \
+	expat/./lib/.libs/libexpat.so.1.6.11 \
+
+libexpat_depends := $(musl_dep)

@@ -1,0 +1,25 @@
+modules-$(CONFIG_THIN-PROVISIONING-TOOLS) += libaio
+
+libaio_version := 0.3.112
+libaio_dir := libaio-$(libaio_version)
+libaio_tar := libaio-$(libaio_version).tar.gz
+libaio_url := https://releases.pagure.org/libaio/$(libaio_tar)
+libaio_hash := ab0462f2c9d546683e5147b1ce9c195fe95d07fac5bf362f6c01637955c3b492
+
+#CFLAGS line based on https://github.com/crossbuild/libaio/commit/59ca03a10ba7aa21c610bbe22e222c11351f1b94#diff-f57f2991a6aa25fe45d8036c51bf8b4dR5-R6
+#CFLAGS+="-I$(INSTALL)/include -nostdlib -nostartfiles -Wall -I. -fPIC" \
+
+
+libaio_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	prefix="/" \
+        LDFLAGS="-L$(INSTALL)/lib" \
+	DESTDIR="$(INSTALL)" \
+	install \
+	&& cp $(build)/$(libaio_dir)/src/libaio.so.1.0.1 $(build)/$(libaio_dir)/src/libaio.so.1 
+
+libaio_libraries := \
+	src/libaio.so.1
+
+libaio_depends := libexpat $(musl_dep)
