@@ -3,7 +3,7 @@ all:
 
 ifneq "$(TOOLCHAIN)" ""
 $(info Using $(TOOLCHAIN) for cross compiler and packages)
-packages	:= $(TOOLCHAIN)/packages
+packages	?= $(TOOLCHAIN)/packages
 CROSS		:= $(TOOLCHAIN)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
 endif
 
@@ -22,6 +22,8 @@ CPUS		:= $(shell nproc)
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
+WGET ?= wget
+
 # Check that we have a correct version of make
 # that matches at least the major version
 LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
@@ -29,13 +31,13 @@ include modules/make
 
 ifneq "" "$(filter $(make_version)%,$(LOCAL_MAKE_VERSION))"
 
+# Timestamps should be in ISO format
+DATE=`date --rfc-3339=seconds`
+
 # This is the correct version of Make
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
-
-# Create the board output directory if it doesn't already exist
-BOARD_LOG	:= $(shell mkdir -p "$(build)/$(BOARD)" )
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
@@ -56,8 +58,15 @@ GIT_STATUS	:= $(shell \
 		echo dirty ; \
 	fi)
 
-# Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+# record the build date / git hashes and other files here
+HASHES		:= $(build)/$(BOARD)/hashes.txt
+
+# Create the board output directory if it doesn't already exist
+BOARD_LOG	:= $(shell \
+	mkdir -p "$(build)/$(BOARD)" ; \
+	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
+)
+
 
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
@@ -97,11 +106,13 @@ SHELL := /bin/bash
 # be defined prior to any other module.
 include modules/musl-cross
 
-musl_dep	:= musl
-heads_cc	:= $(INSTALL)/bin/musl-gcc \
+musl_dep	:= musl-cross
+heads_cc	:= $(CROSS)gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 	-D__MUSL__ \
+	-I$(INSTALL)/include \
+	-L$(INSTALL)/lib \
 
 CROSS_TOOLS_NOCC := \
 	AR="$(CROSS)ar" \
@@ -127,14 +138,18 @@ else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
+all:
+	@sha256sum $< | tee -a "$(HASHES)"
+
 # Disable all built in rules
 .INTERMEDIATE:
 .SUFFIXES:
 FORCE:
 
 # Make helpers to operate on lists of things
+# Prefix is "smart" and doesn't add the prefix for absolute file paths
 define prefix =
-$(foreach _, $2, $1$_)
+$(foreach _, $2, $(if $(patsubst /%,,$_),$1$_,$_))
 endef
 define map =
 $(foreach _,$2,$(eval $(call $1,$_)))
@@ -180,6 +195,15 @@ define do-cpio =
 		echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		rm "$1.tmp" ; \
 	fi
+	@sha256sum "$1" | tee -a "$(HASHES)"
+	$(call do,HASHES   , $1,\
+		( cd "$2"; \
+		echo "-----" ; \
+		find . -type f -print0 \
+		| xargs -0 sha256sum ; \
+		echo "-----" ; \
+		) >> "$(HASHES)" \
+	)
 endef
 
 define do-copy =
@@ -210,6 +234,7 @@ define define_module =
     # this case, since we don't have a stable version to compare against.
     $(build)/$($1_base_dir)/.canary:
 	git clone $($1_repo) "$(build)/$($1_base_dir)"
+	cd $(build)/$($1_base_dir) && git submodule update --init --checkout
 	if [ -r patches/$1.patch ]; then \
 		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 			< patches/$1.patch \
@@ -230,10 +255,10 @@ define define_module =
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
 	$(call do,WGET,$($1_url),\
-		if ! wget -O "$$@" $($1_url) ; then \
-			rm -f "$$@" ; \
+		if ! $(WGET) -O "$$@.tmp" $($1_url) ; then \
 			exit 1 ; \
-		fi \
+		fi ; \
+		mv "$$@.tmp" "$$@" \
 	)
     $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
 	echo "$($1_hash)  $$^" | sha256sum --check -
@@ -242,9 +267,10 @@ define define_module =
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
     $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
-	tar -xf "$(packages)/$($1_tar)" -C "$(build)"
+	mkdir -p "$$(dir $$@)"
+	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$1-$($1_version).patch ]; then \
-		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+		( cd $$(dir $$@) ; patch -p1 ) \
 			< patches/$1-$($1_version).patch \
 			|| exit 1 ; \
 	fi
@@ -252,7 +278,7 @@ define define_module =
 	   [ -r patches/$1-$($1_version) ] ; then \
 		for patch in patches/$1-$($1_version)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+			( cd $$(dir $$@) ; patch -p1 ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
@@ -387,6 +413,7 @@ endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
+#bin_modules-$(CONFIG_MUSL) += musl-cross
 bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
@@ -402,6 +429,7 @@ bin_modules-$(CONFIG_NEWT) += newt
 bin_modules-$(CONFIG_CAIRO) += cairo
 bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 bin_modules-$(CONFIG_LIBREMKEY) += libremkey-hotp-verification
+bin_modules-$(CONFIG_MSRTOOLS) += msrtools
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -427,8 +455,7 @@ endif
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-: $(build)/$(coreboot_base_dir)/.canary \
-	$(build)/$(musl_dir)/.build
+: $(build)/$(coreboot_base_dir)/.canary
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
@@ -474,11 +501,11 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 	)
 	@if ! cmp --quiet "$@.tmp" "$@" ; then \
 		mv "$@.tmp" "$@" ; \
-		sha256sum "$(@:$(pwd)/%=%)" ; \
 	else \
 		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
 		rm "$@.tmp" ; \
 	fi
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
 
 #
 # The heads.cpio is built from the initrd directory in the
@@ -540,7 +567,6 @@ modules.clean:
 real.clean:
 	for dir in \
 		$(module_dirs) \
-		$(musl_dir) \
 		$(kernel_headers) \
 	; do \
 		if [ ! -z "$$dir" ]; then \
@@ -557,30 +583,40 @@ $(eval $(shell echo >&2 "$(DATE) Wrong make detected: $(LOCAL_MAKE_VERSION)"))
 HEADS_MAKE := $(build)/$(make_dir)/make
 
 # Once we have a proper Make, we can just pass arguments into it
-all bootstrap linux cpio: $(HEADS_MAKE)
+all linux cpio run: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $(MAKE_JOBS) $@
-%.clean %.vol: $(HEADS_MAKE)
+%.clean %.vol %.menuconfig: $(HEADS_MAKE)
 	LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
 
+bootstrap: $(HEADS_MAKE)
+
 # How to download and build the correct version of make
-$(HEADS_MAKE): $(build)/$(make_dir)/Makefile
+$(packages)/$(make_tar):
+	$(WGET) -O "$@.tmp" "$(make_url)"
+	if ! echo "$(make_hash)  $@.tmp" | sha256sum --check -; then \
+		exit 1 ; \
+	fi
+	mv "$@.tmp" "$@"
+
+$(build)/$(make_dir)/.extract: $(packages)/$(make_tar)
+	tar xf "$<" -C "$(build)"
+	touch "$@"
+
+$(build)/$(make_dir)/.patch: patches/make-$(make_version).patch $(build)/$(make_dir)/.extract
+	( cd "$(dir $@)" ; patch -p1 ) < "$<"
+	touch "$@"
+
+$(build)/$(make_dir)/.configured: $(build)/$(make_dir)/.patch
+	cd "$(dir $@)" ; \
+	./configure 2>&1 \
+	| tee "$(log_dir)/make.configure.log" \
+	$(VERBOSE_REDIRECT)
+	touch "$@"
+
+$(HEADS_MAKE): $(build)/$(make_dir)/.configured
 	make -C "$(dir $@)" $(MAKE_JOBS) \
 		2>&1 \
 		| tee "$(log_dir)/make.log" \
 		$(VERBOSE_REDIRECT)
-
-$(build)/$(make_dir)/Makefile: $(packages)/$(make_tar)
-	tar xf "$<" -C build/
-	cd "$(dir $@)" ; ./configure \
-		2>&1 \
-		| tee "$(log_dir)/make.configure.log" \
-		$(VERBOSE_REDIRECT)
-
-$(packages)/$(make_tar):
-	wget -O "$@" "$(make_url)"
-	if ! echo "$(make_hash)  $@" | sha256sum --check -; then \
-		$(MV) "$@" "$@.failed"; \
-		false; \
-	fi
 
 endif

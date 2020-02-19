@@ -23,4 +23,4 @@ The flash layout will be automatically adjusted and the ME image cleaned and tru
 
 You can now compile the image with:
 
-make BOARD=x220 CONFIG=config/x220-generic.config
+make BOARD=x220

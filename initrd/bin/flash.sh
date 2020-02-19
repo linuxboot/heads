@@ -6,15 +6,9 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-case "$CONFIG_BOARD" in
-  librem* )
-    FLASHROM_OPTIONS='-p internal:laptop=force_I_want_a_brick,ich_spi_mode=hwseq' 
-  ;;
-  x230* )
-    FLASHROM_OPTIONS='--force --noverify-all --programmer internal --ifd --image bios'
-  ;;
-  "kgpe-d16" )
-    FLASHROM_OPTIONS='--force --noverify --programmer internal'
+case "$FLASHROM_OPTIONS" in
+  -* )
+    echo "Board $CONFIG_BOARD detected, continuing..."
   ;;
   * )
     die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
@@ -42,6 +36,12 @@ flash_rom() {
     if [ "$CLEAN" -eq 0 ]; then
       preserve_rom /tmp/${CONFIG_BOARD}.rom \
       || die "$ROM: Config preservation failed"
+    fi
+    # persist serial number from CBFS
+    if cbfs -r serial_number > /tmp/serial 2>/dev/null; then
+      echo "Persisting system serial"
+      cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
+      cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
     fi
 
     flashrom $FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \

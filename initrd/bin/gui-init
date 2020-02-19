@@ -8,11 +8,31 @@ CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 
 mount_boot()
 {
+  
   # Mount local disk if it is not already mounted
-  if ! grep -q /boot /proc/mounts ; then
-    mount -o ro /boot \
-      || recovery "Unable to mount /boot"
-  fi
+  while ! grep -q /boot /proc/mounts ; do
+    # ensure default boot device is set
+    if [ ! -e "$CONFIG_BOOT_DEV" ]; then
+      if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: $CONFIG_BOOT_DEV missing!" \
+          --yesno "The /boot device $CONFIG_BOOT_DEV could not be found!\n\nYou will need to configure the correct device for /boot.\n\nWould you like to configure the /boot device now?" 30 90) then
+        config-gui.sh boot_device_select
+      else
+        # exit to main menu
+        break
+      fi
+    fi
+    # update CONFIG_BOOT_DEV
+    . /tmp/config
+    mount -o ro $CONFIG_BOOT_DEV /boot 
+    if [ $? -ne 0 ]; then
+      if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Cannot mount /boot' \
+      --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
+        config-gui.sh boot_device_select
+      else
+        recovery "Unable to mount /boot"
+      fi
+    fi
+  done
 }
 verify_global_hashes()
 {
@@ -27,7 +47,7 @@ verify_global_hashes()
   elif [ ! -f $TMP_HASH_FILE ]; then
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Missing Hash File!' \
       --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
-      update_checksums
+      prompt_update_checksums
     fi
     return 1
   else
@@ -54,37 +74,16 @@ verify_global_hashes()
     fi
 
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
-      update_checksums
+      prompt_update_checksums
     fi
     return 1
   fi
 }
-update_checksums()
+prompt_update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
-    mount_boot
-    mount -o rw,remount /boot
-
-    cd /boot
-    find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
-    DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-    echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
-
-    # Remove any package trigger log files
-    # We don't need them after the user decides to sign
-    rm -f /boot/kexec_package_trigger*
-
-    # sign and auto-roll config counter
-    extparam=
-    if [ "$CONFIG_TPM" = "y" ]; then
-      extparam=-u
-    fi
-    kexec-sign-config -p /boot $extparam \
-    || die "Failed to sign default config"
-
-    # switch back to ro mode
-    mount -o ro,remount /boot
+    update_checksums
   else
     echo "Returning to the main menu"
   fi
@@ -98,11 +97,48 @@ update_totp()
     read
     /bin/seal-libremkey
   else
-    echo "Once you have scanned the QR code, hit Enter to reboot"
+    echo "Once you have scanned the QR code, hit Enter to continue"
     read
   fi
-  /bin/reboot
 }
+
+clean_boot_check()
+{
+  # assume /boot mounted
+  if ! grep -q /boot /proc/mounts ; then
+    return
+  fi
+
+  # check for any kexec files in /boot
+  kexec_files=`find /boot -name kexec*.txt`
+  [ ! -z "$kexec_files" ] && return
+  
+  #check for GPG key in keyring
+  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+  [ $GPG_KEY_COUNT -ne 0 ] && return
+
+   # check for USB security token
+  if ! gpg --card-status > /dev/null ; then
+   return
+  fi
+
+  # OS is installed, no kexec files present, no GPG keys in keyring, security token present
+  # prompt user to run OEM factory reset
+  oem-factory-reset \
+    "Clean Boot Detected - Perform OEM Factory Reset?" "$CONFIG_WARNING_BG_COLOR"
+}
+
+# enable USB to load modules for external kb
+enable_usb
+
+if detect_boot_device ; then
+  # /boot device with installed OS found
+  clean_boot_check
+else
+  # can't determine /boot device or no OS installed, 
+  # so fall back to interactive selection
+  mount_boot
+fi
 
 last_half=X
 while true; do
@@ -133,8 +169,14 @@ while true; do
       TOTP=`unseal-totp`
       if [ $? -ne 0 ]; then
         whiptail $CONFIG_ERROR_BG_COLOR --clear --title "ERROR: TOTP Generation Failed!" \
-          --menu "ERROR: Heads couldn't generate the TOTP code.\n\nIf this is the first time the system has booted, you should reset the TPM\nand set your own password\n\nIf you just reflashed your BIOS, you'll need to generate a new TOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
-          'g' ' Generate new TOTP/HOTP secret' \
+          --menu "    ERROR: Heads couldn't generate the TOTP code.\n
+    If you have just completed a Factory Reset, or just reflashed
+    your BIOS, you should generate a new HOTP/TOTP secret.\n
+    If this is the first time the system has booted, you should
+    reset the TPM and set your own password.\n
+    If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n
+    How would you like to proceed?" 30 90 4 \
+          'g' ' Generate new HOTP/TOTP secret' \
           'i' ' Ignore error and continue to default boot menu' \
           'p' ' Reset the TPM' \
           'x' ' Exit to recovery shell' \
@@ -174,22 +216,25 @@ while true; do
     whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
-      'a' ' Advanced Settings -->' \
-      'x' ' Exit to recovery shell' \
+      'r' ' Refresh TOTP/HOTP' \
+      'a' ' Options -->' \
+      'P' ' Power Off' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
     totp_confirm=$(cat /tmp/whiptail)
   fi
 
   if [ "$totp_confirm" = "a" ]; then
-    whiptail --clear --title "Advanced Settings" \
-      --menu "Configure Advanced Settings" 20 90 10 \
-      'o' ' Other Boot Options -->' \
+    whiptail --clear --title "HEADS Options" \
+      --menu "" 20 90 10 \
+      'o' ' Boot Options -->' \
       't' ' TPM/TOTP/HOTP Options -->' \
       's' ' Update checksums and sign all files in /boot' \
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
+      'F' ' OEM Factory Reset -->' \
+      'x' ' Exit to recovery shell' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -197,7 +242,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "o" ]; then
-    whiptail --clear --title "Other Boot Options" \
+    whiptail --clear --title "Boot Options" \
       --menu "Select A Boot Option" 20 90 10 \
       'm' ' Show OS boot menu' \
       'u' ' USB boot' \
@@ -213,7 +258,6 @@ while true; do
       --menu "Select An Option" 20 90 10 \
       'g' ' Generate new TOTP/HOTP secret' \
       'p' ' Reset the TPM' \
-      'r' ' TOTP/HOTP does not match, refresh code' \
       'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
       'r' ' <-- Return to main menu' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -311,7 +355,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "s" ]; then
-    update_checksums
+    prompt_update_checksums
     continue
   fi
 
@@ -328,6 +372,15 @@ while true; do
   if [ "$totp_confirm" = "G" ]; then
     gpg-gui.sh
     continue
+  fi
+
+  if [ "$totp_confirm" = "F" ]; then
+    oem-factory-reset
+    continue
+  fi
+
+  if [ "$totp_confirm" = "P" ]; then
+    poweroff
   fi
 
   if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
