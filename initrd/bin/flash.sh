@@ -6,15 +6,9 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-case "$CONFIG_BOARD" in
-  librem* )
-    FLASHROM_OPTIONS='-p internal:laptop=force_I_want_a_brick,ich_spi_mode=hwseq' 
-  ;;
-  x230* )
-    FLASHROM_OPTIONS='--force --noverify-all --programmer internal --ifd --image bios'
-  ;;
-  "kgpe-d16" )
-    FLASHROM_OPTIONS='--force --noverify --programmer internal'
+case "$FLASHROM_OPTIONS" in
+  -* )
+    echo "Board $CONFIG_BOARD detected, continuing..."
   ;;
   * )
     die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
