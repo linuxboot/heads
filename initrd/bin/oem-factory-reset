@@ -316,6 +316,10 @@ gpg --list-keys >/dev/null 2>&1
 echo -e "\nResetting GPG Key...\n(this will take a minute or two)\n"
 gpg_key_reset
 
+# parse name of generated key
+GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
+PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
+
 if [ "$CUSTOM_PASS" != "" ]; then
   echo -e "\nChanging default GPG Admin PIN\n"
   gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$CUSTOM_PASS"
@@ -327,9 +331,6 @@ fi
 
 ## export generated key to USB
 echo -e "\nExporting generated key to USB...\n"
-# parse name of generated key
-GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
-PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 # export pubkey to file
 if ! gpg --export --armor $GPG_GEN_KEY > "${PUBKEY}" 2>/tmp/error ; then
     ERROR=$(tail -n 1 /tmp/error)
