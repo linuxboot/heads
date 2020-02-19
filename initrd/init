@@ -64,6 +64,11 @@ if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 		> "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
 
+# load USB modules for boards using a USB keyboard
+if [ "$CONFIG_USB_KEYBOARD" = "y" ]; then
+	enable_usb
+fi
+
 # If the user has been holding down r, enter a recovery shell
 # otherwise immediately start the configured boot script.
 # We don't print a prompt, since this is a near instant timeout.

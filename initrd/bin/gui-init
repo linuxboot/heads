@@ -128,9 +128,6 @@ clean_boot_check()
     "Clean Boot Detected - Perform OEM Factory Reset?" "$CONFIG_WARNING_BG_COLOR"
 }
 
-# enable USB to load modules for external kb
-enable_usb
-
 if detect_boot_device ; then
   # /boot device with installed OS found
   clean_boot_check
