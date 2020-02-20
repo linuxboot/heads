@@ -15,6 +15,8 @@ if ! grep -q /media /proc/mounts ; then
 	mount-usb "$CONFIG_USB_BOOT_DEV" \
 		|| die "Unable to mount /media"
 fi
+# Get USB boot device
+USB_BOOT_DEV=$(grep "/media" /etc/mtab | cut -f 1 -d' ')
 
 # Check for ISO first
 get_menu_option() {
@@ -72,7 +74,7 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 	if [ -n "$option" ]; then
 		MOUNTED_ISO=$option
 		ISO=${option:7} # remove /media/ to get device relative path
-		kexec-iso-init $MOUNTED_ISO $ISO $CONFIG_USB_BOOT_DEV
+		kexec-iso-init $MOUNTED_ISO $ISO $USB_BOOT_DEV
 
 		die "Something failed in iso init"
 	fi
