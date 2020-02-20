@@ -7,16 +7,14 @@ set -e -o pipefail
 mount_usb(){
 # Mount the USB boot device
   if ! grep -q /media /proc/mounts ; then
-    mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
+    mount-usb && USB_FAILED=0 || USB_FAILED=1
     if [ $USB_FAILED -ne 0 ]; then
-      if [ ! -e "$CONFIG_USB_BOOT_DEV" ]; then
-        whiptail --title 'USB Drive Missing' \
-          --msgbox "Insert your USB drive and press Enter to continue." 16 60 USB_FAILED=0
-        mount-usb "$CONFIG_USB_BOOT_DEV" || USB_FAILED=1
-      fi
+      whiptail --title 'USB Drive Missing' \
+        --msgbox "Insert your USB drive and press Enter to continue." 16 60
+      mount-usb && USB_FAILED=0 || USB_FAILED=1
       if [ $USB_FAILED -ne 0 ]; then
         whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Mounting /media Failed' \
-          --msgbox "Unable to mount $CONFIG_USB_BOOT_DEV" 16 60
+          --msgbox "Unable to mount USB device" 16 60
       fi
     fi
   fi
