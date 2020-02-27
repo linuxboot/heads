@@ -36,7 +36,7 @@ while true; do
       > /tmp/boot_device_list.txt
       for i in `cat /tmp/disklist.txt`; do
         # remove block device from list if numeric partitions exist, since not bootable
-        let DEV_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+        DEV_NUM_PARTITIONS=$((`ls -1 $i* | wc -l`-1))
         if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
           echo $i >> /tmp/boot_device_list.txt
         else
