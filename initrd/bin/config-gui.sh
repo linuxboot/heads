@@ -52,17 +52,20 @@ while true; do
         SELECTED_FILE=$FILE
       fi
 
-      replace_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
-      combine_configs
-
+      # unmount /boot if needed
+      if grep -q /boot /proc/mounts ; then
+        umount /boot 2>/dev/null
+      fi
       # mount newly selected /boot device
-      if ! ( umount /boot 2>/tmp/error && \
-          mount -o ro $SELECTED_FILE /boot 2>/tmp/error ); then
+      if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error ; then
         ERROR=`cat /tmp/error`
         whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: unable to mount /boot' \
-          --msgbox "Unable to un/re-mount /boot:\n\n$ERROR" 16 60
+          --msgbox "    $ERROR\n\n" 16 60
         exit 1
       fi
+
+      replace_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
+      combine_configs
 
       whiptail --title 'Config change successful' \
         --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 16 60
