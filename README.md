@@ -28,11 +28,12 @@ Please refer to [Heads-wiki](https://github.com/osresearch/heads-wiki/blob/maste
 
 Building heads
 ===
+`make BOARD=board_name` where board_name is the name of the board directory under `./boards` directory.
 
 In order to build reproducible firmware images, Heads builds a specific
 version of gcc and uses it to compile the Linux kernel and various tools
 that go into the initrd.  Unfortunately this means the first step is a
-little slow since it will clone the `musl-cross` tree and build gcc...
+little slow since it will clone the `musl-cross-make` tree and build gcc...
 
 Once that is done, the top level `Makefile` will handle most of the
 remaining details -- it downloads the various packages, verifies the
@@ -57,7 +58,6 @@ directory and include:
 * [lvm2](https://sourceware.org/lvm2/)
 * [gnupg](https://www.gnupg.org/)
 * [Linux kernel](https://kernel.org)
-* [Xen hypervisor](https://www.xenproject.org/)
 
 We also recommend installing [Qubes OS](https://www.qubes-os.org/),
 although there Heads can `kexec` into any Linux or
@@ -69,7 +69,7 @@ Notes:
 
 * Building coreboot's cross compilers can take a while.  Luckily this is only done once.
 * Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
-* Currently only tested in QEMU, the Thinkpad x230 and the Chell Chromebook.
+* Currently only tested in QEMU, the Thinkpad x230, Librem series and the Chell Chromebook.
 ** Xen and the TPM do not work in QEMU, so it is only for testing the `initrd` image.
 * Building for the Lenovo X220 requires binary blobs to be placed in the blobs/x220/ folder.
 See the readme.md file in that folder
