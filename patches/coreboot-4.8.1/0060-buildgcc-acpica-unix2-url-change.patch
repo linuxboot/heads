@@ -1,0 +1,11 @@
+--- ./util/crossgcc/buildgcc.orig	2018-05-16 15:00:17.000000000 -0400
++++ ./util/crossgcc/buildgcc		2020-03-15 10:47:36.186000000 -0400
+@@ -72,7 +72,7 @@
+ GCC_ARCHIVE="https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz"
+ BINUTILS_ARCHIVE="https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
+ GDB_ARCHIVE="https://ftpmirror.gnu.org/gdb/gdb-${GDB_VERSION}.tar.xz"
+-IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix2-${IASL_VERSION}.tar.gz"
++IASL_ARCHIVE="https://crux.ster.zone/distfiles/acpica-unix2-${IASL_VERSION}.tar.gz"
+ PYTHON_ARCHIVE="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz"
+ EXPAT_ARCHIVE="https://downloads.sourceforge.net/sourceforge/expat/expat-${EXPAT_VERSION}.tar.bz2"
+ # CLANG toolchain archive locations
