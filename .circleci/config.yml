@@ -2,37 +2,22 @@ version: 2
 jobs:
   build:
     docker:
-      - image: debian:10
+      - image: ubuntu:18.04
     steps:
       - run:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo
       - checkout
+
+      - restore_cache:
+          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
 
       - run:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
-
-      - run:
-          name: Creating all modules and patches digest
-          command: |
-            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_and_patches.sha256sums \
-
-      - run:
-          name: Creating musl-cross-make and musl-cross-make patches digest
-          command: |
-            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
-
-
-      - restore_cache:
-          keys:
-            #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
-            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
-            - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
@@ -50,7 +35,7 @@ jobs:
 #          command: |
 #            ./build/make-4.2.1/make \
 #                CROSS=/cross/bin/x86_64-linux-musl- \
-#                CPUS=4 \
+#                --load 2 \
 #                V=1 \
 #                BOARD=qemu-linuxboot \
 #
@@ -62,14 +47,12 @@ jobs:
       - run:
           name: librem_l1um
           command: |
-            rm -rf build/librem_l1um/* build/log/* && make CPUS=4 V=1 BOARD=librem_l1um || touch /tmp/failed_build
+            rm -rf build/librem_l1um/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_l1um || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs 
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Output librem_l1um hashes
+          name: Ouput librem_l1um hashes
           command: |
             cat build/librem_l1um/hashes.txt \
       - run:
@@ -80,24 +63,16 @@ jobs:
           path: build/librem_l1um
 
       - run:
-          name: librem_mini
+          name: qemu-coreboot
           command: |
-            rm -rf build/librem_mini/* build/log/* && make CPUS=4 V=1 BOARD=librem_mini || touch /tmp/failed_build
+            rm -rf build/librem_mini/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
+          name: Ouput librem_mini hashes
           command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output librem_mini hashes
-          command: |
-            cat build/librem_mini/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_mini
-          command: |
-             tar zcvf build/librem_mini/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_mini
+             cat build/qemu-coreboot/hashes.txt \
 
       - run:
           name: librem_mini_v2
@@ -123,14 +98,12 @@ jobs:
           name: x230-flash
           #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
-            rm -rf build/x230-flash/* build/log/* && make CPUS=4 V=1 BOARD=x230-flash || touch /tmp/failed_build
+            rm -rf build/x230-flash/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=x230-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-flash hashes
+          name: Ouput x230-flash hashes
           command: |
             cat build/x230-flash/hashes.txt \
       - run:
@@ -143,14 +116,12 @@ jobs:
       - run:
           name: t430-flash
           command: |
-            rm -rf build/t430-flash/* build/log/* && make CPUS=4 V=1 BOARD=t430-flash || touch /tmp/failed_build
+            rm -rf build/t430-flash/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=t430-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t430-flash hashes
+          name: Ouput t430-flash hashes
           command: |
             cat build/t430-flash/hashes.txt \
       - run:
@@ -158,39 +129,33 @@ jobs:
           command: |
              tar zcvf build/t430-flash/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/t430-flash
+          path: build/qemu-coreboot/hashes.txt
 
       - run:
-          name: t430
+          name: x230-external-flash
           command: |
-            rm -rf build/t430/* build/log/* && make CPUS=4 V=1 BOARD=t430 || touch /tmp/failed_build
+            rm -rf build/t430/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=t430  || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
+          name: Ouput t430 hashes
           command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+            cat build/x230-external-flash/hashes.txt \
       - run:
-          name: Output t430 hashes
+          name: Archiving build logs to bundle in artifacts
           command: |
-            cat build/t430/hashes.txt \
-      - run:
-          name: Archiving build logs for t430
-          command: |
-             tar zcvf build/t430/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/t430
+            tar zcvf logs.tar.gz ./build/log/*
 
       - run:
           name: x230
           command: |
-            rm -rf build/x230/* build/log/* && make CPUS=4 V=1 BOARD=x230 || touch /tmp/failed_build
+            rm -rf build/x230/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=x230 || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230 hashes
+          name: Ouput x230 hashes
           command: |
             cat build/x230/hashes.txt \
       - run:
@@ -203,14 +168,12 @@ jobs:
       - run:
           name: x230-hotp-verification
           command: |
-            rm -rf build/x230-hotp-verification/* build/log/* && make CPUS=4 V=1 BOARD=x230-hotp-verification || touch /tmp/failed_build
+            rm -rf build/x230-hotp-verification/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=x230-hotp-verification || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-hotp-verification hashes
+          name: Ouput x230-hotp-verification hashes
           command: |
             cat build/x230-hotp-verification/hashes.txt \
       - run:
@@ -223,14 +186,12 @@ jobs:
       - run:
           name: x230-nkstorecli
           command: |
-            rm -rf build/x230-nkstorecli/* build/log/* && make CPUS=4 V=1 BOARD=x230-nkstorecli || touch /tmp/failed_build
+            rm -rf build/x230-nkstorecli/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=x230-nkstorecli || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-nkstorecli hashes
+          name: Ouput x230-nkstorecli hashes
           command: |
             cat build/x230-nkstorecli/hashes.txt \
       - run:
@@ -243,12 +204,10 @@ jobs:
       - run:
           name: qemu-coreboot
           command: |
-            rm -rf build/qemu-coreboot/* build/log/* && make CPUS=4 V=1 BOARD=qemu-coreboot || touch /tmp/failed_build
+            rm -rf build/qemu-coreboot/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
       - run:
           name: Output qemu-coreboot hashes
           command: |
@@ -258,38 +217,14 @@ jobs:
           command: |
              tar zcvf build/qemu-coreboot/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/qemu-coreboot
-
-      - run:
-          name: qemu-coreboot-fbwhiptail
-          command: |
-            rm -rf build/qemu-coreboot-fbwhiptail/* build/log/* && make CPUS=4 V=1 BOARD=qemu-coreboot-fbwhiptail || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output qemu-coreboot-fbwhiptail hashes
-          command: |
-             cat build/qemu-coreboot-fbwhiptail/hashes.txt \
-      - run:
-          name: Archiving build logs for qemu-coreboot-fbwhiptail
-          command: |
-             tar zcvf build/qemu-coreboot-fbwhiptail/logs.tar.gz build/log/*
+          path: build/x230-external-flash/x230-external-flash-top.rom
       - store-artifacts:
-          path: build/qemu-coreboot-fbwhiptail
+          path: build/x230-external-flash/initrd.cpio.xz
+      - store-artifacts:
+          path: logs.tar.gz
 
       - save_cache:
-          #Generate cache for the same musl-cross module definition if hash is not previously existing
-          key: heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-          paths:
-            - crossgcc
-            - build/musl-cross-*
-
-      - save_cache:
-          #Generate cache for the exact same modules definitions if hash is not previously existing
-          key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
