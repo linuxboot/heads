@@ -14,7 +14,7 @@ build:
       - ./
     key: "$CI_COMMIT_REF_SLUG"
   script:
-    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool expat-devel boost-devel libaio-devel cpio texinfo
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool expat-devel boost-devel libaio-devel cpio texinfo ncurses-devel
     - git fetch origin 
     - git reset --hard origin/$CI_COMMIT_REF_NAME
     - make BOARD=x230-external-flash || (find ./build/log/ -cmin 1|xargs tail; exit 1)
