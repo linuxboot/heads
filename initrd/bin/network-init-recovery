@@ -14,15 +14,34 @@ if [ -e /sys/class/net/eth0 ]; then
 	# Set up static IP
 	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
 		ifconfig eth0 $CONFIG_BOOT_STATIC_IP
+	#Get ip from DHCP
+	elif [ -e /sbin/udhcpc ];then
+		if udhcpc -T 1 -q; then
+			if [ -e /sbin/ntpd ]; then
+				DNS_SERVER=$(grep nameserver /etc/resolv.conf|awk -F " " {'print $2'})
+				killall ntpd 2&>1 > /dev/null
+		 		if ! ntpd -d -N -n -q -p $DNS_SERVER > /dev/ttyprintk; then
+					if ! ntpd -d -d -N -n -q -p ntp.pool.org> /dev/ttyprintk; then
+						echo "NTP sync unsuccessful." > /dev/tty0
+					fi
+				fi
+				hwclock -w
+				echo "" > /dev/tty0
+				echo "UTC/GMT current date and time:" > /dev/tty0
+				date > /dev/tty0
+			fi
+		fi		 
 	fi
-	# TODO: Set up DHCP if available
+	
 	ifconfig eth0 > /dev/ttyprintk
-
-	# Set up the ssh server, allow root logins and log to stderr
-	if [ ! -d /etc/dropbear ]; then
-		mkdir /etc/dropbear
+	
+	if [ -e /bin/dropbear ]; then
+		# Set up the ssh server, allow root logins and log to stderr
+		if [ ! -d /etc/dropbear ]; then
+			mkdir /etc/dropbear
+		fi
+		dropbear -B -R 2>/dev/ttyprintk
 	fi
-	dropbear -B -R 2>/dev/ttyprintk
-
-	ifconfig eth0 | head -1 > /dev/tty0
+	echo  "" > /dev/tty0
+	ifconfig eth0 | head -2 > /dev/tty0
 fi
