@@ -2,14 +2,22 @@ version: 2
 jobs:
   build:
     docker:
-      - image: osresearch/musl-cross:38e52db
+      - image: debian:bullseye
     steps:
+      - run:
+          name: Install dependencies
+          command: |
+            apt update
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev
       - checkout
 
+      - restore_cache:
+          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+
       - run:
-          name: Bootstrap make
+          name: git reset
           command: |
-            make -j4 bootstrap
+            git reset --hard "$CIRCLE_SHA1" \
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
@@ -40,31 +48,61 @@ jobs:
       - run:
           name: qemu-coreboot
           command: |
-            ./build/make-4.2.1/make \
-                CROSS=/cross/bin/x86_64-linux-musl- \
-                --load 2 \
+            rm -rf build/make-4.2.1/ build/qemu-coreboot/* && make --load 2 \
                 V=1 \
                 BOARD=qemu-coreboot \
+          no_output_timeout: 3h
+      - run:
+          name: Output qemu-coreboot hashes
+          command: |
+             cat build/qemu-coreboot/hashes.txt \
 
       - store-artifacts:
           path: build/qemu-coreboot/coreboot.rom
       - store-artifacts:
           path: build/qemu-coreboot/hashes.txt
-
+      - run:
+          name: x230-flash
+          command: |
+            make --load 2 \
+                V=1 \
+                BOARD=x230-flash \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput x230-flash hashes
+          command: |
+            cat build/x230-flash/hashes.txt \
       - run:
           name: x230
           command: |
-            ./build/make-4.2.1/make \
-                CROSS=/cross/bin/x86_64-linux-musl- \
-                --load 2 \
+            make --load 2 \
                 V=1 \
                 BOARD=x230 \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput x230 hashes
+          command: |
+            cat build/x230/hashes.txt \
+      - run:
+          name: Archiving build logs to bundle in artifacts
+          command: |
+            tar zcvf logs.tar.gz ./build/log/*
 
+      - store-artifacts:
+          path: build/x230-flash/x230-flash.rom
       - store-artifacts:
           path: build/x230/coreboot.rom
       - store-artifacts:
-          path: build/x230/hashes.txt
+          path: build/x230/initrd.cpio.xz
+      - store-artifacts:
+          path: logs.tar.gz
 
+      - save_cache:
+          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - packages
+            - crossgcc
+            - build
 
 workflows:
   version: 2
