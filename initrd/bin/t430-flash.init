@@ -1,0 +1,26 @@
+#!/bin/sh
+# Initialize the USB and network device drivers,
+# invoke a recovery shell and prompt the user for how to proceed
+
+. /etc/functions
+. /tmp/config
+
+insmod /lib/modules/ehci-hcd.ko
+insmod /lib/modules/ehci-pci.ko
+insmod /lib/modules/xhci-hcd.ko
+insmod /lib/modules/xhci-pci.ko
+insmod /lib/modules/e1000e.ko
+insmod /lib/modules/usb-storage.ko
+
+tpm extend -ix 4 -ic recovery
+sleep 2
+
+echo '***** Starting recovery shell'
+echo ''
+echo 'To install from flash drive:'
+echo ''
+echo '  mount -o ro /dev/sdb1 /media'
+echo '  flash.sh /media/t430.rom'
+echo ''
+
+exec /bin/ash
