@@ -1,4 +1,4 @@
-image: fedora:30
+image: fedora:32
 
 variables:
   DOCKER_DRIVER: overlay2
