@@ -84,6 +84,17 @@ jobs:
           command: |
             cat build/x230/hashes.txt \
       - run:
+          name: x230-hotp-verification
+          command: |
+            make --load 2 \
+                V=1 \
+                BOARD=x230-hotp-verification \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput x230-hotp-verification hashes
+          command: |
+            cat build/x230-hotp-verification/hashes.txt \
+      - run:
           name: Archiving build logs to bundle in artifacts
           command: |
             tar zcvf logs.tar.gz ./build/log/*
@@ -94,6 +105,10 @@ jobs:
           path: build/x230/coreboot.rom
       - store-artifacts:
           path: build/x230/initrd.cpio.xz
+      - store-artifacts:
+          path: build/x230-hotp-verification/coreboot.rom
+      - store-artifacts:
+          path: build/x230-hotp-verification/initrd.cpio.xz
       - store-artifacts:
           path: logs.tar.gz
 
