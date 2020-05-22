@@ -1,0 +1,30 @@
+image: fedora:30
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+stages:
+  - build
+
+build:
+  stage: build
+  retry: 2
+  cache:
+    paths:
+      - ./
+    key: "$CI_COMMIT_REF_SLUG"
+  script:
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - git fetch origin 
+    - git reset --hard origin/$CI_COMMIT_REF_NAME
+    - echo "Building BOARD=x230-hotp-verification board..."
+    - make BOARD=x230-hotp-verification || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - echo "x230-hotp-verification hashes:"
+    - cat ./build/x230-hotp-verification/hashes.txt
+    - tar zcvf logs.tar.gz ./build/log/*
+  artifacts:
+    paths:
+      - ./build/x230-hotp-verification/coreboot.rom
+      - ./build/x230-hotp-verification/hashes.txt
+      - ./build/x230-hotp-verification/initrd.cpio.xz
+      - ./logs.tar.gz
