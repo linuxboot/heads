@@ -2,11 +2,11 @@ modules-$(CONFIG_LIBREMKEY) += libremkey-hotp-verification
 
 libremkey-hotp-verification_depends := libusb $(musl_dep)
 
-libremkey-hotp-verification_version := e5fa36a7a1950226d0ef94e2eeed0ffb510eba89
+libremkey-hotp-verification_version := 809953b9b4bef97a4cffaa20d675bd7fe9d8da53
 libremkey-hotp-verification_dir := libremkey-hotp-verification-$(libremkey-hotp-verification_version)
 libremkey-hotp-verification_tar := nitrokey-hotp-verification-$(libremkey-hotp-verification_version).tar.gz
 libremkey-hotp-verification_url := https://github.com/Nitrokey/nitrokey-hotp-verification/archive/$(libremkey-hotp-verification_version).tar.gz
-libremkey-hotp-verification_hash := 668113ebc21cc875d49266c8d3a47acfd524a8d6b64f75b7ce5833d595415469
+libremkey-hotp-verification_hash := 251e5cef74e4e45eeddc49e4a1da1e22d1de774cd32cb0451a9030579ae958ba
 
 libremkey-hotp-verification_target := \
 	$(MAKE_JOBS) \
@@ -19,7 +19,7 @@ libremkey-hotp-verification_output := \
 libremkey-hotp-verification_configure := \
   INSTALL="$(INSTALL)" \
   CROSS="$(CROSS)" \
-  cmake -DCMAKE_TOOLCHAIN_FILE=./Toolchain-heads.cmake -DCMAKE_AR="$(CROSS)ar" . 
+  $(CROSS_TOOLS) $(MAKE) LDFLAGS="$(INSTALL)/lib/libusb-1.0.so" && $(MAKE) install INSTALL="$(INSTALL)"
 
 libremkey-hotp-verification_depends  += hidapi
 modules-y += hidapi
