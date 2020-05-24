@@ -11,6 +11,7 @@ flashrom_tar := flashrom-$(flashrom_version).tar.bz2
 flashrom_url := https://download.flashrom.org/releases/$(flashrom_tar)
 flashrom_hash := e1f8d95881f5a4365dfe58776ce821dfcee0f138f75d0f44f8a3cd032d9ea42b
 
+flashrom_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 flashrom_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

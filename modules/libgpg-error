@@ -15,6 +15,7 @@ libgpg-error_configure := ./configure \
 	--disable-doc \
 	--disable-tests \
 
+libgpg-error_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)" CC_FOR_BUILD="$(CC_FOR_BUILD)"
 libgpg-error_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
 	$(CROSS_TOOLS) \

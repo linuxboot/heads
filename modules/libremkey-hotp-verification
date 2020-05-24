@@ -8,6 +8,7 @@ libremkey-hotp-verification_tar := nitrokey-hotp-verification-$(libremkey-hotp-v
 libremkey-hotp-verification_url := https://github.com/Nitrokey/nitrokey-hotp-verification/archive/$(libremkey-hotp-verification_version).tar.gz
 libremkey-hotp-verification_hash := 251e5cef74e4e45eeddc49e4a1da1e22d1de774cd32cb0451a9030579ae958ba
 
+libremkey-hotp-verification_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 libremkey-hotp-verification_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

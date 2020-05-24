@@ -11,6 +11,7 @@ busybox_hash := 604553b7dbd59ded9e3ad7c6af49ed2cff599adf3e54d9463e5e0027b362019c
 busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := config/busybox.config
 busybox_output := busybox
+busybox_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 busybox_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \

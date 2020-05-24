@@ -19,6 +19,7 @@ dropbear_configure := ./configure \
 	--disable-wtmpx \
 	
 dropbear_output := ssh scp dropbear
+dropbear_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 dropbear_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

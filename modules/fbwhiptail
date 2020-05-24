@@ -6,6 +6,7 @@ fbwhiptail_version := git
 fbwhiptail_dir := fbwhiptail
 fbwhiptail_repo := https://source.puri.sm/coreboot/fbwhiptail.git
 
+fbwhiptail_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 fbwhiptail_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

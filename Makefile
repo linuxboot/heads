@@ -126,6 +126,11 @@ CROSS_TOOLS_NOCC := \
 
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \
+	CPP="$(CROSS)cpp" \
+	CXXCPP="$(CROSS)cpp" \
+	$(if $(CC_FOR_BUILD),CC_FOR_BUILD="$(CC_FOR_BUILD)",) \
+	$(if $(BUILD_CC),BUILD_CC="$(BUILD_CC)",) \
+	$(if $(HOSTCC),HOSTCC="$(HOSTCC)",) \
 	$(CROSS_TOOLS_NOCC) \
 
 
@@ -352,7 +357,7 @@ define define_module =
 		echo "$(MAKE) \
 			-C \"$(build)/$($1_dir)\" \
 			$($1_target)" ;  \
-		$(MAKE) \
+		$($1_make_environment) $(MAKE) \
 			-C "$(build)/$($1_dir)" \
 			$($1_target)  \
 	) \
@@ -457,7 +462,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 : $(build)/$(coreboot_base_dir)/.canary
 	+$(call do,MAKE,$(notdir $@),\
-		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
+		CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)" $(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
 
 # superio depends on zlib and pciutils

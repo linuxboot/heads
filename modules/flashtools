@@ -11,6 +11,7 @@ flashtools_tar := flashtools-$(flashtools_version).tar.gz
 flashtools_url := https://github.com/osresearch/flashtools/archive/v$(flashtools_version).tar.gz
 flashtools_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
 
+flashtools_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 flashtools_target := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-I$(INSTALL)/include" \

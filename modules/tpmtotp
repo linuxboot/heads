@@ -11,6 +11,7 @@ tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
 tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/$(tpmtotp_version).tar.gz
 tpmtotp_hash := 1082f2b0e4af833e04220dddedcc21a39eb39ee4dc5668bb010e7bcc795c606c
 
+tpmtotp_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-I$(INSTALL)/include" \

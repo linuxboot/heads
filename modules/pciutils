@@ -16,6 +16,7 @@ pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe6
 # reproducible.  Otherwise the build path will be embedded
 # in the library and executables.
 
+pciutils_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 pciutils_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

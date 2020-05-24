@@ -18,6 +18,7 @@ slang_configure := ./configure \
   && mkdir -p src/elfobjs
 
 # Disable parallel make for the install target
+slang_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 slang_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

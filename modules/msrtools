@@ -12,6 +12,7 @@ msrtools_tar := msr-tools-$(msrtools_version).tar.gz
 msrtools_url := https://github.com/osresearch/msr-tools/archive/$(msrtools_version).tar.gz
 msrtools_hash := 80554790d0a404205fe215c9ae8d2de159e980ec23821d636f201f12550e6ac0
 
+msrtools_make_environment := CPATH="$(TARGET_CPATH)" C_INCLUDE_PATH="$(TARGET_C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(TARGET_CPLUS_INCLUDE_PATH)" OBJC_INCLUDE_PATH="$(TARGET_OBJC_INCLUDE_PATH)" LIBRARY_PATH="$(TARGET_LIBRARY_PATH)"
 msrtools_target := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-I$(INSTALL)/include" \
