@@ -1,6 +1,8 @@
 modules-y += linux
 
-linux_version := 4.14.62
+#https://github.com/andikleen/linux-misc/tree/lto-420-1
+linux_version := b87b58e1b057a2706d422fbdc76aa34309c6c90b
+
 linux_base_dir := linux-$(linux_version)
 
 # TODO: fixup the patch process
@@ -13,11 +15,18 @@ linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 linux_dir := $(linux_base_dir)/$(notdir $(basename $(linux_kconfig)))
 
 linux_tar := linux-$(linux_version).tar.xz
-linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
+linux_url := https://github.com/andikleen/linux-misc/archive/$(linux_version).tar.xz
+#linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
+#linux_url := https://cdn.kernel.org/pub/linux/kernel/v5.x/$(linux_tar)
 
 linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
 linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de41226477b
 linux-4.14.62_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
+linux-4.19.63_hash := 75988760b931864b46292dcfad1dd54b3f4da10168041f48ca6d7f6dd4e5d25d
+linux-4.19.114_hash := 1e40a0dc6afc95a259f97b80d5f5ef8f89e2ee49e993ba6844e2bc55de361f0e
+linux-5.4.30_hash := 11dd78f701bce619d90d3b2ee597601716c48087e159c890c1decd7b90349def
+
+linux-b87b58e1b057a2706d422fbdc76aa34309c6c90b_hash := 30c7ed4d4240e1aa2ec124fbbcb8e30ec5dae1b7109e835f17f8b9d027225c88
 
 linux_hash := $(linux-$(linux_version)_hash)
 
@@ -95,7 +104,20 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+# MMC/sdard support through Secure Digital Host Controller Interface support
+#Common
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/core/mmc_core.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/core/mmc_block.ko 
+#Ricoh
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/sdhci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/cqhci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/sdhci-pci.ko
+#Realtek
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mfd/mfd-core.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/misc/cardreader/rtsx_pci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/rtsx_pci_sdmmc.ko
+
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -flto
 
 linux_target := \
 	O="$(build)/$(linux_dir)" \
