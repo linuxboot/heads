@@ -37,6 +37,7 @@ else
 musl-cross_configure := \
 	/bin/echo -e >> config.mak 'GCC_CONFIG += --enable-languages=c,c++,lto' ; \
 	/bin/echo -e >> config.mak 'COMMON_CONFIG += LDFLAGS="-fuse-linker-plugin"' ; \
+	/bin/echo -e >> config.mak 'BINUTILS_CONFIG += --enable-lto' ; \
 	/bin/echo -e >> Makefile 'both:' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=x86_64-linux-musl install' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=i386-linux-musl install' ; \
