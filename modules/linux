@@ -117,7 +117,7 @@ linux_modules-$(CONFIG_LINUX_MMC) += drivers/mfd/mfd-core.ko
 linux_modules-$(CONFIG_LINUX_MMC) += drivers/misc/cardreader/rtsx_pci.ko
 linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/rtsx_pci_sdmmc.ko
 
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -flto
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -flto -fuse-linker-plugin
 
 linux_target := \
 	O="$(build)/$(linux_dir)" \
@@ -125,6 +125,7 @@ linux_target := \
 	AFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_KERNEL="$(EXTRA_FLAGS)" \
 	CFLAGS_MODULE="$(EXTRA_FLAGS)" \
+	LDFLAGS="$(EXTRA_FLAGS)" \
 	KBUILD_BUILD_USER=$(notdir $(linux_kconfig)) \
 	KBUILD_BUILD_HOST=linuxboot \
 	KBUILD_BUILD_TIMESTAMP="1970-00-00" \
