@@ -15,7 +15,7 @@ linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
 linux_dir := $(linux_base_dir)/$(notdir $(basename $(linux_kconfig)))
 
 linux_tar := linux-$(linux_version).tar.xz
-linux_url := https://github.com/andikleen/linux-misc/archive/$(linux_version).tar.xz
+linux_url := https://github.com/andikleen/linux-misc/archive/$(linux_version).tar.gz
 #linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
 #linux_url := https://cdn.kernel.org/pub/linux/kernel/v5.x/$(linux_tar)
 
