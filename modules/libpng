@@ -3,7 +3,7 @@ modules-$(CONFIG_CAIRO) += libpng
 libpng_version := 1.6.34
 libpng_dir := libpng-$(libpng_version)
 libpng_tar := libpng-$(libpng_version).tar.gz
-libpng_url := https://download.sourceforge.net/libpng/$(libpng_tar)
+libpng_url := https://github.com/glennrp/libpng-releases/raw/master/$(libpng_tar)
 libpng_hash := 574623a4901a9969080ab4a2df9437026c8a87150dfd5c235e28c94b212964a7
 
 libpng_configure := \
