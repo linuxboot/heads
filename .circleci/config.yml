@@ -149,6 +149,42 @@ jobs:
              tar zcvf build/x230-hotp-verification/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-hotp-verification
+        
+      - run:
+          name: kgpe-d16_workstation
+          command: |
+            rm -rf build/kgpe-d16_workstation/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=kgpe-d16_workstation \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_workstation hashes
+          command: |
+            cat build/kgpe-d16_workstation/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_workstation
+          command: |
+             tar zcvf build/kgpe-d16_workstation/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_workstation
+      
+      - run:
+          name: kgpe-d16_server
+          command: |
+            rm -rf build/kgpe-d16_server/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=kgpe-d16_server \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_server hashes
+          command: |
+            cat build/kgpe-d16_server/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_server
+          command: |
+             tar zcvf build/kgpe-d16_server/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_server
 
       - run:
           name: librem_mini-NoTPM
