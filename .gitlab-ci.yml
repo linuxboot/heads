@@ -8,7 +8,7 @@ stages:
 
 build:
   stage: build
-  retry: 1
+  retry: 2
   cache:
     paths:
       - packages
@@ -55,7 +55,6 @@ build:
     - cat ./build/x230/hashes.txt
     - echo "Archiving x230 logs..."
     - tar zcvf ./build/x230/logs.tar.gz ./build/log/*
-
     - echo "Removing old t430 artifacts..."
     - rm -rf ./build/t430/*
     - rm -rf ./build/log/*
@@ -65,8 +64,25 @@ build:
     - cat ./build/t430/hashes.txt
     - echo "Archiving t430 logs..."
     - tar zcvf ./build/t430/logs.tar.gz ./build/log/*
-
-    - echo "Removing old qemu-coreboot artifacts..."
+    - echo "Removing old kgpe-d16_workstation artifacts..."
+    - rm -rf ./build/kgpe-d16_workstation/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=kgpe-d16_workstation board..."
+    - make BOARD=kgpe-d16_workstation || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - echo "kgpe-d16_workstation hashes:"
+    - cat ./build/kgpe-d16_workstation/hashes.txt
+    - echo "Archiving kgpe-d16_workstation logs..."
+    - tar zcvf ./build/kgpe-d16_workstation/logs.tar.gz ./build/log/*
+    - echo "Removing old kgpe-d16_server artifacts..."
+    - rm -rf ./build/kgpe-d16_server/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=kgpe-d16_server board..."
+    - make BOARD=kgpe-d16_server || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - echo "kgpe-d16_server hashes:"
+    - cat ./build/kgpe-d16_server/hashes.txt
+    - echo "Archiving kgpe-d16_server logs..."
+    - tar zcvf ./build/kgpe-d16_server/logs.tar.gz ./build/log/*
+   - echo "Removing old qemu-coreboot artifacts..."
     - rm -rf ./build/qemu-coreboot/*
     - rm -rf ./build/log/*
     - echo "Building BOARD=qemu-coreboot board..."
