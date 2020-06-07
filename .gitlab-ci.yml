@@ -46,6 +46,15 @@ build:
     - cat ./build/x230-hotp-verification/hashes.txt
     - echo "Archiving x230-hotp-verification logs..."
     - tar zcvf ./build/x230-hotp-verification/logs.tar.gz ./build/log/*
+    - echo "Removing old t430-hotp-verification artifacts..."
+    - rm -rf ./build/t430-hotp-verification/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=t430-hotp-verification board..."
+    - make BOARD=t430-hotp-verification || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - echo "t430-hotp-verification hashes:"
+    - cat ./build/t430-hotp-verification/hashes.txt
+    - echo "Archiving t430-hotp-verification logs..."
+    - tar zcvf ./build/t430-hotp-verification/logs.tar.gz ./build/log/*
     - echo "Removing old x230 artifacts..."
     - rm -rf ./build/x230/*
     - rm -rf ./build/log/*
