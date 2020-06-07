@@ -12,7 +12,7 @@ jobs:
       - checkout
 
       - restore_cache:
-          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
 
       - run:
           name: git reset
@@ -154,7 +154,7 @@ jobs:
           path: build/qemu-coreboot
 
       - save_cache:
-          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
