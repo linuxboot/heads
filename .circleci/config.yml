@@ -154,7 +154,7 @@ jobs:
           path: build/qemu-coreboot
 
       - save_cache:
-          key: heads-{{ .CIRCLE_PROJECT_USERNAME }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
