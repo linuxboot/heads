@@ -2,11 +2,11 @@ modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
 cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
 
-cryptsetup_version := 1.7.3
+cryptsetup_version := 2.3.3
 cryptsetup_dir := cryptsetup-$(cryptsetup_version)
 cryptsetup_tar := cryptsetup-$(cryptsetup_version).tar.xz
-cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v1.7/cryptsetup-$(cryptsetup_version).tar.xz
-cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6adc02
+cryptsetup_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v2.3/cryptsetup-$(cryptsetup_version).tar.xz
+cryptsetup_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e82df
 
 # Use an empty prefix so that the executables will not include the
 # build path.
