@@ -12,6 +12,8 @@ cryptsetup_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e8
 # build path.
 cryptsetup_configure := ./configure \
 	$(CROSS_TOOLS) \
+	JSON_C_LIBS="-l$(INSTALL)/lib/json-c" \
+	JSON_C_CFLAGS="I$(INSTALL)/include/json-c" \
 	--host i386-elf-linux \
 	--prefix "/" \
 	--disable-gcrypt-pbkdf2 \
@@ -33,5 +35,25 @@ cryptsetup_output := \
 	src/.libs/veritysetup \
 
 cryptsetup_libraries := \
-	lib/.libs/libcryptsetup.so.4 \
+	lib/.libs/libcryptsetup.so.12.6.0 \
 
+
+# json-c is needed since cryptsetup version 2.0
+cryptsetup_depends += json-c
+modules-y += json-c
+
+json-c_version := 0.14
+json-c_dir := json-c-$(json-c_version)
+json-c_tar := json-c-$(json-c_version).tar.gz
+json-c_url := https://s3.amazonaws.com/json-c_releases/releases/json-c-$(json-c_version)-nodoc.tar.gz
+json-c_hash := 99914e644a25201d82ccefa20430f7515c110923360f9ef46755527c02412afa
+
+# there is a bug in cmake-configure so that it can not be used with a "=", fxed in next
+# release though (then it needs to read '--prefix="$(INSTALL)"' here instead
+json-c_configure := mkdir build && \
+	cd build && \
+	../cmake-configure --prefix "$(INSTALL)"
+
+json-c_target := $(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build all install
+
+json-c_libraries := build/libjson-c.so.5.0.0
