@@ -12,12 +12,9 @@ cryptsetup_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e8
 # build path.
 cryptsetup_configure := ./configure \
 	$(CROSS_TOOLS) \
-	JSON_C_LIBS="-l$(INSTALL)/lib/json-c" \
-	JSON_C_CFLAGS="I$(INSTALL)/include/json-c" \
 	--host i386-elf-linux \
 	--prefix "/" \
-	--disable-gcrypt-pbkdf2 \
-	--enable-cryptsetup-reencrypt \
+	--disable-rpath \
 	--with-crypto_backend=kernel \
 
 # but after building, replace prefix so that they will be installed
