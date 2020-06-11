@@ -1,4 +1,4 @@
-modules-$(CONFIG_LIBREMKEY) += libremkey-hotp-verification
+modules-$(CONFIG_HOTPKEY) += libremkey-hotp-verification
 
 libremkey-hotp-verification_depends := libusb $(musl_dep)
 
