@@ -93,7 +93,7 @@ update_totp()
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key"
+    echo "Once you have scanned the QR code, hit Enter to configure your $(CONFIG_HOTPKEY_BRANDING)"
     read
     /bin/seal-libremkey
   else
@@ -192,7 +192,8 @@ while true; do
       HOTP=`unseal-hotp`
       enable_usb
       if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
+        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your
+	$(CONFIG_HOTPKEY_BRANDING)' --msgbox "Your $(CONFIG_HOTPKEY_BRANDING) was not detected.\n\nPlease insert your $(CONFIG_HOTPKEY_BRANDING)" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check $HOTP
@@ -205,7 +206,7 @@ while true; do
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert Librem Key and retry"
+          HOTP="Error checking code, Insert $(CONFIG_HOTPKEY_BRANDING) and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
