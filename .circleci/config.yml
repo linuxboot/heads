@@ -79,7 +79,6 @@ jobs:
 
       - run:
           name: x230-flash
-          #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
             rm -rf build/x230-flash/* build/log/* && make CPUS=4 \
                 V=1 \
@@ -222,6 +221,30 @@ jobs:
       - store-artifacts:
           path: build/kgpe-d16_server
 
+
+      - run:
+          name: kgpe-d16_server-whiptail
+          command: |
+            rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=kgpe-d16_server-whiptail \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput kgpe-d16_server-whiptail hashes
+          command: |
+            cat build/kgpe-d16_server-whiptail/hashes.txt \
+      - run:
+          name: Archiving build logs for kgpe-d16_server-whiptail
+          command: |
+             tar zcvf build/kgpe-d16_server-whiptail/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/kgpe-d16_server-whiptail
+
+
+
+
+
+
       - run:
           name: qemu-coreboot
           command: |
@@ -254,6 +277,7 @@ jobs:
             - packages
             - crossgcc
             - build
+
 workflows:
   version: 2
   build_and_test:
