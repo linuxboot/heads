@@ -82,6 +82,15 @@ build:
     - cat ./build/kgpe-d16_workstation-usb_keyboard/hashes.txt
     - echo "Archiving kgpe-d16_workstation-usb_keyboard logs..."
     - tar zcvf ./build/kgpe-d16_workstation-usb_keyboard/logs.tar.gz ./build/log/*
+    - echo "Removing old kgpe-d16_server-whiptail artifacts..."
+    - rm -rf ./build/kgpe-d16_server-whiptail/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=kgpe-d16_server-whiptail board..."
+    - make BOARD=kgpe-d16_server-whiptail || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - echo "kgpe-d16_server-whiptail hashes:"
+    - cat ./build/kgpe-d16_server-whiptail/hashes.txt
+    - echo "Archiving kgpe-d16_server-whiptail logs..."
+    - tar zcvf ./build/kgpe-d16_server-whiptail/logs.tar.gz ./build/log/*
     - echo "Removing old kgpe-d16_server artifacts..."
     - rm -rf ./build/kgpe-d16_server/*
     - rm -rf ./build/log/*
