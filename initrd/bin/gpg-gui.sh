@@ -137,7 +137,7 @@ gpg_post_gen_mgmt() {
   GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
   gpg --export --armor $GPG_GEN_KEY > "/tmp/${GPG_GEN_KEY}.asc"
   if (whiptail --title 'Add Public Key to USB disk?' \
-      --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nOtherwise you will not be able to copy it outside of Heads later\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
+      --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
     mount_usb
     mount -o remount,rw /media
     cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
@@ -203,6 +203,7 @@ while true; do
     'a' ' Add GPG key to standalone BIOS image + flash' \
     'e' ' Replace GPG key(s) in the current ROM + reflash' \
     'l' ' List GPG keys in your keyring' \
+    'p' ' Export public GPG key to USB drive' \
     'g' ' Generate GPG keys manually on a USB security token' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -261,6 +262,23 @@ while true; do
       GPG_KEYRING=`gpg -k`
       whiptail --title 'GPG Keyring' \
         --msgbox "${GPG_KEYRING}" 16 60
+    ;;
+    "p" )
+        if (whiptail --title 'Export Public Key(s) to USB drive?' \
+          --yesno "Would you like to copy GPG public key(s) to a USB drive?\n\nThe file will show up as public-key.asc" 16 90) then
+        mount_usb
+        mount -o remount,rw /media
+        gpg --export --armor > "/tmp/public-key.asc"
+        cp "/tmp/public-key.asc" "/media/public-key.asc"
+        if [ $? -eq 0 ]; then
+          whiptail --title "The GPG Key Copied Successfully" \
+            --msgbox "public-key.asc copied successfully." 16 60
+        else
+          whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: Copy Failed' \
+            --msgbox "Unable to copy public-key.asc to /media" 16 60
+        fi
+        umount /media
+      fi
     ;;
     "g" )
       confirm_gpg_card
