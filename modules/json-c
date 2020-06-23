@@ -1,2 +1,19 @@
-# empty placeholder file
-# This submodule is defined in modules/cryptsetup
+modules-$(CONFIG_CRYPTSETUP) += json-c
+
+json-c_version := 0.14
+json-c_dir := json-c-$(json-c_version)
+json-c_tar := json-c-$(json-c_version).tar.gz
+json-c_url := https://s3.amazonaws.com/json-c_releases/releases/json-c-$(json-c_version)-nodoc.tar.gz
+json-c_hash := 99914e644a25201d82ccefa20430f7515c110923360f9ef46755527c02412afa
+
+# there is a bug in cmake-configure so that it can not be used with a "=", fxed in next
+# release though (then it needs to read '--prefix="$(INSTALL)"' here instead
+json-c_configure := mkdir -p build && \
+	cd build && \
+	../cmake-configure --prefix "$(INSTALL)"
+
+json-c_target := \
+	$(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build \
+	all install
+
+json-c_libraries := .libs/libjson-c.so.5.0.0

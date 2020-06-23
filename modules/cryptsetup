@@ -1,6 +1,6 @@
 modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
-cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
+cryptsetup_depends := util-linux popt lvm2 json-c $(musl_dep)
 
 cryptsetup_version := 2.3.3
 cryptsetup_dir := cryptsetup-$(cryptsetup_version)
@@ -21,10 +21,11 @@ cryptsetup_configure := ./configure \
 # but after building, replace prefix so that they will be installed
 # in the correct directory.
 cryptsetup_target := \
-	$(MAKE) \
-	-C $(build)/$(cryptsetup_dir) \
-	prefix="$(INSTALL)" \
-	install
+	$(MAKE_JOBS) \
+	&& $(MAKE) \
+		-C $(build)/$(cryptsetup_dir) \
+		prefix="$(INSTALL)" \
+		install
 
 cryptsetup_output := \
 	src/.libs/cryptsetup \
@@ -34,25 +35,3 @@ cryptsetup_output := \
 cryptsetup_libraries := \
 	lib/.libs/libcryptsetup.so.12.6.0 \
 
-
-# json-c is needed since cryptsetup version 2.0
-cryptsetup_depends += json-c
-modules-y += json-c
-
-json-c_version := 0.14
-json-c_dir := json-c-$(json-c_version)
-json-c_tar := json-c-$(json-c_version).tar.gz
-json-c_url := https://s3.amazonaws.com/json-c_releases/releases/json-c-$(json-c_version)-nodoc.tar.gz
-json-c_hash := 99914e644a25201d82ccefa20430f7515c110923360f9ef46755527c02412afa
-
-# there is a bug in cmake-configure so that it can not be used with a "=", fxed in next
-# release though (then it needs to read '--prefix="$(INSTALL)"' here instead
-json-c_configure := mkdir -p build && \
-	cd build && \
-	../cmake-configure --prefix "$(INSTALL)"
-
-json-c_target := \
-	$(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build \
-	all install
-
-json-c_libraries := build/.libs/libjson-c.so.5.0.0
