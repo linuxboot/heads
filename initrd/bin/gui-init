@@ -3,12 +3,6 @@
 
 CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 
-if [ -r /boot/kexec_hotp_key ]; then
-	CONFIG_HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-else
-	CONFIG_HOTPKEY_BRANDING="HOTP USB security dongle"
-fi
-
 . /etc/functions
 . /tmp/config
 
@@ -144,6 +138,13 @@ else
   # can't determine /boot device or no OS installed, 
   # so fall back to interactive selection
   mount_boot
+fi
+
+# Use stored HOTP key branding
+if [ -r /boot/kexec_hotp_key ]; then
+	CONFIG_HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	CONFIG_HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
 last_half=X
