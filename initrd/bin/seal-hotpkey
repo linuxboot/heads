@@ -67,13 +67,13 @@ if ! libremkey_hotp_verification info ; then
   fi
 fi
 
-# Set HOTP USB security key branding based on VID
+# Set HOTP USB Security Dongle branding based on VID
 if [ ! $(lsusb | grep -q "20a0:") ]; then
 	CONFIG_HOTPKEY_BRANDING="Nitrokey"
 elif [ ! $(lsusb | grep -q "316d:") ]; then
 	CONFIG_HOTPKEY_BRANDING="Librem Key"
 else
-	CONFIG_HOTPKEY_BRANDING="HOTP USB security key"
+	CONFIG_HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
 echo -e ""
@@ -107,7 +107,7 @@ counter_value=`expr $counter_value + 1`
 echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
 
-# Store/overwrite HOTP USB security key branding found out beforehand
+# Store/overwrite HOTP USB Security Dongle branding found out beforehand
 echo $CONFIG_HOTPKEY_BRANDING > $HOTP_KEY \
 || die "Unable to store hotp key file"
 
