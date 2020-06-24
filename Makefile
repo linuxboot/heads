@@ -48,9 +48,6 @@ include $(CONFIG)
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
-# HOTP USB Security naming if not specified in boards config
-CONFIG_HOTPKEY_BRANDING	?= "HOTP USB Security dongle"
-
 # Some things want usernames, we use the current checkout
 # so that they are reproducible
 GIT_HASH	:= $(shell git rev-parse HEAD)
