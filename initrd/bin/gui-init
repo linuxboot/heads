@@ -233,6 +233,7 @@ while true; do
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
+      'S' ' Systeminfo' \
       'F' ' OEM Factory Reset -->' \
       'x' ' Exit to recovery shell' \
       'r' ' <-- Return to main menu' \
@@ -371,6 +372,12 @@ while true; do
 
   if [ "$totp_confirm" = "G" ]; then
     gpg-gui.sh
+    continue
+  fi
+
+  if [ "$totp_confirm" = "S" ]; then
+    whiptail --title 'Systeminfo' \
+      --msgbox "$(cat /proc/meminfo | grep 'MemTotal' | sed 's/MemTotal:/Mem:/')\n\n$(cat /proc/cpuinfo | grep 'model name' | uniq | sed 's/model name.*:/CPU:/')\n\n$(fdisk -l | grep '/dev/sd.:' | sed 's/B,.*/B/')" 16 60
     continue
   fi
 
