@@ -6,6 +6,10 @@
 HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
+HOTP_KEY="/boot/kexec_hotp_key"
+
+CONFIG_HOTPKEY_BRANDING="HOTP USB security dongle"
+
 
 mount_boot()
 {
@@ -59,6 +63,8 @@ if ! libremkey_hotp_verification info ; then
   fi
 fi
 
+# TODO find out branding now and set variable
+
 echo -e ""
 read -s -p "Enter your $(CONFIG_HOTPKEY_BRANDING) Admin PIN: " admin_pin
 echo -e "\n"
@@ -74,6 +80,8 @@ if [ $? -ne 0 ]; then
     die "Setting HOTP secret failed"
   fi
 fi
+
+# TODO store key branding in HOTP_KEY
 
 # HOTP key no longer needed
 shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null

@@ -3,6 +3,12 @@
 
 CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 
+if [ -r /boot/kexec_hotp_key ]; then
+	CONFIG_HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	CONFIG_HOTPKEY_BRANDING="HOTP USB security dongle"
+fi
+
 . /etc/functions
 . /tmp/config
 
@@ -93,7 +99,7 @@ update_totp()
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your $(CONFIG_HOTPKEY_BRANDING)"
+    echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB security dongle (e.g. Librem Key or Nitrokey)"
     read
     /bin/seal-libremkey
   else
