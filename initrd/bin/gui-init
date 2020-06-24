@@ -142,9 +142,9 @@ fi
 
 # Use stored HOTP key branding
 if [ -r /boot/kexec_hotp_key ]; then
-	CONFIG_HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
-	CONFIG_HOTPKEY_BRANDING="HOTP USB Security Dongle"
+	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
 last_half=X
@@ -200,8 +200,8 @@ while true; do
       enable_usb
       if ! libremkey_hotp_verification info ; then
         whiptail $CONFIG_WARNING_BG_COLOR --clear \
-	--title "WARNING: Please Insert Your $CONFIG_HOTPKEY_BRANDING" \
-	--msgbox "Your $CONFIG_HOTPKEY_BRANDING was not detected.\n\nPlease insert your $CONFIG_HOTPKEY_BRANDING" 30 90
+	--title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
+	--msgbox "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check $HOTP
@@ -214,7 +214,7 @@ while true; do
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert $CONFIG_HOTPKEY_BRANDING and retry"
+          HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
