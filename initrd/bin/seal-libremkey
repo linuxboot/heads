@@ -8,9 +8,6 @@ HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
 HOTP_KEY="/boot/kexec_hotp_key"
 
-CONFIG_HOTPKEY_BRANDING="HOTP USB security dongle"
-
-
 mount_boot()
 {
   # Mount local disk if it is not already mounted
@@ -19,6 +16,13 @@ mount_boot()
       || recovery "Unable to mount /boot"
   fi
 }
+
+# Use stored HOTP key branding (this might be useful after OEM reset)
+if [ -r /boot/kexec_hotp_key ]; then
+	CONFIG_HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	CONFIG_HOTPKEY_BRANDING="HOTP USB Security Dongle"
+fi
 
 tpm nv_readvalue \
 	-in 4d47 \
@@ -63,7 +67,14 @@ if ! libremkey_hotp_verification info ; then
   fi
 fi
 
-# TODO find out branding now and set variable
+# Set HOTP USB security key branding based on VID
+if [ ! $(lsusb | grep -q "20a0:") ]; then
+	CONFIG_HOTPKEY_BRANDING="Nitrokey"
+elif [ ! $(lsusb | grep -q "316d:") ]; then
+	CONFIG_HOTPKEY_BRANDING="Librem Key"
+else
+	CONFIG_HOTPKEY_BRANDING="HOTP USB security key"
+fi
 
 echo -e ""
 read -s -p "Enter your $CONFIG_HOTPKEY_BRANDING Admin PIN: " admin_pin
@@ -81,8 +92,6 @@ if [ $? -ne 0 ]; then
   fi
 fi
 
-# TODO store key branding in HOTP_KEY
-
 # HOTP key no longer needed
 shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
 
@@ -97,6 +106,10 @@ mount -o remount,rw /boot
 counter_value=`expr $counter_value + 1`
 echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
+
+# Store/overwrite HOTP USB security key branding found out beforehand
+echo $CONFIG_HOTPKEY_BRANDING > $HOTP_KEY \
+|| die "Unable to store hotp key file"
 
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
 #|| die "Unable to create hotp counter file"
