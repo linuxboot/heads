@@ -199,7 +199,7 @@ while true; do
       enable_usb
       if ! libremkey_hotp_verification info ; then
         whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your
-	$(CONFIG_HOTPKEY_BRANDING)' --msgbox "Your $(CONFIG_HOTPKEY_BRANDING) was not detected.\n\nPlease insert your $(CONFIG_HOTPKEY_BRANDING)" 30 90
+	$CONFIG_HOTPKEY_BRANDING' --msgbox "Your $CONFIG_HOTPKEY_BRANDING was not detected.\n\nPlease insert your $CONFIG_HOTPKEY_BRANDING" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
       libremkey_hotp_verification check $HOTP
@@ -212,7 +212,7 @@ while true; do
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert $(CONFIG_HOTPKEY_BRANDING) and retry"
+          HOTP="Error checking code, Insert $CONFIG_HOTPKEY_BRANDING and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
