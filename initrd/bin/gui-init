@@ -93,7 +93,7 @@ update_totp()
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
   if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB security dongle (e.g. Librem Key or Nitrokey)"
+    echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
     read
     /bin/seal-hotpkey
   else
