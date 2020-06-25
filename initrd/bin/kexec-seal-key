@@ -86,7 +86,7 @@ luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
 # HOTP USB Secrity Dongle loads USB modules which changes PCR5.
 # In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
-if [ -x /bin/libremkey_hotp_verification ]; then
+if [ -x /bin/hotp_verification ]; then
   pcr_5="X"
 else
   pcr_5="0000000000000000000000000000000000000000"

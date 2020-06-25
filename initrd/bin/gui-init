@@ -92,7 +92,7 @@ update_totp()
 {
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
-  if [ -x /bin/libremkey_hotp_verification ]; then
+  if [ -x /bin/hotp_verification ]; then
     echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
     read
     /bin/seal-hotpkey
@@ -195,16 +195,16 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then 
-    if [ -x /bin/libremkey_hotp_verification ]; then
+    if [ -x /bin/hotp_verification ]; then
       HOTP=`unseal-hotp`
       enable_usb
-      if ! libremkey_hotp_verification info ; then
+      if ! hotp_verification info ; then
         whiptail $CONFIG_WARNING_BG_COLOR --clear \
 	--title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
 	--msgbox "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
-      libremkey_hotp_verification check $HOTP
+      hotp_verification check $HOTP
       case "$?" in
         0 )
           HOTP="Success"
