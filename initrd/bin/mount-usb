@@ -55,10 +55,10 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     # remove block device from list if numeric partitions exist, since not bootable
     let USB_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
     if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
-      echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | sed 's/\ UUID.*$//') >> /tmp/usb_disk_list
+      echo $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') $i >> /tmp/usb_disk_list
     else
       for j in $(ls $i* | tail -${USB_NUM_PARTITIONS}); do
-        echo $j $(blkid | grep $j | grep -o 'LABEL=".*"' | sed 's/\ UUID.*$//') >> /tmp/usb_disk_list
+        echo $(blkid | grep $j | grep -o 'LABEL=".*"' | cut -f2 -d '"') $j >> /tmp/usb_disk_list
       done
     fi
   done
