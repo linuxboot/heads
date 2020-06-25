@@ -92,6 +92,9 @@ fi
 combine_configs
 . /tmp/config
 
+# export firmware version
+export FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2 -d ' ')
+
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
 if [ ! -z "$CONFIG_BOOT_DEV" ]; then

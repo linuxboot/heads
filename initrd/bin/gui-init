@@ -218,6 +218,7 @@ while true; do
       'y' ' Default boot' \
       'r' ' Refresh TOTP/HOTP' \
       'a' ' Options -->' \
+      'S' ' System Info' \
       'P' ' Power Off' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -233,7 +234,6 @@ while true; do
       'c' ' Change configuration settings -->' \
       'f' ' Flash/Update the BIOS -->' \
       'G' ' GPG Options -->' \
-      'S' ' Systeminfo' \
       'F' ' OEM Factory Reset -->' \
       'x' ' Exit to recovery shell' \
       'r' ' <-- Return to main menu' \
@@ -376,8 +376,11 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "S" ]; then
-    whiptail --title 'Systeminfo' \
-      --msgbox "$(cat /proc/meminfo | grep 'MemTotal' | sed 's/MemTotal:/Mem:/')\n\n$(cat /proc/cpuinfo | grep 'model name' | uniq | sed 's/model name.*:/CPU:/')\n\n$(fdisk -l | grep '/dev/sd.:' | sed 's/B,.*/B/')" 16 60
+    memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
+    memtotal=$((${memtotal} / 1024 / 1024 + 1))
+    cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
+    whiptail --title 'System Info' \
+      --msgbox "VER: ${FW_VER}\n\nCPU: ${cpustr}\nRAM: ${memtotal} MB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
     continue
   fi
 
