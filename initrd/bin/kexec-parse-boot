@@ -35,8 +35,10 @@ echo_entry() {
 		fix_path $kernel
 		entry="$name|$kexectype|kernel $path"
 		if [ -n "$initrd" ]; then
-			fix_path $initrd
-			entry="$entry|initrd $path"
+			for init in $(echo $initrd | tr ',' ' '); do
+				fix_path $init
+				entry="$entry|initrd $path"
+			done
 		fi
 		if [ -n "$append" ]; then
 			entry="$entry|append $append"
@@ -118,6 +120,7 @@ syslinux_end() {
 		append="${newappend##' '}"
 	fi
 
+	appenddir="$(echo $appenddir | cut -d\/ -f -2)"
 	echo_entry
 	state="search"
 }
