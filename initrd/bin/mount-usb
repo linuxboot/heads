@@ -5,16 +5,23 @@
 enable_usb
 
 if ! lsmod | grep -q usb_storage; then
-  insmod /lib/modules/usb-storage.ko \
+  count=$(ls /dev/sd* 2>/dev/null | wc -l)
+  timeout=0
+  echo "Scanning for USB storage devices..."
+  insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
   || die "usb_storage: module load failed"
-  sleep 5
+  while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do 
+    [[ $timeout -ge 4 ]] && break
+    sleep 1
+    timeout=$(($timeout+1))
+  done
 fi
 
 if [ ! -d /media ]; then
   mkdir /media
 fi
 
-stat -c %N /sys/block/sd* | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
+stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
 if [ -z `cat /tmp/usb_block_devices` ]; then
   if [ -x /bin/whiptail ]; then
     whiptail --title 'USB Drive Missing' \
@@ -24,7 +31,7 @@ if [ -z `cat /tmp/usb_block_devices` ]; then
     read
   fi
   sleep 1
-  stat -c %N /sys/block/sd* | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
+  stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
   if [ -z `cat /tmp/usb_block_devices` ]; then
     if [ -x /bin/whiptail ]; then
       whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: USB Drive Missing' \
