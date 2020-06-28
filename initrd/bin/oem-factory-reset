@@ -127,21 +127,26 @@ generate_checksums()
     rm /boot/kexec* 2>/dev/null
 
     # create Heads TPM counter
-    tpm counter_create \
-        -pwdo "$TPM_PASS_DEF" \
-        -pwdc '' \
-        -la -3135106223 \
-        | tee /tmp/counter \
-        || whiptail_error_die "Unable to create TPM counter"
-    TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+    if [ "$CONFIG_TPM" = "y" ]; then
+      tpm counter_create \
+          -pwdo "$TPM_PASS_DEF" \
+          -pwdc '' \
+          -la -3135106223 \
+          | tee /tmp/counter \
+          || whiptail_error_die "Unable to create TPM counter"
+      TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
 
-    # increment TPM counter
-    increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
-        || whiptail_error_die "Unable to increment tpm counter"
+      # increment TPM counter
+      increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
+          || whiptail_error_die "Unable to increment tpm counter"
 
-    # create rollback file
-    sha256sum /tmp/counter-$TPM_COUNTER > /boot/kexec_rollback.txt 2>/dev/null \
-        || whiptail_error_die "Unable to create rollback file"
+      # create rollback file
+      sha256sum /tmp/counter-$TPM_COUNTER > /boot/kexec_rollback.txt 2>/dev/null \
+          || whiptail_error_die "Unable to create rollback file"
+    else
+      ## needs to exist for initial call to unseal-hotp
+      echo "0" > /boot/kexec_hotp_counter
+    fi 
 
     # set default boot option
     set_default_boot_option
@@ -232,15 +237,20 @@ else
 fi
 
 # show warning prompt
+if [ "$CONFIG_TPM" = "y" ]; then
+    TPM_STR="          * ERASE the TPM and reset it with a default password\n"
+else
+    TPM_STR=""
+fi
 if ! whiptail --yesno "
-    This operation will automatically:\n\n
-        * ERASE the TPM and reset it with a default password\n
-        * ERASE any keys or passwords on the GPG smart card,\n
-        reset it to a factory state, and generate new keys\n
-        * Add the new GPG key to the firmware and reflash it\n
-        * Sign all of the files in /boot with the new GPG key\n\n
-    It requires that you already have an OS installed on a\n
-    dedicated /boot partition. Do you wish to continue?\n" \
+        This operation will automatically:\n\n
+$TPM_STR
+          * ERASE any keys or passwords on the GPG smart card,\n
+            reset it to a factory state, and generate new keys\n
+          * Add the new GPG key to the firmware and reflash it\n
+          * Sign all of the files in /boot with the new GPG key\n\n
+        It requires that you already have an OS installed on a\n
+        dedicated /boot partition. Do you wish to continue?\n" \
         $WIDTH $HEIGHT $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text" ; then
     exit 1
 fi
@@ -337,14 +347,16 @@ replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
 combine_configs
 
 ## reset TPM and set default password
-echo -e "\nResetting TPM...\n"
-{
-    echo $TPM_PASS_DEF
-    echo $TPM_PASS_DEF
-} | /bin/tpm-reset >/dev/null 2>/tmp/error
-if [ $? -ne 0 ]; then
-    ERROR=$(tail -n 1 /tmp/error)
-    whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
+if [ "$CONFIG_TPM" = "y" ]; then
+  echo -e "\nResetting TPM...\n"
+  {
+      echo $TPM_PASS_DEF
+      echo $TPM_PASS_DEF
+  } | /bin/tpm-reset >/dev/null 2>/tmp/error
+  if [ $? -ne 0 ]; then
+      ERROR=$(tail -n 1 /tmp/error)
+      whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
+  fi
 fi
 
 # clear local keyring
