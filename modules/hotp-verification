@@ -19,7 +19,7 @@ hotp-verification_output := \
 hotp-verification_configure := \
   INSTALL="$(INSTALL)" \
   CROSS="$(CROSS)" \
-  $(CROSS_TOOLS) $(MAKE) LDFLAGS="$(INSTALL)/lib/libusb-1.0.so" && $(MAKE) install INSTALL="$(INSTALL)"
+  $(CROSS_TOOLS) $(MAKE) LDFLAGS="$(INSTALL)/lib/libusb-1.0.so" GITVERSION="" LIBUSB_FLAGS="-I/usr/include/libusb-1.0" PKGCONFIG="" && $(MAKE) install INSTALL="$(INSTALL)"
 
 hotp-verification_depends  += hidapi
 modules-y += hidapi
