@@ -1,0 +1,37 @@
+modules-$(CONFIG_HOTPKEY) += hotp-verification
+
+hotp-verification_depends := libusb $(musl_dep)
+
+hotp-verification_version := 5fb260e631b237a298b6dcca47bbd728f2c5ac3a
+hotp-verification_dir := hotp-verification-$(hotp-verification_version)
+hotp-verification_tar := nitrokey-hotp-verification-$(hotp-verification_version).tar.gz
+hotp-verification_url := https://github.com/Nitrokey/nitrokey-hotp-verification/archive/$(hotp-verification_version).tar.gz
+hotp-verification_hash := 5d98d158ba97fb970061d68e2c6f41582395e687b7752efb1a8038762b0e7b79
+
+hotp-verification_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+
+hotp-verification_output := \
+	hotp_verification \
+	hotp_initialize
+
+hotp-verification_configure := \
+  INSTALL="$(INSTALL)" \
+  CROSS="$(CROSS)" \
+  $(CROSS_TOOLS) $(MAKE) LDFLAGS="$(INSTALL)/lib/libusb-1.0.so" && $(MAKE) install INSTALL="$(INSTALL)"
+
+hotp-verification_depends  += hidapi
+modules-y += hidapi
+
+hidapi_version := e5ae0d30a523c565595bdfba3d5f2e9e1faf0bd0
+hidapi_dir := hotp-verification-$(hotp-verification_version)/hidapi
+hidapi_tar := hidapi-$(hidapi_version).tar.xz
+hidapi_url := https://github.com/Nitrokey/hidapi/archive/$(hidapi_version).tar.gz
+hidapi_hash := acc2a5089a8917085c2b3ebe9446065a21c760ba7e13cb54917043c4122188e0
+
+
+## hidapi will be built as part of hotp-verification
+## so nothing to do here (but need make to be happy)
+hidapi_output := .built
+hidapi_configure := echo -e 'all:\n\ttouch .built' > Makefile
