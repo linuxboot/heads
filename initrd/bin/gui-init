@@ -92,10 +92,10 @@ update_totp()
 {
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
-  if [ -x /bin/libremkey_hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your Librem Key"
+  if [ -x /bin/hotp_verification ]; then
+    echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
     read
-    /bin/seal-libremkey
+    /bin/seal-hotpkey
   else
     echo "Once you have scanned the QR code, hit Enter to continue"
     read
@@ -118,7 +118,7 @@ clean_boot_check()
   [ $GPG_KEY_COUNT -ne 0 ] && return
 
    # check for USB security token
-  if [ "$CONFIG_LIBREMKEY" = "y" ]; then
+  if [ "$CONFIG_HOTPKEY" = "y" ]; then
     enable_usb
     if ! gpg --card-status > /dev/null ; then
       return
@@ -138,6 +138,13 @@ else
   # can't determine /boot device or no OS installed, 
   # so fall back to interactive selection
   mount_boot
+fi
+
+# Use stored HOTP key branding
+if [ -r /boot/kexec_hotp_key ]; then
+	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
 last_half=X
@@ -188,14 +195,16 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then 
-    if [ -x /bin/libremkey_hotp_verification ]; then
+    if [ -x /bin/hotp_verification ]; then
       HOTP=`unseal-hotp`
       enable_usb
-      if ! libremkey_hotp_verification info ; then
-        whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please Insert Your Librem Key' --msgbox "Your Librem Key was not detected.\n\nPlease insert your Librem Key" 30 90
+      if ! hotp_verification info ; then
+        whiptail $CONFIG_WARNING_BG_COLOR --clear \
+	--title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
+	--msgbox "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90
         fi
       # Don't output HOTP codes to screen, so as to make replay attacks harder
-      libremkey_hotp_verification check $HOTP
+      hotp_verification check $HOTP
       case "$?" in
         0 )
           HOTP="Success"
@@ -205,7 +214,7 @@ while true; do
           MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
         ;;
         * )
-          HOTP="Error checking code, Insert Librem Key and retry"
+          HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
           MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
         ;;
       esac
