@@ -8,13 +8,13 @@ stages:
 
 build:
   stage: build
-  retry: 2
+  retry: 1
   cache:
     paths:
       - packages
       - crossgcc
       - build
-    key: "heads-$GITLAB_USER_LOGIN"
+    key: "heads-$GITLAB_USER_LOGIN-2"
   script:
     - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
     - git fetch origin 
@@ -75,6 +75,8 @@ build:
     - cat ./build/qemu-coreboot/hashes.txt
     - echo "Archiving qemu-coreboot logs..."
     - tar zcvf ./build/qemu-coreboot/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build
   artifacts:
     paths:
       - ./build/qemu-coreboot
