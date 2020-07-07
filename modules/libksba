@@ -10,7 +10,9 @@ libksba_configure := ./configure \
 	--host x86_64-linux-musl \
 	--prefix "/" \
 	--disable-static \
-	--with-gpg-error-prefix="$(INSTALL)" \
+	--disable-nls \
+	--with-libgpg-error-prefix="$(INSTALL)" \
+	--disable-asm \
 
 libksba_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
