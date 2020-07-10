@@ -22,7 +22,7 @@ while true; do
     ;;
     f|c )
       if (whiptail --title 'Flash the BIOS with a new ROM' \
-          --yesno "This requires you insert a USB drive containing:\n* Your BIOS image (*.rom)\n\nAfter you select this file, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+          --yesno "You will need to insert a USB drive containing your BIOS image (*.rom).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 16 90) then
         mount_usb
         if grep -q /media /proc/mounts ; then
           find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
@@ -34,7 +34,7 @@ while true; do
           fi
 
           if (whiptail --title 'Flash ROM?' \
-              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
+              --yesno "This will replace your current ROM with:\n\n$ROM\n\nDo you want to proceed?" 16 60) then
             if [ "$menu_choice" == "c" ]; then
               /bin/flash.sh -c "$ROM"
               # after flash, /boot signatures are now invalid so go ahead and clear them
@@ -49,7 +49,7 @@ while true; do
               /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully.\nPress Enter to reboot" 16 60
+              --msgbox "$ROM flashed successfully.\n\nPress Enter to reboot\n" 16 60
             umount /media
             /bin/reboot
           else
