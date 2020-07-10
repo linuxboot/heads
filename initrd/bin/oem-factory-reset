@@ -109,7 +109,7 @@ gpg_key_change_pin()
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null 
     if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output`
+        ERROR=`cat /tmp/gpg_card_edit_output | fold -s`
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
 }
@@ -184,7 +184,7 @@ generate_checksums()
     mount -o ro,remount /boot
 
     if [ $ret = 1 ] ; then
-        ERROR=$(tail -n 1 /tmp/error)
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Error signing kexec boot files:\n\n$ERROR"
     fi
 }
@@ -319,7 +319,7 @@ echo -e "\nChecking for USB media...\n"
 umount /media 2>/dev/null
 # mount-usb will detect and prompt if no USB inserted
 if ! mount-usb rw 2>/tmp/error; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
 fi
 
@@ -329,7 +329,7 @@ echo -e "\nChecking for GPG Key...\n"
 if ! gpg --card-status >/dev/null 2>&1 ; then
     whiptail_error "Can't access GPG Key; remove and reinsert, then press Enter to retry."
     if ! gpg --card-status >/dev/null 2>/tmp/error ; then
-        ERROR=$(tail -n 1 /tmp/error)
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Unable to detect GPG Key:\n\n${ERROR}"
     fi
 fi
@@ -354,7 +354,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
       echo $TPM_PASS_DEF
   } | /bin/tpm-reset >/dev/null 2>/tmp/error
   if [ $? -ne 0 ]; then
-      ERROR=$(tail -n 1 /tmp/error)
+      ERROR=$(tail -n 1 /tmp/error | fold -s)
       whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
   fi
 fi
@@ -385,13 +385,13 @@ fi
 echo -e "\nExporting generated key to USB...\n"
 # export pubkey to file
 if ! gpg --export --armor $GPG_GEN_KEY > "${PUBKEY}" 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
 # copy to USB
 if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
-    whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
+    whiptail_error_die "Key export error: unable to copy exported pubkey to /media:\n\n$ERROR"
 fi
 umount /media 2>/dev/null
 
@@ -399,24 +399,24 @@ umount /media 2>/dev/null
 echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
 /bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
 if [ ! -s /tmp/oem-setup.rom ]; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error reading current firmware:\n\n$ERROR"
 fi
 
 # ensure key imported locally
 if ! cat "$PUBKEY" | gpg --import >/dev/null 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error importing GPG key:\n\n$ERROR"
 fi
 # update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
 if ! gpg --list-keys --fingerprint --with-colons 2>/dev/null \
         | sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' \
         | gpg --import-ownertrust >/dev/null 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error importing GPG ownertrust:\n\n$ERROR"
 fi
 if ! gpg --update-trust >/dev/null 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
 # clear any existing heads/gpg files from current firmware
@@ -442,7 +442,7 @@ fi
 # flash updated firmware image
 echo -e "\nAdding generated key to current firmware and re-flashing...\n"
 if ! /bin/flash.sh /tmp/oem-setup.rom >/dev/null 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error)
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 fi
 
