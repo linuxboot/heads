@@ -27,7 +27,7 @@ musl-cross_target := --version
 
 # Ask the compiler where to find its own libc.so
 musl-cross_libraries := \
-	$(shell $(CROSS)gcc --print-file-name=libc.so) \
+	$(shell $(CROSS)gcc --print-file-name=libc.so) 
 
 else
 
@@ -47,7 +47,8 @@ musl-cross_target := \
 	both
 
 CROSS := $(CROSS_PATH)/bin/x86_64-linux-musl-
-musl-cross_libraries := $(CROSS_PATH)/x86_64-linux-musl/lib/libc.so
+musl-cross_libraries := \
+	$(CROSS_PATH)/x86_64-linux-musl/lib/libc.so 
 
 endif
 

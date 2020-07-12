@@ -430,6 +430,7 @@ bin_modules-$(CONFIG_CAIRO) += cairo
 bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
 bin_modules-$(CONFIG_MSRTOOLS) += msrtools
+bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \

@@ -1,0 +1,16 @@
+modules-$(CONFIG_NKSTORECLI) += nkstorecli
+
+nkstorecli_depends := libnitrokey libusb $(musl_dep)
+
+nkstorecli_version := 0.2.3
+nkstorecli_dir := nkstorecli-$(nkstorecli_version)
+nkstorecli_tar := nkstorecli-$(nkstorecli_version).tar.gz
+nkstorecli_url := https://github.com/daringer/nkstorecli/releases/download/v$(nkstorecli_version)/nkstorecli-$(nkstorecli_version).tar.gz
+nkstorecli_hash := 646e557c02d445ecaa4f3bed021c5809b3d9d641a0a79178d91b3e8f32287fa6
+
+nkstorecli_target := $(MAKE_JOBS) -C src $(CROSS_TOOLS) DESTDIR=$(INSTALL) install 
+
+nkstorecli_output := \
+	src/nkstorecli 
+
+

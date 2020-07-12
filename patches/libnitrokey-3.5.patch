@@ -1,0 +1,4522 @@
+diff --git a/.travis.yml b/.travis.yml
+index 6bf5438..6f3cec0 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -7,12 +7,8 @@ env:
+ 
+ matrix:
+   include:
+-#    - osx_image: xcode7.3 #default
+-#      before_install: &brew
+-#      - brew update
+-#      - brew install hidapi
++    - osx_image: xcode11.5
+     - osx_image: xcode9.1
+-    - osx_image: xcode8.2
+     - os: linux
+       dist: trusty
+       env: COMPILER_NAME=gcc CXX=g++-5 CC=gcc-5
+@@ -22,50 +18,73 @@ matrix:
+             - cmake
+             - libhidapi-dev
+             - g++-5
+-            - python3
+-            - python3-pip
+-            - python3-requests
+-            - git
+           sources: &sources
+             - ubuntu-toolchain-r-test
++    - os: linux
++      dist: trusty
++      env: COMPILER_NAME=gcc CXX=g++-7 CC=gcc-7
++      addons:
++        apt:
++          packages:
++            - cmake
++            - libhidapi-dev
++            - g++-7
++          sources: *sources
++    - os: linux
++      dist: bionic
++      env: COMPILER_NAME=gcc CXX=g++-10 CC=gcc-10
++      addons:
++        apt:
++          packages:
++            - cmake
++            - libhidapi-dev
++            - g++-10
++            - python3
++            - python3-pip
++            - meson
++            - ninja-build
++          sources: *sources
+       script:
+         - make -j2
+         - ctest -VV
+         - mkdir install && make install DESTDIR=install
+-        - pip3 install pytest --user
+         - cd ../
+-        - pip3 install -r unittest/requirements.txt --user
++        - python3 -m pip install -r unittest/requirements.txt --user
+         - cd unittest && python3 -m pytest -sv test_offline.py
++        - cd ../
++        - mkdir -p build-meson && meson build-meson
++        - cd build-meson && ninja
++        - env DESTDIR=install ninja install
+     - os: linux
+       dist: trusty
+-      env: COMPILER_NAME=gcc CXX=g++-6 CC=gcc-6
++      env: COMPILER_NAME=clang CXX=clang++-3.8 CC=clang-3.8
+       addons:
+         apt:
+           packages:
+             - cmake
+             - libhidapi-dev
+-            - g++-6
++            - g++-5
++            - clang-3.8
+           sources: *sources
+     - os: linux
+-      dist: trusty
+-      env: COMPILER_NAME=gcc CXX=g++-7 CC=gcc-7
++      dist: bionic
++      env: COMPILER_NAME=clang CXX=clang++-6.0 CC=clang-6.0
+       addons:
+         apt:
+           packages:
+             - cmake
+             - libhidapi-dev
+-            - g++-7
++            - clang-6.0
+           sources: *sources
+     - os: linux
+-      dist: trusty
+-      env: COMPILER_NAME=clang CXX=clang++-3.8 CC=clang-3.8
++      dist: bionic
++      env: COMPILER_NAME=clang CXX=clang++-9 CC=clang-9
+       addons:
+         apt:
+           packages:
+             - cmake
+             - libhidapi-dev
+-            - g++-5
+-            - clang-3.8
++            - clang-9
+           sources: *sources
+ 
+ 
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6d59430..c592a9f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD 14)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_CXX_EXTENSIONS OFF)
+ 
++set(DEV OFF)
+ 
+ include(GNUInstallDirs)
+ 
+@@ -43,35 +44,67 @@ MESSAGE("${PROJECT_NAME}: Build type: ${CMAKE_BUILD_TYPE}")
+ 
+ include_directories(hidapi)
+ include_directories(libnitrokey)
++
++set(COMMON_FILES
++        libnitrokey/command.h
++        libnitrokey/command_id.h
++        libnitrokey/cxx_semantics.h
++        libnitrokey/device.h
++        libnitrokey/device_proto.h
++        libnitrokey/dissect.h
++        libnitrokey/log.h
++        libnitrokey/misc.h
++        libnitrokey/NitrokeyManager.h
++        libnitrokey/stick10_commands.h
++        libnitrokey/stick20_commands.h
++        libnitrokey/CommandFailedException.h
++        libnitrokey/LibraryException.h
++        libnitrokey/LongOperationInProgressException.h
++        libnitrokey/stick10_commands_0.8.h
++        command_id.cc
++        device.cc
++        log.cc
++        misc.cc
++        nk_strndup.c
++        DeviceCommunicationExceptions.cpp
++        ${CMAKE_CURRENT_BINARY_DIR}/version.cc
++        )
++
+ set(SOURCE_FILES
+-    libnitrokey/command.h
+-    libnitrokey/command_id.h
+-    libnitrokey/cxx_semantics.h
+-    libnitrokey/device.h
+-    libnitrokey/device_proto.h
+-    libnitrokey/dissect.h
+-    libnitrokey/log.h
+-    libnitrokey/misc.h
+-    libnitrokey/NitrokeyManager.h
+-    libnitrokey/stick10_commands.h
+-    libnitrokey/stick20_commands.h
+-    libnitrokey/CommandFailedException.h
+-    libnitrokey/LibraryException.h
+-    libnitrokey/LongOperationInProgressException.h
+-    libnitrokey/stick10_commands_0.8.h
+-    command_id.cc
+-    device.cc
+-    log.cc
+-    misc.cc
++   ${COMMON_FILES}
+     NitrokeyManager.cc
++    NitrokeyManagerStorage.cpp
++    NitrokeyManagerStorage.h
++    NitrokeyManagerOTP.cc
++    NitrokeyManagerOTP.h
++    NitrokeyManagerPWS.h
++    NitrokeyManagerPWS.cc
+     NK_C_API.h
+     NK_C_API.cc
+-    DeviceCommunicationExceptions.cpp
+-    ${CMAKE_CURRENT_BINARY_DIR}/version.cc
++    NK_C_API_pws.cpp
++    NK_C_API_otp.cpp
++    NK_C_API_helpers.cpp
++    NK_C_API_helpers.h
++    NK_C_API_storage.h
++    NK_C_API_storage.cpp
++    )
++
++set(SOURCE_FILES_storage
++    ${COMMON_FILES}
++    NitrokeyManager.cc
++    NitrokeyManagerStorage.cpp
++    NitrokeyManagerStorage.h
++    NK_C_API.h
++    NK_C_API.cc
++    NK_C_API_helpers.cpp
++    NK_C_API_helpers.h
++    NK_C_API_storage.h
++    NK_C_API_storage.cpp
+     )
+ 
+ set(BUILD_SHARED_LIBS ON CACHE BOOL "Build all libraries as shared")
+ add_library(nitrokey ${SOURCE_FILES})
++add_library(nitrokey-storage ${SOURCE_FILES_storage})
+ 
+ IF(APPLE)
+     include_directories(hidapi/hidapi)
+@@ -82,8 +115,12 @@ ELSEIF(UNIX)
+ #    add_library(hidapi-libusb STATIC hidapi/libusb/hid.c )
+     find_package(PkgConfig)
+     pkg_search_module(HIDAPI_LIBUSB REQUIRED hidapi-libusb)
+-    target_compile_options(nitrokey PRIVATE ${HIDAPI_LIBUSB_CFLAGS})
++    IF(DEV)
++        target_compile_options(nitrokey PRIVATE "${HIDAPI_LIBUSB_CFLAGS} -Os")
++        target_link_options(nitrokey PRIVATE "-Wl,-Map=output.map")
++    ENDIF()
+     target_link_libraries(nitrokey ${HIDAPI_LIBUSB_LDFLAGS})
++    target_link_libraries(nitrokey-storage ${HIDAPI_LIBUSB_LDFLAGS})
+ ELSEIF(WIN32)
+     include_directories(hidapi/hidapi)
+     add_library(hidapi-libusb STATIC hidapi/windows/hid.c )
+@@ -94,6 +131,9 @@ ENDIF()
+ set_target_properties(nitrokey PROPERTIES
+ 	VERSION ${libnitrokey_VERSION}
+ 	SOVERSION ${libnitrokey_VERSION_MAJOR})
++set_target_properties(nitrokey-storage PROPERTIES
++	VERSION ${libnitrokey_VERSION}
++	SOVERSION ${libnitrokey_VERSION_MAJOR})
+ 
+ OPTION(ERROR_ON_WARNING "Stop compilation on warning found (not supported for MSVC)" OFF)
+ if (NOT MSVC)
+@@ -109,6 +149,7 @@ endif()
+ OPTION(NO_LOG "Compile without logging functionality and its strings (decreases size)" OFF)
+ IF (NO_LOG)
+     SET_TARGET_PROPERTIES(nitrokey PROPERTIES COMPILE_DEFINITIONS "NO_LOG")
++    SET_TARGET_PROPERTIES(nitrokey-storage PROPERTIES COMPILE_DEFINITIONS "NO_LOG")
+ ENDIF()
+ 
+ OPTION(LOG_VOLATILE_DATA "Log volatile data (debug)" OFF)
+@@ -129,7 +170,14 @@ execute_process(
+ 	ERROR_QUIET
+ )
+ ENDIF()
+-IF((NOT ${ADD_GIT_INFO}) OR (${PROJECT_VERSION_GIT_RETURN_CODE}))
++# the version.h generation logic is tricky in a number of ways:
++# 1. git describe on a release tarball will always fail with
++#    a non-zero return code, usually 128
++# 2. If git is not installed, PROJECT_VERSION_GIT_RETURN_CODE
++#    will contain the string 'No such file or directory'
++# Hence fallback to PROJECT_VERSION when the return code is NOT 0.
++IF((NOT ${ADD_GIT_INFO}) OR (NOT ${PROJECT_VERSION_GIT_RETURN_CODE} STREQUAL "0"))
++	MESSAGE(STATUS "Setting fallback Git library version")
+ 	SET(PROJECT_VERSION_GIT "v${PROJECT_VERSION}")
+ ENDIF()
+ MESSAGE(STATUS "Setting Git library version to: " ${PROJECT_VERSION_GIT} )
+@@ -209,6 +257,7 @@ IF (COMPILE_TESTS)
+                 unittest/test_HOTP.cc
+                 unittest/test1.cc
+                 unittest/test_issues.cc
++		unittest/test_memory.c
+                 unittest/test_multiple_devices.cc
+                 unittest/test_strdup.cpp
+                 unittest/test_safe.cpp
+diff --git a/NK_C_API.cc b/NK_C_API.cc
+index 1d3fa3a..951532b 100644
+--- a/NK_C_API.cc
++++ b/NK_C_API.cc
+@@ -20,7 +20,9 @@
+  */
+ 
+ #include "NK_C_API.h"
++#ifndef NO_LOG
+ #include <iostream>
++#endif
+ #include <tuple>
+ #include "libnitrokey/NitrokeyManager.h"
+ #include <cstring>
+@@ -30,92 +32,16 @@
+ #include "libnitrokey/device_proto.h"
+ #include "libnitrokey/version.h"
+ 
+-#ifdef _MSC_VER
+-#ifdef _WIN32
+-#pragma message "Using own strndup"
+-char * strndup(const char* str, size_t maxlen) {
+-	size_t len = strnlen(str, maxlen);
+-	char* dup = (char *)malloc(len + 1);
+-	memcpy(dup, str, len);
+-	dup[len] = 0;
+-	return dup;
+-}
+-#endif
+-#endif
+-
+-using namespace nitrokey;
+-
+-const uint8_t NK_PWS_SLOT_COUNT = PWS_SLOT_COUNT;
+-static uint8_t NK_last_command_status = 0;
+-static const int max_string_field_length = 100;
+-
+-template <typename T>
+-T* duplicate_vector_and_clear(std::vector<T> &v){
+-    auto d = new T[v.size()];
+-    std::copy(v.begin(), v.end(), d);
+-    std::fill(v.begin(), v.end(), 0);
+-    return d;
+-}
+-
+-template <typename R, typename T>
+-std::tuple<int, R> get_with_status(T func, R fallback) {
+-    NK_last_command_status = 0;
+-    try {
+-        return std::make_tuple(0, func());
+-    }
+-    catch (CommandFailedException & commandFailedException){
+-        NK_last_command_status = commandFailedException.last_command_status;
+-    }
+-    catch (LibraryException & libraryException){
+-        NK_last_command_status = libraryException.exception_id();
+-    }
+-    catch (const DeviceCommunicationException &deviceException){
+-      NK_last_command_status = 256-deviceException.getType();
+-    }
+-    return std::make_tuple(NK_last_command_status, fallback);
+-}
+ 
+-template <typename T>
+-uint8_t * get_with_array_result(T func){
+-    return std::get<1>(get_with_status<uint8_t*>(func, nullptr));
+-}
++#include "nk_strndup.h"
+ 
+-template <typename T>
+-char* get_with_string_result(T func){
+-    auto result = std::get<1>(get_with_status<char*>(func, nullptr));
+-    if (result == nullptr) {
+-        return strndup("", MAXIMUM_STR_REPLY_LENGTH);
+-    }
+-    return result;
+-}
++using namespace nitrokey;
+ 
+-template <typename T>
+-auto get_with_result(T func){
+-    return std::get<1>(get_with_status(func, static_cast<decltype(func())>(0)));
+-}
+-
+-template <typename T>
+-uint8_t get_without_result(T func){
+-    NK_last_command_status = 0;
+-    try {
+-        func();
+-        return 0;
+-    }
+-    catch (CommandFailedException & commandFailedException){
+-        NK_last_command_status = commandFailedException.last_command_status;
+-    }
+-    catch (LibraryException & libraryException){
+-        NK_last_command_status = libraryException.exception_id();
+-    }
+-    catch (const InvalidCRCReceived &invalidCRCException){
+-      ;
+-    }
+-    catch (const DeviceCommunicationException &deviceException){
+-        NK_last_command_status = 256-deviceException.getType();
+-    }
+-    return NK_last_command_status;
+-}
++uint8_t NK_last_command_status = 0;
+ 
++#include "NK_C_API_helpers.h"
++#include "NitrokeyManagerOTP.h"
++#include "NitrokeyManagerPWS.h"
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -139,11 +65,15 @@ extern "C" {
+ 		}
+     catch (const DeviceCommunicationException &deviceException){
+       NK_last_command_status = 256-deviceException.getType();
++#ifndef NO_LOG
+       cerr << deviceException.what() << endl;
++#endif
+       return 0;
+     }
+ 		catch (std::runtime_error &e) {
+-			cerr << e.what() << endl;
++#ifndef NO_LOG
++                  cerr << e.what() << endl;
++#endif
+ 			return 0;
+ 		}
+ 		return 0;
+@@ -158,6 +88,9 @@ extern "C" {
+                     case NK_STORAGE:
+                         model_string = "S";
+                         break;
++                    case NK_LIBREM:
++                        model_string = "L";
++                        break;
+                     case NK_DISCONNECTED:
+                     default:
+                         /* no such enum value -- return error code */
+@@ -208,25 +141,6 @@ extern "C" {
+ 		});
+ 	}
+ 
+-	NK_C_API int NK_write_config(uint8_t numlock, uint8_t capslock, uint8_t scrolllock, bool enable_user_password,
+-		bool delete_user_password,
+-		const char *admin_temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			return m->write_config(numlock, capslock, scrolllock, enable_user_password, delete_user_password, admin_temporary_password);
+-		});
+-	}
+-
+-
+-	NK_C_API uint8_t* NK_read_config() {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_array_result([&]() {
+-			auto v = m->read_config();
+-			return duplicate_vector_and_clear(v);
+-		});
+-	}
+-
+-
+ 	NK_C_API enum NK_device_model NK_get_device_model() {
+ 		auto m = NitrokeyManager::instance();
+ 		try {
+@@ -236,6 +150,8 @@ extern "C" {
+ 				    return NK_PRO;
+ 				case DeviceModel::STORAGE:
+ 				    return NK_STORAGE;
++				case DeviceModel::LIBREM:
++				    return NK_LIBREM;
+ 				default:
+ 				    /* unknown or not connected device */
+ 				    return NK_device_model::NK_DISCONNECTED;
+@@ -245,12 +161,6 @@ extern "C" {
+ 		}
+ }
+ 
+-
+-	void clear_string(std::string &s) {
+-		std::fill(s.begin(), s.end(), ' ');
+-	}
+-
+-
+ 	NK_C_API char * NK_status() {
+ 		return NK_get_status_as_string();
+ 	}
+@@ -299,82 +209,10 @@ extern "C" {
+ 		});
+ 	}
+ 
+-	NK_C_API char * NK_get_hotp_code(uint8_t slot_number) {
+-		return NK_get_hotp_code_PIN(slot_number, "");
+-	}
+-
+-	NK_C_API char * NK_get_hotp_code_PIN(uint8_t slot_number, const char *user_temporary_password) {
++	NK_C_API uint32_t NK_device_serial_number_as_u32() {
+ 		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			string && s = m->get_HOTP_code(slot_number, user_temporary_password);
+-			char * rs = strndup(s.c_str(), max_string_field_length);
+-			clear_string(s);
+-			return rs;
+-		});
+-	}
+-
+-	NK_C_API char * NK_get_totp_code(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
+-		uint8_t last_interval) {
+-		return NK_get_totp_code_PIN(slot_number, challenge, last_totp_time, last_interval, "");
+-	}
+-
+-	NK_C_API char * NK_get_totp_code_PIN(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
+-		uint8_t last_interval, const char *user_temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			string && s = m->get_TOTP_code(slot_number, challenge, last_totp_time, last_interval, user_temporary_password);
+-			char * rs = strndup(s.c_str(), max_string_field_length);
+-			clear_string(s);
+-			return rs;
+-		});
+-	}
+-
+-	NK_C_API int NK_erase_hotp_slot(uint8_t slot_number, const char *temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&] {
+-			m->erase_hotp_slot(slot_number, temporary_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_erase_totp_slot(uint8_t slot_number, const char *temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&] {
+-			m->erase_totp_slot(slot_number, temporary_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_write_hotp_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint64_t hotp_counter,
+-		bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
+-		const char *temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&] {
+-			m->write_HOTP_slot(slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID, token_ID,
+-				temporary_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_write_totp_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint16_t time_window,
+-		bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
+-		const char *temporary_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&] {
+-			m->write_TOTP_slot(slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID, token_ID,
+-				temporary_password);
+-		});
+-	}
+-
+-	NK_C_API char* NK_get_totp_slot_name(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			const auto slot_name = m->get_totp_slot_name(slot_number);
+-			return slot_name;
+-		});
+-	}
+-	NK_C_API char* NK_get_hotp_slot_name(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			const auto slot_name = m->get_hotp_slot_name(slot_number);
+-			return slot_name;
++		return get_with_result([&]() {
++                        return m->get_serial_number_as_u32();
+ 		});
+ 	}
+ 
+@@ -383,7 +221,6 @@ extern "C" {
+ 		m->set_debug(state);
+ 	}
+ 
+-
+ 	NK_C_API void NK_set_debug_level(const int level) {
+ 		auto m = NitrokeyManager::instance();
+ 		m->set_loglevel(level);
+@@ -401,24 +238,6 @@ extern "C" {
+ 		return get_library_version();
+ 	}
+ 
+-	NK_C_API int NK_totp_set_time(uint64_t time) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_time(time);
+-		});
+-	}
+-
+-	NK_C_API int NK_totp_set_time_soft(uint64_t time) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_time_soft(time);
+-		});
+-        }
+-
+-	NK_C_API int NK_totp_get_time() {
+-	  return 0;
+-	}
+-
+ 	NK_C_API int NK_change_admin_PIN(const char *current_PIN, const char *new_PIN) {
+ 		auto m = NitrokeyManager::instance();
+ 		return get_without_result([&]() {
+@@ -433,21 +252,6 @@ extern "C" {
+ 		});
+ 	}
+ 
+-	NK_C_API int NK_enable_password_safe(const char *user_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->enable_password_safe(user_pin);
+-		});
+-	}
+-	NK_C_API uint8_t * NK_get_password_safe_slot_status() {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_array_result([&]() {
+-			auto slot_status = m->get_password_safe_slot_status();
+-			return duplicate_vector_and_clear(slot_status);
+-		});
+-
+-	}
+-
+ 	NK_C_API uint8_t NK_get_user_retry_count() {
+ 		auto m = NitrokeyManager::instance();
+ 		return get_with_result([&]() {
+@@ -469,40 +273,6 @@ extern "C" {
+ 		});
+ 	}
+ 
+-	NK_C_API char *NK_get_password_safe_slot_name(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			return m->get_password_safe_slot_name(slot_number);
+-		});
+-	}
+-
+-	NK_C_API char *NK_get_password_safe_slot_login(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			return m->get_password_safe_slot_login(slot_number);
+-		});
+-	}
+-	NK_C_API char *NK_get_password_safe_slot_password(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			return m->get_password_safe_slot_password(slot_number);
+-		});
+-	}
+-	NK_C_API int NK_write_password_safe_slot(uint8_t slot_number, const char *slot_name, const char *slot_login,
+-		const char *slot_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->write_password_safe_slot(slot_number, slot_name, slot_login, slot_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_erase_password_safe_slot(uint8_t slot_number) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->erase_password_safe_slot(slot_number);
+-		});
+-	}
+-
+ 	NK_C_API int NK_is_AES_supported(const char *user_password) {
+ 		auto m = NitrokeyManager::instance();
+ 		return get_with_result([&]() {
+@@ -517,238 +287,6 @@ extern "C" {
+ 		});
+ 	}
+ 
+-	// storage commands
+-
+-	NK_C_API int NK_send_startup(uint64_t seconds_from_epoch) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->send_startup(seconds_from_epoch);
+-		});
+-	}
+-
+-	NK_C_API int NK_unlock_encrypted_volume(const char* user_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->unlock_encrypted_volume(user_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_lock_encrypted_volume() {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->lock_encrypted_volume();
+-		});
+-	}
+-
+-	NK_C_API int NK_unlock_hidden_volume(const char* hidden_volume_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->unlock_hidden_volume(hidden_volume_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_lock_hidden_volume() {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->lock_hidden_volume();
+-		});
+-	}
+-
+-	NK_C_API int NK_create_hidden_volume(uint8_t slot_nr, uint8_t start_percent, uint8_t end_percent,
+-		const char *hidden_volume_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->create_hidden_volume(slot_nr, start_percent, end_percent,
+-				hidden_volume_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_unencrypted_read_only(const char *user_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_unencrypted_read_only(user_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_unencrypted_read_write(const char *user_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_unencrypted_read_write(user_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_unencrypted_read_only_admin(const char *admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_unencrypted_read_only_admin(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_unencrypted_read_write_admin(const char *admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_unencrypted_read_write_admin(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_encrypted_read_only(const char* admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_encrypted_volume_read_only(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_set_encrypted_read_write(const char* admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->set_encrypted_volume_read_write(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_export_firmware(const char* admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->export_firmware(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_clear_new_sd_card_warning(const char* admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->clear_new_sd_card_warning(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_fill_SD_card_with_random_data(const char* admin_pin) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->fill_SD_card_with_random_data(admin_pin);
+-		});
+-	}
+-
+-	NK_C_API int NK_change_update_password(const char* current_update_password,
+-		const char* new_update_password) {
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->change_update_password(current_update_password, new_update_password);
+-		});
+-	}
+-
+-	NK_C_API int NK_enable_firmware_update(const char* update_password){
+-		auto m = NitrokeyManager::instance();
+-		return get_without_result([&]() {
+-			m->enable_firmware_update(update_password);
+-		});
+-	}
+-
+-	NK_C_API char* NK_get_status_storage_as_string() {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			return m->get_status_storage_as_string();
+-		});
+-	}
+-
+-	NK_C_API int NK_get_status_storage(NK_storage_status* out) {
+-		if (out == nullptr) {
+-			return -1;
+-		}
+-		auto m = NitrokeyManager::instance();
+-		auto result = get_with_status([&]() {
+-			return m->get_status_storage();
+-		}, proto::stick20::DeviceConfigurationResponsePacket::ResponsePayload());
+-		auto error_code = std::get<0>(result);
+-		if (error_code != 0) {
+-			return error_code;
+-		}
+-
+-		auto status = std::get<1>(result);
+-		out->unencrypted_volume_read_only = status.ReadWriteFlagUncryptedVolume_u8 != 0;
+-		out->unencrypted_volume_active = status.VolumeActiceFlag_st.unencrypted;
+-		out->encrypted_volume_read_only = status.ReadWriteFlagCryptedVolume_u8 != 0;
+-		out->encrypted_volume_active = status.VolumeActiceFlag_st.encrypted;
+-		out->hidden_volume_read_only = status.ReadWriteFlagHiddenVolume_u8 != 0;
+-		out->hidden_volume_active = status.VolumeActiceFlag_st.hidden;
+-		out->firmware_version_major = status.versionInfo.major;
+-		out->firmware_version_minor = status.versionInfo.minor;
+-		out->firmware_locked = status.FirmwareLocked_u8 != 0;
+-		out->serial_number_sd_card = status.ActiveSD_CardID_u32;
+-		out->serial_number_smart_card = status.ActiveSmartCardID_u32;
+-		out->user_retry_count = status.UserPwRetryCount;
+-		out->admin_retry_count = status.AdminPwRetryCount;
+-		out->new_sd_card_found = status.NewSDCardFound_st.NewCard;
+-		out->filled_with_random = (status.SDFillWithRandomChars_u8 & 0x01) != 0;
+-		out->stick_initialized = status.StickKeysNotInitiated == 0;
+-		return 0;
+-	}
+-
+-  NK_C_API int NK_get_storage_production_info(NK_storage_ProductionTest * out){
+-    if (out == nullptr) {
+-      return -1;
+-    }
+-    auto m = NitrokeyManager::instance();
+-    auto result = get_with_status([&]() {
+-      return m->production_info();
+-    }, proto::stick20::ProductionTest::ResponsePayload());
+-
+-		auto error_code = std::get<0>(result);
+-		if (error_code != 0) {
+-			return error_code;
+-		}
+-
+-		stick20::ProductionTest::ResponsePayload status = std::get<1>(result);
+-		// Cannot use memcpy without declaring C API struct packed
+-    // (which is not parsed by Python's CFFI apparently), hence the manual way.
+-#define a(x) out->x = status.x;
+-		 a(FirmwareVersion_au8[0]);
+-		 a(FirmwareVersion_au8[1]);
+-		 a(FirmwareVersionInternal_u8);
+-		 a(SD_Card_Size_u8);
+-		 a(CPU_CardID_u32);
+-		 a(SmartCardID_u32);
+-		 a(SD_CardID_u32);
+-		 a(SC_UserPwRetryCount);
+-		 a(SC_AdminPwRetryCount);
+-		 a(SD_Card_ManufacturingYear_u8);
+-		 a(SD_Card_ManufacturingMonth_u8);
+-		 a(SD_Card_OEM_u16);
+-		 a(SD_WriteSpeed_u16);
+-		 a(SD_Card_Manufacturer_u8);
+-#undef a
+-		return 0;
+-  }
+-
+-	NK_C_API int NK_get_SD_usage_data(struct NK_SD_usage_data* out) {
+-		if (out == nullptr)
+-			return -1;
+-		auto m = NitrokeyManager::instance();
+-		auto result = get_with_status([&]() {
+-			return m->get_SD_usage_data();
+-		}, std::make_pair<uint8_t, uint8_t>(0, 0));
+-		auto error_code = std::get<0>(result);
+-		if (error_code != 0)
+-			return error_code;
+-
+-		auto data = std::get<1>(result);
+-		out->write_level_min = std::get<0>(data);
+-		out->write_level_max = std::get<1>(data);
+-
+-		return 0;
+-	}
+-
+-NK_C_API char* NK_get_SD_usage_data_as_string() {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_string_result([&]() {
+-			return m->get_SD_usage_data_as_string();
+-		});
+-	}
+-
+-	NK_C_API int NK_get_progress_bar_value() {
+-		auto m = NitrokeyManager::instance();
+-		return std::get<1>(get_with_status([&]() {
+-			return m->get_progress_bar_value();
+-		}, -2));
+-	}
+-
+ 	NK_C_API uint8_t NK_get_major_firmware_version() {
+ 		auto m = NitrokeyManager::instance();
+ 		return get_with_result([&]() {
+@@ -763,12 +301,6 @@ NK_C_API char* NK_get_SD_usage_data_as_string() {
+ 		});
+ 	}
+ 
+-  NK_C_API int NK_set_unencrypted_volume_rorw_pin_type_user() {
+-		auto m = NitrokeyManager::instance();
+-		return get_with_result([&]() {
+-			return m->set_unencrypted_volume_rorw_pin_type_user() ? 1 : 0;
+-		});
+-	}
+ 
+ 	NK_C_API char* NK_list_devices_by_cpuID() {
+ 		auto nm = NitrokeyManager::instance();
+@@ -791,6 +323,9 @@ NK_C_API char* NK_get_SD_usage_data_as_string() {
+ 		case DeviceModel::STORAGE:
+ 			target->model = NK_STORAGE;
+ 			break;
++		case DeviceModel::LIBREM:
++			target->model = NK_LIBREM;
++			break;
+ 		default:
+ 			return false;
+ 		}
+@@ -881,29 +416,6 @@ NK_C_API char* NK_get_SD_usage_data_as_string() {
+   }
+ 
+ 
+-  NK_C_API int NK_read_HOTP_slot(const uint8_t slot_num, struct ReadSlot_t* out){
+-  if (out == nullptr)
+-    return -1;
+-  auto m = NitrokeyManager::instance();
+-  auto result = get_with_status([&]() {
+-    return m->get_HOTP_slot_data(slot_num);
+-  }, stick10::ReadSlot::ResponsePayload() );
+-  auto error_code = std::get<0>(result);
+-  if (error_code != 0) {
+-    return error_code;
+-  }
+-#define a(x) out->x = read_slot.x
+-  stick10::ReadSlot::ResponsePayload read_slot = std::get<1>(result);
+-  a(_slot_config);
+-  a(slot_counter);
+-#undef a
+-#define m(x) memmove(out->x, read_slot.x, sizeof(read_slot.x))
+-  m(slot_name);
+-  m(slot_token_id);
+-#undef m
+-  return 0;
+-}
+-
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/NK_C_API.h b/NK_C_API.h
+index d5c54a3..c79b8a2 100644
+--- a/NK_C_API.h
++++ b/NK_C_API.h
+@@ -67,6 +67,9 @@
+  *         case NK_STORAGE:
+  *                 printf("a Nitrokey Storage");
+  *                 break;
++ *         case NK_LIBREM:
++ *                 printf("a Librem Key");
++ *                 break;
+  *         default:
+  *                 printf("an unsupported Nitrokey");
+  *                 break;
+@@ -111,7 +114,11 @@ extern "C" {
+             /**
+              * Nitrokey Storage.
+              */
+-            NK_STORAGE = 2
++            NK_STORAGE = 2,
++            /**
++             * Librem Key.
++             */
++            NK_LIBREM = 3
+         };
+ 
+         /**
+@@ -265,6 +272,32 @@ extern "C" {
+ 		uint8_t write_level_max;
+ 	};
+ 
++        /**
++         * The general configuration of a Nitrokey device.
++         */
++        struct NK_config {
++            /**
++             * value in range [0-1] to send HOTP code from slot 'numlock' after double pressing numlock
++             * or outside the range to disable this function
++             */
++            uint8_t numlock;
++            /**
++	     * similar to numlock but with capslock
++             */
++            uint8_t capslock;
++            /**
++	     * similar to numlock but with scrolllock
++             */
++            uint8_t scrolllock;
++            /**
++             * True to enable OTP PIN protection (require PIN each OTP code request)
++             */
++            bool enable_user_password;
++            /**
++             * Unused.
++             */
++            bool disable_user_password;
++        };
+ 
+    struct NK_storage_ProductionTest{
+     uint8_t FirmwareVersion_au8[2];
+@@ -327,7 +360,7 @@ extern "C" {
+ 
+ 	/**
+ 	 * Connect to device of given model. Currently library can be connected only to one device at once.
+-	 * @param device_model NK_device_model: NK_PRO: Nitrokey Pro, NK_STORAGE: Nitrokey Storage
++	 * @param device_model NK_device_model: NK_PRO: Nitrokey Pro, NK_STORAGE: Nitrokey Storage, NK_LIBREM: Librem Key
+ 	 * @return 1 if connected, 0 if wrong model or cannot connect
+ 	 */
+         NK_C_API int NK_login_enum(enum NK_device_model device_model);
+@@ -385,6 +418,14 @@ extern "C" {
+ 	 */
+ 	NK_C_API char * NK_device_serial_number();
+ 
++	/**
++	 * Return the device's serial number string as an integer.  Use
++         * NK_last_command_status to check for an error if this function
++         * returns zero.
++	 * @return device's serial number as an integer
++	 */
++	NK_C_API uint32_t NK_device_serial_number_as_u32();
++
+ 	/**
+ 	 * Get last command processing status. Useful for commands which returns the results of their own and could not return
+ 	 * an error code.
+@@ -449,8 +490,17 @@ extern "C" {
+ 	NK_C_API int NK_write_config(uint8_t numlock, uint8_t capslock, uint8_t scrolllock,
+ 		bool enable_user_password, bool delete_user_password, const char *admin_temporary_password);
+ 
++	/**
++	 * Write general config to the device
++	 * @param config the configuration data
++	 * @param admin_temporary_password current admin temporary password
++	 * @return command processing error code
++	 */
++	NK_C_API int NK_write_config_struct(struct NK_config config, const char *admin_temporary_password);
++
+ 	/**
+ 	 * Get currently set config - status of function Numlock/Capslock/Scrollock OTP sending and is enabled PIN protected OTP
++         * The return value must be freed using NK_free_config.
+ 	 * @see NK_write_config
+ 	 * @return  uint8_t general_config[5]:
+ 	 *            uint8_t numlock;
+@@ -462,6 +512,21 @@ extern "C" {
+ 	 */
+ 	NK_C_API uint8_t* NK_read_config();
+ 
++        /**
++         * Free a value returned by NK_read_config.  May be called with a NULL
++         * argument.
++         */
++        NK_C_API void NK_free_config(uint8_t* config);
++
++	/**
++	 * Get currently set config and write it to the given pointer.
++         * @see NK_read_config
++	 * @see NK_write_config_struct
++         * @param out a pointer to the struct that should be written to
++	 * @return command processing error code
++	 */
++	NK_C_API int NK_read_config_struct(struct NK_config* out);
++
+ 	//OTP
+ 
+ 	/**
+@@ -634,10 +699,17 @@ extern "C" {
+ 
+ 	/**
+ 	 * Get password safe slots' status
++         * The return value must be freed using NK_free_password_safe_slot_status.
+ 	 * @return uint8_t[16] slot statuses - each byte represents one slot with 0 (not programmed) and 1 (programmed)
+ 	 */
+ 	NK_C_API uint8_t * NK_get_password_safe_slot_status();
+ 
++        /**
++         * Free a value returned by NK_get_password_safe_slot_status.  May be
++         * called with a NULL argument.
++         */
++        NK_C_API void NK_free_password_safe_slot_status(uint8_t* status);
++
+ 	/**
+ 	 * Get password safe slot name
+ 	 * @param slot_number password safe slot number, slot_number<16
+@@ -1010,5 +1082,6 @@ NK_C_API int NK_read_HOTP_slot(const uint8_t slot_num, struct ReadSlot_t* out);
+ #ifdef __cplusplus
+ }
+ #endif
++extern uint8_t NK_last_command_status;
+ 
+ #endif //LIBNITROKEY_NK_C_API_H
+diff --git a/NK_C_API_helpers.cpp b/NK_C_API_helpers.cpp
+new file mode 100644
+index 0000000..f0353aa
+--- /dev/null
++++ b/NK_C_API_helpers.cpp
+@@ -0,0 +1,5 @@
++#include <string>
++
++void clear_string(std::string &s) {
++  std::fill(s.begin(), s.end(), ' ');
++}
+\ No newline at end of file
+diff --git a/NK_C_API_helpers.h b/NK_C_API_helpers.h
+new file mode 100644
+index 0000000..3cb110b
+--- /dev/null
++++ b/NK_C_API_helpers.h
+@@ -0,0 +1,88 @@
++#ifndef LIBNITROKEY_NK_C_API_HELPERS_H
++#define LIBNITROKEY_NK_C_API_HELPERS_H
++
++
++#include "NK_C_API.h"
++#include <tuple>
++#include "libnitrokey/NitrokeyManager.h"
++#include <cstring>
++#include "libnitrokey/LibraryException.h"
++#include "libnitrokey/cxx_semantics.h"
++#include "libnitrokey/stick20_commands.h"
++#include "libnitrokey/device_proto.h"
++#include "libnitrokey/version.h"
++
++void clear_string(std::string &s);
++
++extern uint8_t NK_last_command_status;
++
++
++template <typename T>
++T* duplicate_vector_and_clear(std::vector<T> &v){
++  auto d = new T[v.size()];
++  std::copy(v.begin(), v.end(), d);
++  std::fill(v.begin(), v.end(), 0);
++  return d;
++}
++
++template <typename R, typename T>
++std::tuple<int, R> get_with_status(T func, R fallback) {
++  NK_last_command_status = 0;
++  try {
++    return std::make_tuple(0, func());
++  }
++  catch (CommandFailedException & commandFailedException){
++    NK_last_command_status = commandFailedException.last_command_status;
++  }
++  catch (LibraryException & libraryException){
++    NK_last_command_status = libraryException.exception_id();
++  }
++  catch (const DeviceCommunicationException &deviceException){
++    NK_last_command_status = 256-deviceException.getType();
++  }
++  return std::make_tuple(NK_last_command_status, fallback);
++}
++
++template <typename T>
++uint8_t * get_with_array_result(T func){
++  return std::get<1>(get_with_status<uint8_t*>(func, nullptr));
++}
++
++template <typename T>
++char* get_with_string_result(T func){
++  auto result = std::get<1>(get_with_status<char*>(func, nullptr));
++  if (result == nullptr) {
++    return strndup("", MAXIMUM_STR_REPLY_LENGTH);
++  }
++  return result;
++}
++
++template <typename T>
++auto get_with_result(T func){
++  return std::get<1>(get_with_status(func, static_cast<decltype(func())>(0)));
++}
++
++template <typename T>
++uint8_t get_without_result(T func){
++  NK_last_command_status = 0;
++  try {
++    func();
++    return 0;
++  }
++  catch (CommandFailedException & commandFailedException){
++    NK_last_command_status = commandFailedException.last_command_status;
++  }
++  catch (LibraryException & libraryException){
++    NK_last_command_status = libraryException.exception_id();
++  }
++  catch (const InvalidCRCReceived &invalidCRCException){
++    ;
++  }
++  catch (const DeviceCommunicationException &deviceException){
++    NK_last_command_status = 256-deviceException.getType();
++  }
++  return NK_last_command_status;
++}
++
++
++#endif // LIBNITROKEY_NK_C_API_HELPERS_H
+diff --git a/NK_C_API_otp.cpp b/NK_C_API_otp.cpp
+new file mode 100644
+index 0000000..c1f2e1b
+--- /dev/null
++++ b/NK_C_API_otp.cpp
+@@ -0,0 +1,195 @@
++
++#include "NK_C_API.h"
++#include "NK_C_API_helpers.h"
++#include "NitrokeyManagerOTP.h"
++#include "NitrokeyManagerPWS.h"
++#include "libnitrokey/LibraryException.h"
++#include "libnitrokey/NitrokeyManager.h"
++#include "libnitrokey/cxx_semantics.h"
++#include "libnitrokey/device_proto.h"
++#include "libnitrokey/stick20_commands.h"
++#include "libnitrokey/version.h"
++#include <cstring>
++#include <tuple>
++
++#include "nk_strndup.h"
++
++using namespace nitrokey;
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++
++NK_C_API int NK_totp_set_time(uint64_t time) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_time(time);
++  });
++}
++
++NK_C_API int NK_totp_set_time_soft(uint64_t time) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_time_soft(time);
++  });
++}
++
++NK_C_API int NK_totp_get_time() {
++  return 0;
++}
++
++
++NK_C_API char * NK_get_hotp_code(uint8_t slot_number) {
++  return NK_get_hotp_code_PIN(slot_number, "");
++}
++
++NK_C_API char * NK_get_hotp_code_PIN(uint8_t slot_number, const char *user_temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    string && s = m->get_HOTP_code(slot_number, user_temporary_password);
++    char * rs = strndup(s.c_str(), max_string_field_length);
++    clear_string(s);
++    return rs;
++  });
++}
++
++NK_C_API char * NK_get_totp_code(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
++                                 uint8_t last_interval) {
++  return NK_get_totp_code_PIN(slot_number, challenge, last_totp_time, last_interval, "");
++}
++
++NK_C_API char * NK_get_totp_code_PIN(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
++                                     uint8_t last_interval, const char *user_temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    string && s = m->get_TOTP_code(slot_number, challenge, last_totp_time, last_interval, user_temporary_password);
++    char * rs = strndup(s.c_str(), max_string_field_length);
++    clear_string(s);
++    return rs;
++  });
++}
++
++NK_C_API int NK_erase_hotp_slot(uint8_t slot_number, const char *temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&] {
++    m->erase_hotp_slot(slot_number, temporary_password);
++  });
++}
++
++NK_C_API int NK_erase_totp_slot(uint8_t slot_number, const char *temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&] {
++    m->erase_totp_slot(slot_number, temporary_password);
++  });
++}
++
++NK_C_API int NK_write_hotp_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint64_t hotp_counter,
++                                bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
++                                const char *temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&] {
++    m->write_HOTP_slot(slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID, token_ID,
++                       temporary_password);
++  });
++}
++
++NK_C_API int NK_write_totp_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint16_t time_window,
++                                bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
++                                const char *temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&] {
++    m->write_TOTP_slot(slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID, token_ID,
++                       temporary_password);
++  });
++}
++
++NK_C_API char* NK_get_totp_slot_name(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    const auto slot_name = m->get_totp_slot_name(slot_number);
++    return slot_name;
++  });
++}
++NK_C_API char* NK_get_hotp_slot_name(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    const auto slot_name = m->get_hotp_slot_name(slot_number);
++    return slot_name;
++  });
++}
++
++
++NK_C_API int NK_read_HOTP_slot(const uint8_t slot_num, struct ReadSlot_t* out){
++  if (out == nullptr)
++    return -1;
++  auto m = NitrokeyManager::instance();
++  auto result = get_with_status([&]() {
++    return m->get_HOTP_slot_data(slot_num);
++  }, stick10::ReadSlot::ResponsePayload() );
++  auto error_code = std::get<0>(result);
++  if (error_code != 0) {
++    return error_code;
++  }
++#define a(x) out->x = read_slot.x
++  stick10::ReadSlot::ResponsePayload read_slot = std::get<1>(result);
++  a(_slot_config);
++  a(slot_counter);
++#undef a
++#define m(x) memmove(out->x, read_slot.x, sizeof(read_slot.x))
++  m(slot_name);
++  m(slot_token_id);
++#undef m
++  return 0;
++}
++
++
++NK_C_API int NK_write_config(uint8_t numlock, uint8_t capslock, uint8_t scrolllock, bool enable_user_password,
++                             bool delete_user_password,
++                             const char *admin_temporary_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    return m->write_config(numlock, capslock, scrolllock, enable_user_password, delete_user_password, admin_temporary_password);
++  });
++}
++
++NK_C_API int NK_write_config_struct(struct NK_config config,
++                                    const char *admin_temporary_password) {
++  return NK_write_config(config.numlock, config.capslock, config.scrolllock, config.enable_user_password,
++                         config.disable_user_password, admin_temporary_password);
++}
++
++
++NK_C_API uint8_t* NK_read_config() {
++  auto m = NitrokeyManager::instance();
++  return get_with_array_result([&]() {
++    auto v = m->read_config();
++    return duplicate_vector_and_clear(v);
++  });
++}
++
++NK_C_API void NK_free_config(uint8_t* config) {
++  delete[] config;
++}
++
++NK_C_API int NK_read_config_struct(struct NK_config* out) {
++  if (out == nullptr) {
++    return -1;
++  }
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    auto v = m->read_config();
++    out->numlock = v[0];
++    out->capslock = v[1];
++    out->scrolllock = v[2];
++    out->enable_user_password = v[3];
++    out->disable_user_password = v[4];
++  });
++}
++
++
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/NK_C_API_pws.cpp b/NK_C_API_pws.cpp
+new file mode 100644
+index 0000000..d3df05d
+--- /dev/null
++++ b/NK_C_API_pws.cpp
+@@ -0,0 +1,76 @@
++
++#include "NK_C_API.h"
++#include "NK_C_API_helpers.h"
++#include "NitrokeyManagerOTP.h"
++#include "NitrokeyManagerPWS.h"
++#include "libnitrokey/LibraryException.h"
++#include "libnitrokey/NitrokeyManager.h"
++#include "libnitrokey/cxx_semantics.h"
++#include "libnitrokey/device_proto.h"
++#include "libnitrokey/stick20_commands.h"
++#include "libnitrokey/version.h"
++#include <cstring>
++#include <tuple>
++
++#include "nk_strndup.h"
++
++using namespace nitrokey;
++const uint8_t NK_PWS_SLOT_COUNT = PWS_SLOT_COUNT;
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++NK_C_API int NK_enable_password_safe(const char *user_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() { m->enable_password_safe(user_pin); });
++}
++NK_C_API uint8_t *NK_get_password_safe_slot_status() {
++  auto m = NitrokeyManager::instance();
++  return get_with_array_result([&]() {
++    auto slot_status = m->get_password_safe_slot_status();
++    return duplicate_vector_and_clear(slot_status);
++  });
++}
++
++NK_C_API void NK_free_password_safe_slot_status(uint8_t *status) {
++  delete[] status;
++}
++
++NK_C_API char *NK_get_password_safe_slot_name(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result(
++      [&]() { return m->get_password_safe_slot_name(slot_number); });
++}
++
++NK_C_API char *NK_get_password_safe_slot_login(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result(
++      [&]() { return m->get_password_safe_slot_login(slot_number); });
++}
++NK_C_API char *NK_get_password_safe_slot_password(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result(
++      [&]() { return m->get_password_safe_slot_password(slot_number); });
++}
++NK_C_API int NK_write_password_safe_slot(uint8_t slot_number,
++                                         const char *slot_name,
++                                         const char *slot_login,
++                                         const char *slot_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->write_password_safe_slot(slot_number, slot_name, slot_login,
++                                slot_password);
++  });
++}
++
++NK_C_API int NK_erase_password_safe_slot(uint8_t slot_number) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result(
++      [&]() { m->erase_password_safe_slot(slot_number); });
++}
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/NK_C_API_storage.cpp b/NK_C_API_storage.cpp
+new file mode 100644
+index 0000000..59bae85
+--- /dev/null
++++ b/NK_C_API_storage.cpp
+@@ -0,0 +1,256 @@
++#include "NK_C_API_storage.h"
++#include "NK_C_API_helpers.h"
++
++using namespace nitrokey;
++
++#include "nk_strndup.h"
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++
++// storage commands
++
++NK_C_API int NK_send_startup(uint64_t seconds_from_epoch) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->send_startup(seconds_from_epoch);
++  });
++}
++
++NK_C_API int NK_unlock_encrypted_volume(const char* user_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->unlock_encrypted_volume(user_pin);
++  });
++}
++
++NK_C_API int NK_lock_encrypted_volume() {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->lock_encrypted_volume();
++  });
++}
++
++NK_C_API int NK_unlock_hidden_volume(const char* hidden_volume_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->unlock_hidden_volume(hidden_volume_password);
++  });
++}
++
++NK_C_API int NK_lock_hidden_volume() {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->lock_hidden_volume();
++  });
++}
++
++NK_C_API int NK_create_hidden_volume(uint8_t slot_nr, uint8_t start_percent, uint8_t end_percent,
++                                     const char *hidden_volume_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->create_hidden_volume(slot_nr, start_percent, end_percent,
++                            hidden_volume_password);
++  });
++}
++
++NK_C_API int NK_set_unencrypted_read_only(const char *user_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_unencrypted_read_only(user_pin);
++  });
++}
++
++NK_C_API int NK_set_unencrypted_read_write(const char *user_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_unencrypted_read_write(user_pin);
++  });
++}
++
++NK_C_API int NK_set_unencrypted_read_only_admin(const char *admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_unencrypted_read_only_admin(admin_pin);
++  });
++}
++
++NK_C_API int NK_set_unencrypted_read_write_admin(const char *admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_unencrypted_read_write_admin(admin_pin);
++  });
++}
++
++NK_C_API int NK_set_encrypted_read_only(const char* admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_encrypted_volume_read_only(admin_pin);
++  });
++}
++
++NK_C_API int NK_set_encrypted_read_write(const char* admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->set_encrypted_volume_read_write(admin_pin);
++  });
++}
++
++NK_C_API int NK_export_firmware(const char* admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->export_firmware(admin_pin);
++  });
++}
++
++NK_C_API int NK_clear_new_sd_card_warning(const char* admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->clear_new_sd_card_warning(admin_pin);
++  });
++}
++
++NK_C_API int NK_fill_SD_card_with_random_data(const char* admin_pin) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->fill_SD_card_with_random_data(admin_pin);
++  });
++}
++
++NK_C_API int NK_change_update_password(const char* current_update_password,
++                                       const char* new_update_password) {
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->change_update_password(current_update_password, new_update_password);
++  });
++}
++
++NK_C_API int NK_enable_firmware_update(const char* update_password){
++  auto m = NitrokeyManager::instance();
++  return get_without_result([&]() {
++    m->enable_firmware_update(update_password);
++  });
++}
++
++NK_C_API char* NK_get_status_storage_as_string() {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    return m->get_status_storage_as_string();
++  });
++}
++
++NK_C_API int NK_get_status_storage(NK_storage_status* out) {
++  if (out == nullptr) {
++    return -1;
++  }
++  auto m = NitrokeyManager::instance();
++  auto result = get_with_status([&]() {
++    return m->get_status_storage();
++  }, proto::stick20::DeviceConfigurationResponsePacket::ResponsePayload());
++  auto error_code = std::get<0>(result);
++  if (error_code != 0) {
++    return error_code;
++  }
++
++  auto status = std::get<1>(result);
++  out->unencrypted_volume_read_only = status.ReadWriteFlagUncryptedVolume_u8 != 0;
++  out->unencrypted_volume_active = status.VolumeActiceFlag_st.unencrypted;
++  out->encrypted_volume_read_only = status.ReadWriteFlagCryptedVolume_u8 != 0;
++  out->encrypted_volume_active = status.VolumeActiceFlag_st.encrypted;
++  out->hidden_volume_read_only = status.ReadWriteFlagHiddenVolume_u8 != 0;
++  out->hidden_volume_active = status.VolumeActiceFlag_st.hidden;
++  out->firmware_version_major = status.versionInfo.major;
++  out->firmware_version_minor = status.versionInfo.minor;
++  out->firmware_locked = status.FirmwareLocked_u8 != 0;
++  out->serial_number_sd_card = status.ActiveSD_CardID_u32;
++  out->serial_number_smart_card = status.ActiveSmartCardID_u32;
++  out->user_retry_count = status.UserPwRetryCount;
++  out->admin_retry_count = status.AdminPwRetryCount;
++  out->new_sd_card_found = status.NewSDCardFound_st.NewCard;
++  out->filled_with_random = (status.SDFillWithRandomChars_u8 & 0x01) != 0;
++  out->stick_initialized = status.StickKeysNotInitiated == 0;
++  return 0;
++}
++
++NK_C_API int NK_get_storage_production_info(NK_storage_ProductionTest * out){
++  if (out == nullptr) {
++    return -1;
++  }
++  auto m = NitrokeyManager::instance();
++  auto result = get_with_status([&]() {
++    return m->production_info();
++  }, proto::stick20::ProductionTest::ResponsePayload());
++
++  auto error_code = std::get<0>(result);
++  if (error_code != 0) {
++    return error_code;
++  }
++
++  stick20::ProductionTest::ResponsePayload status = std::get<1>(result);
++  // Cannot use memcpy without declaring C API struct packed
++  // (which is not parsed by Python's CFFI apparently), hence the manual way.
++#define a(x) out->x = status.x;
++  a(FirmwareVersion_au8[0]);
++  a(FirmwareVersion_au8[1]);
++  a(FirmwareVersionInternal_u8);
++  a(SD_Card_Size_u8);
++  a(CPU_CardID_u32);
++  a(SmartCardID_u32);
++  a(SD_CardID_u32);
++  a(SC_UserPwRetryCount);
++  a(SC_AdminPwRetryCount);
++  a(SD_Card_ManufacturingYear_u8);
++  a(SD_Card_ManufacturingMonth_u8);
++  a(SD_Card_OEM_u16);
++  a(SD_WriteSpeed_u16);
++  a(SD_Card_Manufacturer_u8);
++#undef a
++  return 0;
++}
++
++NK_C_API int NK_get_SD_usage_data(struct NK_SD_usage_data* out) {
++  if (out == nullptr)
++    return -1;
++  auto m = NitrokeyManager::instance();
++  auto result = get_with_status([&]() {
++    return m->get_SD_usage_data();
++  }, std::make_pair<uint8_t, uint8_t>(0, 0));
++  auto error_code = std::get<0>(result);
++  if (error_code != 0)
++    return error_code;
++
++  auto data = std::get<1>(result);
++  out->write_level_min = std::get<0>(data);
++  out->write_level_max = std::get<1>(data);
++
++  return 0;
++}
++
++NK_C_API char* NK_get_SD_usage_data_as_string() {
++  auto m = NitrokeyManager::instance();
++  return get_with_string_result([&]() {
++    return m->get_SD_usage_data_as_string();
++  });
++}
++
++NK_C_API int NK_get_progress_bar_value() {
++  auto m = NitrokeyManager::instance();
++  return std::get<1>(get_with_status([&]() {
++    return m->get_progress_bar_value();
++  }, -2));
++}
++
++NK_C_API int NK_set_unencrypted_volume_rorw_pin_type_user() {
++  auto m = NitrokeyManager::instance();
++  return get_with_result([&]() {
++    return m->set_unencrypted_volume_rorw_pin_type_user() ? 1 : 0;
++  });
++}
++
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/NK_C_API_storage.h b/NK_C_API_storage.h
+new file mode 100644
+index 0000000..48d415d
+--- /dev/null
++++ b/NK_C_API_storage.h
+@@ -0,0 +1,6 @@
++#ifndef LIBNITROKEY_NK_C_API_STORAGE_H
++#define LIBNITROKEY_NK_C_API_STORAGE_H
++
++
++
++#endif // LIBNITROKEY_NK_C_API_STORAGE_H
+diff --git a/NitrokeyManager.cc b/NitrokeyManager.cc
+index 6c26a43..15fbdf1 100644
+--- a/NitrokeyManager.cc
++++ b/NitrokeyManager.cc
+@@ -19,62 +19,28 @@
+  * SPDX-License-Identifier: LGPL-3.0
+  */
+ 
+-#include <cstring>
+-#include <iostream>
+ #include "libnitrokey/NitrokeyManager.h"
++#include "NitrokeyManager.h"
++#include "NitrokeyManagerOTP.h"
++#include "NitrokeyManagerPWS.h"
+ #include "libnitrokey/LibraryException.h"
+-#include <algorithm>
+-#include <unordered_map>
+-#include <stick20_commands.h>
+-#include "libnitrokey/misc.h"
+-#include <mutex>
+ #include "libnitrokey/cxx_semantics.h"
+ #include "libnitrokey/misc.h"
++#include <algorithm>
++#include <cstring>
+ #include <functional>
++#include <mutex>
+ #include <stick10_commands.h>
++#include <stick20_commands.h>
++#include <unordered_map>
+ 
+ std::mutex nitrokey::proto::send_receive_mtx;
+ 
+ namespace nitrokey{
+-
+     std::mutex mex_dev_com_manager;
+ 
+-#ifndef strndup
+-#ifdef _WIN32
+-#pragma message "Using own strndup"
+-char * strndup(const char* str, size_t maxlen){
+-  size_t len = strnlen(str, maxlen);
+-  char* dup = (char *) malloc(len + 1);
+-  memcpy(dup, str, len);
+-  dup[len] = 0;
+-  return dup;
+-}
+-#endif
+-#endif
+-
+ using nitrokey::misc::strcpyT;
+ 
+-    template <typename T>
+-    typename T::CommandPayload get_payload(){
+-        //Create, initialize and return by value command payload
+-        typename T::CommandPayload st;
+-        bzero(&st, sizeof(st));
+-        return st;
+-    }
+-
+-
+-    // package type to auth, auth type [Authorize,UserAuthorize]
+-    template <typename S, typename A, typename T>
+-    void NitrokeyManager::authorize_packet(T &package, const char *admin_temporary_password, shared_ptr<Device> device){
+-      if (!is_authorization_command_supported()){
+-        LOG("Authorization command not supported, skipping", Loglevel::WARNING);
+-      }
+-        auto auth = get_payload<A>();
+-        strcpyT(auth.temporary_password, admin_temporary_password);
+-        auth.crc_to_authorize = S::CommandTransaction::getCRC(package);
+-        A::CommandTransaction::run(device, auth);
+-    }
+-
+     shared_ptr <NitrokeyManager> NitrokeyManager::_instance = nullptr;
+ 
+     NitrokeyManager::NitrokeyManager() : device(nullptr)
+@@ -217,7 +183,12 @@ using nitrokey::misc::strcpyT;
+             }
+         }
+ 
+-        auto info_ptr = hid_enumerate(NITROKEY_VID, 0);
++	auto vendor_id = NITROKEY_VID;
++        auto info_ptr = hid_enumerate(vendor_id, 0);
++	if (!info_ptr) {
++	  vendor_id = PURISM_VID;
++	  info_ptr = hid_enumerate(vendor_id, 0);
++	}
+         auto first_info_ptr = info_ptr;
+         if (!info_ptr)
+           return false;
+@@ -225,7 +196,7 @@ using nitrokey::misc::strcpyT;
+         misc::Option<DeviceModel> model;
+         while (info_ptr && !model.has_value()) {
+             if (path == std::string(info_ptr->path)) {
+-                model = product_id_to_model(info_ptr->product_id);
++                model = product_id_to_model(info_ptr->vendor_id, info_ptr->product_id);
+             }
+             info_ptr = info_ptr->next;
+         }
+@@ -254,7 +225,8 @@ using nitrokey::misc::strcpyT;
+ 
+     bool NitrokeyManager::connect() {
+         std::lock_guard<std::mutex> lock(mex_dev_com_manager);
+-        vector< shared_ptr<Device> > devices = { make_shared<Stick10>(), make_shared<Stick20>() };
++        vector< shared_ptr<Device> > devices = { make_shared<Stick10>(), make_shared<Stick20>(),
++						 make_shared<LibremKey>() };
+         bool connected = false;
+         for( auto & d : devices ){
+             if (d->connect()){
+@@ -290,6 +262,9 @@ using nitrokey::misc::strcpyT;
+             case 'S':
+                 device = make_shared<Stick20>();
+                 break;
++            case 'L':
++                device = make_shared<LibremKey>();
++                break;
+             default:
+                 throw std::runtime_error("Unknown model");
+         }
+@@ -305,6 +280,9 @@ using nitrokey::misc::strcpyT;
+             case device::DeviceModel::STORAGE:
+                 model_string = "S";
+                 break;
++            case device::DeviceModel::LIBREM:
++                model_string = "L";
++                break;
+             default:
+                 throw std::runtime_error("Unknown model");
+         }
+@@ -380,22 +358,36 @@ using nitrokey::misc::strcpyT;
+ 
+ 
+     string NitrokeyManager::get_serial_number() {
+-        if (device == nullptr) { return ""; };
++      try {
++        auto serial_number = this->get_serial_number_as_u32();
++        if (serial_number == 0) {
++          return "NA";
++        } else {
++          return nitrokey::misc::toHex(serial_number);
++        }
++      } catch (DeviceNotConnected& e) {
++        return "";
++      }
++    }
++
++    uint32_t NitrokeyManager::get_serial_number_as_u32() {
++        if (device == nullptr) { throw DeviceNotConnected("device not connected"); }
+       switch (device->get_device_model()) {
++        case DeviceModel::LIBREM:
+         case DeviceModel::PRO: {
+           auto response = GetStatus::CommandTransaction::run(device);
+-          return nitrokey::misc::toHex(response.data().card_serial_u32);
++          return response.data().card_serial_u32;
+         }
+           break;
+ 
+         case DeviceModel::STORAGE:
+         {
+           auto response = stick20::GetDeviceStatus::CommandTransaction::run(device);
+-          return nitrokey::misc::toHex(response.data().ActiveSmartCardID_u32);
++          return response.data().ActiveSmartCardID_u32;
+         }
+           break;
+       }
+-      return "NA";
++      return 0;
+     }
+ 
+     stick10::GetStatus::ResponsePayload NitrokeyManager::get_status(){
+@@ -414,265 +406,7 @@ using nitrokey::misc::strcpyT;
+         return response.data().dissect();
+     }
+ 
+-    string getFilledOTPCode(uint32_t code, bool use_8_digits){
+-      stringstream s;
+-      s << std::right << std::setw(use_8_digits ? 8 : 6) << std::setfill('0') << code;
+-      return s.str();
+-    }
+-
+-    string NitrokeyManager::get_HOTP_code(uint8_t slot_number, const char *user_temporary_password) {
+-      if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-
+-      if (is_authorization_command_supported()){
+-        auto gh = get_payload<GetHOTP>();
+-        gh.slot_number = get_internal_slot_number_for_hotp(slot_number);
+-        if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0){ //FIXME use string instead of strlen
+-            authorize_packet<GetHOTP, UserAuthorize>(gh, user_temporary_password, device);
+-        }
+-        auto resp = GetHOTP::CommandTransaction::run(device, gh);
+-        return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
+-      } else {
+-        auto gh = get_payload<stick10_08::GetHOTP>();
+-        gh.slot_number = get_internal_slot_number_for_hotp(slot_number);
+-        if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0) {
+-          strcpyT(gh.temporary_user_password, user_temporary_password);
+-        }
+-        auto resp = stick10_08::GetHOTP::CommandTransaction::run(device, gh);
+-        return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
+-      }
+-      return "";
+-    }
+-
+-    bool NitrokeyManager::is_internal_hotp_slot_number(uint8_t slot_number) const { return slot_number < 0x20; }
+-    bool NitrokeyManager::is_valid_hotp_slot_number(uint8_t slot_number) const { return slot_number < 3; }
+-    bool NitrokeyManager::is_valid_totp_slot_number(uint8_t slot_number) const { return slot_number < 0x10-1; } //15
+-    uint8_t NitrokeyManager::get_internal_slot_number_for_totp(uint8_t slot_number) const { return (uint8_t) (0x20 + slot_number); }
+-    uint8_t NitrokeyManager::get_internal_slot_number_for_hotp(uint8_t slot_number) const { return (uint8_t) (0x10 + slot_number); }
+-
+-
+-
+-    string NitrokeyManager::get_TOTP_code(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
+-                                          uint8_t last_interval,
+-                                          const char *user_temporary_password) {
+-        if(!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        slot_number = get_internal_slot_number_for_totp(slot_number);
+-
+-        if (is_authorization_command_supported()){
+-          auto gt = get_payload<GetTOTP>();
+-          gt.slot_number = slot_number;
+-          gt.challenge = challenge;
+-          gt.last_interval = last_interval;
+-          gt.last_totp_time = last_totp_time;
+-
+-          if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0){ //FIXME use string instead of strlen
+-              authorize_packet<GetTOTP, UserAuthorize>(gt, user_temporary_password, device);
+-          }
+-          auto resp = GetTOTP::CommandTransaction::run(device, gt);
+-          return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
+-        } else {
+-          auto gt = get_payload<stick10_08::GetTOTP>();
+-          strcpyT(gt.temporary_user_password, user_temporary_password);
+-          gt.slot_number = slot_number;
+-          auto resp = stick10_08::GetTOTP::CommandTransaction::run(device, gt);
+-          return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
+-        }
+-      return "";
+-    }
+-
+-    bool NitrokeyManager::erase_slot(uint8_t slot_number, const char *temporary_password) {
+-      if (is_authorization_command_supported()){
+-        auto p = get_payload<EraseSlot>();
+-        p.slot_number = slot_number;
+-        authorize_packet<EraseSlot, Authorize>(p, temporary_password, device);
+-        auto resp = EraseSlot::CommandTransaction::run(device,p);
+-      } else {
+-        auto p = get_payload<stick10_08::EraseSlot>();
+-        p.slot_number = slot_number;
+-        strcpyT(p.temporary_admin_password, temporary_password);
+-        auto resp = stick10_08::EraseSlot::CommandTransaction::run(device,p);
+-      }
+-        return true;
+-    }
+-
+-    bool NitrokeyManager::erase_hotp_slot(uint8_t slot_number, const char *temporary_password) {
+-        if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        slot_number = get_internal_slot_number_for_hotp(slot_number);
+-        return erase_slot(slot_number, temporary_password);
+-    }
+-
+-    bool NitrokeyManager::erase_totp_slot(uint8_t slot_number, const char *temporary_password) {
+-        if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        slot_number = get_internal_slot_number_for_totp(slot_number);
+-        return erase_slot(slot_number, temporary_password);
+-    }
+-
+-    template <typename T, typename U>
+-    void vector_copy_ranged(T& dest, std::vector<U> &vec, size_t begin, size_t elements_to_copy){
+-        const size_t d_size = sizeof(dest);
+-      if(d_size < elements_to_copy){
+-            throw TargetBufferSmallerThanSource(elements_to_copy, d_size);
+-        }
+-        std::fill(dest, dest+d_size, 0);
+-        std::copy(vec.begin() + begin, vec.begin() +begin + elements_to_copy, dest);
+-    }
+-
+-    template <typename T, typename U>
+-    void vector_copy(T& dest, std::vector<U> &vec){
+-        const size_t d_size = sizeof(dest);
+-        if(d_size < vec.size()){
+-            throw TargetBufferSmallerThanSource(vec.size(), d_size);
+-        }
+-        std::fill(dest, dest+d_size, 0);
+-        std::copy(vec.begin(), vec.end(), dest);
+-    }
+-
+-    bool NitrokeyManager::write_HOTP_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint64_t hotp_counter,
+-                                          bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
+-                                          const char *temporary_password) {
+-        if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-
+-      int internal_slot_number = get_internal_slot_number_for_hotp(slot_number);
+-      if (is_authorization_command_supported()){
+-        write_HOTP_slot_authorize(internal_slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID,
+-                    token_ID, temporary_password);
+-      } else {
+-        write_OTP_slot_no_authorize(internal_slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID,
+-                                    token_ID, temporary_password);
+-      }
+-      return true;
+-    }
+-
+-    void NitrokeyManager::write_HOTP_slot_authorize(uint8_t slot_number, const char *slot_name, const char *secret,
+-                                                    uint64_t hotp_counter, bool use_8_digits, bool use_enter,
+-                                                    bool use_tokenID, const char *token_ID, const char *temporary_password) {
+-      auto payload = get_payload<WriteToHOTPSlot>();
+-      payload.slot_number = slot_number;
+-      auto secret_bin = misc::hex_string_to_byte(secret);
+-      vector_copy(payload.slot_secret, secret_bin);
+-      strcpyT(payload.slot_name, slot_name);
+-      strcpyT(payload.slot_token_id, token_ID);
+-      switch (device->get_device_model() ){
+-        case DeviceModel::PRO: {
+-          payload.slot_counter = hotp_counter;
+-          break;
+-        }
+-        case DeviceModel::STORAGE: {
+-          string counter = to_string(hotp_counter);
+-          strcpyT(payload.slot_counter_s, counter.c_str());
+-          break;
+-        }
+-        default:
+-          LOG(string(__FILE__) + to_string(__LINE__) +
+-                          string(__FUNCTION__) + string(" Unhandled device model for HOTP")
+-              , Loglevel::DEBUG);
+-          break;
+-      }
+-      payload.use_8_digits = use_8_digits;
+-      payload.use_enter = use_enter;
+-      payload.use_tokenID = use_tokenID;
+-
+-      authorize_packet<WriteToHOTPSlot, Authorize>(payload, temporary_password, device);
+-
+-      auto resp = WriteToHOTPSlot::CommandTransaction::run(device, payload);
+-    }
+-
+-    bool NitrokeyManager::write_TOTP_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint16_t time_window,
+-                                              bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
+-                                              const char *temporary_password) {
+-        if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-       int internal_slot_number = get_internal_slot_number_for_totp(slot_number);
+-
+-      if (is_authorization_command_supported()){
+-      write_TOTP_slot_authorize(internal_slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID,
+-                                token_ID, temporary_password);
+-      } else {
+-        write_OTP_slot_no_authorize(internal_slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID,
+-                                    token_ID, temporary_password);
+-      }
+-
+-      return true;
+-    }
+-
+-    void NitrokeyManager::write_OTP_slot_no_authorize(uint8_t internal_slot_number, const char *slot_name,
+-                                                      const char *secret,
+-                                                      uint64_t counter_or_interval, bool use_8_digits, bool use_enter,
+-                                                      bool use_tokenID, const char *token_ID,
+-                                                      const char *temporary_password) const {
+-
+-      auto payload2 = get_payload<stick10_08::SendOTPData>();
+-      strcpyT(payload2.temporary_admin_password, temporary_password);
+-      strcpyT(payload2.data, slot_name);
+-      payload2.setTypeName();
+-      stick10_08::SendOTPData::CommandTransaction::run(device, payload2);
+-
+-      payload2.setTypeSecret();
+-      payload2.id = 0;
+-      auto secret_bin = misc::hex_string_to_byte(secret);
+-      auto remaining_secret_length = secret_bin.size();
+-      const auto maximum_OTP_secret_size = 40;
+-      if(remaining_secret_length > maximum_OTP_secret_size){
+-        throw TargetBufferSmallerThanSource(remaining_secret_length, maximum_OTP_secret_size);
+-      }
+-
+-      while (remaining_secret_length>0){
+-        const auto bytesToCopy = std::min(sizeof(payload2.data), remaining_secret_length);
+-        const auto start = secret_bin.size() - remaining_secret_length;
+-        memset(payload2.data, 0, sizeof(payload2.data));
+-        vector_copy_ranged(payload2.data, secret_bin, start, bytesToCopy);
+-        stick10_08::SendOTPData::CommandTransaction::run(device, payload2);
+-        remaining_secret_length -= bytesToCopy;
+-        payload2.id++;
+-      }
+-
+-      auto payload = get_payload<stick10_08::WriteToOTPSlot>();
+-      strcpyT(payload.temporary_admin_password, temporary_password);
+-      strcpyT(payload.slot_token_id, token_ID);
+-      payload.use_8_digits = use_8_digits;
+-      payload.use_enter = use_enter;
+-      payload.use_tokenID = use_tokenID;
+-      payload.slot_counter_or_interval = counter_or_interval;
+-      payload.slot_number = internal_slot_number;
+-      stick10_08::WriteToOTPSlot::CommandTransaction::run(device, payload);
+-    }
+-
+-    void NitrokeyManager::write_TOTP_slot_authorize(uint8_t slot_number, const char *slot_name, const char *secret,
+-                                                    uint16_t time_window, bool use_8_digits, bool use_enter,
+-                                                    bool use_tokenID, const char *token_ID, const char *temporary_password) {
+-      auto payload = get_payload<WriteToTOTPSlot>();
+-      payload.slot_number = slot_number;
+-      auto secret_bin = misc::hex_string_to_byte(secret);
+-      vector_copy(payload.slot_secret, secret_bin);
+-      strcpyT(payload.slot_name, slot_name);
+-      strcpyT(payload.slot_token_id, token_ID);
+-      payload.slot_interval = time_window; //FIXME naming
+-      payload.use_8_digits = use_8_digits;
+-      payload.use_enter = use_enter;
+-      payload.use_tokenID = use_tokenID;
+-
+-      authorize_packet<WriteToTOTPSlot, Authorize>(payload, temporary_password, device);
+-
+-      auto resp = WriteToTOTPSlot::CommandTransaction::run(device, payload);
+-    }
+-
+-    char * NitrokeyManager::get_totp_slot_name(uint8_t slot_number) {
+-        if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        slot_number = get_internal_slot_number_for_totp(slot_number);
+-        return get_slot_name(slot_number);
+-    }
+-    char * NitrokeyManager::get_hotp_slot_name(uint8_t slot_number) {
+-        if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        slot_number = get_internal_slot_number_for_hotp(slot_number);
+-        return get_slot_name(slot_number);
+-    }
+-
+-  static const int max_string_field_length = 2*1024; //storage's status string is ~1k
+-
+-  char * NitrokeyManager::get_slot_name(uint8_t slot_number)  {
+-        auto payload = get_payload<GetSlotName>();
+-        payload.slot_number = slot_number;
+-        auto resp = GetSlotName::CommandTransaction::run(device, payload);
+-        return strndup((const char *) resp.data().slot_name, max_string_field_length);
+-    }
++    // 15
+ 
+     bool NitrokeyManager::first_authenticate(const char *pin, const char *temporary_password) {
+         auto authreq = get_payload<FirstAuthenticate>();
+@@ -682,26 +416,6 @@ using nitrokey::misc::strcpyT;
+         return true;
+     }
+ 
+-    bool NitrokeyManager::set_time(uint64_t time) {
+-        auto p = get_payload<SetTime>();
+-        p.reset = 1;
+-        p.time = time;
+-        SetTime::CommandTransaction::run(device, p);
+-        return false;
+-    }
+-
+-    void NitrokeyManager::set_time_soft(uint64_t time) {
+-        auto p = get_payload<SetTime>();
+-        p.reset = 0;
+-        p.time = time;
+-        SetTime::CommandTransaction::run(device, p);
+-    }
+-
+-    bool NitrokeyManager::get_time(uint64_t time) {
+-        set_time_soft(time);
+-        return true;
+-    }
+-
+     void NitrokeyManager::change_user_PIN(const char *current_PIN, const char *new_PIN) {
+         change_PIN_general<ChangeUserPin, PasswordKind::User>(current_PIN, new_PIN);
+     }
+@@ -713,6 +427,7 @@ using nitrokey::misc::strcpyT;
+     template <typename ProCommand, PasswordKind StoKind>
+     void NitrokeyManager::change_PIN_general(const char *current_PIN, const char *new_PIN) {
+         switch (device->get_device_model()){
++            case DeviceModel::LIBREM:
+             case DeviceModel::PRO:
+             {
+                 auto p = get_payload<ProCommand>();
+@@ -738,25 +453,6 @@ using nitrokey::misc::strcpyT;
+ 
+     }
+ 
+-    void NitrokeyManager::enable_password_safe(const char *user_pin) {
+-        //The following command will cancel enabling PWS if it is not supported
+-        auto a = get_payload<IsAESSupported>();
+-        strcpyT(a.user_password, user_pin);
+-        IsAESSupported::CommandTransaction::run(device, a);
+-
+-        auto p = get_payload<EnablePasswordSafe>();
+-        strcpyT(p.user_password, user_pin);
+-        EnablePasswordSafe::CommandTransaction::run(device, p);
+-    }
+-
+-    vector <uint8_t> NitrokeyManager::get_password_safe_slot_status() {
+-        auto responsePayload = GetPasswordSafeSlotStatus::CommandTransaction::run(device);
+-        vector<uint8_t> v = vector<uint8_t>(responsePayload.data().password_safe_status,
+-                                            responsePayload.data().password_safe_status
+-                                            + sizeof(responsePayload.data().password_safe_status));
+-        return v;
+-    }
+-
+     uint8_t NitrokeyManager::get_user_retry_count() {
+         if(device->get_device_model() == DeviceModel::STORAGE){
+           stick20::GetDeviceStatus::CommandTransaction::run(device);
+@@ -777,54 +473,6 @@ using nitrokey::misc::strcpyT;
+         LockDevice::CommandTransaction::run(device);
+     }
+ 
+-    char * NitrokeyManager::get_password_safe_slot_name(uint8_t slot_number) {
+-        if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        auto p = get_payload<GetPasswordSafeSlotName>();
+-        p.slot_number = slot_number;
+-        auto response = GetPasswordSafeSlotName::CommandTransaction::run(device, p);
+-        return strndup((const char *) response.data().slot_name, max_string_field_length);
+-    }
+-
+-    bool NitrokeyManager::is_valid_password_safe_slot_number(uint8_t slot_number) const { return slot_number < 16; }
+-
+-    char * NitrokeyManager::get_password_safe_slot_login(uint8_t slot_number) {
+-        if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        auto p = get_payload<GetPasswordSafeSlotLogin>();
+-        p.slot_number = slot_number;
+-        auto response = GetPasswordSafeSlotLogin::CommandTransaction::run(device, p);
+-        return strndup((const char *) response.data().slot_login, max_string_field_length);
+-    }
+-
+-    char * NitrokeyManager::get_password_safe_slot_password(uint8_t slot_number) {
+-        if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        auto p = get_payload<GetPasswordSafeSlotPassword>();
+-        p.slot_number = slot_number;
+-        auto response = GetPasswordSafeSlotPassword::CommandTransaction::run(device, p);
+-        return strndup((const char *) response.data().slot_password, max_string_field_length); //FIXME use secure way
+-    }
+-
+-    void NitrokeyManager::write_password_safe_slot(uint8_t slot_number, const char *slot_name, const char *slot_login,
+-                                                       const char *slot_password) {
+-        if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        auto p = get_payload<SetPasswordSafeSlotData>();
+-        p.slot_number = slot_number;
+-        strcpyT(p.slot_name, slot_name);
+-        strcpyT(p.slot_password, slot_password);
+-        SetPasswordSafeSlotData::CommandTransaction::run(device, p);
+-
+-        auto p2 = get_payload<SetPasswordSafeSlotData2>();
+-        p2.slot_number = slot_number;
+-        strcpyT(p2.slot_login_name, slot_login);
+-        SetPasswordSafeSlotData2::CommandTransaction::run(device, p2);
+-    }
+-
+-    void NitrokeyManager::erase_password_safe_slot(uint8_t slot_number) {
+-        if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
+-        auto p = get_payload<ErasePasswordSafeSlot>();
+-        p.slot_number = slot_number;
+-        ErasePasswordSafeSlot::CommandTransaction::run(device, p);
+-    }
+-
+     void NitrokeyManager::user_authenticate(const char *user_password, const char *temporary_password) {
+         auto p = get_payload<UserAuthenticate>();
+         strcpyT(p.card_password, user_password);
+@@ -834,6 +482,7 @@ using nitrokey::misc::strcpyT;
+ 
+     void NitrokeyManager::build_aes_key(const char *admin_password) {
+         switch (device->get_device_model()) {
++            case DeviceModel::LIBREM:
+             case DeviceModel::PRO: {
+                 auto p = get_payload<BuildAESKey>();
+                 strcpyT(p.admin_password, admin_password);
+@@ -858,6 +507,7 @@ using nitrokey::misc::strcpyT;
+ 
+     void NitrokeyManager::unlock_user_password(const char *admin_password, const char *new_user_password) {
+       switch (device->get_device_model()){
++        case DeviceModel::LIBREM:
+         case DeviceModel::PRO: {
+           auto p = get_payload<stick10::UnlockUserPassword>();
+           strcpyT(p.admin_password, admin_password);
+@@ -879,48 +529,16 @@ using nitrokey::misc::strcpyT;
+       }
+     }
+ 
+-
+-    void NitrokeyManager::write_config(uint8_t numlock, uint8_t capslock, uint8_t scrolllock, bool enable_user_password,
+-                                       bool delete_user_password, const char *admin_temporary_password) {
+-        auto p = get_payload<stick10_08::WriteGeneralConfig>();
+-        p.numlock = numlock;
+-        p.capslock = capslock;
+-        p.scrolllock = scrolllock;
+-        p.enable_user_password = static_cast<uint8_t>(enable_user_password ? 1 : 0);
+-        p.delete_user_password = static_cast<uint8_t>(delete_user_password ? 1 : 0);
+-        if (is_authorization_command_supported()){
+-          authorize_packet<stick10_08::WriteGeneralConfig, Authorize>(p, admin_temporary_password, device);
+-        } else {
+-          strcpyT(p.temporary_admin_password, admin_temporary_password);
+-        }
+-        stick10_08::WriteGeneralConfig::CommandTransaction::run(device, p);
+-    }
+-
+-    vector<uint8_t> NitrokeyManager::read_config() {
+-        auto responsePayload = GetStatus::CommandTransaction::run(device);
+-        vector<uint8_t> v = vector<uint8_t>(responsePayload.data().general_config,
+-                                            responsePayload.data().general_config+sizeof(responsePayload.data().general_config));
+-        return v;
+-    }
+-
+     bool NitrokeyManager::is_authorization_command_supported(){
+       //authorization command is supported for versions equal or below:
+         auto m = std::unordered_map<DeviceModel , int, EnumClassHash>({
+                                                {DeviceModel::PRO, 7},
++                                               {DeviceModel::LIBREM, 7},
+                                                {DeviceModel::STORAGE, 53},
+          });
+         return get_minor_firmware_version() <= m[device->get_device_model()];
+     }
+ 
+-    bool NitrokeyManager::is_320_OTP_secret_supported(){
+-        // 320 bit OTP secret is supported by version bigger or equal to:
+-        auto m = std::unordered_map<DeviceModel , int, EnumClassHash>({
+-                                               {DeviceModel::PRO, 8},
+-                                               {DeviceModel::STORAGE, 54},
+-         });
+-        return get_minor_firmware_version() >= m[device->get_device_model()];
+-    }
+-
+     DeviceModel NitrokeyManager::get_connected_device_model() const{
+         if (device == nullptr){
+             throw DeviceNotConnected("device not connected");
+@@ -940,6 +558,7 @@ using nitrokey::misc::strcpyT;
+ 
+     uint8_t NitrokeyManager::get_minor_firmware_version(){
+       switch(device->get_device_model()){
++        case DeviceModel::LIBREM:
+         case DeviceModel::PRO:{
+           auto status_p = GetStatus::CommandTransaction::run(device);
+           return status_p.data().firmware_version_st.minor; //7 or 8
+@@ -956,6 +575,7 @@ using nitrokey::misc::strcpyT;
+     }
+     uint8_t NitrokeyManager::get_major_firmware_version(){
+       switch(device->get_device_model()){
++        case DeviceModel::LIBREM:
+         case DeviceModel::PRO:{
+           auto status_p = GetStatus::CommandTransaction::run(device);
+           return status_p.data().firmware_version_st.major; //0
+@@ -975,213 +595,10 @@ using nitrokey::misc::strcpyT;
+         return true;
+     }
+ 
+-    //storage commands
+-
+-    void NitrokeyManager::send_startup(uint64_t seconds_from_epoch){
+-      auto p = get_payload<stick20::SendStartup>();
+-//      p.set_defaults(); //set current time
+-      p.localtime = seconds_from_epoch;
+-      stick20::SendStartup::CommandTransaction::run(device, p);
+-    }
+-
+-    void NitrokeyManager::unlock_encrypted_volume(const char* user_pin){
+-      misc::execute_password_command<stick20::EnableEncryptedPartition>(device, user_pin);
+-    }
+-
+-    void NitrokeyManager::unlock_hidden_volume(const char* hidden_volume_password) {
+-      misc::execute_password_command<stick20::EnableHiddenEncryptedPartition>(device, hidden_volume_password);
+-    }
+-
+-    void NitrokeyManager::set_encrypted_volume_read_only(const char* admin_pin) {
+-        misc::execute_password_command<stick20::SetEncryptedVolumeReadOnly>(device, admin_pin);
+-    }
+-
+-    void NitrokeyManager::set_encrypted_volume_read_write(const char* admin_pin) {
+-        misc::execute_password_command<stick20::SetEncryptedVolumeReadWrite>(device, admin_pin);
+-    }
+-
+-    //TODO check is encrypted volume unlocked before execution
+-    //if not return library exception
+-    void NitrokeyManager::create_hidden_volume(uint8_t slot_nr, uint8_t start_percent, uint8_t end_percent,
+-                                               const char *hidden_volume_password) {
+-      auto p = get_payload<stick20::SetupHiddenVolume>();
+-      p.SlotNr_u8 = slot_nr;
+-      p.StartBlockPercent_u8 = start_percent;
+-      p.EndBlockPercent_u8 = end_percent;
+-      strcpyT(p.HiddenVolumePassword_au8, hidden_volume_password);
+-      stick20::SetupHiddenVolume::CommandTransaction::run(device, p);
+-    }
+-
+-    void NitrokeyManager::set_unencrypted_read_only_admin(const char* admin_pin) {
+-      //from v0.49, v0.52+ it needs Admin PIN
+-      if (set_unencrypted_volume_rorw_pin_type_user()){
+-        LOG("set_unencrypted_read_only_admin is not supported for this version of Storage device. "
+-                "Please update firmware to v0.52+. Doing nothing.", nitrokey::log::Loglevel::WARNING);
+-        return;
+-      }
+-      misc::execute_password_command<stick20::SetUnencryptedVolumeReadOnlyAdmin>(device, admin_pin);
+-    }
+-
+-    void NitrokeyManager::set_unencrypted_read_only(const char *user_pin) {
+-        //until v0.48 (incl. v0.50 and v0.51) User PIN was sufficient
+-        LOG("set_unencrypted_read_only is deprecated. Use set_unencrypted_read_only_admin instead.",
+-            nitrokey::log::Loglevel::WARNING);
+-      if (!set_unencrypted_volume_rorw_pin_type_user()){
+-        LOG("set_unencrypted_read_only is not supported for this version of Storage device. Doing nothing.",
+-            nitrokey::log::Loglevel::WARNING);
+-        return;
+-      }
+-      misc::execute_password_command<stick20::SendSetReadonlyToUncryptedVolume>(device, user_pin);
+-    }
+-
+-    void NitrokeyManager::set_unencrypted_read_write_admin(const char* admin_pin) {
+-      //from v0.49, v0.52+ it needs Admin PIN
+-      if (set_unencrypted_volume_rorw_pin_type_user()){
+-        LOG("set_unencrypted_read_write_admin is not supported for this version of Storage device. "
+-                "Please update firmware to v0.52+. Doing nothing.", nitrokey::log::Loglevel::WARNING);
+-        return;
+-      }
+-      misc::execute_password_command<stick20::SetUnencryptedVolumeReadWriteAdmin>(device, admin_pin);
+-    }
+-
+-    void NitrokeyManager::set_unencrypted_read_write(const char *user_pin) {
+-        //until v0.48 (incl. v0.50 and v0.51) User PIN was sufficient
+-      LOG("set_unencrypted_read_write is deprecated. Use set_unencrypted_read_write_admin instead.",
+-          nitrokey::log::Loglevel::WARNING);
+-      if (!set_unencrypted_volume_rorw_pin_type_user()){
+-        LOG("set_unencrypted_read_write is not supported for this version of Storage device. Doing nothing.",
+-            nitrokey::log::Loglevel::WARNING);
+-        return;
+-      }
+-      misc::execute_password_command<stick20::SendSetReadwriteToUncryptedVolume>(device, user_pin);
+-    }
+-
+-    bool NitrokeyManager::set_unencrypted_volume_rorw_pin_type_user(){
+-      auto minor_firmware_version = get_minor_firmware_version();
+-      return minor_firmware_version <= 48 || minor_firmware_version == 50 || minor_firmware_version == 51;
+-    }
+-
+-  void NitrokeyManager::export_firmware(const char* admin_pin) {
+-      misc::execute_password_command<stick20::ExportFirmware>(device, admin_pin);
+-    }
+-
+-    void NitrokeyManager::enable_firmware_update(const char* firmware_pin) {
+-      misc::execute_password_command<stick20::EnableFirmwareUpdate>(device, firmware_pin);
+-    }
+-
+-    void NitrokeyManager::clear_new_sd_card_warning(const char* admin_pin) {
+-      misc::execute_password_command<stick20::SendClearNewSdCardFound>(device, admin_pin);
+-    }
+-
+-    void NitrokeyManager::fill_SD_card_with_random_data(const char* admin_pin) {
+-      auto p = get_payload<stick20::FillSDCardWithRandomChars>();
+-      p.set_defaults();
+-      strcpyT(p.admin_pin, admin_pin);
+-      stick20::FillSDCardWithRandomChars::CommandTransaction::run(device, p);
+-    }
+-
+-    void NitrokeyManager::change_update_password(const char* current_update_password, const char* new_update_password) {
+-      auto p = get_payload<stick20::ChangeUpdatePassword>();
+-      strcpyT(p.current_update_password, current_update_password);
+-      strcpyT(p.new_update_password, new_update_password);
+-      stick20::ChangeUpdatePassword::CommandTransaction::run(device, p);
+-    }
+-
+-    char * NitrokeyManager::get_status_storage_as_string(){
+-      auto p = stick20::GetDeviceStatus::CommandTransaction::run(device);
+-      return strndup(p.data().dissect().c_str(), max_string_field_length);
+-    }
+-
+-    stick20::DeviceConfigurationResponsePacket::ResponsePayload NitrokeyManager::get_status_storage(){
+-      auto p = stick20::GetDeviceStatus::CommandTransaction::run(device);
+-      return p.data();
+-    }
+-
+-    char * NitrokeyManager::get_SD_usage_data_as_string(){
+-      auto p = stick20::GetSDCardOccupancy::CommandTransaction::run(device);
+-      return strndup(p.data().dissect().c_str(), max_string_field_length);
+-    }
+-
+-    std::pair<uint8_t,uint8_t> NitrokeyManager::get_SD_usage_data(){
+-      auto p = stick20::GetSDCardOccupancy::CommandTransaction::run(device);
+-      return std::make_pair(p.data().WriteLevelMin, p.data().WriteLevelMax);
+-    }
+-
+-    int NitrokeyManager::get_progress_bar_value(){
+-      try{
+-        stick20::GetDeviceStatus::CommandTransaction::run(device);
+-        return -1;
+-      }
+-      catch (LongOperationInProgressException &e){
+-        return e.progress_bar_value;
+-      }
+-    }
+-
+-  string NitrokeyManager::get_TOTP_code(uint8_t slot_number, const char *user_temporary_password) {
+-    return get_TOTP_code(slot_number, 0, 0, 0, user_temporary_password);
+-  }
+-
+-  /**
+-   * Returns ReadSlot structure, describing OTP slot configuration. Always return binary counter -
+-   * does the necessary conversion, if needed, to unify the behavior across Pro and Storage.
+-   * @private For internal use only
+-   * @param slot_number which OTP slot to use (usual format)
+-   * @return ReadSlot structure
+-   */
+-  stick10::ReadSlot::ResponsePayload NitrokeyManager::get_OTP_slot_data(const uint8_t slot_number) {
+-    auto p = get_payload<stick10::ReadSlot>();
+-    p.slot_number = slot_number;
+-    p.data_format = stick10::ReadSlot::CounterFormat::BINARY; // ignored for devices other than Storage v0.54+
+-    auto data = stick10::ReadSlot::CommandTransaction::run(device, p);
+-
+-    auto &payload = data.data();
+-
+-    // if fw <=v0.53 and asked binary - do the conversion from ASCII
+-    if (device->get_device_model() == DeviceModel::STORAGE && get_minor_firmware_version() <= 53
+-         && is_internal_hotp_slot_number(slot_number))
+-    {
+-      //convert counter from string to ull
+-      auto counter_s = std::string(payload.slot_counter_s, payload.slot_counter_s + sizeof(payload.slot_counter_s));
+-      payload.slot_counter = std::stoull(counter_s);
+-    }
+-
+-    return payload;
+-  }
+-
+-  stick10::ReadSlot::ResponsePayload NitrokeyManager::get_TOTP_slot_data(const uint8_t slot_number) {
+-    return get_OTP_slot_data(get_internal_slot_number_for_totp(slot_number));
+-  }
+-
+-  stick10::ReadSlot::ResponsePayload NitrokeyManager::get_HOTP_slot_data(const uint8_t slot_number) {
+-    return get_OTP_slot_data(get_internal_slot_number_for_hotp(slot_number));
+-  }
+-
+-  void NitrokeyManager::lock_encrypted_volume() {
+-    misc::execute_password_command<stick20::DisableEncryptedPartition>(device, "");
+-  }
+-
+-  void NitrokeyManager::lock_hidden_volume() {
+-    misc::execute_password_command<stick20::DisableHiddenEncryptedPartition>(device, "");
+-  }
+-
+-  uint8_t NitrokeyManager::get_SD_card_size() {
+-    auto data = stick20::ProductionTest::CommandTransaction::run(device);
+-    return data.data().SD_Card_Size_u8;
+-  }
+-
+     const string NitrokeyManager::get_current_device_id() const {
+         return current_device_id;
+     }
+ 
+-  void NitrokeyManager::wink(){
+-    stick20::Wink::CommandTransaction::run(device);
+-  };
+-
+-  stick20::ProductionTest::ResponsePayload NitrokeyManager::production_info(){
+-    auto data = stick20::ProductionTest::CommandTransaction::run(device);
+-    return data.data();
+-  };
+-
+   void NitrokeyManager::enable_firmware_update_pro(const char *firmware_pin) {
+     auto p = get_payload<FirmwareUpdate>();
+     strcpyT(p.firmware_password, firmware_pin);
+diff --git a/NitrokeyManagerOTP.cc b/NitrokeyManagerOTP.cc
+new file mode 100644
+index 0000000..42eb3a9
+--- /dev/null
++++ b/NitrokeyManagerOTP.cc
+@@ -0,0 +1,340 @@
++#include "NitrokeyManagerOTP.h"
++using nitrokey::misc::strcpyT;
++
++std::string getFilledOTPCode(uint32_t code, bool use_8_digits){
++  std::stringstream s;
++  s << std::right << std::setw(use_8_digits ? 8 : 6) << std::setfill('0') << code;
++  return s.str();
++}
++std::string nitrokey::NitrokeyManager::get_HOTP_code(uint8_t slot_number, const char *user_temporary_password) {
++  if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++
++  if (is_authorization_command_supported()){
++    auto gh = get_payload<GetHOTP>();
++    gh.slot_number = get_internal_slot_number_for_hotp(slot_number);
++    if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0){ //FIXME use string instead of strlen
++        authorize_packet<GetHOTP, UserAuthorize>(gh, user_temporary_password, device);
++    }
++    auto resp = GetHOTP::CommandTransaction::run(device, gh);
++    return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
++  } else {
++    auto gh = get_payload<stick10_08::GetHOTP>();
++    gh.slot_number = get_internal_slot_number_for_hotp(slot_number);
++    if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0) {
++      strcpyT(gh.temporary_user_password, user_temporary_password);
++    }
++    auto resp = stick10_08::GetHOTP::CommandTransaction::run(device, gh);
++    return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
++  }
++  return "";
++}
++bool nitrokey::NitrokeyManager::is_internal_hotp_slot_number(uint8_t slot_number) const { return slot_number < 0x20; }
++bool nitrokey::NitrokeyManager::is_valid_hotp_slot_number(uint8_t slot_number) const { return slot_number < 3; }
++bool nitrokey::NitrokeyManager::is_valid_totp_slot_number(uint8_t slot_number) const { return slot_number < 0x10-1; }
++uint8_t nitrokey::NitrokeyManager::get_internal_slot_number_for_totp(uint8_t slot_number) const { return (uint8_t) (0x20 + slot_number);
++}
++uint8_t nitrokey::NitrokeyManager::get_internal_slot_number_for_hotp(uint8_t slot_number) const { return (uint8_t) (0x10 + slot_number); }
++std::string nitrokey::NitrokeyManager::get_TOTP_code(uint8_t slot_number, uint64_t challenge, uint64_t last_totp_time,
++                                      uint8_t last_interval,
++                                      const char *user_temporary_password) {
++    if(!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    slot_number = get_internal_slot_number_for_totp(slot_number);
++
++    if (is_authorization_command_supported()){
++      auto gt = get_payload<GetTOTP>();
++      gt.slot_number = slot_number;
++      gt.challenge = challenge;
++      gt.last_interval = last_interval;
++      gt.last_totp_time = last_totp_time;
++
++      if(user_temporary_password != nullptr && strlen(user_temporary_password)!=0){ //FIXME use string instead of strlen
++          authorize_packet<GetTOTP, UserAuthorize>(gt, user_temporary_password, device);
++      }
++      auto resp = GetTOTP::CommandTransaction::run(device, gt);
++      return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
++    } else {
++      auto gt = get_payload<stick10_08::GetTOTP>();
++      strcpyT(gt.temporary_user_password, user_temporary_password);
++      gt.slot_number = slot_number;
++      auto resp = stick10_08::GetTOTP::CommandTransaction::run(device, gt);
++      return getFilledOTPCode(resp.data().code, resp.data().use_8_digits);
++    }
++  return "";
++}
++bool nitrokey::NitrokeyManager::erase_slot(uint8_t slot_number, const char *temporary_password) {
++  if (is_authorization_command_supported()){
++    auto p = get_payload<EraseSlot>();
++    p.slot_number = slot_number;
++    authorize_packet<EraseSlot, Authorize>(p, temporary_password, device);
++    auto resp = EraseSlot::CommandTransaction::run(device,p);
++  } else {
++    auto p = get_payload<stick10_08::EraseSlot>();
++    p.slot_number = slot_number;
++    strcpyT(p.temporary_admin_password, temporary_password);
++    auto resp = stick10_08::EraseSlot::CommandTransaction::run(device,p);
++  }
++    return true;
++}
++bool nitrokey::NitrokeyManager::erase_hotp_slot(uint8_t slot_number, const char *temporary_password) {
++    if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    slot_number = get_internal_slot_number_for_hotp(slot_number);
++    return erase_slot(slot_number, temporary_password);
++}
++bool nitrokey::NitrokeyManager::erase_totp_slot(uint8_t slot_number, const char *temporary_password) {
++    if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    slot_number = get_internal_slot_number_for_totp(slot_number);
++    return erase_slot(slot_number, temporary_password);
++}
++template <typename T, typename U>
++void vector_copy_ranged(T& dest, std::vector<U> &vec, std::size_t begin, std::size_t elements_to_copy){
++    const std::size_t d_size = sizeof(dest);
++  if(d_size < elements_to_copy){
++      throw TargetBufferSmallerThanSource(elements_to_copy, d_size);
++    }
++    std::fill(dest, dest+d_size, 0);
++    std::copy(vec.begin() + begin, vec.begin() +begin + elements_to_copy, dest);
++}
++template <typename T, typename U>
++void vector_copy(T& dest, std::vector<U> &vec){
++    const std::size_t d_size = sizeof(dest);
++    if(d_size < vec.size()){
++        throw TargetBufferSmallerThanSource(vec.size(), d_size);
++    }
++    std::fill(dest, dest+d_size, 0);
++    std::copy(vec.begin(), vec.end(), dest);
++}
++bool nitrokey::NitrokeyManager::write_HOTP_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint64_t hotp_counter,
++                                      bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
++                                      const char *temporary_password) {
++    if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++
++  int internal_slot_number = get_internal_slot_number_for_hotp(slot_number);
++  if (is_authorization_command_supported()){
++    write_HOTP_slot_authorize(internal_slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID,
++                token_ID, temporary_password);
++  } else {
++    write_OTP_slot_no_authorize(internal_slot_number, slot_name, secret, hotp_counter, use_8_digits, use_enter, use_tokenID,
++                                token_ID, temporary_password);
++  }
++  return true;
++}
++void nitrokey::NitrokeyManager::write_HOTP_slot_authorize(uint8_t slot_number, const char *slot_name, const char *secret,
++                                                uint64_t hotp_counter, bool use_8_digits, bool use_enter,
++                                                bool use_tokenID, const char *token_ID, const char *temporary_password) {
++  auto payload = get_payload<WriteToHOTPSlot>();
++  payload.slot_number = slot_number;
++  auto secret_bin = misc::hex_string_to_byte(secret);
++  vector_copy(payload.slot_secret, secret_bin);
++  strcpyT(payload.slot_name, slot_name);
++  strcpyT(payload.slot_token_id, token_ID);
++  switch (device->get_device_model() ){
++    case DeviceModel::LIBREM:
++    case DeviceModel::PRO: {
++      payload.slot_counter = hotp_counter;
++      break;
++    }
++    case DeviceModel::STORAGE: {
++      string counter = to_string(hotp_counter);
++      strcpyT(payload.slot_counter_s, counter.c_str());
++      break;
++    }
++    default:
++      LOG(string(__FILE__) + to_string(__LINE__) +
++                      string(__FUNCTION__) + string(" Unhandled device model for HOTP")
++          , Loglevel::DEBUG);
++      break;
++  }
++  payload.use_8_digits = use_8_digits;
++  payload.use_enter = use_enter;
++  payload.use_tokenID = use_tokenID;
++
++  authorize_packet<WriteToHOTPSlot, Authorize>(payload, temporary_password, device);
++
++  auto resp = WriteToHOTPSlot::CommandTransaction::run(device, payload);
++}
++bool nitrokey::NitrokeyManager::write_TOTP_slot(uint8_t slot_number, const char *slot_name, const char *secret, uint16_t time_window,
++                                          bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID,
++                                          const char *temporary_password) {
++    if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    int internal_slot_number = get_internal_slot_number_for_totp(slot_number);
++
++  if (is_authorization_command_supported()){
++  write_TOTP_slot_authorize(internal_slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID,
++                            token_ID, temporary_password);
++  } else {
++    write_OTP_slot_no_authorize(internal_slot_number, slot_name, secret, time_window, use_8_digits, use_enter, use_tokenID,
++                                token_ID, temporary_password);
++  }
++
++  return true;
++}
++void nitrokey::NitrokeyManager::write_OTP_slot_no_authorize(uint8_t internal_slot_number, const char *slot_name,
++                                                  const char *secret,
++                                                  uint64_t counter_or_interval, bool use_8_digits, bool use_enter,
++                                                  bool use_tokenID, const char *token_ID,
++                                                  const char *temporary_password) const {
++
++  auto payload2 = get_payload<stick10_08::SendOTPData>();
++  strcpyT(payload2.temporary_admin_password, temporary_password);
++  strcpyT(payload2.data, slot_name);
++  payload2.setTypeName();
++  stick10_08::SendOTPData::CommandTransaction::run(device, payload2);
++
++  payload2.setTypeSecret();
++  payload2.id = 0;
++  auto secret_bin = misc::hex_string_to_byte(secret);
++  auto remaining_secret_length = secret_bin.size();
++  const auto maximum_OTP_secret_size = 40;
++  if(remaining_secret_length > maximum_OTP_secret_size){
++    throw TargetBufferSmallerThanSource(remaining_secret_length, maximum_OTP_secret_size);
++  }
++
++  while (remaining_secret_length>0){
++    const auto bytesToCopy = std::min(sizeof(payload2.data), remaining_secret_length);
++    const auto start = secret_bin.size() - remaining_secret_length;
++    memset(payload2.data, 0, sizeof(payload2.data));
++    vector_copy_ranged(payload2.data, secret_bin, start, bytesToCopy);
++    stick10_08::SendOTPData::CommandTransaction::run(device, payload2);
++    remaining_secret_length -= bytesToCopy;
++    payload2.id++;
++  }
++
++  auto payload = get_payload<stick10_08::WriteToOTPSlot>();
++  strcpyT(payload.temporary_admin_password, temporary_password);
++  strcpyT(payload.slot_token_id, token_ID);
++  payload.use_8_digits = use_8_digits;
++  payload.use_enter = use_enter;
++  payload.use_tokenID = use_tokenID;
++  payload.slot_counter_or_interval = counter_or_interval;
++  payload.slot_number = internal_slot_number;
++  stick10_08::WriteToOTPSlot::CommandTransaction::run(device, payload);
++}
++void nitrokey::NitrokeyManager::write_TOTP_slot_authorize(uint8_t slot_number, const char *slot_name, const char *secret,
++                                                uint16_t time_window, bool use_8_digits, bool use_enter, bool use_tokenID, const char *token_ID, const char *temporary_password) {
++  auto payload = get_payload<WriteToTOTPSlot>();
++  payload.slot_number = slot_number;
++  auto secret_bin = misc::hex_string_to_byte(secret);
++  vector_copy(payload.slot_secret, secret_bin);
++  strcpyT(payload.slot_name, slot_name);
++  strcpyT(payload.slot_token_id, token_ID);
++  payload.slot_interval = time_window; //FIXME naming
++  payload.use_8_digits = use_8_digits;
++  payload.use_enter = use_enter;
++  payload.use_tokenID = use_tokenID;
++
++  authorize_packet<WriteToTOTPSlot, Authorize>(payload, temporary_password, device);
++
++  auto resp = WriteToTOTPSlot::CommandTransaction::run(device, payload);
++}
++char * nitrokey::NitrokeyManager::get_totp_slot_name(uint8_t slot_number) {
++    if (!is_valid_totp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    slot_number = get_internal_slot_number_for_totp(slot_number);
++    return get_slot_name(slot_number);
++}
++char *nitrokey::NitrokeyManager::get_hotp_slot_name(uint8_t slot_number) {
++    if (!is_valid_hotp_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    slot_number = get_internal_slot_number_for_hotp(slot_number);
++    return get_slot_name(slot_number);
++}
++char *nitrokey::NitrokeyManager::get_slot_name(uint8_t slot_number)  {
++    auto payload = get_payload<GetSlotName>();
++    payload.slot_number = slot_number;
++    auto resp = GetSlotName::CommandTransaction::run(device, payload);
++    return strndup((const char *) resp.data().slot_name, max_string_field_length);
++}
++bool nitrokey::NitrokeyManager::set_time(uint64_t time) {
++    auto p = get_payload<SetTime>();
++    p.reset = 1;
++    p.time = time;
++    SetTime::CommandTransaction::run(device, p);
++    return false;
++}
++void nitrokey::NitrokeyManager::set_time_soft(uint64_t time) {
++    auto p = get_payload<SetTime>();
++    p.reset = 0;
++    p.time = time;
++    SetTime::CommandTransaction::run(device, p);
++}
++bool nitrokey::NitrokeyManager::get_time(uint64_t time) {
++    set_time_soft(time);
++  return true;
++}
++void nitrokey::NitrokeyManager::write_config(uint8_t numlock, uint8_t capslock, uint8_t scrolllock, bool enable_user_password,
++                                   bool delete_user_password, const char *admin_temporary_password) {
++    auto p = get_payload<stick10_08::WriteGeneralConfig>();
++    p.numlock = numlock;
++    p.capslock = capslock;
++    p.scrolllock = scrolllock;
++    p.enable_user_password = static_cast<uint8_t>(enable_user_password ? 1 : 0);
++    p.delete_user_password = static_cast<uint8_t>(delete_user_password ? 1 : 0);
++    if (is_authorization_command_supported()){
++      authorize_packet<stick10_08::WriteGeneralConfig, Authorize>(p, admin_temporary_password, device);
++    } else {
++      strcpyT(p.temporary_admin_password, admin_temporary_password);
++    }
++    stick10_08::WriteGeneralConfig::CommandTransaction::run(device, p);
++}
++std::vector<uint8_t> nitrokey::NitrokeyManager::read_config() {
++    auto responsePayload = GetStatus::CommandTransaction::run(device);
++    vector<uint8_t> v = vector<uint8_t>(responsePayload.data().general_config,
++                                        responsePayload.data().general_config+sizeof(responsePayload.data().general_config));
++    return v;
++}
++bool nitrokey::NitrokeyManager::is_320_OTP_secret_supported(){
++  // 320 bit OTP secret is supported by version bigger or equal to:
++    auto m = unordered_map<DeviceModel , int, EnumClassHash>({
++                                           {DeviceModel::PRO, 8},
++                                           {DeviceModel::LIBREM, 8},
++                                           {DeviceModel::STORAGE, 54},
++     });
++    return get_minor_firmware_version() >= m[device->get_device_model()];
++}
++std::string nitrokey::NitrokeyManager::get_TOTP_code(uint8_t slot_number, const char *user_temporary_password) {
++  return get_TOTP_code(slot_number, 0, 0, 0, user_temporary_password);
++} /**
++   * Returns ReadSlot structure, describing OTP slot configuration. Always
++   * return binary counter - does the necessary conversion, if needed, to unify
++   * the behavior across Pro and Storage.
++   * @private For internal use only
++   * @param slot_number which OTP slot to use (usual format)
++   * @return ReadSlot structure
++   */
++nitrokey::proto::stick10::ReadSlot::ResponsePayload
++nitrokey::NitrokeyManager::get_OTP_slot_data(const uint8_t slot_number) {
++  auto p = get_payload<ReadSlot>();
++  p.slot_number = slot_number;
++  p.data_format = ReadSlot::CounterFormat::BINARY; // ignored for devices other than Storage v0.54+
++  auto data = stick10::ReadSlot::CommandTransaction::run(device, p);
++
++  auto &payload = data.data();
++
++  // if fw <=v0.53 and asked binary - do the conversion from ASCII
++  if (device->get_device_model() == DeviceModel::STORAGE && get_minor_firmware_version() <= 53
++       && is_internal_hotp_slot_number(slot_number))
++  {
++    //convert counter from string to ull
++    auto counter_s = string(payload.slot_counter_s, payload.slot_counter_s + sizeof(payload.slot_counter_s));
++    payload.slot_counter = stoull(counter_s);
++  }
++
++  return payload;
++}
++  nitrokey::proto::stick10::ReadSlot::ResponsePayload nitrokey::NitrokeyManager::get_TOTP_slot_data(const uint8_t slot_number) {
++    return get_OTP_slot_data(get_internal_slot_number_for_totp(slot_number));
++  }
++  nitrokey::proto::stick10::ReadSlot::ResponsePayload nitrokey::NitrokeyManager::get_HOTP_slot_data(const uint8_t slot_number) {
++    return get_OTP_slot_data(get_internal_slot_number_for_hotp(slot_number));
++  }
++  namespace nitrokey { // package type to auth, auth type
++                     // [Authorize,UserAuthorize]
++  template <typename S, typename A, typename T>
++  void NitrokeyManager::authorize_packet(T &package, const char *admin_temporary_password, shared_ptr<Device> device){
++    if (!is_authorization_command_supported()){
++      LOG("Authorization command not supported, skipping", Loglevel::WARNING);
++    }
++      auto auth = get_payload<A>();
++      strcpyT(auth.temporary_password, admin_temporary_password);
++      auth.crc_to_authorize = S::CommandTransaction::getCRC(package);
++      A::CommandTransaction::run(device, auth);
++  }
++    } // namespace nitrokey
+\ No newline at end of file
+diff --git a/NitrokeyManagerOTP.h b/NitrokeyManagerOTP.h
+new file mode 100644
+index 0000000..503fef7
+--- /dev/null
++++ b/NitrokeyManagerOTP.h
+@@ -0,0 +1,6 @@
++#ifndef LIBNITROKEY_NITROKEYMANAGEROTP_H
++#define LIBNITROKEY_NITROKEYMANAGEROTP_H
++
++#include "NitrokeyManager.h"
++
++#endif // LIBNITROKEY_NITROKEYMANAGEROTP_H
+diff --git a/NitrokeyManagerPWS.cc b/NitrokeyManagerPWS.cc
+new file mode 100644
+index 0000000..c4a47eb
+--- /dev/null
++++ b/NitrokeyManagerPWS.cc
+@@ -0,0 +1,75 @@
++#include "NitrokeyManagerPWS.h"
++#include "NitrokeyManagerOTP.h"
++#include "libnitrokey/LibraryException.h"
++#include "libnitrokey/NitrokeyManager.h"
++#include "libnitrokey/cxx_semantics.h"
++#include "libnitrokey/misc.h"
++#include <algorithm>
++#include <cstring>
++#include <functional>
++#include <mutex>
++#include <stick10_commands.h>
++#include <stick20_commands.h>
++#include <unordered_map>
++void nitrokey::NitrokeyManager::enable_password_safe(const char *user_pin) {
++    //The following command will cancel enabling PWS if it is not supported
++    auto a = get_payload<IsAESSupported>();
++    misc::strcpyT(a.user_password, user_pin);
++    IsAESSupported::CommandTransaction::run(device, a);
++
++    auto p = get_payload<EnablePasswordSafe>();
++    misc::strcpyT(p.user_password, user_pin);
++    EnablePasswordSafe::CommandTransaction::run(device, p);
++}
++std::vector <uint8_t> nitrokey::NitrokeyManager::get_password_safe_slot_status() {
++    auto responsePayload = GetPasswordSafeSlotStatus::CommandTransaction::run(device);
++    vector<uint8_t> v = vector<uint8_t>(responsePayload.data().password_safe_status,
++                                        responsePayload.data().password_safe_status
++                                        + sizeof(responsePayload.data().password_safe_status));
++    return v;
++}
++char * nitrokey::NitrokeyManager::get_password_safe_slot_name(uint8_t slot_number) {
++    if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    auto p = get_payload<GetPasswordSafeSlotName>();
++    p.slot_number = slot_number;
++    auto response = GetPasswordSafeSlotName::CommandTransaction::run(device, p);
++    return strndup((const char *) response.data().slot_name, max_string_field_length);
++}
++bool nitrokey::NitrokeyManager::is_valid_password_safe_slot_number(uint8_t slot_number) const { return slot_number < 16;
++}
++char *
++nitrokey::NitrokeyManager::get_password_safe_slot_login(uint8_t slot_number) {
++    if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    auto p = get_payload<GetPasswordSafeSlotLogin>();
++    p.slot_number = slot_number;
++    auto response = GetPasswordSafeSlotLogin::CommandTransaction::run(device, p);
++    return strndup((const char *) response.data().slot_login, max_string_field_length);
++}
++char * nitrokey::NitrokeyManager::get_password_safe_slot_password(uint8_t slot_number) {
++    if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    auto p = get_payload<GetPasswordSafeSlotPassword>();
++    p.slot_number = slot_number;
++    auto response = GetPasswordSafeSlotPassword::CommandTransaction::run(device, p);
++    return strndup((const char *) response.data().slot_password, max_string_field_length); //FIXME use secure way
++}
++void nitrokey::NitrokeyManager::write_password_safe_slot(uint8_t slot_number, const char *slot_name, const char *slot_login,
++                                                   const char *slot_password) {
++    if (!is_valid_password_safe_slot_number(slot_number))
++      throw InvalidSlotException(slot_number);
++    auto p = get_payload<SetPasswordSafeSlotData>();
++    p.slot_number = slot_number;
++    misc::strcpyT(p.slot_name, slot_name);
++    misc::strcpyT(p.slot_password, slot_password);
++    SetPasswordSafeSlotData::CommandTransaction::run(device, p);
++
++    auto p2 = get_payload<SetPasswordSafeSlotData2>();
++    p2.slot_number = slot_number;
++    misc::strcpyT(p2.slot_login_name, slot_login);
++    SetPasswordSafeSlotData2::CommandTransaction::run(device, p2);
++}
++void nitrokey::NitrokeyManager::erase_password_safe_slot(uint8_t slot_number) {
++    if (!is_valid_password_safe_slot_number(slot_number)) throw InvalidSlotException(slot_number);
++    auto p = get_payload<ErasePasswordSafeSlot>();
++    p.slot_number = slot_number;
++    ErasePasswordSafeSlot::CommandTransaction::run(device, p);
++}
+\ No newline at end of file
+diff --git a/NitrokeyManagerPWS.h b/NitrokeyManagerPWS.h
+new file mode 100644
+index 0000000..b9f5071
+--- /dev/null
++++ b/NitrokeyManagerPWS.h
+@@ -0,0 +1,6 @@
++#ifndef LIBNITROKEY_NITROKEYMANAGERPWS_H
++#define LIBNITROKEY_NITROKEYMANAGERPWS_H
++
++#include "NitrokeyManager.h"
++
++#endif // LIBNITROKEY_NITROKEYMANAGERPWS_H
+diff --git a/NitrokeyManagerStorage.cpp b/NitrokeyManagerStorage.cpp
+new file mode 100644
+index 0000000..c78730b
+--- /dev/null
++++ b/NitrokeyManagerStorage.cpp
+@@ -0,0 +1,173 @@
++#include "NitrokeyManagerStorage.h"
++
++namespace nitrokey{
++
++using nitrokey::misc::strcpyT;
++
++//storage commands
++
++void NitrokeyManager::send_startup(uint64_t seconds_from_epoch){
++  auto p = get_payload<stick20::SendStartup>();
++//      p.set_defaults(); //set current time
++  p.localtime = seconds_from_epoch;
++  stick20::SendStartup::CommandTransaction::run(device, p);
++}
++
++void NitrokeyManager::unlock_encrypted_volume(const char* user_pin){
++  misc::execute_password_command<stick20::EnableEncryptedPartition>(device, user_pin);
++}
++
++void NitrokeyManager::unlock_hidden_volume(const char* hidden_volume_password) {
++  misc::execute_password_command<stick20::EnableHiddenEncryptedPartition>(device, hidden_volume_password);
++}
++
++void NitrokeyManager::set_encrypted_volume_read_only(const char* admin_pin) {
++  misc::execute_password_command<stick20::SetEncryptedVolumeReadOnly>(device, admin_pin);
++}
++
++void NitrokeyManager::set_encrypted_volume_read_write(const char* admin_pin) {
++  misc::execute_password_command<stick20::SetEncryptedVolumeReadWrite>(device, admin_pin);
++}
++
++//TODO check is encrypted volume unlocked before execution
++//if not return library exception
++void NitrokeyManager::create_hidden_volume(uint8_t slot_nr, uint8_t start_percent, uint8_t end_percent,
++                                           const char *hidden_volume_password) {
++  auto p = get_payload<stick20::SetupHiddenVolume>();
++  p.SlotNr_u8 = slot_nr;
++  p.StartBlockPercent_u8 = start_percent;
++  p.EndBlockPercent_u8 = end_percent;
++  strcpyT(p.HiddenVolumePassword_au8, hidden_volume_password);
++  stick20::SetupHiddenVolume::CommandTransaction::run(device, p);
++}
++
++void NitrokeyManager::set_unencrypted_read_only_admin(const char* admin_pin) {
++  //from v0.49, v0.52+ it needs Admin PIN
++  if (set_unencrypted_volume_rorw_pin_type_user()){
++    LOG("set_unencrypted_read_only_admin is not supported for this version of Storage device. "
++        "Please update firmware to v0.52+. Doing nothing.", nitrokey::log::Loglevel::WARNING);
++    return;
++  }
++  misc::execute_password_command<stick20::SetUnencryptedVolumeReadOnlyAdmin>(device, admin_pin);
++}
++
++void NitrokeyManager::set_unencrypted_read_only(const char *user_pin) {
++  //until v0.48 (incl. v0.50 and v0.51) User PIN was sufficient
++  LOG("set_unencrypted_read_only is deprecated. Use set_unencrypted_read_only_admin instead.",
++      nitrokey::log::Loglevel::WARNING);
++  if (!set_unencrypted_volume_rorw_pin_type_user()){
++    LOG("set_unencrypted_read_only is not supported for this version of Storage device. Doing nothing.",
++        nitrokey::log::Loglevel::WARNING);
++    return;
++  }
++  misc::execute_password_command<stick20::SendSetReadonlyToUncryptedVolume>(device, user_pin);
++}
++
++void NitrokeyManager::set_unencrypted_read_write_admin(const char* admin_pin) {
++  //from v0.49, v0.52+ it needs Admin PIN
++  if (set_unencrypted_volume_rorw_pin_type_user()){
++    LOG("set_unencrypted_read_write_admin is not supported for this version of Storage device. "
++        "Please update firmware to v0.52+. Doing nothing.", nitrokey::log::Loglevel::WARNING);
++    return;
++  }
++  misc::execute_password_command<stick20::SetUnencryptedVolumeReadWriteAdmin>(device, admin_pin);
++}
++
++void NitrokeyManager::set_unencrypted_read_write(const char *user_pin) {
++  //until v0.48 (incl. v0.50 and v0.51) User PIN was sufficient
++  LOG("set_unencrypted_read_write is deprecated. Use set_unencrypted_read_write_admin instead.",
++      nitrokey::log::Loglevel::WARNING);
++  if (!set_unencrypted_volume_rorw_pin_type_user()){
++    LOG("set_unencrypted_read_write is not supported for this version of Storage device. Doing nothing.",
++        nitrokey::log::Loglevel::WARNING);
++    return;
++  }
++  misc::execute_password_command<stick20::SendSetReadwriteToUncryptedVolume>(device, user_pin);
++}
++
++bool NitrokeyManager::set_unencrypted_volume_rorw_pin_type_user(){
++  auto minor_firmware_version = get_minor_firmware_version();
++  return minor_firmware_version <= 48 || minor_firmware_version == 50 || minor_firmware_version == 51;
++}
++
++void NitrokeyManager::export_firmware(const char* admin_pin) {
++  misc::execute_password_command<stick20::ExportFirmware>(device, admin_pin);
++}
++
++void NitrokeyManager::enable_firmware_update(const char* firmware_pin) {
++  misc::execute_password_command<stick20::EnableFirmwareUpdate>(device, firmware_pin);
++}
++
++void NitrokeyManager::clear_new_sd_card_warning(const char* admin_pin) {
++  misc::execute_password_command<stick20::SendClearNewSdCardFound>(device, admin_pin);
++}
++
++void NitrokeyManager::fill_SD_card_with_random_data(const char* admin_pin) {
++  auto p = get_payload<stick20::FillSDCardWithRandomChars>();
++  p.set_defaults();
++  strcpyT(p.admin_pin, admin_pin);
++  stick20::FillSDCardWithRandomChars::CommandTransaction::run(device, p);
++}
++
++void NitrokeyManager::change_update_password(const char* current_update_password, const char* new_update_password) {
++  auto p = get_payload<stick20::ChangeUpdatePassword>();
++  strcpyT(p.current_update_password, current_update_password);
++  strcpyT(p.new_update_password, new_update_password);
++  stick20::ChangeUpdatePassword::CommandTransaction::run(device, p);
++}
++
++char * NitrokeyManager::get_status_storage_as_string(){
++  auto p = stick20::GetDeviceStatus::CommandTransaction::run(device);
++  return strndup(p.data().dissect().c_str(), max_string_field_length);
++}
++
++stick20::DeviceConfigurationResponsePacket::ResponsePayload NitrokeyManager::get_status_storage(){
++  auto p = stick20::GetDeviceStatus::CommandTransaction::run(device);
++  return p.data();
++}
++
++char * NitrokeyManager::get_SD_usage_data_as_string(){
++  auto p = stick20::GetSDCardOccupancy::CommandTransaction::run(device);
++  return strndup(p.data().dissect().c_str(), max_string_field_length);
++}
++
++std::pair<uint8_t,uint8_t> NitrokeyManager::get_SD_usage_data(){
++  auto p = stick20::GetSDCardOccupancy::CommandTransaction::run(device);
++  return std::make_pair(p.data().WriteLevelMin, p.data().WriteLevelMax);
++}
++
++int NitrokeyManager::get_progress_bar_value(){
++  try{
++    stick20::GetDeviceStatus::CommandTransaction::run(device);
++    return -1;
++  }
++  catch (LongOperationInProgressException &e){
++    return e.progress_bar_value;
++  }
++}
++
++
++void NitrokeyManager::lock_encrypted_volume() {
++  misc::execute_password_command<stick20::DisableEncryptedPartition>(device, "");
++}
++
++void NitrokeyManager::lock_hidden_volume() {
++  misc::execute_password_command<stick20::DisableHiddenEncryptedPartition>(device, "");
++}
++
++uint8_t NitrokeyManager::get_SD_card_size() {
++  auto data = stick20::ProductionTest::CommandTransaction::run(device);
++  return data.data().SD_Card_Size_u8;
++}
++
++
++void NitrokeyManager::wink(){
++  stick20::Wink::CommandTransaction::run(device);
++};
++
++stick20::ProductionTest::ResponsePayload NitrokeyManager::production_info(){
++  auto data = stick20::ProductionTest::CommandTransaction::run(device);
++  return data.data();
++};
++
++}
+\ No newline at end of file
+diff --git a/NitrokeyManagerStorage.h b/NitrokeyManagerStorage.h
+new file mode 100644
+index 0000000..a127bac
+--- /dev/null
++++ b/NitrokeyManagerStorage.h
+@@ -0,0 +1,6 @@
++#ifndef LIBNITROKEY_NITROKEYMANAGERSTORAGE_H
++#define LIBNITROKEY_NITROKEYMANAGERSTORAGE_H
++
++#include "NitrokeyManager.h"
++
++#endif // LIBNITROKEY_NITROKEYMANAGERSTORAGE_H
+diff --git a/README.md b/README.md
+index a3683c0..aa5ca1a 100644
+--- a/README.md
++++ b/README.md
+@@ -91,6 +91,7 @@ To use libnitrokey with Python a [CFFI](http://cffi.readthedocs.io/en/latest/ove
+ pip install --user cffi # for python 2.x
+ pip3 install cffi # for python 3.x
+ ```
++## Python2
+ Just import it, read the C API header and it is done! You have access to the library. Here is an example (in Python 2) printing HOTP code for Pro or Storage device, assuming it is run in root directory [(full example)](python_bindings_example.py):
+ ```python
+ #!/usr/bin/env python2
+@@ -158,6 +159,88 @@ print('Getting HOTP code from Nitrokey device: ')
+ print(hotp_slot_code)
+ libnitrokey.NK_logout()  # disconnect device
+ ```
++In case  no devices are connected, a friendly message will be printed.
++All available functions for C and Python are listed in [NK_C_API.h](NK_C_API.h). Please check `Documentation` section below.
++
++## Python3
++Just import it, read the C API header and it is done! You have access to the library. Here is an example (in Python 3) printing HOTP code for Pro or Storage device, assuming it is run in root directory [(full example)](python3_bindings_example.py):
++```python
++#!/usr/bin/env python3
++import cffi
++
++ffi = cffi.FFI()
++get_string = ffi.string
++
++def get_library():
++    fp = 'NK_C_API.h'  # path to C API header
++
++    declarations = []
++    with open(fp, 'r') as f:
++        declarations = f.readlines()
++
++    cnt = 0
++    a = iter(declarations)
++    for declaration in a:
++        if declaration.strip().startswith('NK_C_API'):
++            declaration = declaration.replace('NK_C_API', '').strip()
++            while ';' not in declaration:
++                declaration += (next(a)).strip()
++            # print(declaration)
++            ffi.cdef(declaration, override=True)
++            cnt +=1
++    print('Imported {} declarations'.format(cnt))
++
++
++    C = None
++    import os, sys
++    path_build = os.path.join(".", "build")
++    paths = [
++            os.environ.get('LIBNK_PATH', None),
++            os.path.join(path_build,"libnitrokey.so"),
++            os.path.join(path_build,"libnitrokey.dylib"),
++            os.path.join(path_build,"libnitrokey.dll"),
++            os.path.join(path_build,"nitrokey.dll"),
++    ]
++    for p in paths:
++        if not p: continue
++        print("Trying " +p)
++        p = os.path.abspath(p)
++        if os.path.exists(p):
++            print("Found: "+p)
++            C = ffi.dlopen(p)
++            break
++        else:
++            print("File does not exist: " + p)
++    if not C:
++        print("No library file found")
++        sys.exit(1)
++
++    return C
++
++
++def get_hotp_code(lib, i):
++    return lib.NK_get_hotp_code(i)
++
++def connect_device(lib):
++	# lib.NK_login('S'.encode('ascii'))  # connect only to Nitrokey Storage device
++	# lib.NK_login('P'.encode('ascii'))  # connect only to Nitrokey Pro device
++	device_connected = lib.NK_login_auto()  # connect to any Nitrokey Stick
++	if device_connected:
++		print('Connected to Nitrokey device!')
++	else:
++	    print('Could not connect to Nitrokey device!')
++	    exit()
++
++libnitrokey = get_library()
++libnitrokey.NK_set_debug(False)  # do not show debug messages (log library only)
++
++connect_device(libnitrokey)
++
++hotp_slot_code = get_hotp_code(libnitrokey, 1)
++print('Getting HOTP code from Nitrokey device: ')
++print(ffi.string(hotp_slot_code).decode('ascii'))
++libnitrokey.NK_logout()  # disconnect device
++```
+ 
+ In case  no devices are connected, a friendly message will be printed.
+ All available functions for C and Python are listed in [NK_C_API.h](NK_C_API.h). Please check `Documentation` section below.
+diff --git a/command_id.cc b/command_id.cc
+index 9a329bc..90f300f 100644
+--- a/command_id.cc
++++ b/command_id.cc
+@@ -26,6 +26,9 @@ namespace nitrokey {
+ namespace proto {
+ 
+ const char *commandid_to_string(CommandID id) {
++#ifdef NO_LOG
++  return "";
++#endif
+   switch (id) {
+     case CommandID::GET_STATUS:
+       return "GET_STATUS";
+diff --git a/data/41-nitrokey.rules b/data/41-nitrokey.rules
+index 0099edf..52074c3 100644
+--- a/data/41-nitrokey.rules
++++ b/data/41-nitrokey.rules
+@@ -29,6 +29,9 @@ ACTION!="add|change", GOTO="u2f_end"
+ KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2581", ATTRS{idProduct}=="f1d0", TAG+="uaccess"
+ # Nitrokey FIDO U2F
+ KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="4287", TAG+="uaccess"
++# Nitrokey FIDO2
++KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="42b1", TAG+="uaccess"
++
+ 
+ LABEL="u2f_end"
+ 
+diff --git a/data/41-nitrokey_old.rules b/data/41-nitrokey_old.rules
+index 1a34fa5..88e35f7 100644
+--- a/data/41-nitrokey_old.rules
++++ b/data/41-nitrokey_old.rules
+@@ -30,7 +30,8 @@ ACTION!="add|change", GOTO="u2f_end"
+ KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2581", ATTRS{idProduct}=="f1d0", MODE="0660", GROUP+="plugdev"
+ # Nitrokey FIDO U2F
+ KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="4287", MODE="0660", GROUP+="plugdev"
+-
++# Nitrokey FIDO2
++KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="20a0", ATTRS{idProduct}=="42b1", MODE="0660", GROUP+="plugdev"
+ LABEL="u2f_end"
+ 
+ 
+diff --git a/device.cc b/device.cc
+index bc42965..fc65feb 100644
+--- a/device.cc
++++ b/device.cc
+@@ -21,7 +21,6 @@
+ 
+ #include <chrono>
+ #include <codecvt>
+-#include <iostream>
+ #include <locale>
+ #include <thread>
+ #include <cstddef>
+@@ -45,14 +44,33 @@ const uint16_t nitrokey::device::NITROKEY_VID = 0x20a0;
+ const uint16_t nitrokey::device::NITROKEY_PRO_PID = 0x4108;
+ const uint16_t nitrokey::device::NITROKEY_STORAGE_PID = 0x4109;
+ 
++const uint16_t nitrokey::device::PURISM_VID = 0x316d;
++const uint16_t nitrokey::device::LIBREM_KEY_PID = 0x4c4b;
++
+ Option<DeviceModel> nitrokey::device::product_id_to_model(uint16_t product_id) {
+-  switch (product_id) {
++    return product_id_to_model(NITROKEY_VID, product_id);
++}
++
++Option<DeviceModel> nitrokey::device::product_id_to_model(uint16_t vendor_id, uint16_t product_id) {
++  switch (vendor_id) {
++  case NITROKEY_VID:
++    switch (product_id) {
+     case NITROKEY_PRO_PID:
+       return DeviceModel::PRO;
+     case NITROKEY_STORAGE_PID:
+       return DeviceModel::STORAGE;
+     default:
+       return {};
++    }
++  case PURISM_VID:
++    switch (product_id) {
++    case LIBREM_KEY_PID:
++      return DeviceModel::LIBREM;
++    default:
++      return {};
++    }
++  default:
++    return {};
+   }
+ }
+ 
+@@ -67,6 +85,9 @@ std::ostream& nitrokey::device::operator<<(std::ostream& stream, DeviceModel mod
+     case DeviceModel::STORAGE:
+       stream << "Storage";
+       break;
++    case DeviceModel::LIBREM:
++      stream << "Librem";
++      break;
+     default:
+       stream << "Unknown";
+       break;
+@@ -99,7 +120,9 @@ bool Device::disconnect() {
+ }
+ 
+ bool Device::_disconnect() {
+-  LOG(std::string(__FUNCTION__) + std::string(m_model == DeviceModel::PRO ? "PRO" : "STORAGE"), Loglevel::DEBUG_L2);
++  LOG(std::string(__FUNCTION__) +
++      std::string(m_model == DeviceModel::PRO ? "PRO" : (m_model == DeviceModel::STORAGE ? "STORAGE" : "LIBREM")),
++      Loglevel::DEBUG_L2);
+   LOG(std::string(__FUNCTION__) +  std::string(" *IN* "), Loglevel::DEBUG_L2);
+ 
+   if(mp_devhandle == nullptr) {
+@@ -204,27 +227,36 @@ int Device::recv(void *packet) {
+   return status;
+ }
+ 
+-std::vector<DeviceInfo> Device::enumerate(){
+-  auto pInfo = hid_enumerate(NITROKEY_VID, 0);
+-  auto pInfo_ = pInfo;
+-  std::vector<DeviceInfo> res;
+-  while (pInfo != nullptr){
+-    auto deviceModel = product_id_to_model(pInfo->product_id);
+-    if (deviceModel.has_value()) {
+-      std::string path(pInfo->path);
+-      std::wstring serialNumberW(pInfo->serial_number);
+-      std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+-      std::string serialNumber = converter.to_bytes(serialNumberW);
+-      DeviceInfo info = { deviceModel.value(), path, serialNumber };
+-      res.push_back(info);
++namespace {
++  void add_vendor_devices(std::vector<DeviceInfo>& res, uint16_t vendor_id){
++    auto pInfo = hid_enumerate(vendor_id, 0);
++    auto pInfo_ = pInfo;
++    while (pInfo != nullptr){
++      if (pInfo->path == nullptr || pInfo->serial_number == nullptr) {
++      continue;
++    }
++    auto deviceModel = product_id_to_model(vendor_id, pInfo->product_id);
++      if (deviceModel.has_value()) {
++	std::string path(pInfo->path);
++	std::wstring serialNumberW(pInfo->serial_number);
++	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
++	std::string serialNumber = converter.to_bytes(serialNumberW);
++	DeviceInfo info = { deviceModel.value(), path, serialNumber };
++	res.push_back(info);
++      }
++      pInfo = pInfo->next;
+     }
+-    pInfo = pInfo->next;
+-  }
+ 
+-  if (pInfo_ != nullptr){
+-    hid_free_enumeration(pInfo_);
++    if (pInfo_ != nullptr){
++      hid_free_enumeration(pInfo_);
++    }
+   }
++}
+ 
++std::vector<DeviceInfo> Device::enumerate(){
++  std::vector<DeviceInfo> res;
++  ::add_vendor_devices(res, NITROKEY_VID);
++  ::add_vendor_devices(res, PURISM_VID);
+   return res;
+ }
+ 
+@@ -234,6 +266,8 @@ std::shared_ptr<Device> Device::create(DeviceModel model) {
+       return std::make_shared<Stick10>();
+     case DeviceModel::STORAGE:
+       return std::make_shared<Stick20>();
++    case DeviceModel::LIBREM:
++      return std::make_shared<LibremKey>();
+     default:
+       return {};
+   }
+@@ -305,9 +339,20 @@ Stick20::Stick20():
+     setDefaultDelay();
+   }
+ 
++
++LibremKey::LibremKey():
++  Device(PURISM_VID, LIBREM_KEY_PID, DeviceModel::LIBREM, 100ms, 5, 100ms)
++  {
++    setDefaultDelay();
++  }
++
+ #include <sstream>
+ #define p(x) ss << #x << " " << x << ", ";
+ std::string Device::ErrorCounters::get_as_string() {
++#ifdef NO_LOG
++  return "";
++#endif
++
+   std::stringstream ss;
+   p(total_comm_runs);
+   p(communication_successful);
+diff --git a/libnitrokey/NitrokeyManager.h b/libnitrokey/NitrokeyManager.h
+index 33ede1b..20db98d 100644
+--- a/libnitrokey/NitrokeyManager.h
++++ b/libnitrokey/NitrokeyManager.h
+@@ -40,10 +40,16 @@ namespace nitrokey {
+     using namespace nitrokey::proto;
+     using namespace nitrokey::log;
+ 
++template <typename T>
++typename T::CommandPayload get_payload(){
++  //Create, initialize and return by value command payload
++  typename T::CommandPayload st;
++  bzero(&st, sizeof(st));
++  return st;
++}
+ 
+-#ifdef __WIN32
+-char * strndup(const char* str, size_t maxlen);
+-#endif
++#include "nk_strndup.h"
++constexpr int max_string_field_length = 2*1024; //storage's status string is ~1k
+ 
+     class NitrokeyManager {
+     public:
+@@ -104,6 +110,7 @@ char * strndup(const char* str, size_t maxlen);
+         stick10::GetStatus::ResponsePayload get_status();
+         string get_status_as_string();
+         string get_serial_number();
++        uint32_t get_serial_number_as_u32();
+ 
+         char * get_totp_slot_name(uint8_t slot_number);
+         char * get_hotp_slot_name(uint8_t slot_number);
+diff --git a/libnitrokey/device.h b/libnitrokey/device.h
+index d50080d..917e0d0 100644
+--- a/libnitrokey/device.h
++++ b/libnitrokey/device.h
+@@ -50,7 +50,8 @@ namespace device {
+ 
+ enum class DeviceModel{
+     PRO,
+-    STORAGE
++    STORAGE,
++    LIBREM
+ };
+ 
+ std::ostream& operator<<(std::ostream& stream, DeviceModel model);
+@@ -67,12 +68,21 @@ extern const uint16_t NITROKEY_PRO_PID;
+  * The USB product ID for the Nitrokey Storage.
+  */
+ extern const uint16_t NITROKEY_STORAGE_PID;
++/**
++ * The USB vendor ID for Purism devices.
++ */
++extern const uint16_t PURISM_VID;
++/**
++ * The USB product ID for the Librem Key.
++ */
++extern const uint16_t LIBREM_KEY_PID;
+ 
+ /**
+  * Convert the given USB product ID to a Nitrokey model.  If there is no model
+  * with that ID, return an absent value.
+  */
+ misc::Option<DeviceModel> product_id_to_model(uint16_t product_id);
++misc::Option<DeviceModel> product_id_to_model(uint16_t vendor_id, uint16_t product_id);
+ 
+ /**
+  * Information about a connected device.
+@@ -219,6 +229,12 @@ class Stick20 : public Device {
+  public:
+   Stick20();
+ };
++
++class LibremKey : public Device {
++ public:
++  LibremKey();
++};
++
+ }
+ }
+ #endif
+diff --git a/libnitrokey/device_proto.h b/libnitrokey/device_proto.h
+index 45a6c16..6ffe5fb 100644
+--- a/libnitrokey/device_proto.h
++++ b/libnitrokey/device_proto.h
+@@ -249,7 +249,7 @@ namespace nitrokey {
+               }
+               dev->m_counters.total_comm_runs++;
+ 
+-              int status;
++              int status = 0;
+               OutgoingPacket outp;
+               ResponsePacket resp;
+ 
+diff --git a/libnitrokey/log.h b/libnitrokey/log.h
+index 278b49c..eade68f 100644
+--- a/libnitrokey/log.h
++++ b/libnitrokey/log.h
+@@ -100,6 +100,7 @@ namespace nitrokey {
+ #ifdef NO_LOG
+ #define LOG(string, level) while(false){}
+ #define LOGD(string) while(false){}
++#define LOGD1(string) while(false){}
+ #else
+ #define LOG(string, level) nitrokey::log::Log::instance()((string), (level))
+ #define LOGD1(string) nitrokey::log::Log::instance()((string), (nitrokey::log::Loglevel::DEBUG_L1))
+diff --git a/libnitrokey/nk_strndup.h b/libnitrokey/nk_strndup.h
+new file mode 100644
+index 0000000..0c96726
+--- /dev/null
++++ b/libnitrokey/nk_strndup.h
+@@ -0,0 +1,9 @@
++#ifndef LIBNITROKEY_NK_STRNDUP_H
++#define LIBNITROKEY_NK_STRNDUP_H
++
++#ifdef __WIN32
++char * strndup(const char* str, size_t maxlen);
++#endif
++
++
++#endif // LIBNITROKEY_NK_STRNDUP_H
+diff --git a/meson.build b/meson.build
+index 600be6d..4ef2560 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1,6 +1,6 @@
+ project(
+   'libnitrokey', 'cpp',
+-  version : '3.4.1',
++  version : '3.5.0',
+   license : 'LGPL-3.0+',
+   default_options : [
+     'cpp_std=c++14'
+@@ -66,6 +66,13 @@ libnitrokey = library(
+     'NitrokeyManager.cc',
+     'NK_C_API.cc',
+     'DeviceCommunicationExceptions.cpp',
++    'NitrokeyManagerStorage.cpp',
++    'NitrokeyManagerStorage.h',
++    'NitrokeyManagerOTP.cc',
++    'NitrokeyManagerOTP.h',
++    'NitrokeyManagerPWS.h',
++    'NitrokeyManagerPWS.cc',
++    'NK_C_API_storage.cpp',
+   ],
+   include_directories : [
+     inc_libnitrokey,
+@@ -150,12 +157,16 @@ if get_option('offline-tests')
+ endif
+ if get_option('tests')
+   tests += [
+-    ['test_C_API',  'test_C_API.cpp'],
+-    ['test1',       'test1.cc'],
+-    ['test2',       'test2.cc'],
+-    ['test3',       'test3.cc'],
+-    ['test_HOTP',   'test_HOTP.cc'],
+-    ['test_issues', 'test_issues.cc'],
++    ['test_C_API',            'test_C_API.cpp'],
++    ['test1',                 'test1.cc'],
++    ['test2',                 'test2.cc'],
++    ['test3',                 'test3.cc'],
++    ['test_HOTP',             'test_HOTP.cc'],
++    ['test_memory',           'test_memory.c'],
++    ['test_issues',           'test_issues.cc'],
++    ['test_multiple_devices', 'test_multiple_devices.cc'],
++    ['test_strdup',           'test_strdup.cpp'],
++    ['test_safe',             'test_safe.cpp'],
+   ]
+ endif
+ foreach tst : tests
+diff --git a/nk_strndup.c b/nk_strndup.c
+new file mode 100644
+index 0000000..e24c584
+--- /dev/null
++++ b/nk_strndup.c
+@@ -0,0 +1,14 @@
++#include "nk_strndup.h"
++
++#ifndef strndup
++#ifdef _WIN32
++#pragma message "Using own strndup"
++char * strndup(const char* str, size_t maxlen){
++  size_t len = strnlen(str, maxlen);
++  char* dup = (char *) malloc(len + 1);
++  memcpy(dup, str, len);
++  dup[len] = 0;
++  return dup;
++}
++#endif
++#endif
+\ No newline at end of file
+diff --git a/python3_bindings_example.py b/python3_bindings_example.py
+new file mode 100644
+index 0000000..fb24eff
+--- /dev/null
++++ b/python3_bindings_example.py
+@@ -0,0 +1,157 @@
++#!/usr/bin/env python3
++"""
++Copyright (c) 2015-2018 Nitrokey UG
++
++This file is part of libnitrokey.
++
++libnitrokey is free software: you can redistribute it and/or modify
++it under the terms of the GNU Lesser General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++any later version.
++
++libnitrokey is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU Lesser General Public License
++along with libnitrokey. If not, see <http://www.gnu.org/licenses/>.
++
++SPDX-License-Identifier: LGPL-3.0
++"""
++
++import cffi
++from enum import Enum
++
++"""
++This example will print 10 HOTP codes from just written HOTP#2 slot.
++For more examples of use please refer to unittest/test_*.py files.
++"""
++
++ffi = cffi.FFI()
++get_string = ffi.string
++
++class DeviceErrorCode(Enum):
++    STATUS_OK = 0
++    NOT_PROGRAMMED = 3
++    WRONG_PASSWORD = 4
++    STATUS_NOT_AUTHORIZED = 5
++    STATUS_AES_DEC_FAILED = 0xa
++
++
++def get_library():
++    fp = 'NK_C_API.h'  # path to C API header
++
++    declarations = []
++    with open(fp, 'r') as f:
++        declarations = f.readlines()
++
++    cnt = 0
++    a = iter(declarations)
++    for declaration in a:
++        if declaration.strip().startswith('NK_C_API'):
++            declaration = declaration.replace('NK_C_API', '').strip()
++            while ';' not in declaration:
++                declaration += (next(a)).strip()
++            # print(declaration)
++            ffi.cdef(declaration, override=True)
++            cnt +=1
++    print('Imported {} declarations'.format(cnt))
++
++
++    C = None
++    import os, sys
++    path_build = os.path.join(".", "build")
++    paths = [
++            os.environ.get('LIBNK_PATH', None),
++            os.path.join(path_build,"libnitrokey.so"),
++            os.path.join(path_build,"libnitrokey.dylib"),
++            os.path.join(path_build,"libnitrokey.dll"),
++            os.path.join(path_build,"nitrokey.dll"),
++    ]
++    for p in paths:
++        if not p: continue
++        print("Trying " +p)
++        p = os.path.abspath(p)
++        if os.path.exists(p):
++            print("Found: "+p)
++            C = ffi.dlopen(p)
++            break
++        else:
++            print("File does not exist: " + p)
++    if not C:
++        print("No library file found")
++        print("Please set the path using LIBNK_PATH environment variable to existing library or compile it (see "
++              "README.md for details)")
++        sys.exit(1)
++
++    return C
++
++
++def get_hotp_code(lib, i):
++    return get_string(lib.NK_get_hotp_code(i))
++
++def to_hex(ss):
++    return ''.join([ format(ord(s),'02x') for s in ss ])
++
++print('Warning!')
++print('This example will change your configuration on inserted stick and overwrite your HOTP#2 slot.')
++print('Please write "continue" to continue or any other string to quit')
++a = input()
++
++if not a == 'continue':
++    exit()
++
++ADMIN = input('Please enter your admin PIN (empty string uses 12345678) ')
++ADMIN = ADMIN or '12345678'  # use default if empty string
++
++show_log = input('Should log messages be shown (please write "yes" to enable; this will make harder reading script output) ') == 'yes'
++libnitrokey = get_library()
++
++if show_log:
++    log_level = input('Please select verbosity level (0-5, 2 is library default, 3 will be selected on empty input) ')
++    log_level = log_level or '3'
++    log_level = int(log_level)
++    libnitrokey.NK_set_debug_level(log_level)
++else:
++    libnitrokey.NK_set_debug_level(2)
++
++
++ADMIN_TEMP = '123123123'
++RFC_SECRET = to_hex('12345678901234567890')
++
++# libnitrokey.NK_login('S')  # connect only to Nitrokey Storage device
++# libnitrokey.NK_login('P')  # connect only to Nitrokey Pro device
++device_connected = libnitrokey.NK_login_auto()  # connect to any Nitrokey Stick
++if device_connected:
++    print('Connected to Nitrokey device!')
++else:
++    print('Could not connect to Nitrokey device!')
++    exit()
++
++use_8_digits = True
++pin_correct = libnitrokey.NK_first_authenticate(ADMIN.encode('ascii'), ADMIN_TEMP.encode('ascii')) == DeviceErrorCode.STATUS_OK.value
++if pin_correct:
++    print('Your PIN is correct!')
++else:
++    print('Your PIN is not correct! Please try again. Please be careful to not lock your stick!')
++    retry_count_left = libnitrokey.NK_get_admin_retry_count()
++    print('Retry count left: %d' % retry_count_left )
++    exit()
++
++# For function parameters documentation please check NK_C_API.h
++assert libnitrokey.NK_write_config(255, 255, 255, False, True, ADMIN_TEMP.encode('ascii')) == DeviceErrorCode.STATUS_OK.value
++libnitrokey.NK_first_authenticate(ADMIN.encode('ascii'), ADMIN_TEMP.encode('ascii'))
++libnitrokey.NK_write_hotp_slot(1, 'python_test'.encode('ascii'), RFC_SECRET.encode('ascii'), 0, use_8_digits, False, False, "".encode('ascii'),
++                            ADMIN_TEMP.encode('ascii'))
++# RFC test according to: https://tools.ietf.org/html/rfc4226#page-32
++test_data = [
++    1284755224, 1094287082, 137359152, 1726969429, 1640338314, 868254676, 1918287922, 82162583, 673399871,
++    645520489,
++]
++print('Getting HOTP code from Nitrokey Stick (RFC test, 8 digits): ')
++for i in range(10):
++    hotp_slot_1_code = get_hotp_code(libnitrokey, 1)
++    correct_str =  "correct!" if hotp_slot_1_code.decode('ascii') == str(test_data[i])[-8:] else  "not correct"
++    print('%d: %s, should be %s -> %s' % (i, hotp_slot_1_code.decode('ascii'), str(test_data[i])[-8:], correct_str))
++libnitrokey.NK_logout()  # disconnect device
+diff --git a/unittest/conftest.py b/unittest/conftest.py
+index 49b4f02..17d9ef5 100644
+--- a/unittest/conftest.py
++++ b/unittest/conftest.py
+@@ -20,6 +20,7 @@ SPDX-License-Identifier: LGPL-3.0
+ """
+ 
+ import pytest
++import os, sys
+ 
+ from misc import ffi, gs
+ 
+@@ -82,47 +83,8 @@ def C(request=None):
+ 
+ 
+ def get_library(request, allow_offline=False):
+-    fp = '../NK_C_API.h'
+-
+-    declarations = []
+-    with open(fp, 'r') as f:
+-        declarations = f.readlines()
+-
+-    cnt = 0
+-    a = iter(declarations)
+-    for declaration in a:
+-        if declaration.strip().startswith('NK_C_API') \
+-                or declaration.strip().startswith('struct'):
+-            declaration = declaration.replace('NK_C_API', '').strip()
+-            while ');' not in declaration and '};' not in declaration:
+-                declaration += (next(a)).strip()+'\n'
+-            ffi.cdef(declaration, override=True)
+-            cnt += 1
+-    print('Imported {} declarations'.format(cnt))
+-
+-    C = None
+-    import os, sys
+-    path_build = os.path.join("..", "build")
+-    paths = [
+-            os.environ.get('LIBNK_PATH', None),
+-            os.path.join(path_build,"libnitrokey.so"),
+-            os.path.join(path_build,"libnitrokey.dylib"),
+-            os.path.join(path_build,"libnitrokey.dll"),
+-            os.path.join(path_build,"nitrokey.dll"),
+-    ]
+-    for p in paths:
+-        if not p: continue
+-        print("Trying " +p)
+-        p = os.path.abspath(p)
+-        if os.path.exists(p):
+-            print("Found: "+p)
+-            C = ffi.dlopen(p)
+-            break
+-        else:
+-            print("File does not exist: " + p)
+-    if not C:
+-        print("No library file found")
+-        sys.exit(1)
++    library_read_declarations()
++    C = library_open_lib()
+ 
+     C.NK_set_debug_level(int(os.environ.get('LIBNK_DEBUG', 2)))
+ 
+@@ -155,3 +117,63 @@ def get_library(request, allow_offline=False):
+ 
+     return AttrProxy(C, "libnitrokey C")
+ 
++
++def library_open_lib():
++    C = None
++    path_build = os.path.join("..", "build")
++    paths = [
++        os.environ.get('LIBNK_PATH', None),
++        os.path.join(path_build, "libnitrokey.so"),
++        os.path.join(path_build, "libnitrokey.dylib"),
++        os.path.join(path_build, "libnitrokey.dll"),
++        os.path.join(path_build, "nitrokey.dll"),
++    ]
++    for p in paths:
++        if not p: continue
++        print("Trying " + p)
++        p = os.path.abspath(p)
++        if os.path.exists(p):
++            print("Found: " + p)
++            C = ffi.dlopen(p)
++            break
++        else:
++            print("File does not exist: " + p)
++    if not C:
++        print("No library file found")
++        sys.exit(1)
++    return C
++
++
++def library_read_declarations():
++    fp = '../NK_C_API.h'
++    declarations = []
++    with open(fp, 'r') as f:
++        declarations = f.readlines()
++    cnt = 0
++    a = iter(declarations)
++    for declaration in a:
++        if declaration.strip().startswith('NK_C_API') \
++                or declaration.strip().startswith('struct'):
++            declaration = declaration.replace('NK_C_API', '').strip()
++            while ');' not in declaration and '};' not in declaration:
++                declaration += (next(a)).strip() + '\n'
++            ffi.cdef(declaration, override=True)
++            cnt += 1
++    print('Imported {} declarations'.format(cnt))
++
++
++def pytest_addoption(parser):
++    parser.addoption("--run-skipped", action="store_true",
++                     help="run the tests skipped by default, e.g. adding side effects")
++
++def pytest_runtest_setup(item):
++    if 'skip_by_default' in item.keywords and not item.config.getoption("--run-skipped"):
++        pytest.skip("need --run-skipped option to run this test")
++
++
++def library_device_reconnect(C):
++    C.NK_logout()
++    C = library_open_lib()
++    C.NK_logout()
++    assert C.NK_login_auto() == 1, 'Device not found'
++    return C
+\ No newline at end of file
+diff --git a/unittest/constants.py b/unittest/constants.py
+index 645ef6a..4047f59 100644
+--- a/unittest/constants.py
++++ b/unittest/constants.py
+@@ -18,12 +18,7 @@ along with libnitrokey. If not, see <http://www.gnu.org/licenses/>.
+ 
+ SPDX-License-Identifier: LGPL-3.0
+ """
+-
+-from misc import to_hex
+-
+-def bb(x):
+-    return bytes(x, encoding='ascii')
+-
++from misc import to_hex, bb
+ 
+ RFC_SECRET_HR = '12345678901234567890'
+ RFC_SECRET = to_hex(RFC_SECRET_HR)  # '31323334353637383930...'
+@@ -39,6 +34,9 @@ class DefaultPasswords:
+     USER_TEMP = b'234234234'
+     UPDATE = b'12345678'
+     UPDATE_TEMP = b'123update123'
++    UPDATE_LONG = b'1234567890'*2
++    UPDATE_TOO_LONG = UPDATE_LONG + b'x'
++    UPDATE_TOO_SHORT = UPDATE_LONG[:7]
+ 
+ 
+ class DeviceErrorCode:
+@@ -49,6 +47,7 @@ class DeviceErrorCode:
+     STATUS_NOT_AUTHORIZED = 5
+     STATUS_AES_DEC_FAILED = 0xa
+     STATUS_UNKNOWN_ERROR = 100
++    STATUS_DISCONNECTED = 255
+ 
+ 
+ class LibraryErrors:
+@@ -59,4 +58,5 @@ class LibraryErrors:
+ 
+ 
+ HOTP_slot_count = 3
+-TOTP_slot_count = 15
+\ No newline at end of file
++TOTP_slot_count = 15
++PWS_SLOT_COUNT = 16
+diff --git a/unittest/helpers.py b/unittest/helpers.py
+new file mode 100644
+index 0000000..90c818e
+--- /dev/null
++++ b/unittest/helpers.py
+@@ -0,0 +1,51 @@
++from constants import DeviceErrorCode, PWS_SLOT_COUNT, DefaultPasswords
++from misc import gs, bb
++
++
++def helper_fill(str_to_fill, target_width):
++    assert target_width >= len(str_to_fill)
++    numbers = '1234567890' * 4
++    str_to_fill += numbers[:target_width - len(str_to_fill)]
++    assert len(str_to_fill) == target_width
++    return bb(str_to_fill)
++
++
++def helper_PWS_get_pass(suffix):
++    return helper_fill('pass' + suffix, 20)
++
++
++def helper_PWS_get_loginname(suffix):
++    return helper_fill('login' + suffix, 32)
++
++
++def helper_PWS_get_slotname(suffix):
++    return helper_fill('slotname' + suffix, 11)
++
++
++def helper_check_device_for_data(C):
++    assert C.NK_lock_device() == DeviceErrorCode.STATUS_OK
++    assert C.NK_enable_password_safe(DefaultPasswords.USER) == DeviceErrorCode.STATUS_OK
++
++    for i in range(0, PWS_SLOT_COUNT):
++        iss = str(i)
++        assert gs(C.NK_get_password_safe_slot_name(i)) == helper_PWS_get_slotname(iss)
++        assert gs(C.NK_get_password_safe_slot_login(i)) == helper_PWS_get_loginname(iss)
++        assert gs(C.NK_get_password_safe_slot_password(i)) == helper_PWS_get_pass(iss)
++    return True
++
++
++def helper_populate_device(C):
++    # FIXME use object with random data, and check against it
++    # FIXME generate OTP as well, and check codes against its secrets
++    assert C.NK_lock_device() == DeviceErrorCode.STATUS_OK
++    res = C.NK_enable_password_safe(DefaultPasswords.USER)
++    if res != DeviceErrorCode.STATUS_OK:
++        assert C.NK_build_aes_key(DefaultPasswords.ADMIN) == DeviceErrorCode.STATUS_OK
++        assert C.NK_enable_password_safe(DefaultPasswords.USER) == DeviceErrorCode.STATUS_OK
++
++    for i in range(0, PWS_SLOT_COUNT):
++        iss = str(i)
++        assert C.NK_write_password_safe_slot(i,
++                                             helper_PWS_get_slotname(iss), helper_PWS_get_loginname(iss),
++                                             helper_PWS_get_pass(iss)) == DeviceErrorCode.STATUS_OK
++    return True
+diff --git a/unittest/misc.py b/unittest/misc.py
+index e9e1753..6a0d486 100644
+--- a/unittest/misc.py
++++ b/unittest/misc.py
+@@ -72,3 +72,7 @@ def is_long_OTP_secret_handled(C):
+ 
+ def has_binary_counter(C):
+     return (not is_storage(C)) or (is_storage(C) and get_devices_firmware_version(C) >= 54)
++
++
++def bb(x):
++    return bytes(x, encoding='ascii')
+\ No newline at end of file
+diff --git a/unittest/requirements.txt b/unittest/requirements.txt
+index 6d718ad..d8a7e29 100644
+--- a/unittest/requirements.txt
++++ b/unittest/requirements.txt
+@@ -1,4 +1,5 @@
+ cffi
++pytest
+ pytest-repeat
+ pytest-randomly
+ tqdm
+diff --git a/unittest/test_memory.c b/unittest/test_memory.c
+new file mode 100644
+index 0000000..20b11b2
+--- /dev/null
++++ b/unittest/test_memory.c
+@@ -0,0 +1,63 @@
++/*
++ * Copyright (c) 2020 Nitrokey UG
++ *
++ * This file is part of libnitrokey.
++ *
++ * libnitrokey is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * any later version.
++ *
++ * libnitrokey is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with libnitrokey. If not, see <http://www.gnu.org/licenses/>.
++ *
++ * SPDX-License-Identifier: LGPL-3.0
++ */
++
++#include <stdlib.h>
++#include "../NK_C_API.h"
++
++// This test should be run with valgrind to make sure that there are no
++// memory leaks in the tested functions:
++//     valgrind ./test_memory
++int main() {
++	int result = NK_login_auto();
++	if (result != 1)
++		return 1;
++  
++	int retry_count = NK_get_admin_retry_count();
++	if (retry_count != 3)
++		return 1;
++	retry_count = NK_get_user_retry_count();
++	if (retry_count != 3)
++		return 1;
++
++	enum NK_device_model model = NK_get_device_model();
++	if (model != NK_PRO && model != NK_STORAGE)
++		return 1;
++
++	uint8_t *config = NK_read_config();
++	if (config == NULL)
++		return 1;
++	NK_free_config(config);
++
++	result = NK_enable_password_safe("123456");
++	if (result != 0)
++		return 1;
++
++	uint8_t *slot_status = NK_get_password_safe_slot_status();
++	if (slot_status == NULL) {
++		return 1;
++	}
++	NK_free_password_safe_slot_status(slot_status);
++
++	NK_logout();
++
++	return 0;
++}
++
+diff --git a/unittest/test_multiple.py b/unittest/test_multiple.py
+index 821a3b7..96b23d7 100644
+--- a/unittest/test_multiple.py
++++ b/unittest/test_multiple.py
+@@ -28,8 +28,8 @@ from collections import defaultdict
+ from tqdm import tqdm
+ 
+ from conftest import skip_if_device_version_lower_than
+-from constants import DefaultPasswords, DeviceErrorCode, bb
+-from misc import gs, wait, ffi
++from constants import DefaultPasswords, DeviceErrorCode
++from misc import gs, wait, ffi, bb
+ 
+ pprint = pprint.PrettyPrinter(indent=4).pprint
+ 
+diff --git a/unittest/test_offline.cc b/unittest/test_offline.cc
+index 320ad48..3ca3905 100644
+--- a/unittest/test_offline.cc
++++ b/unittest/test_offline.cc
+@@ -66,6 +66,10 @@ TEST_CASE("Test C++ side behaviour in offline", "[fast]") {
+   REQUIRE_NOTHROW (serial_number = i->get_serial_number());
+   REQUIRE(serial_number.empty());
+ 
++  REQUIRE_THROWS_AS(
++    i->get_serial_number_as_u32(), DeviceNotConnected
++  );
++
+   REQUIRE_THROWS_AS(
+     i->get_status(), DeviceNotConnected
+   );
+diff --git a/unittest/test_pro.py b/unittest/test_pro.py
+index 5162365..0d8c536 100644
+--- a/unittest/test_pro.py
++++ b/unittest/test_pro.py
+@@ -22,9 +22,10 @@ SPDX-License-Identifier: LGPL-3.0
+ import pytest
+ 
+ from conftest import skip_if_device_version_lower_than
+-from constants import DefaultPasswords, DeviceErrorCode, RFC_SECRET, bb, bbRFC_SECRET, LibraryErrors, HOTP_slot_count, \
++from constants import DefaultPasswords, DeviceErrorCode, RFC_SECRET, bbRFC_SECRET, LibraryErrors, HOTP_slot_count, \
+     TOTP_slot_count
+-from misc import ffi, gs, wait, cast_pointer_to_tuple, has_binary_counter
++from helpers import helper_PWS_get_slotname, helper_PWS_get_loginname, helper_PWS_get_pass
++from misc import ffi, gs, wait, cast_pointer_to_tuple, has_binary_counter, bb
+ from misc import is_storage
+ 
+ @pytest.mark.lock_device
+@@ -50,37 +51,21 @@ def test_write_password_safe_slot(C):
+ @pytest.mark.PWS
+ @pytest.mark.slowtest
+ def test_write_all_password_safe_slots_and_read_10_times(C):
+-    def fill(s, wid):
+-        assert wid >= len(s)
+-        numbers = '1234567890'*4
+-        s += numbers[:wid-len(s)]
+-        assert len(s) == wid
+-        return bb(s)
+-
+-    def get_pass(suffix):
+-        return fill('pass' + suffix, 20)
+-
+-    def get_loginname(suffix):
+-        return fill('login' + suffix, 32)
+-
+-    def get_slotname(suffix):
+-        return fill('slotname' + suffix, 11)
+-
+     assert C.NK_lock_device() == DeviceErrorCode.STATUS_OK
+     assert C.NK_enable_password_safe(DefaultPasswords.USER) == DeviceErrorCode.STATUS_OK
+     PWS_slot_count = 16
+     for i in range(0, PWS_slot_count):
+         iss = str(i)
+         assert C.NK_write_password_safe_slot(i,
+-                                             get_slotname(iss), get_loginname(iss),
+-                                             get_pass(iss)) == DeviceErrorCode.STATUS_OK
++                                             helper_PWS_get_slotname(iss), helper_PWS_get_loginname(iss),
++                                             helper_PWS_get_pass(iss)) == DeviceErrorCode.STATUS_OK
+ 
+     for j in range(0, 10):
+         for i in range(0, PWS_slot_count):
+             iss = str(i)
+-            assert gs(C.NK_get_password_safe_slot_name(i)) == get_slotname(iss)
+-            assert gs(C.NK_get_password_safe_slot_login(i)) == get_loginname(iss)
+-            assert gs(C.NK_get_password_safe_slot_password(i)) == get_pass(iss)
++            assert gs(C.NK_get_password_safe_slot_name(i)) == helper_PWS_get_slotname(iss)
++            assert gs(C.NK_get_password_safe_slot_login(i)) == helper_PWS_get_loginname(iss)
++            assert gs(C.NK_get_password_safe_slot_password(i)) == helper_PWS_get_pass(iss)
+ 
+ 
+ @pytest.mark.lock_device
+@@ -88,22 +73,6 @@ def test_write_all_password_safe_slots_and_read_10_times(C):
+ @pytest.mark.slowtest
+ @pytest.mark.xfail(reason="This test should be run directly after test_write_all_password_safe_slots_and_read_10_times")
+ def test_read_all_password_safe_slots_10_times(C):
+-    def fill(s, wid):
+-        assert wid >= len(s)
+-        numbers = '1234567890'*4
+-        s += numbers[:wid-len(s)]
+-        assert len(s) == wid
+-        return bb(s)
+-
+-    def get_pass(suffix):
+-        return fill('pass' + suffix, 20)
+-
+-    def get_loginname(suffix):
+-        return fill('login' + suffix, 32)
+-
+-    def get_slotname(suffix):
+-        return fill('slotname' + suffix, 11)
+-
+     assert C.NK_lock_device() == DeviceErrorCode.STATUS_OK
+     assert C.NK_enable_password_safe(DefaultPasswords.USER) == DeviceErrorCode.STATUS_OK
+     PWS_slot_count = 16
+@@ -111,9 +80,9 @@ def test_read_all_password_safe_slots_10_times(C):
+     for j in range(0, 10):
+         for i in range(0, PWS_slot_count):
+             iss = str(i)
+-            assert gs(C.NK_get_password_safe_slot_name(i)) == get_slotname(iss)
+-            assert gs(C.NK_get_password_safe_slot_login(i)) == get_loginname(iss)
+-            assert gs(C.NK_get_password_safe_slot_password(i)) == get_pass(iss)
++            assert gs(C.NK_get_password_safe_slot_name(i)) == helper_PWS_get_slotname(iss)
++            assert gs(C.NK_get_password_safe_slot_login(i)) == helper_PWS_get_loginname(iss)
++            assert gs(C.NK_get_password_safe_slot_password(i)) == helper_PWS_get_pass(iss)
+ 
+ 
+ @pytest.mark.lock_device
+@@ -434,7 +403,8 @@ def test_HOTP_64bit_counter(C):
+ 
+ def helper_set_HOTP_test_slot(C, slot_number):
+     assert C.NK_first_authenticate(DefaultPasswords.ADMIN, DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+-    assert C.NK_write_hotp_slot(slot_number, b'python_test', bbRFC_SECRET, 0, False, False, True, b'', DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
++    slot_name = b'HOTP_test'[:-2] + '{:02}'.format(slot_number).encode()
++    assert C.NK_write_hotp_slot(slot_number, slot_name, bbRFC_SECRET, 0, False, False, True, b'', DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+ 
+ 
+ def helper_set_TOTP_test_slot(C, slot_number):
+@@ -443,7 +413,8 @@ def helper_set_TOTP_test_slot(C, slot_number):
+     assert C.NK_write_config(255, 255, 255, PIN_protection, not PIN_protection,
+                              DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+     assert C.NK_first_authenticate(DefaultPasswords.ADMIN, DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+-    assert C.NK_write_totp_slot(slot_number, b'python_test', bbRFC_SECRET, 30, False, False, False, b'',
++    slot_name = b'TOTP_test'[:-2] + '{:02}'.format(slot_number).encode()
++    assert C.NK_write_totp_slot(slot_number, slot_name, bbRFC_SECRET, 30, False, False, False, b'',
+                                 DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+ 
+ 
+@@ -676,6 +647,30 @@ def test_read_write_config(C):
+     config = cast_pointer_to_tuple(config_raw_data, 'uint8_t', 5)
+     assert config == (0, 1, 2, True, False)
+ 
++    # use structs: read I
++    config_st = ffi.new('struct NK_config *')
++    if not config_st:
++        raise Exception("Could not allocate config")
++    assert C.NK_read_config_struct(config_st) == DeviceErrorCode.STATUS_OK
++    assert config_st.numlock == 0
++    assert config_st.capslock == 1
++    assert config_st.scrolllock == 2
++    assert config_st.enable_user_password
++    assert not config_st.disable_user_password
++
++    # use structs: write
++    config_st.numlock = 3
++    assert C.NK_write_config_struct(config_st[0], DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
++
++    # use structs: read II
++    err = C.NK_read_config_struct(config_st)
++    assert err == 0
++    assert config_st.numlock == 3
++    assert config_st.capslock == 1
++    assert config_st.scrolllock == 2
++    assert config_st.enable_user_password
++    assert not config_st.disable_user_password
++
+     # restore defaults and check
+     assert C.NK_first_authenticate(DefaultPasswords.ADMIN, DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+     assert C.NK_write_config(255, 255, 255, False, True, DefaultPasswords.ADMIN_TEMP) == DeviceErrorCode.STATUS_OK
+@@ -733,6 +728,13 @@ def test_get_serial_number(C):
+     print(('Serial number of the device: ', sn))
+ 
+ 
++@pytest.mark.status
++def test_get_serial_number_as_u32(C):
++    sn = C.NK_device_serial_number_as_u32()
++    assert sn > 0
++    print(('Serial number of the device (u32): ', sn))
++
++
+ @pytest.mark.otp
+ @pytest.mark.parametrize("secret", ['000001', '00'*10+'ff', '00'*19+'ff', '000102',
+                                     '00'*29+'ff', '00'*39+'ff', '002EF43F51AFA97BA2B46418768123C9E1809A5B' ])
+@@ -975,31 +977,6 @@ def test_get_device_model(C):
+     # assert C.NK_get_device_model() != C.NK_DISCONNECTED
+ 
+ 
+-@pytest.mark.firmware
+-def test_bootloader_password_change_pro(C):
+-    skip_if_device_version_lower_than({'P': 11})
+-    assert C.NK_change_firmware_password_pro(b'zxcasd', b'zxcasd') == DeviceErrorCode.WRONG_PASSWORD
+-
+-    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE_TEMP) == DeviceErrorCode.STATUS_OK
+-    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE_TEMP, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
+-
+-
+-@pytest.mark.firmware
+-def test_bootloader_run_pro(C):
+-    skip_if_device_version_lower_than({'P': 11})
+-    assert C.NK_enable_firmware_update_pro(DefaultPasswords.UPDATE_TEMP) == DeviceErrorCode.WRONG_PASSWORD
+-    # Not enabled due to lack of side-effect removal at this point
+-    # assert C.NK_enable_firmware_update_pro(DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
+-
+-
+-@pytest.mark.firmware
+-def test_bootloader_password_change_pro_too_long(C):
+-    skip_if_device_version_lower_than({'P': 11})
+-    long_string = b'a' * 100
+-    assert C.NK_change_firmware_password_pro(long_string, long_string) == LibraryErrors.TOO_LONG_STRING
+-    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, long_string) == LibraryErrors.TOO_LONG_STRING
+-
+-
+ @pytest.mark.otp
+ @pytest.mark.parametrize('counter_mid', [10**3-1, 10**4-1, 10**7-1, 10**8-10, 2**16, 2**31-1, 2**32-1, 2**33, 2**50, 2**60, 2**63])  # 2**64-1
+ def test_HOTP_counter_getter(C, counter_mid: int):
+@@ -1092,4 +1069,4 @@ def test_OTP_all_rw(C):
+             this_loop_codes.append(('H', i, code))
+         all_codes.append(this_loop_codes)
+     from pprint import pprint
+-    pprint(all_codes)
+\ No newline at end of file
++    pprint(all_codes)
+diff --git a/unittest/test_pro_bootloader.py b/unittest/test_pro_bootloader.py
+new file mode 100644
+index 0000000..4cb7470
+--- /dev/null
++++ b/unittest/test_pro_bootloader.py
+@@ -0,0 +1,71 @@
++import pytest
++
++from conftest import skip_if_device_version_lower_than, library_device_reconnect
++from constants import DefaultPasswords, DeviceErrorCode, LibraryErrors
++from helpers import helper_populate_device, helper_check_device_for_data
++
++
++@pytest.mark.firmware
++def test_bootloader_password_change_pro_length(C):
++    skip_if_device_version_lower_than({'P': 11})
++
++    # Test whether the correct password is set
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
++    # Change to the longest possible password
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE_LONG) == DeviceErrorCode.STATUS_OK
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE_LONG, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
++    # Use longer or shorter passwords than possible
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE_TOO_LONG) == LibraryErrors.TOO_LONG_STRING
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE_TOO_SHORT) == DeviceErrorCode.WRONG_PASSWORD
++
++
++
++@pytest.mark.firmware
++def test_bootloader_password_change_pro(C):
++    skip_if_device_version_lower_than({'P': 11})
++    assert C.NK_change_firmware_password_pro(b'zxcasd', b'zxcasd') == DeviceErrorCode.WRONG_PASSWORD
++
++    # Revert effects of broken test run, if needed
++    C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE_TEMP, DefaultPasswords.UPDATE)
++
++    # Change to the same password
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
++    # Change password
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, DefaultPasswords.UPDATE_TEMP) == DeviceErrorCode.STATUS_OK
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE_TEMP, DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_OK
++
++
++@pytest.mark.firmware
++def test_bootloader_run_pro_wrong_password(C):
++    skip_if_device_version_lower_than({'P': 11})
++    assert C.NK_enable_firmware_update_pro(DefaultPasswords.UPDATE_TEMP) == DeviceErrorCode.WRONG_PASSWORD
++
++
++@pytest.mark.skip_by_default
++@pytest.mark.firmware
++def test_bootloader_run_pro_real(C):
++    skip_if_device_version_lower_than({'P': 11})
++    # Not enabled due to lack of side-effect removal at this point
++    assert C.NK_enable_firmware_update_pro(DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_DISCONNECTED
++
++
++@pytest.mark.firmware
++def test_bootloader_password_change_pro_too_long(C):
++    skip_if_device_version_lower_than({'P': 11})
++    long_string = b'a' * 100
++    assert C.NK_change_firmware_password_pro(long_string, long_string) == LibraryErrors.TOO_LONG_STRING
++    assert C.NK_change_firmware_password_pro(DefaultPasswords.UPDATE, long_string) == LibraryErrors.TOO_LONG_STRING
++
++
++@pytest.mark.skip_by_default
++@pytest.mark.firmware
++def test_bootloader_data_rention(C):
++    skip_if_device_version_lower_than({'P': 11})
++
++    assert helper_populate_device(C)
++    assert C.NK_enable_firmware_update_pro(DefaultPasswords.UPDATE) == DeviceErrorCode.STATUS_DISCONNECTED
++    input('Please press ENTER after uploading new firmware to the device')
++    C = library_device_reconnect(C)
++    assert helper_check_device_for_data(C)
++
+diff --git a/unittest/test_storage.py b/unittest/test_storage.py
+index 0f960cc..a435a15 100644
+--- a/unittest/test_storage.py
++++ b/unittest/test_storage.py
+@@ -23,8 +23,8 @@ import pprint
+ import pytest
+ 
+ from conftest import skip_if_device_version_lower_than
+-from constants import DefaultPasswords, DeviceErrorCode, bb
+-from misc import gs, wait, ffi
++from constants import DefaultPasswords, DeviceErrorCode
++from misc import gs, wait, ffi, bb
+ 
+ pprint = pprint.PrettyPrinter(indent=4).pprint
+ 
