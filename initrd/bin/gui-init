@@ -42,7 +42,7 @@ verify_global_hashes()
   TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
   TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
-  if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+  if ( cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ) then
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Missing Hash File!' \
