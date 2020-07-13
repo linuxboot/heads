@@ -217,8 +217,8 @@ set_default_boot_option()
     echo "$entry" > /boot/kexec_default.1.txt
 
     # validate boot option
-    cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
-        | xargs sha256sum > $hash_file 2>/dev/null \
+    ( cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
+        | xargs sha256sum > $hash_file 2>/dev/null ) \
         || whiptail_error_die "Failed to create hashes of boot files"
 }
 
