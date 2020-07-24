@@ -313,30 +313,34 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "p" ]; then
-    if (whiptail --title 'Reset the TPM' \
-        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
-      /bin/tpm-reset
+    if [ "$CONFIG_TPM" = "y" ]; then
+      if (whiptail --title 'Reset the TPM' \
+          --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
+        /bin/tpm-reset
 
-      # now that the TPM is reset, remove invalid TPM counter files
-      mount_boot
-      mount -o rw,remount /boot
-      rm -f /boot/kexec_rollback.txt
+        # now that the TPM is reset, remove invalid TPM counter files
+        mount_boot
+        mount -o rw,remount /boot
+        rm -f /boot/kexec_rollback.txt
 
-      # create Heads TPM counter before any others
-      check_tpm_counter /boot/kexec_rollback.txt \
-      || die "Unable to find/create tpm counter"
-      counter="$TPM_COUNTER"
+        # create Heads TPM counter before any others
+        check_tpm_counter /boot/kexec_rollback.txt \
+        || die "Unable to find/create tpm counter"
+        counter="$TPM_COUNTER"
 
-      increment_tpm_counter $counter \
-      || die "Unable to increment tpm counter"
+        increment_tpm_counter $counter \
+        || die "Unable to increment tpm counter"
 
-      sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
-      || die "Unable to create rollback file"
-      mount -o ro,remount /boot
+        sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
+        || die "Unable to create rollback file"
+        mount -o ro,remount /boot
 
-      update_totp
+        update_totp
+      else
+        echo "Returning to the main menu"
+      fi
     else
-      echo "Returning to the main menu"
+      whiptail --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 30 90
     fi
     continue
   fi
