@@ -1,0 +1,147 @@
+diff --git a/Makefile b/Makefile
+index a0d3790..a3b0ad5 100644
+--- a/Makefile
++++ b/Makefile
+@@ -45,20 +45,16 @@ LIBUSB_LIB=$(shell $(PKGCONFIG) --libs libusb-1.0)
+ CFLAGS= -Wall -Wextra -fno-guess-branch-probability -Wdate-time -frandom-seed=42 -O2 -gno-record-gcc-switches -DNDEBUG -fdebug-prefix-map=${PWD}=heads -c -std=gnu11 -DNK_REMOVE_PTHREAD $(LIBUSB_FLAGS)
+ 
+ OUTDIR=
+-OUT=nitrokey_hotp_verification
+-OUT2=libremkey_hotp_verification
++OUT=hotp_verification
+ LDFLAGS=$(LIBUSB_LIB)
+ 
+-all: $(OUT) $(OUT2)
++all: $(OUT)
+ 	ls -lh $^
+ 	sha256sum $^
+ 
+ clean:
+ 	-rm $(OBJS) $(OUT) version.c
+ 
+-$(OUT2): $(OUT)
+-	cp $< $@
+-
+ $(OUT): $(OBJS)
+ 	$(CC) $^ $(LDFLAGS)  -o $@
+ 
+@@ -74,7 +70,7 @@ $(SRCDIR)/version.c: $(SRCDIR)/version.c.in
+ INSTALL=/usr/local/
+ .PHONY: install
+ install:
+-	cp -v $(OUT) $(OUT2) $(INSTALL)/bin
++	cp -v $(OUT) $(INSTALL)/bin
+ 
+ .PHONY: github_sha
+ GVER=$(shell git rev-parse HEAD)
+diff --git a/libremkey_hotp_initialize b/hotp_initialize
+similarity index 51%
+rename from libremkey_hotp_initialize
+rename to hotp_initialize
+index d062c92..3ef3540 100755
+--- a/libremkey_hotp_initialize
++++ b/hotp_initialize
+@@ -2,11 +2,11 @@
+ 
+ usage()
+ {
+- echo "This command initializes the Librem Key HOTP counter to the specified value"
+- echo "usage: $0 <libremkey_admin_pin> <HOTP_secret> <HOTP_counter>"
++ echo "This command initializes the HOTP counter on a HOTP security key to the specified value"
++ echo "usage: $0 <hotpkey_admin_pin> <HOTP_secret> <HOTP_counter> <HOTP_key_branding>"
+ }
+ 
+-if [ "$3" == "" ]; then
++if [ "$4" == "" ]; then
+   usage
+   exit 1
+ fi
+@@ -15,10 +15,11 @@ PIN=$1
+ SECRET=$2
+ COUNTER=$3
+ SECRET_B32=$(cat $SECRET | base32)
++HOTPKEY_BRANDING=$4
+ 
+-libremkey_hotp_verification set $SECRET_B32 "$PIN"
++hotp_verification set $SECRET_B32 "$PIN"
+ if [ $? -ne 0 ]; then
+-  echo "ERROR: Setting HOTP secret on Librem Key failed!"
++  echo "ERROR: Setting HOTP secret on $HOTPKEY_BRANDING failed!"
+   exit 1
+ fi
+ 
+@@ -26,7 +27,7 @@ i=9
+ while [ "$i" -lt "$COUNTER" ]; do
+   echo "Updating counter to $i"
+   HOTP_CODE=$(hotp $i < $SECRET)
+-  libremkey_hotp_verification check $HOTP_CODE > /dev/null
++  hotp_verification check $HOTP_CODE > /dev/null
+   if [ $? -ne 0 ]; then
+     echo "HOTP check failed for counter=$i, code=$HOTP_CODE"
+     exit 1
+@@ -35,10 +36,10 @@ while [ "$i" -lt "$COUNTER" ]; do
+ done
+ 
+ HOTP_CODE=$(hotp $COUNTER < $SECRET)
+-libremkey_hotp_verification check $HOTP_CODE > /dev/null
++hotp_verification check $HOTP_CODE > /dev/null
+ if [ $? -ne 0 ]; then
+   echo "HOTP check failed for counter=$COUNTER, code=$HOTP_CODE"
+   exit 1
+ else
+-  echo "Librem Key initialized at counter $COUNTER"
++  echo "$HOTPKEY_BRANDING initialized at counter $COUNTER"
+ fi
+diff --git a/nitrokey_hotp_initialize b/nitrokey_hotp_initialize
+deleted file mode 100755
+index 817987d..0000000
+--- a/nitrokey_hotp_initialize
++++ /dev/null
+@@ -1,44 +0,0 @@
+-#!/bin/sh
+-
+-usage()
+-{
+- echo "This command initializes the Nitrokey HOTP counter to the specified value"
+- echo "usage: $0 <nitrokey_admin_pin> <HOTP_secret> <HOTP_counter>"
+-}
+-
+-if [ "$3" == "" ]; then
+-  usage
+-  exit 1
+-fi
+-
+-PIN=$1
+-SECRET=$2
+-COUNTER=$3
+-SECRET_B32=$(cat $SECRET | base32)
+-
+-nitrokey_hotp_verification set $SECRET_B32 "$PIN"
+-if [ $? -ne 0 ]; then
+-  echo "ERROR: Setting HOTP secret on Nitrokey failed!"
+-  exit 1
+-fi
+-
+-i=9
+-while [ "$i" -lt "$COUNTER" ]; do
+-  echo "Updating counter to $i"
+-  HOTP_CODE=$(hotp $i < $SECRET)
+-  nitrokey_hotp_verification check $HOTP_CODE > /dev/null
+-  if [ $? -ne 0 ]; then
+-    echo "HOTP check failed for counter=$i, code=$HOTP_CODE"
+-    exit 1
+-  fi
+-  let "i += 10"
+-done
+-
+-HOTP_CODE=$(hotp $COUNTER < $SECRET)
+-nitrokey_hotp_verification check $HOTP_CODE > /dev/null
+-if [ $? -ne 0 ]; then
+-  echo "HOTP check failed for counter=$COUNTER, code=$HOTP_CODE"
+-  exit 1
+-else
+-  echo "Nitrokey initialized at counter $COUNTER"
+-fi
+-- 
+2.20.1
+
