@@ -221,8 +221,11 @@ set_default_boot_option()
     # clear existing default configs
     rm "/boot/kexec_default.*.txt" 2>/dev/null
 
+    # get correct index for entry
+    index=$(grep -n "$entry" $option_file | cut -f1 -d ':')
+
     # write new config
-    echo "$entry" > /boot/kexec_default.1.txt
+    echo "$entry" > /boot/kexec_default.$index.txt
 
     # validate boot option
     cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
