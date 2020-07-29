@@ -209,7 +209,7 @@ set_default_boot_option()
         kexec-parse-bls "/boot" "$i" "/boot/loader/entries" >> $option_file
       done
     fi
-    [ ! -r $option_file ] \
+    [ ! -s $option_file ] \
         && whiptail_error_die "Failed to parse any boot options"
 
     # sort boot options
