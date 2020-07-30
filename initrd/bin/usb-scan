@@ -2,6 +2,7 @@
 # Scan for USB installation options
 set -e -o pipefail
 . /etc/functions
+. /etc/gui_functions
 . /tmp/config
 
 # Unmount any previous boot device
@@ -11,10 +12,8 @@ if grep -q /boot /proc/mounts ; then
 fi
 
 # Mount the USB boot device
-if ! grep -q /media /proc/mounts ; then
-	mount-usb "$CONFIG_USB_BOOT_DEV" \
-		|| die "Unable to mount /media"
-fi
+mount_usb || die "Unable to mount /media"
+
 # Get USB boot device
 USB_BOOT_DEV=$(grep "/media" /etc/mtab | cut -f 1 -d' ')
 
