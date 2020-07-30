@@ -201,7 +201,15 @@ set_default_boot_option()
     for i in `find /boot -name "grub.cfg"`; do
         kexec-parse-boot "/boot" "$i" >> $option_file
     done
-    [ ! -r $option_file ] \
+    # FC29/30+ may use BLS format grub config files
+    # https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+    # only parse these if $option_file is still empty
+    if [ ! -s $option_file ] && [ -d "/boot/loader/entries" ]; then
+      for i in `find /boot -name "grub.cfg"`; do
+        kexec-parse-bls "/boot" "$i" "/boot/loader/entries" >> $option_file
+      done
+    fi
+    [ ! -s $option_file ] \
         && whiptail_error_die "Failed to parse any boot options"
 
     # sort boot options
@@ -213,8 +221,11 @@ set_default_boot_option()
     # clear existing default configs
     rm "/boot/kexec_default.*.txt" 2>/dev/null
 
+    # get correct index for entry
+    index=$(grep -n "$entry" $option_file | cut -f1 -d ':')
+
     # write new config
-    echo "$entry" > /boot/kexec_default.1.txt
+    echo "$entry" > /boot/kexec_default.$index.txt
 
     # validate boot option
     ( cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
