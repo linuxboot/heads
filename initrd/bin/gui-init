@@ -70,7 +70,7 @@ verify_global_hashes()
       fi
 
     else
-      TEXT="The following files failed the verification process:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+      TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
     fi
 
     if (whiptail $CONFIG_ERROR_BG_COLOR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
@@ -82,7 +82,7 @@ verify_global_hashes()
 prompt_update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that the files in /boot have not been tampered with.\n\nYou will need your GPG key to continue and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
     update_checksums
   else
     echo "Returning to the main menu"

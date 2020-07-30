@@ -102,7 +102,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
   fi
 
   if [ "$option_index" = "a" ]; then
-    exit 1
+    exit 5
   fi
   USB_MOUNT_DEVICE=`head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//'`
 fi
