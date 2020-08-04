@@ -139,9 +139,9 @@ while true; do
   unset menu_choice
   whiptail --clear --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 20 90 10 \
-    'r' ' Add GPG key to running BIOS + reflash' \
-    'a' ' Add GPG key to standalone BIOS image + flash' \
-    'e' ' Replace GPG key(s) in the current ROM + reflash' \
+    'r' ' Add GPG key to running BIOS and reflash' \
+    'a' ' Add GPG key to standalone BIOS image and flash' \
+    'e' ' Replace GPG key(s) in the current ROM and reflash' \
     'l' ' List GPG keys in your keyring' \
     'p' ' Export public GPG key to USB drive' \
     'g' ' Generate GPG keys manually on a USB security token' \
