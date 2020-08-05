@@ -1,11 +1,12 @@
 #!/bin/sh
-# Retrieve the sealed TOTP secret and initialize a Librem Key with it
+# Retrieve the sealed TOTP secret and initialize a USB Security dongle with it
 
 . /etc/functions
 
 HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
+HOTP_KEY="/boot/kexec_hotp_key"
 
 mount_boot()
 {
@@ -15,6 +16,13 @@ mount_boot()
       || recovery "Unable to mount /boot"
   fi
 }
+
+# Use stored HOTP key branding (this might be useful after OEM reset)
+if [ -r /boot/kexec_hotp_key ]; then
+	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+fi
 
 tpm nv_readvalue \
 	-in 4d47 \
@@ -49,26 +57,35 @@ mount_boot
 counter_value=1
 
 enable_usb
-if ! libremkey_hotp_verification info ; then
-  echo "Insert your Librem Key and press Enter to configure it"
+if ! hotp_verification info ; then
+  echo "Insert your $HOTPKEY_BRANDING and press Enter to configure it"
   read
-  if ! libremkey_hotp_verification info ; then
+  if ! hotp_verification info ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-    die "Unable to find Librem Key"
+    die "Unable to find $HOTPKEY_BRANDING"
   fi
 fi
 
+# Set HOTP USB Security Dongle branding based on VID
+if lsusb | grep -q "20a0:" ; then
+	HOTPKEY_BRANDING="Nitrokey"
+elif lsusb | grep -q "316d:" ; then
+	HOTPKEY_BRANDING="Librem Key"
+else
+	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+fi
+
 echo -e ""
-read -s -p "Enter your Librem Key Admin PIN: " admin_pin
+read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
 echo -e "\n"
 
-libremkey_hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value 
+hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
 if [ $? -ne 0 ]; then
   echo -e "\n"
   read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
   echo -e "\n"
-  if ! libremkey_hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value ; then
+  if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
     die "Setting HOTP secret failed"
@@ -90,11 +107,15 @@ counter_value=`expr $counter_value + 1`
 echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
 
+# Store/overwrite HOTP USB Security Dongle branding found out beforehand
+echo $HOTPKEY_BRANDING > $HOTP_KEY \
+|| die "Unable to store hotp key file"
+
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
 #|| die "Unable to create hotp counter file"
 mount -o remount,ro /boot
 
-echo -e "\nLibrem Key initialized successfully. Press Enter to continue."
+echo -e "\n$HOTPKEY_BRANDING initialized successfully. Press Enter to continue."
 read
 
 exit 0
