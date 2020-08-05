@@ -173,7 +173,7 @@ scan_options() {
 			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
 		done
 	fi
-	if [ ! -r $option_file ]; then
+	if [ ! -s $option_file ]; then
 		die "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then

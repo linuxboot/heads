@@ -68,9 +68,9 @@ if ! hotp_verification info ; then
 fi
 
 # Set HOTP USB Security Dongle branding based on VID
-if [ ! $(lsusb | grep -q "20a0:") ]; then
+if lsusb | grep -q "20a0:" ; then
 	HOTPKEY_BRANDING="Nitrokey"
-elif [ ! $(lsusb | grep -q "316d:") ]; then
+elif lsusb | grep -q "316d:" ; then
 	HOTPKEY_BRANDING="Librem Key"
 else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
@@ -80,12 +80,12 @@ echo -e ""
 read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
 echo -e "\n"
 
-hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value $HOTPKEY_BRANDING
+hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
 if [ $? -ne 0 ]; then
   echo -e "\n"
   read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
   echo -e "\n"
-  if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value $HOTPKEY_BRANDING ; then
+  if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
     die "Setting HOTP secret failed"

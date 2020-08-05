@@ -1,13 +1,18 @@
 modules-$(CONFIG_COREBOOT) += coreboot
 
+ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
+coreboot_version := 4.8.1
+coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
+else
+$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
+endif 
+
 #coreboot_version := git
 #coreboot_repo := https://github.com/osresearch/coreboot
-coreboot_version := 4.8.1
 coreboot_base_dir := coreboot-$(coreboot_version)
 coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz
 coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
-coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
