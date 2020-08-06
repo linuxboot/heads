@@ -24,6 +24,7 @@ GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
 GPG_USER_COMMENT="OEM-generated key"
+
 ## External files sourced
 
 . /etc/functions
@@ -324,24 +325,39 @@ fi
 
 ## sanity check the USB, GPG key, and boot device before proceeding further
 
-# mount USB, then remount rw
-echo -e "\nChecking for USB media...\n"
-# ensure /media not mounted
-umount /media 2>/dev/null
-# mount-usb will detect and prompt if no USB inserted
-if ! mount-usb rw 2>/tmp/error; then
-    ERROR=$(tail -n 1 /tmp/error | fold -s)
-    whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
+# Prompt to insert USB drive if desired
+echo -e -n "Would you like to export your public key to an USB drive? [y/N]: "
+read -n 1 prompt_output
+echo
+if [ "$prompt_output" == "y" \
+  -o "$prompt_output" == "Y" ] \
+; then
+    GPG_EXPORT=1
+    # mount USB, then remount rw
+    echo -e "\nPlease insert an USB drive and hit enter.\n"
+    read
+    echo -e "\nChecking for USB media...\n"
+    # ensure /media not mounted
+    umount /media 2>/dev/null
+    # mount-usb will detect and prompt if no USB inserted
+    if ! mount-usb rw 2>/tmp/error; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
+    fi
+else
+    GPG_EXPORT=0
+    # needed for USB Security dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
+    enable_usb
 fi
 
-# ensure GPG key connected
-echo -e "\nChecking for GPG Key...\n"
+# ensure USB Security Dongle connected
+echo -e "\nChecking for USB Security Dongle...\n"
 # USB kernel modules already loaded via mount-usb
 if ! gpg --card-status >/dev/null 2>&1 ; then
-    whiptail_error "Can't access GPG Key; remove and reinsert, then press Enter to retry."
+    whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
     if ! gpg --card-status >/dev/null 2>/tmp/error ; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
-        whiptail_error_die "Unable to detect GPG Key:\n\n${ERROR}"
+        whiptail_error_die "Unable to detect USB Security Dongle:\n\n${ERROR}"
     fi
 fi
 
@@ -392,19 +408,22 @@ if [ "$CUSTOM_PASS" != "" ]; then
   ADMIN_PIN_DEF=$CUSTOM_PASS
 fi
 
-## export generated key to USB
-echo -e "\nExporting generated key to USB...\n"
 # export pubkey to file
 if ! gpg --export --armor $GPG_GEN_KEY > "${PUBKEY}" 2>/tmp/error ; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
-# copy to USB
-if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error ; then
-    ERROR=$(tail -n 1 /tmp/error | fold -s)
-    whiptail_error_die "Key export error: unable to copy exported pubkey to /media:\n\n$ERROR"
+
+## export pubkey to USB
+if [ $GPG_EXPORT -ne 0 ]; then
+    echo -e "\nExporting generated key to USB...\n"
+    # copy to USB
+    if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error ; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
+    fi
+    umount /media 2>/dev/null
 fi
-umount /media 2>/dev/null
 
 ## flash generated key to ROM
 echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
