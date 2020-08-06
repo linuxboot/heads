@@ -71,6 +71,10 @@ gpg_key_reset()
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
     fi
+    # If Nitrokey Storage is inserted, reset AES keys as well
+    if lsusb | grep -q "20a0:4109" &&  [ -x /bin/hotp_verification ] ; then
+        /bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
+    fi
     # Generate OEM GPG keys
     {
         echo admin
