@@ -4,6 +4,10 @@ ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
 	coreboot_version := 4.8.1
 	coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
 	coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.11"
+        coreboot_version := 4.11
+        coreboot_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
+        coreboot-blobs_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.12"
 	coreboot_version := 4.12
 	coreboot_hash := edcad000ee9b73183c396ea76155629b3d27c693e0f1ae83e3424c4d936e2be2
