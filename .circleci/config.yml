@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: ubuntu:18.04
+      - image: debian:bullseye
     steps:
       - run:
           name: Install dependencies
@@ -12,7 +12,7 @@ jobs:
       - checkout
 
       - restore_cache:
-          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
 
       - run:
           name: git reset
@@ -75,26 +75,6 @@ jobs:
              cat build/qemu-coreboot/hashes.txt \
 
       - run:
-          name: librem_mini_v2
-          command: |
-            rm -rf build/librem_mini_v2/* build/log/* && make CPUS=4 V=1 BOARD=librem_mini_v2 || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output librem_mini_v2 hashes
-          command: |
-            cat build/librem_mini_v2/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_mini_v2
-          command: |
-             tar zcvf build/librem_mini_v2/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_mini_v2
-
-      - run:
           name: x230-flash
           #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
@@ -116,12 +96,12 @@ jobs:
       - run:
           name: t430-flash
           command: |
-            rm -rf build/t430-flash/* build/log/* && make CPUS=4 \
+            rm -rf build/make-4.2.1/ build/qemu-coreboot/* && make --load 2 \
                 V=1 \
-                BOARD=t430-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=qemu-coreboot \
           no_output_timeout: 3h
       - run:
-          name: Ouput t430-flash hashes
+          name: Output qemu-coreboot hashes
           command: |
             cat build/t430-flash/hashes.txt \
       - run:
@@ -129,48 +109,19 @@ jobs:
           command: |
              tar zcvf build/t430-flash/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/qemu-coreboot/hashes.txt
+          path: build/t430-flash
 
-      - run:
-          name: x230-external-flash
-          command: |
-            rm -rf build/t430/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=t430  || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput t430 hashes
-          command: |
-            cat build/x230-external-flash/hashes.txt \
-      - run:
-          name: Archiving build logs to bundle in artifacts
-          command: |
-            tar zcvf logs.tar.gz ./build/log/*
-
-      - run:
-          name: x230
-          command: |
-            rm -rf build/x230/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=x230 || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput x230 hashes
-          command: |
-            cat build/x230/hashes.txt \
-      - run:
-          name: Archiving build logs for x230
-          command: |
-             tar zcvf build/x230/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/qemu-coreboot/coreboot.rom
       - store-artifacts:
           path: build/x230
 
       - run:
           name: x230-hotp-verification
           command: |
-            rm -rf build/x230-hotp-verification/* build/log/* && make CPUS=4 \
+            rm -rf build/x230-hotp-verification/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-hotp-verification || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=x230-hotp-verification \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-hotp-verification hashes
@@ -184,29 +135,29 @@ jobs:
           path: build/x230-hotp-verification
 
       - run:
-          name: x230-nkstorecli
+          name: x230-external-flash
           command: |
-            rm -rf build/x230-nkstorecli/* build/log/* && make CPUS=4 \
+            make --load 2 \
                 V=1 \
-                BOARD=x230-nkstorecli || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=x230-external-flash \
           no_output_timeout: 3h
       - run:
-          name: Ouput x230-nkstorecli hashes
+          name: Ouput x230-external-flash hashes
           command: |
-            cat build/x230-nkstorecli/hashes.txt \
+            cat build/x230-external-flash/hashes.txt \
       - run:
-          name: Archiving build logs for x230-nkstorecli
+          name: Archiving build logs for x230-external-flash
           command: |
-             tar zcvf build/x230-nkstorecli/logs.tar.gz build/log/*
+            tar zcvf build/x230-external-flash/logs.tar.gz ./build/log/*
       - store-artifacts:
-          path: build/x230-nkstorecli
+          path: build/x230-external-flash
 
       - run:
           name: qemu-coreboot
           command: |
-            rm -rf build/qemu-coreboot/* build/log/* && make CPUS=4 \
+            rm -rf build/make-4.2.1/ build/qemu-coreboot/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=qemu-coreboot \
           no_output_timeout: 3h
       - run:
           name: Output qemu-coreboot hashes
@@ -217,6 +168,10 @@ jobs:
           command: |
              tar zcvf build/qemu-coreboot/logs.tar.gz build/log/*
       - store-artifacts:
+          path: build/x230-external-flash/coreboot.rom
+      - store-artifacts:
+          path: build/x230-external-flash/x230-external-flash-bottom.rom
+      - store-artifacts:
           path: build/x230-external-flash/x230-external-flash-top.rom
       - store-artifacts:
           path: build/x230-external-flash/initrd.cpio.xz
@@ -224,7 +179,7 @@ jobs:
           path: logs.tar.gz
 
       - save_cache:
-          key: heads-{{ .Branch }}{{ .Environment.CACHE_VERSION }}
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
