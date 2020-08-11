@@ -1,0 +1,18 @@
+--- ./src/mainboard/asus/kgpe-d16/Kconfig.orig	2020-08-11 10:14:44.059000000 -0400
++++ ./src/mainboard/asus/kgpe-d16/Kconfig	2020-08-11 10:15:13.393000000 -0400
+@@ -33,6 +33,15 @@
+ 	select MAINBOARD_FORCE_NATIVE_VGA_INIT
+ 	select POWER_STATE_DEFAULT_ON_AFTER_FAILURE
+ 	select IPMI_KCS
++	select VBOOT
++	select VBOOT_VBNV_CMOS
++	select VBOOT_NO_BOARD_SUPPORT
++	select GBB_FLAG_DISABLE_LID_SHUTDOWN
++	select GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
++	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
++	select GBB_FLAG_DISABLE_FWMP
++	select RTC
++	select VBOOT_STARTS_IN_ROMSTAGE
+ 
+ config MAINBOARD_DIR
+ 	string
