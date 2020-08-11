@@ -24,9 +24,9 @@ jobs:
       - restore_cache:
           keys:
             #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
-            - heads_modules_and_patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
+            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
             #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
-            - heads_cross-musl-{{ checksum "./modules/musl-cross" }}
+            - heads-cross-musl-{{ checksum "./modules/musl-cross" }}
             #If precedent fails. Restore statically built cache on first successful build for this CI instance with CACHE_VERSION configured on CI 
             - heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
 
@@ -170,16 +170,18 @@ jobs:
             - packages
             - crossgcc
             - build
+
       - save_cache:
           #Generate cache for the same musl-cross module definition if hash is not previously existing
-          key: heads_cross-musl-{{ checksum "modules/musl-cross" }}
+          key: heads-cross-musl-{{ checksum "modules/musl-cross" }}
           paths:
             - packages
             - crossgcc
             - build/musl-cross-*
+
       - - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
-          key: heads_modules_and_patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}          
+          key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
           paths:
             - packages
             - crossgcc
