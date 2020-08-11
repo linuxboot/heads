@@ -19,7 +19,7 @@ jobs:
       - run:
           name: Creating all modules and patches digest
           command: |
-            find ./patches/ ./modules/ | sort -h |xargs sha256sum > /tmp/all_modules_patches.sha256sums \
+            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_patches.sha256sums \
 
       - restore_cache:
           keys:
