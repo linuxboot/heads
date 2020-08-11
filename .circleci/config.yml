@@ -11,13 +11,24 @@ jobs:
             apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev
       - checkout
 
-      - restore_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
-
       - run:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
+
+      - run:
+          name: Creating all modules and patches digest
+          command: |
+            find ./patches/ ./modules/ | sort -h |xargs sha256sum > /tmp/all_modules_patches.sha256sums \
+
+      - restore_cache:
+          keys:
+            #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
+            - heads_modules_and_patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
+            #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
+            - heads_cross-musl-{{ checksum "./modules/musl-cross" }}
+            #If precedent fails. Restore statically built cache on first successful build for this CI instance with CACHE_VERSION configured on CI 
+            - heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
@@ -153,12 +164,26 @@ jobs:
           path: build/qemu-coreboot
 
       - save_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
+          #Generate generic cache on first run if hash doesn't exist
+          key: heads-{{ .Environment.CIRCLE_USERNAME }}{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
             - build
-
+      - save_cache:
+          #Generate cache for the same musl-cross module definition if hash is not previously existing
+          key: heads_cross-musl-{{ checksum "modules/musl-cross" }}
+          paths:
+            - packages
+            - crossgcc
+            - build/musl-cross-*
+      - - save_cache:
+          #Generate cache for the exact same modules definitions if hash is not previously existing
+          key: heads_modules_and_patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}          
+          paths:
+            - packages
+            - crossgcc
+            - build
 workflows:
   version: 2
   build_and_test:
