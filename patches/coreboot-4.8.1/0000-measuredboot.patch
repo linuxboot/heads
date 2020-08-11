@@ -167,7 +167,7 @@ index 6fd55d7..b5b7d91 100644
 +{
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
 +	{
-+		tlcl_measure(3, (const void*) start, size);
++		tlcl_measure(2, (const void*) start, size);
 +	}
 +}
 +
