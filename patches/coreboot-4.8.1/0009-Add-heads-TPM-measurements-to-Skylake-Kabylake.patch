@@ -51,9 +51,9 @@ index 30987ce..4957bc0 100644
 +		tlcl_lib_init();
 +		const void * const bootblock = (const void*) 0xFFFFF800;
 +		const unsigned bootblock_size = 0x800;
-+		tlcl_measure(0, bootblock, bootblock_size);
++		tlcl_measure(2, bootblock, bootblock_size);
 +
-+		tlcl_measure(1, _romstage, _eromstage - _romstage);
++		tlcl_measure(2, _romstage, _eromstage - _romstage);
 +	}
 +
  	/* Signal that FSP component has been loaded. */
@@ -66,7 +66,7 @@ index 30987ce..4957bc0 100644
 +void platform_segment_loaded(uintptr_t start, size_t size, int flags)
 +{
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT) && !(flags & SEG_NO_MEASURE)) {
-+		tlcl_measure(1, (const void*) start, size);
++		tlcl_measure(2, (const void*) start, size);
 +	}
 +}
 +
@@ -87,7 +87,7 @@ index bda88d1..49568f6 100644
  		die("Failed to read FSPS!\n");
  
 +	if (IS_ENABLED(CONFIG_MEASURED_BOOT)) {
-+		tlcl_measure(1, (const void*) dest, size);
++		tlcl_measure(2, (const void*) dest, size);
 +	}
 +
  	if (fsp_component_relocate((uintptr_t)dest, dest, size) < 0)

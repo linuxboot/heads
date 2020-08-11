@@ -22,10 +22,10 @@ index 0426b83..d348b9e 100644
 +		tlcl_lib_init();
 +		const void * const bootblock = (const void*) 0xFFFFF800;
 +		const unsigned bootblock_size = 0x800;
-+		tlcl_measure(0, bootblock, bootblock_size);
++		tlcl_measure(2, bootblock, bootblock_size);
 +
 +		extern char _romstage, _eromstage;
-+		tlcl_measure(1, &_romstage, &_eromstage - &_romstage);
++		tlcl_measure(2, &_romstage, &_eromstage - &_romstage);
 +	}
 +
  	/* USB is initialized in MRC if MRC is used.  */
