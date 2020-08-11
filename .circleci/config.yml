@@ -24,11 +24,11 @@ jobs:
       - restore_cache:
           keys:
             #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
-            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
+            heads-modules-and-patches-{{ checksum "/tmp/all_modules_patches.sha256sums" }}
             #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
-            - heads-cross-musl-{{ checksum "./modules/musl-cross" }}
+            heads-cross-musl-{{ checksum "./modules/musl-cross" }}
             #If precedent fails. Restore statically built cache on first successful build for this CI instance with CACHE_VERSION configured on CI 
-            - heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
+            heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
