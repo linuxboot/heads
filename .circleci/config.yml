@@ -168,6 +168,24 @@ jobs:
       - store-artifacts:
           path: build/qemu-coreboot
 
+      - run:
+          name: qemu-coreboot-fbwhiptail
+          command: |
+            rm -rf build/qemu-coreboot-fbwhiptail/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=qemu-coreboot-fbwhiptail \
+          no_output_timeout: 3h
+      - run:
+          name: Output qemu-coreboot-fbwhiptail hashes
+          command: |
+             cat build/qemu-coreboot-fbwhiptail/hashes.txt \
+      - run:
+          name: Archiving build logs for qemu-coreboot-fbwhiptail
+          command: |
+             tar zcvf build/qemu-coreboot-fbwhiptail/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/qemu-coreboot-fbwhiptail
+
       - save_cache:
           #Generate cache for the same musl-cross module definition if hash is not previously existing
           key: heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}
