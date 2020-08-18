@@ -1,4 +1,4 @@
-idiff --git a/util/bincfg/Makefile b/util/bincfg/Makefile
+diff --git a/util/bincfg/Makefile b/util/bincfg/Makefile
 index 1b3e936..f568e67 100644
 --- a/util/bincfg/Makefile
 +++ b/util/bincfg/Makefile
