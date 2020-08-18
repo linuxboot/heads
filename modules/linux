@@ -3,6 +3,9 @@ modules-y += linux
 ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 linux_version := 4.14.62
 linux_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
+else ifeq "$(CONFIG_LINUX_VERSION)" "4.19.139"
+linux_version := 4.19.139
+linux_hash := 9c4ebf21fe949f80fbcfbbd6e7fe181040d325e89475e230ab53ef01f9d55605
 else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
 endif 
