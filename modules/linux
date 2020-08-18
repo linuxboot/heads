@@ -1,6 +1,12 @@
 modules-y += linux
 
+ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 linux_version := 4.14.62
+linux_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
+else
+$(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
+endif 
+
 linux_base_dir := linux-$(linux_version)
 
 # TODO: fixup the patch process
@@ -14,12 +20,6 @@ linux_dir := $(linux_base_dir)/$(notdir $(basename $(linux_kconfig)))
 
 linux_tar := linux-$(linux_version).tar.xz
 linux_url := https://cdn.kernel.org/pub/linux/kernel/v4.x/$(linux_tar)
-
-linux-4.9.38_hash := 76d789d87dd51d2fd58c095727171984fa4a992f5e25b9e3eb1e5fd5cd129074
-linux-4.9.80_hash := 9e2e83ccc0afc3f23340ed5e58a35d8c6300a7c58aa98ca913848de41226477b
-linux-4.14.62_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
-
-linux_hash := $(linux-$(linux_version)_hash)
 
 # Ensure that touching the config file will force a reconfig/rebuild
 $(build)/$(linux_dir)/.configured: $(linux_kconfig)
