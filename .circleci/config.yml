@@ -11,13 +11,28 @@ jobs:
             apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev
       - checkout
 
-      - restore_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
-
       - run:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
+
+      - run:
+          name: Creating all modules and patches digest
+          command: |
+            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_and_patches.sha256sums \
+
+      - run:
+          name: Creating musl-cross-make and musl-cross-make patches digest
+          command: |
+            find ./patches/musl-cross-* modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
+
+
+      - restore_cache:
+          keys:
+            #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
+            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}
+            #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
+            - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
@@ -44,64 +59,16 @@ jobs:
 #      - store-artifacts:
 #          path: build/qemu-linuxboot/hashes.txt
 
-      - run:
-          name: librem_l1um
-          command: |
-            rm -rf build/librem_l1um/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=librem_l1um || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput librem_l1um hashes
-          command: |
-            cat build/librem_l1um/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_l1um
-          command: |
-             tar zcvf build/librem_l1um/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_l1um
-
-      - run:
-          name: qemu-coreboot
-          command: |
-            rm -rf build/librem_mini/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput librem_mini hashes
-          command: |
-             cat build/qemu-coreboot/hashes.txt \
-
-      - run:
-          name: x230-flash
-          #We delete build/make-4.2.1/ directory until issue #799 is fixed.
-          command: |
-            rm -rf build/x230-flash/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=x230-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput x230-flash hashes
-          command: |
-            cat build/x230-flash/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-flash
-          command: |
-             tar zcvf build/x230-flash/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/x230-flash
 
       - run:
           name: t430-flash
           command: |
-            rm -rf build/make-4.2.1/ build/qemu-coreboot/* && make --load 2 \
+            rm -rf build/t430-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=qemu-coreboot \
+                BOARD=t430-flash \
           no_output_timeout: 3h
       - run:
-          name: Output qemu-coreboot hashes
+          name: Ouput t430-flash hashes
           command: |
             cat build/t430-flash/hashes.txt \
       - run:
@@ -111,8 +78,39 @@ jobs:
       - store-artifacts:
           path: build/t430-flash
 
+      - run:
+          name: t430
+          command: |
+            rm -rf build/t430/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=t430 \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput t430 hashes
+          command: |
+            cat build/t430/hashes.txt \
+      - run:
+          name: Archiving build logs for t430
+          command: |
+             tar zcvf build/t430/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/qemu-coreboot/coreboot.rom
+          path: build/t430
+
+      - run:
+          name: x230
+          command: |
+            rm -rf build/x230/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=x230 \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput x230 hashes
+          command: |
+            cat build/x230/hashes.txt \
+      - run:
+          name: Archiving build logs for x230
+          command: |
+             tar zcvf build/x230/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230
 
@@ -137,7 +135,7 @@ jobs:
       - run:
           name: x230-external-flash
           command: |
-            make --load 2 \
+            rm -rf build/x230-external-flash/* build/log/* && make --load 2 \
                 V=1 \
                 BOARD=x230-external-flash \
           no_output_timeout: 3h
@@ -155,7 +153,7 @@ jobs:
       - run:
           name: qemu-coreboot
           command: |
-            rm -rf build/make-4.2.1/ build/qemu-coreboot/* build/log/* && make --load 2 \
+            rm -rf build/qemu-coreboot/* build/log/* && make --load 2 \
                 V=1 \
                 BOARD=qemu-coreboot \
           no_output_timeout: 3h
@@ -168,23 +166,22 @@ jobs:
           command: |
              tar zcvf build/qemu-coreboot/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/x230-external-flash/coreboot.rom
-      - store-artifacts:
-          path: build/x230-external-flash/x230-external-flash-bottom.rom
-      - store-artifacts:
-          path: build/x230-external-flash/x230-external-flash-top.rom
-      - store-artifacts:
-          path: build/x230-external-flash/initrd.cpio.xz
-      - store-artifacts:
-          path: logs.tar.gz
+          path: build/qemu-coreboot
 
       - save_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
+          #Generate cache for the same musl-cross module definition if hash is not previously existing
+          key: heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}
+          paths:
+            - crossgcc
+            - build/musl-cross-*
+
+      - save_cache:
+          #Generate cache for the exact same modules definitions if hash is not previously existing
+          key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}
           paths:
             - packages
             - crossgcc
             - build
-
 workflows:
   version: 2
   build_and_test:
