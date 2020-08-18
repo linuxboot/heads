@@ -18,6 +18,19 @@ ls -al blobs/x230/*.bin
 -rw-r--r-- 1 user user  4096 Mar 15 12:55 blobs/x230/x230-ifd.bin
 -rw-r--r-- 1 user user 98304 Mar 15 14:33 blobs/x230/me.bin
 
+blobs/x230/gbe.bin is generated per bincfg from the following coreboot patch: https://review.coreboot.org/c/coreboot/+/44510 
+And then by following those instructions:
+# Use this target to generate GbE for X220/x230
+gen-gbe-82579LM:
+	./bincfg gbe-82579LM.spec gbe-82579LM.set gbe1.bin
+	# duplicate binary as per spec
+	cat gbe1.bin gbe1.bin > ../../../../blobs/xx30/gbe.bin
+	rm -f gbe1.bin
+
+sha256sum:
+9f72818e23290fb661e7899c953de2eb4cea96ff067b36348b3d061fd13366e5  blobs/xx30/gbe.bin
+
+
 Notes: as specified in first link, this ME can be deployed to:
     Helix (Type 3xxx)
     T430, T430i, T430s, T430si, T431s
