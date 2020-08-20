@@ -1,13 +1,15 @@
 modules-$(CONFIG_COREBOOT) += coreboot
 
 ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
-coreboot_version := 4.8.1
-coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
+	coreboot_version := 4.8.1
+	coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
+	coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.12"
-coreboot_version := 4.12
-coreboot_hash := edcad000ee9b73183c396ea76155629b3d27c693e0f1ae83e3424c4d936e2be2
+	coreboot_version := 4.12
+	coreboot_hash := edcad000ee9b73183c396ea76155629b3d27c693e0f1ae83e3424c4d936e2be2
+	coreboot-blobs_hash := 4735ee6850d55d1e65dee8b08cc9b28b8af00b42acf31365f5d9545406579104
 else
-$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
+	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 
 
 #coreboot_version := git
@@ -113,13 +115,11 @@ coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
 coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
 
 ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
-coreboot-blobs_tar_opt := --strip 3
-coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
-coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
+	coreboot-blobs_tar_opt := --strip 3
+	coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
 else
-coreboot-blobs_tar_opt := --strip 2
-coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty
-coreboot-blobs_hash := 4735ee6850d55d1e65dee8b08cc9b28b8af00b42acf31365f5d9545406579104
+	coreboot-blobs_tar_opt := --strip 2
+	coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty
 endif
 
 ## there is nothing to build for the blobs, this should be
