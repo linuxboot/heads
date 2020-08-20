@@ -602,8 +602,8 @@ $(build)/$(make_dir)/.extract: $(packages)/$(make_tar)
 	tar xf "$<" -C "$(build)"
 	touch "$@"
 
-$(build)/$(make_dir)/.patch: patches/make-$(make_version).patch $(build)/$(make_dir)/.extract
-	( cd "$(dir $@)" ; patch -p1 ) < "$<"
+$(build)/$(make_dir)/.patch: $(build)/$(make_dir)/.extract
+	( cd "$(dir $@)" ; patch -p1 ) < "patches/make-$(make_version).patch"
 	touch "$@"
 
 $(build)/$(make_dir)/.configured: $(build)/$(make_dir)/.patch
