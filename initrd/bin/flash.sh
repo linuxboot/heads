@@ -41,7 +41,7 @@ flash_rom() {
     if cbfs -r serial_number > /tmp/serial 2>/dev/null; then
       echo "Persisting system serial"
       cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
-      cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
+      [ -s /tmp/serial ] && cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
     fi
 
     flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \
