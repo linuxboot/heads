@@ -170,11 +170,11 @@ syslinux_entry() {
 					state="search"
 					;;
 				*)
-					kernel="$val"
+					kernel="${val#"$bootdir"}"
 			esac
 			;;
 		initrd* | INITRD* )
-			initrd="$val"
+			initrd="${val#"$bootdir"}"
 			;;
 		append* | APPEND* )
 			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
