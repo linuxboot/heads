@@ -67,10 +67,10 @@ bls_entry() {
 			name=$val
 			;;
 		linux*)
-			kernel=$val
+			kernel=${val#"$bootdir"}
 			;;
 		initrd*)
-			initrd=$val
+			initrd=${val#"$bootdir"}
 			;;
 		options)
 			# default is "options $kernelopts"
