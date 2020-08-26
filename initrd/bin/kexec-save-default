@@ -120,7 +120,7 @@ if [ ! -d $paramsdir ]; then
 	mkdir -p $paramsdir \
 	|| die "Failed to create params directory"
 fi
-rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
+rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
 echo "$entry" > $ENTRY_FILE
 cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f | \
 	xargs sha256sum > $HASH_FILE \
