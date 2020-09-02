@@ -8,6 +8,7 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.12"
 	coreboot_version := 4.12
 	coreboot_hash := edcad000ee9b73183c396ea76155629b3d27c693e0f1ae83e3424c4d936e2be2
 	coreboot-blobs_hash := 4735ee6850d55d1e65dee8b08cc9b28b8af00b42acf31365f5d9545406579104
+	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 
