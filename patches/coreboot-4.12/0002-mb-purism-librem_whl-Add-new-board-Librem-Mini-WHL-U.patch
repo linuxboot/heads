@@ -1,0 +1,799 @@
+From fcb25d39b270cdd21da3748e2d8f578b405f9a82 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Fri, 26 Jun 2020 00:21:39 -0500
+Subject: [PATCH] mb/purism/librem_whl: Add new board Librem Mini (WHL-U)
+
+Add new librem_whl baseboard and Librem Mini variant
+
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+Change-Id: I36af42766f85eb17f86f6ec9b48b87125fb911e6
+---
+ src/mainboard/purism/librem_whl/Kconfig       |  61 +++++
+ src/mainboard/purism/librem_whl/Kconfig.name  |   3 +
+ src/mainboard/purism/librem_whl/Makefile.inc  |  10 +
+ .../purism/librem_whl/acpi/mainboard.asl      |  16 ++
+ .../purism/librem_whl/board_info.txt          |   8 +
+ src/mainboard/purism/librem_whl/devicetree.cb | 223 +++++++++++++++++
+ src/mainboard/purism/librem_whl/dsdt.asl      |  26 ++
+ src/mainboard/purism/librem_whl/ramstage.c    |  16 ++
+ src/mainboard/purism/librem_whl/romstage.c    |  52 ++++
+ .../librem_whl/variants/librem_mini/gpio.c    | 229 ++++++++++++++++++
+ .../variants/librem_mini/hda_verb.c           |  33 +++
+ .../librem_mini/include/variant/gpio.h        |  11 +
+ 13 files changed, 688 insertions(+)
+ create mode 100644 src/mainboard/purism/librem_whl/Kconfig
+ create mode 100644 src/mainboard/purism/librem_whl/Kconfig.name
+ create mode 100644 src/mainboard/purism/librem_whl/Makefile.inc
+ create mode 100644 src/mainboard/purism/librem_whl/acpi/mainboard.asl
+ create mode 100644 src/mainboard/purism/librem_whl/board_info.txt
+ create mode 100644 src/mainboard/purism/librem_whl/devicetree.cb
+ create mode 100644 src/mainboard/purism/librem_whl/dsdt.asl
+ create mode 100644 src/mainboard/purism/librem_whl/ramstage.c
+ create mode 100644 src/mainboard/purism/librem_whl/romstage.c
+ create mode 100644 src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c
+ create mode 100644 src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c
+ create mode 100644 src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h
+
+diff --git a/src/mainboard/purism/librem_whl/Kconfig b/src/mainboard/purism/librem_whl/Kconfig
+new file mode 100644
+index 0000000000..f7662a0e72
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/Kconfig
+@@ -0,0 +1,61 @@
++config BOARD_PURISM_BASEBOARD_LIBREM_WHL
++	def_bool n
++	select BOARD_ROMSIZE_KB_16384
++	select DRIVERS_GENERIC_CBFS_SERIAL
++	select HAVE_ACPI_RESUME
++	select HAVE_ACPI_TABLES
++	select INTEL_GMA_HAVE_VBT
++	select NO_UART_ON_SUPERIO
++	select SOC_INTEL_COMMON_BLOCK_HDA
++	select SOC_INTEL_COMMON_BLOCK_HDA_VERB
++	select SOC_INTEL_WHISKEYLAKE
++	select SPD_READ_BY_WORD
++	select USE_LEGACY_8254_TIMER
++
++if BOARD_PURISM_BASEBOARD_LIBREM_WHL
++
++config MAINBOARD_DIR
++	string
++	default "purism/librem_whl"
++
++config MAINBOARD_FAMILY
++	string
++	default "Librem Mini" if BOARD_PURISM_LIBREM_MINI
++
++config MAINBOARD_PART_NUMBER
++	string
++	default "Librem Mini" if BOARD_PURISM_LIBREM_MINI
++
++config VARIANT_DIR
++	string
++	default "librem_mini" if BOARD_PURISM_LIBREM_MINI
++
++config CBFS_SIZE
++	hex
++	default 0x800000
++
++config MAX_CPUS
++	int
++	default 8
++
++config DIMM_MAX
++	int
++	default 2
++
++config DIMM_SPD_SIZE
++	int
++	default 512
++
++config VGA_BIOS_ID
++	string
++	default "8086,3ea0"
++
++config PXE_ROM_ID
++	string
++	default "10ec,8168"
++
++# This platform has limited means to display POST codes
++config NO_POST
++	default y
++
++endif
+diff --git a/src/mainboard/purism/librem_whl/Kconfig.name b/src/mainboard/purism/librem_whl/Kconfig.name
+new file mode 100644
+index 0000000000..41a4003102
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/Kconfig.name
+@@ -0,0 +1,3 @@
++config BOARD_PURISM_LIBREM_MINI
++	bool "Librem Mini"
++	select BOARD_PURISM_BASEBOARD_LIBREM_WHL
+diff --git a/src/mainboard/purism/librem_whl/Makefile.inc b/src/mainboard/purism/librem_whl/Makefile.inc
+new file mode 100644
+index 0000000000..c03db05423
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/Makefile.inc
+@@ -0,0 +1,10 @@
++##
++##
++##
++## SPDX-License-Identifier: GPL-2.0-only
++
++ramstage-y += variants/$(VARIANT_DIR)/gpio.c
++ramstage-y += variants/$(VARIANT_DIR)/hda_verb.c
++ramstage-y += ramstage.c
++
++CPPFLAGS_common += -I$(src)/mainboard/$(MAINBOARDDIR)/variants/$(VARIANT_DIR)/include
+diff --git a/src/mainboard/purism/librem_whl/acpi/mainboard.asl b/src/mainboard/purism/librem_whl/acpi/mainboard.asl
+new file mode 100644
+index 0000000000..999030d2e5
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/acpi/mainboard.asl
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++Scope (\_SB.PCI0.LPCB) {
++
++	Device (AC)
++	{
++		Name (_HID, "ACPI0003")
++		Name (_PCL, Package () { LPCB })
++		Name (ACFG, One)
++
++		Method (_PSR, 0, NotSerialized)
++		{
++			Return (ACFG)
++		}
++	}
++}
+diff --git a/src/mainboard/purism/librem_whl/board_info.txt b/src/mainboard/purism/librem_whl/board_info.txt
+new file mode 100644
+index 0000000000..e72dcdf2b7
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/board_info.txt
+@@ -0,0 +1,8 @@
++Vendor name: Purism
++Board name: librem_whl
++Category: desktop
++Release year: 2020
++ROM package: SOIC-8
++ROM protocol: SPI
++ROM socketed: n
++Flashrom support: y
+diff --git a/src/mainboard/purism/librem_whl/devicetree.cb b/src/mainboard/purism/librem_whl/devicetree.cb
+new file mode 100644
+index 0000000000..e67d910322
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/devicetree.cb
+@@ -0,0 +1,223 @@
++chip soc/intel/cannonlake
++	# Lock Down
++	register "common_soc_config" = "{
++		.chipset_lockdown = CHIPSET_LOCKDOWN_COREBOOT,
++	}"
++
++	# Send an extra VR mailbox command for the PS4 exit issue
++	register "SendVrMbxCmd" = "2"
++
++# ACPI (soc/intel/cannonlake/acpi.c)
++	# Disable s0ix
++	register "s0ix_enable" = "0"
++
++	# PM Timer Enabled
++	register "PmTimerDisabled" = "0"
++
++	# Disable DPTF
++	register "dptf_enable" = "0"
++
++# CPU (soc/intel/cannonlake/cpu.c)
++	# Power limit
++	register "tdp_pl1_override" = "15"
++	register "tdp_pl2_override" = "25"
++
++	# Enable "Intel Speed Shift Technology"
++	register "speed_shift_enable" = "1"
++
++	# Enable Enhanced Intel SpeedStep
++	register "eist_enable" = "1"
++
++# FSP Memory (soc/intel/cannonlake/romstage/fsp_params.c)
++	register "SaGv" = "SaGv_Enabled"
++
++# FSP Silicon (soc/intel/cannonlake/fsp_params.c)
++	# Serial I/O
++	register "SerialIoDevMode" = "{
++		[PchSerialIoIndexI2C0] = PchSerialIoDisabled,
++		[PchSerialIoIndexI2C1] = PchSerialIoDisabled,
++		[PchSerialIoIndexI2C2] = PchSerialIoDisabled,
++		[PchSerialIoIndexI2C3] = PchSerialIoDisabled,
++		[PchSerialIoIndexI2C4] = PchSerialIoDisabled,
++		[PchSerialIoIndexI2C5] = PchSerialIoDisabled,
++		[PchSerialIoIndexSPI0] = PchSerialIoDisabled,
++		[PchSerialIoIndexSPI1] = PchSerialIoDisabled,
++		[PchSerialIoIndexSPI2] = PchSerialIoDisabled,
++		[PchSerialIoIndexUART0] = PchSerialIoDisabled,
++		[PchSerialIoIndexUART1] = PchSerialIoDisabled,
++		[PchSerialIoIndexUART2] = PchSerialIoDisabled,
++	}"
++
++	# SATA
++	register "SataMode" = "Sata_AHCI"
++	register "SataSalpSupport" = "0"
++	register "SataPortsEnable[0]" = "1" # 2.5"
++	register "SataPortsEnable[2]" = "1" # m.2
++	register "SataPortsDevSlp[0]" = "0"
++	register "SataPortsDevSlp[2]" = "0"
++
++	# Audio
++	register "PchHdaDspEnable" = "0"
++	register "PchHdaAudioLinkHda" = "1"
++	register "PchHdaAudioLinkDmic0" = "0"
++	register "PchHdaAudioLinkDmic1" = "0"
++	register "PchHdaAudioLinkSsp0" = "0"
++	register "PchHdaAudioLinkSsp1" = "0"
++	register "PchHdaAudioLinkSsp2" = "0"
++	register "PchHdaAudioLinkSndw1" = "0"
++	register "PchHdaAudioLinkSndw2" = "0"
++	register "PchHdaAudioLinkSndw3" = "0"
++	register "PchHdaAudioLinkSndw4" = "0"
++
++	# USB
++	register "SsicPortEnable" = "0"
++
++	# USB2
++	register "usb2_ports[0]" = "USB2_PORT_MID(OC_SKIP)"	# Type-A front left upper
++	register "usb2_ports[1]" = "USB2_PORT_MID(OC_SKIP)"	# Type-A front left lower
++	register "usb2_ports[2]" = "USB2_PORT_MID(OC2)"		# Type-A rear upper
++	register "usb2_ports[3]" = "USB2_PORT_MID(OC_SKIP)"	# Type-A front right lower
++	register "usb2_ports[4]" = "USB2_PORT_MID(OC_SKIP)"	# Type-A front right upper
++	register "usb2_ports[5]" = "USB2_PORT_TYPE_C(OC3)"	# Type-C rear
++	register "usb2_ports[6]" = "USB2_PORT_MID(OC_SKIP)"	# m.2-2230/Bluetooth
++	register "usb2_ports[7]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[8]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[9]" = "USB2_PORT_MID(OC2)"		# Type-A rear lower
++	register "usb2_ports[10]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[11]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[12]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[13]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[14]" = "USB2_PORT_EMPTY"		# NC
++	register "usb2_ports[15]" = "USB2_PORT_EMPTY"		# NC
++
++	# USB3
++	register "usb3_ports[0]" = "USB3_PORT_DEFAULT(OC_SKIP)" # Type-A front left upper
++	register "usb3_ports[1]" = "USB3_PORT_DEFAULT(OC_SKIP)"	# Type-A front left lower
++	register "usb3_ports[2]" = "USB3_PORT_EMPTY"		# NC
++	register "usb3_ports[3]" = "USB3_PORT_DEFAULT(OC3)"	# Type-C rear
++	register "usb3_ports[4]" = "USB3_PORT_DEFAULT(OC2)"	# Type-A rear lower
++	register "usb3_ports[5]" = "USB3_PORT_DEFAULT(OC2)"	# Type-A rear upper
++	register "usb3_ports[6]" = "USB3_PORT_EMPTY"		# NC
++	register "usb3_ports[7]" = "USB3_PORT_EMPTY"		# NC
++	register "usb3_ports[8]" = "USB3_PORT_EMPTY"		# NC
++	register "usb3_ports[9]" = "USB3_PORT_EMPTY"		# NC
++
++	# All SRCCLKREQ pins mapped directly
++	register "PcieClkSrcClkReq[0]" = "0"
++	register "PcieClkSrcClkReq[1]" = "1"
++	register "PcieClkSrcClkReq[2]" = "2"
++	register "PcieClkSrcClkReq[3]" = "3"
++	register "PcieClkSrcClkReq[4]" = "4"
++	register "PcieClkSrcClkReq[5]" = "5"
++
++	# Set all SRCCLKREQ pins as free-use
++	register "PcieClkSrcUsage[0]" = "0x80"
++	register "PcieClkSrcUsage[1]" = "0x80"
++	register "PcieClkSrcUsage[2]" = "0x80"
++	register "PcieClkSrcUsage[3]" = "0x80"
++	register "PcieClkSrcUsage[4]" = "0x80"
++	register "PcieClkSrcUsage[5]" = "0x80"
++
++	# PCI Express Root Port #8 x1, Clock 2 (WLAN)
++	register "PcieRpEnable[7]" = "1"
++	register "PcieRpLtrEnable[7]" = "1"
++
++	# PCI Express Root Port #10 x1, Clock 3 (LAN)
++	register "PcieRpEnable[9]" = "1"
++	register "PcieRpLtrEnable[9]" = "0"
++
++	# PCI Express Root port #13 x4, Clock 1 (NVMe)
++	register "PcieRpEnable[12]" = "1"
++	register "PcieRpLtrEnable[12]" = "1"
++
++	# Misc
++	register "Device4Enable" = "1"
++	# HECI must be enabled w/HAP disable else S3 issues
++	register "HeciEnabled" = "1"
++	register "Heci3Enabled" = "0"
++	register "AcousticNoiseMitigation" = "1"
++	register "satapwroptimize" = "1"
++
++	# Power
++	register "PchPmSlpS3MinAssert" = "3"	# 50ms
++	register "PchPmSlpS4MinAssert" = "1"	# 1s
++	register "PchPmSlpSusMinAssert" = "2"	# 500ms
++	register "PchPmSlpAMinAssert" = "4"	# 2s
++
++	# Thermal
++	register "tcc_offset" = "12"
++
++	# Serial IRQ Mode
++	register "serirq_mode" = "SERIRQ_CONTINUOUS"
++
++# PMC (soc/intel/cannonlake/pmc.c)
++	# Disable deep Sx states
++	register "deep_sx_config" = "0"
++
++# PM Util (soc/intel/cannonlake/pmutil.c)
++	# GPE configuration
++	# Note that GPE events called out in ASL code rely on this
++	# route. i.e. If this route changes then the affected GPE
++	# offset bits also need to be changed.
++	# sudo devmem2 0xfe001920 (pmc_bar + GPIO_GPE_CFG)
++	register "gpe0_dw0" = "PMC_GPP_C"
++	register "gpe0_dw1" = "PMC_GPP_D"
++	register "gpe0_dw2" = "PMC_GPP_E"
++
++# Actual device tree
++	device cpu_cluster 0 on
++		device lapic 0 on end
++	end
++
++	device domain 0 on
++		device pci 00.0 on  end # Host Bridge
++		device pci 02.0 on  end # Integrated Graphics Device
++		device pci 04.0 on  end # SA Thermal device
++		device pci 12.0 on  end # Thermal Subsystem
++		device pci 13.0 off end # Integrated Sensor Hub
++		device pci 14.0 on  end # USB xHCI
++		device pci 14.1 off end # USB xDCI (OTG)
++		device pci 15.0 off end # I2C #0
++		device pci 15.1 off end # I2C #1
++		device pci 15.2 off end # I2C #2
++		device pci 15.3 off end # I2C #3
++		device pci 16.0 off end # Management Engine Interface 1
++		device pci 16.1 off end # Management Engine Interface 2
++		device pci 16.2 off end # Management Engine IDE-R
++		device pci 16.3 off end # Management Engine KT Redirection
++		device pci 16.4 off end # Management Engine Interface 3
++		device pci 16.5 off end # Management Engine Interface 4
++		device pci 17.0 on  end # SATA
++		device pci 19.0 off end # I2C #4
++		device pci 19.1 off end # I2C #5
++		device pci 19.2 off end # UART #2
++		device pci 1a.0 off end # eMMC
++		device pci 1c.0 on  end # PCI Express Port 1
++		device pci 1c.1 off end # PCI Express Port 2
++		device pci 1c.2 off end # PCI Express Port 3
++		device pci 1c.3 off end # PCI Express Port 4
++		device pci 1c.4 off end # PCI Express Port 5
++		device pci 1c.5 off end # PCI Express Port 6
++		device pci 1c.6 off end # PCI Express Port 7
++		device pci 1c.7 on  end # PCI Express Port 8  (WLAN)
++		device pci 1d.0 on  end # PCI Express Port 9
++		device pci 1d.1 on  end # PCI Express Port 10 (LAN)
++		device pci 1d.2 off end # PCI Express Port 11
++		device pci 1d.3 off end # PCI Express Port 12
++		device pci 1d.4 on  end # PCI Express Port 13 (NVMe)
++		device pci 1d.5 off end # PCI Express Port 14
++		device pci 1d.6 off end # PCI Express Port 15
++		device pci 1d.7 off end # PCI Express Port 16
++		device pci 1e.0 off end # UART #0
++		device pci 1e.1 off end # UART #1
++		device pci 1e.2 off end # GSPI #0
++		device pci 1e.3 off end # GSPI #1
++		device pci 1f.0 on  end # LPC Bridge
++		device pci 1f.1 off end # P2SB
++		device pci 1f.2 off end # Power Management Controller
++		device pci 1f.3 on  end # Intel HDA
++		device pci 1f.4 on  end # SMBus
++		device pci 1f.5 on  end # PCH SPI
++		device pci 1f.6 off end # GbE
++	end
++end
+diff --git a/src/mainboard/purism/librem_whl/dsdt.asl b/src/mainboard/purism/librem_whl/dsdt.asl
+new file mode 100644
+index 0000000000..296be17b35
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/dsdt.asl
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <acpi/acpi.h>
++DefinitionBlock(
++	"dsdt.aml",
++	"DSDT",
++	0x02,		/* DSDT revision: ACPI v2.0 and up */
++	OEM_ID,
++	ACPI_TABLE_CREATOR,
++	0x20110725	/* OEM revision */
++)
++{
++	#include <soc/intel/cannonlake/acpi/platform.asl>
++	#include <soc/intel/common/block/acpi/acpi/globalnvs.asl>
++	#include <cpu/intel/common/acpi/cpu.asl>
++
++	Device (\_SB.PCI0)
++	{
++		#include <soc/intel/common/block/acpi/acpi/northbridge.asl>
++		#include <soc/intel/cannonlake/acpi/southbridge.asl>
++	}
++
++	#include <southbridge/intel/common/acpi/sleepstates.asl>
++
++	#include "acpi/mainboard.asl"
++}
+diff --git a/src/mainboard/purism/librem_whl/ramstage.c b/src/mainboard/purism/librem_whl/ramstage.c
+new file mode 100644
+index 0000000000..3479c0d3ed
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/ramstage.c
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <soc/ramstage.h>
++#include <variant/gpio.h>
++
++void mainboard_silicon_init_params(FSP_S_CONFIG *params)
++{
++	/* Configure pads prior to SiliconInit() in case there's any
++	 * dependencies during hardware initialization. */
++	size_t num_gpios;
++	const struct pad_config *gpio_table = variant_gpio_table(&num_gpios);
++	cnl_configure_pads(gpio_table, num_gpios);
++
++	/* Limit SATA speed to 3Gbps */
++	params->SataSpeedLimit = 2;
++}
+diff --git a/src/mainboard/purism/librem_whl/romstage.c b/src/mainboard/purism/librem_whl/romstage.c
+new file mode 100644
+index 0000000000..9f8d600950
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/romstage.c
+@@ -0,0 +1,52 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <soc/cnl_memcfg_init.h>
++#include <soc/romstage.h>
++
++static const struct cnl_mb_cfg memcfg = {
++
++	/* Parameters required to access SPD for CH0D0/CH0D1/CH1D0/CH1D1. */
++	.spd[0] = {
++		.read_type = READ_SMBUS,
++		.spd_spec = {.spd_smbus_address = 0xa0},
++	},
++	.spd[1] = {.read_type = NOT_EXISTING},
++	.spd[2] = {
++		.read_type = READ_SMBUS,
++		.spd_spec = {.spd_smbus_address = 0xa4},
++	},
++	.spd[3] = {.read_type = NOT_EXISTING},
++
++	/*
++	 * Rcomp resistor values.  These values represent the resistance in
++	 * ohms of the three rcomp resistors attached to the DDR_COMP_0,
++	 * DDR_COMP_1, and DDR_COMP_2 pins on the DRAM.
++	 */
++	.rcomp_resistor = { 121, 81, 100 },
++
++	/* Rcomp target values */
++	.rcomp_targets = { 100, 40, 20, 20, 26 },
++
++	/*
++	 * Indicates whether memory is interleaved.
++	 * Set to 1 for an interleaved design,
++	 * set to 0 for non-interleaved design.
++	 */
++	.dq_pins_interleaved = 1,
++
++	/*
++	 * VREF_CA configuration.
++	 * Set to 0 VREF_CA goes to both CH_A and CH_B,
++	 * set to 1 VREF_CA goes to CH_A and VREF_DQ_A goes to CH_B,
++	 * set to 2 VREF_CA goes to CH_A and VREF_DQ_B goes to CH_B.
++	 */
++	.vref_ca_config = 2,
++
++	/* Early Command Training */
++	.ect = 0,
++};
++
++void mainboard_memory_init_params(FSPM_UPD *memupd)
++{
++	cannonlake_memcfg_init(&memupd->FspmConfig, &memcfg);
++}
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c b/src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c
+new file mode 100644
+index 0000000000..a5b2dcafa3
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c
+@@ -0,0 +1,229 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <variant/gpio.h>
++
++/* Pad configuration in ramstage. */
++static const struct pad_config gpio_table[] = {
++
++/* ------- GPIO Group GPP_A ------- */
++
++_PAD_CFG_STRUCT(GPP_A0,  0x44000702, 0x0000),	/* RCIN#               */
++_PAD_CFG_STRUCT(GPP_A1,  0x44000702, 0x3c00),	/* LAD0                */
++_PAD_CFG_STRUCT(GPP_A2,  0x44000702, 0x3c00),	/* LAD1                */
++_PAD_CFG_STRUCT(GPP_A3,  0x44000702, 0x3c00),	/* LAD2                */
++_PAD_CFG_STRUCT(GPP_A4,  0x44000702, 0x3c00),	/* LAD3                */
++_PAD_CFG_STRUCT(GPP_A5,  0x44000700, 0x0000),	/* LFRAME#             */
++_PAD_CFG_STRUCT(GPP_A6,  0x44000700, 0x0000),	/* SERIRQ              */
++_PAD_CFG_STRUCT(GPP_A7,  0x84000200, 0x0000),	/* PIRQA#              */
++_PAD_CFG_STRUCT(GPP_A8,  0x44000700, 0x0000),	/* CLKRUN#             */
++_PAD_CFG_STRUCT(GPP_A9,  0x44000700, 0x1000),	/* CLKOUT_LPC0         */
++_PAD_CFG_STRUCT(GPP_A10, 0x44000700, 0x1000),	/* CLKOUT_LPC1         */
++_PAD_CFG_STRUCT(GPP_A11, 0x40880201, 0x0000),	/* PME#                */
++_PAD_CFG_STRUCT(GPP_A12, 0x84000201, 0x0000),	/* BM_BUSY#            */
++_PAD_CFG_STRUCT(GPP_A13, 0x84000201, 0x0000),	/* SUSWARN#/SUSPWRDNACK*/
++_PAD_CFG_STRUCT(GPP_A14, 0x44000700, 0x0000),	/* SUS_STAT#           */
++_PAD_CFG_STRUCT(GPP_A15, 0x84000201, 0x0000),	/* SUSACK#             */
++_PAD_CFG_STRUCT(GPP_A16, 0x84000200, 0x3000),	/* SD_1P8_SEL          */
++_PAD_CFG_STRUCT(GPP_A17, 0x84000201, 0x0000),	/* SD_VDD1_PWR_EN#     */
++_PAD_CFG_STRUCT(GPP_A18, 0x44000300, 0x3000),	/* ISH_GP0             */
++_PAD_CFG_STRUCT(GPP_A19, 0x44000300, 0x3000),	/* ISH_GP1             */
++_PAD_CFG_STRUCT(GPP_A20, 0x44000300, 0x3000),	/* ISH_GP2             */
++_PAD_CFG_STRUCT(GPP_A21, 0x44000300, 0x3000),	/* ISH_GP3             */
++_PAD_CFG_STRUCT(GPP_A22, 0x44000300, 0x3000),	/* ISH_GP4             */
++_PAD_CFG_STRUCT(GPP_A23, 0x44000300, 0x3000),	/* ISH_GP5             */
++
++/* ------- GPIO Group GPP_B ------- */
++
++_PAD_CFG_STRUCT(GPP_B0,  0x84000700, 0x0000),	/* Reserved            */
++_PAD_CFG_STRUCT(GPP_B1,  0x84000700, 0x0000),	/* Reserved            */
++_PAD_CFG_STRUCT(GPP_B2,  0x84000201, 0x0000),	/* VRALERT#            */
++_PAD_CFG_STRUCT(GPP_B3,  0x84000201, 0x0000),	/* CPU_GP2             */
++_PAD_CFG_STRUCT(GPP_B4,  0x84000201, 0x0000),	/* CPU_GP3             */
++_PAD_CFG_STRUCT(GPP_B5,  0x44000300, 0x0000),	/* SRCCLKREQ0#         */
++_PAD_CFG_STRUCT(GPP_B6,  0x44000300, 0x0000),	/* SRCCLKREQ1#         */
++_PAD_CFG_STRUCT(GPP_B7,  0x44000300, 0x0000),	/* SRCCLKREQ2#         */
++_PAD_CFG_STRUCT(GPP_B8,  0x44000300, 0x0000),	/* SRCCLKREQ3#         */
++_PAD_CFG_STRUCT(GPP_B9,  0x44000300, 0x0000),	/* SRCCLKREQ4#         */
++_PAD_CFG_STRUCT(GPP_B10, 0x44000300, 0x0000),	/* SRCCLKREQ5#         */
++_PAD_CFG_STRUCT(GPP_B11, 0x84000201, 0x0000),	/* EXT_PWR_GATE#       */
++_PAD_CFG_STRUCT(GPP_B12, 0x44000700, 0x0000),	/* SLP_S0#             */
++_PAD_CFG_STRUCT(GPP_B13, 0x44000700, 0x0000),	/* PLTRST#             */
++_PAD_CFG_STRUCT(GPP_B14, 0x84000201, 0x0000),	/* SPKR                */
++_PAD_CFG_STRUCT(GPP_B15, 0x80000701, 0x0000),	/* GSPI0_CS0#          */
++_PAD_CFG_STRUCT(GPP_B16, 0x84000601, 0x0000),	/* GSPI0_CLK           */
++_PAD_CFG_STRUCT(GPP_B17, 0x44000502, 0x0000),	/* GSPI0_MISO          */
++_PAD_CFG_STRUCT(GPP_B18, 0x84000601, 0x0000),	/* GSPI0_MOSI          */
++_PAD_CFG_STRUCT(GPP_B19, 0x84000400, 0x0000),	/* GSPI1_CS0#          */
++_PAD_CFG_STRUCT(GPP_B20, 0x84000400, 0x0000),	/* GSPI1_CLK           */
++_PAD_CFG_STRUCT(GPP_B21, 0x84000402, 0x0000),	/* GSPI1_MISO          */
++_PAD_CFG_STRUCT(GPP_B22, 0x84000400, 0x0000),	/* GSPI1_MOSI          */
++_PAD_CFG_STRUCT(GPP_B23, 0x44000201, 0x0000),	/* SML1ALERT#          */
++
++/* ------- GPIO Group GPP_G ------- */
++
++_PAD_CFG_STRUCT(GPP_G0,  0x84000200, 0x0000),	/* SD_CMD              */
++_PAD_CFG_STRUCT(GPP_G1,  0x84000300, 0x0000),	/* SD_DATA0            */
++_PAD_CFG_STRUCT(GPP_G2,  0x84000300, 0x0000),	/* SD_DATA1            */
++_PAD_CFG_STRUCT(GPP_G3,  0x84000300, 0x0000),	/* SD_DATA2            */
++_PAD_CFG_STRUCT(GPP_G4,  0x84000300, 0x0000),	/* SD_DATA3            */
++_PAD_CFG_STRUCT(GPP_G5,  0x84000300, 0x3000),	/* SD3_CD#             */
++_PAD_CFG_STRUCT(GPP_G6,  0x84000300, 0x0000),	/* SD3_CLK             */
++_PAD_CFG_STRUCT(GPP_G7,  0x84000300, 0x1000),	/* SD3_WP              */
++
++/* ------- GPIO Group GPP_D ------- */
++
++_PAD_CFG_STRUCT(GPP_D0,  0x44000300, 0x0000),	/* SPI1_CS#            */
++_PAD_CFG_STRUCT(GPP_D1,  0x44000300, 0x0000),	/* SPI1_CLK            */
++_PAD_CFG_STRUCT(GPP_D2,  0x44000300, 0x0000),	/* SPI1_MISO           */
++_PAD_CFG_STRUCT(GPP_D3,  0x44000300, 0x0000),	/* SPI1_MOSI           */
++_PAD_CFG_STRUCT(GPP_D4,  0x44000300, 0x0000),	/* IMGCLKOUT0          */
++_PAD_CFG_STRUCT(GPP_D5,  0x44000700, 0x0000),	/* ISH_I2C0_SDA        */
++_PAD_CFG_STRUCT(GPP_D6,  0x44000700, 0x0000),	/* ISH_I2C0_SCL        */
++_PAD_CFG_STRUCT(GPP_D7,  0x84000201, 0x0000),	/* ISH_I2C1_SDA        */
++_PAD_CFG_STRUCT(GPP_D8,  0x84000200, 0x0000),	/* ISH_I2C1_SCL        */
++_PAD_CFG_STRUCT(GPP_D9,  0x84000201, 0x0000),	/* ISH_SPI_CS#         */
++_PAD_CFG_STRUCT(GPP_D10, 0x84000201, 0x0000),	/* ISH_SPI_CLK         */
++_PAD_CFG_STRUCT(GPP_D11, 0x44000201, 0x3000),	/* ISH_SPI_MISO        */
++_PAD_CFG_STRUCT(GPP_D12, 0x42100102, 0x3000),	/* ISH_SPI_MOSI        */
++_PAD_CFG_STRUCT(GPP_D13, 0x44000201, 0x0000),	/* ISH_UART0_RXD       */
++_PAD_CFG_STRUCT(GPP_D14, 0x84000201, 0x0000),	/* ISH_UART0_TXD       */
++_PAD_CFG_STRUCT(GPP_D15, 0x84000201, 0x0000),	/* ISH_UART0_RTS#      */
++_PAD_CFG_STRUCT(GPP_D16, 0x44000200, 0x0000),	/* ISH_UART0_CTS#      */
++_PAD_CFG_STRUCT(GPP_D17, 0x44000700, 0x0000),	/* DMIC_CLK1           */
++_PAD_CFG_STRUCT(GPP_D18, 0x44000700, 0x0000),	/* DMIC_DATA1          */
++_PAD_CFG_STRUCT(GPP_D19, 0x44000700, 0x0000),	/* DMIC_CLK0           */
++_PAD_CFG_STRUCT(GPP_D20, 0x44000700, 0x0000),	/* DMIC_DATA0          */
++_PAD_CFG_STRUCT(GPP_D21, 0x44000300, 0x0000),	/* SPI1_IO2            */
++_PAD_CFG_STRUCT(GPP_D22, 0x44000300, 0x0000),	/* SPI1_IO3            */
++_PAD_CFG_STRUCT(GPP_D23, 0x44000300, 0x0000),	/* I2S_MCLK            */
++
++/* ------- GPIO Group GPP_F ------- */
++
++_PAD_CFG_STRUCT(GPP_F0,  0x84000301, 0x0000),	/* CNV_PA_BLANKING     */
++_PAD_CFG_STRUCT(GPP_F1,  0x84000200, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_F2,  0x84000201, 0x3000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_F3,  0x84000200, 0x3000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_F4,  0x44000700, 0x3000),	/* CNV_BRI_DT          */
++_PAD_CFG_STRUCT(GPP_F5,  0x44000702, 0x3000),	/* CNV_BRI_RSP         */
++_PAD_CFG_STRUCT(GPP_F6,  0x44000700, 0x3000),	/* CNV_RGI_DT          */
++_PAD_CFG_STRUCT(GPP_F7,  0x44000702, 0x3000),	/* CNV_RGI_RSP         */
++_PAD_CFG_STRUCT(GPP_F8,  0x44000300, 0x0000),	/* CNV_MFUART2_RXD     */
++_PAD_CFG_STRUCT(GPP_F9,  0x44000300, 0x0000),	/* CNV_MFUART2_TXD     */
++_PAD_CFG_STRUCT(GPP_F10, 0x84000201, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_F11, 0x44000300, 0x0000),	/* EMMC_CMD            */
++_PAD_CFG_STRUCT(GPP_F12, 0x44000300, 0x0000),	/* EMMC_DATA0          */
++_PAD_CFG_STRUCT(GPP_F13, 0x44000300, 0x0000),	/* EMMC_DATA1          */
++_PAD_CFG_STRUCT(GPP_F14, 0x44000300, 0x0000),	/* EMMC_DATA2          */
++_PAD_CFG_STRUCT(GPP_F15, 0x44000300, 0x0000),	/* EMMC_DATA3          */
++_PAD_CFG_STRUCT(GPP_F16, 0x44000300, 0x0000),	/* EMMC_DATA4          */
++_PAD_CFG_STRUCT(GPP_F17, 0x44000300, 0x0000),	/* EMMC_DATA5          */
++_PAD_CFG_STRUCT(GPP_F18, 0x44000300, 0x0000),	/* EMMC_DATA6          */
++_PAD_CFG_STRUCT(GPP_F19, 0x44000300, 0x0000),	/* EMMC_DATA7          */
++_PAD_CFG_STRUCT(GPP_F20, 0x44000300, 0x0000),	/* EMMC_RCLK           */
++_PAD_CFG_STRUCT(GPP_F21, 0x44000300, 0x0000),	/* EMMC_CLK            */
++_PAD_CFG_STRUCT(GPP_F22, 0x44000300, 0x0000),	/* EMMC_RESET#         */
++_PAD_CFG_STRUCT(GPP_F23, 0x44000700, 0x1000),	/* A4WP_PRESENT        */
++
++/* ------- GPIO Group GPP_H ------- */
++
++_PAD_CFG_STRUCT(GPP_H0,  0x44000300, 0x3000),	/* I2S2_SCLK           */
++_PAD_CFG_STRUCT(GPP_H1,  0x44000f00, 0x3000),	/* CNV_RF_RESET#       */
++_PAD_CFG_STRUCT(GPP_H2,  0x84000f00, 0x3000),	/* MODEM_CLKREQ        */
++_PAD_CFG_STRUCT(GPP_H3,  0x84000300, 0x3000),	/* I2S2_RXD            */
++_PAD_CFG_STRUCT(GPP_H4,  0x84000300, 0x0000),	/* I2C2_SDA            */
++_PAD_CFG_STRUCT(GPP_H5,  0x84000300, 0x0000),	/* I2C2_SCL            */
++_PAD_CFG_STRUCT(GPP_H6,  0x84000702, 0x0000),	/* I2C3_SDA            */
++_PAD_CFG_STRUCT(GPP_H7,  0x84000702, 0x0000),	/* I2C3_SCL            */
++_PAD_CFG_STRUCT(GPP_H8,  0x84000702, 0x0000),	/* I2C4_SDA            */
++_PAD_CFG_STRUCT(GPP_H9,  0x84000702, 0x0000),	/* I2C4_SCL            */
++_PAD_CFG_STRUCT(GPP_H10, 0x84000603, 0x0000),	/* I2C5_SDA            */
++_PAD_CFG_STRUCT(GPP_H11, 0x84000603, 0x0000),	/* I2C5_SCL            */
++_PAD_CFG_STRUCT(GPP_H12, 0x84000201, 0x0000),	/* M2_SKT2_CFG0        */
++_PAD_CFG_STRUCT(GPP_H13, 0x84000201, 0x0000),	/* M2_SKT2_CFG1        */
++_PAD_CFG_STRUCT(GPP_H14, 0x84000200, 0x0000),	/* M2_SKT2_CFG2        */
++_PAD_CFG_STRUCT(GPP_H15, 0x84000201, 0x0000),	/* M2_SKT2_CFG3        */
++_PAD_CFG_STRUCT(GPP_H16, 0x84000201, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_H17, 0x84000201, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_H18, 0x84000700, 0x0000),	/* CPU_C10_GATE#       */
++_PAD_CFG_STRUCT(GPP_H19, 0x84000201, 0x0000),	/* TIME_SYNC0          */
++_PAD_CFG_STRUCT(GPP_H20, 0x84000300, 0x0000),	/* IMGCLKOUT1          */
++_PAD_CFG_STRUCT(GPP_H21, 0x84000200, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_H22, 0x84000201, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_H23, 0x84000200, 0x0000),	/* GPIO                */
++
++/* ------- GPIO Group GPD ------- */
++
++_PAD_CFG_STRUCT(GPD0,  0x44000702, 0x0000),	/* BATLOW#             */
++_PAD_CFG_STRUCT(GPD1,  0x44000702, 0x3c00),	/* ACPRESENT           */
++_PAD_CFG_STRUCT(GPD2,  0x44000702, 0x3c00),	/* LAN_WAKE#           */
++_PAD_CFG_STRUCT(GPD3,  0x44000702, 0x3000),	/* PRWBTN#             */
++_PAD_CFG_STRUCT(GPD4,  0x44000600, 0x0000),	/* SLP_S3#             */
++_PAD_CFG_STRUCT(GPD5,  0x44000600, 0x0000),	/* SLP_S4#             */
++_PAD_CFG_STRUCT(GPD6,  0x44000600, 0x0000),	/* SLP_A#              */
++_PAD_CFG_STRUCT(GPD7,  0x44000200, 0x0000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPD8,  0x44000700, 0x0000),	/* SUSCLK              */
++_PAD_CFG_STRUCT(GPD9,  0x44000700, 0x0000),	/* SLP_WLAN#           */
++_PAD_CFG_STRUCT(GPD10, 0x44000600, 0x0000),	/* SLP_S5#             */
++_PAD_CFG_STRUCT(GPD11, 0x44000600, 0x0000),	/* LANPHYPC            */
++
++/* ------- GPIO Group GPP_C ------- */
++
++_PAD_CFG_STRUCT(GPP_C0,  0x44000702, 0x0000),	/* SMBCLK              */
++_PAD_CFG_STRUCT(GPP_C1,  0x44000702, 0x0000),	/* SMBDATA             */
++_PAD_CFG_STRUCT(GPP_C2,  0x44000201, 0x0000),	/* SMBALERT#           */
++_PAD_CFG_STRUCT(GPP_C3,  0x44000702, 0x0000),	/* SML0CLK             */
++_PAD_CFG_STRUCT(GPP_C4,  0x44000702, 0x0000),	/* SML0DATA            */
++_PAD_CFG_STRUCT(GPP_C5,  0x84000201, 0x0000),	/* SML0ALERT#          */
++_PAD_CFG_STRUCT(GPP_C6,  0x44000300, 0x0000),	/* SML1CLK             */
++_PAD_CFG_STRUCT(GPP_C7,  0x44000300, 0x0000),	/* SML1DATA            */
++_PAD_CFG_STRUCT(GPP_C8,  0x84000201, 0x0000),	/* UART0_RXD           */
++_PAD_CFG_STRUCT(GPP_C9,  0x84000201, 0x0000),	/* UART0_TXD           */
++_PAD_CFG_STRUCT(GPP_C10, 0x84000200, 0x0000),	/* UART0_RTS#          */
++_PAD_CFG_STRUCT(GPP_C11, 0x84000201, 0x0000),	/* UART0_CTS#          */
++_PAD_CFG_STRUCT(GPP_C12, 0x84000603, 0x0000),	/* UART1_RXD           */
++_PAD_CFG_STRUCT(GPP_C13, 0x84000700, 0x0000),	/* UART1_TXD           */
++_PAD_CFG_STRUCT(GPP_C14, 0x84000700, 0x0000),	/* UART1_RTS#          */
++_PAD_CFG_STRUCT(GPP_C15, 0x84000702, 0x0000),	/* UART1_CTS#          */
++_PAD_CFG_STRUCT(GPP_C16, 0x84000402, 0x0000),	/* I2C0_SDA            */
++_PAD_CFG_STRUCT(GPP_C17, 0x84000402, 0x0000),	/* I2C0_SCL            */
++_PAD_CFG_STRUCT(GPP_C18, 0x44000702, 0x0000),	/* I2C1_SDA            */
++_PAD_CFG_STRUCT(GPP_C19, 0x44000702, 0x0000),	/* I2C1_SCL            */
++_PAD_CFG_STRUCT(GPP_C20, 0x44000300, 0x0000),	/* UART2_RXD           */
++_PAD_CFG_STRUCT(GPP_C21, 0x44000300, 0x0000),	/* UART2_TXD           */
++_PAD_CFG_STRUCT(GPP_C22, 0x84000201, 0x0000),	/* UART2_RTS#          */
++_PAD_CFG_STRUCT(GPP_C23, 0x40100102, 0x1000),	/* UART2_CTS#          */
++
++/* ------- GPIO Group GPP_E ------- */
++
++_PAD_CFG_STRUCT(GPP_E0,  0x84000300, 0x0000),	/* SATAXPCIE0          */
++_PAD_CFG_STRUCT(GPP_E1,  0x84000300, 0x0000),	/* SATAXPCIE1          */
++_PAD_CFG_STRUCT(GPP_E2,  0x84000502, 0x3000),	/* SATAXPCIE2          */
++_PAD_CFG_STRUCT(GPP_E3,  0x82040102, 0x0000),	/* CPU_GP0             */
++_PAD_CFG_STRUCT(GPP_E4,  0x84000201, 0x0000),	/* SATA_DEVSLP0        */
++_PAD_CFG_STRUCT(GPP_E5,  0x84000300, 0x0000),	/* SATA_DEVSLP1        */
++_PAD_CFG_STRUCT(GPP_E6,  0x84000300, 0x0000),	/* SATA_DEVSLP2        */
++_PAD_CFG_STRUCT(GPP_E7,  0x82000102, 0x0000),	/* CPU_GP1             */
++_PAD_CFG_STRUCT(GPP_E8,  0x84000700, 0x0000),	/* SATALED#            */
++_PAD_CFG_STRUCT(GPP_E9,  0x44001700, 0x0000),	/* USB2_OC0#            */
++_PAD_CFG_STRUCT(GPP_E10, 0x44001700, 0x0000),	/* USB2_OC1#            */
++_PAD_CFG_STRUCT(GPP_E11, 0x44000702, 0x0000),	/* USB2_OC2#           */
++_PAD_CFG_STRUCT(GPP_E12, 0x44000702, 0x0000),	/* USB2_OC3#           */
++_PAD_CFG_STRUCT(GPP_E13, 0x84000700, 0x0000),	/* DDPB_HPD0           */
++_PAD_CFG_STRUCT(GPP_E14, 0x84000702, 0x0000),	/* DDPC_HPD1           */
++_PAD_CFG_STRUCT(GPP_E15, 0x84000201, 0x0000),	/* DDPD_HPD2           */
++_PAD_CFG_STRUCT(GPP_E16, 0x80880102, 0x3000),	/* GPIO                */
++_PAD_CFG_STRUCT(GPP_E17, 0x84000700, 0x0000),	/* EDP_HPD             */
++_PAD_CFG_STRUCT(GPP_E18, 0x84000702, 0x0000),	/* DPPB_CTRLCLK        */
++_PAD_CFG_STRUCT(GPP_E19, 0x84000602, 0x0000),	/* DPPB_CTRLDATA       */
++_PAD_CFG_STRUCT(GPP_E20, 0x84000700, 0x0000),	/* DPPC_CTRLCLK        */
++_PAD_CFG_STRUCT(GPP_E21, 0x84000602, 0x0000),	/* DPPC_CTRLDATA       */
++_PAD_CFG_STRUCT(GPP_E22, 0x84000702, 0x0000),	/* DPPD_CTRLCLK        */
++_PAD_CFG_STRUCT(GPP_E23, 0x84000602, 0x0000),	/* DPPD_CTRLDATA       */
++
++};
++
++const struct pad_config *variant_gpio_table(size_t *num)
++{
++	*num = ARRAY_SIZE(gpio_table);
++	return gpio_table;
++}
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c b/src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c
+new file mode 100644
+index 0000000000..c3daf3c5ed
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <device/azalia_device.h>
++
++const u32 cim_verb_data[] = {
++	0x10ec0269,	/* Codec Vendor/Device ID: Realtek ALC293 */
++	0x10ec0000,	/* Subsystem ID */
++	11,		/* Number of entries */
++
++	AZALIA_SUBVENDOR(0, 0x10ec0000),
++	AZALIA_PIN_CFG(0, 0x12, 0x40000000),
++	AZALIA_PIN_CFG(0, 0x15, 0x01214010),
++	AZALIA_PIN_CFG(0, 0x17, 0x411111f0),
++	AZALIA_PIN_CFG(0, 0x18, 0x01a19130),
++	AZALIA_PIN_CFG(0, 0x19, 0x411111f0),
++	AZALIA_PIN_CFG(0, 0x1a, 0x411111f0),
++	AZALIA_PIN_CFG(0, 0x1b, 0x411111f0),
++	AZALIA_PIN_CFG(0, 0x1d, 0x40422201),
++	AZALIA_PIN_CFG(0, 0x1e, 0x411111f0),
++
++	0x8086280b,	/* Codec Vendor/Device ID: Intel CannonPoint HDMI */
++	0x80860101,	/* Subsystem ID */
++	4,		/* Number of entries */
++
++	AZALIA_SUBVENDOR(2, 0x80860101),
++	AZALIA_PIN_CFG(2, 0x05, 0x18560010),
++	AZALIA_PIN_CFG(2, 0x06, 0x18560020),
++	AZALIA_PIN_CFG(2, 0x07, 0x18560030),
++};
++
++const u32 pc_beep_verbs[] = {};
++
++AZALIA_ARRAY_SIZES;
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h b/src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h
+new file mode 100644
+index 0000000000..9094b0419d
+--- /dev/null
++++ b/src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h
+@@ -0,0 +1,11 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef VARIANT_GPIO_H
++#define VARIANT_GPIO_H
++
++#include <soc/gpe.h>
++#include <soc/gpio.h>
++
++const struct pad_config *variant_gpio_table(size_t *num);
++
++#endif
+-- 
+2.20.1
+

@@ -1,0 +1,12 @@
+modules-$(CONFIG_PURISM_BLOBS) += purism-blobs
+
+purism-blobs_base_dir := coreboot-$(CONFIG_COREBOOT_VERSION)/3rdparty/purism-blobs
+purism-blobs_version := f53d4074a81c70352d39839884caac20181274d1
+purism-blobs_tar := purism-blobs-${purism-blobs_version}.tar.gz
+purism-blobs_tar_opt := --strip 1
+purism-blobs_url := https://source.puri.sm/coreboot/purism-blobs/-/archive/${purism-blobs_version}/${purism-blobs_tar}
+purism-blobs_hash := f1abd419f085a6d519a2b9b141aee9900553aabf644f0fe1801618fb54157556
+
+## there is nothing to be built
+purism-blobs_output := .built
+purism-blobs_configure := echo -e 'all:\n\ttouch .built' > Makefile
