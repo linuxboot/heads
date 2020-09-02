@@ -14,7 +14,7 @@ The script depends on: wget sha256sum python2.7 bspatch pv
 You can now compile the image with:
 
 ```
-make BOARD=librem13v4
+make BOARD=librem_13v4
 or
-make BOARD=librem15v4
+make BOARD=librem_15v4
 ```

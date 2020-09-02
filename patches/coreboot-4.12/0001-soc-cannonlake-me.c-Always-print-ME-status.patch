@@ -1,0 +1,31 @@
+From 32e60b698d33eec419bf0e4865ece7b86ea1355a Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Fri, 19 Jun 2020 17:02:22 -0500
+Subject: [PATCH] soc/cannonlake/me.c: Always print ME status
+
+Print the ME status even if the CSE device is disabled, so
+we know which disabled state it's in.
+
+Change-Id: I939333199aa699039fec727beb094e4eb2ad7149
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+---
+ src/soc/intel/cannonlake/me.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/soc/intel/cannonlake/me.c b/src/soc/intel/cannonlake/me.c
+index a51b702e6a..3fae0bf534 100644
+--- a/src/soc/intel/cannonlake/me.c
++++ b/src/soc/intel/cannonlake/me.c
+@@ -103,9 +103,6 @@ void dump_me_status(void *unused)
+ 	union me_hfsts5 hfsts5;
+ 	union me_hfsts6 hfsts6;
+ 
+-	if (!is_cse_enabled())
+-		return;
+-
+ 	hfsts1.data = me_read_config32(PCI_ME_HFSTS1);
+ 	hfsts2.raw = me_read_config32(PCI_ME_HFSTS2);
+ 	hfsts3.data = me_read_config32(PCI_ME_HFSTS3);
+-- 
+2.20.1
+
