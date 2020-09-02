@@ -65,7 +65,7 @@ jobs:
           command: |
             rm -rf build/x230-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-flash \
+                BOARD=x230-flash || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-flash hashes
@@ -83,7 +83,7 @@ jobs:
           command: |
             rm -rf build/t430-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430-flash \
+                BOARD=t430-flash || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430-flash hashes
@@ -101,7 +101,7 @@ jobs:
           command: |
             rm -rf build/t430/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430 \
+                BOARD=t430  || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430 hashes
@@ -119,7 +119,7 @@ jobs:
           command: |
             rm -rf build/x230/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230 \
+                BOARD=x230 || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230 hashes
@@ -137,7 +137,7 @@ jobs:
           command: |
             rm -rf build/x230-hotp-verification/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-hotp-verification \
+                BOARD=x230-hotp-verification || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-hotp-verification hashes
@@ -173,7 +173,7 @@ jobs:
           command: |
             rm -rf build/qemu-coreboot/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=qemu-coreboot \
+                BOARD=qemu-coreboot || (find ./build/log/ -cmin 1|xargs tail; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Output qemu-coreboot hashes
