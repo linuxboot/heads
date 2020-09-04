@@ -28,7 +28,7 @@ while getopts ":f:m:i:" opt; do
 done
 
 if [ -z "$MECLEAN" ]; then
-  MECLEAN=`command -v $BLOBDIR/../../build/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1`
+  MECLEAN=`command -v $BLOBDIR/../../build/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1|head -n1`
   if [ -z "$MECLEAN" ]; then
     echo "me_cleaner.py required but not found or specified with -m. Aborting."
     exit 1;
@@ -36,7 +36,7 @@ if [ -z "$MECLEAN" ]; then
 fi
 
 if [ -z "$IFDTOOL" ]; then
-  IFDTOOL=`command -v $BLOBDIR/../../build/coreboot-*/util/ifdtool/ifdtool 2>&1`
+  IFDTOOL=`command -v $BLOBDIR/../../build/coreboot-*/util/ifdtool/ifdtool 2>&1|head -n1`
   if [ -z "$IFDTOOL" ]; then
     echo "ifdtool required but not found or specified with -m. Aborting."
     exit 1;
