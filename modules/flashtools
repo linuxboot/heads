@@ -2,14 +2,11 @@ modules-$(CONFIG_FLASHTOOLS) += flashtools
 
 flashtools_depends := $(musl_dep)
 
-flashtools_version := git
-flashtools_repo := https://github.com/osresearch/flashtools
-
-flashtools_version := 0.0.1
+flashtools_version := 40d5170e84a3822552df7a500cd00aa870fdfe76
 flashtools_dir := flashtools-$(flashtools_version)
 flashtools_tar := flashtools-$(flashtools_version).tar.gz
-flashtools_url := https://github.com/osresearch/flashtools/archive/v$(flashtools_version).tar.gz
-flashtools_hash := e8205aa3d19e536080f5974ed06ab9a88c4c3f37870c2f6a3a08a2f39302c22c
+flashtools_url := https://github.com/osresearch/flashtools/archive/$(flashtools_version).tar.gz
+flashtools_hash := dca7f4fd129509bdcbf5e4646905d6dd82e91061d7faf62bbe7193c31bb7cd4c
 
 flashtools_target := \
 	$(CROSS_TOOLS) \
