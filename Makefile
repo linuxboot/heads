@@ -36,6 +36,58 @@ DATE=`date --rfc-3339=seconds`
 
 # This is the correct version of Make
 
+# Check we have a suitable version of gawk
+# that's at least the same major version
+LOCAL_GAWK_VERSION := $(shell gawk --version 2>/dev/null | head -1 | cut -d' ' -f3 | cut -d, -f1)
+LOCAL_GAWK_MAJOR_VERSION := $(patsubst .%,.,$(LOCAL_GAWK_VERSION))
+include modules/gawk
+
+# Wrong version
+ifeq "" "$(filter $(LOCAL_GAWK_MAJOR_VERSION).%,$(gawk_version))"
+# Wrong gawk version detected -- build our local version
+# and re-invoke the Makefile with it instead.
+$(eval $(shell echo >&2 "$(DATE) Wrong gawk detected: $(LOCAL_GAWK_VERSION)"))
+HEADS_GAWK := $(build)/$(gawk_dir)/gawk
+
+# Once we have a suitable version of gawk, we can rerun make
+all linux cpio run: $(HEADS_GAWK)
+	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $(MAKE_JOBS) $@
+%.clean %.vol %.menuconfig: $(HEADS_GAWK)
+	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $@
+
+bootstrap: $(HEADS_GAWK)
+
+# How to download and build the correct version of gawk
+$(packages)/$(gawk_tar):
+	$(WGET) -O "$@.tmp" "$(gawk_url)"
+	if ! echo "$(gawk_hash)  $@.tmp" | sha256sum --check -; then \
+		exit 1 ; \
+	fi
+	mv "$@.tmp" "$@"
+
+$(build)/$(gawk_dir)/.extract: $(packages)/$(gawk_tar)
+	tar xf "$<" -C "$(build)"
+	touch "$@"
+
+$(build)/$(gawk_dir)/.patch: $(build)/$(gawk_dir)/.extract
+#	( cd "$(dir $@)" ; patch -p1 ) < "patches/gawk-$(gawk_version).patch"
+	touch "$@"
+
+$(build)/$(gawk_dir)/.configured: $(build)/$(gawk_dir)/.patch
+	cd "$(dir $@)" ; \
+	./configure 2>&1 \
+	| tee "$(log_dir)/gawk.configure.log" \
+	$(VERBOSE_REDIRECT)
+	touch "$@"
+
+$(HEADS_GAWK): $(build)/$(gawk_dir)/.configured
+	$(MAKE) -C "$(dir $@)" $(MAKE_JOBS) \
+		2>&1 \
+		| tee "$(log_dir)/gawk.log" \
+		$(VERBOSE_REDIRECT)
+endif
+
+
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
@@ -123,6 +175,10 @@ CROSS_TOOLS_NOCC := \
 	OBJDUMP="$(CROSS)objdump" \
 	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
 	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
+
+ifneq "$(HEADS_GAWK)" ""
+CROSS_TOOLS_NOCC += AWK=$(HEADS_GAWK)
+endif
 
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \

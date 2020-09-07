@@ -1,0 +1,14 @@
+# This is not added to the module list since it is a special case
+# of things that need to be built for the host system, instead of the
+# target platform.
+#modules += gawk
+
+gawk_version := 4.2.1
+gawk_dir := gawk-$(gawk_version)
+gawk_tar := gawk-$(gawk_version).tar.xz
+
+gawk_url := http://gnu.mirror.constant.com/gawk/$(gawk_tar)
+gawk_hash := d1119785e746d46a8209d28b2de404a57f983aa48670f4e225531d3bdc175551
+
+# This is built for the local machine, not the target, so it doesn't have any
+# of the build instructions.
