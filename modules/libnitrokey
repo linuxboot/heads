@@ -15,7 +15,7 @@ libnitrokey_hash := f829280402f29f55237736b060fd41955a701c3828ee1270846b4e57efcf
 cmake_cross := "-DCMAKE_AR=$(CROSS)ar" \
 	-DCMAKE_CXX_COMPILER="$(CROSS)g++" \
 	-DCMAKE_C_COMPILER="$(CROSS)gcc" \
-	-DCMAKE_CXX_FLAGS="-Os -fdata-sections -ffunction-sections -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
+	-DCMAKE_CXX_FLAGS="-Os -fdata-sections -ffunction-sections -ffile-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
 	-DCMAKE_LINKER="$(CROSS)ld"
 	-DCMAKE_SHARED_LINKER_FLAGS="-gc-sections"
 	-DCMAKE_CXX_COMPILER_AR="$(CROSS)ar" \
@@ -31,7 +31,7 @@ libnitrokey_configure := \
 
 # install "by-hand" as INSTALL_PREFIX is not working as expected
 libnitrokey_target := $(CROSS_TOOLS) $(MAKE_JOBS) -C build DESTDIR="$(INSTALL)" && \
-	cp build/$(libnitrokey_dir)/build/libnitrokey.a $(INSTALL)/lib/libnitrokey-storage.a && \
+	cp build/$(libnitrokey_dir)/build/libnitrokey.a $(INSTALL)/lib/libnitrokey.a && \
 	mkdir -p $(INSTALL)/include/libnitrokey/ && \
 	cp -r build/$(libnitrokey_dir)/NK_C_API.h $(INSTALL)/include/libnitrokey/ && \
 	cp -r build/$(libnitrokey_dir)/libnitrokey/*.h $(INSTALL)/include/libnitrokey 

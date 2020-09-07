@@ -2,15 +2,14 @@ modules-$(CONFIG_NKSTORECLI) += nkstorecli
 
 nkstorecli_depends := libnitrokey libusb $(musl_dep)
 
-nkstorecli_version := 0.4.0
+nkstorecli_version := 0.4.1
 nkstorecli_dir := nkstorecli-$(nkstorecli_version)
 nkstorecli_tar := nkstorecli-$(nkstorecli_version).tar.gz
 nkstorecli_url := https://github.com/Nitrokey/nitrokey-storage-cli/releases/download/v$(nkstorecli_version)/nkstorecli-$(nkstorecli_version).tar.gz
-nkstorecli_hash := 501a778cf370c23e4b28d2c0c05a9883fa53db43548ee89949faa3fdbb2fa853
+nkstorecli_hash := 0fa7dbbede453b9c40d920c0563afdd2b0f7d08625aeb68f065512613b6fbb6b
 
 nkstorecli_target := $(MAKE_JOBS) -C src $(CROSS_TOOLS) DESTDIR=$(INSTALL) install 
 
 nkstorecli_output := \
 	src/nkstorecli 
-
 
