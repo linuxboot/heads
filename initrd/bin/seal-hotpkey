@@ -24,19 +24,24 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-tpm nv_readvalue \
-	-in 4d47 \
-	-sz 312 \
-	-of "$HOTP_SEALED" \
-|| die "Unable to retrieve sealed file from TPM NV"
+if [ "$CONFIG_TPM" = "y" ]; then
+	tpm nv_readvalue \
+		-in 4d47 \
+		-sz 312 \
+		-of "$HOTP_SEALED" \
+	|| die "Unable to retrieve sealed file from TPM NV"
 
-tpm unsealfile  \
-	-hk 40000000 \
-	-if "$HOTP_SEALED" \
-	-of "$HOTP_SECRET" \
-|| die "Unable to unseal HOTP secret"
+	tpm unsealfile  \
+		-hk 40000000 \
+		-if "$HOTP_SEALED" \
+		-of "$HOTP_SECRET" \
+	|| die "Unable to unseal HOTP secret"
 
-shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
+	shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
+else
+	# without a TPM, use the first 20 characters of the ROM SHA256sum 
+	secret_from_rom_hash > $HOTP_SECRET
+fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots
