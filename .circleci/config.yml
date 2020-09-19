@@ -1,4 +1,10 @@
 version: 2
+environment:
+  NODE_ENV: test
+  NODE_OPTIONS: --max_old_space_size=4096
+  NPM_CONFIG_LOGLEVEL: error
+  JOBS: max # https://gist.github.com/ralphtheninja/f7c45bdee00784b41fed
+
 jobs:
   build:
     docker:
