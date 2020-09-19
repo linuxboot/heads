@@ -172,7 +172,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation \
+                BOARD=kgpe-d16_workstation || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation hashes
@@ -190,7 +190,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation-usb_keyboard \
+                BOARD=kgpe-d16_workstation-usb_keyboard || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation-usb_keyboard hashes
@@ -208,7 +208,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_server/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server \
+                BOARD=kgpe-d16_server || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server hashes
@@ -221,13 +221,12 @@ jobs:
       - store-artifacts:
           path: build/kgpe-d16_server
 
-
       - run:
           name: kgpe-d16_server-whiptail
           command: |
             rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server-whiptail \
+                BOARD=kgpe-d16_server-whiptail || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server-whiptail hashes
@@ -239,11 +238,6 @@ jobs:
              tar zcvf build/kgpe-d16_server-whiptail/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/kgpe-d16_server-whiptail
-
-
-
-
-
 
       - run:
           name: qemu-coreboot
