@@ -1,8 +1,14 @@
 version: 2
+environment:
+  NODE_ENV: test
+  NODE_OPTIONS: --max_old_space_size=4096
+  NPM_CONFIG_LOGLEVEL: error
+  JOBS: max # https://gist.github.com/ralphtheninja/f7c45bdee00784b41fed
+
 jobs:
   build:
     docker:
-      - image: debian:bullseye
+      - image: debian:10
     steps:
       - run:
           name: Install dependencies
@@ -11,13 +17,28 @@ jobs:
             apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev
       - checkout
 
-      - restore_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
-
       - run:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
+
+      - run:
+          name: Creating all modules and patches digest
+          command: |
+            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_and_patches.sha256sums \
+
+      - run:
+          name: Creating musl-cross-make and musl-cross-make patches digest
+          command: |
+            find ./patches/musl-cross-* modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
+
+
+      - restore_cache:
+          keys:
+            #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
+            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
+            - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
@@ -49,7 +70,7 @@ jobs:
           command: |
             rm -rf build/x230-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-flash \
+                BOARD=x230-flash || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-flash hashes
@@ -67,7 +88,7 @@ jobs:
           command: |
             rm -rf build/t430-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430-flash \
+                BOARD=t430-flash || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430-flash hashes
@@ -85,7 +106,7 @@ jobs:
           command: |
             rm -rf build/t430/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430 \
+                BOARD=t430  || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430 hashes
@@ -103,7 +124,7 @@ jobs:
           command: |
             rm -rf build/x230/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230 \
+                BOARD=x230 || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230 hashes
@@ -121,7 +142,7 @@ jobs:
           command: |
             rm -rf build/x230-hotp-verification/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-hotp-verification \
+                BOARD=x230-hotp-verification || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-hotp-verification hashes
@@ -139,7 +160,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation \
+                BOARD=kgpe-d16_workstation || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation hashes
@@ -157,7 +178,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation-usb_keyboard \
+                BOARD=kgpe-d16_workstation-usb_keyboard || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation-usb_keyboard hashes
@@ -175,7 +196,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_server/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server \
+                BOARD=kgpe-d16_server || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server hashes
@@ -193,7 +214,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server-whiptail \
+                BOARD=kgpe-d16_server-whiptail || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server-whiptail hashes
@@ -207,11 +228,29 @@ jobs:
           path: build/kgpe-d16_server-whiptail
 
       - run:
+          name: librem_mini-NoTPM
+          command: |
+            rm -rf build/librem_mini-NoTPM/* build/log/* && make --load 2 \
+                V=1 \
+                BOARD=librem_mini-NoTPM || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput librem_mini-NoTPM hashes
+          command: |
+            cat build/librem_mini-NoTPM/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_mini-NoTPM
+          command: |
+             tar zcvf build/librem_mini-NoTPM/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_mini-NoTPM
+
+      - run:
           name: qemu-coreboot
           command: |
-            rm -rf build/make-4.2.1/ build/qemu-coreboot/* build/log/* && make --load 2 \
+            rm -rf build/qemu-coreboot/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=qemu-coreboot \
+                BOARD=qemu-coreboot || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Output qemu-coreboot hashes
@@ -225,7 +264,15 @@ jobs:
           path: build/qemu-coreboot
 
       - save_cache:
-          key: heads-{{ .Environment.CIRCLE_USERNAME }}-{{ .Environment.CACHE_VERSION }}
+          #Generate cache for the same musl-cross module definition if hash is not previously existing
+          key: heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - crossgcc
+            - build/musl-cross-*
+
+      - save_cache:
+          #Generate cache for the exact same modules definitions if hash is not previously existing
+          key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - packages
             - crossgcc
