@@ -1,10 +1,6 @@
 version: 2
 environment:
-  NODE_ENV: test
   NODE_OPTIONS: --max_old_space_size=4096
-  NPM_CONFIG_LOGLEVEL: error
-  JOBS: max # https://gist.github.com/ralphtheninja/f7c45bdee00784b41fed
-
 jobs:
   build:
     docker:
@@ -70,7 +66,7 @@ jobs:
           command: |
             rm -rf build/x230-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-flash || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=x230-flash || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-flash hashes
@@ -88,7 +84,7 @@ jobs:
           command: |
             rm -rf build/t430-flash/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430-flash || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=t430-flash || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430-flash hashes
@@ -106,7 +102,7 @@ jobs:
           command: |
             rm -rf build/t430/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=t430  || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=t430  || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430 hashes
@@ -124,7 +120,7 @@ jobs:
           command: |
             rm -rf build/x230/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230 || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=x230 || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230 hashes
@@ -142,7 +138,7 @@ jobs:
           command: |
             rm -rf build/x230-hotp-verification/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=x230-hotp-verification || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=x230-hotp-verification || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-hotp-verification hashes
@@ -160,7 +156,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=kgpe-d16_workstation || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation hashes
@@ -178,7 +174,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_workstation-usb_keyboard || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=kgpe-d16_workstation-usb_keyboard || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation-usb_keyboard hashes
@@ -196,7 +192,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_server/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=kgpe-d16_server || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server hashes
@@ -214,7 +210,7 @@ jobs:
           command: |
             rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=kgpe-d16_server-whiptail || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=kgpe-d16_server-whiptail || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server-whiptail hashes
@@ -232,7 +228,7 @@ jobs:
           command: |
             rm -rf build/librem_mini-NoTPM/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=librem_mini-NoTPM || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=librem_mini-NoTPM || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput librem_mini-NoTPM hashes
@@ -250,7 +246,7 @@ jobs:
           command: |
             rm -rf build/qemu-coreboot/* build/log/* && make --load 2 \
                 V=1 \
-                BOARD=qemu-coreboot || (sudo dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+                BOARD=qemu-coreboot || (dmesg; find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Output qemu-coreboot hashes
