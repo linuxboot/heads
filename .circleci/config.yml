@@ -15,7 +15,7 @@ jobs:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
-
+      
       - run:
           name: Creating all modules and patches digest
           command: |
