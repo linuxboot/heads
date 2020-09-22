@@ -1,6 +1,8 @@
---- clean/coreboot-4.8.1/Makefile	2018-05-16 21:00:17.000000000 +0200
-+++ coreboot-4.8.1/Makefile	2020-01-08 17:01:32.998287979 +0100
-@@ -152,6 +152,24 @@
+diff --git a/Makefile b/Makefile
+index f3f9592649..cb37557c81 100644
+--- a/Makefile
++++ b/Makefile
+@@ -164,6 +164,24 @@ $(if $(wildcard .xcompile)$(NOCOMPILE),,$(eval $(shell util/xcompile/xcompile $(
  
  -include .xcompile
  
@@ -25,3 +27,6 @@
  ifneq ($(XCOMPILE_COMPLETE),1)
  $(shell rm -f .xcompile)
  $(error .xcompile deleted because it's invalid. \
+-- 
+2.20.1
+
