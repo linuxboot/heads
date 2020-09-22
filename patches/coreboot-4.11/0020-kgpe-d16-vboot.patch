@@ -1,18 +1,129 @@
---- ./src/mainboard/asus/kgpe-d16/Kconfig.orig	2020-08-11 10:14:44.059000000 -0400
-+++ ./src/mainboard/asus/kgpe-d16/Kconfig	2020-08-11 10:15:13.393000000 -0400
-@@ -33,6 +33,15 @@
- 	select MAINBOARD_FORCE_NATIVE_VGA_INIT
+diff --git a/src/mainboard/asus/kgpe-d16/Kconfig b/src/mainboard/asus/kgpe-d16/Kconfig
+index ffbfd53169..45e1a55b88 100644
+--- a/src/mainboard/asus/kgpe-d16/Kconfig
++++ b/src/mainboard/asus/kgpe-d16/Kconfig
+@@ -34,6 +34,31 @@ config BOARD_SPECIFIC_OPTIONS
  	select POWER_STATE_DEFAULT_ON_AFTER_FAILURE
  	select IPMI_KCS
+ 
++	select TPM1
++
 +	select VBOOT
 +	select VBOOT_VBNV_CMOS
 +	select VBOOT_NO_BOARD_SUPPORT
-+	select GBB_FLAG_DISABLE_LID_SHUTDOWN
-+	select GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
-+	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
-+	select GBB_FLAG_DISABLE_FWMP
++	#select GBB_FLAG_DISABLE_LID_SHUTDOWN
++	#select GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
++	#select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
++	#select GBB_FLAG_DISABLE_FWMP
 +	select RTC
 +	select VBOOT_STARTS_IN_ROMSTAGE
- 
++	select VBOOT_MEASURED_BOOT
++
++config VBOOT_VBNV_OFFSET
++	hex
++	default 0x2f
++
++config FMDFILE
++        string
++        default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/vboot-rwa.fmd" if VBOOT
++
++config VBOOT_MEASURED_BOOT_RUNTIME_DATA
++	string
++	default "S3NV"
++
  config MAINBOARD_DIR
  	string
+ 	default "asus/kgpe-d16"
+diff --git a/src/mainboard/asus/kgpe-d16/cmos.layout b/src/mainboard/asus/kgpe-d16/cmos.layout
+index 1c8d4662c3..2a2f11c574 100644
+--- a/src/mainboard/asus/kgpe-d16/cmos.layout
++++ b/src/mainboard/asus/kgpe-d16/cmos.layout
+@@ -54,6 +54,13 @@ entries
+ 481          1       e       1        experimental_memory_speed_boost
+ 482          1       r       0        allow_spd_nvram_cache_restore
+ 483          4       h       0        maximum_p_state_limit
++
++
++# VBOOT
++488         128       r      0        vbnv
++
++
++
+ 728        256       h       0        user_data
+ 984         16       h       0        check_sum
+ # Reserve the extended AMD configuration registers
+diff --git a/src/mainboard/asus/kgpe-d16/vboot-rwa.fmd b/src/mainboard/asus/kgpe-d16/vboot-rwa.fmd
+new file mode 100644
+index 0000000000..1b666000cf
+--- /dev/null
++++ b/src/mainboard/asus/kgpe-d16/vboot-rwa.fmd
+@@ -0,0 +1,24 @@
++FLASH@0xff800000 0x800000 {
++	SI_ALL@0x0 0x500000 {
++		SI_DESC@0x0 0x1000
++		SI_GBE@0x1000 0x2000
++		SI_ME@0x3000 0x4ed000
++	}
++	SI_BIOS@0x500000 0x300000 {
++		UNIFIED_MRC_CACHE@0x180000 0x20000 {
++			RECOVERY_MRC_CACHE@0x0 0x10000
++			RW_MRC_CACHE@0x10000 0x10000
++		}
++		RW_VPD(PRESERVE)@0x1a0000 0x1000
++		SMMSTORE(PRESERVE)@0x1a1000 0x40000
++
++		WP_RO@0x1e1000 0x11f000 {
++			FMAP@0x0 0x800
++			RO_FRID@0x800 0x40
++			RO_PADDING@0x840 0x7c0
++			RO_VPD(PRESERVE)@0x1000 0x1000
++			GBB@0x2000 0x1e000
++			COREBOOT(CBFS)@0x20000 0xff000
++		}
++	}
++}
+diff --git a/src/southbridge/amd/sb700/Makefile.inc b/src/southbridge/amd/sb700/Makefile.inc
+index 0a20a8c8b3..c1cd41678a 100644
+--- a/src/southbridge/amd/sb700/Makefile.inc
++++ b/src/southbridge/amd/sb700/Makefile.inc
+@@ -24,4 +24,8 @@ romstage-y += smbus.c
+ romstage-y += ramtop.c
+ ramstage-y += ramtop.c
+ 
++romstage-y += pmutil.c
++verstage-y += pmutil.c
++ramstage-y += pmutil.c
++
+ endif
+diff --git a/src/southbridge/amd/sb700/pmutil.c b/src/southbridge/amd/sb700/pmutil.c
+new file mode 100644
+index 0000000000..2c2db3df43
+--- /dev/null
++++ b/src/southbridge/amd/sb700/pmutil.c
+@@ -0,0 +1,25 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * Copyright 2017 Google Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <arch/acpi.h>
++#include <security/vboot/vboot_common.h>
++#include <security/vboot/vbnv.h>
++#include <pc80/mc146818rtc.h>
++
++int vbnv_cmos_failed(void)
++{
++	/* If CMOS power has failed, the century will be set to 0xff */
++	return cmos_read(RTC_CLK_ALTCENTURY) == 0xff;
++}
+
