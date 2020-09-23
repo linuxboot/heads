@@ -87,6 +87,18 @@ $(HEADS_GAWK): $(build)/$(gawk_dir)/.configured
 		$(VERBOSE_REDIRECT)
 endif
 
+# Some things want usernames, we use the current checkout
+# so that they are reproducible
+GIT_HASH		:= $(shell git rev-parse HEAD)
+GIT_HASH_SHORT	:= $(shell git rev-parse --short HEAD)
+GIT_BRANCH  	:= $(shell git branch --show-current)
+GIT_TAG     	:= $(shell git describe --abbrev=0 --tags)
+GIT_STATUS		:= $(shell \
+	if git diff --exit-code >/dev/null ; then \
+		echo clean ; \
+	else \
+		echo dirty ; \
+	fi)
 
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
@@ -99,16 +111,6 @@ include $(CONFIG)
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
-
-# Some things want usernames, we use the current checkout
-# so that they are reproducible
-GIT_HASH	:= $(shell git rev-parse HEAD)
-GIT_STATUS	:= $(shell \
-	if git diff --exit-code >/dev/null ; then \
-		echo clean ; \
-	else \
-		echo dirty ; \
-	fi)
 
 # record the build date / git hashes and other files here
 HASHES		:= $(build)/$(BOARD)/hashes.txt
@@ -594,6 +596,8 @@ $(initrd_tmp_dir)/etc/config: FORCE
 	)
 	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS) $(BOARD), \
 		echo export GIT_HASH=\'$(GIT_HASH)\' \
+		>> $@ ; \
+		echo export GIT_TAG=\'$(GIT_TAG)\' \
 		>> $@ ; \
 		echo export GIT_STATUS=$(GIT_STATUS) \
 		>> $@ ; \

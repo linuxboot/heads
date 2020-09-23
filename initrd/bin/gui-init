@@ -393,7 +393,7 @@ while true; do
     memtotal=$((${memtotal} / 1024 / 1024 + 1))
     cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
     whiptail --title 'System Info' \
-      --msgbox "VER: ${FW_VER}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
+        --msgbox "VER: Heads $GIT_TAG ($GIT_HASH)\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
     continue
   fi
 
