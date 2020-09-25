@@ -16,7 +16,7 @@ INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
 
 # Controls how many parallel jobs are invoked in subshells
-CPUS		:= $(shell nproc)
+CPUS		?= $(shell nproc)
 #MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
