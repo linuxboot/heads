@@ -60,6 +60,24 @@ jobs:
 #          path: build/qemu-linuxboot/hashes.txt
 
       - run:
+          name: librem_mini-NoTPM
+          command: |
+            rm -rf build/librem_mini-NoTPM/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_mini-NoTPM || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput librem_mini-NoTPM hashes
+          command: |
+            cat build/librem_mini-NoTPM/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_mini-NoTPM
+          command: |
+             tar zcvf build/librem_mini-NoTPM/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_mini-NoTPM
+
+      - run:
           name: x230-flash
           #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
@@ -149,24 +167,6 @@ jobs:
              tar zcvf build/x230-hotp-verification/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-hotp-verification
-
-      - run:
-          name: librem_mini-NoTPM
-          command: |
-            rm -rf build/librem_mini-NoTPM/* build/log/* && make CPUS=4 \
-                V=1 \
-                BOARD=librem_mini-NoTPM || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-          no_output_timeout: 3h
-      - run:
-          name: Ouput librem_mini-NoTPM hashes
-          command: |
-            cat build/librem_mini-NoTPM/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_mini-NoTPM
-          command: |
-             tar zcvf build/librem_mini-NoTPM/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_mini-NoTPM
 
       - run:
           name: qemu-coreboot
