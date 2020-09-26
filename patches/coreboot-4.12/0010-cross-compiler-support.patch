@@ -1,0 +1,28 @@
+diff --git a/Makefile b/Makefile
+index 027aae2faa..8251a9a478 100644
+--- a/Makefile
++++ b/Makefile
+@@ -176,6 +176,23 @@ $(if $(wildcard .xcompile)$(NOCOMPILE),,$(eval $(shell util/xcompile/xcompile $(
+ 
+ -include .xcompile
+ 
++ifneq "$(CROSS)" ""
++  $(info coreboot: Using $(CROSS)gcc)
++  CROSS_COMPILE_x86_32	:= $(CROSS)
++  CC_x86_32		:= $(CROSS_COMPILE_x86_32)gcc
++  CPP_x86_32		:= $(CROSS_COMPILE_x86_32)cpp
++  AS_x86_32		:= $(CROSS_COMPILE_x86_32)as --32
++  LD_x86_32		:= $(CROSS_COMPILE_x86_32)ld.bfd -b elf32-i386 -melf_i386
++  NM_x86_32		:= $(CROSS_COMPILE_x86_32)nm
++  OBJCOPY_x86_32	:= $(CROSS_COMPILE_x86_32)objcopy
++  OBJDUMP_x86_32	:= $(CROSS_COMPILE_x86_32)objdump
++  READELF_x86_32	:= $(CROSS_COMPILE_x86_32)readelf
++  STRIP_x86_32		:= $(CROSS_COMPILE_x86_32)strip
++  AR_x86_32		:= $(CROSS_COMPILE_x86_32)ar
++  GNATBIND_x86_32	:= $(CROSS_COMPILE_x86_32)gnatbind
++  COMPILER_RT_x86_32	:= $(shell $(CC_x86_32) --print-libgcc-file-name)
++endif
++
+ ifneq ($(XCOMPILE_COMPLETE),1)
+ $(shell rm -f .xcompile)
+ $(error .xcompile deleted because it's invalid. \
