@@ -2,11 +2,11 @@ modules-$(CONFIG_NKSTORECLI) += libnitrokey
 
 libnitrokey_depends := libhidapi-libusb libusb $(musl_dep)
 
-libnitrokey_version := 3.5
+libnitrokey_version := 3.6
 libnitrokey_dir := libnitrokey-$(libnitrokey_version)
 libnitrokey_tar := libnitrokey-v$(libnitrokey_version).tar.gz
 libnitrokey_url := https://github.com/Nitrokey/libnitrokey/releases/download/v$(libnitrokey_version)/$(libnitrokey_tar)
-libnitrokey_hash := f829280402f29f55237736b060fd41955a701c3828ee1270846b4e57efcf83cf
+libnitrokey_hash := 4f3382b6193afe69c2001321038fce9490bc28803ed687152a397ccd89146ae6
 
 # currently the dynamic lib is not included
 #libnitrokey_libraries := \
