@@ -48,6 +48,17 @@ modules:
   cache:
     key:
       files:
+        - modules/musl-cross
+        - patches/musl-cross-*
+      prefix: musl-cross_module_and_patches
+    paths:
+      - ./packages
+      - ./crossgcc
+      - ./build
+    policy: pull
+  cache:
+    key:
+      files:
         - modules/*
         - patches/*
       prefix: all_modules_and_patches
