@@ -4,33 +4,57 @@ variables:
   DOCKER_DRIVER: overlay2
 
 stages:
-  - build
+  - musl-cross
+  - build_all
 
-build:
-  stage: build
-  retry: 1
+crossgcc:
+  stage: musl-cross
+  script:
+    - echo "Installing prerequisites..."
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - git fetch origin
+    - git reset --hard origin/$CI_COMMIT_REF_NAME
+    - echo "Building musl-cross..."
+    - make musl-cross || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
   cache:
+    key:
+      files:
+        - modules/musl-cross
+        - patches/musl-cross-*
+      prefix: musl-cross_module_and_patches
     paths:
       - ./packages
       - ./crossgcc
       - ./build
-    key: "heads-$GITLAB_USER_LOGIN-2"
-  script:
-    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
-    - git fetch origin 
-    - git reset --hard origin/$CI_COMMIT_REF_NAME
 
+modules:
+  stage: build_all
+  script:
+    - echo "Installing prerequisites..."
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - git fetch origin
+    - git reset --hard origin/$CI_COMMIT_REF_NAME
     - echo "Removing old qemu-coreboot artifacts..."
     - rm -rf ./build/qemu-coreboot/*
     - rm -rf ./build/log/*
     - echo "Building BOARD=qemu-coreboot board..."
-    - make BOARD=qemu-coreboot || (find ./build/log/ -cmin 1|xargs tail; exit 1)
+    - make BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
     - echo "qemu-coreboot hashes:"
     - cat ./build/qemu-coreboot/hashes.txt
     - echo "Archiving qemu-coreboot logs..."
     - tar zcvf ./build/qemu-coreboot/logs.tar.gz ./build/log/*
     - echo "Calculate used space for cache"
     - du -shc packages crossgcc build
+  cache:
+    key:
+      files:
+        - modules/*
+        - patches/*
+      prefix: all_modules_and_patches
+    paths:
+      - ./packages
+      - ./crossgcc
+      - ./build
   artifacts:
     paths:
       - ./build/qemu-coreboot
