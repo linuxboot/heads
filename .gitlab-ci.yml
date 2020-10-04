@@ -26,6 +26,7 @@ crossgcc:
       - ./packages
       - ./crossgcc
       - ./build
+      - ./install
 
 modules:
   stage: build_all
