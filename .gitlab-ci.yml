@@ -3,20 +3,7 @@ image: fedora:30
 variables:
   DOCKER_DRIVER: overlay2
 
-stages:
-  - musl-cross
-  - build_all
-
-crossgcc:
-  stage: musl-cross
-  script:
-    - echo "Installing prerequisites..."
-    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
-    - git fetch origin
-    - git reset --hard origin/$CI_COMMIT_REF_NAME
-    - echo "Building musl-cross..."
-    - make musl-cross || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
-  cache:
+cache: &global_cache
     key:
       files:
         - modules/musl-cross
@@ -27,8 +14,31 @@ crossgcc:
       - ./crossgcc
       - ./build
       - ./install
+    
+stages:
+  - musl-cross
+  - build_all
+
+crossgcc:
+  cache:
+    # inherit all global cache settings
+    <<: *global_cache
+  stage: musl-cross
+  script:
+    - echo "Installing prerequisites..."
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - git fetch origin
+    - git reset --hard origin/$CI_COMMIT_REF_NAME
+    - echo "Building musl-cross..."
+    - make musl-cross || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+  
 
 modules:
+  cache:
+    # inherit all global cache settings
+    <<: *global_cache
+    # override the policy
+    policy: pull
   stage: build_all
   script:
     - echo "Installing prerequisites..."
@@ -49,17 +59,6 @@ modules:
   cache:
     key:
       files:
-        - modules/musl-cross
-        - patches/musl-cross-*
-      prefix: musl-cross_module_and_patches
-    paths:
-      - ./packages
-      - ./crossgcc
-      - ./build
-    policy: pull
-  cache:
-    key:
-      files:
         - modules/*
         - patches/*
       prefix: all_modules_and_patches
@@ -67,6 +66,7 @@ modules:
       - ./packages
       - ./crossgcc
       - ./build
+      - ./install
   artifacts:
     paths:
       - ./build/qemu-coreboot
