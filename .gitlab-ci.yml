@@ -25,8 +25,10 @@ heads_reproducible_buildstack:
     <<: *global_cache
   stage: musl-cross-make
   script:
+    - echo "Deleting past cache..."
     - echo "Installing prerequisites..."
-    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo findutils
+    - find ~/  -name "cache.zip"
     - git fetch origin
     - git reset --hard origin/$CI_COMMIT_REF_NAME
     - echo "Building musl-cross..."
@@ -42,7 +44,8 @@ heads:
   stage: boards
   script:
     - echo "Installing prerequisites..."
-    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
+    - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo findutils
+    - find ~/  -name "cache.zip"
     - git fetch origin
     - git reset --hard origin/$CI_COMMIT_REF_NAME
     - echo "Removing old qemu-coreboot artifacts..."
@@ -54,9 +57,10 @@ heads:
     - cat ./build/qemu-coreboot/hashes.txt
     - echo "Archiving qemu-coreboot logs..."
     - tar zcvf ./build/qemu-coreboot/logs.tar.gz ./build/log/*
-    - rm -rf ./build/qemu-coreboot/*
-    - rm -rf ./build/log/*
 
+    - echo "Removing old x230 artificats..."
+    - rm -rf ./build/x230/*
+    - rm -rf ./build/log/*
     - echo "Building BOARD=x230 board..."
     - make BOARD=x230 || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
     - echo "x230 hashes:"
