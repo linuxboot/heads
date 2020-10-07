@@ -19,6 +19,7 @@ stages:
   - musl-cross-make
   - boards
 
+
 heads_reproducible_buildstack:
   cache:
     # inherit all global cache settings
@@ -29,8 +30,23 @@ heads_reproducible_buildstack:
     - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
     - git fetch origin
     - git reset --hard origin/$CI_COMMIT_REF_NAME
-    - echo "Building musl-cross..."
-    - make BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    #Building one coreboot 4.81 based board so that the cache has musl-cross-make + one specific linux version + coreboot 4.81 cache 
+    - echo "Buidling x230-hotp-verification..."
+    - make BOARD=x230-hotp-verification || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+
+    #Buidling one coreboot 4.12 based board so that the cahce has musl-cross-make + one specific linux version + coreboot 4.12 cache
+    - echo "Removing old librem_mini artifacts..."
+    - rm -rf ./build/librem_mini/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=librem_mini board..."
+    - make BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "librem_mini hashes:"
+    - cat ./build/librem_mini/hashes.txt
+    - echo "Archiving librem_mini logs..."
+    - tar zcvf ./build/librem_mini/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build install
+
     - echo "Calculate used space for cache"
     - du -shc packages crossgcc build install
   
@@ -48,17 +64,21 @@ heads:
     - dnf install -y @development-tools gcc-c++ gcc-gnat zlib-devel perl-Digest-MD5 perl-Digest-SHA uuid-devel pcsc-tools ncurses-devel lbzip2 libuuid-devel lzma elfutils-libelf-devel bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget libusb-devel cmake automake pv bsdiff autoconf libtool cpio texinfo
     - git fetch origin
     - git reset --hard origin/$CI_COMMIT_REF_NAME
-    - echo "Removing old qemu-coreboot artifacts..."
-    - rm -rf ./build/qemu-coreboot/*
-    - rm -rf ./build/log/*
-    - echo "Building BOARD=qemu-coreboot board..."
-    - make BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
-    - echo "qemu-coreboot hashes:"
-    - cat ./build/qemu-coreboot/hashes.txt
-    - echo "Archiving qemu-coreboot logs..."
-    - tar zcvf ./build/qemu-coreboot/logs.tar.gz ./build/log/*
 
-    - echo "Removing old x230 artificats..."
+    #Rebuilding all boards, even the ones from cache
+    - echo "Removing old x230-hotp-verification artifacts..."
+    - rm -rf ./build/x230-hotp-verification/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=x230-hotp-verification board..."
+    - make BOARD=x230-hotp-verification || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "x230-hotp-verification hashes:"
+    - cat ./build/x230-hotp-verification/hashes.txt
+    - echo "Archiving x230-hotp-verification logs..."
+    - tar zcvf ./build/x230-hotp-verification/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build install
+
+    - echo "Removing old x230 artifacts..."
     - rm -rf ./build/x230/*
     - rm -rf ./build/log/*
     - echo "Building BOARD=x230 board..."
@@ -70,7 +90,59 @@ heads:
     - echo "Calculate used space for cache"
     - du -shc packages crossgcc build install
 
+    - echo "Removing old t430 artifacts..."
+    - rm -rf ./build/t430/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=t430 board..."
+    - make BOARD=t430 || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "t430 hashes:"
+    - cat ./build/t430/hashes.txt
+    - echo "Archiving t430 logs..."
+    - tar zcvf ./build/t430/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build install
+
+    - echo "Removing old x230-flash artifacts..."
+    - rm -rf ./build/x230-flash/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=x230-flash board..."
+    - make BOARD=x230-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "x230-flash hashes:"
+    - cat ./build/x230-flash/hashes.txt
+    - echo "Archiving x230-flash logs..."
+    - tar zcvf ./build/x230-flash/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build install
+
+    - echo "Removing old t430-flash artifacts..."
+    - rm -rf ./build/t430-flash/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=t430-flash board..."
+    - make BOARD=t430-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "t430-flash hashes:"
+    - cat ./build/t430-flash/hashes.txt
+    - echo "Archiving t430-flash logs..."
+    - tar zcvf ./build/t430-flash/logs.tar.gz ./build/log/*
+    - echo "Calculate used space for cache"
+    - du -shc packages crossgcc build install
+
+    - echo "Removing old qemu-coreboot artifacts..."
+    - rm -rf ./build/qemu-coreboot/*
+    - rm -rf ./build/log/*
+    - echo "Building BOARD=qemu-coreboot board..."
+    - make BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1)
+    - echo "qemu-coreboot hashes:"
+    - cat ./build/qemu-coreboot/hashes.txt
+    - echo "Archiving qemu-coreboot logs..."
+    - tar zcvf ./build/qemu-coreboot/logs.tar.gz ./build/log/*
+
   artifacts:
     paths:
+      #Saving artifacts
+      - ./build/x230-hotp-verification
       - ./build/x230
+      - ./build/t430
+      - ./build/t430-flash
+      - ./build/x230-flash
+      - ./build/librem_mini
       - ./build/qemu-coreboot
