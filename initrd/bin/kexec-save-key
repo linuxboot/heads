@@ -62,7 +62,7 @@ kexec-seal-key $paramsdir \
 
 if [ "$skip_sign" != "y" ]; then
 	# sign and auto-roll config counter
-	kexec-sign-config -p $paramsdir -u \
+	kexec-sign-config -p $paramsdir -r \
 	|| die "Failed to sign updated config"
 fi
 
