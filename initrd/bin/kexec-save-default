@@ -132,7 +132,7 @@ fi
 # sign and auto-roll config counter
 extparam=
 if [ "$CONFIG_TPM" = "y" ]; then
-	extparam=-u
+	extparam=-r
 fi
 kexec-sign-config -p $paramsdir $extparam \
 || die "Failed to sign default config"
