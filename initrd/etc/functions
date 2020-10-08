@@ -276,26 +276,16 @@ update_checksums()
 		mount -o ro /boot \
 		|| recovery "Unable to mount /boot"
 	fi
+
 	# remount RW
 	mount -o rw,remount /boot
-	(
-	  cd /boot
-	  find ./ -type f ! -name '*kexec*' | xargs sha256sum > /boot/kexec_hashes.txt
-	  if [ -e /boot/kexec_default_hashes.txt ]; then
-	    DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-	    echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
-	  fi
-	)
-	# Remove any package trigger log files
-	# We don't need them after the user decides to sign
-	rm -f /boot/kexec_package_trigger*
 
 	# sign and auto-roll config counter
 	extparam=
 	if [ "$CONFIG_TPM" = "y" ]; then
-	extparam=-u
+		extparam=-r
 	fi
-	if ! kexec-sign-config -p /boot $extparam ; then
+	if ! kexec-sign-config -p /boot -u $extparam ; then
 	  echo "Failed to sign default config; press Enter to continue."
 	  read
 	fi
