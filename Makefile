@@ -92,7 +92,7 @@ endif
 GIT_HASH		:= $(shell git rev-parse HEAD)
 GIT_HASH_SHORT	:= $(shell git rev-parse --short HEAD)
 GIT_BRANCH  	:= $(shell git branch --show-current)
-GIT_TAG     	:= $(shell git describe --abbrev=0 --tags)
+GIT_TAG     	:= $(shell git describe --abbrev=1 --tags --dirty)
 GIT_STATUS		:= $(shell \
 	if git diff --exit-code >/dev/null ; then \
 		echo clean ; \
