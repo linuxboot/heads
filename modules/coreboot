@@ -83,7 +83,7 @@ $(build)/$(coreboot_dir)/.build: \
 $(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/.build
 	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
 	$(call do-copy,$(dir $<)coreboot.rom,$@)
-	$(call do-copy,$(dir $<)coreboot.rom,$(build)/$(BOARD)/$(GIT_BRANCH)-$(GIT_TAG)-$(GIT_HASH_SHORT).rom)
+	$(call do-copy,$(dir $<)coreboot.rom,$(build)/$(BOARD)/heads-$(GIT_BRANCH)-$(GIT_TAG).rom)
 	@touch $@   # update the time stamp
 
 #
