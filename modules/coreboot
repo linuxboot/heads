@@ -65,18 +65,9 @@ coreboot_target := \
 coreboot_output := coreboot.rom
 coreboot_depend += linux initrd $(musl_dep)
 
-ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
-COREBOOT_TOOLCHAIN=""
-$(COREBOOT_TOOLCHAIN):
-else
-COREBOOT_TOOLCHAIN="$(build)/$(coreboot_base_dir)/.xcompile"
-$(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$$(expr $$(getconf PAGESIZE) \* $$(getconf _PHYS_PAGES) / 1024 / 1024 / 1024) crossgcc-i386
-endif
-
-$(build)/$(coreboot_dir)/.configured: $(COREBOOT_IASL) $(COREBOOT_TOOLCHAIN)
+$(build)/$(coreboot_dir)/.configured: $(COREBOOT_IASL)
 $(COREBOOT_IASL): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$$(expr $$(getconf PAGESIZE) \* $$(getconf _PHYS_PAGES) / 1024 / 1024 / 1024) iasl
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$$CPUS iasl
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \

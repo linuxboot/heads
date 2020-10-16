@@ -15,7 +15,7 @@ jobs:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1" \
-      
+
       - run:
           name: Creating all modules and patches digest
           command: |
@@ -50,7 +50,7 @@ jobs:
 #          command: |
 #            ./build/make-4.2.1/make \
 #                CROSS=/cross/bin/x86_64-linux-musl- \
-#                --load 2 \
+#                CPUS=4 \
 #                V=1 \
 #                BOARD=qemu-linuxboot \
 #
@@ -63,8 +63,7 @@ jobs:
           name: kgpe-d16_workstation
           command: |
             rm -rf build/kgpe-d16_workstation/* build/log/* && \
-            make --load 2 BOARD=kgpe-d16_workstation || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            make CPUS=4 V=1 BOARD=kgpe-d16_workstation || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation hashes
@@ -81,8 +80,7 @@ jobs:
           name: kgpe-d16_workstation-usb_keyboard
           command: |
             rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && \
-            make --load 2 BOARD=kgpe-d16_workstation-usb_keyboard) || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            make CPUS=4 V=1 BOARD=kgpe-d16_workstation-usb_keyboard) || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_workstation-usb_keyboard hashes
@@ -99,8 +97,7 @@ jobs:
           name: kgpe-d16_server
           command: |
             rm -rf build/kgpe-d16_server/* build/log/* && \
-            make --load 2 BOARD=kgpe-d16_server || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            make CPUS=4 V=1 BOARD=kgpe-d16_server || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server hashes
@@ -117,8 +114,7 @@ jobs:
           name: kgpe-d16_server-whiptail
           command: |
             rm -rf build/kgpe-d16_server-whiptail/* build/log/* && /
-            make --load 2 BOARD=kgpe-d16_server-whiptail || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            make CPUS=4 V=1 BOARD=kgpe-d16_server-whiptail || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput kgpe-d16_server-whiptail hashes
@@ -132,28 +128,25 @@ jobs:
           path: build/kgpe-d16_server-whiptail
 
       - run:
-          name: librem_mini-NoTPM
+          name: librem_mini
           command: |
-            rm -rf build/librem_mini-NoTPM/* build/log/* && /
-            make --load 2 BOARD=librem_mini-NoTPM || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/librem_mini/* build/log/* && make CPUS=4 V=1 BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
-          name: Ouput librem_mini-NoTPM hashes
+          name: Ouput librem_mini hashes
           command: |
-            cat build/librem_mini-NoTPM/hashes.txt \
+            cat build/librem_mini/hashes.txt \
       - run:
-          name: Archiving build logs for librem_mini-NoTPM
+          name: Archiving build logs for librem_mini
           command: |
-             tar zcvf build/librem_mini-NoTPM/logs.tar.gz build/log/*
+             tar zcvf build/librem_mini/logs.tar.gz build/log/*
       - store-artifacts:
-          path: build/librem_mini-NoTPM
+          path: build/librem_mini
+
       - run:
           name: x230-flash
           command: |
-            rm -rf build/x230-flash/* build/log/* && /
-            make --load 2 BOARD=x230-flash || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/x230-flash/* build/log/* && make CPUS=4 V=1 BOARD=x230-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-flash hashes
@@ -169,9 +162,7 @@ jobs:
       - run:
           name: t430-flash
           command: |
-            rm -rf build/t430-flash/* build/log/* && /
-            make --load 2 BOARD=t430-flash || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/t430-flash/* build/log/* && make CPUS=4 V=1 BOARD=t430-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430-flash hashes
@@ -187,9 +178,7 @@ jobs:
       - run:
           name: t430
           command: |
-            rm -rf build/t430/* build/log/* && /
-            make --load 2 BOARD=t430 || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/t430/* build/log/* && make CPUS=4 V=1 BOARD=t430  || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput t430 hashes
@@ -205,9 +194,7 @@ jobs:
       - run:
           name: x230
           command: |
-            rm -rf build/x230/* build/log/* && /
-            make --load 2 BOARD=x230 || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/x230/* build/log/* && make CPUS=4 V=1 BOARD=x230 || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230 hashes
@@ -223,9 +210,7 @@ jobs:
       - run:
           name: x230-hotp-verification
           command: |
-            rm -rf build/x230-hotp-verification/* build/log/* && /
-            make --load 2 BOARD=x230-hotp-verification || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/x230-hotp-verification/* build/log/* && make CPUS=4 V=1 BOARD=x230-hotp-verification || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Ouput x230-hotp-verification hashes
@@ -241,9 +226,7 @@ jobs:
       - run:
           name: qemu-coreboot
           command: |
-            rm -rf build/qemu-coreboot/* build/log/* && /
-            make --load 2 BOARD=qemu-coreboot || \
-            EXIT_CODE=$? && find ./ -type f -name "*.log" -type f -mmin -1 -print0 | xargs -0 stat --format '%Y :%y %n' | sort -nr | cut -d ' ' -f5- | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit $EXIT_CODE \
+            rm -rf build/qemu-coreboot/* build/log/* && make CPUS=4 V=1 BOARD=qemu-coreboot || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
           no_output_timeout: 3h
       - run:
           name: Output qemu-coreboot hashes
