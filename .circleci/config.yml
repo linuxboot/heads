@@ -24,7 +24,7 @@ jobs:
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest
           command: |
-            find ./patches/musl-cross-* modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
+            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
 
 
       - restore_cache:
