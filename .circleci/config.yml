@@ -100,6 +100,26 @@ jobs:
           path: build/librem_mini
 
       - run:
+          name: librem_mini_v2
+          command: |
+            rm -rf build/librem_mini_v2/* build/log/* && make CPUS=4 V=1 BOARD=librem_mini_v2 || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output librem_mini_v2 hashes
+          command: |
+            cat build/librem_mini_v2/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_mini_v2
+          command: |
+             tar zcvf build/librem_mini_v2/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_mini_v2
+
+      - run:
           name: x230-flash
           #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
