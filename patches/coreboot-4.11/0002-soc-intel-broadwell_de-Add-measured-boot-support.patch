@@ -1,0 +1,47 @@
+diff --git a/src/soc/intel/fsp_broadwell_de/romstage/romstage.c b/src/soc/intel/fsp_broadwell_de/romstage/romstage.c
+index 8438b1035c..ff7a29271f 100644
+--- a/src/soc/intel/fsp_broadwell_de/romstage/romstage.c
++++ b/src/soc/intel/fsp_broadwell_de/romstage/romstage.c
+@@ -28,6 +28,8 @@
+ #include <version.h>
+ #include <drivers/intel/fsp1_0/fsp_util.h>
+ #include <pc80/mc146818rtc.h>
++#include <security/tpm/tss.h>
++#include <security/tpm/tspi.h>
+ #include <soc/iomap.h>
+ #include <soc/lpc.h>
+ #include <soc/memory.h>
+@@ -156,6 +158,20 @@ void *asmlinkage main(FSP_INFO_HEADER *fsp_info_header)
+ 	early_iio_hide();
+ 	timestamp_add_now(TS_BEFORE_INITRAM);
+ 	post_code(0x48);
++
++	if (CONFIG(MEASURED_BOOT) && CONFIG(LPC_TPM)) {
++		// we don't know if we are coming out of a resume
++		// at this point, but want to setup the tpm ASAP
++		tpm_setup(0);
++		tlcl_lib_init();
++		const void *const bootblock = (const void *) 0xFFFFF800;
++		const unsigned int bootblock_size = 0x800;
++		tlcl_measure(2, bootblock, bootblock_size);
++
++		extern char _romstage, _eromstage;
++		tlcl_measure(2, &_romstage, &_eromstage - &_romstage);
++	}
++
+ 	/*
+ 	 * Call early init to initialize memory and chipset. This function returns
+ 	 * to the romstage_main_continue function with a pointer to the HOB
+@@ -214,3 +230,9 @@ uint64_t get_initial_timestamp(void)
+ {
+ 	return 0;
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}
+-- 
+2.20.1
+
