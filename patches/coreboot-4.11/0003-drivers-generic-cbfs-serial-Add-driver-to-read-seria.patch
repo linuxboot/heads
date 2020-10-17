@@ -1,0 +1,78 @@
+diff --git a/src/drivers/generic/cbfs-serial/Kconfig b/src/drivers/generic/cbfs-serial/Kconfig
+new file mode 100644
+index 0000000000..209c242dba
+--- /dev/null
++++ b/src/drivers/generic/cbfs-serial/Kconfig
+@@ -0,0 +1,6 @@
++config DRIVERS_GENERIC_CBFS_SERIAL
++	bool "Serial number in CBFS"
++	default n
++	help
++	  Enable this option to read the board serial number from a
++	  text file located in CBFS.
+diff --git a/src/drivers/generic/cbfs-serial/Makefile.inc b/src/drivers/generic/cbfs-serial/Makefile.inc
+new file mode 100644
+index 0000000000..163d439ba9
+--- /dev/null
++++ b/src/drivers/generic/cbfs-serial/Makefile.inc
+@@ -0,0 +1 @@
++ramstage-$(CONFIG_DRIVERS_GENERIC_CBFS_SERIAL) += cbfs-serial.c
+diff --git a/src/drivers/generic/cbfs-serial/cbfs-serial.c b/src/drivers/generic/cbfs-serial/cbfs-serial.c
+new file mode 100644
+index 0000000000..ee3e36620c
+--- /dev/null
++++ b/src/drivers/generic/cbfs-serial/cbfs-serial.c
+@@ -0,0 +1,50 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <cbfs.h>
++#include <device/device.h>
++#include <smbios.h>
++#include <string.h>
++
++
++#define MAX_SERIAL_LENGTH 0x100
++
++const char *smbios_mainboard_serial_number(void)
++{
++	static char serial_number[MAX_SERIAL_LENGTH + 1] = {0};
++	struct cbfsf file;
++
++	if (serial_number[0] != 0)
++		return serial_number;
++
++	if (cbfs_boot_locate(&file, "serial_number", NULL) == 0) {
++		struct region_device cbfs_region;
++		size_t serial_len;
++
++		cbfs_file_data(&cbfs_region, &file);
++
++		serial_len = region_device_sz(&cbfs_region);
++		if (serial_len <= MAX_SERIAL_LENGTH) {
++			if (rdev_readat(&cbfs_region, serial_number, 0,
++					serial_len) == serial_len) {
++				serial_number[serial_len] = 0;
++				return serial_number;
++			}
++		}
++	}
++
++	strncpy(serial_number, CONFIG_MAINBOARD_SERIAL_NUMBER,
++			MAX_SERIAL_LENGTH);
++
++	return serial_number;
++}
+-- 
+2.20.1
+
