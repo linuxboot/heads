@@ -78,10 +78,12 @@ $(build)/$(coreboot_dir)/.build: \
 	$(build)/$(BOARD)/initrd.cpio.xz \
 
 # This produces a ROM image that is written with the flashrom program
-$(build)/$(BOARD)/coreboot.rom: $(build)/$(coreboot_dir)/.build
+ifneq ($(CONFIG_COREBOOT),)
+$(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
 	$(call do-copy,$(dir $<)coreboot.rom,$@)
 	@touch $@   # update the time stamp
+endif
 
 #
 # Helpful target for reconfiguring the coreboot target
