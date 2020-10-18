@@ -60,6 +60,24 @@ jobs:
 #          path: build/qemu-linuxboot/hashes.txt
 
       - run:
+          name: librem_l1um
+          command: |
+            rm -rf build/librem_l1um/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_l1um || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput librem_l1um hashes
+          command: |
+            cat build/librem_l1um/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_l1um
+          command: |
+             tar zcvf build/librem_l1um/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_l1um
+
+      - run:
           name: librem_mini
           command: |
             rm -rf build/librem_mini/* build/log/* && make CPUS=4 \

@@ -1,0 +1,1890 @@
+From 48784d452a85ee282823d1d8c8d3d4eec56de3a2 Mon Sep 17 00:00:00 2001
+From: Martin Kepplinger <martink@posteo.de>
+Date: Wed, 15 May 2019 11:55:24 +0200
+Subject: [PATCH] Add Heads TPM measured boot support
+
+Change-Id: I3a64998de2fbb7f2059cb8c68cfbf949b0665665
+Signed-off-by: Martin Kepplinger <martink@posteo.de>
+---
+ src/Kconfig                        |  15 +++
+ src/include/program_loading.h      |   2 +
+ src/lib/cbfs.c                     |  19 ++-
+ src/lib/hardwaremain.c             |   8 ++
+ src/lib/rmodule.c                  |   3 +-
+ src/security/tpm/Makefile.inc      |   5 +
+ src/security/tpm/sha1.c            | 180 +++++++++++++++++++++++++++++
+ src/security/tpm/sha1.h            |  47 ++++++++
+ src/security/tpm/tspi/tspi.c       |   2 +-
+ src/security/tpm/tss.h             |   5 +
+ src/security/tpm/tss/tcg-1.2/tss.c |  19 +++
+ 11 files changed, 299 insertions(+), 6 deletions(-)
+ create mode 100644 src/security/tpm/sha1.c
+ create mode 100644 src/security/tpm/sha1.h
+
+diff --git a/src/Kconfig b/src/Kconfig
+index c0315239fc..48e53dc239 100644
+--- a/src/Kconfig
++++ b/src/Kconfig
+@@ -332,6 +332,21 @@ config BOOTSPLASH_FILE
+ config HAVE_RAMPAYLOAD
+ 	bool
+ 
++config MEASURED_BOOT
++	bool "Enable TPM measured boot"
++	default n
++	select TPM1
++	depends on MAINBOARD_HAS_LPC_TPM
++	depends on !VBOOT
++	help
++	  Enable this option to measure the bootblock, romstage and
++	  CBFS files into TPM PCRs.  This does not verify these values
++	  (that is the job of something like vboot), but makes it possible
++	  for the payload to validate the boot path and allow something
++	  like Heads to attest to the user that the system is likely safe.
++
++	  You probably want to say N.
++
+ config RAMPAYLOAD
+ 	bool "Enable coreboot flow without executing ramstage"
+ 	default y if ARCH_X86
+diff --git a/src/Kconfig.orig b/src/Kconfig.orig
+new file mode 100644
+index 0000000000..2bb5bfeab0
+--- /dev/null
++++ b/src/Kconfig.orig
+@@ -0,0 +1,1210 @@
++##
++## This file is part of the coreboot project.
++##
++## Copyright (C) 2012 Alexandru Gagniuc <mr.nuke.me@gmail.com>
++## Copyright (C) 2009-2010 coresystems GmbH
++##
++## This program is free software; you can redistribute it and/or modify
++## it under the terms of the GNU General Public License as published by
++## the Free Software Foundation; version 2 of the License.
++##
++## This program is distributed in the hope that it will be useful,
++## but WITHOUT ANY WARRANTY; without even the implied warranty of
++## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++## GNU General Public License for more details.
++##
++
++mainmenu "coreboot configuration"
++
++menu "General setup"
++
++config COREBOOT_BUILD
++	bool
++	default y
++
++config LOCALVERSION
++	string "Local version string"
++	help
++	  Append an extra string to the end of the coreboot version.
++
++	  This can be useful if, for instance, you want to append the
++	  respective board's hostname or some other identifying string to
++	  the coreboot version number, so that you can easily distinguish
++	  boot logs of different boards from each other.
++
++config CONFIGURABLE_CBFS_PREFIX
++	bool
++	help
++	  Select this to prompt to use to configure the prefix for cbfs files.
++
++config CBFS_PREFIX
++	string "CBFS prefix to use" if CONFIGURABLE_CBFS_PREFIX
++	default "fallback"
++	help
++	  Select the prefix to all files put into the image. It's "fallback"
++	  by default, "normal" is a common alternative.
++
++choice
++	prompt "Compiler to use"
++	default COMPILER_GCC
++	help
++	  This option allows you to select the compiler used for building
++	  coreboot.
++	  You must build the coreboot crosscompiler for the board that you
++	  have selected.
++
++	  To build all the GCC crosscompilers (takes a LONG time), run:
++	    make crossgcc
++
++	  For help on individual architectures, run the command:
++	    make help_toolchain
++
++config COMPILER_GCC
++	bool "GCC"
++	help
++	  Use the GNU Compiler Collection (GCC) to build coreboot.
++
++	  For details see http://gcc.gnu.org.
++
++config COMPILER_LLVM_CLANG
++	bool "LLVM/clang (TESTING ONLY - Not currently working)"
++	help
++	  Use LLVM/clang to build coreboot.  To use this, you must build the
++	  coreboot version of the clang compiler.  Run the command
++	    make clang
++	  Note that this option is not currently working correctly and should
++	  really only be selected if you're trying to work on getting clang
++	  operational.
++
++	  For details see http://clang.llvm.org.
++
++endchoice
++
++config ANY_TOOLCHAIN
++	bool "Allow building with any toolchain"
++	default n
++	help
++	  Many toolchains break when building coreboot since it uses quite
++	  unusual linker features. Unless developers explicitely request it,
++	  we'll have to assume that they use their distro compiler by mistake.
++	  Make sure that using patched compilers is a conscious decision.
++
++config CCACHE
++	bool "Use ccache to speed up (re)compilation"
++	default n
++	help
++	  Enables the use of ccache for faster builds.
++
++	  Requires the ccache utility in your system $PATH.
++
++	  For details see https://ccache.samba.org.
++
++config FMD_GENPARSER
++	bool "Generate flashmap descriptor parser using flex and bison"
++	default n
++	help
++	  Enable this option if you are working on the flashmap descriptor
++	  parser and made changes to fmd_scanner.l or fmd_parser.y.
++
++	  Otherwise, say N to use the provided pregenerated scanner/parser.
++
++config UTIL_GENPARSER
++	bool "Generate SCONFIG & BINCFG parser using flex and bison"
++	default n
++	help
++	  Enable this option if you are working on the sconfig device tree
++	  parser or bincfg and made changes to the .l or .y files.
++
++	  Otherwise, say N to use the provided pregenerated scanner/parser.
++
++config USE_OPTION_TABLE
++	bool "Use CMOS for configuration values"
++	depends on HAVE_OPTION_TABLE
++	help
++	  Enable this option if coreboot shall read options from the "CMOS"
++	  NVRAM instead of using hard-coded values.
++
++config STATIC_OPTION_TABLE
++	bool "Load default configuration values into CMOS on each boot"
++	depends on USE_OPTION_TABLE
++	help
++	  Enable this option to reset "CMOS" NVRAM values to default on
++	  every boot.  Use this if you want the NVRAM configuration to
++	  never be modified from its default values.
++
++config COMPRESS_RAMSTAGE
++	bool "Compress ramstage with LZMA"
++	depends on HAVE_RAMSTAGE
++	# Default value set at the end of the file
++	help
++	  Compress ramstage to save memory in the flash image. Note
++	  that decompression might slow down booting if the boot flash
++	  is connected through a slow link (i.e. SPI).
++
++config COMPRESS_PRERAM_STAGES
++	bool "Compress romstage and verstage with LZ4"
++	depends on !ARCH_X86 && (HAVE_ROMSTAGE || HAVE_VERSTAGE)
++	# Default value set at the end of the file
++	help
++	  Compress romstage and (if it exists) verstage with LZ4 to save flash
++	  space and speed up boot, since the time for reading the image from SPI
++	  (and in the vboot case verifying it) is usually much greater than the
++	  time spent decompressing. Doesn't work for XIP stages (assume all
++	  ARCH_X86 for now) for obvious reasons.
++
++config COMPRESS_BOOTBLOCK
++	bool
++	depends on HAVE_BOOTBLOCK
++	help
++	  This option can be used to compress the bootblock with LZ4 and attach
++	  a small self-decompression stub to its front. This can drastically
++	  reduce boot time on platforms where the bootblock is loaded over a
++	  very slow connection and bootblock size trumps all other factors for
++	  speed. Since using this option usually requires changes to the
++	  SoC memlayout and possibly extra support code, it should not be
++	  user-selectable. (There's no real point in offering this to the user
++	  anyway... if it works and saves boot time, you would always want it.)
++
++config INCLUDE_CONFIG_FILE
++	bool "Include the coreboot .config file into the ROM image"
++	# Default value set at the end of the file
++	help
++	  Include the .config file that was used to compile coreboot
++	  in the (CBFS) ROM image. This is useful if you want to know which
++	  options were used to build a specific coreboot.rom image.
++
++	  Saying Y here will increase the image size by 2-3KB.
++
++	  You can use the following command to easily list the options:
++
++	    grep -a CONFIG_ coreboot.rom
++
++	  Alternatively, you can also use cbfstool to print the image
++	  contents (including the raw 'config' item we're looking for).
++
++	  Example:
++
++	    $ cbfstool coreboot.rom print
++	    coreboot.rom: 4096 kB, bootblocksize 1008, romsize 4194304,
++	                                               offset 0x0
++	    Alignment: 64 bytes
++
++	    Name                           Offset     Type         Size
++	    cmos_layout.bin                0x0        cmos layout  1159
++	    fallback/romstage              0x4c0      stage        339756
++	    fallback/ramstage              0x53440    stage        186664
++	    fallback/payload               0x80dc0    payload      51526
++	    config                         0x8d740    raw          3324
++	    (empty)                        0x8e480    null         3610440
++
++config COLLECT_TIMESTAMPS
++	bool "Create a table of timestamps collected during boot"
++	default y if ARCH_X86
++	help
++	  Make coreboot create a table of timer-ID/timer-value pairs to
++	  allow measuring time spent at different phases of the boot process.
++
++config TIMESTAMPS_ON_CONSOLE
++	bool "Print the timestamp values on the console"
++	default n
++	depends on COLLECT_TIMESTAMPS
++	help
++	  Print the timestamps to the debug console if enabled at level spew.
++
++config USE_BLOBS
++	bool "Allow use of binary-only repository"
++	help
++	  This draws in the blobs repository, which contains binary files that
++	  might be required for some chipsets or boards.
++	  This flag ensures that a "Free" option remains available for users.
++
++config COVERAGE
++	bool "Code coverage support"
++	depends on COMPILER_GCC
++	help
++	  Add code coverage support for coreboot. This will store code
++	  coverage information in CBMEM for extraction from user space.
++	  If unsure, say N.
++
++config UBSAN
++	bool "Undefined behavior sanitizer support"
++	default n
++	help
++	  Instrument the code with checks for undefined behavior. If unsure,
++	  say N because it adds a small performance penalty and may abort
++	  on code that happens to work in spite of the UB.
++
++config NO_RELOCATABLE_RAMSTAGE
++	bool
++	default n if ARCH_X86
++	default y
++
++config RELOCATABLE_RAMSTAGE
++	bool
++	default !NO_RELOCATABLE_RAMSTAGE
++	select RELOCATABLE_MODULES
++	help
++	 The reloctable ramstage support allows for the ramstage to be built
++	 as a relocatable module. The stage loader can identify a place
++	 out of the OS way so that copying memory is unnecessary during an S3
++	 wake. When selecting this option the romstage is responsible for
++	 determing a stack location to use for loading the ramstage.
++
++config CACHE_RELOCATED_RAMSTAGE_OUTSIDE_CBMEM
++	depends on RELOCATABLE_RAMSTAGE
++	bool
++	help
++	 The relocated ramstage is saved in an area specified by the
++	 by the board and/or chipset.
++
++config UPDATE_IMAGE
++	bool "Update existing coreboot.rom image"
++	help
++	  If this option is enabled, no new coreboot.rom file
++	  is created. Instead it is expected that there already
++	  is a suitable file for further processing.
++	  The bootblock will not be modified.
++
++	  If unsure, select 'N'
++
++config BOOTSPLASH_IMAGE
++	bool "Add a bootsplash image"
++	help
++	  Select this option if you have a bootsplash image that you would
++	  like to add to your ROM.
++
++	  This will only add the image to the ROM. To actually run it check
++	  options under 'Display' section.
++
++config BOOTSPLASH_FILE
++	string "Bootsplash path and filename"
++	depends on BOOTSPLASH_IMAGE
++	# Default value set at the end of the file
++	help
++	  The path and filename of the file to use as graphical bootsplash
++	  screen. The file format has to be jpg.
++
++config HAVE_RAMPAYLOAD
++	bool
++
++config RAMPAYLOAD
++	bool "Enable coreboot flow without executing ramstage"
++	default y if ARCH_X86
++	depends on HAVE_RAMPAYLOAD
++	help
++	  If this option is enabled, coreboot flow will skip ramstage
++	  loading and execution of ramstage to load payload.
++
++	  Instead it is expected to load payload from postcar stage itself.
++
++	  In this flow coreboot will perform basic x86 initialization
++	  (DRAM resource allocation), MTRR programming,
++	  Skip PCI enumeration logic and only allocate BAR for fixed devices
++	  (bootable devices, TPM over GSPI).
++
++endmenu
++
++menu "Mainboard"
++
++source "src/mainboard/Kconfig"
++
++config DEVICETREE
++	string
++	default "devicetree.cb"
++	help
++	  This symbol allows mainboards to select a different file under their
++	  mainboard directory for the devicetree.cb file.  This allows the board
++	  variants that need different devicetrees to be in the same directory.
++
++	  Examples: "devicetree.variant.cb"
++	            "variant/devicetree.cb"
++
++config OVERRIDE_DEVICETREE
++	string
++	default ""
++	help
++	  This symbol allows variants to provide an override devicetree file to
++	  override the registers and/or add new devices on top of the ones
++	  provided by baseboard devicetree using CONFIG_DEVICETREE.
++
++	  Examples: "devicetree.variant-override.cb"
++	            "variant/devicetree-override.cb"
++
++config CBFS_SIZE
++	hex "Size of CBFS filesystem in ROM"
++	# Default value set at the end of the file
++	help
++	  This is the part of the ROM actually managed by CBFS, located at the
++	  end of the ROM (passed through cbfstool -o) on x86 and at at the start
++	  of the ROM (passed through cbfstool -s) everywhere else. It defaults
++	  to span the whole ROM on all but Intel systems that use an Intel Firmware
++	  Descriptor.  It can be overridden to make coreboot live alongside other
++	  components like ChromeOS's vboot/FMAP or Intel's IFD / ME / TXE
++	  binaries.
++
++config FMDFILE
++	string "fmap description file in fmd format"
++	default "src/mainboard/$(CONFIG_MAINBOARD_DIR)/chromeos.fmd" if CHROMEOS
++	default ""
++	help
++	  The build system creates a default FMAP from ROM_SIZE and CBFS_SIZE,
++	  but in some cases more complex setups are required.
++	  When an fmd is specified, it overrides the default format.
++
++endmenu
++
++# load site-local kconfig to allow user specific defaults and overrides
++source "site-local/Kconfig"
++
++config SYSTEM_TYPE_LAPTOP
++	default n
++	bool
++
++config SYSTEM_TYPE_TABLET
++	default n
++	bool
++
++config SYSTEM_TYPE_DETACHABLE
++	default n
++	bool
++
++config SYSTEM_TYPE_CONVERTIBLE
++	default n
++	bool
++
++config CBFS_AUTOGEN_ATTRIBUTES
++	default n
++	bool
++	help
++	  If this option is selected, every file in cbfs which has a constraint
++	  regarding position or alignment will get an additional file attribute
++	  which describes this constraint.
++
++menu "Chipset"
++
++comment "SoC"
++source "src/soc/*/Kconfig"
++comment "CPU"
++source "src/cpu/Kconfig"
++comment "Northbridge"
++source "src/northbridge/*/*/Kconfig"
++comment "Southbridge"
++source "src/southbridge/*/*/Kconfig"
++comment "Super I/O"
++source "src/superio/*/*/Kconfig"
++comment "Embedded Controllers"
++source "src/ec/acpi/Kconfig"
++source "src/ec/*/*/Kconfig"
++
++source "src/southbridge/intel/common/firmware/Kconfig"
++source "src/vendorcode/*/Kconfig"
++
++source "src/arch/*/Kconfig"
++
++endmenu
++
++source "src/device/Kconfig"
++
++menu "Generic Drivers"
++source "src/drivers/*/Kconfig"
++source "src/drivers/*/*/Kconfig"
++source "src/commonlib/storage/Kconfig"
++endmenu
++
++menu "Security"
++
++source "src/security/Kconfig"
++
++endmenu
++
++source "src/acpi/Kconfig"
++
++# This option is for the current boards/chipsets where SPI flash
++# is not the boot device. Currently nearly all boards/chipsets assume
++# SPI flash is the boot device.
++config BOOT_DEVICE_NOT_SPI_FLASH
++	bool
++	default n
++
++config BOOT_DEVICE_SPI_FLASH
++	bool
++	default y if !BOOT_DEVICE_NOT_SPI_FLASH
++	default n
++
++config BOOT_DEVICE_MEMORY_MAPPED
++	bool
++	default y if ARCH_X86 && BOOT_DEVICE_SPI_FLASH
++	default n
++	help
++	  Inform system if SPI is memory-mapped or not.
++
++config BOOT_DEVICE_SUPPORTS_WRITES
++	bool
++	default n
++	help
++	  Indicate that the platform has writable boot device
++	  support.
++
++config RTC
++	bool
++	default n
++
++config HEAP_SIZE
++	hex
++	default 0x100000 if FLATTENED_DEVICE_TREE
++	default 0x4000
++
++config STACK_SIZE
++	hex
++	default 0x1000 if ARCH_X86
++	default 0x0
++
++config MAX_CPUS
++	int
++	default 1
++
++source "src/console/Kconfig"
++
++config HAVE_ACPI_RESUME
++	bool
++	default n
++
++config ACPI_HUGE_LOWMEM_BACKUP
++	bool
++	default n
++	help
++	  On S3 resume path, backup low memory from RAMBASE..RAMTOP in CBMEM.
++
++config RESUME_PATH_SAME_AS_BOOT
++	bool
++	default y if ARCH_X86
++	depends on HAVE_ACPI_RESUME
++	help
++	  This option indicates that when a system resumes it takes the
++	  same path as a regular boot. e.g. an x86 system runs from the
++	  reset vector at 0xfffffff0 on both resume and warm/cold boot.
++
++config HAVE_ROMSTAGE_CONSOLE_SPINLOCK
++	bool
++	default n
++
++config HAVE_ROMSTAGE_NVRAM_CBFS_SPINLOCK
++	bool
++	default n
++	help
++	  This should be enabled on certain plaforms, such as the AMD
++	  SR565x, that cannot handle concurrent CBFS accesses from
++	  multiple APs during early startup.
++
++config HAVE_ROMSTAGE_MICROCODE_CBFS_SPINLOCK
++	bool
++	default n
++
++config NO_MONOTONIC_TIMER
++	def_bool n
++
++config HAVE_MONOTONIC_TIMER
++	bool
++	depends on !NO_MONOTONIC_TIMER
++	default y
++	help
++	 The board/chipset provides a monotonic timer.
++
++config GENERIC_UDELAY
++	bool
++	depends on HAVE_MONOTONIC_TIMER
++	default y if !ARCH_X86
++	help
++	 The board/chipset uses a generic udelay function utilizing the
++	 monotonic timer.
++
++config TIMER_QUEUE
++	def_bool n
++	depends on HAVE_MONOTONIC_TIMER
++	help
++	  Provide a timer queue for performing time-based callbacks.
++
++config COOP_MULTITASKING
++	def_bool n
++	depends on TIMER_QUEUE && ARCH_X86
++	help
++	  Cooperative multitasking allows callbacks to be multiplexed on the
++	  main thread of ramstage. With this enabled it allows for multiple
++	  execution paths to take place when they have udelay() calls within
++	  their code.
++
++config NUM_THREADS
++	int
++	default 4
++	depends on COOP_MULTITASKING
++	help
++	  How many execution threads to cooperatively multitask with.
++
++config HAVE_OPTION_TABLE
++	bool
++	default n
++	help
++	  This variable specifies whether a given board has a cmos.layout
++	  file containing NVRAM/CMOS bit definitions.
++	  It defaults to 'n' but can be selected in mainboard/*/Kconfig.
++
++config PCI_IO_CFG_EXT
++	bool
++	default n
++
++config IOAPIC
++	bool
++	default n
++
++config USE_WATCHDOG_ON_BOOT
++	bool
++	default n
++
++config GFXUMA
++	bool
++	default n
++	help
++	  Enable Unified Memory Architecture for graphics.
++
++config HAVE_ACPI_TABLES
++	bool
++	help
++	  This variable specifies whether a given board has ACPI table support.
++	  It is usually set in mainboard/*/Kconfig.
++
++config HAVE_MP_TABLE
++	bool
++	help
++	  This variable specifies whether a given board has MP table support.
++	  It is usually set in mainboard/*/Kconfig.
++	  Whether or not the MP table is actually generated by coreboot
++	  is configurable by the user via GENERATE_MP_TABLE.
++
++config HAVE_PIRQ_TABLE
++	bool
++	help
++	  This variable specifies whether a given board has PIRQ table support.
++	  It is usually set in mainboard/*/Kconfig.
++	  Whether or not the PIRQ table is actually generated by coreboot
++	  is configurable by the user via GENERATE_PIRQ_TABLE.
++
++config COMMON_FADT
++	bool
++	default n
++
++config ACPI_NHLT
++	bool
++	default n
++	help
++	  Build support for NHLT (non HD Audio) ACPI table generation.
++
++config ACPI_BERT
++	bool
++	depends on HAVE_ACPI_TABLES
++	help
++	  Build an ACPI Boot Error Record Table.
++
++#These Options are here to avoid "undefined" warnings.
++#The actual selection and help texts are in the following menu.
++
++menu "System tables"
++
++config GENERATE_MP_TABLE
++	prompt "Generate an MP table" if HAVE_MP_TABLE || DRIVERS_GENERIC_IOAPIC
++	bool
++	default HAVE_MP_TABLE || DRIVERS_GENERIC_IOAPIC
++	help
++	  Generate an MP table (conforming to the Intel MultiProcessor
++	  specification 1.4) for this board.
++
++	  If unsure, say Y.
++
++config GENERATE_PIRQ_TABLE
++	prompt "Generate a PIRQ table" if HAVE_PIRQ_TABLE
++	bool
++	default HAVE_PIRQ_TABLE
++	help
++	  Generate a PIRQ table for this board.
++
++	  If unsure, say Y.
++
++config GENERATE_SMBIOS_TABLES
++	depends on ARCH_X86
++	bool "Generate SMBIOS tables"
++	default y
++	help
++	  Generate SMBIOS tables for this board.
++
++	  If unsure, say Y.
++
++config SMBIOS_PROVIDED_BY_MOBO
++	bool
++	default n
++
++config MAINBOARD_SERIAL_NUMBER
++	prompt "SMBIOS Serial Number" if !SMBIOS_PROVIDED_BY_MOBO
++	string
++	depends on GENERATE_SMBIOS_TABLES
++	default "123456789"
++	help
++	  The Serial Number to store in SMBIOS structures.
++
++config MAINBOARD_VERSION
++	prompt "SMBIOS Version Number" if !SMBIOS_PROVIDED_BY_MOBO
++	string
++	depends on GENERATE_SMBIOS_TABLES
++	default "1.0"
++	help
++	  The Version Number to store in SMBIOS structures.
++
++config MAINBOARD_SMBIOS_MANUFACTURER
++	prompt "SMBIOS Manufacturer" if !SMBIOS_PROVIDED_BY_MOBO
++	string
++	depends on GENERATE_SMBIOS_TABLES
++	default MAINBOARD_VENDOR
++	help
++	  Override the default Manufacturer stored in SMBIOS structures.
++
++config MAINBOARD_SMBIOS_PRODUCT_NAME
++	prompt "SMBIOS Product name" if !SMBIOS_PROVIDED_BY_MOBO
++	string
++	depends on GENERATE_SMBIOS_TABLES
++	default MAINBOARD_PART_NUMBER
++	help
++	  Override the default Product name stored in SMBIOS structures.
++
++config SMBIOS_ENCLOSURE_TYPE
++	hex
++	depends on GENERATE_SMBIOS_TABLES
++	default 0x09 if SYSTEM_TYPE_LAPTOP
++	default 0x1e if SYSTEM_TYPE_TABLET
++	default 0x1f if SYSTEM_TYPE_CONVERTIBLE
++	default 0x20 if SYSTEM_TYPE_DETACHABLE
++	default 0x03
++	help
++	  System Enclosure or Chassis Types as defined in SMBIOS specification.
++	  The default value is SMBIOS_ENCLOSURE_DESKTOP (0x03) but laptop,
++	  convertible, or tablet enclosure will be used if the appropriate
++	  system type is selected.
++
++endmenu
++
++source "payloads/Kconfig"
++
++menu "Debugging"
++
++comment "CPU Debug Settings"
++source "src/cpu/*/Kconfig.debug"
++
++comment "General Debug Settings"
++
++# TODO: Better help text and detailed instructions.
++config GDB_STUB
++	bool "GDB debugging support"
++	default n
++	depends on CONSOLE_SERIAL
++	help
++	  If enabled, you will be able to set breakpoints for gdb debugging.
++	  See src/arch/x86/lib/c_start.S for details.
++
++config GDB_WAIT
++	bool "Wait for a GDB connection in the ramstage"
++	default n
++	depends on GDB_STUB
++	help
++	  If enabled, coreboot will wait for a GDB connection in the ramstage.
++
++
++config FATAL_ASSERTS
++	bool "Halt when hitting a BUG() or assertion error"
++	default n
++	help
++	  If enabled, coreboot will call hlt() on a BUG() or failed ASSERT().
++
++config HAVE_DEBUG_GPIO
++	bool
++
++config DEBUG_GPIO
++	bool "Output verbose GPIO debug messages"
++	depends on HAVE_DEBUG_GPIO
++
++config DEBUG_CBFS
++	bool "Output verbose CBFS debug messages"
++	default n
++	help
++	  This option enables additional CBFS related debug messages.
++
++config HAVE_DEBUG_RAM_SETUP
++	def_bool n
++
++config DEBUG_RAM_SETUP
++	bool "Output verbose RAM init debug messages"
++	default n
++	depends on HAVE_DEBUG_RAM_SETUP
++	help
++	  This option enables additional RAM init related debug messages.
++	  It is recommended to enable this when debugging issues on your
++	  board which might be RAM init related.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config DEBUG_PIRQ
++	bool "Check PIRQ table consistency"
++	default n
++	depends on GENERATE_PIRQ_TABLE
++	help
++	  If unsure, say N.
++
++config HAVE_DEBUG_SMBUS
++	def_bool n
++
++config DEBUG_SMBUS
++	bool "Output verbose SMBus debug messages"
++	default n
++	depends on HAVE_DEBUG_SMBUS
++	help
++	  This option enables additional SMBus (and SPD) debug messages.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config DEBUG_SMI
++	bool "Output verbose SMI debug messages"
++	default n
++	depends on HAVE_SMI_HANDLER
++	select SPI_FLASH_SMM if SPI_CONSOLE || CONSOLE_SPI_FLASH
++	help
++	  This option enables additional SMI related debug messages.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++# Only visible if debug level is DEBUG (7) or SPEW (8) as it does additional
++# printk(BIOS_DEBUG, ...) calls.
++config DEBUG_MALLOC
++	prompt "Output verbose malloc debug messages" if DEFAULT_CONSOLE_LOGLEVEL_7 || DEFAULT_CONSOLE_LOGLEVEL_8
++	bool
++	default n
++	help
++	  This option enables additional malloc related debug messages.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++# Only visible if debug level is DEBUG (7) or SPEW (8) as it does additional
++# printk(BIOS_DEBUG, ...) calls.
++config DEBUG_ACPI
++	prompt "Output verbose ACPI debug messages" if DEFAULT_CONSOLE_LOGLEVEL_7 || DEFAULT_CONSOLE_LOGLEVEL_8
++	bool
++	default n
++	help
++	  This option enables additional ACPI related debug messages.
++
++	  Note: This option will slightly increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config DEBUG_CONSOLE_INIT
++	bool "Debug console initialisation code"
++	default n
++	help
++	  With this option printk()'s are attempted before console hardware
++	  initialisation has been completed. Your mileage may vary.
++
++	  Typically you will need to modify source in console_hw_init() such
++	  that a working console appears before the one you want to debug.
++
++	  If unsure, say N.
++
++# Only visible if debug level is DEBUG (7) or SPEW (8) as it does additional
++# printk(BIOS_DEBUG, ...) calls.
++config REALMODE_DEBUG
++	prompt "Enable debug messages for option ROM execution" if DEFAULT_CONSOLE_LOGLEVEL_7 || DEFAULT_CONSOLE_LOGLEVEL_8
++	bool
++	default n
++	depends on PCI_OPTION_ROM_RUN_REALMODE
++	help
++	  This option enables additional x86emu related debug messages.
++
++	  Note: This option will increase the time to emulate a ROM.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG
++	bool "Output verbose x86emu debug messages"
++	default n
++	depends on PCI_OPTION_ROM_RUN_YABEL
++	help
++	  This option enables additional x86emu related debug messages.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_JMP
++	bool "Trace JMP/RETF"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print information about JMP and RETF opcodes from x86emu.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_TRACE
++	bool "Trace all opcodes"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print _all_ opcodes that are executed by x86emu.
++
++	  WARNING: This will produce a LOT of output and take a long time.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_PNP
++	bool "Log Plug&Play accesses"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print Plug And Play accesses made by option ROMs.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_DISK
++	bool "Log Disk I/O"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print Disk I/O related messages.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_PMM
++	bool "Log PMM"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print messages related to POST Memory Manager (PMM).
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++
++config X86EMU_DEBUG_VBE
++	bool "Debug VESA BIOS Extensions"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print messages related to VESA BIOS Extension (VBE) functions.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_INT10
++	bool "Redirect INT10 output to console"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Let INT10 (i.e. character output) calls print messages to debug output.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_INTERRUPTS
++	bool "Log intXX calls"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print messages related to interrupt handling.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_CHECK_VMEM_ACCESS
++	bool "Log special memory accesses"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print messages related to accesses to certain areas of the virtual
++	  memory (e.g. BDA (BIOS Data Area) or interrupt vectors)
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_MEM
++	bool "Log all memory accesses"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print memory accesses made by option ROM.
++	  Note: This also includes accesses to fetch instructions.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_IO
++	bool "Log IO accesses"
++	default n
++	depends on X86EMU_DEBUG
++	help
++	  Print I/O accesses made by option ROM.
++
++	  Note: This option will increase the size of the coreboot image.
++
++	  If unsure, say N.
++
++config X86EMU_DEBUG_TIMINGS
++	bool "Output timing information"
++	default n
++	depends on X86EMU_DEBUG && UDELAY_LAPIC && HAVE_MONOTONIC_TIMER
++	help
++	  Print timing information needed by i915tool.
++
++	  If unsure, say N.
++
++config DEBUG_SPI_FLASH
++	bool "Output verbose SPI flash debug messages"
++	default n
++	depends on SPI_FLASH
++	help
++	  This option enables additional SPI flash related debug messages.
++
++if SOUTHBRIDGE_INTEL_BD82X6X && DEFAULT_CONSOLE_LOGLEVEL_8
++# Only visible with the right southbridge and loglevel.
++config DEBUG_INTEL_ME
++	bool "Verbose logging for Intel Management Engine"
++	default n
++	help
++	  Enable verbose logging for Intel Management Engine driver that
++	  is present on Intel 6-series chipsets.
++endif
++
++config TRACE
++	bool "Trace function calls"
++	default n
++	help
++	  If enabled, every function will print information to console once
++	  the function is entered. The syntax is ~0xaaaabbbb(0xccccdddd)
++	  the 0xaaaabbbb is the actual function and 0xccccdddd is EIP
++	  of calling function. Please note some printk related functions
++	  are omitted from trace to have good looking console dumps.
++
++config DEBUG_COVERAGE
++	bool "Debug code coverage"
++	default n
++	depends on COVERAGE
++	help
++	  If enabled, the code coverage hooks in coreboot will output some
++	  information about the coverage data that is dumped.
++
++config DEBUG_BOOT_STATE
++	bool "Debug boot state machine"
++	default n
++	help
++	  Control debugging of the boot state machine.  When selected displays
++	  the state boundaries in ramstage.
++
++config DEBUG_ADA_CODE
++	bool "Compile debug code in Ada sources"
++	default n
++	help
++	  Add the compiler switch `-gnata` to compile code guarded by
++	  `pragma Debug`.
++
++config HAVE_EM100_SUPPORT
++	bool "Platform can support the Dediprog EM100 SPI emulator"
++	help
++	  This is enabled by platforms which can support using the EM100.
++
++config EM100
++	bool "Configure image for EM100 usage"
++	depends on HAVE_EM100_SUPPORT
++	help
++	  The Dediprog EM100 SPI emulator allows fast loading of new SPI images
++	  over USB. However it only supports a maximum SPI clock of 20MHz and
++	  single data output. Enable this option to use a 20MHz SPI clock and
++	  disable "Dual Output Fast Read" Support.
++
++	  On AMD platforms this changes the SPI speed at run-time if the
++	  mainboard code supports this. On supported Intel platforms this works
++	  by changing the settings in the descriptor.bin file.
++
++endmenu
++
++
++###############################################################################
++# Set variables with no prompt - these can be set anywhere, and putting at
++# the end of this file gives the most flexibility.
++
++source "src/lib/Kconfig"
++
++config ENABLE_APIC_EXT_ID
++	bool
++	default n
++
++config WARNINGS_ARE_ERRORS
++	bool
++	default y
++
++# The four POWER_BUTTON_DEFAULT_ENABLE, POWER_BUTTON_DEFAULT_DISABLE,
++# POWER_BUTTON_FORCE_ENABLE and POWER_BUTTON_FORCE_DISABLE options are
++# mutually exclusive. One of these options must be selected in the
++# mainboard Kconfig if the chipset supports enabling and disabling of
++# the power button. Chipset code uses the ENABLE_POWER_BUTTON option set
++# in mainboard/Kconfig to know if the button should be enabled or not.
++
++config POWER_BUTTON_DEFAULT_ENABLE
++	def_bool n
++	help
++	  Select when the board has a power button which can optionally be
++	  disabled by the user.
++
++config POWER_BUTTON_DEFAULT_DISABLE
++	def_bool n
++	help
++	  Select when the board has a power button which can optionally be
++	  enabled by the user, e.g. when the board ships with a jumper over
++	  the power switch contacts.
++
++config POWER_BUTTON_FORCE_ENABLE
++	def_bool n
++	help
++	  Select when the board requires that the power button is always
++	  enabled.
++
++config POWER_BUTTON_FORCE_DISABLE
++	def_bool n
++	help
++	  Select when the board requires that the power button is always
++	  disabled, e.g. when it has been hardwired to ground.
++
++config POWER_BUTTON_IS_OPTIONAL
++	bool
++	default y if POWER_BUTTON_DEFAULT_ENABLE || POWER_BUTTON_DEFAULT_DISABLE
++	default n if !(POWER_BUTTON_DEFAULT_ENABLE || POWER_BUTTON_DEFAULT_DISABLE)
++	help
++	  Internal option that controls ENABLE_POWER_BUTTON visibility.
++
++config REG_SCRIPT
++	bool
++	default n
++	help
++	  Internal option that controls whether we compile in register scripts.
++
++config MAX_REBOOT_CNT
++	int
++	default 3
++	help
++	  Internal option that sets the maximum number of bootblock executions allowed
++	  with the normal image enabled before assuming the normal image is defective
++	  and switching to the fallback image.
++
++config UNCOMPRESSED_RAMSTAGE
++	bool
++
++config NO_XIP_EARLY_STAGES
++	bool
++	default n if ARCH_X86
++	default y
++	help
++	  Identify if early stages are eXecute-In-Place(XIP).
++
++config EARLY_CBMEM_LIST
++	bool
++	default n
++	help
++	  Enable display of CBMEM during romstage and postcar.
++
++config RELOCATABLE_MODULES
++	bool
++	help
++	  If RELOCATABLE_MODULES is selected then support is enabled for
++	  building relocatable modules in the RAM stage. Those modules can be
++	  loaded anywhere and all the relocations are handled automatically.
++
++config NO_STAGE_CACHE
++	bool
++	default y if !HAVE_ACPI_RESUME
++	help
++	  Do not save any component in stage cache for resume path. On resume,
++	  all components would be read back from CBFS again.
++
++config GENERIC_GPIO_LIB
++	bool
++	help
++	  If enabled, compile the generic GPIO library. A "generic" GPIO
++	  implies configurability usually found on SoCs, particularly the
++	  ability to control internal pull resistors.
++
++config BOOTBLOCK_CUSTOM
++	# To be selected by arch, SoC or mainboard if it does not want use the normal
++	# src/lib/bootblock.c#main() C entry point.
++	bool
++
++config C_ENVIRONMENT_BOOTBLOCK
++	# To be selected by arch or platform if a C environment is available during the
++	# bootblock. Normally this signifies availability of RW memory (e.g. SRAM).
++	bool
++
++###############################################################################
++# Set default values for symbols created before mainboards.  This allows the
++# option to be displayed in the general menu, but the default to be loaded in
++# the mainboard if desired.
++config COMPRESS_RAMSTAGE
++	default y if !UNCOMPRESSED_RAMSTAGE
++
++config COMPRESS_PRERAM_STAGES
++	depends on !ARCH_X86
++	default y
++
++config INCLUDE_CONFIG_FILE
++	default y
++
++config BOOTSPLASH_FILE
++	depends on BOOTSPLASH_IMAGE
++	default "bootsplash.jpg"
++
++config CBFS_SIZE
++	default ROM_SIZE
++
++config HAVE_BOOTBLOCK
++	bool
++	default y
++
++config HAVE_VERSTAGE
++	bool
++	depends on VBOOT_SEPARATE_VERSTAGE
++	default y
++
++config HAVE_ROMSTAGE
++	bool
++	default y
++
++config HAVE_POSTCAR
++	bool
++	depends on POSTCAR_STAGE
++	default y
++
++config HAVE_RAMSTAGE
++	bool
++	default n if RAMPAYLOAD
++	default y
+diff --git a/src/include/program_loading.h b/src/include/program_loading.h
+index 1b71fadb1b..afd8ba0c54 100644
+--- a/src/include/program_loading.h
++++ b/src/include/program_loading.h
+@@ -26,6 +26,8 @@ enum {
+ 	/* Last segment of program. Can be used to take different actions for
+ 	 * cache maintenance of a program load. */
+ 	SEG_FINAL = 1 << 0,
++	/* Indicate that the program segment should not be measured */
++	SEG_NO_MEASURE = 1 << 1,
+ };
+ 
+ enum prog_type {
+diff --git a/src/lib/cbfs.c b/src/lib/cbfs.c
+index fbe6e43496..b0a4f8843a 100644
+--- a/src/lib/cbfs.c
++++ b/src/lib/cbfs.c
+@@ -97,7 +97,13 @@ void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+ 	if (size != NULL)
+ 		*size = fsize;
+ 
+-	return rdev_mmap(&fh.data, 0, fsize);
++	void *buffer = rdev_mmap(&fh.data, 0, fsize);
++
++#ifndef __SMM__
++	prog_segment_loaded((uintptr_t)buffer, fsize, 0);
++#endif
++
++	return buffer;
+ }
+ 
+ int cbfs_locate_file_in_region(struct cbfsf *fh, const char *region_name,
+@@ -125,7 +131,8 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 			return 0;
+ 		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
+ 			return 0;
+-		return in_size;
++		out_size = in_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZ4:
+ 		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
+@@ -143,7 +150,7 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 		timestamp_add_now(TS_START_ULZ4F);
+ 		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
+ 		timestamp_add_now(TS_END_ULZ4F);
+-		return out_size;
++		break;
+ 
+ 	case CBFS_COMPRESS_LZMA:
+ 		/* We assume here romstage and postcar are never compressed. */
+@@ -165,11 +172,15 @@ size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+ 
+ 		rdev_munmap(rdev, map);
+ 
+-		return out_size;
++		break;
+ 
+ 	default:
+ 		return 0;
+ 	}
++
++	prog_segment_loaded((uintptr_t)buffer, out_size, 0);
++
++	return out_size;
+ }
+ 
+ static inline int tohex4(unsigned int c)
+diff --git a/src/lib/hardwaremain.c b/src/lib/hardwaremain.c
+index 51ff330d84..358d3e40b3 100644
+--- a/src/lib/hardwaremain.c
++++ b/src/lib/hardwaremain.c
+@@ -32,6 +32,7 @@
+ #include <stdlib.h>
+ #include <boot/tables.h>
+ #include <program_loading.h>
++#include <security/tpm/tss.h>
+ #if CONFIG(HAVE_ACPI_RESUME)
+ #include <arch/acpi.h>
+ #endif
+@@ -540,3 +541,10 @@ void boot_state_current_unblock(void)
+ {
+ 	boot_state_unblock(current_phase.state_id, current_phase.seq);
+ }
++
++// ramstage measurements go into PCR3 if we are doing measured boot
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}
+diff --git a/src/lib/rmodule.c b/src/lib/rmodule.c
+index 56529d2fb2..2702b9d36e 100644
+--- a/src/lib/rmodule.c
++++ b/src/lib/rmodule.c
+@@ -197,7 +197,8 @@ int rmodule_load(void *base, struct rmodule *module)
+ 	rmodule_clear_bss(module);
+ 
+ 	prog_segment_loaded((uintptr_t)module->location,
+-				rmodule_memory_size(module), SEG_FINAL);
++			    rmodule_memory_size(module),
++			    SEG_FINAL | SEG_NO_MEASURE);
+ 
+ 	return 0;
+ }
+diff --git a/src/security/tpm/Makefile.inc b/src/security/tpm/Makefile.inc
+index a2d32cff89..e9a785b797 100644
+--- a/src/security/tpm/Makefile.inc
++++ b/src/security/tpm/Makefile.inc
+@@ -18,6 +18,11 @@ romstage-y += tspi/tspi.c
+ verstage-$(CONFIG_VBOOT) += tspi/tspi.c
+ postcar-$(CONFIG_VBOOT) += tspi/tspi.c
+ 
++ifeq ($(CONFIG_MEASURED_BOOT),y)
++romstage-y += sha1.c
++ramstage-y += sha1.c
++endif # CONFIG_MEASURED_BOOT
++
+ ramstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+ romstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+ verstage-$(CONFIG_VBOOT_MEASURED_BOOT) += tspi/log.c
+diff --git a/src/security/tpm/sha1.c b/src/security/tpm/sha1.c
+new file mode 100644
+index 0000000000..9879f729b1
+--- /dev/null
++++ b/src/security/tpm/sha1.c
+@@ -0,0 +1,180 @@
++/* Copyright (c) 2010 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ *
++ * SHA-1 implementation largely based on libmincrypt in the the Android
++ * Open Source Project (platorm/system/core.git/libmincrypt/sha.c
++ */
++
++#include <security/tpm/sha1.h>
++#include <string.h>
++
++static uint32_t ror27(uint32_t val)
++{
++	return (val >> 27) | (val << 5);
++}
++static uint32_t ror2(uint32_t val)
++{
++	return (val >> 2) | (val << 30);
++}
++static uint32_t ror31(uint32_t val)
++{
++	return (val >> 31) | (val << 1);
++}
++
++static void sha1_transform(struct sha1_ctx *ctx)
++{
++	uint32_t W[80];
++	register uint32_t A, B, C, D, E;
++	int t;
++
++	A = ctx->state[0];
++	B = ctx->state[1];
++	C = ctx->state[2];
++	D = ctx->state[3];
++	E = ctx->state[4];
++
++#define SHA_F1(A, B, C, D, E, t) do {					\
++	E += ror27(A) +							\
++			(W[t] = __builtin_bswap32(ctx->buf.w[t])) +	\
++			(D^(B&(C^D))) + 0x5A827999;			\
++	B = ror2(B);							\
++	} while (0)
++
++	for (t = 0; t < 15; t += 5) {
++		SHA_F1(A, B, C, D, E, t + 0);
++		SHA_F1(E, A, B, C, D, t + 1);
++		SHA_F1(D, E, A, B, C, t + 2);
++		SHA_F1(C, D, E, A, B, t + 3);
++		SHA_F1(B, C, D, E, A, t + 4);
++	}
++	SHA_F1(A, B, C, D, E, t + 0);  /* 16th one, t == 15 */
++
++#undef SHA_F1
++
++#define SHA_F1(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(D^(B&(C^D))) + 0x5A827999;			      \
++	B = ror2(B);							      \
++	} while (0)
++
++	SHA_F1(E, A, B, C, D, t + 1);
++	SHA_F1(D, E, A, B, C, t + 2);
++	SHA_F1(C, D, E, A, B, t + 3);
++	SHA_F1(B, C, D, E, A, t + 4);
++
++#undef SHA_F1
++
++#define SHA_F2(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0x6ED9EBA1;				      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (t = 20; t < 40; t += 5) {
++		SHA_F2(A, B, C, D, E, t + 0);
++		SHA_F2(E, A, B, C, D, t + 1);
++		SHA_F2(D, E, A, B, C, t + 2);
++		SHA_F2(C, D, E, A, B, t + 3);
++		SHA_F2(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F2
++
++#define SHA_F3(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			((B&C)|(D&(B|C))) + 0x8F1BBCDC;			      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (; t < 60; t += 5) {
++		SHA_F3(A, B, C, D, E, t + 0);
++		SHA_F3(E, A, B, C, D, t + 1);
++		SHA_F3(D, E, A, B, C, t + 2);
++		SHA_F3(C, D, E, A, B, t + 3);
++		SHA_F3(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F3
++
++#define SHA_F4(A, B, C, D, E, t) do {					      \
++	E += ror27(A) +							      \
++			(W[t] = ror31(W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) + \
++			(B^C^D) + 0xCA62C1D6;				      \
++	B = ror2(B);							      \
++	} while (0)
++
++	for (; t < 80; t += 5) {
++		SHA_F4(A, B, C, D, E, t + 0);
++		SHA_F4(E, A, B, C, D, t + 1);
++		SHA_F4(D, E, A, B, C, t + 2);
++		SHA_F4(C, D, E, A, B, t + 3);
++		SHA_F4(B, C, D, E, A, t + 4);
++	}
++
++#undef SHA_F4
++
++	ctx->state[0] += A;
++	ctx->state[1] += B;
++	ctx->state[2] += C;
++	ctx->state[3] += D;
++	ctx->state[4] += E;
++}
++
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len)
++{
++	int i = ctx->count % sizeof(ctx->buf);
++	const uint8_t *p = (const uint8_t *)data;
++
++	ctx->count += len;
++
++	while (len > sizeof(ctx->buf) - i) {
++		memcpy(&ctx->buf.b[i], p, sizeof(ctx->buf) - i);
++		len -= sizeof(ctx->buf) - i;
++		p += sizeof(ctx->buf) - i;
++		sha1_transform(ctx);
++		i = 0;
++	}
++
++	while (len--) {
++		ctx->buf.b[i++] = *p++;
++		if (i == sizeof(ctx->buf)) {
++			sha1_transform(ctx);
++			i = 0;
++		}
++	}
++}
++
++
++uint8_t *sha1_final(struct sha1_ctx *ctx)
++{
++	uint32_t cnt = ctx->count * 8;
++	int i;
++
++	sha1_update(ctx, (uint8_t *)"\x80", 1);
++	while ((ctx->count % sizeof(ctx->buf)) != (sizeof(ctx->buf) - 8))
++		sha1_update(ctx, (uint8_t *)"\0", 1);
++
++	for (i = 0; i < 8; ++i) {
++		uint8_t tmp = cnt >> ((7 - i) * 8);
++		sha1_update(ctx, &tmp, 1);
++	}
++
++	for (i = 0; i < 5; i++)
++		ctx->buf.w[i] = __builtin_bswap32(ctx->state[i]);
++
++	return ctx->buf.b;
++}
++
++void sha1_init(struct sha1_ctx *ctx)
++{
++	ctx->state[0] = 0x67452301;
++	ctx->state[1] = 0xEFCDAB89;
++	ctx->state[2] = 0x98BADCFE;
++	ctx->state[3] = 0x10325476;
++	ctx->state[4] = 0xC3D2E1F0;
++	ctx->count = 0;
++}
+diff --git a/src/security/tpm/sha1.h b/src/security/tpm/sha1.h
+new file mode 100644
+index 0000000000..bc3faa58ea
+--- /dev/null
++++ b/src/security/tpm/sha1.h
+@@ -0,0 +1,47 @@
++/* Copyright (c) 2014 The Chromium OS Authors. All rights reserved.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++/* SHA-1 functions */
++
++#ifndef _sha1_h_
++#define _sha1_h_
++
++#include <stdint.h>
++#include <commonlib/helpers.h>
++
++#define SHA1_DIGEST_SIZE 20
++#define SHA1_BLOCK_SIZE 64
++
++/*
++ * FIXME the DIV_ROUND_UP statement expression blows up here:
++	In file included from src/security/tpm/sha1.h:12,
++			 from src/security/tpm/sha1.c:9:
++	src/commonlib/include/commonlib/helpers.h:81:28: error: braced-group
++		within expression allowed only inside a function
++	 #define DIV_ROUND_UP(x, y) ({ \
++				    ^
++	src/security/tpm/sha1.h:23:14: note: in expansion of macro'DIV_ROUND_UP'
++	   uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++		      ^~~~~~~~~~~~
++	make[1]: *** [Makefile:356: x230/romstage/security/tpm/sha1.o] Error 1
++ */
++#undef DIV_ROUND_UP
++#define DIV_ROUND_UP(x, y) (((x) + (y) - 1) / (y))
++
++/* SHA-1 context */
++struct sha1_ctx {
++	uint32_t count;
++	uint32_t state[5];
++	union {
++		uint8_t b[SHA1_BLOCK_SIZE];
++		uint32_t w[DIV_ROUND_UP(SHA1_BLOCK_SIZE, sizeof(uint32_t))];
++	} buf;
++};
++
++void sha1_init(struct sha1_ctx *ctx);
++void sha1_update(struct sha1_ctx *ctx, const uint8_t *data, uint32_t len);
++uint8_t *sha1_final(struct sha1_ctx *ctx);
++
++#endif  /* _sha1_h_ */
+diff --git a/src/security/tpm/tspi/tspi.c b/src/security/tpm/tspi/tspi.c
+index 966b8b7c77..9076ced37a 100644
+--- a/src/security/tpm/tspi/tspi.c
++++ b/src/security/tpm/tspi/tspi.c
+@@ -20,8 +20,8 @@
+ #include <security/tpm/tspi.h>
+ #include <security/tpm/tss.h>
+ #include <stdlib.h>
+-#if CONFIG(VBOOT)
+ #include <vb2_api.h>
++#if CONFIG(VBOOT)
+ #include <vb2_sha.h>
+ #include <assert.h>
+ #endif
+diff --git a/src/security/tpm/tss.h b/src/security/tpm/tss.h
+index 336935d911..90a96621ed 100644
+--- a/src/security/tpm/tss.h
++++ b/src/security/tpm/tss.h
+@@ -52,6 +52,11 @@ uint32_t tlcl_get_flags(uint8_t *disable, uint8_t *deactivated,
+  */
+ uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
+ 
++/**
++ * Perform a SHA1 hash on a region and extend a PCR with the hash.
++ */
++uint32_t tlcl_measure(int pcr_num, const void *start, size_t len);
++
+ #endif
+ 
+ #if CONFIG(TPM2)
+diff --git a/src/security/tpm/tss.h.orig b/src/security/tpm/tss.h.orig
+new file mode 100644
+index 0000000000..30e2a7b4b8
+--- /dev/null
++++ b/src/security/tpm/tss.h.orig
+@@ -0,0 +1,192 @@
++/* Copyright (c) 2013 The Chromium OS Authors. All rights reserved.
++ * Copyright (C) 2018-2019 Eltan B.V.
++ * Use of this source code is governed by a BSD-style license that can be
++ * found in the LICENSE file.
++ */
++
++/*
++ * TPM Lightweight Command Library.
++ *
++ * A low-level library for interfacing to TPM hardware or an emulator.
++ */
++
++#ifndef TSS_H_
++#define TSS_H_
++
++#include <stdint.h>
++#include <types.h>
++
++#include <security/tpm/tss/common/tss_common.h>
++#include <security/tpm/tss_errors.h>
++#include <security/tpm/tss/vendor/cr50/cr50.h>
++
++#if CONFIG(TPM1)
++
++#include <security/tpm/tss/tcg-1.2/tss_structures.h>
++
++/**
++ * Define a space with permission [perm]. [index] is the index for the space,
++ * [size] the usable data size. The TPM error code is returned.
++ */
++uint32_t tlcl_define_space(uint32_t index, uint32_t perm, uint32_t size);
++
++/**
++ * Issue a PhysicalEnable. The TPM error code is returned.
++ */
++uint32_t tlcl_set_enable(void);
++
++/**
++ * Issue a SetDeactivated. Pass 0 to activate. Returns result code.
++ */
++uint32_t tlcl_set_deactivated(uint8_t flag);
++
++/**
++ * Get flags of interest. Pointers for flags you aren't interested in may
++ * be NULL. The TPM error code is returned.
++ */
++uint32_t tlcl_get_flags(uint8_t *disable, uint8_t *deactivated,
++			uint8_t *nvlocked);
++
++/**
++ * Get the entire set of permanent flags.
++ */
++uint32_t tlcl_get_permanent_flags(TPM_PERMANENT_FLAGS *pflags);
++
++#endif
++
++#if CONFIG(TPM2)
++
++#include <security/tpm/tss/tcg-2.0/tss_structures.h>
++
++/*
++ * Define a TPM2 space. The define space command TPM command used by the tlcl
++ * layer offers the ability to use custom nv attributes and policies.
++ */
++uint32_t tlcl_define_space(uint32_t space_index, size_t space_size,
++			   const TPMA_NV nv_attributes,
++			   const uint8_t *nv_policy, size_t nv_policy_size);
++
++/*
++ * Issue TPM2_GetCapability command
++ */
++uint32_t tlcl_get_capability(TPM_CAP capability, uint32_t property,
++			     uint32_t property_count,
++			     TPMS_CAPABILITY_DATA *capability_data);
++
++/*
++ * Makes tpm_process_command available for on top implementations of
++ * custom tpm standards like cr50
++ */
++void *tpm_process_command(TPM_CC command, void *command_body);
++
++#endif
++
++/*****************************************************************************/
++/* Generic Functions implemented in tlcl.c */
++
++/**
++ * Call this first.  Returns 0 if success, nonzero if error.
++ */
++uint32_t tlcl_lib_init(void);
++
++/**
++ * Perform a raw TPM request/response transaction.
++ */
++uint32_t tlcl_send_receive(const uint8_t *request, uint8_t *response,
++			   int max_length);
++
++/* Commands */
++
++/**
++ * Send a TPM_Startup(ST_CLEAR).  The TPM error code is returned (0 for
++ * success).
++ */
++uint32_t tlcl_startup(void);
++
++/**
++ * Resume by sending a TPM_Startup(ST_STATE).  The TPM error code is returned
++ * (0 for success).
++ */
++uint32_t tlcl_resume(void);
++
++/**
++ * Save TPM state by sending either TPM_SaveState() (TPM1.2) or
++ * TPM_Shutdown(ST_STATE) (TPM2.0).  The TPM error code is returned (0 for
++ * success).
++ */
++uint32_t tlcl_save_state(void);
++
++/**
++ * Run the self test.
++ *
++ * Note---this is synchronous.  To run this in parallel with other firmware,
++ * use ContinueSelfTest().  The TPM error code is returned.
++ */
++uint32_t tlcl_self_test_full(void);
++
++/**
++ * Run the self test in the background.
++ */
++uint32_t tlcl_continue_self_test(void);
++
++/**
++ * Write [length] bytes of [data] to space at [index].  The TPM error code is
++ * returned.
++ */
++uint32_t tlcl_write(uint32_t index, const void *data, uint32_t length);
++
++/**
++ * Read [length] bytes from space at [index] into [data].  The TPM error code
++ * is returned.
++ */
++uint32_t tlcl_read(uint32_t index, void *data, uint32_t length);
++
++/**
++ * Assert physical presence in software.  The TPM error code is returned.
++ */
++uint32_t tlcl_assert_physical_presence(void);
++
++/**
++ * Enable the physical presence command.  The TPM error code is returned.
++ */
++uint32_t tlcl_physical_presence_cmd_enable(void);
++
++/**
++ * Finalize the physical presence settings: software PP is enabled, hardware PP
++ * is disabled, and the lifetime lock is set.  The TPM error code is returned.
++ */
++uint32_t tlcl_finalize_physical_presence(void);
++
++/**
++ * Set the nvLocked bit.  The TPM error code is returned.
++ */
++uint32_t tlcl_set_nv_locked(void);
++
++/**
++ * Issue a ForceClear.  The TPM error code is returned.
++ */
++uint32_t tlcl_force_clear(void);
++
++/**
++ * Set the bGlobalLock flag, which only a reboot can clear.  The TPM error
++ * code is returned.
++ */
++uint32_t tlcl_set_global_lock(void);
++
++/**
++ * Make an NV Ram location read_only.  The TPM error code is returned.
++ */
++uint32_t tlcl_lock_nv_write(uint32_t index);
++
++/**
++ * Perform a TPM_Extend.
++ */
++uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
++		     uint8_t *out_digest);
++
++/**
++ * Disable platform hierarchy. Specific to TPM2. The TPM error code is returned.
++ */
++uint32_t tlcl_disable_platform_hierarchy(void);
++
++#endif /* TSS_H_ */
+diff --git a/src/security/tpm/tss/tcg-1.2/tss.c b/src/security/tpm/tss/tcg-1.2/tss.c
+index b11d6a3d16..ef4f4d8b86 100644
+--- a/src/security/tpm/tss/tcg-1.2/tss.c
++++ b/src/security/tpm/tss/tcg-1.2/tss.c
+@@ -17,6 +17,7 @@
+ #include <arch/early_variables.h>
+ #include <assert.h>
+ #include <string.h>
++#include <security/tpm/sha1.h>
+ #include <security/tpm/tis.h>
+ #include <vb2_api.h>
+ #include <security/tpm/tss.h>
+@@ -361,3 +362,21 @@ uint32_t tlcl_extend(int pcr_num, const uint8_t *in_digest,
+ 		       kPcrDigestLength);
+ 	return result;
+ }
++
++uint32_t tlcl_measure(int pcr_num, const void *start, size_t len)
++{
++	VBDEBUG("TPM: pcr %d measure %p @ %zu: ", pcr_num, start, len);
++
++	struct sha1_ctx sha;
++	sha1_init(&sha);
++	sha1_update(&sha, start, len);
++
++	const uint8_t *hash = sha1_final(&sha);
++	for (unsigned int i = 0; i < SHA1_DIGEST_SIZE; i++)
++		VBDEBUG("%02x", hash[i]);
++	VBDEBUG("\n");
++
++	//hexdump(start, 128);
++
++	return tlcl_extend(pcr_num, hash, NULL);
++}
+-- 
+2.20.1
+
