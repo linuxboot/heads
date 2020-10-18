@@ -313,7 +313,7 @@ detect_boot_device()
 
 	# generate list of possible boot devices
 	fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
-	
+
 	# filter out extraneous options
 	> /tmp/boot_device_list
 	for i in `cat /tmp/disklist`; do
@@ -325,7 +325,7 @@ detect_boot_device()
 			ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
 		fi
 	done
-	
+
 	# iterate thru possible options and check for grub dir
 	for i in `cat /tmp/boot_device_list`; do
 		umount /boot 2>/dev/null
