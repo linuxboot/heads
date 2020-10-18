@@ -109,6 +109,7 @@ GIT_STATUS	:= $(shell \
 	else \
 		echo dirty ; \
 	fi)
+HEADS_GIT_VERSION	:= $(shell git describe --tags --dirty)
 
 # record the build date / git hashes and other files here
 HASHES		:= $(build)/$(BOARD)/hashes.txt
