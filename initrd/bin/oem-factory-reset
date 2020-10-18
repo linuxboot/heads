@@ -157,8 +157,8 @@ generate_checksums()
     set_default_boot_option
 
     # generate hashes
-    find /boot -type f ! -name '*kexec*' \
-        | xargs sha256sum > /boot/kexec_hashes.txt 2>/dev/null \
+    find /boot -type f ! -name '*kexec*' -print0 \
+        | xargs -0 sha256sum > /boot/kexec_hashes.txt 2>/dev/null \
         || whiptail_error_die "Error generating kexec hashes"
 
     param_files=`find /boot/kexec*.txt`
