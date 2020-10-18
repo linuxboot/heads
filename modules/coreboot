@@ -38,6 +38,7 @@ coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
 	&& cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" \
 	&& echo 'CONFIG_LOCALVERSION="Heads-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
+	&& echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(BOARD)"' >> $(build)/$(coreboot_dir)/.config \
 	&& $(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
