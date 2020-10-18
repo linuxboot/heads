@@ -1,0 +1,609 @@
+diff --git a/src/mainboard/purism/librem_l1um/Kconfig b/src/mainboard/purism/librem_l1um/Kconfig
+new file mode 100644
+index 0000000000..ba504faa75
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/Kconfig
+@@ -0,0 +1,41 @@
++if BOARD_PURISM_LIBREM_L1UM
++
++config BOARD_SPECIFIC_OPTIONS
++	def_bool y
++	select BOARD_ROMSIZE_KB_16384
++	select DRIVERS_UART_8250IO
++	select ENABLE_FSP_FAST_BOOT
++	select GENERATE_SMBIOS_TABLES
++	select HAVE_ACPI_TABLES
++	select IPMI_KCS
++	select MAINBOARD_HAS_LPC_TPM
++	select MAINBOARD_USES_IFD_GBE_REGION
++	select MRC_CACHE_FMAP
++	select SERIRQ_CONTINUOUS_MODE
++	select SOC_INTEL_FSP_BROADWELL_DE
++	select SUPERIO_ASPEED_AST2400
++
++config MAINBOARD_DIR
++	string
++	default "purism/librem_l1um"
++
++config MAINBOARD_PART_NUMBER
++	string
++	default "LIBREM_L1UM"
++
++config IRQ_SLOT_COUNT
++	int
++	default 18
++
++config CBFS_SIZE
++	hex
++	default 0x00C00000
++
++config VIRTUAL_ROM_SIZE
++	hex
++	default 0x1000000
++
++config INTEGRATED_UART
++	def_bool n
++
++endif # BOARD_PURISM_LIBREM_L1UM
+diff --git a/src/mainboard/purism/librem_l1um/Kconfig.name b/src/mainboard/purism/librem_l1um/Kconfig.name
+new file mode 100644
+index 0000000000..3e3441931c
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/Kconfig.name
+@@ -0,0 +1,2 @@
++config BOARD_PURISM_LIBREM_L1UM
++	bool "Purism LIBREM_L1UM"
+diff --git a/src/mainboard/purism/librem_l1um/Makefile.inc b/src/mainboard/purism/librem_l1um/Makefile.inc
+new file mode 100644
+index 0000000000..991f44ed3c
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/Makefile.inc
+@@ -0,0 +1,14 @@
++##
++## This file is part of the coreboot project.
++##
++## This program is free software; you can redistribute it and/or modify
++## it under the terms of the GNU General Public License as published by
++## the Free Software Foundation; version 2 of the License.
++##
++## This program is distributed in the hope that it will be useful,
++## but WITHOUT ANY WARRANTY; without even the implied warranty of
++## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++## GNU General Public License for more details.
++##
++
++ramstage-y += irqroute.c
+diff --git a/src/mainboard/purism/librem_l1um/acpi/mainboard.asl b/src/mainboard/purism/librem_l1um/acpi/mainboard.asl
+new file mode 100644
+index 0000000000..78858cc652
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/acpi/mainboard.asl
+@@ -0,0 +1,18 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; version 2 of
++ * the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++Device (PWRB)
++{
++	Name(_HID, EisaId("PNP0C0C"))
++}
+diff --git a/src/mainboard/purism/librem_l1um/acpi/platform.asl b/src/mainboard/purism/librem_l1um/acpi/platform.asl
+new file mode 100644
+index 0000000000..4cab1777c4
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/acpi/platform.asl
+@@ -0,0 +1,53 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++/* The APM port can be used for generating software SMIs */
++
++OperationRegion (APMP, SystemIO, 0xb2, 2)
++Field (APMP, ByteAcc, NoLock, Preserve)
++{
++	APMC, 8,	// APM command
++	APMS, 8		// APM status
++}
++
++/* Port 80 POST */
++
++OperationRegion (POST, SystemIO, 0x80, 1)
++Field (POST, ByteAcc, Lock, Preserve)
++{
++	DBG0, 8
++}
++
++Name(\APC1, Zero) // IIO IOAPIC
++
++Name(\PICM, Zero) // IOAPIC/8259
++
++Method(_PIC, 1)
++{
++	Store(Arg0, PICM)
++}
++
++/* The _PTS method (Prepare To Sleep) is called before the OS is
++ * entering a sleep state. The sleep state number is passed in Arg0
++ */
++
++Method(_PTS,1)
++{
++}
++
++/* The _WAK method is called on system wakeup */
++
++Method(_WAK,1)
++{
++	Return(Package(){0,0})
++}
+diff --git a/src/mainboard/purism/librem_l1um/acpi_tables.c b/src/mainboard/purism/librem_l1um/acpi_tables.c
+new file mode 100644
+index 0000000000..7507f24fc7
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/acpi_tables.c
+@@ -0,0 +1,39 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <arch/ioapic.h>
++#include <soc/acpi.h>
++#include <soc/iomap.h>
++
++unsigned long acpi_fill_madt(unsigned long current)
++{
++	u32 i;
++
++	current = acpi_create_madt_lapics(current);
++
++	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *) current, 8,
++		IOXAPIC1_BASE_ADDRESS, 0);
++	set_ioapic_id((u8 *)IOXAPIC1_BASE_ADDRESS, 8);
++
++	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *) current, 9,
++		IOXAPIC2_BASE_ADDRESS, 24);
++	set_ioapic_id((u8 *)IOXAPIC2_BASE_ADDRESS, 9);
++
++	current = acpi_madt_irq_overrides(current);
++
++	for (i = 0; i < 16; i++)
++		current += acpi_create_madt_lapic_nmi(
++			(acpi_madt_lapic_nmi_t *)current, i, 0xD, 1);
++
++	return current;
++}
+diff --git a/src/mainboard/purism/librem_l1um/board_info.txt b/src/mainboard/purism/librem_l1um/board_info.txt
+new file mode 100644
+index 0000000000..fc8da9d5f5
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/board_info.txt
+@@ -0,0 +1,8 @@
++Board name: Purism Librem Server L1UM
++Category: server
++Board URL: https://puri.sm/products/librem-server/
++ROM package: SOIC-8
++ROM protocol: SPI
++ROM socketed: no
++Flashrom support: y
++Release year: 2020
+diff --git a/src/mainboard/purism/librem_l1um/devicetree.cb b/src/mainboard/purism/librem_l1um/devicetree.cb
+new file mode 100644
+index 0000000000..5869b23e58
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/devicetree.cb
+@@ -0,0 +1,96 @@
++chip soc/intel/fsp_broadwell_de
++	device cpu_cluster 0 on
++		device lapic 0 on end
++	end
++	device domain 0 on
++		device pci 00.0 on  end # SoC router (6f00)
++		device pci 01.0 on  end # CPU PCIe RP1 (6f02)
++		device pci 01.1 on  end # CPU PCIe RP1 (6f03)
++		device pci 02.0 on  end # CPU PCIe RP2 (6f04)
++		device pci 02.2 on  end # CPU PCIe RP2 (6f06)
++		device pci 03.0 on  end # CPU PCIe RP3 (6f08)
++		device pci 05.0 on  end # Sys Mgmt (6f28)
++		device pci 05.1 on  end # IIO HP (6f29)
++		device pci 05.2 on  end # IIO RAS (6f2a)
++		device pci 05.4 on  end # I/O APIC (6f2c)
++		device pci 05.6 off end # I/O Performance Monitoring (6f39)
++		device pci 06.0 off end # IIO Debug
++		device pci 06.1 off end # IIO Debug
++		device pci 06.2 off end # IIO Debug
++		device pci 06.3 off end # IIO Debug
++		device pci 06.4 off end # IIO Debug
++		device pci 06.5 off end # IIO Debug
++		device pci 06.6 off end # IIO Debug
++		device pci 06.7 off end # IIO Debug
++		device pci 07.0 off end # IIO Debug
++		device pci 07.1 off end # IIO Debug
++		device pci 07.2 off end # IIO Debug
++		device pci 07.3 off end # IIO Debug
++		device pci 07.4 off end # IIO Debug
++		device pci 14.0 on  end # xHCI Controller (8c31)
++		device pci 16.0 off end # MEI Controller #1 (8c3a)
++		device pci 16.1 off end # MEI Controller #2 (8c3b)
++		device pci 16.2 off end # IDE-r Controller (8c3c)
++		device pci 16.3 off end # KT Controller (8c3d)
++		device pci 19.0 off end # Gigabit LAN Controller
++		device pci 1a.0 on  end # EHCI Controller #2 (8c2d)
++		device pci 1c.0 on  end # PCH PCIe RP1 (8c10)
++		device pci 1c.1 on  end # PCH PCIe RP2 (8c12)
++		device pci 1c.3 on  end # PCH PCIe RP4 (8c16)
++		device pci 1c.4 on  end # PCH PCIe RP5 (8c18)
++		device pci 1d.0 on  end # EHCI Controller #1 (8c26)
++		device pci 1f.0 on
++			chip drivers/ipmi
++				register "bmc_i2c_address" = "0x20"
++				device pnp ca2.0 on # IPMI KCS
++					irq 0x70 = 0x05
++				end
++			end
++			chip superio/common
++				device pnp 2e.0 on
++					chip superio/aspeed/ast2400
++						device pnp 2e.2 on	# SUART1
++							io 0x60 = 0x3f8
++							irq 0x70 = 0x04
++						end
++						device pnp 2e.3 on	# SUART2
++							io 0x60 = 0x2f8
++							irq 0x70 = 0x03
++						end
++						device pnp 2e.4 on	# SWC
++							io 0x60 = 0x8e6
++							io 0x62 = 0x8e0
++							io 0x64 = 0x8e4
++							io 0x66 = 0x8e8
++							irq 0x70 = 0x09
++						end
++						device pnp 2e.5 off end	# KBC
++						device pnp 2e.7 on  end	# GPIO
++						device pnp 2e.b on	# SUART3
++							io 0x60 = 0x3e8
++							irq 0x70 = 0x06
++						end
++						device pnp 2e.c on	# SUART4
++							io 0x60 = 0x2e8
++							irq 0x70 = 0x05
++						end
++						device pnp 2e.d on	# iLPC2AHB
++							irq 0x70 = 0x09
++						end
++						device pnp 2e.e on	# Mailbox
++							io 0x60 = 0x8c0
++							irq 0x70 = 0x09
++						end
++					end
++				end
++			end
++			chip drivers/pc80/tpm
++				device pnp 0c31.0 on end
++			end
++		end # LPC Bridge (8c54)
++		device pci 1f.2 on  end # SATA Controller (8c02)
++		device pci 1f.3 on  end # SMBus Controller (8c22)
++		device pci 1f.5 on end # SATA Controller
++		device pci 1f.6 on  end # Thermal Mgmt Controller (8c24)
++	end
++end
+diff --git a/src/mainboard/purism/librem_l1um/dsdt.asl b/src/mainboard/purism/librem_l1um/dsdt.asl
+new file mode 100644
+index 0000000000..c9dd6f5506
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/dsdt.asl
+@@ -0,0 +1,41 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <arch/acpi.h>
++DefinitionBlock(
++	"dsdt.aml",
++	"DSDT",
++	0x02,		// DSDT revision: ACPI v2.0 and up
++	OEM_ID,
++	ACPI_TABLE_CREATOR,
++	0x20110725	// OEM revision
++)
++{
++	#include "acpi/platform.asl"
++
++	Name(_S0, Package() { 0x00, 0x00, 0x00, 0x00 })
++	Name(_S5, Package() { 0x07, 0x00, 0x00, 0x00 })
++
++	Scope (\_SB)
++	{
++		Device (PCI0)
++		{
++			#include <acpi/southcluster.asl>
++			#include <acpi/pcie1.asl>
++		}
++
++		#include <acpi/uncore.asl>
++	}
++
++	#include "acpi/mainboard.asl"
++}
+diff --git a/src/mainboard/purism/librem_l1um/fadt.c b/src/mainboard/purism/librem_l1um/fadt.c
+new file mode 100644
+index 0000000000..cba3b078fb
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/fadt.c
+@@ -0,0 +1,25 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <soc/acpi.h>
++
++void acpi_create_fadt(acpi_fadt_t *fadt, acpi_facs_t *facs, void *dsdt)
++{
++	acpi_header_t *header = &(fadt->header);
++
++	acpi_fill_in_fadt(fadt, facs, dsdt);
++
++	/* Platform specific customizations go here */
++
++	header->checksum = acpi_checksum((void *) fadt, sizeof(acpi_fadt_t));
++}
+diff --git a/src/mainboard/purism/librem_l1um/irqroute.c b/src/mainboard/purism/librem_l1um/irqroute.c
+new file mode 100644
+index 0000000000..fb2f90d0f4
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/irqroute.c
+@@ -0,0 +1,16 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include "irqroute.h"
++
++DEFINE_IRQ_ROUTES;
+diff --git a/src/mainboard/purism/librem_l1um/irqroute.h b/src/mainboard/purism/librem_l1um/irqroute.h
+new file mode 100644
+index 0000000000..82b9448f64
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/irqroute.h
+@@ -0,0 +1,45 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef IRQROUTE_H
++#define IRQROUTE_H
++
++#include <soc/irq.h>
++#include <soc/pci_devs.h>
++
++#define PCI_DEV_PIRQ_ROUTES \
++	PCI_DEV_PIRQ_ROUTE(XHCI_DEV,  A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(ME_DEV,    A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(GBE_DEV,   A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(EHCI2_DEV, A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(HDA_DEV,   A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(PCIE_DEV,  A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(EHCI1_DEV, A, B, C, D), \
++	PCI_DEV_PIRQ_ROUTE(SATA_DEV,  A, B, C, D)
++
++/*
++ * Route each PIRQ[A-H] to a PIC IRQ[0-15]
++ * Reserved: 0, 1, 2, 8, 13
++ * ACPI/SCI: 9
++ */
++#define PIRQ_PIC_ROUTES \
++	PIRQ_PIC(A,  5), \
++	PIRQ_PIC(B,  6), \
++	PIRQ_PIC(C,  7), \
++	PIRQ_PIC(D, 10), \
++	PIRQ_PIC(E, 11), \
++	PIRQ_PIC(F, 12), \
++	PIRQ_PIC(G, 14), \
++	PIRQ_PIC(H, 15)
++
++#endif /* IRQROUTE_H */
+diff --git a/src/mainboard/purism/librem_l1um/mainboard.c b/src/mainboard/purism/librem_l1um/mainboard.c
+new file mode 100644
+index 0000000000..7a017bdcaf
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/mainboard.c
+@@ -0,0 +1,26 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <device/device.h>
++
++/*
++ * mainboard_enable is executed as first thing after enumerate_buses().
++ * This is the earliest point to add customization.
++ */
++static void mainboard_enable(struct device *dev)
++{
++}
++
++struct chip_operations mainboard_ops = {
++	.enable_dev = mainboard_enable,
++};
+diff --git a/src/mainboard/purism/librem_l1um/romstage.c b/src/mainboard/purism/librem_l1um/romstage.c
+new file mode 100644
+index 0000000000..112eb264fc
+--- /dev/null
++++ b/src/mainboard/purism/librem_l1um/romstage.c
+@@ -0,0 +1,98 @@
++/*
++ * This file is part of the coreboot project.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <stddef.h>
++#include <soc/romstage.h>
++#include <drivers/intel/fsp1_0/fsp_util.h>
++#include <cpu/x86/msr.h>
++#include <cf9_reset.h>
++#include <console/console.h>
++#include <device/pci_ops.h>
++#include <soc/pci_devs.h>
++#include <soc/lpc.h>
++#include <superio/aspeed/ast2400/ast2400.h>
++#include <superio/aspeed/common/aspeed.h>
++
++#define SERIAL_DEV PNP_DEV(0x2e, AST2400_SUART1)
++
++/**
++ * brief mainboard call for setup that needs to be done before fsp init
++ */
++void early_mainboard_romstage_entry(void)
++{
++	/*
++	 * Sometimes the system boots in an invalid state, where random values
++	 * have been written to MSRs and then the MSRs are locked.
++	 * Seems to always happen on warm reset.
++	 *
++	 * Power cycling or a board_reset() isn't sufficient in this case, so
++	 * issue a full_reset() to "fix" this issue.
++	 */
++	msr_t msr = rdmsr(IA32_FEATURE_CONTROL);
++	if (msr.lo & 1) {
++		console_init();
++		printk(BIOS_EMERG, "Detected broken platform state. Issuing full reset\n");
++		full_reset();
++	}
++
++	/* enable early serial output */
++	aspeed_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
++}
++
++/*
++ * brief mainboard call for setup that needs to be done after fsp init
++ */
++void late_mainboard_romstage_entry(void)
++{
++	// IPMI through BIC
++	pci_write_config32(PCI_DEV(0, LPC_DEV, LPC_FUNC), LPC_GEN2_DEC,
++			   0x0c0ca1);
++}
++
++/*
++ * brief customize fsp parameters here if needed
++ */
++void romstage_fsp_rt_buffer_callback(FSP_INIT_RT_BUFFER *FspRtBuffer)
++{
++	UPD_DATA_REGION *fsp_upd_data = FspRtBuffer->Common.UpdDataRgnPtr;
++
++	/* The internal UART operates on 0x3f8/0x2f8.
++	 * As it's not wired up and conflicts with SuperIO decoding
++	 * the same range, make sure to disable it.
++	 */
++	fsp_upd_data->SerialPortConfigure = 0;
++	fsp_upd_data->SerialPortControllerInit0 = 0;
++	fsp_upd_data->SerialPortControllerInit1 = 0;
++
++	/* coreboot will initialize UART.
++	 * No need for FSP to do it again.
++	 */
++	fsp_upd_data->SerialPortConfigure = 0;
++	fsp_upd_data->SerialPortBaudRate = 0;
++
++	/* Make FSP use serial IO */
++	fsp_upd_data->SerialPortType = 1;
++
++	/* Set the bifurcation for IOU1 / port 0
++	 * default xxxxxx8, set to xxxx8x8 to
++	 * enable PCIe slot 0
++	 */
++	fsp_upd_data->ConfigIOU1_PciPort3 = 3;
++
++	/* Set the bifurcation for IOU2 / port 1
++	 * default xxxxxx8, set to xxxxx4x4 to
++	 * enable SAS controller and NVMe to coexist
++	 */
++	fsp_upd_data->ConfigIOU2_PciPort1 = 0;
++
++}
+-- 
+2.20.1
+

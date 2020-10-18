@@ -43,6 +43,14 @@ flash_rom() {
       cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
       cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
     fi
+    # persist PCHSTRP9 from flash descriptor
+    if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
+      echo "Persisting PCHSTRP9"
+      flashrom $CONFIG_FLASHROM_OPTIONS -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
+      || die "Failed to read flash descriptor"
+      dd if=/tmp/ifd.bin bs=1 count=4 skip=292 of=/tmp/pchstrp9.bin >/dev/null 2>&1
+      dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
+    fi
 
     flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \
     || die "$ROM: Flash failed"
