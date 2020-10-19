@@ -1,0 +1,28 @@
+modules-$(CONFIG_NKSTORECLI) += libhidapi-libusb
+
+libhidapi-libusb_depends  += libusb
+
+libhidapi-libusb_version := 0.9.0
+libhidapi-libusb_dir := hidapi-hidapi-$(libhidapi-libusb_version)
+libhidapi-libusb_tar := hidapi-$(libhidapi-libusb_version).tar.gz
+libhidapi-libusb_url := https://github.com/libusb/hidapi/archive/$(libhidapi-libusb_tar)
+libhidapi-libusb_hash := 630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
+
+MY_CROSS_TOOLS := \
+	CC="$(heads_cc) -Os" \
+	$(CROSS_TOOLS_NOCC) \
+
+
+libhidapi-libusb_configure := ./bootstrap && \
+	./configure \
+	$(MY_CROSS_TOOLS) \
+	--host i386-elf-linux\
+	--prefix "/"
+
+
+libhidapi-libusb_target := $(MAKE_JOBS) -C libusb \
+	DESTDIR="$(INSTALL)" \
+	$(MY_CROSS_TOOLS) \
+	install && \
+	cp $(INSTALL)/../build/$(libhidapi-libusb_dir)/pc/hidapi-libusb.pc $(INSTALL)/lib/pkgconfig/ \
+
