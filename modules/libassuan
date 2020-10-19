@@ -10,6 +10,7 @@ libassuan_configure := ./configure \
 	--host x86_64-linux-musl \
 	--prefix "/" \
 	--disable-static \
+	--disable-debug \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libassuan_target := $(MAKE_JOBS) \

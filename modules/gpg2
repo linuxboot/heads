@@ -39,6 +39,9 @@ gpg2_configure := ./configure \
 	--disable-wks-tools \
 	--disable-gnutls \
 	--disable-dirmngr \
+	--disable-zip \
+	--disable-sqlite \
+	--disable-gpgsm \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
