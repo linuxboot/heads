@@ -39,7 +39,7 @@ jobs:
           command: |
             make \
                 BOARD=qemu-linuxboot \
-                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
+                `/bin/pwd`/build/linuxboot-b5376a441e8e85cbf722e943bb8294958e87c784/build/qemu/.configured \
                 # Run first to avoid too many processes
 
       - run:

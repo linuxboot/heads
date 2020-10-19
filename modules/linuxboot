@@ -1,7 +1,13 @@
 modules-$(CONFIG_LINUXBOOT) += linuxboot
 
-linuxboot_version := git
-linuxboot_repo := https://github.com/osresearch/linuxboot
+#linuxboot_version := git
+#linuxboot_repo := https://github.com/osresearch/linuxboot
+
+linuxboot_version := b5376a441e8e85cbf722e943bb8294958e87c784
+linuxboot_hash := ccbe2a1ce344dd5831a774a038ed619f988029cc123a87202d62f3d0ec7aad62
+linuxboot_tar := linuxboot-$(linuxboot_version).tar.gz
+linuxboot_url := https://github.com/osresearch/linuxboot/archive/$(linuxboot_version).tar.gz
+
 linuxboot_base_dir := linuxboot-$(linuxboot_version)
 
 # linuxboot builds are specialized on a per-target basis.
@@ -77,3 +83,25 @@ linuxboot.run: $(build)/$(BOARD)/linuxboot.rom
 		INITRD=$(build)/$(BOARD)/initrd.cpio.xz \
 		CUSTOM=$(CUSTOMPWD) \
 		run
+
+# If we are not building from a git checkout,
+# we must also download the linuxboot-edk2 tree
+ifneq "$(linuxboot_version)" "git"
+
+linuxboot_depends += linuxboot-edk2
+modules-$(CONFIG_LINUXBOOT) += linuxboot-edk2
+
+linuxboot-edk2_version := b7c299e4799012e8a20958a68693ab95b7626aa9
+linuxboot-edk2_hash := 78f48f46414b019b5fcd2d7049fd79e955d25f2965123d0bbdf7226564db33e5
+
+linuxboot-edk2_tar := linuxboot-edk2-$(linuxboot-edk2_version).tar.gz
+linuxboot-edk2_url := https://github.com/linuxboot/edk2/archive/$(linuxboot-edk2_version).tar.gz
+linuxboot-edk2_dir := $(linuxboot_base_dir)/edk2
+
+# We don't need to build edk2 ourselves
+# It will be done as part of the linuxboot build process
+linuxboot-edk2_output := .git
+linuxboot-edk2_target := .git
+linuxboot-edk2_configure := echo -e '\n.git:\n\ttouch .git' >> Makefile
+
+endif
