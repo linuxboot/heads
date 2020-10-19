@@ -8,7 +8,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool
       - checkout
 
       - run:
@@ -24,7 +24,7 @@ jobs:
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest
           command: |
-            find ./patches/musl-cross-* modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
+            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
 
 
       - restore_cache:
@@ -58,6 +58,24 @@ jobs:
 #          path: build/qemu-linuxboot/linuxboot.rom
 #      - store-artifacts:
 #          path: build/qemu-linuxboot/hashes.txt
+
+      - run:
+          name: librem_l1um
+          command: |
+            rm -rf build/librem_l1um/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_l1um || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput librem_l1um hashes
+          command: |
+            cat build/librem_l1um/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_l1um
+          command: |
+             tar zcvf build/librem_l1um/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_l1um
 
       - run:
           name: librem_mini
@@ -167,6 +185,24 @@ jobs:
              tar zcvf build/x230-hotp-verification/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-hotp-verification
+
+      - run:
+          name: x230-nkstorecli
+          command: |
+            rm -rf build/x230-nkstorecli/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=x230-nkstorecli || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput x230-nkstorecli hashes
+          command: |
+            cat build/x230-nkstorecli/hashes.txt \
+      - run:
+          name: Archiving build logs for x230-nkstorecli
+          command: |
+             tar zcvf build/x230-nkstorecli/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/x230-nkstorecli
 
       - run:
           name: qemu-coreboot
