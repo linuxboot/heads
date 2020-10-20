@@ -1,7 +1,7 @@
 #!/bin/sh
 # Retrieve the sealed TOTP secret and initialize a USB Security dongle with it
 
-. /etc/functions
+. /etc/functions.sh
 
 HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"

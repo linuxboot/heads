@@ -2,7 +2,7 @@
 # Initialize the USB and network device drivers,
 # invoke a recovery shell and prompt the user for how to proceed
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 insmod /lib/modules/ehci-hcd.ko

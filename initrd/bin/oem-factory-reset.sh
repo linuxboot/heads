@@ -27,7 +27,7 @@ GPG_USER_COMMENT="OEM-generated key"
 
 ## External files sourced
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 ## functions

@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 
 # Post processing of keys
 

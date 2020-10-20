@@ -1,7 +1,7 @@
 #!/bin/sh
 # Unseal a disk key from TPM and add to a new initramfs
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 
 TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
 TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"

@@ -3,7 +3,7 @@
 # based off of flashrom-x230
 #
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 case "$CONFIG_FLASHROM_OPTIONS" in

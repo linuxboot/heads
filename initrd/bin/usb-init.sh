@@ -1,7 +1,7 @@
 #!/bin/sh
 # Boot a USB installation
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 if [ "$CONFIG_TPM" = "y" ]; then

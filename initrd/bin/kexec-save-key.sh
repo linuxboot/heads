@@ -1,7 +1,7 @@
 #!/bin/sh
 # Generate a TPM key used to unlock LUKS disks
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 
 lvm_volume_group=""
 skip_sign="n"

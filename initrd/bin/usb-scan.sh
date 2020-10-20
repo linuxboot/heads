@@ -1,8 +1,8 @@
 #!/bin/sh
 # Scan for USB installation options
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 # Unmount any previous boot device

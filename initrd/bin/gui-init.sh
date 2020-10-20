@@ -3,7 +3,7 @@
 
 CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 mount_boot()

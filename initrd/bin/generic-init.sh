@@ -1,7 +1,7 @@
 #!/bin/sh
 # Boot from a local disk installation
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 mount_boot()

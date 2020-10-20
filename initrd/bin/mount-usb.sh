@@ -1,6 +1,6 @@
 #!/bin/sh
 # Mount a USB device
-. /etc/functions
+. /etc/functions.sh
 
 enable_usb
 

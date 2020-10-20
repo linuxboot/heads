@@ -1,7 +1,7 @@
 #!/bin/sh
 # Retrieve the sealed file from the NVRAM, unseal it and compute the totp
 
-. /etc/functions
+. /etc/functions.sh
 
 TOTP_SEALED="/tmp/secret/totp.sealed"
 TOTP_SECRET="/tmp/secret/totp.key"
