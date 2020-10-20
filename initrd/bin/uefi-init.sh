@@ -12,7 +12,7 @@ CONFIG_GUID="74696e69-6472-632e-7069-6f2f75736572"
 # copy EFI file named $CONFIG_GUID to /tmp, measure and extract
 GUID=$(uefi -l | grep "^$CONFIG_GUID")
 
-if [ -n "GUID" ]; then
+if [ -n "$GUID" ]; then
 	echo "Loading $GUID from ROM"
 	TMPFILE=/tmp/uefi.$$
 	uefi -r "$GUID" | gunzip -c > $TMPFILE \
