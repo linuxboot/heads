@@ -29,6 +29,7 @@ while getopts "b:d:p:a:r:c:uimgfs" arg; do
 		g) gui_menu="y" ;;
 		f) force_boot="y"; valid_hash="y"; valid_rollback="y" ;;
 		s) skip_confirm="y" ;;
+		*) die "Usage: $0 -b /boot";;
 	esac
 done
 

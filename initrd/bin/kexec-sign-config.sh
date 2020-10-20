@@ -12,6 +12,7 @@ while getopts "p:c:u:r" arg; do
 		c) counter="$OPTARG"; rollback="y" ;;
 		u) update="y" ;;
 		r) rollback="y" ;;
+		*) die "Usage: $0 -p /boot [ -u | -c counter ]" ;;
 	esac
 done
 
