@@ -60,7 +60,7 @@ adjust_cmd_line() {
 }
 
 module_number="1"
-while read line
+while read -r line
 do
 	key=$(echo "$line" | cut -d\  -f1)
 	firstval=$(echo "$line" | cut -d\  -f2)

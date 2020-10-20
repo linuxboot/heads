@@ -124,7 +124,7 @@ syslinux_end() {
 
 syslinux_multiboot_append() {
 	splitval=$(echo "${val// --- /|}" | tr '|' '\n')
-	while read line
+	while read -r line
 	do
 		if [ -z "$kernel" ]; then
 			kernel="$line"
@@ -187,7 +187,7 @@ syslinux_entry() {
 }
 
 state="search"
-while read line
+while read -r line
 do
 	case $state in
 		search)

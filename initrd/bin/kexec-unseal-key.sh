@@ -24,7 +24,7 @@ tpm nv_readvalue \
 || die "Unable to read key from TPM NVRAM"
 
 for tries in 1 2 3; do
-	read -s -p "Enter unlock password (blank to abort): " tpm_password
+	read -r -s -p "Enter unlock password (blank to abort): " tpm_password
 	echo
 
 	if [ -z "$tpm_password" ]; then

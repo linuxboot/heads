@@ -73,6 +73,7 @@ fi
 # otherwise immediately start the configured boot script.
 # We don't print a prompt, since this is a near instant timeout.
 read \
+	-r \
 	-t 0.1 \
 	-n 1 \
 	boot_option

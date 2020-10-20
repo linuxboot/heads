@@ -94,7 +94,7 @@ get_menu_option() {
 	elif [ "$gui_menu" = "y" ]; then
 		MENU_OPTIONS=""
 		n=0
-		while read option
+		while read -r option
 		do
 			parse_option
 			n=$((n + 1))
@@ -112,14 +112,14 @@ get_menu_option() {
 	else
 		echo "+++ Select your boot option:"
 		n=0
-		while read option
+		while read -r option
 		do
 			parse_option
 			n=$((n + 1))
 			echo "$n. $name [$kernel]"
 		done < "$TMP_MENU_FILE"
 
-		read \
+		read -r \
 			-p "Choose the boot option [1-$n, a to abort]: " \
 			option_index
 
@@ -145,7 +145,7 @@ confirm_menu_option() {
 		echo "+++ Please confirm the boot details for $name:"
 		echo "$option"
 
-		read \
+		read -r \
 			-n 1 \
 			-p "Confirm selection by pressing 'y', make default with 'd': " \
 			option_confirm
@@ -184,7 +184,7 @@ scan_options() {
 }
 
 save_default_option() {
-	read \
+	read-r \
 		-n 1 \
 		-p "Saving a default will modify the disk. Proceed? (Y/n): " \
 		default_confirm

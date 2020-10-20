@@ -52,7 +52,7 @@ tpm extend -ix 4 -ic generic \
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
-	read \
+	read -r \
 		-n 1 \
 		-p "Do you wish to boot and use the disk recovery key? [Y/n] " \
 		confirm_boot

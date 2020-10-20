@@ -59,7 +59,7 @@ counter_value=1
 enable_usb
 if ! hotp_verification info ; then
   echo "Insert your $HOTPKEY_BRANDING and press Enter to configure it"
-  read
+  read -r
   if ! hotp_verification info ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
@@ -77,13 +77,13 @@ else
 fi
 
 echo -e ""
-read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
+read -r -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
 echo -e "\n"
 
 hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
 if [ $? -ne 0 ]; then
   echo -e "\n"
-  read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
+  read -r -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
   echo -e "\n"
   if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
     # don't leak key on failure
@@ -116,6 +116,6 @@ echo "$HOTPKEY_BRANDING" > $HOTP_KEY \
 mount -o remount,ro /boot
 
 echo -e "\n$HOTPKEY_BRANDING initialized successfully. Press Enter to continue."
-read
+read -r
 
 exit 0

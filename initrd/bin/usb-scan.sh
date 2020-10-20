@@ -22,7 +22,7 @@ get_menu_option() {
 	if [ -x /bin/whiptail ]; then
 		MENU_OPTIONS=""
 		n=0
-		while read option
+		while read -r option
 		do
 			n=$((n + 1))
 			option=$(echo "$option" | tr " " "_")
@@ -38,13 +38,13 @@ get_menu_option() {
 	else
 		echo "+++ Select your ISO boot option:"
 		n=0
-		while read option
+		while read -r option
 		do
 			n=$((n + 1))
 			echo "$n. $option"
 		done < /tmp/iso_menu.txt
 
-		read \
+		read -r \
 			-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
 			option_index
 	fi
