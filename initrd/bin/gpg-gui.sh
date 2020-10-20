@@ -14,7 +14,7 @@ gpg_flash_rom() {
     [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
   fi
 
-  cat "$PUBKEY" | gpg --import
+  gpg --import "$PUBKEY"
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
   gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
   gpg --update-trust
