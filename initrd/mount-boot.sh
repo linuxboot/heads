@@ -26,7 +26,7 @@ basename_dev=$(basename $dev)
 dev_size_file="/sys/class/block/$basename_dev/size"
 if [ ! -r "$dev_size_file" ]; then
 	echo >&2 '!!!!!'
-	echo >&2 '!!!!! $dev file $dev_size_file not found'
+	echo >&2 "!!!!! $dev file $dev_size_file not found"
 	echo >&2 '!!!!! Dropping to recovery shell'
 	echo >&2 '!!!!!'
 	exit 1
