@@ -57,7 +57,7 @@ export GPG_TTY=/dev/console
 /bin/key-init
 
 # Setup recovery serial shell
-if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
 	pause_recovery 'Console recovery shell' \
 		< "$CONFIG_BOOT_RECOVERY_SERIAL" \
@@ -99,7 +99,7 @@ FW_VER=${FW_VER::-10}
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
-if [ ! -z "$CONFIG_BOOT_DEV" ]; then
+if [ -n "$CONFIG_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
 fi
 

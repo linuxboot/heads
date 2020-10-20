@@ -111,7 +111,7 @@ clean_boot_check()
 
   # check for any kexec files in /boot
   kexec_files=$(find /boot -name kexec*.txt)
-  [ ! -z "$kexec_files" ] && return
+  [ -n "$kexec_files" ] && return
 
   #check for GPG key in keyring
   GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)

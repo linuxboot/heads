@@ -12,7 +12,7 @@ done
 
 if [ -e /sys/class/net/eth0 ]; then
 	# Set up static IP
-	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
+	if [ -n "$CONFIG_BOOT_STATIC_IP" ]; then
 		ifconfig eth0 $CONFIG_BOOT_STATIC_IP
 	#Get ip from DHCP
 	elif [ -e /sbin/udhcpc ];then
