@@ -27,7 +27,7 @@ fi
 
 if [ -r "$KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=`cat $KEY_LVM`
+	VOLUME_GROUP=$(cat $KEY_LVM)
 	if [ -z "$VOLUME_GROUP" ]; then
 		die "No LVM volume group defined for activation"
 	fi
@@ -61,7 +61,7 @@ dd \
 || die "Unable to generate 128 random bytes"
 
 # Remove all the old keys from slot 1
-for dev in `cat "$KEY_DEVICES" | cut -d\  -f1`; do
+for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	echo "++++++ $dev: Removing old key slot"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
@@ -82,7 +82,7 @@ done
 # since it should still be zero
 cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
-luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
+luks_pcr=$(tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt)
 
 # HOTP USB Secrity Dongle loads USB modules which changes PCR5.
 # In the event HOTP USB Security Dongle is enabled, skip verification of PCR5

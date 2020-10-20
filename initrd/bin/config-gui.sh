@@ -30,13 +30,13 @@ while true; do
       exit 0
     ;;
     "b" )
-      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION=$(grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"')
       fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
       # filter out extraneous options
       > /tmp/boot_device_list.txt
-      for i in `cat /tmp/disklist.txt`; do
+      for i in $(cat /tmp/disklist.txt); do
         # remove block device from list if numeric partitions exist, since not bootable
-        DEV_NUM_PARTITIONS=$((`ls -1 $i* | wc -l`-1))
+        DEV_NUM_PARTITIONS=$(($(ls -1 $i* | wc -l)-1))
         if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
           echo $i >> /tmp/boot_device_list.txt
         else
@@ -58,7 +58,7 @@ while true; do
       fi
       # mount newly selected /boot device
       if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error ; then
-        ERROR=`cat /tmp/error`
+        ERROR=$(cat /tmp/error)
         whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: unable to mount /boot' \
           --msgbox "    $ERROR\n\n" 16 60
         exit 1
@@ -114,7 +114,7 @@ while true; do
         rm /boot/kexec* | true
         mount -o remount,ro /boot
         # clear GPG keys and user settings
-        for i in `cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"`; do
+        for i in $(cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"); do
           cbfs -o /tmp/config-gui.rom -d $i
         done
         # flash cleared ROM

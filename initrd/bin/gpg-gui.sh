@@ -74,7 +74,7 @@ gpg_flash_rom() {
 
 }
 gpg_post_gen_mgmt() {
-  GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
+  GPG_GEN_KEY=$(grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p')
   gpg --export --armor $GPG_GEN_KEY > "/tmp/${GPG_GEN_KEY}.asc"
   if (whiptail --title 'Add Public Key to USB disk?' \
       --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
@@ -199,7 +199,7 @@ while true; do
       gpg_add_key_reflash
     ;;
     "l" )
-      GPG_KEYRING=`gpg -k`
+      GPG_KEYRING=$(gpg -k)
       whiptail --title 'GPG Keyring' \
         --msgbox "${GPG_KEYRING}" 16 60
     ;;

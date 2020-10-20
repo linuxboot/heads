@@ -4,7 +4,7 @@
 ifconfig lo 127.0.0.1
 
 network_modules="e1000 e1000e igb sfc mdio mlx4_core mlx4_en"
-for module in `echo $network_modules`; do
+for module in $(echo $network_modules); do
 	if [ -f /lib/modules/$module.ko ]; then
 		insmod /lib/modules/$module.ko
 	fi
