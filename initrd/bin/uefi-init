@@ -15,7 +15,7 @@ GUID=$(uefi -l | grep "^$CONFIG_GUID")
 if [ -n "GUID" ]; then
 	echo "Loading $GUID from ROM"
 	TMPFILE=/tmp/uefi.$$
-	uefi -r $GUID | gunzip -c > $TMPFILE \
+	uefi -r "$GUID" | gunzip -c > $TMPFILE \
 	|| die "Failed to read config GUID from ROM"
 
 	if [ "$CONFIG_TPM" = "y" ]; then

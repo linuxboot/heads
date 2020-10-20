@@ -12,33 +12,33 @@ case "$1" in
 	deconfig)
 		grep -q -v ip= /proc/cmdline
 		if [ $? -eq 0 ]; then
-			/sbin/ifconfig $interface up
+			/sbin/ifconfig "$interface" up
 		fi
 		grep -q -v nfsroot= /proc/cmdline
 		if [ $? -eq 0 ]; then
-			/sbin/ifconfig $interface 0.0.0.0
+			/sbin/ifconfig "$interface" 0.0.0.0
 		fi
 		;;
 
 	renew|bound)
-		/sbin/ifconfig $interface $ip $BROADCAST $NETMASK
+		/sbin/ifconfig "$interface" "$ip" "$BROADCAST" "$NETMASK"
 
 		if [ -n "$router" ] ; then
 			echo "deleting routers"
-			while route del default gw 0.0.0.0 dev $interface ; do
+			while route del default gw 0.0.0.0 dev "$interface" ; do
 				:
 			done
 
 			for i in $router ; do
-				route add default gw $i dev $interface
+				route add default gw "$i" dev "$interface"
 			done
 		fi
 
 		echo -n > $RESOLV_CONF
-		[ -n "$domain" ] && echo search $domain >> $RESOLV_CONF
+		[ -n "$domain" ] && echo search "$domain" >> $RESOLV_CONF
 		for i in $dns ; do
-			echo adding dns $i
-			echo nameserver $i >> $RESOLV_CONF
+			echo adding dns "$i"
+			echo nameserver "$i" >> $RESOLV_CONF
 		done
 		;;
 esac

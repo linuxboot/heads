@@ -50,7 +50,7 @@ tpm unsealfile  \
 
 shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
 
-if ! hotp $counter_value < "$HOTP_SECRET"; then
+if ! hotp "$counter_value" < "$HOTP_SECRET"; then
 	shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
 	die 'Unable to compute HOTP hash?'
 fi

@@ -6,7 +6,7 @@ die() { echo >&2 "$@"; exit 1; }
 
 # Measure the luks headers into PCR 6
 for dev in "$@"; do
-	cryptsetup luksDump $dev \
+	cryptsetup luksDump "$dev" \
 	|| die "$dev: Unable to measure"
 done > /tmp/luksDump.txt
 

@@ -18,7 +18,7 @@ reset_entry() {
 	append="$kernelopts"
 }
 
-filedir=$(dirname $file)
+filedir=$(dirname "$file")
 bootdir="${bootdir%%/}"
 bootlen="${#bootdir}"
 appenddir="${filedir:$bootlen}"
@@ -37,10 +37,10 @@ echo_entry() {
 	if [ "$kexectype" = "elf" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
+		fix_path "$kernel"
 		entry="$name|$kexectype|kernel $path"
 		if [ -n "$initrd" ]; then
-			fix_path $initrd
+			fix_path "$initrd"
 			entry="$entry|initrd $path"
 		fi
 		if [ -n "$append" ]; then
@@ -52,16 +52,16 @@ echo_entry() {
 	if [ "$kexectype" = "multiboot" ] || [ "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
+		fix_path "$kernel"
 		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
 	fi
 }
 
 bls_entry() {
 	# add info to menuentry
-	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
-	cmd=$(echo $trimcmd | cut -d\  -f1)
-	val=$(echo $trimcmd | cut -d\  -f2-)
+	trimcmd=$(echo "$line" | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo "$trimcmd" | cut -d\  -f1)
+	val=$(echo "$trimcmd" | cut -d\  -f2-)
 	case $cmd in
 		title)
 			name=$val
@@ -87,7 +87,7 @@ grep -q "set default_kernelopts" "$file" &&
 [ -f "$grubenv" ] && grep -q "^kernelopts" "$grubenv" &&
 	kernelopts=$(grep "^kernelopts" "$grubenv" | tr '@' '_' | cut -d= -f 2-)
 reset_entry
-find $blsdir -type f -name \*.conf |
+find "$blsdir" -type f -name \*.conf |
 while read f
 do
 	while read line

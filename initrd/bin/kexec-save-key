@@ -28,7 +28,7 @@ paramsdev="${paramsdev%%/}"
 paramsdir="${paramsdir%%/}"
 
 if [ -n "$lvm_volume_group" ]; then
-	lvm vgchange -a y $lvm_volume_group \
+	lvm vgchange -a y "$lvm_volume_group" \
 	|| die "Failed to activate the LVM group"
 
 	for dev in /dev/$lvm_volume_group/*; do
@@ -41,30 +41,30 @@ if [ -z "$key_devices" ]; then
 fi
 
 # try to switch to rw mode
-mount -o rw,remount $paramsdev
+mount -o rw,remount "$paramsdev"
 
-rm -f $paramsdir/kexec_key_lvm.txt || true
+rm -f "$paramsdir/kexec_key_lvm.txt" || true
 if [ -n "$lvm_volume_group" ]; then
-	echo "$lvm_volume_group" > $paramsdir/kexec_key_lvm.txt \
+	echo "$lvm_volume_group" > "$paramsdir/kexec_key_lvm.txt" \
 	|| die "Failed to write lvm group to key config "
 fi
 
-rm -f $paramsdir/kexec_key_devices.txt || true
+rm -f "$paramsdir/kexec_key_devices.txt" || true
 for dev in $key_devices; do
 	uuid=$(cryptsetup luksUUID "$dev" 2>/dev/null) \
 	|| die "Failed to get UUID for device $dev"
-	echo "$dev $uuid" >> $paramsdir/kexec_key_devices.txt \
+	echo "$dev $uuid" >> "$paramsdir/kexec_key_devices.txt" \
 	|| die "Failed to add $dev:$uuid to key devices config"
 done
 
-kexec-seal-key $paramsdir \
+kexec-seal-key "$paramsdir" \
 || die "Failed to save and generate key in TPM"
 
 if [ "$skip_sign" != "y" ]; then
 	# sign and auto-roll config counter
-	kexec-sign-config -p $paramsdir -r \
+	kexec-sign-config -p "$paramsdir" -r \
 	|| die "Failed to sign updated config"
 fi
 
 # switch back to ro mode
-mount -o ro,remount $paramsdev
+mount -o ro,remount "$paramsdev"
