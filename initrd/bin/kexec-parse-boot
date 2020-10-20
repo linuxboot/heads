@@ -3,7 +3,7 @@ set -e -o pipefail
 bootdir="$1"
 file="$2"
 
-if [ -z "$bootdir" -o -z "$file" ]; then
+if [ -z "$bootdir" ] || [ -z "$file" ]; then
 	die "Usage: $0 /boot /boot/grub/grub.cfg"
 fi
 
@@ -44,7 +44,7 @@ echo_entry() {
 
 		echo $(eval "echo \"$entry\"")
 	fi
-	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+	if [ "$kexectype" = "multiboot" ] || [ "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
 		fix_path $kernel
@@ -157,7 +157,7 @@ syslinux_entry() {
 	case $trimcmd in
 		menu* | MENU* )
 			cmd2=`echo $trimcmd | cut -d \  -f2`
-			if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
+			if [ "$cmd2" = "label" ] || [ "$cmd2" = "LABEL" ]; then
 				name=`echo $trimcmd | cut -c11- | tr -d '^'`
 			fi
 			;;
@@ -177,7 +177,7 @@ syslinux_entry() {
 			initrd="${val#"$bootdir"}"
 			;;
 		append* | APPEND* )
-			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+			if [ "$kexectype" = "multiboot" ] || [ "$kexectype" = "xen" ]; then
 				syslinux_multiboot_append
 			else
 				append="$val"

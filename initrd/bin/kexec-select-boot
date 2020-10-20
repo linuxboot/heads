@@ -89,7 +89,7 @@ get_menu_option() {
 		die "No boot options"
 	fi
 
-	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
+	if [ $num_options -eq 1 ] && [ $first_menu = "y" ]; then
 		option_index=1
 	elif [ "$gui_menu" = "y" ]; then
 		MENU_OPTIONS=""
@@ -254,7 +254,7 @@ user_select() {
 	# No default expected boot parameters, ask user
 
 	option_confirm=""
-	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]
+	while [ "$option_confirm" != "y" ] && [ "$option_confirm" != "d" ]
 	do
 		get_menu_option
     # In force boot mode, no need offer the option to set a default, just boot
@@ -286,16 +286,16 @@ user_select() {
 
 do_boot()
 {
-	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
+	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
 		die "!!! Missing required rollback counter state"
 	fi
 
-	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
+	if [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
 		die "!!! Missing required boot hashes"
 	fi
 
 	if [ "$CONFIG_TPM" = "y" \
-		-a -r "$TMP_KEY_DEVICES" ]; then
+		] && [ -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 		|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
@@ -339,7 +339,7 @@ while true; do
 	fi
 
 	if [ "$CONFIG_TPM" = "y" \
-		-a ! -r "$TMP_KEY_DEVICES" ]; then
+		] && [ ! -r "$TMP_KEY_DEVICES" ]; then
 		# Extend PCR4 as soon as possible
 		tpm extend -ix 4 -ic generic \
 		|| die "Failed to extend PCR 4"
@@ -371,9 +371,9 @@ while true; do
 	fi
 
 	if [ "$default_failed" != "y" \
-		-a "$force_menu" = "n" \
-		-a -r "$TMP_DEFAULT_FILE" \
-		-a -r "$TMP_DEFAULT_HASH_FILE" ] \
+		] && [ "$force_menu" = "n" \
+		] && [ -r "$TMP_DEFAULT_FILE" \
+		] && [ -r "$TMP_DEFAULT_HASH_FILE" ] \
 	; then
 		default_select
 		default_failed="y"
@@ -382,4 +382,4 @@ while true; do
 	fi
 done
 
-die "!!! Shouldn't get here""
+die "!!! Shouldn't get here"
