@@ -304,7 +304,7 @@ if [ "$prompt_output" == "y" \
 
 	echo -e "\nEnter your Real Name (At least 5 characters long):"
 	read -r GPG_USER_NAME
-	while [[ ${#GPG_USER_NAME} -lt 5 ]]; do
+	while [ $(($(printf "%s" "$GPG_USER_NAME" | wc -m))) -lt 5 ]; do
 	{
 		echo -e "\nEnter your Real Name (At least 5 characters long):"
 		read -r GPG_USER_NAME
@@ -319,11 +319,11 @@ if [ "$prompt_output" == "y" \
 	};done
 
 	echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-	read -r GPG_USER_MAIL
-	while [[ ${#gpgcard_comment} -gt 60 ]]; do
+	read -r GPGCARD_COMMENT
+	while [ $(($(printf "%s" "$GPGCARD_COMMENT" | wc -m))) -gt 60 ]; do
 	{
 		echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-		read -r GPG_USER_MAIL
+		read -r GPGCARD_COMMENT
 	};done
 fi
 

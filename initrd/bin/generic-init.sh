@@ -13,6 +13,7 @@ mount_boot()
 	fi
 }
 
+totp_confirm=""
 
 # Confirm we have a good TOTP unseal and ask the user for next choice
 while true; do

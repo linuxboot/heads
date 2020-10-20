@@ -20,7 +20,7 @@ if [ -n "$GUID" ]; then
 
 	if [ "$CONFIG_TPM" = "y" ]; then
 		tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
-		|| die "$filename: tpm extend failed"
+		|| die "$TMPFILE: tpm extend failed"
 	fi
 
 	( cd / ; cpio -iud < $TMPFILE 2>/dev/null ) \
