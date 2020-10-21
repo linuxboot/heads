@@ -8,9 +8,7 @@ if [ -z "$CONFIG_PCR" ]; then
 fi
 
 # Load individual files
-cbfsfiles=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/initrd/")
-
-for cbfsname in $(echo "$cbfsfiles"); do
+for cbfsname in $(cbfs -t 50 -l 2>/dev/null | grep "^heads/initrd/"); do
 	filename=${cbfsname:12}
 	if [ -n "$filename" ]; then
 		echo "Loading $filename from CBFS"
