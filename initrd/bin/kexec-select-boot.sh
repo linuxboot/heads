@@ -271,15 +271,13 @@ user_select() {
 	done
 
 	if [ "$option_confirm" = "d" ]; then
-		if [ ! -r "$TMP_KEY_DEVICES" ]; then
-			# rerun primary boot loop to boot the new default option
-			continue
-		else
+		if [ -r "$TMP_KEY_DEVICES" ]; then
 			echo "+++ Rebooting to start the new default option"
 			sleep 2
 			reboot \
 			|| die "!!! Failed to reboot system"
 		fi
+		# else rerun primary boot loop to boot the new default option
 	fi
 
 	do_boot
