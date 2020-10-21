@@ -200,14 +200,15 @@ set_default_boot_option()
     mkdir -p /tmp/kexec/
     rm $option_file 2>/dev/null
     # parse boot options from grub.cfg
-    for i in $(find /boot -name "grub.cfg"); do
+    GRUB_CFG=$(find /boot -name "grub.cfg")
+    for i in $GRUB_CFG; do
         kexec-parse-boot "/boot" "$i" >> $option_file
     done
     # FC29/30+ may use BLS format grub config files
     # https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
     # only parse these if $option_file is still empty
     if [ ! -s $option_file ] && [ -d "/boot/loader/entries" ]; then
-      for i in $(find /boot -name "grub.cfg"); do
+      for i in $GRUB_CFG; do
         kexec-parse-bls "/boot" "$i" "/boot/loader/entries" >> $option_file
       done
     fi
