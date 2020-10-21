@@ -110,7 +110,7 @@ syslinux_end() {
 		for param in $append; do
 			case $param in
 				initrd=*)
-					initrd=$(echo "$param" | cut -d\= -f2)
+					initrd=$(echo "$param" | cut -d= -f2)
 					;;
 				*) newappend="$newappend $param" ;;
 			esac
