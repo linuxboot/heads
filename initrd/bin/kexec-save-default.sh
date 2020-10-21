@@ -121,7 +121,8 @@ if [ ! -d "$paramsdir" ]; then
 fi
 rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
 echo "$entry" > "$ENTRY_FILE"
-cd "$bootdir" && kexec-boot -b "$bootdir" -e "$entry" -f | \
+cd "$bootdir" ||exit
+kexec-boot -b "$bootdir" -e "$entry" -f | \
 	xargs sha256sum > "$HASH_FILE" \
 || die "Failed to create hashes of boot files"
 if [ ! -r "$ENTRY_FILE" ] || [ ! -r "$HASH_FILE" ]; then
