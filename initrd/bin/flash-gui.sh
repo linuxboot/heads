@@ -26,7 +26,7 @@ while true; do
         mount_usb
         if grep -q /media /proc/mounts ; then
           find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
+          FILE=$(file_selector "/tmp/filelist.txt" "Choose the ROM to flash")
           if [ "$FILE" == "" ]; then
             return
           else

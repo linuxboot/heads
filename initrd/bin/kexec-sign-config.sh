@@ -66,7 +66,8 @@ if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
 
-for tries in 1 2 3; do
+tries=3
+while [ $tries -gt 0 ]; do
 	if sha256sum "$param_files" | gpg \
 		--digest-algo SHA256 \
 		--detach-sign \
@@ -77,6 +78,7 @@ for tries in 1 2 3; do
 		check_config "$paramsdir"
 		exit 0
 	fi
+	tries=$((tries-1))
 done
 
 die "$paramsdir: Unable to sign kexec hashes"

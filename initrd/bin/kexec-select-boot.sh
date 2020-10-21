@@ -326,7 +326,6 @@ while true; do
 	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
 	TMP_ROLLBACK_FILE="/tmp/kexec/kexec_rollback.txt"
 	TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
-	TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
 
 # Allow a way for users to ignore warnings and boot into their systems
 # even if hashes don't match

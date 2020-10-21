@@ -45,9 +45,9 @@ while true; do
           find "$i*" | tail -$((DEV_NUM_PARTITIONS_SANS_BLOCK)) >> /tmp/boot_device_list.txt
         fi
       done
-      file_selector "/tmp/boot_device_list.txt" \
+      FILE=$(file_selector "/tmp/boot_device_list.txt" \
           "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION." \
-          "Boot Device Selection"
+          "Boot Device Selection")
       if [ "$FILE" == "" ]; then
         return
       else

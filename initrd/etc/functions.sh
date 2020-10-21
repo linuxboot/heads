@@ -87,6 +87,8 @@ confirm_totp()
 
 	# clean up with a newline
 	echo
+
+	return "$totp_confirm"
 }
 
 enable_usb()
@@ -146,9 +148,8 @@ confirm_gpg_card()
 	set +e
 	if ! (gpg --card-status > /dev/null \ || die "gpg card read failed"); then
 	  # prompt for reinsertion and try a second time
-	  read -n1 -r -p \
-	      "Can't access GPG key; remove and reinsert, then press Enter to retry. " \
-	      ignored
+	  read -n1 -s -r -p \
+	      "Can't access GPG key; remove and reinsert, then press Enter to retry. "
 	  # restore prev errexit state
 	  if [ "$errexit" = "on" ]; then
 	    set -e
@@ -233,12 +234,12 @@ preserve_rom() {
 	new_rom="$1"
 
 	for old_file in $(cbfs -t 50 -l 2>/dev/null | grep "^heads/"); do
-		new_file=$(cbfs -o "$1" -l | grep -x "$old_file")
+		new_file=$(cbfs -o "$new_rom" -l | grep -x "$old_file")
 		if [ -z "$new_file" ]; then
-			echo "+++ Adding $old_file to $1"
+			echo "+++ Adding $old_file to $new_rom"
 			cbfs -t 50 -r "$old_file" >/tmp/rom.$$ \
 			|| die "Failed to read cbfs file from ROM"
-			cbfs -o "$1" -a "$old_file" -f /tmp/rom.$$ \
+			cbfs -o "$new_rom" -a "$old_file" -f /tmp/rom.$$ \
 			|| die "Failed to write cbfs file to new ROM file"
 		fi
 	done

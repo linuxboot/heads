@@ -13,8 +13,6 @@ mount_boot()
 	fi
 }
 
-totp_confirm=""
-
 # Confirm we have a good TOTP unseal and ask the user for next choice
 while true; do
 	echo "y) Default boot"
@@ -23,7 +21,7 @@ while true; do
 	echo "u) USB boot"
 	echo "m) Boot menu"
 
-	if ! confirm_totp "Boot mode"; then
+	if ! totp_confirm=$(confirm_totp "Boot mode"); then
 		recovery 'Failed to unseal TOTP'
 	fi
 
