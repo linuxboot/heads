@@ -41,7 +41,7 @@ while true; do
 	fi
 
 	if [ "$totp_confirm" = "u" ]; then
-		exec /bin/usb-init
+		/bin/usb-init
 		continue
 	fi
 
