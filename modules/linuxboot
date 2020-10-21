@@ -59,9 +59,11 @@ endif
 linuxboot_output := build/$(linuxboot_board)/linuxboot.rom
 linuxboot_rom := $(build)/$(linuxboot_dir)/$(linuxboot_output)
 
-$(build)/$(BOARD)/linuxboot.rom: $(build)/$(linuxboot_dir)/.build
+ifneq ($(CONFIG_LINUXBOOT),)
+$(build)/$(BOARD)/$(LB_OUTPUT_FILE): $(build)/$(linuxboot_dir)/.build
 	$(call do-copy,$(dir $<)linuxboot.rom,$@)
 	@touch $@
+endif
 
 # Also force a rebuild if any of the input files are updated
 $(build)/$(linuxboot_dir)/.build: \
@@ -70,7 +72,7 @@ $(build)/$(linuxboot_dir)/.build: \
 	$(build)/$(BOARD)/initrd.cpio.xz \
 
 
-linuxboot.run: $(build)/$(BOARD)/linuxboot.rom
+linuxboot.run: $(build)/$(BOARD)/$(LB_OUTPUT_FILE)
 	$(MAKE) -C $(build)/$(linuxboot_base_dir)  \
 		BOARD:=$(linuxboot_board) \
 		KERNEL=$(build)/$(BOARD)/bzImage \

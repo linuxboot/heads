@@ -1,3 +1,17 @@
+# Need to set CB_OUTPUT_FILE before board .config included so
+# that target overrides in x230/x430-flash (eg) are properly handled
+GIT_HASH	:= $(shell git rev-parse HEAD)
+GIT_STATUS	:= $(shell \
+	if git diff --exit-code >/dev/null ; then \
+		echo clean ; \
+	else \
+		echo dirty ; \
+	fi)
+HEADS_GIT_VERSION	:= $(shell git describe --tags --dirty)
+
+CB_OUTPUT_FILE := heads-$(BOARD)-$(HEADS_GIT_VERSION).rom
+LB_OUTPUT_FILE := linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+
 all:
 -include .config
 
@@ -100,16 +114,6 @@ include $(CONFIG)
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
-# Some things want usernames, we use the current checkout
-# so that they are reproducible
-GIT_HASH	:= $(shell git rev-parse HEAD)
-GIT_STATUS	:= $(shell \
-	if git diff --exit-code >/dev/null ; then \
-		echo clean ; \
-	else \
-		echo dirty ; \
-	fi)
-
 # record the build date / git hashes and other files here
 HASHES		:= $(build)/$(BOARD)/hashes.txt
 
@@ -186,10 +190,10 @@ CROSS_TOOLS := \
 
 
 
-ifeq "$(CONFIG_COREBOOT)" "y"
-all: $(build)/$(BOARD)/coreboot.rom
-else ifeq "$(CONFIG_LINUXBOOT)" "y"
-all: $(build)/$(BOARD)/linuxboot.rom
+ifeq ($(CONFIG_COREBOOT), y)
+all: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
+else ifeq ($(CONFIG_LINUXBOOT), y)
+all: $(build)/$(BOARD)/$(LB_OUTPUT_FILE)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
