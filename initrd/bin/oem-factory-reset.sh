@@ -309,7 +309,7 @@ if [ "$prompt_output" == "y" \
 
 	echo -e "\nEnter your email@adress.org:"
 	read -r GPG_USER_MAIL
-	while ! $(expr "$GPG_USER_MAIL" : '.*@' >/dev/null); do
+	while ! expr "$GPG_USER_MAIL" : '.*@' >/dev/null; do
 	{
 		echo -e "\nEnter your email@address.org:"
 		read -r GPG_USER_MAIL
