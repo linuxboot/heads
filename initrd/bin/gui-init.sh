@@ -389,7 +389,7 @@ while true; do
 
   if [ "$totp_confirm" = "S" ]; then
     memtotal=$(grep 'MemTotal' /proc/meminfo | tr -s ' ' | cut -f2 -d ' ')
-    memtotal=$((${memtotal} / 1024 / 1024 + 1))
+    memtotal=$((memtotal / 1024 / 1024 + 1))
     cpustr=$(grep 'model name' /proc/cpuinfo | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
     whiptail --title 'System Info' \
       --msgbox "VER: ${FW_VER}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
