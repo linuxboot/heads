@@ -21,7 +21,7 @@ gpgv --homedir=/etc/distro/ "$ISOSIG" "$MOUNTED_ISO_PATH" \
 	|| die 'ISO signature failed'
 
 echo '+++ Mounting ISO and booting'
-mount -t iso9660 -o loop" "$MOUNTED_ISO_PATH" /boot \
+mount -t iso9660 -o loop "$MOUNTED_ISO_PATH" /boot \
 	|| die "$MOUNTED_ISO_PATH: Unable to mount /boot"
 
 DEV_UUID=$(blkid "$DEV" | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
