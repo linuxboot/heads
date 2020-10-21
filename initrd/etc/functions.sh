@@ -212,12 +212,14 @@ check_config() {
 		return
 	fi
 
-	if [ $(find "$1/kexec*.txt" | wc -l) -eq 0 ]; then
+	KEXEC_FILE_COUNT=$(find "$1/kexec*.txt" | wc -l)
+	if [ $((KEXEC_FILE_COUNT)) -eq 0 ]; then
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
-		if ! sha256sum $(find "$1/kexec*.txt") | gpgv "$1/kexec.sig" - ; then
+		KEXEC_FILES=$(find "$1/kexec*.txt");
+		if ! sha256sum "$KEXEC_FILES" | gpgv "$1/kexec.sig" - ; then
 			die 'Invalid signature on kexec boot params'
 		fi
 	fi
@@ -309,10 +311,12 @@ detect_boot_device()
 
 	# filter out extraneous options
 	# > /tmp/boot_device_list
-	for i in $(cat /tmp/disklist); do
+	DISK_LIST=$(cat /tmp/disklist)
+	for i in $DISK_LIST; do
 		# remove block device from list if numeric partitions exist, since not bootable
-		DEV_NUM_PARTITIONS=$(($(ls -1 "$i*" | wc -l)-1))
-		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+		DEV_NUM_PARTITIONS=$(ls -1 "$i*" | wc -l)
+		DEV_NUM_PARTITIONS_SANS_BLOCK=$((DEV_NUM_PARTITIONS-1))
+		if [ $((DEV_NUM_PARTITIONS_SANS_BLOCK)) -eq 0 ]; then
 			echo "$i" >> /tmp/boot_device_list
 		else
 			ls "$i*" | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list

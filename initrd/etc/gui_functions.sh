@@ -28,8 +28,10 @@ file_selector()
   MENU_MSG=${2:-"Choose the file"}
   MENU_TITLE=${3:-"Select your File"}
 
+  FILE_LIST_COUNT=$(wc -l < "$FILE_LIST")
+
   # create file menu options
-  if [ $(wc -l < "$FILE_LIST") -gt 0 ]; then
+  if [ $((FILE_LIST_COUNT)) -gt 0 ]; then
     option=""
     while [ -z "$option" ]
     do

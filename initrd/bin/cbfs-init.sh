@@ -12,7 +12,8 @@ for cbfsname in $(cbfs -t 50 -l 2>/dev/null | grep "^heads/initrd/"); do
 	filename=${cbfsname:12}
 	if [ -n "$filename" ]; then
 		echo "Loading $filename from CBFS"
-		mkdir -p $(dirname "$filename") \
+		DIRNAME=$(dirname "$filename")
+		mkdir -p "$DIRNAME" \
 		|| die "$filename: mkdir failed"
 		cbfs -t 50 -r "$cbfsname" > "$filename" \
 		|| die "$filename: cbfs file read failed"
