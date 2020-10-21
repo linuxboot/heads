@@ -23,8 +23,7 @@ mount_boot()
     fi
     # update CONFIG_BOOT_DEV
     . /tmp/config
-    mount -o ro "$CONFIG_BOOT_DEV" /boot
-    if [ $? -ne 0 ]; then
+    if ! mount -o ro "$CONFIG_BOOT_DEV" /boot; then
       if (whiptail "$CONFIG_ERROR_BG_COLOR" --clear --title 'ERROR: Cannot mount /boot' \
       --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
         config-gui.sh boot_device_select
@@ -173,8 +172,8 @@ while true; do
       TOTP="NO TPM"
     elif [ "$half" != "$last_half" ]; then
       last_half=$half;
-      TOTP=$(unseal-totp)
-      if [ $? -ne 0 ]; then
+
+      if ! TOTP=$(unseal-totp); then
         whiptail "$CONFIG_ERROR_BG_COLOR" --clear --title "ERROR: TOTP Generation Failed!" \
           --menu "    ERROR: Heads couldn't generate the TOTP code.\n
     If you have just completed a Factory Reset, or just reflashed
@@ -348,8 +347,8 @@ while true; do
   if [ "$totp_confirm" = "m" ]; then
     # Try to select a kernel from the menu
     mount_boot
-    verify_global_hashes
-    if [ $? -ne 0 ]; then
+
+    if ! verify_global_hashes; then
       continue
     fi
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
@@ -409,8 +408,8 @@ while true; do
   if [ "$totp_confirm" = "y" ] || [ -n "$totp_confirm" ]; then
     # Try to boot the default
     mount_boot
-    verify_global_hashes
-    if [ $? -ne 0 ]; then
+
+    if ! verify_global_hashes; then
       continue
     fi
     DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)

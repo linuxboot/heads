@@ -80,8 +80,7 @@ gpg_post_gen_mgmt() {
       --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
     mount_usb
     mount -o remount,rw /media
-    cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
-    if [ $? -eq 0 ]; then
+    if ! cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"; then
       whiptail --title "The GPG Key Copied Successfully" \
         --msgbox "${GPG_GEN_KEY}.asc copied successfully." 16 60
     else
@@ -209,8 +208,8 @@ while true; do
         mount_usb
         mount -o remount,rw /media
         gpg --export --armor > "/tmp/public-key.asc"
-        cp "/tmp/public-key.asc" "/media/public-key.asc"
-        if [ $? -eq 0 ]; then
+
+        if ! cp "/tmp/public-key.asc" "/media/public-key.asc"; then
           whiptail --title "The GPG Key Copied Successfully" \
             --msgbox "public-key.asc copied successfully." 16 60
         else
@@ -230,8 +229,8 @@ while true; do
       echo "* Type 'quit' once you have generated the key to exit GPG."
       echo "*"
       echo "********************************************************************************"
-      gpg --card-edit > /tmp/gpg_card_edit_output
-      if [ $? -eq 0 ]; then
+
+      if ! gpg --card-edit > /tmp/gpg_card_edit_output; then
         gpg_post_gen_mgmt
       fi
     ;;

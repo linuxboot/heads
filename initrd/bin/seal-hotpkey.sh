@@ -80,8 +80,7 @@ echo -e ""
 read -r -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
 echo -e "\n"
 
-hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
-if [ $? -ne 0 ]; then
+if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
   echo -e "\n"
   read -r -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
   echo -e "\n"
