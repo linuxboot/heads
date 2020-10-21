@@ -77,23 +77,23 @@ jobs:
       - store-artifacts:
           path: build/librem_l1um
 
-#      - run:
-#          name: librem_mini
-#          command: |
-#            rm -rf build/librem_mini/* build/log/* && make CPUS=4 \
-#                V=1 \
-#                BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
-#          no_output_timeout: 3h
-#      - run:
-#          name: Ouput librem_mini hashes
-#          command: |
-#            cat build/librem_mini/hashes.txt \
-#      - run:
-#          name: Archiving build logs for librem_mini
-#          command: |
-#             tar zcvf build/librem_mini/logs.tar.gz build/log/*
-#      - store-artifacts:
-#          path: build/librem_mini
+      - run:
+          name: librem_mini
+          command: |
+            rm -rf build/librem_mini/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=librem_mini || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput librem_mini hashes
+          command: |
+            cat build/librem_mini/hashes.txt \
+      - run:
+          name: Archiving build logs for librem_mini
+          command: |
+             tar zcvf build/librem_mini/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/librem_mini
 
       - run:
           name: x230-flash
