@@ -7,13 +7,18 @@ mount_usb()
   if grep -q /media /proc/mounts ; then
     umount /media || die "Unable to unmount /media"
   fi
+
   # Mount the USB boot device
-  mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
-  if [ $USB_FAILED -ne 0 ]; then
+  mount-usb
+  if [ $? -eq 5 ]; then
+    exit 1
+  elif $?; then
     whiptail --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
-    mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
-    if [ $USB_FAILED -ne 0 ]; then
+    mount-usb
+    if [ $? -eq 5 ]; then
+      exit 1
+    elif $?; then
       whiptail "$CONFIG_ERROR_BG_COLOR" --title 'ERROR: Mounting /media Failed' \
         --msgbox "Unable to mount USB device" 16 60
       exit 1
