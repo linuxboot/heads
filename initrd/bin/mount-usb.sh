@@ -75,7 +75,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     n=0
     while read option
     do
-      n=$((n + 1)
+      n=$((n + 1))
       option=$(echo $option | tr " " "_")
       MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
     done < /tmp/usb_disk_list
@@ -92,7 +92,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     n=0
     while read option
     do
-      n=$((n + 1)
+      n=$((n + 1))
       echo "$n. $option"
     done < /tmp/usb_disk_list
 
