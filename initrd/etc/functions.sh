@@ -324,7 +324,8 @@ detect_boot_device()
 	done
 
 	# iterate thru possible options and check for grub dir
-	for i in $(cat /tmp/boot_device_list); do
+	BOOT_DEVICE_LIST=$(cat /tmp/boot_device_list)
+	for i in $BOOT_DEVICE_LIST; do
 		umount /boot 2>/dev/null
 		if mount -o ro "$i" /boot >/dev/null 2>&1; then
 			if ls -d /boot/grub* >/dev/null 2>&1; then
