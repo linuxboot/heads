@@ -314,12 +314,12 @@ detect_boot_device()
 	DISK_LIST=$(cat /tmp/disklist)
 	for i in $DISK_LIST; do
 		# remove block device from list if numeric partitions exist, since not bootable
-		DEV_NUM_PARTITIONS=$(ls -1 "$i*" | wc -l)
+		DEV_NUM_PARTITIONS=$(find "$i*" | wc -l)
 		DEV_NUM_PARTITIONS_SANS_BLOCK=$((DEV_NUM_PARTITIONS-1))
 		if [ $((DEV_NUM_PARTITIONS_SANS_BLOCK)) -eq 0 ]; then
 			echo "$i" >> /tmp/boot_device_list
 		else
-			ls "$i*" | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
+			find "$i*" | tail -$((DEV_NUM_PARTITIONS_SANS_BLOCK)) >> /tmp/boot_device_list
 		fi
 	done
 

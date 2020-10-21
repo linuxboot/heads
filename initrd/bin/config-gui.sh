@@ -34,13 +34,15 @@ while true; do
       fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
       # filter out extraneous options
       # > /tmp/boot_device_list.txt
-      for i in $(cat /tmp/disklist.txt); do
+      DISK_LIST=$(cat /tmp/disklist)
+      for i in $DISK_LIST; do
         # remove block device from list if numeric partitions exist, since not bootable
-        DEV_NUM_PARTITIONS=$(($(ls -1 "$i*" | wc -l)-1))
-        if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+        DEV_NUM_PARTITIONS=$(($(find "$i*" | wc -l)-1))
+    		DEV_NUM_PARTITIONS_SANS_BLOCK=$((DEV_NUM_PARTITIONS-1))
+        if [ $((DEV_NUM_PARTITIONS_SANS_BLOCK)) -eq 0 ]; then
           echo "$i" >> /tmp/boot_device_list.txt
         else
-          ls "$i*" | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
+          find "$i*" | tail -$((DEV_NUM_PARTITIONS_SANS_BLOCK)) >> /tmp/boot_device_list.txt
         fi
       done
       file_selector "/tmp/boot_device_list.txt" \
