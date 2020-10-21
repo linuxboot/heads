@@ -27,7 +27,7 @@ appenddir="${filedir:$bootlen}"
 grubenv="$filedir/grubenv"
 
 fix_path() {
-	path="$@"
+	path="$*"
 	if [ "${path:0:1}" != "/" ]; then
 		path="$appenddir/$path"
 	fi
