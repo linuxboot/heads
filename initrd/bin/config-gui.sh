@@ -33,7 +33,7 @@ while true; do
       CURRENT_OPTION=$(grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"')
       fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
       # filter out extraneous options
-      > /tmp/boot_device_list.txt
+      # > /tmp/boot_device_list.txt
       for i in $(cat /tmp/disklist.txt); do
         # remove block device from list if numeric partitions exist, since not bootable
         DEV_NUM_PARTITIONS=$(($(ls -1 "$i*" | wc -l)-1))

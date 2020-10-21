@@ -313,7 +313,7 @@ detect_boot_device()
 	fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
 
 	# filter out extraneous options
-	> /tmp/boot_device_list
+	# > /tmp/boot_device_list
 	for i in $(cat /tmp/disklist); do
 		# remove block device from list if numeric partitions exist, since not bootable
 		DEV_NUM_PARTITIONS=$(($(ls -1 "$i*" | wc -l)-1))
