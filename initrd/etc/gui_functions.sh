@@ -63,7 +63,7 @@ file_selector()
       fi
 
       option=$(head -n "$option_index" "$FILE_LIST" | tail -1)
-      if [ "$option" == "a" ]; then
+      if [ "$option" = "a" ]; then
         return
       fi
     done

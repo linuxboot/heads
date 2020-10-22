@@ -59,11 +59,11 @@ flash_rom() {
   fi
 }
 
-if [ "$1" == "-c" ]; then
+if [ "$1" = "-c" ]; then
   CLEAN=1
   READ=0
   ROM="$2"
-elif [ "$1" == "-r" ]; then
+elif [ "$1" = "-r" ]; then
   CLEAN=0
   READ=1
   ROM="$2"

@@ -76,14 +76,19 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-echo -e ""
-read -r -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
-echo -e "\n"
+stty -echo
+printf "\nEnter your %1 Admin PIN: " "$HOTPKEY_BRANDING"
+read -r admin_pin
+stty echo
+printf "\n"
 
 if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
-  echo -e "\n"
-  read -r -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
-  echo -e "\n"
+  stty -echo
+  printf "\nError setting HOTP secret, re-enter Admin PIN and try again: "
+  read -r admin_pin
+  stty echo
+  printf "\n\n"
+
   if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
@@ -114,7 +119,8 @@ echo "$HOTPKEY_BRANDING" > $HOTP_KEY \
 #|| die "Unable to create hotp counter file"
 mount -o remount,ro /boot
 
-echo -e "\n$HOTPKEY_BRANDING initialized successfully. Press Enter to continue."
+echo ""
+echo "$HOTPKEY_BRANDING initialized successfully. Press Enter to continue."
 read -r
 
 exit 0

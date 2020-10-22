@@ -44,9 +44,8 @@ get_menu_option() {
 			echo "$n. $option"
 		done < /tmp/iso_menu.txt
 
-		read -r \
-			-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
-			option_index
+		printf "Choose the ISO boot option [1-%1, s for standard boot, a to abort]: " $n
+		read -r option_index
 	fi
 
 	if [ "$option_index" = "a" ]; then

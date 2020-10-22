@@ -162,7 +162,7 @@ while true; do
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
           FILE=$(file_selector "/tmp/filelist.txt" "Choose your GPG public key")
-          if [ "$FILE" == "" ]; then
+          if [ "$FILE" = "" ]; then
             return
           else
             PUBKEY=$FILE
@@ -170,7 +170,7 @@ while true; do
 
           find /media -name '*.rom' > /tmp/filelist.txt
           FILE=$(file_selector "/tmp/filelist.txt" "Choose the ROM to load your key onto")
-          if [ "$FILE" == "" ]; then
+          if [ "$FILE" = "" ]; then
             return
           else
             ROM=$FILE
@@ -222,7 +222,7 @@ while true; do
     ;;
     "g" )
       confirm_gpg_card
-      echo -e "\n\n\n\n"
+      printf "\n\n\n\n"
       echo "********************************************************************************"
       echo "*"
       echo "* INSTRUCTIONS:"

@@ -104,9 +104,8 @@ if [ -z "$USB_MOUNT_DEVICE" ]; then
       echo "$n. $option"
     done < /tmp/usb_disk_list
 
-    read -r \
-      -p "Choose your USB disk [1-$n, a to abort]: " \
-      option_index
+    printf "Choose your USB disk [1-%1, a to abort]: " $n
+    read -r option_index
   fi
 
   if [ "$option_index" = "a" ]; then

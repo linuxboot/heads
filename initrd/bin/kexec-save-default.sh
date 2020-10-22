@@ -46,12 +46,10 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]; then
 	if [ ! -r "$KEY_DEVICES" ]; then
-		read -r \
-			-n 1 \
-			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
-			add_key_confirm
+		printf "\nDo you wish to add a disk encryption to the TPM [y/N]: "
+		read -r -n 1 add_key_confirm
 		echo
 
 		if [ "$add_key_confirm" = "y" \
@@ -61,10 +59,8 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			save_key="y"
 		fi
 	else
-		read -r \
-			-n 1 \
-			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
-			change_key_confirm
+		printf "\nDo you want to reseal a disk key to the TPM [y/N]: "
+		read -r -n 1 change_key_confirm
 		echo
 
 		if [ "$change_key_confirm" = "y" \
@@ -89,16 +85,14 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 		echo "+++ LVM volume groups (lvm vgscan): "
 		lvm vgscan || true
 
-		read -r \
-			-p "Encrypted LVM group? ($lvm_suggest): " \
-			lvm_volume_group
+		printf "Encrypted LVM group? (%1): " "$lvm_suggest"
+		read -r lvm_volume_group
 
 		echo "+++ Block devices (blkid): "
 		blkid || true
 
-		read -r \
-			-p "Encrypted devices? ($devices_suggest): " \
-			key_devices
+		printf "Encrypted devices? (%1): " "$devices_suggest"
+		read -r key_devices
 
 		save_key_params="-s -p $paramsdev"
 		if [ -n "$lvm_volume_group" ]; then

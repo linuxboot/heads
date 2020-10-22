@@ -65,8 +65,12 @@ if ! tpm nv_writevalue \
 	-if "$TOTP_SEALED" \
 ; then
 	warn 'NVRAM space does not exist? Owner password is required'
-	read -r -s -p "TPM Owner password: " tpm_password
-	echo
+
+	stty -echo
+	printf "\nTPM Owner password: "
+	read -r tpm_password
+	stty echo
+	printf "\n"
 
 	tpm nv_definespace \
 		-in $TPM_NVRAM_SPACE \

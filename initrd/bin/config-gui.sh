@@ -48,7 +48,7 @@ while true; do
       FILE=$(file_selector "/tmp/boot_device_list.txt" \
           "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION." \
           "Boot Device Selection")
-      if [ "$FILE" == "" ]; then
+      if [ "$FILE" = "" ]; then
         return
       else
         SELECTED_FILE=$FILE

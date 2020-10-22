@@ -25,8 +25,12 @@ tpm nv_readvalue \
 
 tries=3
 while [ $((tries)) -gt 0 ]; do
-	read -r -s -p "Enter unlock password (blank to abort): " tpm_password
-	echo
+
+	stty -echo
+	printf "Enter unlock password (blank to abort): "
+	read -r tpm_password
+	stty echo
+	printf "\n\n"
 
 	if [ -z "$tpm_password" ]; then
 		die "Aborting unseal disk encryption key"

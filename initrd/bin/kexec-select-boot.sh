@@ -120,9 +120,8 @@ get_menu_option() {
 			echo "$n. $name [$kernel]"
 		done < "$TMP_MENU_FILE"
 
-		read -r \
-			-p "Choose the boot option [1-$n, a to abort]: " \
-			option_index
+		printf "Choose the boot option [1-%1, a to abort]: " $n
+		read -r option_index
 
 		if [ "$option_index" = "a" ]; then
 			die "Aborting boot attempt"
@@ -146,11 +145,9 @@ confirm_menu_option() {
 		echo "+++ Please confirm the boot details for $name:"
 		echo "$option"
 
-		read -r \
-			-n 1 \
-			-p "Confirm selection by pressing 'y', make default with 'd': " \
-			option_confirm
-		echo
+		printf "Confirm selection by pressing 'y', make default with 'd': "
+		read -r	-n 1 option_confirm
+		printf "\n\n"
 	fi
 }
 
@@ -193,7 +190,7 @@ save_default_option() {
 	echo
 
 	[ "$default_confirm" = "" ] && default_confirm="y"
-	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
+	if [ "$default_confirm" = "y" ] || [ "$default_confirm" = "Y" ]; then
 		if kexec-save-default \
 			-b "$bootdir" \
 			-d "$paramsdev" \
@@ -260,7 +257,7 @@ user_select() {
 	do
 		get_menu_option
     # In force boot mode, no need offer the option to set a default, just boot
-		if [[ "$force_boot" = "y" || "$skip_confirm" = "y" ]]; then
+		if [ "$force_boot" = "y" ] || [ "$skip_confirm" = "y" ]; then
 			do_boot
 		else
 			confirm_menu_option

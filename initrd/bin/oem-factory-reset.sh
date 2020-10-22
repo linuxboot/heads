@@ -34,9 +34,9 @@ GPG_USER_COMMENT="OEM-generated key"
 
 die() {
 
-	local msg=$1
+	msg=$1
 	if [ -n "$msg" ]; then
-	    echo -e "\n$msg"
+	    printf "\n%1" "$msg"
 	fi
 	kill -s TERM $TOP_PID
 	exit 1
@@ -44,7 +44,7 @@ die() {
 
 whiptail_error()
 {
-    local msg=$1
+    msg=$1
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
@@ -270,19 +270,19 @@ $TPM_STR
 fi
 
 # Prompt to change default passwords
-echo -e -n "Would you like to set a custom password? [y/N]: "
+printf "Would you like to set a custom password? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  ] || [ "$prompt_output" == "Y" ] \
+if [ "$prompt_output" = "y" \
+  ] || [ "$prompt_output" = "Y" ] \
 ; then
-  echo -e "\nThe custom password will be used for the
+  printf "\nThe custom password will be used for the
 TPM admin and GPG user/admin passwords.
 It must be at least 8 characters in length.\n"
   CUSTOM_PASS=""
   echo
-  while [[  ${#CUSTOM_PASS} -lt 8 ]] ; do
-    echo -e -n "Enter the custom password: "
+  while [  ${#CUSTOM_PASS} -lt 8 ] ; do
+    printf "Enter the custom password: "
     read -r CUSTOM_PASS
   done
   echo
@@ -290,37 +290,37 @@ It must be at least 8 characters in length.\n"
 fi
 
 # Prompt to change default GnuPG key information
-echo -e -n "Would you like to set custom user information for the GnuPG key? [y/N]: "
+printf "Would you like to set custom user information for the GnuPG key? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  ] || [ "$prompt_output" == "Y" ] \
+if [ "$prompt_output" = "y" \
+  ] || [ "$prompt_output" = "Y" ] \
 ; then
-	echo -e "\n\n"
-	echo -e "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
-	echo -e "Real Name (Comment) email@address.org"
+	printf "\n\n"
+	printf "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
+	printf "Real Name (Comment) email@address.org"
 
-	echo -e "\nEnter your Real Name (At least 5 characters long):"
+	printf "\nEnter your Real Name (At least 5 characters long):"
 	read -r GPG_USER_NAME
 	while [ $(($(printf "%s" "$GPG_USER_NAME" | wc -m))) -lt 5 ]; do
 	{
-		echo -e "\nEnter your Real Name (At least 5 characters long):"
+		printf "\nEnter your Real Name (At least 5 characters long):"
 		read -r GPG_USER_NAME
 	};done
 
-	echo -e "\nEnter your email@adress.org:"
+	printf "\nEnter your email@adress.org:"
 	read -r GPG_USER_MAIL
 	while ! expr "$GPG_USER_MAIL" : '.*@' >/dev/null; do
 	{
-		echo -e "\nEnter your email@address.org:"
+		printf "\nEnter your email@address.org:"
 		read -r GPG_USER_MAIL
 	};done
 
-	echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
+	printf "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
 	read -r GPGCARD_COMMENT
 	while [ $(($(printf "%s" "$GPGCARD_COMMENT" | wc -m))) -gt 60 ]; do
 	{
-		echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
+		printf "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
 		read -r GPGCARD_COMMENT
 	};done
 fi
@@ -328,17 +328,17 @@ fi
 ## sanity check the USB, GPG key, and boot device before proceeding further
 
 # Prompt to insert USB drive if desired
-echo -e -n "Would you like to export your public key to an USB drive? [y/N]: "
+printf "Would you like to export your public key to an USB drive? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  ] || [ "$prompt_output" == "Y" ] \
+if [ "$prompt_output" = "y" \
+  ] || [ "$prompt_output" = "Y" ] \
 ; then
     GPG_EXPORT=1
     # mount USB, then remount rw
-    echo -e "\nPlease insert an USB drive and hit enter.\n"
+    printf "\nPlease insert an USB drive and hit enter.\n"
     read -r
-    echo -e "\nChecking for USB media...\n"
+    printf "\nChecking for USB media...\n"
     # ensure /media not mounted
     umount /media 2>/dev/null
     # mount-usb will detect and prompt if no USB inserted
@@ -353,7 +353,7 @@ else
 fi
 
 # ensure USB Security Dongle connected
-echo -e "\nChecking for USB Security Dongle...\n"
+printf "\nChecking for USB Security Dongle...\n"
 # USB kernel modules already loaded via mount-usb
 if ! gpg --card-status >/dev/null 2>&1 ; then
     whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
@@ -364,11 +364,11 @@ if ! gpg --card-status >/dev/null 2>&1 ; then
 fi
 
 # detect and set /boot device
-echo -e "\nDetecting and setting boot device...\n"
+printf "\nDetecting and setting boot device...\n"
 if ! detect_boot_device ; then
   whiptail_error_die "Unable to locate /boot files on any mounted disk"
 else
-  echo -e "Boot device set to $CONFIG_BOOT_DEV\n"
+  printf "Boot device set to %1\n" "$CONFIG_BOOT_DEV"
 fi
 
 # update configs
@@ -377,7 +377,7 @@ combine_configs
 
 ## reset TPM and set default password
 if [ "$CONFIG_TPM" = "y" ]; then
-  echo -e "\nResetting TPM...\n"
+  printf "\nResetting TPM...\n"
   if ! {
       echo "$TPM_PASS_DEF"
       echo "$TPM_PASS_DEF"
@@ -393,7 +393,7 @@ rm /.gnupg/*.kbx 2>/dev/null
 gpg --list-keys >/dev/null 2>&1
 
 ## reset the GPG Key
-echo -e "\nResetting GPG Key...\n(this will take a minute or two)\n"
+printf "\nResetting GPG Key...\n(this will take a minute or two)\n"
 gpg_key_reset
 
 # parse name of generated key
@@ -401,9 +401,9 @@ GPG_GEN_KEY=$(grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 
 if [ "$CUSTOM_PASS" != "" ]; then
-  echo -e "\nChanging default GPG Admin PIN\n"
+  printf "\nChanging default GPG Admin PIN\n"
   gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$CUSTOM_PASS"
-  echo -e "\nChanging default GPG User PIN\n"
+  printf "\nChanging default GPG User PIN\n"
   gpg_key_change_pin "1" "$USER_PIN_DEF" "$CUSTOM_PASS"
   USER_PIN_DEF=$CUSTOM_PASS
   ADMIN_PIN_DEF=$CUSTOM_PASS
@@ -417,7 +417,7 @@ fi
 
 ## export pubkey to USB
 if [ $GPG_EXPORT -ne 0 ]; then
-    echo -e "\nExporting generated key to USB...\n"
+    printf "\nExporting generated key to USB...\n"
     # copy to USB
     if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error ; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -427,7 +427,7 @@ if [ $GPG_EXPORT -ne 0 ]; then
 fi
 
 ## flash generated key to ROM
-echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
+printf "\nReading current firmware...\n(this will take a minute or two)\n"
 /bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
 if [ ! -s /tmp/oem-setup.rom ]; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -471,14 +471,14 @@ if [ -e /etc/config.user ]; then
     cbfs -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 fi
 # flash updated firmware image
-echo -e "\nAdding generated key to current firmware and re-flashing...\n"
+printf "\nAdding generated key to current firmware and re-flashing...\n"
 if ! /bin/flash.sh /tmp/oem-setup.rom >/dev/null 2>/tmp/error ; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 fi
 
 ## sign files in /boot and generate checksums
-echo -e "\nSigning boot files and generating checksums...\n"
+printf "\nSigning boot files and generating checksums...\n"
 generate_checksums
 
 ## all done -- reboot

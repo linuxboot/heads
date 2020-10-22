@@ -72,11 +72,7 @@ fi
 # If the user has been holding down r, enter a recovery shell
 # otherwise immediately start the configured boot script.
 # We don't print a prompt, since this is a near instant timeout.
-read \
-	-r \
-	-t 0.1 \
-	-n 1 \
-	boot_option
+read -r -t 0.1 	-n 1 boot_option
 echo
 
 if [ "$boot_option" = "r" ]; then

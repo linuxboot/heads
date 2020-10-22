@@ -30,7 +30,7 @@ mount_boot_or_die
 
 counter_value=$(cat $HOTP_COUNTER)
 
-if [ "$counter_value" == "" ]; then
+if [ "$counter_value" = "" ]; then
   die "Unable to read HOTP counter"
 fi
 

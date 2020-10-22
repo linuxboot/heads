@@ -42,7 +42,8 @@ recovery() {
 }
 
 pause_recovery() {
-	read -r -p 'Hit enter to proceed to recovery shell:'
+	printf "Hit enter to proceed to recovery shell:"
+	read -r
 	recovery "$*"
 }
 
@@ -70,19 +71,16 @@ confirm_totp()
 			|| recovery "TOTP code generation failed"
 		fi
 
-		echo -n "$date $TOTP: "
+		printf "%s %s: " "$date" "$TOTP"
 
 		# read the first character, non-blocking
-		read -r \
-			-t 1 \
-			-n 1 \
-			-s \
-			-p "$prompt" \
-			totp_confirm \
-		&& break
+		stty -echo
+		printf "%1" "$prompt"
+		read -r -t 1 -n 1 totp_confirm
+		stty echo
 
 		# nothing typed, redraw the line
-		echo -ne '\r'
+		printf '\r'
 	done
 
 	# clean up with a newline
@@ -128,11 +126,9 @@ enable_usb()
 
 confirm_gpg_card()
 {
-	read -r \
-		-n 1 \
-		-p "Please confirm that your GPG card is inserted [Y/n]: " \
-		card_confirm
-	echo
+	printf "Please confirm that your GPG card is inserted [Y/n]: "
+	read -r -n 1 card_confirm
+	printf "\n\n"
 
 	if [ "$card_confirm" != "y" ] && [ "$card_confirm" != "Y" ] && [ -n "$card_confirm" ] \
 	; then
@@ -142,14 +138,18 @@ confirm_gpg_card()
 	# setup the USB so we can reach the GPG card
 	enable_usb
 
-	echo -e "\nVerifying presence of GPG card...\n"
+	printf "\nVerifying presence of GPG card...\n"
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
 	if ! (gpg --card-status > /dev/null \ || die "gpg card read failed"); then
 	  # prompt for reinsertion and try a second time
-	  read -n1 -s -r -p \
-	      "Can't access GPG key; remove and reinsert, then press Enter to retry. "
+	  stty -echo
+	  printf "Can't access GPG key; remove and reinsert, then press Enter to retry. "
+		read -r
+		stty echo
+
+
 	  # restore prev errexit state
 	  if [ "$errexit" = "on" ]; then
 	    set -e
@@ -171,8 +171,13 @@ check_tpm_counter()
 		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		read -r -s -p "TPM Owner password: " tpm_password
-		echo
+
+		stty -echo
+		printf "TPM Owner password: "
+		read -r tpm_password
+		stty echo
+
+		print "/n/n"
 		tpm counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \

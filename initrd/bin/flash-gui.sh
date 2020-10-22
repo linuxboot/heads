@@ -27,7 +27,7 @@ while true; do
         if grep -q /media /proc/mounts ; then
           find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
           FILE=$(file_selector "/tmp/filelist.txt" "Choose the ROM to flash")
-          if [ "$FILE" == "" ]; then
+          if [ "$FILE" = "" ]; then
             return
           else
             ROM=$FILE
@@ -35,7 +35,7 @@ while true; do
 
           if (whiptail --title 'Flash ROM?' \
               --yesno "This will replace your current ROM with:\n\n$ROM\n\nDo you want to proceed?" 16 60) then
-            if [ "$menu_choice" == "c" ]; then
+            if [ "$menu_choice" = "c" ]; then
               /bin/flash.sh -c "$ROM"
               # after flash, /boot signatures are now invalid so go ahead and clear them
               if ls /boot/kexec* >/dev/null 2>&1 ; then
