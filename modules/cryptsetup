@@ -14,9 +14,11 @@ cryptsetup_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "/" \
+	--disable-rpath \
 	--disable-gcrypt-pbkdf2 \
 	--enable-cryptsetup-reencrypt \
 	--with-crypto_backend=kernel \
+	--with-tmpfilesdir=$(INSTALL)/lib/tmpfiles.d
 
 # but after building, replace prefix so that they will be installed
 # in the correct directory.
@@ -28,10 +30,10 @@ cryptsetup_target := \
 		install
 
 cryptsetup_output := \
-	src/.libs/cryptsetup \
-	src/.libs/cryptsetup-reencrypt \
-	src/.libs/veritysetup \
+	.libs/cryptsetup \
+	.libs/cryptsetup-reencrypt \
+	.libs/veritysetup \
 
 cryptsetup_libraries := \
-	lib/.libs/libcryptsetup.so.12.6.0 \
+	.libs/libcryptsetup.so.12 \
 
