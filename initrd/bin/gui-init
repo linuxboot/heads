@@ -1,7 +1,8 @@
 #!/bin/sh
 # Boot from a local disk installation
 
-CONFIG_BOOT_GUI_MENU_NAME='Heads Boot Menu'
+BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
+MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 
 . /etc/functions
 . /tmp/config
@@ -222,7 +223,7 @@ while true; do
       HOTP='N/A'
     fi
 
-    whiptail $MAIN_MENU_BG_COLOR --clear --title "$CONFIG_BOOT_GUI_MENU_NAME" \
+    whiptail $MAIN_MENU_BG_COLOR --clear --title "$MAIN_MENU_TITLE" \
       --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
       'y' ' Default boot' \
       'r' ' Refresh TOTP/HOTP' \
