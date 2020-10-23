@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 set -e -o pipefail
 . /etc/functions
@@ -71,7 +71,7 @@ gpg_flash_rom() {
   whiptail --title 'Files in /boot Updated Successfully'\
     --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 16 60
   /bin/reboot
-  
+
 }
 gpg_post_gen_mgmt() {
   GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`

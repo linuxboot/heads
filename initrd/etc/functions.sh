@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Shell functions for most initialization scripts
 
 die() {

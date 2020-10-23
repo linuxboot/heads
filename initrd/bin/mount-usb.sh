@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Mount a USB device
 . /etc/functions
 
@@ -10,7 +10,7 @@ if ! lsmod | grep -q usb_storage; then
   echo "Scanning for USB storage devices..."
   insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
   || die "usb_storage: module load failed"
-  while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do 
+  while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do
     [[ $timeout -ge 4 ]] && break
     sleep 1
     timeout=$(($timeout+1))

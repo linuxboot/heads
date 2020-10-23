@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+#
 . /etc/functions
 
 ROM="$1"

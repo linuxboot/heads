@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 mknod /dev/ttyprintk c 5 3
 echo "hello world" > /dev/ttyprintk
 

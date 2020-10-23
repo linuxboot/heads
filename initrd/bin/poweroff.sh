@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Sync all mounted filesystems
 echo s > /proc/sysrq-trigger

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Save these options to be the persistent default
 set -e -o pipefail
 . /tmp/config

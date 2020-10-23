@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Initialize the USB and network device drivers,
 # invoke a recovery shell and prompt the user for how to proceed
 

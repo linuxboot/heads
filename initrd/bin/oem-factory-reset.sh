@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Automated setup of TPM, GPG keys, and disk
 
 set -o pipefail
@@ -43,7 +43,7 @@ die() {
 	exit 1
 }
 
-whiptail_error() 
+whiptail_error()
 {
     local msg=$1
     if [ "$msg" = "" ]; then
@@ -52,7 +52,7 @@ whiptail_error()
     whiptail --msgbox "${msg}\n\n" $WIDTH $HEIGHT $BG_COLOR_ERROR --title "Error"
 }
 
-whiptail_error_die() 
+whiptail_error_die()
 {
     whiptail_error "$@"
     die
@@ -85,11 +85,11 @@ gpg_key_reset()
         echo ${USER_PIN_DEF}
         echo 0
         echo y
-        echo ${GPG_USER_NAME} 
+        echo ${GPG_USER_NAME}
         echo ${GPG_USER_MAIL}
         echo ${GPG_USER_COMMENT}
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null 
+        > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
@@ -113,7 +113,7 @@ gpg_key_change_pin()
         echo q
         echo q
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null 
+        > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output | fold -s`
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
@@ -152,7 +152,7 @@ generate_checksums()
     else
       ## needs to exist for initial call to unseal-hotp
       echo "0" > /boot/kexec_hotp_counter
-    fi 
+    fi
 
     # set default boot option
     set_default_boot_option

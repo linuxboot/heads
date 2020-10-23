@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
@@ -30,11 +30,11 @@ if [ -e /sys/class/net/eth0 ]; then
 				echo "UTC/GMT current date and time:" > /dev/tty0
 				date > /dev/tty0
 			fi
-		fi		 
+		fi
 	fi
-	
+
 	ifconfig eth0 > /dev/ttyprintk
-	
+
 	if [ -e /bin/dropbear ]; then
 		# Set up the ssh server, allow root logins and log to stderr
 		if [ ! -d /etc/dropbear ]; then

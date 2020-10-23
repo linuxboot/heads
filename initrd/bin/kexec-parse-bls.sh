@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e -o pipefail
 bootdir="$1"
 file="$2"
@@ -81,7 +81,7 @@ bls_entry() {
 }
 
 # This is the default append value if no options field in bls entry
-grep -q "set default_kernelopts" "$file" && 
+grep -q "set default_kernelopts" "$file" &&
 	kernelopts=`grep "set default_kernelopts" "$file" |
 		tr "'" "\"" | cut -d\" -f 2`
 [ -f "$grubenv" ] && grep -q "^kernelopts" "$grubenv" &&

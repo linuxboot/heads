@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This will unseal and unecncrypt the drive encryption key from the TPM
 # The TOTP secret will be shown to the user on each encryption attempt.
 # It will then need to be bundled into initrd that is booted with Qubes.

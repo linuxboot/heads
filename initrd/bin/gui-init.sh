@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 # Boot from a local disk installation
 
-BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
+BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
 MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
@@ -11,12 +11,12 @@ export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150
 
 mount_boot()
 {
-  
+
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
     if [ -e "$CONFIG_BOOT_DEV" ]; then
-      mount -o ro $CONFIG_BOOT_DEV /boot 
+      mount -o ro $CONFIG_BOOT_DEV /boot
       [[ $? -eq 0 ]] && continue
     fi
 
@@ -31,7 +31,7 @@ mount_boot()
         2>/tmp/whiptail || recovery "GUI menu failed"
 
     option=$(cat /tmp/whiptail)
-    case "$option" in 
+    case "$option" in
       b )
         config-gui.sh boot_device_select
         if [ $? -eq 0 ]; then
@@ -71,12 +71,12 @@ verify_global_hashes()
     CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
 
     # if files changed before package manager started, show stern warning
-    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
+    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then
       PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
       TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files Heads has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
 
     # if files changed after package manager started, probably caused by package manager
-    elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then 
+    elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then
       LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" $TMP_PACKAGE_TRIGGER_POST)
       UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
 
@@ -129,7 +129,7 @@ clean_boot_check()
   # check for any kexec files in /boot
   kexec_files=`find /boot -name kexec*.txt`
   [ ! -z "$kexec_files" ] && return
-  
+
   #check for GPG key in keyring
   GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
   [ $GPG_KEY_COUNT -ne 0 ] && return
@@ -152,7 +152,7 @@ if detect_boot_device ; then
   # /boot device with installed OS found
   clean_boot_check
 else
-  # can't determine /boot device or no OS installed, 
+  # can't determine /boot device or no OS installed,
   # so fall back to interactive selection
   mount_boot
 fi
@@ -211,7 +211,7 @@ while true; do
     fi
   fi
 
-  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then 
+  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
     if [ -x /bin/hotp_verification ]; then
       HOTP=`unseal-hotp`
       enable_usb

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # get a file and extend a TPM PCR
 
 die() {
@@ -18,5 +18,3 @@ wget "$URL" || die "$URL: failed"
 
 FILE="`basename "$URL"`"
 tpm extend -ix "$INDEX" -if "$FILE" || die "$FILE: tpm extend failed"
-
-
