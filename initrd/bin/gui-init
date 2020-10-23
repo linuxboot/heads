@@ -14,27 +14,41 @@ mount_boot()
   
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
-    # ensure default boot device is set
-    if [ ! -e "$CONFIG_BOOT_DEV" ]; then
-      if (whiptail $BG_COLOR_ERROR --clear --title "ERROR: $CONFIG_BOOT_DEV missing!" \
-          --yesno "The /boot device $CONFIG_BOOT_DEV could not be found!\n\nYou will need to configure the correct device for /boot.\n\nWould you like to configure the /boot device now?" 30 90) then
+    # try to mount if CONFIG_BOOT_DEV exists
+    if [ -e "$CONFIG_BOOT_DEV" ]; then
+      mount -o ro $CONFIG_BOOT_DEV /boot 
+      [[ $? -eq 0 ]] && continue
+    fi
+
+    # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+    whiptail $BG_COLOR_ERROR --clear --title "ERROR: No Bootable OS Found!" \
+        --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
+    How would you like to proceed?" 30 90 4 \
+        'b' ' Select a new boot device' \
+        'u' ' Boot from USB' \
+        'm' ' Continue to the main menu' \
+        'x' ' Exit to recovery shell' \
+        2>/tmp/whiptail || recovery "GUI menu failed"
+
+    option=$(cat /tmp/whiptail)
+    case "$option" in 
+      b )
         config-gui.sh boot_device_select
-      else
-        # exit to main menu
+        if [ $? -eq 0 ]; then
+          # update CONFIG_BOOT_DEV
+          . /tmp/config
+        fi
+        ;;
+      u )
+        exec /bin/usb-init
+        ;;
+      m )
         break
-      fi
-    fi
-    # update CONFIG_BOOT_DEV
-    . /tmp/config
-    mount -o ro $CONFIG_BOOT_DEV /boot 
-    if [ $? -ne 0 ]; then
-      if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Cannot mount /boot' \
-      --yesno "The /boot partition at $CONFIG_BOOT_DEV could not be mounted!\n\nWould you like to configure the /boot device now?" 30 90) then
-        config-gui.sh boot_device_select
-      else
-        recovery "Unable to mount /boot"
-      fi
-    fi
+        ;;
+      * )
+        recovery "User requested recovery shell"
+        ;;
+    esac
   done
 }
 verify_global_hashes()
