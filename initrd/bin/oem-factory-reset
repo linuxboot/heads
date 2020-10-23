@@ -24,6 +24,7 @@ GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
 GPG_USER_COMMENT="OEM-generated key"
+SKIP_BOOT="n"
 
 ## External files sourced
 
@@ -368,14 +369,16 @@ fi
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
 if ! detect_boot_device ; then
-  whiptail_error_die "Unable to locate /boot files on any mounted disk"
+  SKIP_BOOT="y"
 else
   echo -e "Boot device set to $CONFIG_BOOT_DEV\n"
 fi
 
 # update configs
-replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
-combine_configs
+if [[ "$SKIP_BOOT" == "n" ]]; then
+  replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
+  combine_configs
+fi
 
 ## reset TPM and set default password
 if [ "$CONFIG_TPM" = "y" ]; then
@@ -481,8 +484,10 @@ if ! /bin/flash.sh /tmp/oem-setup.rom >/dev/null 2>/tmp/error ; then
 fi
 
 ## sign files in /boot and generate checksums
-echo -e "\nSigning boot files and generating checksums...\n"
-generate_checksums
+if [[ "$SKIP_BOOT" == "n" ]]; then
+  echo -e "\nSigning boot files and generating checksums...\n"
+  generate_checksums
+fi
 
 ## all done -- reboot
 whiptail --msgbox "
