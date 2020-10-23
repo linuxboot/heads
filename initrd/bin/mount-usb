@@ -34,7 +34,7 @@ if [ -z `cat /tmp/usb_block_devices` ]; then
   stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
   if [ -z `cat /tmp/usb_block_devices` ]; then
     if [ -x /bin/whiptail ]; then
-      whiptail $CONFIG_ERROR_BG_COLOR --title 'ERROR: USB Drive Missing' \
+      whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
     else
       echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."
