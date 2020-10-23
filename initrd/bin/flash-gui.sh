@@ -34,7 +34,7 @@ while true; do
           fi
 
           if (whiptail --title 'Flash ROM?' \
-              --yesno "This will replace your current ROM with:\n\n$ROM\n\nDo you want to proceed?" 16 60) then
+              --yesno "This will replace your current ROM with:\n\n${ROM#"/media/"}\n\nDo you want to proceed?" 16 60) then
             if [ "$menu_choice" == "c" ]; then
               /bin/flash.sh -c "$ROM"
               # after flash, /boot signatures are now invalid so go ahead and clear them
@@ -49,7 +49,7 @@ while true; do
               /bin/flash.sh "$ROM"
             fi
             whiptail --title 'ROM Flashed Successfully' \
-              --msgbox "$ROM flashed successfully.\n\nPress Enter to reboot\n" 16 60
+              --msgbox "${ROM#"/media/"}\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 16 60
             umount /media
             /bin/reboot
           else
