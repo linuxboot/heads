@@ -407,7 +407,7 @@ while true; do
 
   if [ "$totp_confirm" = "S" ]; then
     memtotal=$(grep 'MemTotal' /proc/meminfo | tr -s ' ' | cut -f2 -d ' ')
-    memtotal=$((${memtotal} / 1024 / 1024 + 1))
+    memtotal=$((memtotal / 1024 / 1024 + 1))
     cpustr=$(grep 'model name' /proc/cpuinfo | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
     kernel=$(uname -s -r)
 		whiptail --title 'System Info' \
