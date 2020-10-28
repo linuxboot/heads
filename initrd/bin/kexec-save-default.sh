@@ -71,13 +71,10 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
 				old_lvm_volume_group=`cat $KEY_LVM` || true
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 \
-				| grep -v "$old_lvm_volume_group" \
+				old_key_devices=`cut -d\  -f1 $KEY_DEVICES | grep -v "$old_lvm_volume_group" \
 				| xargs` || true
 			else
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 | xargs` || true
+				old_key_devices=`cut -d\  -f1 $KEY_DEVICES | xargs` || true
 			fi
 
 			lvm_suggest="was '$old_lvm_volume_group'"

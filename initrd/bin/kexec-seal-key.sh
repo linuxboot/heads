@@ -61,7 +61,7 @@ dd \
 || die "Unable to generate 128 random bytes"
 
 # Remove all the old keys from slot 1
-for dev in `cat "$KEY_DEVICES" | cut -d\  -f1`; do
+for dev in `cut -d\  -f1 "$KEY_DEVICES"`; do
 	echo "++++++ $dev: Removing old key slot"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
@@ -80,7 +80,7 @@ done
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
+cut -d\  -f1 "$KEY_DEVICES" | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 

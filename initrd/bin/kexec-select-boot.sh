@@ -84,7 +84,7 @@ verify_rollback_counter()
 
 first_menu="y"
 get_menu_option() {
-	num_options=`cat $TMP_MENU_FILE | wc -l`
+	num_options=`wc -l $TMP_MENU_FILE`
 	if [ $num_options -eq 0 ]; then
 		die "No boot options"
 	fi

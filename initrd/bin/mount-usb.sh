@@ -45,7 +45,7 @@ fi
 
 USB_MOUNT_DEVICE=""
 # Check for the common case: a single USB disk with one partition
-if [ `cat /tmp/usb_block_devices | wc -l` -eq 1 ]; then
+if [ `wc -l /tmp/usb_block_devices` -eq 1 ]; then
   USB_BLOCK_DEVICE=`cat /tmp/usb_block_devices`
   # Subtract out block device
   let USB_NUM_PARTITIONS=`ls -1 ${USB_BLOCK_DEVICE}* | wc -l`-1

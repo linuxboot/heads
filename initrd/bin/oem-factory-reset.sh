@@ -115,7 +115,7 @@ gpg_key_change_pin()
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output | fold -s`
+        ERROR=`fold -s /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
 }
@@ -441,7 +441,7 @@ if [ ! -s /tmp/oem-setup.rom ]; then
 fi
 
 # ensure key imported locally
-if ! cat "$PUBKEY" | gpg --import >/dev/null 2>/tmp/error ; then
+if ! gpg --import "$PUBKEY" >/dev/null 2>/tmp/error ; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error importing GPG key:\n\n$ERROR"
 fi

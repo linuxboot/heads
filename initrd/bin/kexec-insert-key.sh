@@ -27,7 +27,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 fi
 
 # Measure the LUKS headers before we unseal the disk key
-cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
+cut -d\  -f1 "$TMP_KEY_DEVICES" | xargs /bin/qubes-measure-luks \
 	|| die "LUKS measure failed"
 
 # Unpack the initrd and fixup the /etc/crypttab
@@ -74,7 +74,7 @@ dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 
 if [ "$unseal_failed" = "n" ]; then
 	# overwrite /etc/crypttab to mirror the behavior for in seal-key
-	for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
+	for uuid in `cut -d\  -f2 "$TMP_KEY_DEVICES"`; do
 		echo "luks-$uuid UUID=$uuid /secret.key" >> "$INITRD_DIR/etc/crypttab"
 	done
 	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"

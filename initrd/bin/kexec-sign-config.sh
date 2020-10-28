@@ -29,7 +29,7 @@ if [ "$update" = "y" ]; then
 		cd /boot
 		find ./ -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum > /boot/kexec_hashes.txt
 		if [ -e /boot/kexec_default_hashes.txt ]; then
-			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
+			DEFAULT_FILES=$(cut -f3 -d ' '  /boot/kexec_default_hashes.txt)
 			echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
 		fi
 	)
