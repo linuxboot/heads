@@ -75,7 +75,7 @@ bls_entry() {
 		options)
 			# default is "options $kernelopts"
 			# need to substitute that variable if set in .cfg/grubenv
-			append=`echo "$val" | sed "s@\\$kernelopts@$kernelopts@"`
+			append=${$val/\\$kernelopts/$kernelopts/}
 			;;
 	esac
 }
