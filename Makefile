@@ -681,3 +681,7 @@ $(HEADS_MAKE): $(build)/$(make_dir)/.configured
 		$(VERBOSE_REDIRECT)
 
 endif
+
+check-scripts:
+	# Chech shell scripts under initrd/
+	shellcheck -x $(shell find ./initrd/ -iname "*.sh")
