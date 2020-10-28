@@ -22,7 +22,7 @@ gpgv --homedir=/etc/distro/ "$ISOSIG" "$MOUNTED_ISO_PATH" \
 
 echo '+++ Mounting ISO and booting'
 mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot \
-	|| die '$MOUNTED_ISO_PATH: Unable to mount /boot'
+	|| die "$MOUNTED_ISO_PATH: Unable to mount /boot"
 
 DEV_UUID=$(blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
 ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH iso-scan/filename=/${ISO_PATH}"
