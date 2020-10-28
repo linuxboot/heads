@@ -94,7 +94,7 @@ do
 				fi
 			fi
 		fi
-		module_number=`expr $module_number + 1`
+		module_number=$((module_number + 1))
 		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then

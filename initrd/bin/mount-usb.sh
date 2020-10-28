@@ -13,7 +13,7 @@ if ! lsmod | grep -q usb_storage; then
   while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do
     [[ $timeout -ge 4 ]] && break
     sleep 1
-    timeout=$(($timeout+1))
+    timeout=$((timeout+1))
   done
 fi
 
@@ -75,7 +75,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     n=0
     while read option
     do
-      n=`expr $n + 1`
+      n=$((n + 1))
       option=$(echo $option | tr " " "_")
       MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
     done < /tmp/usb_disk_list
@@ -92,7 +92,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     n=0
     while read option
     do
-      n=`expr $n + 1`
+      n=$((n + 1))
       echo "$n. $option"
     done < /tmp/usb_disk_list
 

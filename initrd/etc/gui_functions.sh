@@ -37,7 +37,7 @@ file_selector()
       n=0
       while read option
       do
-        n=`expr $n + 1`
+        n=$((n + 1))
         option=$(echo $option | tr " " "_")
         MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
       done < $FILE_LIST

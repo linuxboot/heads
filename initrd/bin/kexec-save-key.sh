@@ -13,7 +13,7 @@ while getopts "sp:d:l:" arg; do
 		l) lvm_volume_group="$OPTARG" ;;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift $((OPTIND - 1))
 key_devices="$@"
 
 if [ -z "$paramsdir" ]; then

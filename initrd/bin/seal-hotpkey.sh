@@ -103,7 +103,7 @@ shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
 
 mount -o remount,rw /boot
 
-counter_value=`expr $counter_value + 1`
+counter_value=$((counter_value + 1))
 echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
 

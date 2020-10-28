@@ -24,7 +24,7 @@ get_menu_option() {
 		n=0
 		while read option
 		do
-			n=`expr $n + 1`
+			n=$((n + 1))
 			option=$(echo $option | tr " " "_")
 			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
 		done < /tmp/iso_menu.txt
@@ -40,7 +40,7 @@ get_menu_option() {
 		n=0
 		while read option
 		do
-			n=`expr $n + 1`
+			n=$((n + 1))
 			echo "$n. $option"
 		done < /tmp/iso_menu.txt
 

@@ -61,7 +61,7 @@ confirm_totp()
 		# update the TOTP code every thirty seconds
 		date=`date "+%Y-%m-%d %H:%M:%S"`
 		seconds=`date "+%s"`
-		half=`expr \( $seconds % 60 \) / 30`
+		half=$(((seconds % 60 ) / 30))
 		if [ "$CONFIG_TPM" != y ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then

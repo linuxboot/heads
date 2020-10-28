@@ -97,7 +97,7 @@ get_menu_option() {
 		while read option
 		do
 			parse_option
-			n=`expr $n + 1`
+			n=$((n + 1))
 			name=$(echo $name | tr " " "_")
 			kernel=$(echo $kernel | cut -f2 -d " ")
 			MENU_OPTIONS="$MENU_OPTIONS $n ${name}_[$kernel]"
@@ -115,7 +115,7 @@ get_menu_option() {
 		while read option
 		do
 			parse_option
-			n=`expr $n + 1`
+			n=$((n + 1))
 			echo "$n. $name [$kernel]"
 		done < $TMP_MENU_FILE
 
