@@ -219,12 +219,14 @@ check_config() {
 		return
 	fi
 
-	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
+	KEXEC_FILE_COUNT=$(find "$1/kexec*.txt" | wc -l)
+	if [ $((KEXEC_FILE_COUNT)) -eq 0 ]; then
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
-		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig - ; then
+		KEXEC_FILES=$(find "$1/kexec*.txt")
+		if ! sha256sum "$KEXEC_FILES" | gpgv "$1/kexec.sig" - ; then
 			die 'Invalid signature on kexec boot params'
 		fi
 	fi

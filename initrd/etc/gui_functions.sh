@@ -33,7 +33,8 @@ file_selector()
   MENU_TITLE=${3:-"Select your File"}
 
   # create file menu options
-  if [ $(wc -l "$FILE_LIST") -gt 0 ]; then
+  FILE_LIST_COUNT=$(wc -l "$FILE_LIST")
+  if [ $((FILE_LIST_COUNT)) -gt 0 ]; then
     option=""
     while [ -z "$option" ]
     do

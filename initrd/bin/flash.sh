@@ -24,7 +24,8 @@ flash_rom() {
     || die "$ROM: Read failed"
     flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}.3" \
     || die "$ROM: Read failed"
-    if [ $(sha256sum ${ROM}.[123] | cut -f1 -d ' ' | uniq | wc -l) -eq 1 ]; then
+    UNIQ_SHA256_COUNT=$(sha256sum "${ROM}".[123] | cut -f1 -d ' ' | uniq | wc -l)
+    if [ $((UNIQ_SHA256_COUNT)) -eq 1 ]; then
       mv ${ROM}.1 $ROM
       rm ${ROM}.[23]
     else

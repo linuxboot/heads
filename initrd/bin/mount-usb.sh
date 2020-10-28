@@ -22,7 +22,8 @@ if [ ! -d /media ]; then
 fi
 
 stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-if [ -z $(cat /tmp/usb_block_devices) ]; then
+USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
+if [ -z  "$USB_BLOCK_DEVICES" ]; then
   if [ -x /bin/whiptail ]; then
     whiptail --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
@@ -32,7 +33,8 @@ if [ -z $(cat /tmp/usb_block_devices) ]; then
   fi
   sleep 1
   stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-  if [ -z $(cat /tmp/usb_block_devices) ]; then
+  USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
+  if [ -z "$USB_BLOCK_DEVICE" ]; then
     if [ -x /bin/whiptail ]; then
       whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
@@ -45,14 +47,15 @@ fi
 
 USB_MOUNT_DEVICE=""
 # Check for the common case: a single USB disk with one partition
-if [ $(wc -l /tmp/usb_block_devices) -eq 1 ]; then
+USB_BLOCK_DEVICE_COUNT=$(wc -l /tmp/usb_block_devices)
+if [ $((USB_BLOCK_DEVICE_COUNT)) -eq 1 ]; then
   USB_BLOCK_DEVICE=$(cat /tmp/usb_block_devices)
   # Subtract out block device
   USB_BLOCK_DEVICE_COUNT=$(find "$USB_BLOCK_DEVICE*" | wc -l)
   let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
-  if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
+  if [ $((USB_NUM_PARTITIONS)) -eq 0 ]; then
     USB_MOUNT_DEVICE=${USB_BLOCK_DEVICE}
-  elif [ ${USB_NUM_PARTITIONS} -eq 1 ]; then
+  elif [ $((USB_NUM_PARTITIONS)) -eq 1 ]; then
     USB_MOUNT_DEVICE=$(find "$USB_BLOCK_DEVICE*" | tail -n1)
   fi
 fi
@@ -65,10 +68,12 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     USB_BLOCK_DEVICE_COUNT=$(find "$i*" | wc -l)
     let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
     if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
-      echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
+      BLK_LABELS=$(blkid | grep "$i" | grep -o 'LABEL=".*"' | cut -f2 -d '"')
+      echo "$i $BLK_LABELS" >> /tmp/usb_disk_list
     else
       for j in $(find $i* | tail -${USB_NUM_PARTITIONS}); do
-        echo $j $(blkid | grep $j | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
+        BLK_LABELS=$(blkid | grep "$j" | grep -o 'LABEL=".*"' | cut -f2 -d '"')
+        echo "$j $BLK_LABELS"  >> /tmp/usb_disk_list
       done
     fi
   done

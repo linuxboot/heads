@@ -15,8 +15,8 @@ for cbfsname in $cbfsfiles; do
 	filename=${cbfsname:12}
 	if [ ! -z "$filename" ]; then
 		echo "Loading $filename from CBFS"
-		mkdir -p $(dirname "$filename") \
-		|| die "$filename: mkdir failed"
+		DIRNAME=$(dirname "$filename")
+		mkdir -p "$DIRNAME" || die "$filename: mkdir failed"
 		cbfs -t 50 -r "$cbfsname" > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then

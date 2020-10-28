@@ -63,7 +63,8 @@ get_menu_option() {
 
 # create ISO menu options
 ls -1r /media/*.iso 2>/dev/null > /tmp/iso_menu.txt || true
-if [ $(wc -l /tmp/iso_menu.txt) -gt 0 ]; then
+ISO_MENU_ITEMS=$(wc -l /tmp/iso_menu.txt)
+if [ $((ISO_MENU_ITEMS)) -gt 0 ]; then
 	while [ -z "$option" -a "$option_index" != "s" ]
 	do
 		get_menu_option
