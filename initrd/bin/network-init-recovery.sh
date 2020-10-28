@@ -18,7 +18,7 @@ if [ -e /sys/class/net/eth0 ]; then
 	elif [ -e /sbin/udhcpc ];then
 		if udhcpc -T 1 -q; then
 			if [ -e /sbin/ntpd ]; then
-				DNS_SERVER=$(grep nameserver /etc/resolv.conf|awk -F " " {'print $2'})
+				DNS_SERVER=$(grep nameserver /etc/resolv.conf|awk -F " " '{print $2}')
 				killall ntpd 2&>1 > /dev/null
 		 		if ! ntpd -d -N -n -q -p $DNS_SERVER > /dev/ttyprintk; then
 					if ! ntpd -d -d -N -n -q -p ntp.pool.org> /dev/ttyprintk; then
