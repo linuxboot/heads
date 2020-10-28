@@ -43,7 +43,7 @@ recovery() {
 
 pause_recovery() {
 	read -p 'Hit enter to proceed to recovery shell:'
-	recovery $*
+	recovery "$@"
 }
 
 pcrs() {
