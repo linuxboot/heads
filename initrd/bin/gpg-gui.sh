@@ -110,7 +110,7 @@ gpg_add_key_reflash() {
     if grep -q /media /proc/mounts ; then
       find /media -name '*.key' > /tmp/filelist.txt
       find /media -name '*.asc' >> /tmp/filelist.txt
-      file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+      FILE=$(file_selector "/tmp/filelist.txt" "Choose your GPG public key")
       # bail if user didn't select a file
       if [ "$FILE" = "" ]; then
         return
@@ -161,7 +161,7 @@ while true; do
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
           find /media -name '*.asc' >> /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose your GPG public key"
+          FILE=$(file_selector "/tmp/filelist.txt" "Choose your GPG public key")
           if [ "$FILE" == "" ]; then
             return
           else
@@ -169,7 +169,7 @@ while true; do
           fi
 
           find /media -name '*.rom' > /tmp/filelist.txt
-          file_selector "/tmp/filelist.txt" "Choose the ROM to load your key onto"
+          FILE=$(file_selector "/tmp/filelist.txt" "Choose the ROM to load your key onto")
           if [ "$FILE" == "" ]; then
             return
           else

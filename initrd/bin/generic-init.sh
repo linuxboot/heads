@@ -22,7 +22,7 @@ while true; do
 	echo "u) USB boot"
 	echo "m) Boot menu"
 
-	if ! confirm_totp "Boot mode"; then
+	if ! totp_confirm = $(confirm_totp "Boot mode"); then
 		recovery 'Failed to unseal TOTP'
 	fi
 

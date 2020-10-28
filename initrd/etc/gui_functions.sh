@@ -67,6 +67,8 @@ file_selector()
     if [ -n "$option" ]; then
       FILE=$option
     fi
+
+    return "$FILE"
   else
     whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
       --msgbox "No Files found matching the pattern. Aborting." 16 60

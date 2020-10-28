@@ -23,7 +23,8 @@ tpm nv_readvalue \
 	-of "$sealed_file" \
 || die "Unable to read key from TPM NVRAM"
 
-for tries in 1 2 3; do
+tries=3
+while [ $((tries)) -gt 0 ]; do
 	read -s -p "Enter unlock password (blank to abort): " tpm_password
 	echo
 
@@ -44,6 +45,8 @@ for tries in 1 2 3; do
 
 	pcrs
 	warn "Unable to unseal disk encryption key"
+
+	tries=$((tries-1))
 done
 
 die "Retry count exceeded..."

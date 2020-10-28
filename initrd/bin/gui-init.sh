@@ -166,7 +166,6 @@ fi
 
 last_half=X
 while true; do
-  MAIN_MENU_OPTIONS=""
   MAIN_MENU_BG_COLOR=""
   unset totp_confirm
   # detect whether any GPG keys exist in the keyring, if not, initialize that first
