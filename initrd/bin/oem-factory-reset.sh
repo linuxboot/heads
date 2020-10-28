@@ -21,7 +21,7 @@ TPM_PASS_DEF=12345678
 CUSTOM_PASS=""
 
 GPG_USER_NAME="OEM Key"
-GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
+GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
 GPG_USER_COMMENT="OEM-generated key"
 SKIP_BOOT="n"
@@ -69,7 +69,7 @@ gpg_key_reset()
     } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output`
+        ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
     fi
     # If Nitrokey Storage is inserted, reset AES keys as well
@@ -91,7 +91,7 @@ gpg_key_reset()
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output`
+        ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
     fi
 }
@@ -115,7 +115,7 @@ gpg_key_change_pin()
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
-        ERROR=`fold -s /tmp/gpg_card_edit_output`
+        ERROR=$(fold -s /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
 }
@@ -140,7 +140,7 @@ generate_checksums()
           -la -3135106223 \
           | tee /tmp/counter \
           || whiptail_error_die "Unable to create TPM counter"
-      TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+      TPM_COUNTER=$(cut -d: -f1 < /tmp/counter)
 
       # increment TPM counter
       increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
@@ -162,7 +162,7 @@ generate_checksums()
         | xargs -0 sha256sum > /boot/kexec_hashes.txt 2>/dev/null \
         || whiptail_error_die "Error generating kexec hashes"
 
-    param_files=`find /boot/kexec*.txt`
+    param_files=$(find /boot/kexec*.txt)
     [ -z "$param_files" ] \
         && whiptail_error_die "No kexec parameter files to sign"
 
@@ -204,14 +204,14 @@ set_default_boot_option()
     mkdir -p /tmp/kexec/
     rm $option_file 2>/dev/null
     # parse boot options from grub.cfg
-    for i in `find /boot -name "grub.cfg"`; do
+    for i in $(find /boot -name "grub.cfg"); do
         kexec-parse-boot "/boot" "$i" >> $option_file
     done
     # FC29/30+ may use BLS format grub config files
     # https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
     # only parse these if $option_file is still empty
     if [ ! -s $option_file ] && [ -d "/boot/loader/entries" ]; then
-      for i in `find /boot -name "grub.cfg"`; do
+      for i in $(find /boot -name "grub.cfg"); do
         kexec-parse-bls "/boot" "$i" "/boot/loader/entries" >> $option_file
       done
     fi
@@ -222,7 +222,7 @@ set_default_boot_option()
     sort -r $option_file | uniq > $tmp_menu_file
 
     ## save first option as default
-    entry=`head -n 1 $tmp_menu_file | tail -1`
+    entry=$(head -n 1 $tmp_menu_file | tail -1)
 
     # clear existing default configs
     rm "/boot/kexec_default.*.txt" 2>/dev/null
@@ -403,7 +403,7 @@ echo -e "\nResetting GPG Key...\n(this will take a minute or two)\n"
 gpg_key_reset
 
 # parse name of generated key
-GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
+GPG_GEN_KEY=$(grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p')
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 
 if [ "$CUSTOM_PASS" != "" ]; then
@@ -457,7 +457,7 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error ; then
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
 # clear any existing heads/gpg files from current firmware
-for i in `cbfs -o /tmp/oem-setup.rom -l | grep -e "heads/"`; do
+for i in $(cbfs -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
     cbfs -o /tmp/oem-setup.rom -d $i
 done
 # add heads/gpg files to current firmware

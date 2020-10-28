@@ -18,7 +18,7 @@ fi
 
 if [ -r "$TMP_KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=`cat $TMP_KEY_LVM`
+	VOLUME_GROUP=$(cat $TMP_KEY_LVM)
 	if [ -z "$TMP_KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
@@ -74,7 +74,7 @@ dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 
 if [ "$unseal_failed" = "n" ]; then
 	# overwrite /etc/crypttab to mirror the behavior for in seal-key
-	for uuid in `cut -d\  -f2 "$TMP_KEY_DEVICES"`; do
+	for uuid in $(cut -d\  -f2 "$TMP_KEY_DEVICES"); do
 		echo "luks-$uuid UUID=$uuid /secret.key" >> "$INITRD_DIR/etc/crypttab"
 	done
 	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"

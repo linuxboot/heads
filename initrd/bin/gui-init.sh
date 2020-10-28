@@ -127,11 +127,11 @@ clean_boot_check()
   fi
 
   # check for any kexec files in /boot
-  kexec_files=`find /boot -name kexec*.txt`
+  kexec_files=$(find /boot -name kexec*.txt)
   [ ! -z "$kexec_files" ] && return
 
   #check for GPG key in keyring
-  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+  GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
   [ $GPG_KEY_COUNT -ne 0 ] && return
 
    # check for USB security token
@@ -170,7 +170,7 @@ while true; do
   MAIN_MENU_BG_COLOR=""
   unset totp_confirm
   # detect whether any GPG keys exist in the keyring, if not, initialize that first
-  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+  GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
@@ -183,14 +183,14 @@ while true; do
   fi
   if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
     # update the TOTP code every thirty seconds
-    date=`date "+%Y-%m-%d %H:%M:%S"`
-    seconds=`date "+%s"`
+    date=$(date "+%Y-%m-%d %H:%M:%S")
+    seconds=$(date "+%s")
     half=$(((seconds % 60 ) / 30))
     if [ "$CONFIG_TPM" = n ]; then
       TOTP="NO TPM"
     elif [ "$half" != "$last_half" ]; then
       last_half=$half;
-      TOTP=`unseal-totp`
+      TOTP=$(unseal-totp)
       if [ $? -ne 0 ]; then
         whiptail $BG_COLOR_ERROR --clear --title "ERROR: TOTP Generation Failed!" \
           --menu "    ERROR: Heads couldn't generate the TOTP code.\n
@@ -213,7 +213,7 @@ while true; do
 
   if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
     if [ -x /bin/hotp_verification ]; then
-      HOTP=`unseal-hotp`
+      HOTP=$(unseal-hotp)
       enable_usb
       if ! hotp_verification info ; then
         whiptail $BG_COLOR_WARNING --clear \
@@ -431,7 +431,7 @@ while true; do
     if [ $? -ne 0 ]; then
       continue
     fi
-    DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
+    DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)
     if [ -r "$DEFAULT_FILE" ]; then
       kexec-select-boot -b /boot -c "grub.cfg" -g \
       || recovery "Failed default boot"

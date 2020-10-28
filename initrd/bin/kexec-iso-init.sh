@@ -24,7 +24,7 @@ echo '+++ Mounting ISO and booting'
 mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot \
 	|| die '$MOUNTED_ISO_PATH: Unable to mount /boot'
 
-DEV_UUID=`blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2`
+DEV_UUID=$(blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
 ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH iso-scan/filename=/${ISO_PATH}"
 REMOVE=""
 
@@ -33,13 +33,13 @@ check_config $paramsdir
 
 ADD_FILE=/tmp/kexec/kexec_iso_add.txt
 if [ -r $ADD_FILE ]; then
-	NEW_ADD=`cat $ADD_FILE`
+	NEW_ADD=$(cat $ADD_FILE)
 	ADD=$(eval "echo \"$NEW_ADD\"")
 	echo "+++ Overriding standard ISO kernel add arguments: $ADD"
 fi
 REMOVE_FILE=/tmp/kexec/kexec_iso_remove.txt
 if [ -r $REMOVE_FILE ]; then
-	NEW_REMOVE=`cat $REMOVE_FILE`
+	NEW_REMOVE=$(cat $REMOVE_FILE)
 	REMOVE=$(eval "echo \"$NEW_REMOVE\"")
 	echo "+++ Overriding standard ISO kernel remove arguments: $REMOVE"
 fi

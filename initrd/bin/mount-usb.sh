@@ -22,7 +22,7 @@ if [ ! -d /media ]; then
 fi
 
 stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-if [ -z `cat /tmp/usb_block_devices` ]; then
+if [ -z $(cat /tmp/usb_block_devices) ]; then
   if [ -x /bin/whiptail ]; then
     whiptail --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
@@ -32,7 +32,7 @@ if [ -z `cat /tmp/usb_block_devices` ]; then
   fi
   sleep 1
   stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
-  if [ -z `cat /tmp/usb_block_devices` ]; then
+  if [ -z $(cat /tmp/usb_block_devices) ]; then
     if [ -x /bin/whiptail ]; then
       whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
@@ -45,22 +45,24 @@ fi
 
 USB_MOUNT_DEVICE=""
 # Check for the common case: a single USB disk with one partition
-if [ `wc -l /tmp/usb_block_devices` -eq 1 ]; then
-  USB_BLOCK_DEVICE=`cat /tmp/usb_block_devices`
+if [ $(wc -l /tmp/usb_block_devices) -eq 1 ]; then
+  USB_BLOCK_DEVICE=$(cat /tmp/usb_block_devices)
   # Subtract out block device
-  let USB_NUM_PARTITIONS=`ls -1 ${USB_BLOCK_DEVICE}* | wc -l`-1
+  USB_BLOCK_DEVICE_COUNT=$(find "$USB_BLOCK_DEVICE*" | wc -l)
+  let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
   if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
     USB_MOUNT_DEVICE=${USB_BLOCK_DEVICE}
   elif [ ${USB_NUM_PARTITIONS} -eq 1 ]; then
-    USB_MOUNT_DEVICE=`ls -1 ${USB_BLOCK_DEVICE}* | tail -n1`
+    USB_MOUNT_DEVICE=$(find "$USB_BLOCK_DEVICE*" | tail -n1)
   fi
 fi
 # otherwise, let the user pick
 if [ -z ${USB_MOUNT_DEVICE} ]; then
   > /tmp/usb_disk_list
-  for i in `cat /tmp/usb_block_devices`; do
+  for i in $(cat /tmp/usb_block_devices); do
     # remove block device from list if numeric partitions exist, since not bootable
-    let USB_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
+    USB_BLOCK_DEVICE_COUNT=$(find "$i*" | wc -l)
+    let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
     if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
       echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
     else
@@ -104,7 +106,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
   if [ "$option_index" = "a" ]; then
     exit 5
   fi
-  USB_MOUNT_DEVICE=`head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//'`
+  USB_MOUNT_DEVICE=$(head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
 fi
 
 if [ "$1" = "rw" ]; then

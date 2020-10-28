@@ -51,7 +51,7 @@ fi
 
 rm -f $paramsdir/kexec_key_devices.txt || true
 for dev in $key_devices; do
-	uuid=`cryptsetup luksUUID "$dev" 2>/dev/null` \
+	uuid=$(cryptsetup luksUUID "$dev" 2>/dev/null) \
 	|| die "Failed to get UUID for device $dev"
 	echo "$dev $uuid" >> $paramsdir/kexec_key_devices.txt \
 	|| die "Failed to add $dev:$uuid to key devices config"

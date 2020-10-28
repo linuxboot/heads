@@ -37,7 +37,7 @@ if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
 fi
 
-entry=`head -n $index $TMP_MENU_FILE | tail -1`
+entry=$(head -n $index $TMP_MENU_FILE | tail -1)
 if [ -z "$entry" ]; then
 	die "Invalid menu index $index"
 fi
@@ -70,11 +70,11 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			-o "$change_key_confirm" = "Y" ]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
-				old_lvm_volume_group=`cat $KEY_LVM` || true
-				old_key_devices=`cut -d\  -f1 $KEY_DEVICES | grep -v "$old_lvm_volume_group" \
-				| xargs` || true
+				old_lvm_volume_group=$(cat $KEY_LVM) || true
+				old_key_devices=$(cut -d\  -f1 $KEY_DEVICES | grep -v "$old_lvm_volume_group" \
+				| xargs) || true
 			else
-				old_key_devices=`cut -d\  -f1 $KEY_DEVICES | xargs` || true
+				old_key_devices=$(cut -d\  -f1 $KEY_DEVICES | xargs) || true
 			fi
 
 			lvm_suggest="was '$old_lvm_volume_group'"

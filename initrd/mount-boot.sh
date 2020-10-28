@@ -22,7 +22,7 @@ fi
 # Find the size of the device
 # Is there a better way?
 #
-dev_size_file="/sys/class/block/`basename $dev`/size"
+dev_size_file="/sys/class/block/$(basename $dev)/size"
 if [ ! -r "$dev_size_file" ]; then
 	echo >&2 '!!!!!'
 	echo >&2 '!!!!! $dev file $dev_size_file not found'
@@ -31,7 +31,7 @@ if [ ! -r "$dev_size_file" ]; then
 	exit -1
 fi
 
-dev_blocks=`cat "$dev_size_file"`
+dev_blocks=$(cat "$dev_size_file")
 
 #
 # Extract the signed file from the hard disk image

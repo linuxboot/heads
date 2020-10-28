@@ -29,7 +29,7 @@ file_selector()
   MENU_TITLE=${3:-"Select your File"}
 
   # create file menu options
-  if [ `wc -l "$FILE_LIST"` -gt 0 ]; then
+  if [ $(wc -l "$FILE_LIST") -gt 0 ]; then
     option=""
     while [ -z "$option" ]
     do
@@ -55,7 +55,7 @@ file_selector()
         return
       fi
 
-      option=`head -n $option_index $FILE_LIST | tail -1`
+      option=$(head -n $option_index $FILE_LIST | tail -1)
       if [ "$option" == "a" ]; then
         return
       fi

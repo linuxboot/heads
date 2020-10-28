@@ -25,8 +25,8 @@ fi
 
 bootdir="${bootdir%%/}"
 
-kexectype=`echo $entry | cut -d\| -f2`
-kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
+kexectype=$(echo $entry | cut -d\| -f2)
+kexecparams=$(echo $entry | cut -d\| -f3- | tr '|' '\n')
 kexeccmd="kexec"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
@@ -62,9 +62,9 @@ adjust_cmd_line() {
 module_number="1"
 while read line
 do
-	key=`echo $line | cut -d\  -f1`
-	firstval=`echo $line | cut -d\  -f2`
-	restval=`echo $line | cut -d\  -f3-`
+	key=$(echo $line | cut -d\  -f1)
+	firstval=$(echo $line | cut -d\  -f2)
+	restval=$(echo $line | cut -d\  -f3-)
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
 		if [ "$kexectype" = "xen" ]; then

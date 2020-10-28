@@ -59,14 +59,14 @@ confirm_totp()
 	while true; do
 
 		# update the TOTP code every thirty seconds
-		date=`date "+%Y-%m-%d %H:%M:%S"`
-		seconds=`date "+%s"`
+		date=$(date "+%Y-%m-%d %H:%M:%S")
+		seconds=$(date "+%s")
 		half=$(((seconds % 60 ) / 30))
 		if [ "$CONFIG_TPM" != y ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then
 			last_half=$half;
-			TOTP=`unseal-totp` \
+			TOTP=$(unseal-totp) \
 			|| recovery "TOTP code generation failed"
 		fi
 
@@ -173,7 +173,7 @@ check_tpm_counter()
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
-		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
+		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
 		warn "$1 does not exist; creating new TPM counter"
 		read -s -p "TPM Owner password: " tpm_password
@@ -184,7 +184,7 @@ check_tpm_counter()
 			-la $LABEL \
 		| tee /tmp/counter \
 		|| die "Unable to create TPM counter"
-		TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+		TPM_COUNTER=$(cut -d: -f1 < /tmp/counter)
 	fi
 
 	if [ -z "$TPM_COUNTER" ]; then
@@ -218,12 +218,12 @@ check_config() {
 		return
 	fi
 
-	if [ `find $1/kexec*.txt | wc -l` -eq 0 ]; then
+	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
-		if ! sha256sum `find $1/kexec*.txt` | gpgv $1/kexec.sig - ; then
+		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig - ; then
 			die 'Invalid signature on kexec boot params'
 		fi
 	fi
@@ -235,10 +235,10 @@ check_config() {
 
 preserve_rom() {
 	new_rom="$1"
-	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
 
-	for old_file in `echo $old_files`; do
-		new_file=`cbfs -o $1 -l | grep -x $old_file`
+	for old_file in $(echo $old_files); do
+		new_file=$(cbfs -o $1 -l | grep -x $old_file)
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $1"
 			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
@@ -316,9 +316,10 @@ detect_boot_device()
 
 	# filter out extraneous options
 	> /tmp/boot_device_list
-	for i in `cat /tmp/disklist`; do
+	for i in $(cat /tmp/disklist); do
 		# remove block device from list if numeric partitions exist, since not bootable
-		DEV_NUM_PARTITIONS=$((`ls -1 $i* | wc -l`-1))
+		DEV_PARTITIONS=$(find $i* | wc -l)
+		DEV_NUM_PARTITIONS=$((DEV_PARTITIONS-1))
 		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
 			echo $i >> /tmp/boot_device_list
 		else
@@ -327,7 +328,7 @@ detect_boot_device()
 	done
 
 	# iterate thru possible options and check for grub dir
-	for i in `cat /tmp/boot_device_list`; do
+	for i in $(cat /tmp/boot_device_list); do
 		umount /boot 2>/dev/null
 		if mount -o ro $i /boot >/dev/null 2>&1; then
 			if ls -d /boot/grub* >/dev/null 2>&1; then

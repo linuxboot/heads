@@ -25,7 +25,7 @@ dd \
 	2>/dev/null \
 || die "Unable to generate 20 random bytes"
 
-secret="`base32 < $TOTP_SECRET`"
+secret=$(base32 < $TOTP_SECRET)
 
 # Use the current values of the PCRs, which will be read
 # from the TPM as part of the sealing ("X").

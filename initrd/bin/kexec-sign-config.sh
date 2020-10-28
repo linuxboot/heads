@@ -60,7 +60,7 @@ if [ "$rollback" = "y" ]; then
 	|| die "$paramsdir: Unable to create rollback file"
 fi
 
-param_files=`find $paramsdir/kexec*.txt`
+param_files=$(find $paramsdir/kexec*.txt)
 if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi

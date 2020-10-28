@@ -68,7 +68,7 @@ verify_global_hashes()
 
 verify_rollback_counter()
 {
-	TPM_COUNTER=`grep counter $TMP_ROLLBACK_FILE | cut -d- -f2`
+	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
 	fi
@@ -84,7 +84,7 @@ verify_rollback_counter()
 
 first_menu="y"
 get_menu_option() {
-	num_options=`wc -l $TMP_MENU_FILE`
+	num_options=$(wc -l $TMP_MENU_FILE)
 	if [ $num_options -eq 0 ]; then
 		die "No boot options"
 	fi
@@ -129,7 +129,7 @@ get_menu_option() {
 	fi
 	first_menu="n"
 
-	option=`head -n $option_index $TMP_MENU_FILE | tail -1`
+	option=$(head -n $option_index $TMP_MENU_FILE | tail -1)
 	parse_option
 }
 
@@ -154,22 +154,22 @@ confirm_menu_option() {
 }
 
 parse_option() {
-	name=`echo $option | cut -d\| -f1`
-	kernel=`echo $option | cut -d\| -f3`
+	name=$(echo $option | cut -d\| -f1)
+	kernel=$(echo $option | cut -d\| -f3)
 }
 
 scan_options() {
 	echo "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
 	if [ -r $option_file ]; then rm $option_file; fi
-	for i in `find $bootdir -name "$config"`; do
+	for i in $(find $bootdir -name "$config"); do
 		kexec-parse-boot "$bootdir" "$i" >> $option_file
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
 	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in `find $bootdir -name "$config"`; do
+		for i in $(find $bootdir -name "$config"); do
 			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
 		done
 	fi
@@ -215,11 +215,11 @@ default_select() {
 	# Attempt boot with expected parameters
 
 	# Check that entry matches that which is expected from menu
-	default_index=`basename "$TMP_DEFAULT_FILE" | cut -d. -f 2`
+	default_index=$(basename "$TMP_DEFAULT_FILE" | cut -d. -f 2)
 
 	# Check to see if entries have changed - useful for detecting grub update
-	expectedoption=`cat $TMP_DEFAULT_FILE`
-	option=`head -n $default_index $TMP_MENU_FILE | tail -1`
+	expectedoption=$(cat $TMP_DEFAULT_FILE)
+	option=$(head -n $default_index $TMP_MENU_FILE | tail -1)
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \
@@ -296,7 +296,7 @@ do_boot()
 
 	if [ "$CONFIG_TPM" = "y" \
 		-a -r "$TMP_KEY_DEVICES" ]; then
-		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
+		INITRD=$(kexec-boot -b "$bootdir" -e "$option" -i) \
 		|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
 			die "!!! No initrd file found in boot option"
@@ -320,7 +320,7 @@ while true; do
 	else
 	  check_config $paramsdir
 	fi
-	TMP_DEFAULT_FILE=`find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1` || true
+	TMP_DEFAULT_FILE=$(find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1) || true
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_DEFAULT_HASH_FILE="/tmp/kexec/kexec_default_hashes.txt"
