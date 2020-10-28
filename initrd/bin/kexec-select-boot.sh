@@ -2,7 +2,7 @@
 # Generic configurable boot script via kexec
 set -e -o pipefail
 . /tmp/config
-. /etc/functions
+. /etc/functions.sh
 
 add=""
 remove=""

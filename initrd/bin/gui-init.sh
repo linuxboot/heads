@@ -6,7 +6,7 @@ MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 mount_boot()

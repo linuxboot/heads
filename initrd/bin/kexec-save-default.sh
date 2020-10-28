@@ -2,7 +2,7 @@
 # Save these options to be the persistent default
 set -e -o pipefail
 . /tmp/config
-. /etc/functions
+. /etc/functions.sh
 
 while getopts "b:d:p:i:" arg; do
 	case $arg in

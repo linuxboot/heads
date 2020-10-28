@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 
 # Update initrd with CBFS files
 if [ -z "$CONFIG_PCR" ]; then

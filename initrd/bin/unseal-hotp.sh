@@ -1,7 +1,7 @@
 #!/bin/bash
 # Retrieve the sealed file and counter from the NVRAM, unseal it and compute the hotp
 
-. /etc/functions
+. /etc/functions.sh
 
 HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"

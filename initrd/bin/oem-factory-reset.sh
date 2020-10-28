@@ -28,7 +28,7 @@ SKIP_BOOT="n"
 
 ## External files sourced
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 ## functions

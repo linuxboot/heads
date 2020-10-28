@@ -7,7 +7,7 @@ set -e -o pipefail
 TPM_INDEX=3
 TPM_SIZE=312
 
-. /etc/functions
+. /etc/functions.sh
 mkdir -p /tmp/secret
 
 sealed_file="/tmp/secret/sealed.key"

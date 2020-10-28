@@ -2,7 +2,7 @@
 # Launches kexec from saved configuration entries
 set -e -o pipefail
 . /tmp/config
-. /etc/functions
+. /etc/functions.sh
 
 dryrun="n"
 printfiles="n"

@@ -10,7 +10,7 @@ KEY_FILE="/tmp/secret/secret.key"
 TPM_SEALED="/tmp/secret/secret.sealed"
 RECOVERY_KEY="/tmp/secret/recovery.key"
 
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 paramsdir=$1

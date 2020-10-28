@@ -41,7 +41,7 @@ fi
 hwclock -l -s
 
 # Read the system configuration parameters
-. /etc/functions
+. /etc/functions.sh
 . /etc/config
 
 if [ "$CONFIG_COREBOOT" = "y" ]; then

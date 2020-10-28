@@ -1,5 +1,5 @@
 #!/bin/bash
-. /etc/functions
+. /etc/functions.sh
 
 echo '*****'
 echo '***** WARNING: This will erase all keys and secrets from the TPM'

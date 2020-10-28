@@ -5,7 +5,7 @@
 # Pass in a hostname if you want to change it from the default string
 #
 
-. /etc/functions
+. /etc/functions.sh
 
 TPM_NVRAM_SPACE=4d47
 
