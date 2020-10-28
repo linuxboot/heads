@@ -47,13 +47,13 @@ echo_entry() {
 			entry="$entry|append $append"
 		fi
 
-		echo $(eval "echo \"$entry\"")
+		echo "$entry"
 	fi
 	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
 		fix_path $kernel
-		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
+		echo eval "$name|$kexectype|kernel $path$modules"
 	fi
 }
 
