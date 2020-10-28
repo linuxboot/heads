@@ -5,12 +5,12 @@
 enable_usb
 
 if ! lsmod | grep -q usb_storage; then
-  count=$(ls /dev/sd* 2>/dev/null | wc -l)
+  count=$(find /dev/sd* 2>/dev/null | wc -l)
   timeout=0
   echo "Scanning for USB storage devices..."
   insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
   || die "usb_storage: module load failed"
-  while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do
+  while [[ $count == $(find /dev/sd* 2>/dev/null | wc -l) ]]; do
     [[ $timeout -ge 4 ]] && break
     sleep 1
     timeout=$((timeout+1))
@@ -66,7 +66,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
       echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
     else
-      for j in $(ls $i* | tail -${USB_NUM_PARTITIONS}); do
+      for j in $(find $i* | tail -${USB_NUM_PARTITIONS}); do
         echo $j $(blkid | grep $j | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
       done
     fi

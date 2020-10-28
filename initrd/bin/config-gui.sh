@@ -41,7 +41,7 @@ while true; do
         if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
           echo $i >> /tmp/boot_device_list.txt
         else
-          ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
+          find $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
         fi
       done
       file_selector "/tmp/boot_device_list.txt" \

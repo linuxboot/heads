@@ -304,7 +304,7 @@ detect_boot_device()
 	# check $CONFIG_BOOT_DEV if set/valid
 	if [ -e "$CONFIG_BOOT_DEV" ]; then
 		if mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1; then
-			if ls -d /boot/grub* >/dev/null 2>&1; then
+			if find -d /boot/grub* >/dev/null 2>&1; then
 				# CONFIG_BOOT_DEV is valid device and contains an installed OS
 				return 0
 			fi
@@ -323,7 +323,7 @@ detect_boot_device()
 		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
 			echo $i >> /tmp/boot_device_list
 		else
-			ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
+			find $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
 		fi
 	done
 
@@ -331,7 +331,7 @@ detect_boot_device()
 	for i in $(cat /tmp/boot_device_list); do
 		umount /boot 2>/dev/null
 		if mount -o ro $i /boot >/dev/null 2>&1; then
-			if ls -d /boot/grub* >/dev/null 2>&1; then
+			if find -d /boot/grub* >/dev/null 2>&1; then
 				CONFIG_BOOT_DEV="$i"
 				return 0
 			fi
