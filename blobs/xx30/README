@@ -6,17 +6,18 @@ wget https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe && innoextract g1rg
 sha256sums:
 f60e1990e2da2b7efa58a645502d22d50afd97b53a092781beee9b0322b61153  g1rg24ww.exe
 821c6fa16e62e15bc902ce2e958ffb61f63349a471685bed0dc78ce721a01bfa  app/ME8_5M_Production.bin
-c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  blobs/x230/me.bin
+c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  blobs/xx30/me.bin
 
 x230-ifd.bin is extracted from an external flashrom backup (no way found to be able to extract it from Lenovo firmware upgrades as of now):
-python ~/me_cleaner/me_cleaner.py -S -r -t -d -O discarded.bin -D ~/haeds/blobs/xx30/x230-ifd.bin -M temporary_me.bin x230_bottom_spi_backup.rom
+python ~/me_cleaner/me_cleaner.py -S -r -t -d -O /tmp/discarded.bin -D ~/heads/blobs/xx30/ifd.bin -M /tmp/temporary_me.bin dead_serving_a_purpose_x230_bottom_spi_backup.rom
 
 sha256sum:
-68c1e9be8e2f99b2432e86219515f7f2fea61a4d00c7f9ea936d76d9dab2869b  blobs/x230/x230-ifd.bin
+c96d19bbf5356b2b827e1ef52d79d0010884bfc889eab48835e4af9a634d129b  ifd.bin
 
-ls -al blobs/x230/*.bin
--rw-r--r-- 1 user user  4096 Mar 15 12:55 blobs/x230/x230-ifd.bin
--rw-r--r-- 1 user user 98304 Mar 15 14:33 blobs/x230/me.bin
+ls -al blobs/xx30/*.bin
+-rw-r--r-- 1 user user  8192 Oct 25 14:07 gbe.bin
+-rw-r--r-- 1 user user  4096 Oct 28 16:19 ifd.bin
+-rw-r--r-- 1 user user 98304 Oct 28 16:15 me.bin
 
 blobs/x230/gbe.bin is generated per bincfg from the following coreboot patch: https://review.coreboot.org/c/coreboot/+/44510 
 And then by following those instructions:
