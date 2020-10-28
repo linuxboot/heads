@@ -316,7 +316,8 @@ detect_boot_device()
 
 	# filter out extraneous options
 	> /tmp/boot_device_list
-	for i in $(cat /tmp/disklist); do
+	DISK_LIST=$(cat /tmp/disklist)
+	for i in $DISK_LIST; do
 		# remove block device from list if numeric partitions exist, since not bootable
 		DEV_PARTITIONS=$(find $i* | wc -l)
 		DEV_NUM_PARTITIONS=$((DEV_PARTITIONS-1))
@@ -328,7 +329,8 @@ detect_boot_device()
 	done
 
 	# iterate thru possible options and check for grub dir
-	for i in $(cat /tmp/boot_device_list); do
+	BOOT_DEVICES=$(cat /tmp/boot_device_list)
+	for i in $BOOT_DEVICES; do
 		umount /boot 2>/dev/null
 		if mount -o ro $i /boot >/dev/null 2>&1; then
 			if find -d /boot/grub* >/dev/null 2>&1; then

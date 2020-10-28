@@ -61,7 +61,8 @@ dd \
 || die "Unable to generate 128 random bytes"
 
 # Remove all the old keys from slot 1
-for dev in $(cut -d\  -f1 "$KEY_DEVICES"); do
+DEVICES=$(cut -d\  -f1 "$KEY_DEVICES")
+for dev in $DEVICES; do
 	echo "++++++ $dev: Removing old key slot"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \

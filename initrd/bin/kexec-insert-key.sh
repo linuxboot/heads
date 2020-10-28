@@ -74,7 +74,8 @@ dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 
 if [ "$unseal_failed" = "n" ]; then
 	# overwrite /etc/crypttab to mirror the behavior for in seal-key
-	for uuid in $(cut -d\  -f2 "$TMP_KEY_DEVICES"); do
+	UUIDS=$(cut -d\  -f2 "$TMP_KEY_DEVICES")
+	for uuid in $UUIDS; do
 		echo "luks-$uuid UUID=$uuid /secret.key" >> "$INITRD_DIR/etc/crypttab"
 	done
 	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
