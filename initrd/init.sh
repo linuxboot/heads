@@ -115,7 +115,7 @@ else
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
 		echo '***** Normal boot:' "$CONFIG_BOOTSCRIPT"
-		exec "$CONFIG_BOOTSCRIPT"
+		"$CONFIG_BOOTSCRIPT"
 
 		# We should never reach here, but just in case...
 		recovery 'Boot script failure?  Entering recovery shell'
