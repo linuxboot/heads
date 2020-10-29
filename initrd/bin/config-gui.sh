@@ -8,7 +8,7 @@ set -e -o pipefail
 param=$1
 
 while true; do
-  if [ ! -z "$param" ]; then
+  if [ -n "$param" ]; then
     # use first char from parameter
     menu_choice=${param::1}
     unset param

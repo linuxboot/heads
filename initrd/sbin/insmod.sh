@@ -33,7 +33,7 @@ if [ -z "$tpm_missing" ]; then
 	|| die "$MODULE: tpm extend failed"
 fi
 
-if [ ! -z "$*" ] && [ -z "$tpm_missing" ]; then
+if [ -n "$*" ] && [ -z "$tpm_missing" ]; then
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
 	tpm extend -ix "$MODULE_PCR" -if $TMPFILE \
