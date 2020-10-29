@@ -110,10 +110,10 @@ while true; do
           exit 1
         fi
         # clear local keyring
-        rm /.gnupg/* | true
+        rm /.gnupg/* || true
         # clear /boot signatures/checksums
         mount -o remount,rw /boot
-        rm /boot/kexec* | true
+        rm /boot/kexec* || true
         mount -o remount,ro /boot
         # clear GPG keys and user settings
         for i in $(cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"); do
