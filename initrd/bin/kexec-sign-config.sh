@@ -30,7 +30,7 @@ if [ "$update" = "y" ]; then
 		find ./ -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum > /boot/kexec_hashes.txt
 		if [ -e /boot/kexec_default_hashes.txt ]; then
 			DEFAULT_FILES=$(cut -f3 -d ' '  /boot/kexec_default_hashes.txt)
-			echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+			echo "$DEFAULT_FILES" | xargs sha256sum > /boot/kexec_default_hashes.txt
 		fi
 	)
 
@@ -44,37 +44,37 @@ if [ "$rollback" = "y" ]; then
 
 	if [ -n "$counter" ]; then
 		# use existing counter
-		read_tpm_counter $counter \
+		read_tpm_counter "$counter" \
 		|| die "$paramsdir: Unable to read tpm counter '$counter'"
 	else
 		# increment counter
-		check_tpm_counter $rollback_file \
+		check_tpm_counter "$rollback_file" \
 		|| die "$paramsdir: Unable to find/create tpm counter"
 		counter="$TPM_COUNTER"
 
-		increment_tpm_counter $counter \
+		increment_tpm_counter "$counter" \
 		|| die "$paramsdir: Unable to increment tpm counter"
 	fi
 
-	sha256sum /tmp/counter-$counter > $rollback_file \
+	sha256sum "/tmp/counter-$counter" > "$rollback_file" \
 	|| die "$paramsdir: Unable to create rollback file"
 fi
 
-param_files=$(find $paramsdir/kexec*.txt)
+param_files=$(find "$paramsdir/kexec*.txt")
 if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
 
 tries=3
 while [ $((tries)) -gt 0 ]; do
-	if sha256sum $param_files | gpg \
+	if sha256sum "$param_files" | gpg \
 		--digest-algo SHA256 \
 		--detach-sign \
 		-a \
-		> $paramsdir/kexec.sig \
+		> "$paramsdir/kexec.sig" \
 	; then
 		# successful - update the validated params
-		check_config $paramsdir
+		check_config "$paramsdir"
 		exit 0
 	fi
 	tries=$((tries-1))

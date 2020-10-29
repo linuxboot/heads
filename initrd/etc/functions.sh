@@ -182,7 +182,7 @@ check_tpm_counter()
 		tpm counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \
-			-la $LABEL \
+			-la "$LABEL" \
 		| tee /tmp/counter \
 		|| die "Unable to create TPM counter"
 		TPM_COUNTER=$(cut -d: -f1 < /tmp/counter)
@@ -202,7 +202,7 @@ read_tpm_counter()
 increment_tpm_counter()
 {
 	tpm counter_increment -ix "$1" -pwdc '' \
-		| tee /tmp/counter-$1 \
+		| tee "/tmp/counter-$1" \
 	|| die "Counter increment failed"
 }
 
@@ -215,7 +215,7 @@ check_config() {
 		|| die 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig ]; then
+	if [ ! -r "$1/kexec.sig" ]; then
 		return
 	fi
 
@@ -232,7 +232,7 @@ check_config() {
 	fi
 
 	echo "+++ Found verified kexec boot params"
-	cp $1/kexec*.txt /tmp/kexec \
+	cp "$1/kexec*.txt" /tmp/kexec \
 	|| die "Failed to copy kexec boot params to tmp"
 }
 
@@ -240,13 +240,13 @@ preserve_rom() {
 	new_rom="$1"
 	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
 
-	for old_file in $(echo $old_files); do
-		new_file=$(cbfs -o "$new_rom" -l | grep -x $old_file)
+	for old_file in $(echo "$old_files"); do
+		new_file=$(cbfs -o "$new_rom" -l | grep -x "$old_file")
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $new_rom"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
+			cbfs -t 50 -r "$old_file" >/tmp/rom.$$ \
 			|| die "Failed to read cbfs file from ROM"
-			cbfs -o "$new_rom" -a $old_file -f /tmp/rom.$$ \
+			cbfs -o "$new_rom" -a "$old_file" -f /tmp/rom.$$ \
 			|| die "Failed to write cbfs file to new ROM file"
 		fi
 	done
@@ -256,15 +256,15 @@ replace_config() {
 	CONFIG_OPTION=$2
 	NEW_SETTING=$3
 
-	touch $CONFIG_FILE
+	touch "$CONFIG_FILE"
 # first pull out the existing option from the global config and place in a tmp file
-	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config > ${CONFIG_FILE}.tmp
-	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >> ${CONFIG_FILE}.tmp
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config > "${CONFIG_FILE}.tmp"
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >> "${CONFIG_FILE}.tmp"
 
 # then copy any remaining settings from the existing config file, minus the option you changed
-	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
-  sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
-	rm -f ${CONFIG_FILE}.tmp
+	grep -v "^export ${CONFIG_OPTION}=" "${CONFIG_FILE}" | grep -v "^${CONFIG_OPTION}=" >> "${CONFIG_FILE}.tmp" || true
+  sort "${CONFIG_FILE}.tmp" | uniq > "${CONFIG_FILE}"
+	rm -f "${CONFIG_FILE}.tmp"
 }
 combine_configs() {
 	cat /etc/config* > /tmp/config
@@ -306,7 +306,7 @@ detect_boot_device()
 
 	# check $CONFIG_BOOT_DEV if set/valid
 	if [ -e "$CONFIG_BOOT_DEV" ]; then
-		if mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1; then
+		if mount -o ro "$CONFIG_BOOT_DEV" /boot >/dev/null 2>&1; then
 			if find -d /boot/grub* >/dev/null 2>&1; then
 				# CONFIG_BOOT_DEV is valid device and contains an installed OS
 				return 0
@@ -322,12 +322,12 @@ detect_boot_device()
 	DISK_LIST=$(cat /tmp/disklist)
 	for i in $DISK_LIST; do
 		# remove block device from list if numeric partitions exist, since not bootable
-		DEV_PARTITIONS=$(find $i* | wc -l)
+		DEV_PARTITIONS=$(find "$i*" | wc -l)
 		DEV_NUM_PARTITIONS=$((DEV_PARTITIONS-1))
 		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-			echo $i >> /tmp/boot_device_list
+			echo "$i" >> /tmp/boot_device_list
 		else
-			find $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
+			find "$i*" | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list
 		fi
 	done
 
@@ -335,7 +335,7 @@ detect_boot_device()
 	BOOT_DEVICES=$(cat /tmp/boot_device_list)
 	for i in $BOOT_DEVICES; do
 		umount /boot 2>/dev/null
-		if mount -o ro $i /boot >/dev/null 2>&1; then
+		if mount -o ro "$i" /boot >/dev/null 2>&1; then
 			if find -d /boot/grub* >/dev/null 2>&1; then
 				CONFIG_BOOT_DEV="$i"
 				return 0

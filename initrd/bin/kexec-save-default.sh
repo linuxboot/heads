@@ -37,7 +37,7 @@ if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
 fi
 
-entry=$(head -n $index $TMP_MENU_FILE | tail -1)
+entry=$(head -n $((index)) $TMP_MENU_FILE | tail -1)
 if [ -z "$entry" ]; then
 	die "Invalid menu index $index"
 fi
@@ -70,11 +70,11 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			-o "$change_key_confirm" = "Y" ]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
-				old_lvm_volume_group=$(cat $KEY_LVM) || true
-				old_key_devices=$(cut -d\  -f1 $KEY_DEVICES | grep -v "$old_lvm_volume_group" \
+				old_lvm_volume_group=$(cat "$KEY_LVM") || true
+				old_key_devices=$(cut -d\  -f1 "$KEY_DEVICES" | grep -v "$old_lvm_volume_group" \
 				| xargs) || true
 			else
-				old_key_devices=$(cut -d\  -f1 $KEY_DEVICES | xargs) || true
+				old_key_devices=$(cut -d\  -f1 "$KEY_DEVICES" | xargs) || true
 			fi
 
 			lvm_suggest="was '$old_lvm_volume_group'"
@@ -105,25 +105,25 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			save_key_params="$save_key_params $key_devices"
 		fi
 		echo "Running kexec-save-key with params: $save_key_params"
-		kexec-save-key $save_key_params \
+		kexec-save-key "$save_key_params" \
 			|| die "Failed to save the disk key"
 	fi
 fi
 
 # try to switch to rw mode
-mount -o rw,remount $paramsdev
+mount -o rw,remount "$paramsdev"
 
-if [ ! -d $paramsdir ]; then
-	mkdir -p $paramsdir \
+if [ ! -d "$paramsdir" ]; then
+	mkdir -p "$paramsdir" \
 	|| die "Failed to create params directory"
 fi
-rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
-echo "$entry" > $ENTRY_FILE
-cd $bootdir
+rm "$paramsdir/kexec_default.*.txt" 2>/dev/null || true
+echo "$entry" > "$ENTRY_FILE"
+cd "$bootdir"
 kexec-boot -b "$bootdir" -e "$entry" -f | \
-	xargs sha256sum > $HASH_FILE \
+	xargs sha256sum > "$HASH_FILE" \
 || die "Failed to create hashes of boot files"
-if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
+if [ ! -r "$ENTRY_FILE" -o ! -r "$HASH_FILE" ]; then
 	die "Failed to write default config"
 fi
 
@@ -132,8 +132,8 @@ extparam=
 if [ "$CONFIG_TPM" = "y" ]; then
 	extparam=-r
 fi
-kexec-sign-config -p $paramsdir $extparam \
+kexec-sign-config -p "$paramsdir" $extparam \
 || die "Failed to sign default config"
 
 # switch back to ro mode
-mount -o ro,remount $paramsdev
+mount -o ro,remount "$paramsdev"

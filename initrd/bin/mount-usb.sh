@@ -36,7 +36,7 @@ if [ -z  "$USB_BLOCK_DEVICES" ]; then
   USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
   if [ -z "$USB_BLOCK_DEVICE" ]; then
     if [ -x /bin/whiptail ]; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
+      whiptail "$BG_COLOR_ERROR" --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
     else
       echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."
@@ -60,18 +60,18 @@ if [ $((USB_BLOCK_DEVICE_COUNT)) -eq 1 ]; then
   fi
 fi
 # otherwise, let the user pick
-if [ -z ${USB_MOUNT_DEVICE} ]; then
+if [ -z "$USB_MOUNT_DEVICE" ]; then
   > /tmp/usb_disk_list
   USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
   for i in $USB_BLOCK_DEVICES; do
     # remove block device from list if numeric partitions exist, since not bootable
     USB_BLOCK_DEVICE_COUNT=$(find "$i*" | wc -l)
     let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
-    if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
+    if [ $((USB_NUM_PARTITIONS)) -eq 0 ]; then
       BLK_LABELS=$(blkid | grep "$i" | grep -o 'LABEL=".*"' | cut -f2 -d '"')
       echo "$i $BLK_LABELS" >> /tmp/usb_disk_list
     else
-      for j in $(find $i* | tail -${USB_NUM_PARTITIONS}); do
+      for j in $(find "$i*" | tail -$((USB_NUM_PARTITIONS))); do
         BLK_LABELS=$(blkid | grep "$j" | grep -o 'LABEL=".*"' | cut -f2 -d '"')
         echo "$j $BLK_LABELS"  >> /tmp/usb_disk_list
       done
@@ -84,14 +84,14 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     while read option
     do
       n=$((n + 1))
-      option=$(echo $option | tr " " "_")
+      option=$(echo "$option" | tr " " "_")
       MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
     done < /tmp/usb_disk_list
 
     MENU_OPTIONS="$MENU_OPTIONS a Abort"
     whiptail --clear --title "Select your USB disk" \
       --menu "Choose your USB disk [1-$n, a to abort]:" 20 120 8 \
-      -- $MENU_OPTIONS \
+      -- "$MENU_OPTIONS" \
       2>/tmp/whiptail
 
     option_index=$(cat /tmp/whiptail)
@@ -112,11 +112,11 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
   if [ "$option_index" = "a" ]; then
     exit 5
   fi
-  USB_MOUNT_DEVICE=$(head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
+  USB_MOUNT_DEVICE=$(head -n $((option_index)) /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
 fi
 
 if [ "$1" = "rw" ]; then
-  mount -o rw $USB_MOUNT_DEVICE /media
+  mount -o rw "$USB_MOUNT_DEVICE" /media
 else
-  mount -o ro $USB_MOUNT_DEVICE /media
+  mount -o ro "$USB_MOUNT_DEVICE" /media
 fi

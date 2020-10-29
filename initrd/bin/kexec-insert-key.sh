@@ -22,7 +22,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 	if [ -z "$TMP_KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP \
+	lvm vgchange -a y "$VOLUME_GROUP" \
 		|| die "$VOLUME_GROUP: unable to activate volume group"
 fi
 

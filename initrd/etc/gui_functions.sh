@@ -43,14 +43,14 @@ file_selector()
       while read option
       do
         n=$((n + 1))
-        option=$(echo $option | tr " " "_")
+        option=$(echo "$option" | tr " " "_")
         MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-      done < $FILE_LIST
+      done < "$FILE_LIST"
 
       MENU_OPTIONS="$MENU_OPTIONS a Abort"
       whiptail --clear --title "${MENU_TITLE}" \
         --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
-        -- $MENU_OPTIONS \
+        -- "$MENU_OPTIONS" \
         2>/tmp/whiptail || die "Aborting"
 
       option_index=$(cat /tmp/whiptail)
@@ -60,7 +60,7 @@ file_selector()
         return
       fi
 
-      option=$(head -n $option_index $FILE_LIST | tail -1)
+      option=$(head -n $((option_index)) "$FILE_LIST" | tail -1)
       if [ "$option" == "a" ]; then
         return
       fi
@@ -71,7 +71,7 @@ file_selector()
 
     return "$FILE"
   else
-    whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
+    whiptail "$BG_COLOR_ERROR" --title 'ERROR: No Files Found' \
       --msgbox "No Files found matching the pattern. Aborting." 16 60
     exit 1
   fi

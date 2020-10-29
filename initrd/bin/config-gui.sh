@@ -37,12 +37,12 @@ while true; do
       DISK_LIST=$(cat /tmp/disklist.txt)
       for i in $DISK_LIST; do
         # remove block device from list if numeric partitions exist, since not bootable
-        DEV_PARITIONS=$(find $i* | wc -l)
+        DEV_PARITIONS=$(find "$i*" | wc -l)
         DEV_NUM_PARTITIONS=$((DEV_PARITIONS-1))
         if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-          echo $i >> /tmp/boot_device_list.txt
+          echo "$i" >> /tmp/boot_device_list.txt
         else
-          find $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
+          find "$i*" | tail -${DEV_NUM_PARTITIONS} >> /tmp/boot_device_list.txt
         fi
       done
       FILE=$(file_selector "/tmp/boot_device_list.txt" \
@@ -59,9 +59,9 @@ while true; do
         umount /boot 2>/dev/null
       fi
       # mount newly selected /boot device
-      if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error ; then
+      if ! mount -o ro "$SELECTED_FILE" /boot 2>/tmp/error ; then
         ERROR=$(cat /tmp/error)
-        whiptail $BG_COLOR_ERROR --title 'ERROR: unable to mount /boot' \
+        whiptail "$BG_COLOR_ERROR" --title 'ERROR: unable to mount /boot' \
           --msgbox "    $ERROR\n\n" 16 60
         exit 1
       fi
@@ -75,7 +75,7 @@ while true; do
     "s" )
       /bin/flash.sh -r /tmp/config-gui.rom
       if [ ! -s /tmp/config-gui.rom ]; then
-        whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+        whiptail "$BG_COLOR_ERROR" --title 'ERROR: BIOS Read Failed!' \
           --msgbox "Unable to read BIOS" 16 60
         exit 1
       fi
@@ -105,7 +105,7 @@ while true; do
         # read current firmware
         /bin/flash.sh -r /tmp/config-gui.rom
         if [ ! -s /tmp/config-gui.rom ]; then
-          whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+          whiptail "$BG_COLOR_ERROR" --title 'ERROR: BIOS Read Failed!' \
             --msgbox "Unable to read BIOS" 16 60
           exit 1
         fi
@@ -117,7 +117,7 @@ while true; do
         mount -o remount,ro /boot
         # clear GPG keys and user settings
         for i in $(cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"); do
-          cbfs -o /tmp/config-gui.rom -d $i
+          cbfs -o /tmp/config-gui.rom -d "$i"
         done
         # flash cleared ROM
         /bin/flash.sh -c /tmp/config-gui.rom

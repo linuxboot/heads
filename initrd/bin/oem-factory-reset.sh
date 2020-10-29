@@ -49,7 +49,7 @@ whiptail_error()
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
-    whiptail --msgbox "${msg}\n\n" $WIDTH $HEIGHT $BG_COLOR_ERROR --title "Error"
+    whiptail --msgbox "${msg}\n\n" "$WIDTH $HEIGHT" "$BG_COLOR_ERROR" --title "Error"
 }
 
 whiptail_error_die()
@@ -81,13 +81,13 @@ gpg_key_reset()
         echo admin
         echo generate
         echo n
-        echo ${ADMIN_PIN_DEF}
-        echo ${USER_PIN_DEF}
+        echo "${ADMIN_PIN_DEF}"
+        echo "${USER_PIN_DEF}"
         echo 0
         echo y
-        echo ${GPG_USER_NAME}
-        echo ${GPG_USER_MAIL}
-        echo ${GPG_USER_COMMENT}
+        echo "${GPG_USER_NAME}"
+        echo "${GPG_USER_MAIL}"
+        echo "${GPG_USER_COMMENT}"
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
@@ -106,10 +106,10 @@ gpg_key_change_pin()
     {
         echo admin
         echo passwd
-        echo ${PIN_TYPE}
-        echo ${PIN_ORIG}
-        echo ${PIN_NEW}
-        echo ${PIN_NEW}
+        echo "${PIN_TYPE}"
+        echo "${PIN_ORIG}"
+        echo "${PIN_NEW}"
+        echo "${PIN_NEW}"
         echo q
         echo q
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
@@ -143,11 +143,11 @@ generate_checksums()
       TPM_COUNTER=$(cut -d: -f1 < /tmp/counter)
 
       # increment TPM counter
-      increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
+      increment_tpm_counter "$TPM_COUNTER" >/dev/null 2>&1 \
           || whiptail_error_die "Unable to increment tpm counter"
 
       # create rollback file
-      sha256sum /tmp/counter-$TPM_COUNTER > /boot/kexec_rollback.txt 2>/dev/null \
+      sha256sum "/tmp/counter-$TPM_COUNTER" > /boot/kexec_rollback.txt 2>/dev/null \
           || whiptail_error_die "Unable to create rollback file"
     else
       ## needs to exist for initial call to unseal-hotp
@@ -167,7 +167,7 @@ generate_checksums()
         && whiptail_error_die "No kexec parameter files to sign"
 
     # sign kexec boot files
-    if sha256sum $param_files 2>/dev/null | gpg \
+    if sha256sum "$param_files" 2>/dev/null | gpg \
             --pinentry-mode loopback \
             --passphrase "$USER_PIN_DEF" \
             --digest-algo SHA256 \
@@ -233,7 +233,7 @@ set_default_boot_option()
     index=$(grep -n "$entry" $option_file | cut -f1 -d ':')
 
     # write new config
-    echo "$entry" > /boot/kexec_default.$index.txt
+    echo "$entry" > "/boot/kexec_default.$index.txt"
 
     # validate boot option
     ( cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
@@ -270,7 +270,7 @@ $TPM_STR
           * Sign all of the files in /boot with the new GPG key\n\n
         It requires that you already have an OS installed on a\n
         dedicated /boot partition. Do you wish to continue?\n" \
-        $WIDTH $HEIGHT $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text" ; then
+        $WIDTH $HEIGHT "$CONTINUE" "$CANCEL" $CLEAR "$bg_color" --title "$title_text" ; then
     exit 1
 fi
 
@@ -386,8 +386,8 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
   echo -e "\nResetting TPM...\n"
   {
-      echo $TPM_PASS_DEF
-      echo $TPM_PASS_DEF
+      echo "$TPM_PASS_DEF"
+      echo "$TPM_PASS_DEF"
   } | /bin/tpm-reset >/dev/null 2>/tmp/error
   if [ $? -ne 0 ]; then
       ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -418,7 +418,7 @@ if [ "$CUSTOM_PASS" != "" ]; then
 fi
 
 # export pubkey to file
-if ! gpg --export --armor $GPG_GEN_KEY > "${PUBKEY}" 2>/tmp/error ; then
+if ! gpg --export --armor "$GPG_GEN_KEY" > "${PUBKEY}" 2>/tmp/error ; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
@@ -460,7 +460,7 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error ; then
 fi
 # clear any existing heads/gpg files from current firmware
 for i in $(cbfs -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
-    cbfs -o /tmp/oem-setup.rom -d $i
+    cbfs -o /tmp/oem-setup.rom -d "$i"
 done
 # add heads/gpg files to current firmware
 if [ -e /.gnupg/pubring.kbx ];then

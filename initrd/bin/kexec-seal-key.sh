@@ -27,11 +27,11 @@ fi
 
 if [ -r "$KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=$(cat $KEY_LVM)
+	VOLUME_GROUP=$(cat "$KEY_LVM")
 	if [ -z "$VOLUME_GROUP" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP \
+	lvm vgchange -a y "$VOLUME_GROUP" \
 		|| die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
@@ -66,14 +66,14 @@ for dev in $DEVICES; do
 	echo "++++++ $dev: Removing old key slot"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
-		$dev 1 \
+		"$dev" 1 \
 	|| warn "$dev: ignoring problem"
 
 	echo "++++++ $dev: Adding key"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
-		$dev "$KEY_FILE" \
+		"$dev" "$KEY_FILE" \
 	|| die "$dev: Unable to add key"
 done
 
@@ -114,7 +114,7 @@ tpm sealfile2 \
 	-ix 3 X \
 	-ix 4 0000000000000000000000000000000000000000 \
 	-ix 5 $pcr_5 \
-	-ix 6 $luks_pcr \
+	-ix 6 "$luks_pcr" \
 	-ix 7 X \
 || die "Unable to seal secret"
 

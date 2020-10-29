@@ -108,7 +108,7 @@ echo $counter_value > $HOTP_COUNTER \
 || die "Unable to create hotp counter file"
 
 # Store/overwrite HOTP USB Security Dongle branding found out beforehand
-echo $HOTPKEY_BRANDING > $HOTP_KEY \
+echo "$HOTPKEY_BRANDING" > $HOTP_KEY \
 || die "Unable to store hotp key file"
 
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \

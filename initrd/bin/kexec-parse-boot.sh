@@ -16,7 +16,7 @@ reset_entry() {
 	append=""
 }
 
-filedir=$(dirname $file)
+filedir=$(dirname "$file")
 bootdir="${bootdir%%/}"
 bootlen="${#bootdir}"
 appenddir="${filedir:$bootlen}"
@@ -32,10 +32,10 @@ echo_entry() {
 	if [ "$kexectype" = "elf" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
+		fix_path "$kernel"
 		entry="$name|$kexectype|kernel $path"
 		if [ -n "$initrd" ]; then
-			fix_path $initrd
+			fix_path "$initrd"
 			entry="$entry|initrd $path"
 		fi
 		if [ -n "$append" ]; then
@@ -47,7 +47,7 @@ echo_entry() {
 	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
+		fix_path "$kernel"
 		echo eval "$name|$kexectype|kernel $path$modules"
 	fi
 }
@@ -57,13 +57,13 @@ search_entry() {
 		menuentry* | MENUENTRY* )
 			state="grub"
 			reset_entry
-			name=$(echo $line | tr "'" "\"" | cut -d\" -f 2)
+			name=$(echo "$line" | tr "'" "\"" | cut -d\" -f 2)
 			;;
 
 		label* | LABEL* )
 			state="syslinux"
 			reset_entry
-			name=$(echo $line | cut -c6- )
+			name=$(echo "$line" | cut -c6- )
 	esac
 }
 
@@ -75,9 +75,9 @@ grub_entry() {
 	fi
 
 	# add info to menuentry
-	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
-	cmd=$(echo $trimcmd | cut -d\  -f1)
-	val=$(echo $trimcmd | cut -d\  -f2-)
+	trimcmd=$(echo "$line" | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo "$trimcmd" | cut -d\  -f1)
+	val=$(echo "$trimcmd" | cut -d\  -f2-)
 	case $cmd in
 		multiboot*)
 			# TODO: differentiate between Xen and other multiboot kernels
@@ -86,14 +86,14 @@ grub_entry() {
 			;;
 		module*)
 			case $val in
-				--nounzip*) val=$(echo $val | cut -d\  -f2-) ;;
+				--nounzip*) val=$(echo "$val" | cut -d\  -f2-) ;;
 			esac
-			fix_path $val
+			fix_path "$val"
 			modules="$modules|module $path"
 			;;
 		linux*)
-			kernel=$(echo $trimcmd | cut -d\  -f2)
-			append=$(echo $trimcmd | cut -d\  -f3-)
+			kernel=$(echo "$trimcmd" | cut -d\  -f2)
+			append=$(echo "$trimcmd" | cut -d\  -f3-)
 			;;
 		initrd*)
 			initrd="$val"
@@ -110,7 +110,7 @@ syslinux_end() {
 		for param in $append; do
 			case $param in
 				initrd=*)
-					initrd=$(echo $param | cut -d= -f2)
+					initrd=$(echo "$param" | cut -d= -f2)
 					;;
 				*) newappend="$newappend $param" ;;
 			esac
@@ -129,7 +129,7 @@ syslinux_multiboot_append() {
 		if [ -z "$kernel" ]; then
 			kernel="$line"
 		else
-			fix_path $line
+			fix_path "$line"
 			modules="$modules|module $path"
 		fi
 	done << EOF
@@ -151,14 +151,14 @@ syslinux_entry() {
 	esac
 
 	# add info to menuentry
-	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
-	cmd=$(echo $trimcmd | cut -d\  -f1)
-	val=$(echo $trimcmd | cut -d\  -f2-)
+	trimcmd=$(echo "$line" | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo "$trimcmd" | cut -d\  -f1)
+	val=$(echo "$trimcmd" | cut -d\  -f2-)
 	case $trimcmd in
 		menu* | MENU* )
-			cmd2=$(echo $trimcmd | cut -d \  -f2)
+			cmd2=$(echo "$trimcmd" | cut -d \  -f2)
 			if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
-				name=$(echo $trimcmd | cut -c11- | tr -d '^')
+				name=$(echo "$trimcmd" | cut -c11- | tr -d '^')
 			fi
 			;;
 		linux* | LINUX* | kernel* | KERNEL* )

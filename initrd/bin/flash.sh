@@ -18,42 +18,42 @@ esac
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
-    flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}.1" \
+    flashrom "$CONFIG_FLASHROM_OPTIONS" -r "${ROM}.1" \
     || die "$ROM: Read failed"
-    flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}.2" \
+    flashrom "$CONFIG_FLASHROM_OPTIONS" -r "${ROM}.2" \
     || die "$ROM: Read failed"
-    flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}.3" \
+    flashrom "$CONFIG_FLASHROM_OPTIONS" -r "${ROM}.3" \
     || die "$ROM: Read failed"
     UNIQ_SHA256_COUNT=$(sha256sum "${ROM}".[123] | cut -f1 -d ' ' | uniq | wc -l)
     if [ $((UNIQ_SHA256_COUNT)) -eq 1 ]; then
-      mv ${ROM}.1 $ROM
-      rm ${ROM}.[23]
+      mv "${ROM}".1 "$ROM"
+      rm "${ROM}".[23]
     else
       die "$ROM: Read inconsistent"
     fi
   else
-    cp "$ROM" /tmp/${CONFIG_BOARD}.rom
-    sha256sum /tmp/${CONFIG_BOARD}.rom
+    cp "$ROM" "/tmp/${CONFIG_BOARD}.rom"
+    sha256sum "/tmp/${CONFIG_BOARD}.rom"
     if [ "$CLEAN" -eq 0 ]; then
-      preserve_rom /tmp/${CONFIG_BOARD}.rom \
+      preserve_rom "/tmp/${CONFIG_BOARD}.rom" \
       || die "$ROM: Config preservation failed"
     fi
     # persist serial number from CBFS
     if cbfs -r serial_number > /tmp/serial 2>/dev/null; then
       echo "Persisting system serial"
-      cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
-      cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
+      cbfs -o "/tmp/${CONFIG_BOARD}.rom" -d serial_number 2>/dev/null || true
+      cbfs -o "/tmp/${CONFIG_BOARD}.rom" -a serial_number -f /tmp/serial
     fi
     # persist PCHSTRP9 from flash descriptor
     if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
       echo "Persisting PCHSTRP9"
-      flashrom $CONFIG_FLASHROM_OPTIONS -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
+      flashrom "$CONFIG_FLASHROM_OPTIONS" -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
       || die "Failed to read flash descriptor"
       dd if=/tmp/ifd.bin bs=1 count=4 skip=292 of=/tmp/pchstrp9.bin >/dev/null 2>&1
-      dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
+      dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of="/tmp/${CONFIG_BOARD}.rom" conv=notrunc >/dev/null 2>&1
     fi
 
-    flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \
+    flashrom "$CONFIG_FLASHROM_OPTIONS" -w "/tmp/${CONFIG_BOARD}.rom" \
     || die "$ROM: Flash failed"
   fi
 }
@@ -66,7 +66,7 @@ elif [ "$1" == "-r" ]; then
   CLEAN=0
   READ=1
   ROM="$2"
-  touch $ROM
+  touch "$ROM"
 else
   CLEAN=0
   READ=0
@@ -77,5 +77,5 @@ if [ ! -e "$ROM" ]; then
 	die "Usage: $0 [-c|-r] <path_to_image.rom>"
 fi
 
-flash_rom $ROM
+flash_rom "$ROM"
 exit 0

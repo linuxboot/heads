@@ -52,14 +52,14 @@ verify_global_hashes()
 {
 	echo "+++ Checking verified boot hash file "
 	# Check the hashes of all the files
-	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+	if cd "$bootdir" && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
 		echo "+++ Verified boot hashes "
 		valid_hash='y'
 		valid_global_hash='y'
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' \
+			whiptail "$BG_COLOR_ERROR" --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
@@ -68,12 +68,12 @@ verify_global_hashes()
 
 verify_rollback_counter()
 {
-	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
+	TPM_COUNTER=$(grep counter "$TMP_ROLLBACK_FILE" | cut -d- -f2)
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
 	fi
 
-	read_tpm_counter $TPM_COUNTER \
+	read_tpm_counter "$TPM_COUNTER" \
 	|| die "Failed to read TPM counter"
 
 	sha256sum -c $TMP_ROLLBACK_FILE \
@@ -85,11 +85,11 @@ verify_rollback_counter()
 first_menu="y"
 get_menu_option() {
 	num_options=$(wc -l $TMP_MENU_FILE)
-	if [ $num_options -eq 0 ]; then
+	if [ $((num_options)) -eq 0 ]; then
 		die "No boot options"
 	fi
 
-	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
+	if [ $((num_options)) -eq 1 -a $first_menu = "y" ]; then
 		option_index=1
 	elif [ "$gui_menu" = "y" ]; then
 		MENU_OPTIONS=""
@@ -98,14 +98,14 @@ get_menu_option() {
 		do
 			parse_option
 			n=$((n + 1))
-			name=$(echo $name | tr " " "_")
-			kernel=$(echo $kernel | cut -f2 -d " ")
+			name=$(echo "$name" | tr " " "_")
+			kernel=$(echo "$kernel" | cut -f2 -d " ")
 			MENU_OPTIONS="$MENU_OPTIONS $n ${name}_[$kernel]"
-		done < $TMP_MENU_FILE
+		done < "$TMP_MENU_FILE"
 
 		whiptail --clear --title "Select your boot option" \
 			--menu "Choose the boot option [1-$n, a to abort]:" 20 120 8 \
-			-- $MENU_OPTIONS \
+			-- "$MENU_OPTIONS" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
 		option_index=$(cat /tmp/whiptail)
@@ -117,7 +117,7 @@ get_menu_option() {
 			parse_option
 			n=$((n + 1))
 			echo "$n. $name [$kernel]"
-		done < $TMP_MENU_FILE
+		done < "$TMP_MENU_FILE"
 
 		read \
 			-p "Choose the boot option [1-$n, a to abort]: " \
@@ -180,9 +180,9 @@ scan_options() {
 		die "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
-		sort -r $option_file | uniq > $TMP_MENU_FILE
+		sort -r $option_file | uniq > "$TMP_MENU_FILE"
 	else
-		cp $option_file $TMP_MENU_FILE
+		cp $option_file "$TMP_MENU_FILE"
 	fi
 }
 
@@ -222,7 +222,7 @@ default_select() {
 
 	# Check to see if entries have changed - useful for detecting grub update
 	expectedoption=$(cat $TMP_DEFAULT_FILE)
-	option=$(head -n $default_index $TMP_MENU_FILE | tail -1)
+	option=$(head -n $((default_index)) "$TMP_MENU_FILE"" | tail -1)
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \

@@ -107,14 +107,14 @@ if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 else
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
-		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
+		echo '***** Network Boot:' "$CONFIG_BOOTSCRIPT_NETWORK"
 		$CONFIG_BOOTSCRIPT_NETWORK
-		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
+		echo '***** Network Boot Completed:' "$CONFIG_BOOTSCRIPT_NETWORK"
 		# not blocking
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
-		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+		echo '***** Normal boot:' "$CONFIG_BOOTSCRIPT"
 		exec "$CONFIG_BOOTSCRIPT"
 
 		# We should never reach here, but just in case...
