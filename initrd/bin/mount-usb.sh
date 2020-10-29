@@ -52,7 +52,7 @@ if [ $((USB_BLOCK_DEVICE_COUNT)) -eq 1 ]; then
   USB_BLOCK_DEVICE=$(cat /tmp/usb_block_devices)
   # Subtract out block device
   USB_BLOCK_DEVICE_COUNT=$(find "$USB_BLOCK_DEVICE*" | wc -l)
-  let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
+  USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
   if [ $((USB_NUM_PARTITIONS)) -eq 0 ]; then
     USB_MOUNT_DEVICE=${USB_BLOCK_DEVICE}
   elif [ $((USB_NUM_PARTITIONS)) -eq 1 ]; then
@@ -66,7 +66,7 @@ if [ -z "$USB_MOUNT_DEVICE" ]; then
   for i in $USB_BLOCK_DEVICES; do
     # remove block device from list if numeric partitions exist, since not bootable
     USB_BLOCK_DEVICE_COUNT=$(find "$i*" | wc -l)
-    let USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
+    USB_NUM_PARTITIONS=$((USB_BLOCK_DEVICE_COUNT-1))
     if [ $((USB_NUM_PARTITIONS)) -eq 0 ]; then
       BLK_LABELS=$(blkid | grep "$i" | grep -o 'LABEL=".*"' | cut -f2 -d '"')
       echo "$i $BLK_LABELS" >> /tmp/usb_disk_list
