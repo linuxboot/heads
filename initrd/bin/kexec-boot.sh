@@ -16,6 +16,7 @@ while getopts "b:e:r:a:o:fi" arg; do
 		o) override_initrd="$OPTARG" ;;
 		f) dryrun="y"; printfiles="y" ;;
 		i) dryrun="y"; printinitrd="y" ;;
+		*) die "Usage: $0 -b /boot -e 'kexec params|...|...'" ;;
 	esac
 done
 

@@ -11,6 +11,7 @@ while getopts "sp:d:l:" arg; do
 		p) paramsdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
 		l) lvm_volume_group="$OPTARG" ;;
+		*) die "Usage: $0 [-s] -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] ";;
 	esac
 done
 shift $((OPTIND - 1))

@@ -10,6 +10,7 @@ while getopts "b:d:p:i:" arg; do
 		d) paramsdev="$OPTARG" ;;
 		p) paramsdir="$OPTARG" ;;
 		i) index="$OPTARG" ;;
+		*) die "Usage: $0 -b /boot -i menu_option " ;;
 	esac
 done
 
