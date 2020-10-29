@@ -32,7 +32,8 @@ if [ -n "$lvm_volume_group" ]; then
 	lvm vgchange -a y "$lvm_volume_group" \
 	|| die "Failed to activate the LVM group"
 
-	for dev in /dev/$lvm_volume_group/*; do
+	LVM_VOLUME_GROUP_DEVS=$(find "/dev/$lvm_volume_group/*")
+	for dev in $LVM_VOLUME_GROUP_DEVS; do
 		key_devices="$key_devices $dev"
 	done
 fi
