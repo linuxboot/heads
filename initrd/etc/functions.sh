@@ -26,8 +26,7 @@ recovery() {
 		tpm extend -ix 4 -ic recovery
 	fi
 
-	while [ true ]
-	do
+	while true; do
 		echo >&2 "!!!!! Starting recovery shell"
 		sleep 1
 
