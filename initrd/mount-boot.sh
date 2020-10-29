@@ -28,7 +28,7 @@ if [ ! -r "$dev_size_file" ]; then
 	echo >&2 "!!!!! $dev file $dev_size_file not found"
 	echo >&2 '!!!!! Dropping to recovery shell'
 	echo >&2 '!!!!!'
-	exit -1
+	exit 1
 fi
 
 dev_blocks=$(cat "$dev_size_file")
@@ -41,7 +41,7 @@ if ! dd if="$dev" of="$cmd_sig" bs=512 skip=$((dev_blocks - 1)); then
 	echo >&2 '!!!!! Boot block extraction failed'
 	echo >&2 '!!!!! Dropping to recovery shell'
 	echo >&2 '!!!!!'
-	exit -1
+	exit 1
 fi
 
 #
@@ -52,7 +52,7 @@ if ! gpgv --keyring /trustedkeys.gpg "$cmd_sig"; then
 	echo >&2 '!!!!! GPG signature on block failed'
 	echo >&2 '!!!!! Dropping to recovery shell'
 	echo >&2 '!!!!!'
-	exit -1
+	exit 1
 fi
 
 #
