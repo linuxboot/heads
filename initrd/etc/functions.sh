@@ -41,7 +41,7 @@ recovery() {
 }
 
 pause_recovery() {
-	read -p 'Hit enter to proceed to recovery shell:'
+	read -r -p 'Hit enter to proceed to recovery shell:'
 	recovery "$@"
 }
 
@@ -72,7 +72,7 @@ confirm_totp()
 		echo -n "$date $TOTP: "
 
 		# read the first character, non-blocking
-		read \
+		read -r \
 			-t 1 \
 			-n 1 \
 			-s \
@@ -127,7 +127,7 @@ enable_usb()
 
 confirm_gpg_card()
 {
-	read \
+	read -r \
 		-n 1 \
 		-p "Please confirm that your GPG card is inserted [Y/n]: " \
 		card_confirm
@@ -176,7 +176,7 @@ check_tpm_counter()
 		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		read -s -p "TPM Owner password: " tpm_password
+		read -r -s -p "TPM Owner password: " tpm_password
 		echo
 		tpm counter_create \
 			-pwdo "$tpm_password" \
@@ -289,7 +289,7 @@ update_checksums()
 	fi
 	if ! kexec-sign-config -p /boot -u $extparam ; then
 	  echo "Failed to sign default config; press Enter to continue."
-	  read
+	  read -r
 	fi
 
 	# switch back to ro mode

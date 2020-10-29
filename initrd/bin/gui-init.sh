@@ -111,11 +111,11 @@ update_totp()
   /bin/seal-totp
   if [ -x /bin/hotp_verification ]; then
     echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
-    read
+    read -r
     /bin/seal-hotpkey
   else
     echo "Once you have scanned the QR code, hit Enter to continue"
-    read
+    read -r
   fi
 }
 

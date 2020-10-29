@@ -29,7 +29,7 @@ if [ -z  "$USB_BLOCK_DEVICES" ]; then
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
   else
     echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
-    read
+    read -r
   fi
   sleep 1
   stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
@@ -81,7 +81,7 @@ if [ -z "$USB_MOUNT_DEVICE" ]; then
   if [ -x /bin/whiptail ]; then
     MENU_OPTIONS=""
     n=0
-    while read option
+    while read -r option
     do
       n=$((n + 1))
       option=$(echo "$option" | tr " " "_")
@@ -98,13 +98,13 @@ if [ -z "$USB_MOUNT_DEVICE" ]; then
   else
     echo "+++ Select your USB disk:"
     n=0
-    while read option
+    while read -r option
     do
       n=$((n + 1))
       echo "$n. $option"
     done < /tmp/usb_disk_list
 
-    read \
+    read -r \
       -p "Choose your USB disk [1-$n, a to abort]: " \
       option_index
   fi

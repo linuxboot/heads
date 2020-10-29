@@ -276,7 +276,7 @@ fi
 
 # Prompt to change default passwords
 echo -e -n "Would you like to set a custom password? [y/N]: "
-read -n 1 prompt_output
+read -r -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
@@ -288,7 +288,7 @@ It must be at least 8 characters in length.\n"
   echo
   while [[  ${#CUSTOM_PASS} -lt 8 ]] ; do
     echo -e -n "Enter the custom password: "
-    read CUSTOM_PASS
+    read -r CUSTOM_PASS
   done
   echo
   TPM_PASS_DEF=$CUSTOM_PASS
@@ -296,7 +296,7 @@ fi
 
 # Prompt to change default GnuPG key information
 echo -e -n "Would you like to set custom user information for the GnuPG key? [y/N]: "
-read -n 1 prompt_output
+read -r -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
@@ -334,7 +334,7 @@ fi
 
 # Prompt to insert USB drive if desired
 echo -e -n "Would you like to export your public key to an USB drive? [y/N]: "
-read -n 1 prompt_output
+read -r -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
@@ -342,7 +342,7 @@ if [ "$prompt_output" == "y" \
     GPG_EXPORT=1
     # mount USB, then remount rw
     echo -e "\nPlease insert an USB drive and hit enter.\n"
-    read
+    read -r
     echo -e "\nChecking for USB media...\n"
     # ensure /media not mounted
     umount /media 2>/dev/null

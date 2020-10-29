@@ -5,14 +5,14 @@ echo '*****'
 echo '***** WARNING: This will erase all keys and secrets from the TPM'
 echo '*****'
 
-read -s -p "New TPM owner password: " key_password
+read -r -s -p "New TPM owner password: " key_password
 echo
 
 if [ -z "$key_password" ]; then
 	die "Empty owner password is not allowed"
 fi
 
-read -s -p "Repeat owner password: " key_password2
+read -r -s -p "Repeat owner password: " key_password2
 echo
 
 

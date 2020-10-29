@@ -25,7 +25,7 @@ tpm nv_readvalue \
 
 tries=3
 while [ $((tries)) -gt 0 ]; do
-	read -s -p "Enter unlock password (blank to abort): " tpm_password
+	read -r -s -p "Enter unlock password (blank to abort): " tpm_password
 	echo
 
 	if [ -z "$tpm_password" ]; then

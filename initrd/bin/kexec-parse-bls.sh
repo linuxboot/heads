@@ -87,9 +87,9 @@ grep -q "set default_kernelopts" "$file" &&
 	kernelopts=$(grep "^kernelopts" "$grubenv" | tr '@' '_' | cut -d= -f 2-)
 reset_entry
 find "$blsdir" -type f -name \*.conf |
-while read f
+while read -r f
 do
-	while read line
+	while read -r line
 	do
 		bls_entry
 	done < "$f"

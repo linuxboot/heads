@@ -38,13 +38,13 @@ fi
 # Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed Qubes,
 # key slot 1 is the one that we've generated.
-read -s -p "Enter disk recovery key: " disk_password
+read -r -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > "$RECOVERY_KEY"
 echo
 
-read -s -p "New disk unlock password for booting: " key_password
+read -r -s -p "New disk unlock password for booting: " key_password
 echo
-read -s -p "Repeat unlock code: " key_password2
+read -r -s -p "Repeat unlock code: " key_password2
 echo
 
 if [ "$key_password" != "$key_password2" ]; then
@@ -134,7 +134,7 @@ if ! tpm nv_writevalue \
 	tpm physicalpresence -s \
 	|| warn "Warning: Unable to assert physical presence"
 
-	read -s -p "TPM Owner password: " tpm_password
+	read -r -s -p "TPM Owner password: " tpm_password
 	echo
 
 	tpm nv_definespace \

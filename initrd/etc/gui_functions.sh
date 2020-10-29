@@ -40,7 +40,7 @@ file_selector()
     do
       MENU_OPTIONS=""
       n=0
-      while read option
+      while read -r option
       do
         n=$((n + 1))
         option=$(echo "$option" | tr " " "_")
