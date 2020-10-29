@@ -133,10 +133,7 @@ confirm_gpg_card()
 		card_confirm
 	echo
 
-	if [ "$card_confirm" != "y" \
-		-a "$card_confirm" != "Y" \
-		-a -n "$card_confirm" ] \
-	; then
+	if [ "$card_confirm" != "y" ] && [ "$card_confirm" != "Y" ] && [ -n "$card_confirm" ]; then
 		die "gpg card not confirmed"
 	fi
 

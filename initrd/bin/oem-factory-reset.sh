@@ -278,9 +278,7 @@ fi
 echo -e -n "Would you like to set a custom password? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  -o "$prompt_output" == "Y" ] \
-; then
+if [ "$prompt_output" == "y" ] || [ "$prompt_output" == "Y" ]; then
   echo -e "\nThe custom password will be used for the
 TPM admin and GPG user/admin passwords.
 It must be at least 8 characters in length.\n"
@@ -298,9 +296,7 @@ fi
 echo -e -n "Would you like to set custom user information for the GnuPG key? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  -o "$prompt_output" == "Y" ] \
-; then
+if [ "$prompt_output" == "y" ] || [ "$prompt_output" == "Y" ]; then
 	echo -e "\n\n"
 	echo -e "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
 	echo -e "Real Name (Comment) email@address.org"
@@ -336,9 +332,7 @@ fi
 echo -e -n "Would you like to export your public key to an USB drive? [y/N]: "
 read -r -n 1 prompt_output
 echo
-if [ "$prompt_output" == "y" \
-  -o "$prompt_output" == "Y" ] \
-; then
+if [ "$prompt_output" == "y" ] || [ "$prompt_output" == "Y" ]; then
     GPG_EXPORT=1
     # mount USB, then remount rw
     echo -e "\nPlease insert an USB drive and hit enter.\n"

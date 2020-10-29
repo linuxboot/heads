@@ -65,7 +65,7 @@ get_menu_option() {
 ls -1r /media/*.iso 2>/dev/null > /tmp/iso_menu.txt || true
 ISO_MENU_ITEMS=$(wc -l /tmp/iso_menu.txt)
 if [ $((ISO_MENU_ITEMS)) -gt 0 ]; then
-	while [ -z "$option" -a "$option_index" != "s" ]
+	while [ -z "$option" ] && [ "$option_index" != "s" ]
 	do
 		get_menu_option
 	done

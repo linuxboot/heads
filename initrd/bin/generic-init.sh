@@ -22,7 +22,7 @@ while true; do
 	echo "u) USB boot"
 	echo "m) Boot menu"
 
-	if ! totp_confirm = $(confirm_totp "Boot mode"); then
+	if ! totp_confirm=$(confirm_totp "Boot mode"); then
 		recovery 'Failed to unseal TOTP'
 	fi
 
@@ -51,7 +51,7 @@ while true; do
 		continue
 	fi
 
-	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
+	if [ "$totp_confirm" = "y" ] || [ -n "$totp_confirm" ]; then
 		# Try to boot the default
 		mount_boot
 		kexec-select-boot -b /boot -c "grub.cfg" \

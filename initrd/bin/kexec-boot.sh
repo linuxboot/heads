@@ -19,7 +19,7 @@ while getopts "b:e:r:a:o:fi" arg; do
 	esac
 done
 
-if [ -z "$bootdir" -o -z "$entry" ]; then
+if [ -z "$bootdir" ] || [ -z "$entry" ]; then
 	die "Usage: $0 -b /boot -e 'kexec params|...|...'"
 fi
 

@@ -13,7 +13,7 @@ while getopts "b:d:p:i:" arg; do
 	esac
 done
 
-if [ -z "$bootdir" -o -z "$index" ]; then
+if [ -z "$bootdir" ] || [ -z "$index" ]; then
 	die "Usage: $0 -b /boot -i menu_option "
 fi
 
@@ -53,8 +53,7 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			add_key_confirm
 		echo
 
-		if [ "$add_key_confirm" = "y" \
-			-o "$add_key_confirm" = "Y" ]; then
+		if [ "$add_key_confirm" = "y" ] || [ "$add_key_confirm" = "Y" ]; then
 			lvm_suggest="e.g. qubes_dom0 or blank"
 			devices_suggest="e.g. /dev/sda2 or blank"
 			save_key="y"
@@ -66,8 +65,7 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			change_key_confirm
 		echo
 
-		if [ "$change_key_confirm" = "y" \
-			-o "$change_key_confirm" = "Y" ]; then
+		if [ "$change_key_confirm" = "y" ] || [ "$change_key_confirm" = "Y" ]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
 				old_lvm_volume_group=$(cat "$KEY_LVM") || true
@@ -123,7 +121,7 @@ cd "$bootdir"
 kexec-boot -b "$bootdir" -e "$entry" -f | \
 	xargs sha256sum > "$HASH_FILE" \
 || die "Failed to create hashes of boot files"
-if [ ! -r "$ENTRY_FILE" -o ! -r "$HASH_FILE" ]; then
+if [ ! -r "$ENTRY_FILE" ] || [ ! -r "$HASH_FILE" ]; then
 	die "Failed to write default config"
 fi
 

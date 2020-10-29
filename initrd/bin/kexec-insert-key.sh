@@ -57,10 +57,7 @@ if [ "$unseal_failed" = "y" ]; then
 		-p "Do you wish to boot and use the disk recovery key? [Y/n] " \
 		confirm_boot
 
-	if [ "$confirm_boot" != 'y' \
-		-a "$confirm_boot" != 'Y' \
-		-a -n "$confirm_boot" ] \
-	; then
+	if [ "$confirm_boot" != 'y' ] && [ "$confirm_boot" != 'Y' ] && [ -n "$confirm_boot" ]; then
 		die "!!! Aborting boot due to failure to unseal TPM disk key"
 	fi
 fi

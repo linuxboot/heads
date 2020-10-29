@@ -210,7 +210,7 @@ while true; do
     fi
   fi
 
-  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
+  if [ "$totp_confirm" = "i" ] || [ -z "$totp_confirm" ]; then
     if [ -x /bin/hotp_verification ]; then
       HOTP=$(unseal-hotp)
       enable_usb
@@ -423,7 +423,7 @@ while true; do
     poweroff
   fi
 
-  if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
+  if [ "$totp_confirm" = "y" ] || [ -n "$totp_confirm" ]; then
     # Try to boot the default
     mount_boot
     verify_global_hashes

@@ -5,7 +5,7 @@ file="$2"
 blsdir="$3"
 kernelopts=""
 
-if [ -z "$bootdir" -o -z "$file" ]; then
+if [ -z "$bootdir" ] || [ -z "$file" ]; then
 	die "Usage: $0 /boot /boot/grub/grub.cfg blsdir"
 fi
 
@@ -49,7 +49,7 @@ echo_entry() {
 
 		echo "$entry"
 	fi
-	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+	if [ "$kexectype" = "multiboot" ] || [ "$kexectype" = "xen" ]; then
 		if [ -z "$kernel" ]; then return; fi
 
 		fix_path "$kernel"
