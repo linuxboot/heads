@@ -93,7 +93,8 @@ combine_configs
 . /tmp/config
 
 # export firmware version
-export FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+export FW_VER
 # chop off date, since will always be epoch w/timeless builds
 FW_VER=${FW_VER::-10}
 
