@@ -61,7 +61,7 @@ if [ $((USB_BLOCK_DEVICE_COUNT)) -eq 1 ]; then
 fi
 # otherwise, let the user pick
 if [ -z "$USB_MOUNT_DEVICE" ]; then
-  > /tmp/usb_disk_list
+  # > /tmp/usb_disk_list
   USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
   for i in $USB_BLOCK_DEVICES; do
     # remove block device from list if numeric partitions exist, since not bootable

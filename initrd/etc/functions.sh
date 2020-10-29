@@ -144,7 +144,7 @@ confirm_gpg_card()
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
-	
+
 	if gpg --card-status > /dev/null; then
 	  # prompt for reinsertion and try a second time
 	  read -n1 -r -p \
@@ -314,7 +314,7 @@ detect_boot_device()
 	fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
 
 	# filter out extraneous options
-	> /tmp/boot_device_list
+	# > /tmp/boot_device_list
 	DISK_LIST=$(cat /tmp/disklist)
 	for i in $DISK_LIST; do
 		# remove block device from list if numeric partitions exist, since not bootable
