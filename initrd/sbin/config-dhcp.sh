@@ -2,6 +2,8 @@
 
 # udhcpc script
 
+# shellcheck disable=SC2154
+
 [ -z "$1" ] && echo "Error: should be called from udhcpc" && exit 1
 
 RESOLV_CONF="/etc/resolv.conf"
