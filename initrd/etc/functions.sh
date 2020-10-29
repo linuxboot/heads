@@ -144,8 +144,8 @@ confirm_gpg_card()
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
-	gpg --card-status > /dev/null
-	if [ $? -ne 0 ]; then
+	
+	if gpg --card-status > /dev/null; then
 	  # prompt for reinsertion and try a second time
 	  read -n1 -r -p \
 	      "Can't access GPG key; remove and reinsert, then press Enter to retry. "

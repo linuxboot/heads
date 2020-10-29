@@ -15,9 +15,8 @@ mount_boot()
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
-    if [ -e "$CONFIG_BOOT_DEV" ]; then
-      mount -o ro "$CONFIG_BOOT_DEV" /boot
-      [[ $? -eq 0 ]] && continue
+    if [ -e "$CONFIG_BOOT_DEV" ] && ! mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+      continue
     fi
 
     # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
@@ -33,8 +32,7 @@ mount_boot()
     option=$(cat /tmp/whiptail)
     case "$option" in
       b )
-        config-gui.sh boot_device_select
-        if [ $? -eq 0 ]; then
+        if ! config-gui.sh boot_device_select; then
           # update CONFIG_BOOT_DEV
           . /tmp/config
         fi
@@ -180,7 +178,7 @@ while true; do
 
       totp_confirm=$(cat /tmp/whiptail)
   fi
-  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
+  if [ "$totp_confirm" = "i" ] || [ -z "$totp_confirm" ]; then
     # update the TOTP code every thirty seconds
     date=$(date "+%Y-%m-%d %H:%M:%S")
     seconds=$(date "+%s")
@@ -189,8 +187,8 @@ while true; do
       TOTP="NO TPM"
     elif [ "$half" != "$last_half" ]; then
       last_half=$half;
-      TOTP=$(unseal-totp)
-      if [ $? -ne 0 ]; then
+
+      if TOTP=$(unseal-totp); then
         whiptail "$BG_COLOR_ERROR" --clear --title "ERROR: TOTP Generation Failed!" \
           --menu "    ERROR: Heads couldn't generate the TOTP code.\n
     If you have just completed a Factory Reset, or just reflashed
@@ -364,8 +362,7 @@ while true; do
   if [ "$totp_confirm" = "m" ]; then
     # Try to select a kernel from the menu
     mount_boot
-    verify_global_hashes
-    if [ $? -ne 0 ]; then
+    if verify_global_hashes; then
       continue
     fi
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
@@ -426,8 +423,8 @@ while true; do
   if [ "$totp_confirm" = "y" ] || [ -n "$totp_confirm" ]; then
     # Try to boot the default
     mount_boot
-    verify_global_hashes
-    if [ $? -ne 0 ]; then
+
+    if verify_global_hashes; then
       continue
     fi
     DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)

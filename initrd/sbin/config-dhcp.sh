@@ -10,12 +10,11 @@ RESOLV_CONF="/etc/resolv.conf"
 
 case "$1" in
 	deconfig)
-		grep -q -v ip= /proc/cmdline
-		if [ $? -eq 0 ]; then
+		if ! grep -q -v ip= /proc/cmdline; then
 			/sbin/ifconfig "$interface" up
 		fi
-		grep -q -v nfsroot= /proc/cmdline
-		if [ $? -eq 0 ]; then
+
+		if ! grep -q -v nfsroot= /proc/cmdline; then
 			/sbin/ifconfig "$interface" 0.0.0.0
 		fi
 		;;

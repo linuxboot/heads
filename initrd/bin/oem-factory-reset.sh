@@ -61,14 +61,14 @@ whiptail_error_die()
 gpg_key_reset()
 {
     # Factory reset GPG card
-    {
+
+    if {
         echo admin
         echo factory-reset
         echo y
         echo yes
     } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
-    if [ $? -ne 0 ]; then
+        > /tmp/gpg_card_edit_output 2>/dev/null; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
     fi
@@ -77,7 +77,8 @@ gpg_key_reset()
         /bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
     fi
     # Generate OEM GPG keys
-    {
+
+    if {
         echo admin
         echo generate
         echo n
@@ -89,8 +90,7 @@ gpg_key_reset()
         echo "${GPG_USER_MAIL}"
         echo "${GPG_USER_COMMENT}"
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
-    if [ $? -ne 0 ]; then
+        > /tmp/gpg_card_edit_output 2>/dev/null; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
     fi
@@ -103,7 +103,8 @@ gpg_key_change_pin()
     PIN_ORIG=$2
     PIN_NEW=$3
     # Change PIN
-    {
+
+    if {
         echo admin
         echo passwd
         echo "${PIN_TYPE}"
@@ -113,8 +114,7 @@ gpg_key_change_pin()
         echo q
         echo q
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
-    if [ $? -ne 0 ]; then
+        > /tmp/gpg_card_edit_output 2>/dev/null; then
         ERROR=$(fold -s /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
@@ -379,11 +379,11 @@ fi
 ## reset TPM and set default password
 if [ "$CONFIG_TPM" = "y" ]; then
   echo -e "\nResetting TPM...\n"
-  {
+
+  if {
       echo "$TPM_PASS_DEF"
       echo "$TPM_PASS_DEF"
-  } | /bin/tpm-reset >/dev/null 2>/tmp/error
-  if [ $? -ne 0 ]; then
+  } | /bin/tpm-reset >/dev/null 2>/tmp/error; then
       ERROR=$(tail -n 1 /tmp/error | fold -s)
       whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
   fi
