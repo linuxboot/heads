@@ -59,6 +59,7 @@ export GPG_TTY=/dev/console
 # Setup recovery serial shell
 if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
+	# shellcheck disable=SC2094
 	pause_recovery 'Console recovery shell' \
 		< "$CONFIG_BOOT_RECOVERY_SERIAL" \
 		> "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
