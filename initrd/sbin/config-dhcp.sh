@@ -36,7 +36,7 @@ case "$1" in
 
 		echo -n > $RESOLV_CONF
 		[ -n "$domain" ] && echo search "$domain" >> $RESOLV_CONF
-		for i in "$dns" ; do
+		for i in $dns; do
 			echo adding dns "$i"
 			echo nameserver "$i" >> $RESOLV_CONF
 		done
