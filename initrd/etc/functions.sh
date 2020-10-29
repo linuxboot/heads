@@ -240,7 +240,7 @@ preserve_rom() {
 	new_rom="$1"
 	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
 
-	for old_file in $(echo "$old_files"); do
+	for old_file in $old_files; do
 		new_file=$(cbfs -o "$new_rom" -l | grep -x "$old_file")
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $new_rom"
