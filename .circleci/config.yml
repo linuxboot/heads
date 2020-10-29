@@ -327,6 +327,26 @@ jobs:
           path: build/t430-flash
 
       - run:
+          name: x200-maximized
+          command: |
+            rm -rf build/x200-maximized/* build/log/* && make CPUS=4 V=1 BOARD=x200-maximized  || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Ouput x200-maximized hashes
+          command: |
+            cat build/x200-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for x200-maximized
+          command: |
+             tar zcvf build/x200-maximized/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/x200-maximized
+
+      - run:
           name: t430
           command: |
             rm -rf build/t430/* build/log/* && make CPUS=4 V=1 BOARD=t430 || touch /tmp/failed_build

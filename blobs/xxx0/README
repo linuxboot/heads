@@ -1,0 +1,35 @@
+Coreboot supports generating modified ifd and gbe out of the box.
+To replicate the blobs in this directory (based on coreboot 4.8.1 but simply replace version in paths):
+
+make BOARDS=x200
+
+This will create the ROM.
+
+Then (considering you git clone heads under ~)
+
+#To generate GBE and IFD
+cd ~/heads/build/coreboot-4.8.1/util/bincfg
+make gen-gbe-ich9m
+make gen-ifd-x200
+mv flashregion_0_fd.bin ../../../../blobs/xxx0/ifd.bin
+mv flashregion_3_gbe.bin ../../../../blobs/xxx0/gbe.bin
+
+#To unlock IFD, permitting to reflash whole flash internally
+cd ~/heads/build/coreboot-4.8.1/util/ifdtool
+make
+cd ~/heads/blobs/xxx0/
+~/heads/build/coreboot-4.8.1/util/ifdtool/ifdtool -u ifd.bin
+mv ifd.bin.new ifd.bin
+
+sha256sum -c hashes.txt
+
+should output:
+gbe.bin: OK
+ifd.bin: OK
+
+DISCLAIMER: Considering neither gbe.bin nor ifd.bin are proprietary blobs (generated from specifications), those blobs are in tree to ease ROM reproducibility.
+
+Note that MAC address is fixed under gbe-ich9m.spec to DE:AD:C0:FF:EE. 
+- If you want to keep your MAC, call extract.sh prior of building ROM.
+- If you want to fixate your MAC to a custom address, change it under ~/heads/build/coreboot-4.8.1/util/bincfg/gbe-ich9m.spec prior of generating the gbe.bin above
+ 
