@@ -7,12 +7,13 @@ set -e -o pipefail
 
 gpg_flash_rom() {
 
-  if [ "$1" = "replace" ]; then
-    # clear local keyring
-    [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
-    [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
-    [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
-  fi
+  #  XXX: Thrilleratplay 2020-10-21 - commented out as "replace" does not seem to be ever passed in.
+  # if [ "$1" = "replace" ]; then
+  #   # clear local keyring
+  #   [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
+  #   [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
+  #   [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
+  # fi
 
   gpg --import "$PUBKEY"
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
