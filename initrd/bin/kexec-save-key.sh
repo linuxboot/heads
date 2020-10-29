@@ -14,7 +14,7 @@ while getopts "sp:d:l:" arg; do
 	esac
 done
 shift $((OPTIND - 1))
-key_devices="$@"
+key_devices="$*"
 
 if [ -z "$paramsdir" ]; then
 	die "Usage: $0 [-s] -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
