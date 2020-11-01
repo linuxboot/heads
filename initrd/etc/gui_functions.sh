@@ -18,6 +18,7 @@ mount_usb()
     if [ $? -eq 5 ]; then
       exit 1
     elif $?; then
+      # shellcheck disable=2086
       whiptail $BG_COLOR_ERROR --title 'ERROR: Mounting /media Failed' \
         --msgbox "Unable to mount USB device" 16 60
       exit 1
@@ -71,6 +72,7 @@ file_selector()
 
     return "$FILE"
   else
+    # shellcheck disable=2086
     whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
       --msgbox "No Files found matching the pattern. Aborting." 16 60
     exit 1

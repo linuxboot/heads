@@ -20,6 +20,7 @@ mount_boot()
     fi
 
     # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+    # shellcheck disable=2086
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: No Bootable OS Found!" \
         --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
     How would you like to proceed?" 30 90 4 \
@@ -60,6 +61,7 @@ verify_global_hashes()
   if ( cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ) then
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
+    # shellcheck disable=2086
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Missing Hash File!' \
       --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
       update_checksums
@@ -88,6 +90,7 @@ verify_global_hashes()
       TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
     fi
 
+    # shellcheck disable=2086
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
       update_checksums
     fi
@@ -142,6 +145,7 @@ clean_boot_check()
 
   # OS is installed, no kexec files present, no GPG keys in keyring, security token present
   # prompt user to run OEM factory reset
+  # shellcheck disable=2086
   oem-factory-reset \
     "Clean Boot Detected - Perform OEM Factory Reset?" $BG_COLOR_WARNING
 }
@@ -169,6 +173,7 @@ while true; do
   # detect whether any GPG keys exist in the keyring, if not, initialize that first
   GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
   if [ $((GPG_KEY_COUNT)) -eq 0 ]; then
+    # shellcheck disable=2086
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
       'G' ' Add a GPG key to the running BIOS' \
@@ -189,6 +194,7 @@ while true; do
       last_half=$half;
 
       if TOTP=$(unseal-totp); then
+        # shellcheck disable=2086
         whiptail $BG_COLOR_ERROR --clear --title "ERROR: TOTP Generation Failed!" \
           --menu "    ERROR: Heads couldn't generate the TOTP code.\n
     If you have just completed a Factory Reset, or just reflashed
@@ -213,6 +219,7 @@ while true; do
       HOTP=$(unseal-hotp)
       enable_usb
       if ! hotp_verification info ; then
+        # shellcheck disable=2086
         whiptail $BG_COLOR_WARNING --clear \
 	--title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
 	--msgbox "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90
@@ -298,6 +305,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "n" ]; then
+    # shellcheck disable=2086
     if (whiptail $BG_COLOR_WARNING --title "TOTP/HOTP code mismatched" \
       --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 30 90) then
       echo ""
@@ -371,6 +379,7 @@ while true; do
 
   if [ "$totp_confirm" = "i" ]; then
     # Run the menu selection in "force" mode, bypassing hash checks
+    # shellcheck disable=2086
     if (whiptail $BG_COLOR_WARNING --title 'Unsafe Forced Boot Selected!' \
         --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 90) then
       mount_boot

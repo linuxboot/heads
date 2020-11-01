@@ -49,6 +49,7 @@ whiptail_error()
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
+		# shellcheck disable=2086
     whiptail --msgbox "${msg}\n\n" "$WIDTH $HEIGHT" $BG_COLOR_ERROR --title "Error"
 }
 
