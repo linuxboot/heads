@@ -61,7 +61,7 @@ while true; do
       # mount newly selected /boot device
       if ! mount -o ro "$SELECTED_FILE" /boot 2>/tmp/error ; then
         ERROR=$(cat /tmp/error)
-        whiptail "$BG_COLOR_ERROR" --title 'ERROR: unable to mount /boot' \
+        whiptail $BG_COLOR_ERROR --title 'ERROR: unable to mount /boot' \
           --msgbox "    $ERROR\n\n" 16 60
         exit 1
       fi
@@ -75,7 +75,7 @@ while true; do
     "s" )
       /bin/flash.sh -r /tmp/config-gui.rom
       if [ ! -s /tmp/config-gui.rom ]; then
-        whiptail "$BG_COLOR_ERROR" --title 'ERROR: BIOS Read Failed!' \
+        whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
           --msgbox "Unable to read BIOS" 16 60
         exit 1
       fi
@@ -105,7 +105,7 @@ while true; do
         # read current firmware
         /bin/flash.sh -r /tmp/config-gui.rom
         if [ ! -s /tmp/config-gui.rom ]; then
-          whiptail "$BG_COLOR_ERROR" --title 'ERROR: BIOS Read Failed!' \
+          whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
             --msgbox "Unable to read BIOS" 16 60
           exit 1
         fi

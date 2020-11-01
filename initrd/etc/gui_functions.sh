@@ -8,17 +8,17 @@ mount_usb()
     umount /media || die "Unable to unmount /media"
   fi
   # Mount the USB boot device
-  mount-usb
+  /bin/mount-usb.sh
   if [ $? -eq 5 ]; then
     exit 1
   elif $?; then
     whiptail --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
-    mount-usb
+    /bin/mount-usb.sh
     if [ $? -eq 5 ]; then
       exit 1
     elif $?; then
-      whiptail "$BG_COLOR_ERROR" --title 'ERROR: Mounting /media Failed' \
+      whiptail $BG_COLOR_ERROR --title 'ERROR: Mounting /media Failed' \
         --msgbox "Unable to mount USB device" 16 60
       exit 1
     fi
@@ -71,7 +71,7 @@ file_selector()
 
     return "$FILE"
   else
-    whiptail "$BG_COLOR_ERROR" --title 'ERROR: No Files Found' \
+    whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
       --msgbox "No Files found matching the pattern. Aborting." 16 60
     exit 1
   fi

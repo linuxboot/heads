@@ -49,7 +49,7 @@ whiptail_error()
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
-    whiptail --msgbox "${msg}\n\n" "$WIDTH $HEIGHT" "$BG_COLOR_ERROR" --title "Error"
+    whiptail --msgbox "${msg}\n\n" "$WIDTH $HEIGHT" $BG_COLOR_ERROR --title "Error"
 }
 
 whiptail_error_die()
@@ -341,7 +341,7 @@ if [ "$prompt_output" == "y" ] || [ "$prompt_output" == "Y" ]; then
     # ensure /media not mounted
     umount /media 2>/dev/null
     # mount-usb will detect and prompt if no USB inserted
-    if ! mount-usb rw 2>/tmp/error; then
+    if ! mount-usb.sh rw 2>/tmp/error; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
     fi

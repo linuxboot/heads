@@ -36,7 +36,7 @@ if [ -z  "$USB_BLOCK_DEVICES" ]; then
   USB_BLOCK_DEVICES=$(cat /tmp/usb_block_devices)
   if [ -z "$USB_BLOCK_DEVICE" ]; then
     if [ -x /bin/whiptail ]; then
-      whiptail "$BG_COLOR_ERROR" --title 'ERROR: USB Drive Missing' \
+      whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
     else
       echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."

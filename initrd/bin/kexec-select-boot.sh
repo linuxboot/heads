@@ -60,7 +60,7 @@ verify_global_hashes()
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail "$BG_COLOR_ERROR" --title 'ERROR: Boot Hash Mismatch' \
+			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
@@ -226,7 +226,7 @@ default_select() {
 	option=$(head -n $((default_index)) "$TMP_MENU_FILE" | tail -1)
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
-			whiptail "$BG_COLOR_ERROR" --title 'ERROR: Boot Entry Has Changed' \
+			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \
 				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
 		fi
 		warn "!!! Boot entry has changed - please set a new default"
@@ -243,7 +243,7 @@ default_select() {
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail "$BG_COLOR_ERROR" --title 'ERROR: Default Boot Hash Mismatch' \
+			whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
 		fi
 		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
