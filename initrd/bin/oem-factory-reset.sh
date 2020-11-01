@@ -236,7 +236,7 @@ set_default_boot_option()
     echo "$entry" > "/boot/kexec_default.$index.txt"
 
     # validate boot option
-    ( cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f \
+    ( cd /boot && /bin/kexec-boot.sh -b "/boot" -e "$entry" -f \
         | xargs sha256sum > $hash_file 2>/dev/null ) \
         || whiptail_error_die "Failed to create hashes of boot files"
 }
@@ -383,7 +383,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
   if {
       echo "$TPM_PASS_DEF"
       echo "$TPM_PASS_DEF"
-  } | /bin/tpm-reset >/dev/null 2>/tmp/error; then
+  } | /bin/tpm-reset.sh >/dev/null 2>/tmp/error; then
       ERROR=$(tail -n 1 /tmp/error | fold -s)
       whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
   fi

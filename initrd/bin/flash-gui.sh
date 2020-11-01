@@ -51,7 +51,7 @@ while true; do
             whiptail --title 'ROM Flashed Successfully' \
               --msgbox "${ROM#"/media/"}\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 16 60
             umount /media
-            /bin/reboot
+            /bin/reboot.sh
           else
             exit
           fi

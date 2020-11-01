@@ -38,7 +38,7 @@ mount_boot()
         fi
         ;;
       u )
-        exec /bin/usb-init
+        exec /bin/usb-init.sh
         ;;
       m )
         break
@@ -106,11 +106,11 @@ prompt_update_checksums()
 update_totp()
 {
   echo "Scan the QR code to add the new TOTP secret"
-  /bin/seal-totp
+  /bin/seal-totp.sh
   if [ -x /bin/hotp_verification ]; then
     echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
     read -r
-    /bin/seal-hotpkey
+    /bin/seal-hotpkey.sh
   else
     echo "Once you have scanned the QR code, hit Enter to continue"
     read -r
@@ -312,7 +312,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "u" ]; then
-    /bin/usb-init
+    /bin/usb-init.sh
     continue
   fi
 
@@ -330,7 +330,7 @@ while true; do
     if [ "$CONFIG_TPM" = "y" ]; then
       if (whiptail --title 'Reset the TPM' \
           --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
-        /bin/tpm-reset
+        /bin/tpm-reset.sh
 
         # now that the TPM is reset, remove invalid TPM counter files
         mount_boot
@@ -365,7 +365,7 @@ while true; do
     if verify_global_hashes; then
       continue
     fi
-    kexec-select-boot -m -b /boot -c "grub.cfg" -g
+    kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g
     continue
   fi
 
@@ -374,7 +374,7 @@ while true; do
     if (whiptail "$BG_COLOR_WARNING" --title 'Unsafe Forced Boot Selected!' \
         --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 90) then
       mount_boot
-      kexec-select-boot -m -b /boot -c "grub.cfg" -g -f
+      kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -f
     else
       echo "Returning to the main menu"
     fi
@@ -412,7 +412,7 @@ while true; do
   fi
 
   if [ "$totp_confirm" = "F" ]; then
-    oem-factory-reset
+    oem-factory-reset.sh
     continue
   fi
 
@@ -429,12 +429,12 @@ while true; do
     fi
     DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)
     if [ -r "$DEFAULT_FILE" ]; then
-      kexec-select-boot -b /boot -c "grub.cfg" -g \
+      kexec-select-boot.sh -b /boot -c "grub.cfg" -g \
       || recovery "Failed default boot"
     else
       if (whiptail --title 'No Default Boot Option Configured' \
           --yesno "There is no default boot option configured yet.\nWould you like to load a menu of boot options?\nOtherwise you will return to the main menu." 16 90) then
-        kexec-select-boot -m -b /boot -c "grub.cfg" -g
+        kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g
       else
         echo "Returning to the main menu"
       fi

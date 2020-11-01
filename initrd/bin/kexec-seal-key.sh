@@ -81,7 +81,7 @@ done
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-cut -d\  -f1 "$KEY_DEVICES" | xargs /bin/qubes-measure-luks \
+cut -d\  -f1 "$KEY_DEVICES" | xargs /bin/qubes-measure-luks.sh \
 	|| die "Unable to measure the LUKS headers"
 luks_pcr=$(tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt)
 

@@ -45,16 +45,16 @@ hwclock -l -s
 . /etc/config
 
 if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
+	/bin/cbfs-init.sh
 fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
-	/bin/uefi-init
+	/bin/uefi-init.sh
 fi
 
 # Set GPG_TTY before calling gpg in key-init
 export GPG_TTY=/dev/console
 
-/bin/key-init
+/bin/key-init.sh
 
 # Setup recovery serial shell
 if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then

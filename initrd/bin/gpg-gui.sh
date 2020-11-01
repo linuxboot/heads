@@ -66,12 +66,12 @@ gpg_flash_rom() {
       --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 16 90) then
     update_checksums
   else
-    /bin/reboot
+    /bin/reboot.sh
   fi
 
   whiptail --title 'Files in /boot Updated Successfully'\
     --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 16 60
-  /bin/reboot
+  /bin/reboot.sh
 
 }
 gpg_post_gen_mgmt() {

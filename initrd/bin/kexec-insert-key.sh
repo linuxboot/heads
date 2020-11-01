@@ -27,7 +27,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 fi
 
 # Measure the LUKS headers before we unseal the disk key
-cut -d\  -f1 "$TMP_KEY_DEVICES" | xargs /bin/qubes-measure-luks \
+cut -d\  -f1 "$TMP_KEY_DEVICES" | xargs /bin/qubes-measure-luks.sh \
 	|| die "LUKS measure failed"
 
 # Unpack the initrd and fixup the /etc/crypttab

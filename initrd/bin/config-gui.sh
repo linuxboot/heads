@@ -90,7 +90,7 @@ while true; do
         /bin/flash.sh /tmp/config-gui.rom
         whiptail --title 'BIOS Updated Successfully' \
           --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
-        /bin/reboot
+        /bin/reboot.sh
       else
         exit 0
       fi
@@ -123,11 +123,11 @@ while true; do
         /bin/flash.sh -c /tmp/config-gui.rom
         # reset TPM if present
         if [ "$CONFIG_TPM" = "y" ]; then
-          /bin/tpm-reset
+          /bin/tpm-reset.sh
         fi
         whiptail --title 'Configuration Reset Updated Successfully' \
           --msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 16 60
-        /bin/reboot
+        /bin/reboot.sh
       else
         exit 0
       fi

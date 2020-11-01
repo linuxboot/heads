@@ -9,5 +9,5 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpm extend -ix 4 -ic usb
 fi
 
-usb-scan
+/bin/usb-scan.sh
 recovery "Something failed during USB boot"
