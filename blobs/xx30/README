@@ -1,6 +1,13 @@
 The ME blobs dumped in this directory come from the following link: https://pcsupport.lenovo.com/us/en/products/laptops-and-netbooks/thinkpad-t-series-laptops/thinkpad-t430/downloads/DS032435
 
-You can arrive to the same result by doing the following:
+This provides latest ME version 8.1.72.3002, for which only BUP and ROMP regions will be kept as non-removable:
+Here is what Lenovo provides as a Summary of Changes:
+Version 8.1.72.3002 (G1RG24WW)
+
+  (Fix) Fixed the following security vulnerabilites: CVE-2017-5711, CVE-2017-5712, CVE-2017-13077, CVE-2017-13078, CVE-2017-13080.
+
+
+You can arrive to the same result of the following me.bin by doing the following manually:
 wget https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe && innoextract g1rg24ww.exe && python ~/me_cleaner/me_cleaner.py -r -t -O ~/heads/blobs/xx30/me.bin app/ME8_5M_Production.bin
 
 sha256sums:
@@ -8,7 +15,7 @@ f60e1990e2da2b7efa58a645502d22d50afd97b53a092781beee9b0322b61153  g1rg24ww.exe
 821c6fa16e62e15bc902ce2e958ffb61f63349a471685bed0dc78ce721a01bfa  app/ME8_5M_Production.bin
 c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  blobs/xx30/me.bin
 
-x230-ifd.bin is extracted from an external flashrom backup (no way found to be able to extract it from Lenovo firmware upgrades as of now):
+x230-ifd.bin was extracted from sacrificed X230 (dead motherboard) fron an external flashrom backup (no way found to be able to extract it from Lenovo firmware upgrades as of now):
 python ~/me_cleaner/me_cleaner.py -S -r -t -d -O /tmp/discarded.bin -D ~/heads/blobs/xx30/ifd.bin -M /tmp/temporary_me.bin dead_serving_a_purpose_x230_bottom_spi_backup.rom
 
 sha256sum:
