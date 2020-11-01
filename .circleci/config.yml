@@ -245,5 +245,5 @@ workflows:
   build_and_test:
     jobs:
       - shellcheck/check:
-        dir: ./initrd
+          dir: ./initrd
       - build
