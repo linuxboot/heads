@@ -684,4 +684,4 @@ endif
 
 check-scripts:
 	# Chech shell scripts under initrd/
-	shellcheck -x $(shell find ./initrd/ -iname "*.sh")
+	shellcheck -x $(shell find ./initrd/ -iname "*.sh" && find ./initrd/ -name "init")
