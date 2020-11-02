@@ -4,6 +4,9 @@ orbs:
   shellcheck: circleci/shellcheck@2.2.0
 
 jobs:
+  shellcheck:
+    - shellcheck/check:
+        dir: ./initrd
   build:
     docker:
       - image: debian:10
@@ -244,6 +247,5 @@ jobs:
 workflows:
   build_and_test:
     jobs:
-      - shellcheck/check:
-          dir: ./initrd
+      - shellcheck
       - build
