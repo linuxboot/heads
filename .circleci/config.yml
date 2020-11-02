@@ -241,7 +241,7 @@ jobs:
             - build
 
 workflows:
-  version: 2
+  version: 2.1
   build_and_test:
     jobs:
       - shellcheck/check
