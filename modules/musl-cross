@@ -35,8 +35,8 @@ else
 # have to build both x86_64 and i386 versions for coreboot
 
 musl-cross_configure := \
-	/bin/echo -e >> config.mak 'GCC_CONFIG += --enable-languages=c,c++,lto' ; \
-	/bin/echo -e >> config.mak 'COMMON_CONFIG += --enable-gold --enable-lto' ; \
+	/bin/echo -e >> config.mak 'GCC_CONFIG += --enable-languages=c,c++,lto,ada' ; \
+	/bin/echo -e >> config.mak 'COMMON_CONFIG += --enable-gold --enable-lto --enable-plugins' ; \
 	/bin/echo -e >> Makefile 'both:' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=x86_64-linux-musl install' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=i386-linux-musl install' ; \
