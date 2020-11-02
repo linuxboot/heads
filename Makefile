@@ -684,4 +684,4 @@ endif
 
 check-scripts:
 	# Chech shell scripts under initrd/
-	shellcheck -x $(shell find ./initrd/ -iname "*.sh" && find ./initrd/ -name "init")
+	shellcheck -x -e SC1091,SC1117 $(shell find ./initrd/ -iname "*.sh" && find ./initrd/ -name "init")
