@@ -2,7 +2,6 @@ version: 2.1
 
 orbs:
   shellcheck: circleci/shellcheck@2.2.0
-
 jobs:
   build:
     docker:
@@ -242,10 +241,8 @@ jobs:
             - build
 
 workflows:
-  check-build:
-    jobs:
-      - shellcheck/check:
-          dir: ./initrd
+  version: 2
   build_and_test:
     jobs:
+      - shellcheck/check
       - build
