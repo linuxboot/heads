@@ -50,15 +50,19 @@ echo "IFD: $IFDTOOL"
 bioscopy=$(mktemp)
 extractdir=$(mktemp -d)
 
+echo "###Copying $FILE under $bioscopy"
 cp "$FILE" $bioscopy
 
 cd "$extractdir"
+echo "###Unlocking $bioscopy IFD..."
+$IFDTOOL -u $bioscopy
+echo "###Extracting regions from ROM..."
 $IFDTOOL -x $bioscopy
+echo "###Copying GBE region under $BLOBDIR/gbe.bin..."
 cp "$extractdir/flashregion_3_gbe.bin" "$BLOBDIR/gbe.bin"
-$MECLEAN -r -t -d -O /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" "$extractdir/flashregion_2_intel_me.bin"
-$IFDTOOL -n "$BLOBDIR/layout.txt" $bioscopy
-$IFDTOOL -x $bioscopy.new
+echo "###Applying me_cleaner to neuter+deactivate+maximize reduction of ME on $bioscopy, outputting minimized ME under $BLOBDIR/me.bin and adapting BIOS+ME regions under $BLOBDIR/ifd.bin... "
+$MECLEAN -r -t -d -O /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" "$bioscopy"
 
+echo "###Cleaning up..."
 rm "$bioscopy"
-rm "$bioscopy.new"
 rm -r "$extractdir"
