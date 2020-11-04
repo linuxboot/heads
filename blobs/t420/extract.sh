@@ -55,7 +55,7 @@ cp "$FILE" $bioscopy
 cd "$extractdir"
 $IFDTOOL -x $bioscopy
 cp "$extractdir/flashregion_3_gbe.bin" "$BLOBDIR/gbe.bin"
-$MECLEAN -r -t -d -O /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" "$extractdir/flashregion_2_intel_me.bin" 
+$MECLEAN -r -t -d -O /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" "$extractdir/flashregion_2_intel_me.bin"
 $IFDTOOL -n "$BLOBDIR/layout.txt" $bioscopy
 $IFDTOOL -x $bioscopy.new
 
