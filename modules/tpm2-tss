@@ -1,0 +1,39 @@
+# TPM2 TSS library
+modules-$(CONFIG_TPM2_TSS) += tpm2-tss
+
+tpm2-tss_version := 2.4.3
+tpm2-tss_dir := tpm2-tss-$(tpm2-tss_version)
+tpm2-tss_tar := tpm2-tss-$(tpm2-tss_version).tar.gz
+tpm2-tss_url := https://github.com/tpm2-software/tpm2-tss/releases/download/$(tpm2-tss_version)/$(tpm2-tss_tar)
+tpm2-tss_hash := e294677f8993234d0adfa191a5cbf9c5b83cc60c724c233e3d631c26712abea0
+
+tpm2-tss_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host i386-elf-linux \
+	--prefix "/" \
+	--disable-doxygen-doc \
+	--disable-doxygen-man \
+	--disable-doxygen-rtf \
+	--disable-doxygen-html \
+	--disable-fapi \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+
+tpm2-tss_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	install \
+
+# tpm2 binary wants to dlopen some libraries, so be sure that
+# they are available.  It would be nice to statically link these.
+tpm2-tss_libraries := \
+	src/tss2-rc/.libs/libtss2-rc.so.0 \
+	src/tss2-mu/.libs/libtss2-mu.so.0 \
+	src/tss2-sys/.libs/libtss2-sys.so.0 \
+	src/tss2-esys/.libs/libtss2-esys.so.0 \
+	src/tss2-tcti/.libs/libtss2-tctildr.so.0 \
+	src/tss2-tcti/.libs/libtss2-tcti-device.so.0 \
+
+tpm2-tss_depends := openssl $(musl_dep)
