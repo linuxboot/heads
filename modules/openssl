@@ -1,0 +1,36 @@
+# OpenSSL library
+modules-$(CONFIG_OPENSSL) += openssl
+
+openssl_version := 1_1_1h
+openssl_dir := openssl-$(openssl_version)
+openssl_tar := openssl-$(openssl_version).tar.gz
+openssl_url := https://github.com/openssl/openssl/archive/OpenSSL_$(openssl_version).tar.gz
+openssl_hash := d1f723c1f6b6d1eaf26655caa50d2f60d4d33f4b04977b1da63def878f386fcc
+
+# hack to provide path to libgcc
+LIBGCC_DIR := $(dir $(shell $(heads_cc) -print-libgcc-file-name))
+
+openssl_configure := \
+	$(CROSS_TOOLS) \
+	LDFLAGS="-L$(LIBGCC_DIR)" \
+	./Configure \
+		--prefix="/" \
+		linux-x86_64 \
+
+openssl_target := $(MAKE_JOBS) \
+	build_programs \
+	&& \
+	$(MAKE) \
+		-C "$(build)/$(openssl_dir)" \
+		DESTDIR="$(INSTALL)" \
+		LIBDIR="lib" \
+		install_sw \
+
+openssl_libraries := \
+	libcrypto.so.1.1 \
+	libssl.so.1.1 \
+
+openssl_output := \
+	apps/openssl \
+
+openssl_depends := $(musl_dep)
