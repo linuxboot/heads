@@ -1,0 +1,28 @@
+# TPM2 tools program
+modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
+
+#tpm2-tools_version := 4.3.0
+tpm2-tools_version := 78a7681
+tpm2-tools_repo := https://github.com/tpm2-software/tpm2-tools.git
+
+tpm2-tools_dir := tpm2-tools-$(tpm2-tools_version)
+tpm2-tools_tar := tpm2-tools-$(tpm2-tools_version).tar.gz
+tpm2-tools_url := https://github.com/tpm2-software/tpm2-tools/releases/download/$(tpm2-tools_version)/$(tpm2-tools_tar)
+tpm2-tools_hash := ae009b3495b44a16faa3d94d41ac9c9d99c71723482efad53c5eea17eeed80fc
+
+# we have ESYS 3.0, but it doesn't figure that out on its own
+tpm2-tools_configure := ./bootstrap && ./configure \
+	$(CROSS_TOOLS) \
+	--host i386-elf-linux \
+	--prefix "/" \
+	TSS2_ESYS_3_0_CFLAGS="-I$(INSTALL)/include" \
+	TSS2_ESYS_3_0_LIBS="-ltss2-esys" \
+
+tpm2-tools_target := $(MAKE_JOBS) \
+	DESTDIR="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	install \
+
+tpm2-tools_output := tools/tpm2
+
+tpm2-tools_depends := tpm2-tss $(musl_dep)
