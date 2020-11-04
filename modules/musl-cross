@@ -4,11 +4,11 @@ ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 modules-$(CONFIG_MUSL) += musl-cross
 
-musl-cross_version := b12ded507831d0cac2dabd869aef14f3822a8770
+musl-cross_version := 38e52db8358c043ae82b346a2e6e66bc86a53bc1
 musl-cross_dir := musl-cross-$(musl-cross_version)
 musl-cross_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross_version).tar.gz
 musl-cross_tar := musl-cross-$(musl-cross_version).tar.gz
-musl-cross_hash := 21fc8d4d5ac241e57c73dfb1e4cdd8b6dcfb32db1276aa71e89be498a39e1980
+musl-cross_hash := b4b85d6d3ddab0f2b8650a53e775673f8c346fa2fb07d652a9880bd206ade100
 
 
 ifneq "$(CROSS)" ""
@@ -35,8 +35,6 @@ else
 # have to build both x86_64 and i386 versions for coreboot
 
 musl-cross_configure := \
-	/bin/echo -e >> config.mak 'GCC_CONFIG += --enable-languages=c,c++,lto,ada' ; \
-	/bin/echo -e >> config.mak 'COMMON_CONFIG += --enable-gold --enable-lto --enable-plugins' ; \
 	/bin/echo -e >> Makefile 'both:' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=x86_64-linux-musl install' ; \
 	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET=i386-linux-musl install' ; \
