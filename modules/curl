@@ -1,0 +1,22 @@
+# if you can use wget, it is in busybox. if you need curl, well...
+modules-$(CONFIG_CURL) += curl
+
+curl_version := 7.73.0
+curl_dir := curl-$(curl_version)
+curl_tar := curl-$(curl_version).tar.bz2
+curl_url := https://github.com/curl/curl/releases/download/curl-7_73_0/$(curl_tar)
+curl_hash := cf34fe0b07b800f1c01a499a6e8b2af548f6d0e044dca4a29d88a4bee146d131
+
+curl_configure := ./configure \
+	$(CROSS_TOOLS) \
+	LDFLAGS="-Wl,-rpath-link=$(INSTALL)/lib" \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+
+curl_target := \
+	$(MAKE_JOBS) \
+
+curl_output := src/.libs/curl
+curl_libraries := lib/.libs/libcurl.so.4
+
+curl_depends := openssl $(musl_dep)
