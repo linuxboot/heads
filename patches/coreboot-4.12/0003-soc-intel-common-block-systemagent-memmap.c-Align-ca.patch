@@ -1,0 +1,67 @@
+From c46fd7eb28c6513613f672c78f8786e28ee5235d Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Thu, 1 Oct 2020 22:50:12 +0200
+Subject: [PATCH] soc/intel/common/block/systemagent/memmap.c: Align cached region
+
+When asked to place cbmem_top(), FSP does not seem to care about
+alignment. It can return an address that is MTRR poison, which will
+exhaust all variable MTRRs when trying to set up caching for CBMEM.
+This will make memory-mapped flash and TSEG caching fail as well.
+
+Safeguard against this by aligning the region to cache to half of its
+size, and move it upwards to compensate. It is assumed that caching
+memory above the provided bootloader TOLUM address is inconsequential.
+
+TEST=Boot Purism Librem Mini WHL, observe no MTRR exhaustion error
+     messages in console. The boot process also feels more fluid.
+
+Change-Id: Ic64fd6d3d9e8ab4c78d68b910a476f9c4eb2d353
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/45930
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Arthur Heymans <arthur@aheymans.xyz>
+Reviewed-by: Tim Wawrzynczak <twawrzynczak@chromium.org>
+---
+ src/soc/intel/common/block/systemagent/memmap.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/soc/intel/common/block/systemagent/memmap.c b/src/soc/intel/common/block/systemagent/memmap.c
+index 985f2c4814..27870b0cf7 100644
+--- a/src/soc/intel/common/block/systemagent/memmap.c
++++ b/src/soc/intel/common/block/systemagent/memmap.c
+@@ -6,6 +6,7 @@
+ #include <cpu/x86/mtrr.h>
+ #include <cpu/x86/smm.h>
+ #include <intelblocks/systemagent.h>
++#include <types.h>
+ 
+ /*
+  * Expected Host Memory Map (we don't know 100% and not all regions are present on all SoCs):
+@@ -55,18 +56,18 @@ void smm_region(uintptr_t *start, size_t *size)
+ 
+ void fill_postcar_frame(struct postcar_frame *pcf)
+ {
+-	uintptr_t top_of_ram;
++	/* FSP does not seem to bother w.r.t. alignment when asked to place cbmem_top() */
++	uintptr_t top_of_ram = ALIGN_UP((uintptr_t)cbmem_top(), 8 * MiB);
+ 
+ 	/*
+ 	 * We need to make sure ramstage will be run cached. At this
+ 	 * point exact location of ramstage in cbmem is not known.
+-	 * Instruct postcar to cache 16 megs under cbmem top which is
++	 * Instruct postcar to cache 16 megs below cbmem top which is
+ 	 * a safe bet to cover ramstage.
+ 	 */
+-	top_of_ram = (uintptr_t) cbmem_top();
+ 	printk(BIOS_DEBUG, "top_of_ram = 0x%lx\n", top_of_ram);
+-	top_of_ram -= 16*MiB;
+-	postcar_frame_add_mtrr(pcf, top_of_ram, 16*MiB, MTRR_TYPE_WRBACK);
++
++	postcar_frame_add_mtrr(pcf, top_of_ram - 16 * MiB, 16 * MiB, MTRR_TYPE_WRBACK);
+ 
+ 	/* Cache the TSEG region */
+ 	postcar_enable_tseg_cache(pcf);
+-- 
+2.20.1
+
