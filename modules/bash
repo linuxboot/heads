@@ -1,0 +1,24 @@
+# bash is the default shell for safeboot,
+# but probably too big for busybox installations.
+modules-$(CONFIG_BASH) += bash
+
+bash_version := 5.0
+bash_dir := bash-$(bash_version)
+bash_tar := bash-$(bash_version).tar.gz
+bash_url := http://ftp.gnu.org/gnu/bash/$(bash_tar)
+bash_hash := b4a80f2ac66170b2913efbfb9f2594f1f76c7b1afd11f799e22035d63077fb4d
+
+# turn off bash malloc, which uses sbrk(), which is not implemented in musl
+
+bash_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host x86_64-linux-musl \
+	--prefix "/" \
+	--without-bash-malloc \
+
+bash_target := \
+	$(MAKE_JOBS) \
+
+bash_output := bash
+
+bash_depends := $(musl_dep)
