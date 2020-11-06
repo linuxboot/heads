@@ -241,6 +241,26 @@ jobs:
           path: build/qemu-coreboot
 
       - run:
+          name: safeboot
+          command: |
+            rm -rf build/safeboot/* build/log/* && make CPUS=4 V=1 BOARD=safeboot || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output safeboot hashes
+          command: |
+             cat build/safeboot/hashes.txt \
+      - run:
+          name: Archiving build logs for safeboot
+          command: |
+             tar zcvf build/safeboot/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/safeboot
+
+      - run:
           name: qemu-coreboot-fbwhiptail
           command: |
             rm -rf build/qemu-coreboot-fbwhiptail/* build/log/* && make CPUS=4 V=1 BOARD=qemu-coreboot-fbwhiptail || touch /tmp/failed_build
