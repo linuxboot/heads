@@ -1,0 +1,70 @@
+From df8425fbe588efdec7f4ebe8831a12c27b8bbbb8 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Mon, 2 Nov 2020 17:19:53 -0600
+Subject: [PATCH] mb/purism/librem_cnl: Add new variant 'Librem Mini v2'
+
+Add Kconfig entries, and update existing documentation to
+accomodate both v1/v2 versions of the board.
+
+Change-Id: I856bb914941211cfbec4fed871ba2a5a038e23c3
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+---
+ src/mainboard/purism/librem_cnl/Kconfig      | 7 +++++--
+ src/mainboard/purism/librem_cnl/Kconfig.name | 5 +++++
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/mainboard/purism/librem_cnl/Kconfig b/src/mainboard/purism/librem_cnl/Kconfig
+index 464350ce8c..39d57e6da4 100644
+--- a/src/mainboard/purism/librem_cnl/Kconfig
++++ b/src/mainboard/purism/librem_cnl/Kconfig
+@@ -20,15 +20,16 @@ config MAINBOARD_DIR
+ 
+ config MAINBOARD_FAMILY
+ 	string
+-	default "Librem Mini" if BOARD_PURISM_LIBREM_MINI
++	default "Librem Mini" if BOARD_PURISM_LIBREM_MINI || BOARD_PURISM_LIBREM_MINI_V2
+ 
+ config MAINBOARD_PART_NUMBER
+ 	string
+ 	default "Librem Mini" if BOARD_PURISM_LIBREM_MINI
++	default "Librem Mini v2" if BOARD_PURISM_LIBREM_MINI_V2
+ 
+ config VARIANT_DIR
+ 	string
+-	default "librem_mini" if BOARD_PURISM_LIBREM_MINI
++	default "librem_mini" if BOARD_PURISM_LIBREM_MINI || BOARD_PURISM_LIBREM_MINI_V2
+ 
+ config DEVICETREE
+ 	string
+@@ -37,6 +38,7 @@ config DEVICETREE
+ config CBFS_SIZE
+ 	hex
+ 	default 0x800000 if BOARD_PURISM_LIBREM_MINI
++	default 0xA00000 if BOARD_PURISM_LIBREM_MINI_V2
+ 
+ config MAX_CPUS
+ 	int
+@@ -53,6 +55,7 @@ config DIMM_SPD_SIZE
+ config VGA_BIOS_ID
+ 	string
+ 	default "8086,3ea0" if BOARD_PURISM_LIBREM_MINI
++	default "8086,9b41" if BOARD_PURISM_LIBREM_MINI_V2
+ 
+ config PXE_ROM_ID
+ 	string
+diff --git a/src/mainboard/purism/librem_cnl/Kconfig.name b/src/mainboard/purism/librem_cnl/Kconfig.name
+index 83f1495ab1..455e79ffe0 100644
+--- a/src/mainboard/purism/librem_cnl/Kconfig.name
++++ b/src/mainboard/purism/librem_cnl/Kconfig.name
+@@ -2,3 +2,8 @@ config BOARD_PURISM_LIBREM_MINI
+ 	bool "Librem Mini"
+ 	select BOARD_PURISM_BASEBOARD_LIBREM_CNL
+ 	select SOC_INTEL_WHISKEYLAKE
++
++config BOARD_PURISM_LIBREM_MINI_V2
++	bool "Librem Mini v2"
++	select BOARD_PURISM_BASEBOARD_LIBREM_CNL
++	select SOC_INTEL_COMETLAKE
+-- 
+2.20.1
+
