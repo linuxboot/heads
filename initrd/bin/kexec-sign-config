@@ -6,7 +6,7 @@ set -e -o pipefail
 
 rollback="n"
 update="n"
-while getopts "p:c:u:r" arg; do
+while getopts "p:c:ur" arg; do
 	case $arg in
 		p) paramsdir="$OPTARG" ;;
 		c) counter="$OPTARG"; rollback="y" ;;
