@@ -1,0 +1,22 @@
+# safeboot tpm2 interface scripts
+modules-$(CONFIG_SAFEBOOT) += safeboot
+
+#safeboot_version := 4.3.0
+safeboot_version := git
+safeboot_repo := https://github.com/osresearch/safeboot.git -b attest-demo
+
+safeboot_dir := safeboot-$(safeboot_version)
+safeboot_tar := safeboot-$(safeboot_version).tar.gz
+safeboot_url := https://github.com/tpm2-software/safeboot/releases/download/$(safeboot_version)/$(safeboot_tar)
+safeboot_hash := ae009b3495b44a16faa3d94d41ac9c9d99c71723482efad53c5eea17eeed80fc
+
+safeboot_configure := echo true
+safeboot_target := $(MAKE_JOBS) \
+	bin/sbsign.safeboot
+
+safeboot_output := \
+	functions.sh  \
+	sbin/safeboot \
+	sbin/tpm2-attest \
+
+safeboot_depends :=
