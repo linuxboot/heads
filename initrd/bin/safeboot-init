@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Ensure that the TPM2 logs are present (if configured)
+mount /sys/kernel/security 2>/dev/ttyprintk
+export TPM2TOOLS_TCTI="device:/dev/tpmrm0"
+
+mkdir -p /etc/safeboot
+mv /bin/functions.sh /etc/safeboot
+
+ifconfig eth0 10.0.2.15
+
+export PS1='\h:\w# '
+
+exec setsid -c /bin/bash
