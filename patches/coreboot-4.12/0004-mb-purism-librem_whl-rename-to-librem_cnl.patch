@@ -1,0 +1,141 @@
+From f18a3aa83e12050c1cf18e79371e48c24962fe65 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Thu, 29 Oct 2020 20:30:08 -0500
+Subject: [PATCH] mb/purism/librem_whl: rename to librem_cnl
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Since Whiskeylake SoC code is actually a subset of soc/intel/cannonlake,
+rename the baseboard so that boards using other 'cannonlake family' SoCs
+(e.g., Cometlake) can be added with minimal confusion.
+
+Rename the mainboard dir and baseboard name, and adjust any references
+to them.
+
+Change-Id: I2af7977f1622070eb8bf8449bc8306f9d75b9851
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/47050
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Michael Niewöhner <foss@mniewoehner.de>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+---
+ .../purism/{librem_whl => librem_cnl}/Kconfig       |   6 +++---
+ .../purism/{librem_whl => librem_cnl}/Kconfig.name  |   2 +-
+ .../purism/{librem_whl => librem_cnl}/Makefile.inc  |   0
+ .../{librem_whl => librem_cnl}/acpi/mainboard.asl   |   0
+ .../{librem_whl => librem_cnl}/board_info.txt       |   2 +-
+ .../purism/{librem_whl => librem_cnl}/devicetree.cb |   0
+ .../purism/{librem_whl => librem_cnl}/dsdt.asl      |   0
+ .../purism/{librem_whl => librem_cnl}/ramstage.c    |   0
+ .../purism/{librem_whl => librem_cnl}/romstage.c    |   0
+ .../variants/librem_mini/gpio.c                     |   0
+ .../variants/librem_mini/hda_verb.c                 |   0
+ .../variants/librem_mini/include/variant/gpio.h     |   0
+ 13 files changed, 5 insertions(+), 5 deletions(-)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/Kconfig (89%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/Kconfig.name (55%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/Makefile.inc (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/acpi/mainboard.asl (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/board_info.txt (85%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/devicetree.cb (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/dsdt.asl (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/ramstage.c (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/romstage.c (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/variants/librem_mini/gpio.c (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/variants/librem_mini/hda_verb.c (100%)
+ rename src/mainboard/purism/{librem_whl => librem_cnl}/variants/librem_mini/include/variant/gpio.h (100%)
+
+diff --git a/src/mainboard/purism/librem_whl/Kconfig b/src/mainboard/purism/librem_cnl/Kconfig
+similarity index 89%
+rename from src/mainboard/purism/librem_whl/Kconfig
+rename to src/mainboard/purism/librem_cnl/Kconfig
+index f7662a0e72..453490b7d2 100644
+--- a/src/mainboard/purism/librem_whl/Kconfig
++++ b/src/mainboard/purism/librem_cnl/Kconfig
+@@ -1,4 +1,4 @@
+-config BOARD_PURISM_BASEBOARD_LIBREM_WHL
++config BOARD_PURISM_BASEBOARD_LIBREM_CNL
+ 	def_bool n
+ 	select BOARD_ROMSIZE_KB_16384
+ 	select DRIVERS_GENERIC_CBFS_SERIAL
+@@ -12,11 +12,11 @@ config BOARD_PURISM_BASEBOARD_LIBREM_WHL
+ 	select SPD_READ_BY_WORD
+ 	select USE_LEGACY_8254_TIMER
+ 
+-if BOARD_PURISM_BASEBOARD_LIBREM_WHL
++if BOARD_PURISM_BASEBOARD_LIBREM_CNL
+ 
+ config MAINBOARD_DIR
+ 	string
+-	default "purism/librem_whl"
++	default "purism/librem_cnl"
+ 
+ config MAINBOARD_FAMILY
+ 	string
+diff --git a/src/mainboard/purism/librem_whl/Kconfig.name b/src/mainboard/purism/librem_cnl/Kconfig.name
+similarity index 55%
+rename from src/mainboard/purism/librem_whl/Kconfig.name
+rename to src/mainboard/purism/librem_cnl/Kconfig.name
+index 41a4003102..326165ba07 100644
+--- a/src/mainboard/purism/librem_whl/Kconfig.name
++++ b/src/mainboard/purism/librem_cnl/Kconfig.name
+@@ -1,3 +1,3 @@
+ config BOARD_PURISM_LIBREM_MINI
+ 	bool "Librem Mini"
+-	select BOARD_PURISM_BASEBOARD_LIBREM_WHL
++	select BOARD_PURISM_BASEBOARD_LIBREM_CNL
+diff --git a/src/mainboard/purism/librem_whl/Makefile.inc b/src/mainboard/purism/librem_cnl/Makefile.inc
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/Makefile.inc
+rename to src/mainboard/purism/librem_cnl/Makefile.inc
+diff --git a/src/mainboard/purism/librem_whl/acpi/mainboard.asl b/src/mainboard/purism/librem_cnl/acpi/mainboard.asl
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/acpi/mainboard.asl
+rename to src/mainboard/purism/librem_cnl/acpi/mainboard.asl
+diff --git a/src/mainboard/purism/librem_whl/board_info.txt b/src/mainboard/purism/librem_cnl/board_info.txt
+similarity index 85%
+rename from src/mainboard/purism/librem_whl/board_info.txt
+rename to src/mainboard/purism/librem_cnl/board_info.txt
+index e72dcdf2b7..ca61edd88d 100644
+--- a/src/mainboard/purism/librem_whl/board_info.txt
++++ b/src/mainboard/purism/librem_cnl/board_info.txt
+@@ -1,5 +1,5 @@
+ Vendor name: Purism
+-Board name: librem_whl
++Board name: librem_cnl
+ Category: desktop
+ Release year: 2020
+ ROM package: SOIC-8
+diff --git a/src/mainboard/purism/librem_whl/devicetree.cb b/src/mainboard/purism/librem_cnl/devicetree.cb
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/devicetree.cb
+rename to src/mainboard/purism/librem_cnl/devicetree.cb
+diff --git a/src/mainboard/purism/librem_whl/dsdt.asl b/src/mainboard/purism/librem_cnl/dsdt.asl
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/dsdt.asl
+rename to src/mainboard/purism/librem_cnl/dsdt.asl
+diff --git a/src/mainboard/purism/librem_whl/ramstage.c b/src/mainboard/purism/librem_cnl/ramstage.c
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/ramstage.c
+rename to src/mainboard/purism/librem_cnl/ramstage.c
+diff --git a/src/mainboard/purism/librem_whl/romstage.c b/src/mainboard/purism/librem_cnl/romstage.c
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/romstage.c
+rename to src/mainboard/purism/librem_cnl/romstage.c
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c b/src/mainboard/purism/librem_cnl/variants/librem_mini/gpio.c
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/variants/librem_mini/gpio.c
+rename to src/mainboard/purism/librem_cnl/variants/librem_mini/gpio.c
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c b/src/mainboard/purism/librem_cnl/variants/librem_mini/hda_verb.c
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/variants/librem_mini/hda_verb.c
+rename to src/mainboard/purism/librem_cnl/variants/librem_mini/hda_verb.c
+diff --git a/src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h b/src/mainboard/purism/librem_cnl/variants/librem_mini/include/variant/gpio.h
+similarity index 100%
+rename from src/mainboard/purism/librem_whl/variants/librem_mini/include/variant/gpio.h
+rename to src/mainboard/purism/librem_cnl/variants/librem_mini/include/variant/gpio.h
+-- 
+2.20.1
+
