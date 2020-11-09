@@ -240,6 +240,24 @@ jobs:
           path: build/x230-external-flash
 
       - run:
+          name: t430-external-flash
+          command: |
+            rm -rf build/t430-external-flash/* build/log/* && make CPUS=4 \
+                V=1 \
+                BOARD=t430-external-flash || (find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1) \
+          no_output_timeout: 3h
+      - run:
+          name: Ouput t430-external-flash hashes
+          command: |
+            cat build/t430-external-flash/hashes.txt \
+      - run:
+          name: Archiving build logs for t430-external-flash
+          command: |
+            tar zcvf build/t430-external-flash/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/t430-external-flash
+
+      - run:
           name: qemu-coreboot
           command: |
             rm -rf build/qemu-coreboot/* build/log/* && make CPUS=4 V=1 BOARD=qemu-coreboot || touch /tmp/failed_build
