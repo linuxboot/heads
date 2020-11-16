@@ -34,30 +34,26 @@ jobs:
             #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
             - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
-# linuxboot steps need something to pass in the kernel header path
-# skipping for now
-#      - run:
-#          name: qemu-linuxboot-edk2
-#          command: |
-#            ./build/make-4.2.1/make \
-#                CROSS=/cross/bin/x86_64-linux-musl- \
-#                BOARD=qemu-linuxboot \
-#                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
-#                # Run first to avoid too many processes
-#
-#      - run:
-#          name: qemu-linuxboot
-#          command: |
-#            ./build/make-4.2.1/make \
-#                CROSS=/cross/bin/x86_64-linux-musl- \
-#                CPUS=4 \
-#                V=1 \
-#                BOARD=qemu-linuxboot \
-#
-#      - store-artifacts:
-#          path: build/qemu-linuxboot/linuxboot.rom
-#      - store-artifacts:
-#          path: build/qemu-linuxboot/hashes.txt
+      - run:
+          name: qemu-linuxboot-edk2
+          command: |
+            make \
+                BOARD=qemu-linuxboot \
+                `/bin/pwd`/build/linuxboot-b5376a441e8e85cbf722e943bb8294958e87c784/build/qemu/.configured \
+                # Run first to avoid too many processes
+
+      - run:
+          name: qemu-linuxboot
+          command: |
+            make \
+                CPUS=4 \
+                V=1 \
+                BOARD=qemu-linuxboot \
+
+      - store-artifacts:
+          path: build/qemu-linuxboot/linuxboot.rom
+      - store-artifacts:
+          path: build/qemu-linuxboot/hashes.txt
 
       - run:
           name: librem_l1um

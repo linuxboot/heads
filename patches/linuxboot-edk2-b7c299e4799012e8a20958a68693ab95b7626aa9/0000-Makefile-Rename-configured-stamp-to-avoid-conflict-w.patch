@@ -1,0 +1,39 @@
+From d1a4d98a9ddf8e7e7f1e00ca2c143b5d5dc01afd Mon Sep 17 00:00:00 2001
+From: Nathan Rennie-Waldock <nathan.renniewaldock@gmail.com>
+Date: Sun, 18 Oct 2020 23:58:29 +0100
+Subject: [PATCH] Makefile: Rename configured stamp to avoid conflict with
+ heads build system
+
+Signed-off-by: Nathan Rennie-Waldock <nathan.renniewaldock@gmail.com>
+---
+ Makefile | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 2c58529031..d400904442 100644
+--- a/Makefile
++++ b/Makefile
+@@ -26,16 +26,16 @@ $(EDK2_OUTPUTS): build-dxe
+ ia32:
+ 	build -a IA32
+ 
+-build-dxe: .configured
++build-dxe: .edk2-configured
+ 	cd MdeModulePkg ; build
+ 
+-build-cpu: .configured
++build-cpu: .edk2-configured
+ 	cd UefiCpuPkg ; build
+-build-quark: .configured
++build-quark: .edk2-configured
+ 	cd QuarkPlatformPkg ; build
+ build: build-dxe
+ 
+- .configured:
++ .edk2-configured:
+ 	$(MAKE) -C BaseTools
+ 	. ./edksetup.sh
+ 	touch $@
+-- 
+2.25.1
+
