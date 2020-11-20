@@ -294,6 +294,20 @@ update_checksums()
 	mount -o ro,remount /boot
 }
 
+# evaluate key-value pair like 'LABEL=boot' to real path
+# busybox's blkid only supports LABEL and UUID
+evaluate_boot_device()
+{
+	if echo "$1" | grep -q '^/'; then
+		# if $1 contains an absolute path, output it as-is
+		echo "$1"
+	else
+		key="$(echo $1 | cut -f1 -d =)"
+		value="$(echo $1 | cut -f2 -d =)"
+		blkid | grep "$key=\"$value\"" | cut -f1 -d ':'
+	fi
+}
+
 # detect and set /boot device
 # mount /boot if successful
 detect_boot_device()

@@ -90,6 +90,11 @@ if [ "$boot_option" = "r" ]; then
 fi
 
 combine_configs
+
+# evaluate CONFIG_BOOT_DEV in key-value pair format
+bootdev=$(evaluate_boot_device "$CONFIG_BOOT_DEV")
+replace_config /tmp/config "CONFIG_BOOT_DEV" "$bootdev"
+
 . /tmp/config
 
 # export firmware version
