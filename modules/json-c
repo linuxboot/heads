@@ -1,0 +1,37 @@
+modules-$(CONFIG_CRYPTSETUP) += json-c
+
+json-c_version := 0.14
+json-c_dir := json-c-$(json-c_version)
+json-c_tar := json-c-$(json-c_version).tar.gz
+json-c_url := https://s3.amazonaws.com/json-c_releases/releases/json-c-$(json-c_version)-nodoc.tar.gz
+json-c_hash := 99914e644a25201d82ccefa20430f7515c110923360f9ef46755527c02412afa
+
+# there is a bug in cmake-configure so that it can not be used with a "=", fxed in next
+# release though (then it needs to read '--prefix="$(INSTALL)"' here instead
+define toolchain_file =
+set\(CMAKE_SYSTEM_NAME Linux\)\n\
+set\(CMAKE_SYSROOT $(INSTALL)\)\n\
+set\(CMAKE_C_COMPILER $(CROSS)gcc\)\n\
+set\(CMAKE_AR $(CROSS)ar\)\n\
+set\(CMAKE_LINKER $(CROSS)ld\)\n\
+set\(CMAKE_NM $(CROSS)nm\)\n\
+set\(CMAKE_OBJCOPY $(CROSS)objcopy\)\n\
+set\(CMAKE_OBJDUMP $(CROSS)objdump\)\n\
+set\(INSTALL_PKGCONFIG_DIR $(INSTALL)/lib/pkgconfig\)\n\
+set\(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER\)\n\
+set\(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY\)\n\
+set\(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY\)\n\
+set\(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY\)
+endef 
+
+json-c_configure := \
+	echo -e "$(toolchain_file)" | sed 's/\\//g' > toolchain && \
+	mkdir -p build && \
+	cd build && \
+	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain
+
+json-c_target := \
+	$(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build \
+	all install
+
+json-c_libraries := build/libjson-c.so.5
