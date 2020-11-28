@@ -8,7 +8,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
       - checkout
 
       - run:
@@ -65,7 +65,7 @@ jobs:
             rm -rf build/librem_l1um/* build/log/* && make CPUS=4 V=1 BOARD=librem_l1um || touch /tmp/failed_build
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs 
+          name: Output build failing logs
           command: |
             if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
@@ -239,6 +239,54 @@ jobs:
              tar zcvf build/x230-nkstorecli/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-nkstorecli
+
+      - run:
+          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx20/download_parse_me.sh
+      - run:
+          name: x220-external-flash
+          command: |
+            rm -rf build/x220-external-flash/* build/log/* && make CPUS=4 V=1 BOARD=x220-external-flash || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output x220-external-flash hashes
+          command: |
+            cat build/x220-external-flash/hashes.txt \
+      - run:
+          name: Archiving build logs for x220-external-flash
+          command: |
+            tar zcvf build/x220-external-flash/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/x220-external-flash
+
+      - run:
+          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx20/download_parse_me.sh
+      - run:
+          name: t420-external-flash
+          command: |
+            rm -rf build/t420-external-flash/* build/log/* && make CPUS=4 V=1 BOARD=t420-external-flash || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output t420-external-flash hashes
+          command: |
+            cat build/t420-external-flash/hashes.txt \
+      - run:
+          name: Archiving build logs for t420-external-flash
+          command: |
+            tar zcvf build/t420-external-flash/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/t420-external-flash
 
       - run:
           name: qemu-coreboot
