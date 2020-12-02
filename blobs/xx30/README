@@ -6,7 +6,7 @@ Version 8.1.72.3002 (G1RG24WW)
 
   (Fix) Fixed the following security vulnerabilites: CVE-2017-5711, CVE-2017-5712, CVE-2017-13077, CVE-2017-13078, CVE-2017-13080.
 
-1.0:Automatically extract and neuter me.bin
+1.0.0:Automatically extract and neuter me.bin
 download_clean_me.sh : Downloads latest ME from lenovo verify checksum, extract ME, neuters ME, relocate and trim it and place it into me.bin
 
 sha256sum:
@@ -31,7 +31,7 @@ f60e1990e2da2b7efa58a645502d22d50afd97b53a092781beee9b0322b61153  g1rg24ww.exe
 821c6fa16e62e15bc902ce2e958ffb61f63349a471685bed0dc78ce721a01bfa  app/ME8_5M_Production.bin
 c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  blobs/xx30/me.bin
 
-x230-ifd.bin was extracted from sacrificed X230 (dead motherboard) fron an external flashrom backup (no way found to be able to extract it from Lenovo firmware upgrades as of now):
+ifd.bin was extracted from sacrificed X230 (dead motherboard) fron an external flashrom backup (no way found to be able to extract it from Lenovo firmware upgrades as of now):
 python ~/me_cleaner/me_cleaner.py -S -r -t -d -O /tmp/discarded.bin -D ~/heads/blobs/xx30/ifd.bin -M /tmp/temporary_me.bin dead_serving_a_purpose_x230_bottom_spi_backup.rom
 
 sha256sum:
@@ -48,7 +48,7 @@ blobs/x230/gbe.bin is generated per bincfg from the following coreboot patch: ht
 And then by following those instructions:
 # Use this target to generate GbE for X220/x230
 gen-gbe-82579LM:
-	cd build/coreboot-4.8.1/util/bincfg/
+	cd build/coreboot-*/util/bincfg/
 	make	
 	./bincfg gbe-82579LM.spec gbe-82579LM.set gbe1.bin
 	# duplicate binary as per spec
