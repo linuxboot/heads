@@ -8,7 +8,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
       - checkout
 
       - run:
@@ -121,7 +121,6 @@ jobs:
 
       - run:
           name: x230-flash
-          #We delete build/make-4.2.1/ directory until issue #799 is fixed.
           command: |
             rm -rf build/x230-flash/* build/log/* && make CPUS=4 V=1 BOARD=x230-flash || touch /tmp/failed_build
           no_output_timeout: 3h
@@ -239,6 +238,127 @@ jobs:
              tar zcvf build/x230-nkstorecli/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-nkstorecli
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          command: |
+            ./blobs/xx30/download_clean_me.sh
+      - run:
+          name: x230-maximized
+          command: |
+            rm -rf build/x230-maximized/* build/log/* && make CPUS=4 V=1 BOARD=x230-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output x230-maximized hashes
+          command: |
+            cat build/x230-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for x230-maximized
+          command: |
+            tar zcvf build/x230-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/x230-maximized
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          command: |
+            ./blobs/xx30/download_clean_me.sh
+      - run:
+          name: t430-hotp-maximized
+          command: |
+            rm -rf build/t430-hotp-maximized/* build/log/* && make CPUS=4 V=1 BOARD=t430-hotp-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output t430-hotp-maximized hashes
+          command: |
+            cat build/t430-hotp-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for t430-hotp-maximized
+          command: |
+            tar zcvf build/t430-hotp-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/t430-hotp-maximized
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          command: |
+            ./blobs/xx30/download_clean_me.sh
+      - run:
+          name: x230-maximized
+          command: |
+            rm -rf build/x230-maximized/* build/log/* && make CPUS=4 V=1 BOARD=x230-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output x230-maximized hashes
+          command: |
+            cat build/x230-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for x230-maximized
+          command: |
+            tar zcvf build/x230-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/x230-maximized
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          command: |
+            ./blobs/xx30/download_clean_me.sh
+      - run:
+          name: x230-hotp-maximized
+          command: |
+            rm -rf build/x230-hotp-maximized/* build/log/* && make CPUS=4 V=1 BOARD=x230-hotp-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output x230-hotp-maximized hashes
+          command: |
+            cat build/x230-hotp-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for x230-hotp-maximized
+          command: |
+            tar zcvf build/x230-hotp-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/x230-hotp-maximized
+
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          command: |
+            ./blobs/xx30/download_clean_me.sh
+      - run:
+          name: t430-maximized
+          command: |
+            rm -rf build/t430-maximized/* build/log/* && make CPUS=4 V=1 BOARD=t430-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output t430-maximized hashes
+          command: |
+            cat build/t430-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for t430-maximized
+          command: |
+            tar zcvf build/t430-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/t430-maximized
 
       - run:
           name: qemu-coreboot
