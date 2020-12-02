@@ -20,6 +20,8 @@ ADMIN_PIN_DEF=12345678
 TPM_PASS_DEF=12345678
 CUSTOM_PASS=""
 
+RSA_KEY_LENGTH=4096
+
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
@@ -75,6 +77,25 @@ gpg_key_reset()
     # If Nitrokey Storage is inserted, reset AES keys as well
     if lsusb | grep -q "20a0:4109" &&  [ -x /bin/hotp_verification ] ; then
         /bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
+    fi
+    # Set RSA key length
+    {
+        echo admin
+        echo key-attr
+        echo 1 # RSA
+        echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
+        echo ${ADMIN_PIN_DEF}
+        echo 1 # RSA
+        echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
+        echo ${ADMIN_PIN_DEF}
+        echo 1 # RSA
+        echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
+        echo ${ADMIN_PIN_DEF}
+    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+        > /tmp/gpg_card_edit_output 2>/dev/null
+    if [ $? -ne 0 ]; then
+        ERROR=`cat /tmp/gpg_card_edit_output`
+        whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
     fi
     # Generate OEM GPG keys
     {
