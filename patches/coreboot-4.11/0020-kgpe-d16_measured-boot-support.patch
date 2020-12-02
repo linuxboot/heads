@@ -1,0 +1,67 @@
+diff --git a/src/mainboard/asus/kgpe-d16/romstage.c b/src/mainboard/asus/kgpe-d16/romstage.c
+index 637ec42109..8a92f88375 100644
+--- a/src/mainboard/asus/kgpe-d16/romstage.c
++++ b/src/mainboard/asus/kgpe-d16/romstage.c
+@@ -46,6 +46,12 @@
+ #include <cbmem.h>
+ #include <types.h>
+ 
++#include <security/tpm/tss.h>
++#include <security/tpm/tspi.h>
++#include <program_loading.h>
++#include <smp/node.h>
++#include <cbfs.h>
++
+ #include "cpu/amd/quadcore/quadcore.c"
+ 
+ #define SERIAL_0_DEV PNP_DEV(0x2e, W83667HG_A_SP1)
+@@ -547,7 +553,6 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
+ 		power_on_reset = 1;
+ 
+ 	initialize_mca(1, power_on_reset);
+-	update_microcode(val);
+ 
+ 	post_code(0x33);
+ 
+@@ -573,6 +578,13 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
+ 	sr5650_early_setup();
+ 	sb7xx_51xx_early_setup();
+ 
++	if (CONFIG(MEASURED_BOOT) && CONFIG(LPC_TPM) && boot_cpu()) {
++		tpm_setup(0);
++		tlcl_lib_init();
++	}
++
++	update_microcode(val);
++
+ 	if (CONFIG(LOGICAL_CPUS)) {
+ 		/* Core0 on each node is configured. Now setup any additional cores. */
+ 		printk(BIOS_DEBUG, "start_other_cores()\n");
+@@ -687,6 +699,17 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
+ 	pci_write_config16(PCI_DEV(0, 0x14, 0), 0x54, 0x0707);
+ 	pci_write_config16(PCI_DEV(0, 0x14, 0), 0x56, 0x0bb0);
+ 	pci_write_config16(PCI_DEV(0, 0x14, 0), 0x5a, 0x0ff0);
++
++	if (CONFIG(MEASURED_BOOT) && CONFIG(LPC_TPM)) {
++		size_t bootblock_size = 0;
++		const void *bootblock = cbfs_boot_map_with_leak("bootblock", 1, &bootblock_size);
++		tlcl_measure(2, bootblock, bootblock_size);
++
++		extern char _romstage, _eromstage;
++		tlcl_measure(2, &_romstage, &_eromstage - &_romstage);
++	}
++
++
+ }
+ 
+ /**
+@@ -718,3 +741,9 @@ BOOL AMD_CB_ManualBUIDSwapList (u8 node, u8 link, const u8 **List)
+ 
+ 	return 0;
+ }
++
++void platform_segment_loaded(uintptr_t start, size_t size, int flags)
++{
++	if (CONFIG(MEASURED_BOOT) && !(flags & SEG_NO_MEASURE))
++		tlcl_measure(2, (const void *) start, size);
++}

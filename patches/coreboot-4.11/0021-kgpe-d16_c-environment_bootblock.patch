@@ -1,0 +1,50 @@
+From 92023c6cfc3db86f9236a01897754a1579afdf64 Mon Sep 17 00:00:00 2001
+From: Arthur Heymans <arthur@aheymans.xyz>
+Date: Sun, 17 Nov 2019 12:20:30 +0100
+Subject: [PATCH] lib/fmap.c: Properly handle cache for
+ !C_ENVIRONMENT_BOOTBLOCK
+
+On platforms without C_ENVIRONMENT_BOOTBLOCK the first stage
+accessing FMAP is romstage.
+
+Change-Id: I7d70585b0c076707e73e20c2ed3f11e4c9ffdf37
+Signed-off-by: Arthur Heymans <arthur@aheymans.xyz>
+---
+ src/lib/fmap.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/src/lib/fmap.c b/src/lib/fmap.c
+index 48aab8f3d5..06e9e202b6 100644
+--- a/src/lib/fmap.c
++++ b/src/lib/fmap.c
+@@ -58,6 +58,12 @@ static void report(const struct fmap *fmap)
+ 	car_set_var(fmap_print_once, 1);
+ }
+ 
++#if CONFIG(C_ENVIRONMENT_BOOTBLOCK)
++#define FIRST_C_STAGE ENV_BOOTBLOCK
++#else
++#define FIRST_C_STAGE ENV_ROMSTAGE
++#endif
++
+ static void setup_preram_cache(struct mem_region_device *cache_mrdev)
+ {
+ 	if (CONFIG(NO_FMAP_CACHE))
+@@ -81,10 +87,10 @@ static void setup_preram_cache(struct mem_region_device *cache_mrdev)
+ 	}
+ 
+ 	struct fmap *fmap = (struct fmap *)_fmap_cache;
+-	if (!ENV_BOOTBLOCK) {
+-		/* NOTE: This assumes that for all platforms running this code,
+-		   the bootblock is the first stage and the bootblock will make
+-		   at least one FMAP access (usually from finding CBFS). */
++	/* NOTE: This assumes that for all platforms running this code,
++	   the first stage running in a C (!romcc) environment does
++	   at least one FMAP access (usually from finding CBFS). */
++	if (!FIRST_C_STAGE) {
+ 		if (!check_signature(fmap))
+ 			goto register_cache;
+ 
+-- 
+2.20.1
+
