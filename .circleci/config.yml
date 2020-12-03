@@ -8,7 +8,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
       - checkout
 
       - run:
@@ -76,7 +76,7 @@ jobs:
              tar zcvf build/kgpe-d16_workstation/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/kgpe-d16_workstation
-     
+
       - run:
           name: kgpe-d16_workstation-usb_keyboard
           command: |
@@ -136,7 +136,7 @@ jobs:
             rm -rf build/librem_l1um/* build/log/* && make CPUS=4 V=1 BOARD=librem_l1um || touch /tmp/failed_build
           no_output_timeout: 3h
       - run:
-          name: Output build failing logs 
+          name: Output build failing logs
           command: |
             if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
@@ -189,6 +189,54 @@ jobs:
              tar zcvf build/librem_mini_v2/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/librem_mini_v2
+
+      - run:
+          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx20/download_parse_me.sh
+      - run:
+          name: x220-maximized
+          command: |
+            rm -rf build/x220-maximized/* build/log/* && make CPUS=4 V=1 BOARD=x220-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
+      - run:
+          name: Output x220-maximized hashes
+          command: |
+            cat build/x220-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for x220-maximized
+          command: |
+            tar zcvf build/x220-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/x220-maximized
+
+      - run:
+          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx20/download_parse_me.sh
+      - run:
+          name: t420-maximized
+          command: |
+            rm -rf build/t420-maximized/* build/log/* && make CPUS=4 V=1 BOARD=t420-maximized || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output t420-maximized hashes
+          command: |
+            cat build/t420-maximized/hashes.txt \
+      - run:
+          name: Archiving build logs for t420-maximized
+          command: |
+            tar zcvf build/t420-maximized/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/t420-maximized
 
       - run:
           name: x230-flash
@@ -311,7 +359,7 @@ jobs:
           path: build/x230-nkstorecli
 
       - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me.sh
       - run:
@@ -335,7 +383,7 @@ jobs:
           path: build/x230-maximized
 
       - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me.sh
       - run:
@@ -359,7 +407,7 @@ jobs:
           path: build/t430-hotp-maximized
 
       - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me.sh
       - run:
@@ -383,7 +431,7 @@ jobs:
           path: build/x230-maximized
 
       - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me.sh
       - run:
@@ -408,7 +456,7 @@ jobs:
 
 
       - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)  
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me.sh
       - run:
