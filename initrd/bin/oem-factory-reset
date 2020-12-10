@@ -20,7 +20,7 @@ ADMIN_PIN_DEF=12345678
 TPM_PASS_DEF=12345678
 CUSTOM_PASS=""
 
-RSA_KEY_LENGTH=4096
+RSA_KEY_LENGTH=3072
 
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
@@ -420,7 +420,7 @@ rm /.gnupg/*.kbx 2>/dev/null
 gpg --list-keys >/dev/null 2>&1
 
 ## reset the GPG Key
-echo -e "\nResetting GPG Key...\n(this will take a minute or two)\n"
+echo -e "\nResetting GPG Key...\n(this will take around 3 minutes...)\n"
 gpg_key_reset
 
 # parse name of generated key
