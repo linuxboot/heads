@@ -1,4 +1,4 @@
-modules-$(CONFIG_CRYPTSETUP) += json-c
+modules-$(CONFIG_CRYPTSETUP2) += json-c
 
 json-c_version := 0.14
 json-c_dir := json-c-$(json-c_version)
