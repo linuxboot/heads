@@ -1,0 +1,39 @@
+modules-$(CONFIG_CRYPTSETUP2) += cryptsetup2
+
+cryptsetup2_depends := util-linux popt lvm2 json-c $(musl_dep)
+
+cryptsetup2_version := 2.3.3
+cryptsetup2_dir := cryptsetup-$(cryptsetup2_version)
+cryptsetup2_tar := cryptsetup-$(cryptsetup2_version).tar.xz
+cryptsetup2_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v2.3/cryptsetup-$(cryptsetup2_version).tar.xz
+cryptsetup2_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e82df
+
+# Use an empty prefix so that the executables will not include the
+# build path.
+cryptsetup2_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host i386-elf-linux \
+	--prefix "/" \
+	--disable-rpath \
+	--disable-gcrypt-pbkdf2 \
+	--enable-cryptsetup-reencrypt \
+	--with-crypto_backend=kernel \
+	--with-tmpfilesdir=$(INSTALL)/lib/tmpfiles.d
+
+# but after building, replace prefix so that they will be installed
+# in the correct directory.
+cryptsetup2_target := \
+	$(MAKE_JOBS) \
+	&& $(MAKE) \
+		-C $(build)/$(cryptsetup2_dir) \
+		prefix="$(INSTALL)" \
+		install
+
+cryptsetup2_output := \
+	.libs/cryptsetup \
+	.libs/cryptsetup-reencrypt \
+	.libs/veritysetup \
+
+cryptsetup2_libraries := \
+	.libs/libcryptsetup.so.12 \
+
