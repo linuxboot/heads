@@ -8,7 +8,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev libssl-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
       - checkout
 
       - run:
@@ -385,6 +385,46 @@ jobs:
              tar zcvf build/x230-hotp-verification/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/x230-hotp-verification
+
+      - run:
+          name: x230-vboot
+          command: |
+            rm -rf build/x230-vboot/* build/log/* && make CPUS=4 V=1 BOARD=x230-vboot || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output x230-vboot hashes
+          command: |
+            cat build/x230-vboot/hashes.txt \
+      - run:
+          name: Archiving build logs for x230-nkstorecli
+          command: |
+             tar zcvf build/x230-vboot/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/x230-vboot
+
+      - run:
+          name: t430-vboot
+          command: |
+            rm -rf build/t430-vboot/* build/log/* && make CPUS=4 V=1 BOARD=t430-vboot || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output t430-vboot hashes
+          command: |
+            cat build/t430-vboot/hashes.txt \
+      - run:
+          name: Archiving build logs for t430-vboot
+          command: |
+             tar zcvf build/t430-vboot/logs.tar.gz build/log/*
+      - store-artifacts:
+          path: build/t430-vboot
 
       - run:
           name: x230-nkstorecli
