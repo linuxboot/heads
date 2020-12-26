@@ -72,7 +72,7 @@ coreboot_depend += linux initrd $(musl_dep)
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_IASL)
 $(COREBOOT_IASL): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$$CPUS iasl
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) iasl
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
