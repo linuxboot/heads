@@ -62,10 +62,12 @@ jobs:
       - run:
           name: kgpe-d16_workstation
           command: |
-            rm -rf build/kgpe-d16_workstation/* build/log/* && \
-            make CPUS=4 V=1 BOARD=kgpe-d16_workstation || \
-            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+            rm -rf build/kgpe-d16_workstation/* build/log/* && make CPUS=4 V=1 BOARD=kgpe-d16_workstation || touch /tmp/failed_build
           no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
           name: Ouput kgpe-d16_workstation hashes
           command: |
@@ -80,10 +82,12 @@ jobs:
       - run:
           name: kgpe-d16_workstation-usb_keyboard
           command: |
-            rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && \
-            make CPUS=4 V=1 BOARD=kgpe-d16_workstation-usb_keyboard || \
-            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+            rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && make CPUS=4 V=1 BOARD=kgpe-d16_workstation-usb_keyboard || touch /tmp/failed_build
           no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
           name: Ouput kgpe-d16_workstation-usb_keyboard hashes
           command: |
@@ -98,10 +102,12 @@ jobs:
       - run:
           name: kgpe-d16_server
           command: |
-            rm -rf build/kgpe-d16_server/* build/log/* && \
-            make CPUS=4 V=1 BOARD=kgpe-d16_server || \
-            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+            rm -rf build/kgpe-d16_server/* build/log/* && make CPUS=4 V=1 BOARD=kgpe-d16_server || touch /tmp/failed_build
           no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
           name: Ouput kgpe-d16_server hashes
           command: |
@@ -116,10 +122,12 @@ jobs:
       - run:
           name: kgpe-d16_server-whiptail
           command: |
-            rm -rf build/kgpe-d16_server-whiptail/* build/log/* && \
-            make CPUS=4 V=1 BOARD=kgpe-d16_server-whiptail || \
-            (find ./build/ -name "*.log" -type f -mmin -1 | while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log; done; exit 1) \
+            rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make CPUS=4 V=1 BOARD=kgpe-d16_server-whiptail || touch /tmp/failed_build
           no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
       - run:
           name: Ouput kgpe-d16_server-whiptail hashes
           command: |
@@ -130,6 +138,7 @@ jobs:
              tar zcvf build/kgpe-d16_server-whiptail/logs.tar.gz build/log/*
       - store-artifacts:
           path: build/kgpe-d16_server-whiptail
+
       - run:
           name: librem_l1um
           command: |
