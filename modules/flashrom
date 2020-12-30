@@ -15,6 +15,7 @@ flashrom_target := \
 	CONFIG_NOTHING=yes \
 	CONFIG_INTERNAL=yes \
 	CONFIG_DUMMY=yes \
+	CONFIG_AST1100=yes \
 
 flashrom_output := \
 	flashrom
