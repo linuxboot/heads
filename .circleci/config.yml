@@ -34,6 +34,21 @@ jobs:
             #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
             - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
+      - run:
+          name: Fetch crossgcc tarballs for Coreboot 4.8.1
+          command: |
+            make get_crossgcc_tarballs_cb-4.8.1 \
+
+      - run:
+          name: Fetch crossgcc tarballs for Coreboot 4.11
+          command: |
+            make get_crossgcc_tarballs_cb-4.11 \
+
+      - run:
+          name: Fetch crossgcc tarballs for Coreboot 4.13
+          command: |
+            make get_crossgcc_tarballs_cb-4.13 \
+
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
 #      - run:
