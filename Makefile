@@ -681,3 +681,60 @@ $(HEADS_MAKE): $(build)/$(make_dir)/.configured
 		$(VERBOSE_REDIRECT)
 
 endif
+
+#
+# Most users won't need to fetch tarballs early, however
+# it helps CI to save it failing late in a build.
+#
+get_crossgcc_tarballs_cb-4.8.1:
+	mkdir -p ./build/coreboot-4.8.1/util/crossgcc/tarballs; \
+	cd ./build/coreboot-4.8.1/util/crossgcc/tarballs; \
+	if [[ ! -f ./acpica-unix2-20180531.tar.gz ]]; then \
+		wget https://acpica.org/sites/acpica/files/acpica-unix2-20180531.tar.gz || exit 1; fi; \
+	if [[ ! -f ./binutils-2.30.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/binutils/binutils-2.30.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gcc-8.1.0.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gcc/gcc-8.1.0/gcc-8.1.0.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gmp-6.1.2.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gmp/gmp-6.1.2.tar.xz || exit 1; fi; \
+	if [[ ! -f ./mpc-1.0.3.tar.gz ]]; then \
+		wget https://ftpmirror.gnu.org/mpc/mpc-1.0.3.tar.gz || exit 1; fi; \
+	if [[ ! -f ./mpfr-3.1.5.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/mpfr/mpfr-3.1.5.tar.xz || exit 1; fi;
+
+get_crossgcc_tarballs_cb-4.11:
+	mkdir -p ./build/coreboot-4.11/util/crossgcc/tarballs; \
+	cd ./build/coreboot-4.11/util/crossgcc/tarballs; \
+	if [[ ! -f ./acpica-unix2-20190703.tar.gz ]]; then \
+		wget https://acpica.org/sites/acpica/files/acpica-unix2-20190703.tar.gz || exit 1; fi; \
+	if [[ ! -f ./binutils-2.32.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/binutils/binutils-2.32.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gcc-8.3.0.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gcc/gcc-8.3.0/gcc-8.3.0.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gmp-6.1.2.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gmp/gmp-6.1.2.tar.xz || exit 1; fi; \
+	if [[ ! -f ./mpc-1.1.0.tar.gz ]]; then \
+		wget https://ftpmirror.gnu.org/mpc/mpc-1.1.0.tar.gz || exit 1; fi; \
+	if [[ ! -f ./mpfr-4.0.2.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/mpfr/mpfr-4.0.2.tar.xz || exit 1; fi; \
+	if [[ ! -f ./nasm-2.14.02.tar.bz2 ]]; then \
+		wget https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-2.14.02.tar.bz2 || exit 1; fi
+
+get_crossgcc_tarballs_cb-4.13:
+	mkdir -p ./build/coreboot-4.13/util/crossgcc/tarballs; \
+	cd ./build/coreboot-4.13/util/crossgcc/tarballs; \
+	if [[ ! -f ./acpica-unix2-20200717.tar.gz ]]; then \
+		wget https://acpica.org/sites/acpica/files/acpica-unix2-20200717.tar.gz || exit 1; fi; \
+	if [[ ! -f ./binutils-2.35.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/binutils/binutils-2.35.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gcc-8.3.0.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gcc/gcc-8.3.0/gcc-8.3.0.tar.xz || exit 1; fi; \
+	if [[ ! -f ./gmp-6.2.0.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/gmp/gmp-6.2.0.tar.xz || exit 1; fi; \
+	if [[ ! -f ./mpc-1.2.0.tar.gz ]]; then \
+		wget https://ftpmirror.gnu.org/mpc/mpc-1.2.0.tar.gz || exit 1; fi; \
+	if [[ ! -f ./mpfr-4.1.0.tar.xz ]]; then \
+		wget https://ftpmirror.gnu.org/mpfr/mpfr-4.1.0.tar.xz || exit 1; fi; \
+	if [[ ! -f ./nasm-2.15.03.tar.bz2 ]]; then \
+		wget https://www.nasm.us/pub/nasm/releasebuilds/2.15.03/nasm-2.15.03.tar.bz2 || exit 1; fi
+
