@@ -17,23 +17,32 @@ jobs:
             git reset --hard "$CIRCLE_SHA1" \
 
       - run:
-          name: Creating all modules and patches digest
+          name: Creating all modules and patches digest (All modules cache digest)
           command: |
             find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_and_patches.sha256sums \
 
       - run:
-          name: Creating musl-cross-make and musl-cross-make patches digest
+          name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross_module_and_patches.sha256sums \
+            find ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > /tmp/coreboot_musl-cross.sha256sums \
+
+      - run:
+          name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
+          command: |
+            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross.sha256sums \
 
 
       - restore_cache:
           keys:
-            #Restore existing cache for modules checksums validated to be exactly the same as in github current commit
+            #Restore existing cache for matching modules digest, validated to be exactly the same as in github current commit.
+            #This cache was made on top of below caches, if previously existing. If no module definition changed, we reuse this one. Otherwise...
             - heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            #If precedent fails. Restore cache for musl-cross module checksum validated to be exactly the same as in github current commit
-            - heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-
+            #If precedent cache not found, restore cache for coreboot module (and patches) and musl-cross-make digests (bi-yearly modified)
+            #Otehrwise....
+            - heads-coreboot-musl-cross-{{ checksum "/tmp/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            #If precedent cache not found. Restore cache for musl-cross-make module digest (rarely modified).
+            #Otherwise, we build cleanly.
+            - heads-musl-cross-{{ checksum "/tmp/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
 #      - run:
@@ -578,11 +587,17 @@ jobs:
 
       - save_cache:
           #Generate cache for the same musl-cross module definition if hash is not previously existing
-          key: heads-cross-musl-{{ checksum "/tmp/musl-cross_module_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: heads-musl-cross-{{ checksum "/tmp/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
             - build/musl-cross-*
-
+      - save_cache:
+          #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
+          key: heads-coreboot-musl-cross-{{ checksum "/tmp/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - build/coreboot-*
+            - crossgcc
+            - build/musl-cross-*
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
           key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
@@ -590,6 +605,7 @@ jobs:
             - packages
             - crossgcc
             - build
+            - install
 
 workflows:
   version: 2
