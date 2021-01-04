@@ -72,7 +72,7 @@ coreboot_depend += linux initrd $(musl_dep)
 
 COREBOOT_TOOLCHAIN="$(build)/$(coreboot_base_dir)/.xcompile"
 $(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$$CPUS crossgcc-i386
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) crossgcc-i386
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_IASL) $(COREBOOT_TOOLCHAIN)
 $(COREBOOT_IASL): $(build)/$(coreboot_base_dir)/.canary
