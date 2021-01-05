@@ -31,7 +31,7 @@ while true; do
     ;;
     "b" )
       CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
-      if ! fdisk -l | grep "Disk" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt ; then
+      if ! fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt ; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: No bootable devices found' \
           --msgbox "    $ERROR\n\n" 16 60
         exit 1
