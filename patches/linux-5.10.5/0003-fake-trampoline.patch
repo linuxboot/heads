@@ -1,0 +1,28 @@
+diff --recursive -u ./clean/linux-4.9.80/arch/x86/realmode/init.c linux-4.9.80/arch/x86/realmode/init.c
+--- ./clean/linux-4.9.80/arch/x86/realmode/init.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.80/arch/x86/realmode/init.c	2018-02-07 15:51:28.538500435 -0500
+@@ -35,8 +35,8 @@
+ 	/* Has to be under 1M so we can execute real-mode AP code. */
+ 	mem = memblock_find_in_range(0, 1<<20, size, PAGE_SIZE);
+ 	if (!mem) {
+-		pr_info("No sub-1M memory is available for the trampoline\n");
+-		return;
++		mem = 0x4000;
++		pr_info("No sub-1M memory is available for the trampoline, guessing %p\n", mem);
+ 	}
+ 
+ 	memblock_reserve(mem, size);
+@@ -138,7 +138,12 @@
+ static int __init init_real_mode(void)
+ {
+ 	if (!real_mode_header)
+-		panic("Real mode trampoline was not allocated");
++	{
++		// ignore for now
++		//panic("Real mode trampoline was not allocated");
++		pr_warn("Real mode trampoline was not allocated");
++		return 0;
++	}
+ 
+ 	setup_real_mode();
+ 	set_real_mode_permissions();
