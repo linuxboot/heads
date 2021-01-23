@@ -63,7 +63,7 @@ show help
 
 ### -i
 
-some sort of debug mode which prints information about initrd and sets dryrun on
+Use this parameter to skip the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
 
 ### -o <initrd>
 

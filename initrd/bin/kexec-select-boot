@@ -45,7 +45,7 @@ show help
 
 ### -i
 
-ignore bad hash and/or bad rollback
+Use this parameter to skip the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
 
 ### -m
 
