@@ -1,0 +1,14 @@
+diff --git a/src/mainboard/google/parrot/devicetree.cb b/src/mainboard/google/parrot/devicetree.cb
+index 61e51d0df3..1ac5d6ca60 100644
+--- a/src/mainboard/google/parrot/devicetree.cb
++++ b/src/mainboard/google/parrot/devicetree.cb
+@@ -85,6 +85,9 @@ chip northbridge/intel/sandybridge
+                                        device pnp ff.1 on # dummy address
+                                        end
+                                end
++                               chip drivers/pc80/tpm
++                                       device pnp 0c31.0 on end
++                               end
+                        end # LPC bridge
+                        device pci 1f.2 on end # SATA Controller 1
+                        device pci 1f.3 on end # SMBus
