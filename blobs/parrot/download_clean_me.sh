@@ -33,7 +33,7 @@ extractdir=$(mktemp -d)
 cd "$extractdir"
 
 echo "### Downloading: https://github.com/coreboot/blobs/raw/master/mainboard/google/parrot/me.bin..."
-wget  https://github.com/coreboot/blobs/raw/master/mainboard/google/parrot/me.bin || ( echo "ERROR: wget not found" && exit 1 ) 
+wget  https://github.com/coreboot/blobs/raw/353f2469be53919b6b359148469485a9040e5a8b/mainboard/google/parrot/me.bin || ( echo "ERROR: wget not found" && exit 1 ) 
 echo "### Verifying expected hash of me.bin"
 echo "$ME_SHA256SUM" | sha256sum --check || ( echo "Failed sha256sum verification on downloaded binary..." && exit 1 )
 
