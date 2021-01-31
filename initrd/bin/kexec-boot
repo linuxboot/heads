@@ -17,7 +17,7 @@ Options
 
 Anything provided to the -a argument is appended to the kernel command line (usually comes from parsing the grub, syslinux, BLS files). Ex.
 
-	-a 'export CONFIG_BOOT_KERNEL_ADD="intel_iommu=on intel_iommu=igfx_off"'
+	-a 'intel_iommu=on intel_iommu=igfx_off'
 
 ### -b <boot path>
 
@@ -73,9 +73,9 @@ use the specified initrd for booting
 
 Anything provided to the -r argument is removed from the kernel command line. Ex.
 
-	-r 'export CONFIG_BOOT_KERNEL_REMOVE="quiet"'
+	-r 'quiet'
 
-The 'quiet' option will hide needed information from the user.  In this case 'quiet' will be removd from the kernel configuration before it is booted.
+In this case 'quiet' will be removd from the kernel configuration before it is booted because the 'quiet' option will hide needed information from the user.  
 
 End-of-message
 }
