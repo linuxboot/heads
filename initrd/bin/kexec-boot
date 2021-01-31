@@ -63,7 +63,7 @@ show help
 
 ### -i
 
-Use this parameter to skip the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
+Use this parameter to ignore the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
 
 ### -o <initrd>
 
