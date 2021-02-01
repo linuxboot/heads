@@ -15,7 +15,9 @@ Options
 
 ### -a <additional confiurations>
 
-Anything provided to the -a argument is appended to the kernel command line (usually comes from parsing the grub, syslinux, BLS files). Ex.
+Anything provided to the -a argument is appended to the kernel command line.  kernel option add statements normally come from the board configuration to pass board specific tweaks at the OS level.
+
+FOR EXAMPLE
 
 	-a 'intel_iommu=on intel_iommu=igfx_off'
 
@@ -71,11 +73,13 @@ use the specified initrd for booting
 
 ### -r <configurations to remove>
 
-Anything provided to the -r argument is removed from the kernel command line. Ex.
+kernel option remove statements normally come from board configuration to pass board specific tweaks at the OS level.  Anything provided to the -r argument is removed from the kernel command line. 
+
+For EXAMPLE:
 
 	-r 'quiet'
 
-In this case 'quiet' will be removd from the kernel configuration before it is booted because the 'quiet' option will hide needed information from the user.  
+In this case 'quiet' will be removd from the kernel command line before it is booted.
 
 End-of-message
 }

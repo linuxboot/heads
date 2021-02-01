@@ -13,11 +13,13 @@ $0 -b /boot [options]
 Options
 -------
 
-### -a
+### -a <additional confiurations>
 
-Anything provided to the -a argument is appended to the kernel command line (usually comes from parsing the grub, syslinux, BLS files). Ex.
+Anything provided to the -a argument is appended to the kernel command line.  kernel option add statements normally come from the board configuration to pass board specific tweaks at the OS level.
 
-	-a 'export CONFIG_BOOT_KERNEL_ADD="intel_iommu=on intel_iommu=igfx_off"'
+FOR EXAMPLE
+
+	-a 'intel_iommu=on intel_iommu=igfx_off'
 
 ### -b
 
@@ -61,11 +63,13 @@ set the params folder.  defaults to same as -b
 
 ### -r <configurations to remove>
 
-Anything provided to the -r argument is removed from the kernel command line. Ex.
+kernel option remove statements normally come from board configuration to pass board specific tweaks at the OS level.  Anything provided to the -r argument is removed from the kernel command line. 
 
-	-r 'export CONFIG_BOOT_KERNEL_REMOVE="quiet"'
+For EXAMPLE:
 
-The 'quiet' option will hide needed information from the user.  In this case 'quiet' will be removd from the kernel configuration before it is booted.
+	-r 'quiet'
+
+In this case 'quiet' will be removd from the kernel command line before it is booted.
 
 ### -s
 
