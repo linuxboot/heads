@@ -1,6 +1,38 @@
-version: 2
+version: 2.1
+
+commands:
+  build_board:
+    parameters:
+      target:
+        type: string
+    steps:
+      - run:
+          name: Install dependencies
+          command: |
+            apt update
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
+      - run:
+          name: Make Board
+          command: |
+            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=24 V=1 BOARD=<<parameters.target>> || touch ./tmpDir/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f ./tmpDir/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
+      - run:
+          name: Output hashes
+          command: |
+            cat build/<<parameters.target>>/hashes.txt \
+      - run:
+          name: Archiving build logs.
+          command: |
+             tar zcvf build/<<parameters.target>>/logs.tar.gz build/log/*
+      - store_artifacts:
+          path: build/<<parameters.target>>
+
 jobs:
-  build:
+  prep_env:
     docker:
       - image: debian:10
     steps:
@@ -17,32 +49,274 @@ jobs:
             git reset --hard "$CIRCLE_SHA1" \
 
       - run:
+          name: Make tmp dir
+          command: |
+            mkdir ./tmpDir \
+
+      - run:
           name: Creating all modules and patches digest (All modules cache digest)
           command: |
-            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > /tmp/all_modules_and_patches.sha256sums \
+            find ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums \
 
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > /tmp/coreboot_musl-cross.sha256sums \
+            find ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross.sha256sums \
 
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
-            find modules/musl-cross* -type f | sort -h | xargs sha256sum > /tmp/musl-cross.sha256sums \
-
+            find modules/musl-cross* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross.sha256sums \
 
       - restore_cache:
           keys:
             #Restore existing cache for matching modules digest, validated to be exactly the same as in github current commit.
             #This cache was made on top of below caches, if previously existing. If no module definition changed, we reuse this one. Otherwise...
-            - heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             #If precedent cache not found, restore cache for coreboot module (and patches) and musl-cross-make digests (bi-yearly modified)
             #Otehrwise....
-            - heads-coreboot-musl-cross-{{ checksum "/tmp/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             #If precedent cache not found. Restore cache for musl-cross-make module digest (rarely modified).
             #Otherwise, we build cleanly.
-            - heads-musl-cross-{{ checksum "/tmp/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+      - run:
+          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx20/download_parse_me.sh
+
+      - run:
+          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
+          # Below when we download me_cleaner it's not really that important to validate it's
+          # integrity. This is because ./blobs/xx30/download_clean_me.sh does a hash check on
+          # it's result anyway.
+          command: |
+            wget -O ./blobs/xx30/me_cleaner.py https://raw.githubusercontent.com/corna/me_cleaner/master/me_cleaner.py
+            chmod +x ./blobs/xx30/me_cleaner.py
+            ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .
+
+  build_and_persist:
+    docker:
+      - image: debian:10
+    parameters:
+      target:
+        type: string
+    steps:
+      - attach_workspace:
+          at: ~/
+      - build_board:
+          target: <<parameters.target>>
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .
+
+  build:
+    docker:
+      - image: debian:10
+    parameters:
+      target:
+        type: string
+    steps:
+      - attach_workspace:
+          at: ~/
+      - build_board:
+          target: <<parameters.target>>
+
+  save_cache:
+    docker:
+      - image: debian:10
+    steps:
+      - attach_workspace:
+          at: ~/
+      - save_cache:
+          #Generate cache for the same musl-cross module definition if hash is not previously existing
+          key: heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - crossgcc
+            - build/musl-cross-*
+      - save_cache:
+          #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
+          key: heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - build/coreboot-*
+            - crossgcc
+            - build/musl-cross-*
+      - save_cache:
+          #Generate cache for the exact same modules definitions if hash is not previously existing
+          key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - packages
+            - crossgcc
+            - build
+            - install
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - prep_env
+
+# Below, sequentially build one board for each coreboot
+# version. The last board in the sequence is the dependency
+# for the parallel boards built at the end, and also save_cache.
+
+      # Coreboot 4.8.1
+      - build_and_persist:
+          name: qemu-coreboot
+          target: qemu-coreboot
+          requires:
+            - prep_env
+
+      # Coreboot 4.11
+      - build_and_persist:
+          name: kgpe-d16_workstation
+          target: kgpe-d16_workstation
+          requires:
+            - qemu-coreboot
+
+      # Coreboot 4.13
+      - build_and_persist:
+          name: librem_mini
+          target: librem_mini
+          requires:
+            - kgpe-d16_workstation
+
+
+      - save_cache:
+          requires:
+            - librem_mini
+
+#
+#
+# Those onboarding new boards should add their entries below.
+#
+#
+
+      - build:
+          name: x220-hotp-maximized
+          target: x220-hotp-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: x220-maximized
+          target: x220-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: t420-hotp-maximized
+          target: t420-hotp-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: t420-maximized
+          target: t420-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: x230-flash
+          target: x230-flash
+          requires:
+            - librem_mini
+
+      - build:
+          name: t430-flash
+          target: t430-flash
+          requires:
+            - librem_mini
+
+      - build:
+          name: t430
+          target: t430
+          requires:
+            - librem_mini
+
+      - build:
+          name: x230
+          target: x230
+          requires:
+            - librem_mini
+
+      - build:
+          name: x230-hotp-verification
+          target: x230-hotp-verification
+          requires:
+            - librem_mini
+
+      - build:
+          name: x230-maximized
+          target: x230-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: t430-hotp-maximized
+          target: t430-hotp-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: x230-hotp-maximized
+          target: x230-hotp-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: t430-maximized
+          target: t430-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: qemu-coreboot-fbwhiptail
+          target: qemu-coreboot-fbwhiptail
+          requires:
+            - librem_mini
+
+      - build:
+          name: kgpe-d16_workstation-usb_keyboard
+          target: kgpe-d16_workstation-usb_keyboard
+          requires:
+            - librem_mini
+
+      - build:
+          name: kgpe-d16_server
+          target: kgpe-d16_server
+          requires:
+            - librem_mini
+
+      - build:
+          name: kgpe-d16_server-whiptail
+          target: kgpe-d16_server-whiptail
+          requires:
+            - librem_mini
+
+      - build:
+          name: librem_l1um
+          target: librem_l1um
+          requires:
+            - librem_mini
+
+      - build:
+          name: librem_mini_v2
+          target: librem_mini_v2
+          requires:
+            - librem_mini
+
+
+########################
+########################
+###    OLD STUFF     ###
+########################
+########################
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
 #      - run:
@@ -67,528 +341,3 @@ jobs:
 #          path: build/qemu-linuxboot/linuxboot.rom
 #      - store-artifacts:
 #          path: build/qemu-linuxboot/hashes.txt
-
-      - run:
-          name: kgpe-d16_workstation
-          command: |
-            rm -rf build/kgpe-d16_workstation/* build/log/* && make CPUS=24 V=1 BOARD=kgpe-d16_workstation || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Ouput kgpe-d16_workstation hashes
-          command: |
-            cat build/kgpe-d16_workstation/hashes.txt \
-      - run:
-          name: Archiving build logs for kgpe-d16_workstation
-          command: |
-             tar zcvf build/kgpe-d16_workstation/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/kgpe-d16_workstation
-
-      - run:
-          name: kgpe-d16_workstation-usb_keyboard
-          command: |
-            rm -rf build/kgpe-d16_workstation-usb_keyboard/* build/log/* && make CPUS=24 V=1 BOARD=kgpe-d16_workstation-usb_keyboard || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Ouput kgpe-d16_workstation-usb_keyboard hashes
-          command: |
-            cat build/kgpe-d16_workstation-usb_keyboard/hashes.txt \
-      - run:
-          name: Archiving build logs for kgpe-d16_workstation-usb_keyboard
-          command: |
-             tar zcvf build/kgpe-d16_workstation-usb_keyboard/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/kgpe-d16_workstation-usb_keyboard
-
-      - run:
-          name: kgpe-d16_server
-          command: |
-            rm -rf build/kgpe-d16_server/* build/log/* && make CPUS=24 V=1 BOARD=kgpe-d16_server || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Ouput kgpe-d16_server hashes
-          command: |
-            cat build/kgpe-d16_server/hashes.txt \
-      - run:
-          name: Archiving build logs for kgpe-d16_server
-          command: |
-             tar zcvf build/kgpe-d16_server/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/kgpe-d16_server
-
-      - run:
-          name: kgpe-d16_server-whiptail
-          command: |
-            rm -rf build/kgpe-d16_server-whiptail/* build/log/* && make CPUS=24 V=1 BOARD=kgpe-d16_server-whiptail || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Ouput kgpe-d16_server-whiptail hashes
-          command: |
-            cat build/kgpe-d16_server-whiptail/hashes.txt \
-      - run:
-          name: Archiving build logs for kgpe-d16_server-whiptail
-          command: |
-             tar zcvf build/kgpe-d16_server-whiptail/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/kgpe-d16_server-whiptail
-
-      - run:
-          name: librem_l1um
-          command: |
-            rm -rf build/librem_l1um/* build/log/* && make CPUS=24 V=1 BOARD=librem_l1um || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Output librem_l1um hashes
-          command: |
-            cat build/librem_l1um/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_l1um
-          command: |
-             tar zcvf build/librem_l1um/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_l1um
-
-      - run:
-          name: librem_mini
-          command: |
-            rm -rf build/librem_mini/* build/log/* && make CPUS=24 V=1 BOARD=librem_mini || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output librem_mini hashes
-          command: |
-            cat build/librem_mini/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_mini
-          command: |
-             tar zcvf build/librem_mini/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_mini
-
-      - run:
-          name: librem_mini_v2
-          command: |
-            rm -rf build/librem_mini_v2/* build/log/* && make CPUS=24 V=1 BOARD=librem_mini_v2 || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output librem_mini_v2 hashes
-          command: |
-            cat build/librem_mini_v2/hashes.txt \
-      - run:
-          name: Archiving build logs for librem_mini_v2
-          command: |
-             tar zcvf build/librem_mini_v2/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/librem_mini_v2
-
-      - run:
-          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx20/download_parse_me.sh
-      - run:
-          name: x220-hotp-maximized
-          command: |
-            rm -rf build/x220-hotp-maximized/* build/log/* && make CPUS=24 V=1 BOARD=x220-hotp-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Output x220-hotp-maximized hashes
-          command: |
-            cat build/x220-hotp-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for x220-hotp-maximized
-          command: |
-            tar zcvf build/x220-hotp-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/x220-hotp-maximized
-
-      - run:
-          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx20/download_parse_me.sh
-      - run:
-          name: x220-maximized
-          command: |
-            rm -rf build/x220-maximized/* build/log/* && make CPUS=24 V=1 BOARD=x220-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi \
-      - run:
-          name: Output x220-maximized hashes
-          command: |
-            cat build/x220-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for x220-maximized
-          command: |
-            tar zcvf build/x220-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/x220-maximized
-
-      - run:
-          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx20/download_parse_me.sh
-      - run:
-          name: t420-hotp-maximized
-          command: |
-            rm -rf build/t420-hotp-maximized/* build/log/* && make CPUS=24 V=1 BOARD=t420-hotp-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t420-hotp-maximized hashes
-          command: |
-            cat build/t420-hotp-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for t420-hotp-maximized
-          command: |
-            tar zcvf build/t420-hotp-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/t420-hotp-maximized
-
-      - run:
-          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx20/download_parse_me.sh
-      - run:
-          name: t420-maximized
-          command: |
-            rm -rf build/t420-maximized/* build/log/* && make CPUS=24 V=1 BOARD=t420-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t420-maximized hashes
-          command: |
-            cat build/t420-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for t420-maximized
-          command: |
-            tar zcvf build/t420-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/t420-maximized
-
-      - run:
-          name: x230-flash
-          command: |
-            rm -rf build/x230-flash/* build/log/* && make CPUS=24 V=1 BOARD=x230-flash || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-flash hashes
-          command: |
-            cat build/x230-flash/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-flash
-          command: |
-             tar zcvf build/x230-flash/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/x230-flash
-
-      - run:
-          name: t430-flash
-          command: |
-            rm -rf build/t430-flash/* build/log/* && make CPUS=24 V=1 BOARD=t430-flash || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t430-flash hashes
-          command: |
-            cat build/t430-flash/hashes.txt \
-      - run:
-          name: Archiving build logs for t430-flash
-          command: |
-             tar zcvf build/t430-flash/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/t430-flash
-
-      - run:
-          name: t430
-          command: |
-            rm -rf build/t430/* build/log/* && make CPUS=24 V=1 BOARD=t430 || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t430 hashes
-          command: |
-            cat build/t430/hashes.txt \
-      - run:
-          name: Archiving build logs for t430
-          command: |
-             tar zcvf build/t430/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/t430
-
-      - run:
-          name: x230
-          command: |
-            rm -rf build/x230/* build/log/* && make CPUS=24 V=1 BOARD=x230 || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230 hashes
-          command: |
-            cat build/x230/hashes.txt \
-      - run:
-          name: Archiving build logs for x230
-          command: |
-             tar zcvf build/x230/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/x230
-
-      - run:
-          name: x230-hotp-verification
-          command: |
-            rm -rf build/x230-hotp-verification/* build/log/* && make CPUS=24 V=1 BOARD=x230-hotp-verification || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-hotp-verification hashes
-          command: |
-            cat build/x230-hotp-verification/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-hotp-verification
-          command: |
-             tar zcvf build/x230-hotp-verification/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/x230-hotp-verification
-
-      - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx30/download_clean_me.sh
-      - run:
-          name: x230-maximized
-          command: |
-            rm -rf build/x230-maximized/* build/log/* && make CPUS=24 V=1 BOARD=x230-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-maximized hashes
-          command: |
-            cat build/x230-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-maximized
-          command: |
-            tar zcvf build/x230-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/x230-maximized
-
-      - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx30/download_clean_me.sh
-      - run:
-          name: t430-hotp-maximized
-          command: |
-            rm -rf build/t430-hotp-maximized/* build/log/* && make CPUS=24 V=1 BOARD=t430-hotp-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t430-hotp-maximized hashes
-          command: |
-            cat build/t430-hotp-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for t430-hotp-maximized
-          command: |
-            tar zcvf build/t430-hotp-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/t430-hotp-maximized
-
-      - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx30/download_clean_me.sh
-      - run:
-          name: x230-maximized
-          command: |
-            rm -rf build/x230-maximized/* build/log/* && make CPUS=24 V=1 BOARD=x230-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-maximized hashes
-          command: |
-            cat build/x230-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-maximized
-          command: |
-            tar zcvf build/x230-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/x230-maximized
-
-      - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx30/download_clean_me.sh
-      - run:
-          name: x230-hotp-maximized
-          command: |
-            rm -rf build/x230-hotp-maximized/* build/log/* && make CPUS=24 V=1 BOARD=x230-hotp-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output x230-hotp-maximized hashes
-          command: |
-            cat build/x230-hotp-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for x230-hotp-maximized
-          command: |
-            tar zcvf build/x230-hotp-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/x230-hotp-maximized
-
-
-      - run:
-          name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx30/download_clean_me.sh
-      - run:
-          name: t430-maximized
-          command: |
-            rm -rf build/t430-maximized/* build/log/* && make CPUS=24 V=1 BOARD=t430-maximized || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output t430-maximized hashes
-          command: |
-            cat build/t430-maximized/hashes.txt \
-      - run:
-          name: Archiving build logs for t430-maximized
-          command: |
-            tar zcvf build/t430-maximized/logs.tar.gz ./build/log/*
-      - store-artifacts:
-          path: build/t430-maximized
-
-      - run:
-          name: qemu-coreboot
-          command: |
-            rm -rf build/qemu-coreboot/* build/log/* && make CPUS=24 V=1 BOARD=qemu-coreboot || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output qemu-coreboot hashes
-          command: |
-             cat build/qemu-coreboot/hashes.txt \
-      - run:
-          name: Archiving build logs for qemu-coreboot
-          command: |
-             tar zcvf build/qemu-coreboot/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/qemu-coreboot
-
-      - run:
-          name: qemu-coreboot-fbwhiptail
-          command: |
-            rm -rf build/qemu-coreboot-fbwhiptail/* build/log/* && make CPUS=24 V=1 BOARD=qemu-coreboot-fbwhiptail || touch /tmp/failed_build
-          no_output_timeout: 3h
-      - run:
-          name: Output build failing logs
-          command: |
-            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
-      - run:
-          name: Output qemu-coreboot-fbwhiptail hashes
-          command: |
-             cat build/qemu-coreboot-fbwhiptail/hashes.txt \
-      - run:
-          name: Archiving build logs for qemu-coreboot-fbwhiptail
-          command: |
-             tar zcvf build/qemu-coreboot-fbwhiptail/logs.tar.gz build/log/*
-      - store-artifacts:
-          path: build/qemu-coreboot-fbwhiptail
-
-      - save_cache:
-          #Generate cache for the same musl-cross module definition if hash is not previously existing
-          key: heads-musl-cross-{{ checksum "/tmp/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-          paths:
-            - crossgcc
-            - build/musl-cross-*
-      - save_cache:
-          #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
-          key: heads-coreboot-musl-cross-{{ checksum "/tmp/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-          paths:
-            - build/coreboot-*
-            - crossgcc
-            - build/musl-cross-*
-      - save_cache:
-          #Generate cache for the exact same modules definitions if hash is not previously existing
-          key: heads-modules-and-patches-{{ checksum "/tmp/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-          paths:
-            - packages
-            - crossgcc
-            - build
-            - install
-
-workflows:
-  version: 2
-  build_and_test:
-    jobs:
-      - build
