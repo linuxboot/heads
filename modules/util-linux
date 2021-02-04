@@ -26,11 +26,12 @@ util-linux_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
-	install
+	install && \
+	rm $(INSTALL)/lib/libblkid.la && \
+	rm $(INSTALL)/lib/libuuid.la
 
-util-linux_libraries += .libs/libuuid.so.1
-
-# libblkid is not needed by lvm2, so it is not installed now
-#util-linux_libraries += .libs/libblkid.so.1
+util-linux_libraries += \
+	.libs/libuuid.so.1 \
+	.libs/libblkid.so.1 \
 
 util-linux_depends := $(musl_dep)
