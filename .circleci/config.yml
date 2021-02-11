@@ -281,6 +281,30 @@ jobs:
           path: build/t420-hotp-maximized
 
       - run:
+          name: Download and neuter Parrot ME (keep extracted IFD in tree)
+          command: |
+            ./blobs/parrot/download_clean_me.sh
+      - run:
+          name: Parrot
+          command: |
+            rm -rf build/Parrot/* build/log/* && make CPUS=4 V=1 BOARD=Parrot || touch /tmp/failed_build
+          no_output_timeout: 3h
+      - run:
+          name: Output build failing logs
+          command: |
+            if [[ -f /tmp/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Not failing. Continuing..."; fi
+      - run:
+          name: Output Parrot hashes
+          command: |
+            cat build/Parrot/hashes.txt \
+      - run:
+          name: Archiving build logs for Parrot
+          command: |
+            tar zcvf build/Parrot/logs.tar.gz ./build/log/*
+      - store-artifacts:
+          path: build/Parrot
+
+      - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx20/download_parse_me.sh
