@@ -516,7 +516,7 @@ endif
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-: $(build)/$(coreboot_base_dir)/.canary
+: $(build)/$(coreboot_base_dir)/.canary musl-cross
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
