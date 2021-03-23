@@ -13,7 +13,7 @@ $0 -b /boot -e 'kexec params|...|...' [<options>]
 Options
 -------
 
-### -a <additional confiurations>
+### -a <additional configurations>
 
 Anything provided to the -a argument is appended to the kernel command line.  kernel option add statements normally come from the board configuration to pass board specific tweaks at the OS level.
 
@@ -79,7 +79,7 @@ For EXAMPLE:
 
 	-r 'quiet'
 
-In this case 'quiet' will be removd from the kernel command line before it is booted.
+In this case 'quiet' will be removed from the kernel command line before it is booted.
 
 End-of-message
 }
