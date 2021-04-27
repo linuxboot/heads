@@ -14,7 +14,7 @@ commands:
       - run:
           name: Make Board
           command: |
-            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=24 V=1 BOARD=<<parameters.target>> || touch ./tmpDir/failed_build
+            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=16 V=1 BOARD=<<parameters.target>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output build failing logs
@@ -333,7 +333,7 @@ workflows:
 #          command: |
 #            ./build/make-4.2.1/make \
 #                CROSS=/cross/bin/x86_64-linux-musl- \
-#                CPUS=24 \
+#                CPUS=16 \
 #                V=1 \
 #                BOARD=qemu-linuxboot \
 #
