@@ -36,19 +36,19 @@ extractdir=$(mktemp -d)
 cd "$extractdir"
 
 echo "### Downloading https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe..."
-wget  https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe || ( echo "ERROR: wget not found" && exit 1 ) 
+wget  https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe || { echo "ERROR: wget not found" && exit 1; }
 echo "### Verifying expected hash of g1rg24ww.exe"
-echo "$ME_EXE_SHA256SUM" | sha256sum --check || ( echo "Failed sha256sum verification on downloaded binary..." && exit 1 )
+echo "$ME_EXE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on downloaded binary..." && exit 1; }
 
 echo "### Extracting g1rg24ww.exe..."
-innoextract ./g1rg24ww.exe || exit 1 "Failed calling innoextract. Tool installed on host?"
+innoextract ./g1rg24ww.exe || { echo "Failed calling innoextract. Tool installed on host?" && exit 1;}
 echo "### Verifying expected hash of app/ME8_5M_Production.bin"
-echo "$ME8_5M_PRODUCTION_SHA256SUM" | sha256sum --check || ( echo "Failed sha256sum verification on extracted binary..." && exit 1 )
+echo "$ME8_5M_PRODUCTION_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on extracted binary..." && exit 1; }
 
 echo "###Applying me_cleaner to neuter+deactivate+maximize reduction of ME on $bioscopy, outputting minimized ME under $BLOBDIR/me.bin... "
 $MECLEAN -r -t -O "$BLOBDIR/me.bin" app/ME8_5M_Production.bin
 echo "### Verifying expected hash of me.bin"
-echo "$FINAL_ME_BIN_SHA256SUM" | sha256sum --check || ( echo "Failed sha256sum verification on final binary..." && exit 1 )
+echo "$FINAL_ME_BIN_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on final binary..." && exit 1; }
 
 
 echo "###Cleaning up..."
