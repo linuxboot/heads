@@ -124,6 +124,47 @@ enable_usb()
 	fi
 }
 
+enable_mmc()
+{
+	if [ "$CONFIG_LINUX_MMC" = "y" ]; then
+		#Common
+		if ! lsmod | grep -q mmc_core; then
+			insmod /lib/modules/mmc_core.ko \
+			|| die "mmc_core: module load failed"
+		fi
+		if ! lsmod | grep -q mmc_block; then
+			insmod /lib/modules/mmc_block.ko \
+			|| die "mmc_block: module load failed"
+		fi
+		#Ricoh specifics
+		if ! lsmod | grep -q cqhci; then
+			insmod /lib/modules/cqhci.ko \
+			|| die "cqhci: module load failed"
+		fi
+		if ! lsmod | grep -q sdhci; then
+			insmod /lib/modules/sdhci.ko \
+			|| die "sdhci: module load failed"
+		fi
+		if ! lsmod | grep -q sdhci_pci; then
+			insmod /lib/modules/sdhci-pci.ko \
+			|| die "sdhci-pci: module load failed"
+		fi
+		#Realtek specifics
+		if ! lsmod | grep -q mfd_core; then
+			insmod /lib/modules/mfd-core.ko \
+			|| die "mfd-core: module load failed"
+		fi
+		if ! lsmod | grep -q rtsx_pci; then
+			insmod /lib/modules/rtsx_pci.ko \
+			|| die "rtsx_pci: module load failed"
+		fi
+		if ! lsmod | grep -q rtsx_pci_sdmmc; then
+			insmod /lib/modules/rtsx_pci_sdmmc.ko \
+			|| die "rtsx_pci_sdmmc: module load failed"
+		fi
+	fi
+}
+
 confirm_gpg_card()
 {
 	read \

@@ -4,8 +4,11 @@ ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 linux_version := 4.14.62
 linux_hash := 51ca4d7e8ee156dc0f19bc7768915cfae41dbb0b4f251e4fa8b178c5674c22ab
 else ifeq "$(CONFIG_LINUX_VERSION)" "4.19.139"
-linux_version := 4.19.139
+linux_version := 4.19.162
 linux_hash := 9c4ebf21fe949f80fbcfbbd6e7fe181040d325e89475e230ab53ef01f9d55605
+else ifeq "$(CONFIG_LINUX_VERSION)" "4.19.162"
+linux_version := 4.19.162
+linux_hash := 453723e8ecde4006a7ef23c56077352f64d68c9fad50bac93d7c3397109a5614
 else ifeq "$(CONFIG_LINUX_VERSION)" "5.4.69"
 linux_version := 5.4.69
 linux_hash := a8b31d716b397303a183e42ad525ff2871024a43e3ea530d0fdf73b7f9d27da7
@@ -109,6 +112,19 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 # ME drivers for talking the the management engine
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
+
+# MMC/sdard support through Secure Digital Host Controller Interface support
+#Common
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/core/mmc_core.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/core/mmc_block.ko 
+#Ricoh
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/sdhci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/cqhci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/sdhci-pci.ko
+#Realtek
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mfd/mfd-core.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/misc/cardreader/rtsx_pci.ko
+linux_modules-$(CONFIG_LINUX_MMC) += drivers/mmc/host/rtsx_pci_sdmmc.ko
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 

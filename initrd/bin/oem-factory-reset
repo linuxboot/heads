@@ -349,36 +349,36 @@ if [ "$prompt_output" == "y" \
 	};done
 fi
 
-## sanity check the USB, GPG key, and boot device before proceeding further
+## sanity check the external storage, GPG key, and boot device before proceeding further
 
-# Prompt to insert USB drive if desired
-echo -e -n "Would you like to export your public key to an USB drive? [y/N]: "
+# Prompt to insert external storage drive if desired
+echo -e -n "Would you like to export your public key to an external storage drive? [y/N]: "
 read -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
 ; then
     GPG_EXPORT=1
-    # mount USB, then remount rw
-    echo -e "\nPlease insert an USB drive and hit enter.\n"
+    # mount external storage, then remount rw
+    echo -e "\nPlease insert an external storage and hit enter.\n"
     read
-    echo -e "\nChecking for USB media...\n"
+    echo -e "\nChecking for external storage media...\n"
     # ensure /media not mounted
     umount /media 2>/dev/null
-    # mount-usb will detect and prompt if no USB inserted
-    if ! mount-usb rw 2>/tmp/error; then
+    # mount-external-storage will detect and prompt if no external storage is inserted
+    if ! mount-external-storage rw 2>/tmp/error; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
-        whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
+        whiptail_error_die "Unable to mount external storage on /media:\n\n${ERROR}"
     fi
 else
     GPG_EXPORT=0
-    # needed for USB Security dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
+    # needed for USB Security dongle below and is ensured via mount-external-storage in case of GPG_EXPORT=1
     enable_usb
 fi
 
 # ensure USB Security Dongle connected
 echo -e "\nChecking for USB Security Dongle...\n"
-# USB kernel modules already loaded via mount-usb
+# USB kernel modules already loaded via mount-external-storage
 if ! gpg --card-status >/dev/null 2>&1 ; then
     whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
     if ! gpg --card-status >/dev/null 2>/tmp/error ; then
@@ -442,10 +442,10 @@ if ! gpg --export --armor $GPG_GEN_KEY > "${PUBKEY}" 2>/tmp/error ; then
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
 
-## export pubkey to USB
+## export pubkey to External Storage
 if [ $GPG_EXPORT -ne 0 ]; then
-    echo -e "\nExporting generated key to USB...\n"
-    # copy to USB
+    echo -e "\nExporting generated key to external storage...\n"
+    # copy to external storage
     if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error ; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
