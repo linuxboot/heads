@@ -1,11 +1,11 @@
 modules-$(CONFIG_PURISM_BLOBS) += purism-blobs
 
 purism-blobs_base_dir := coreboot-$(CONFIG_COREBOOT_VERSION)/3rdparty/purism-blobs
-purism-blobs_version := ca8bf0ba11f9ea029c5edbc03c3cbc77006bbc0b
+purism-blobs_version := 33454f738d60e82480ac2956fc86341eb827ed00
 purism-blobs_tar := purism-blobs-${purism-blobs_version}.tar.gz
 purism-blobs_tar_opt := --strip 1
 purism-blobs_url := https://source.puri.sm/coreboot/purism-blobs/-/archive/${purism-blobs_version}/${purism-blobs_tar}
-purism-blobs_hash := 203e227c62472ace930dff43f2b70003e559f66758acd7ff59a3588b7315311a
+purism-blobs_hash := a33fd900cbe49d8ada2749c28874b1d57ebbd476c0102b6f7bcce46e976f7453
 
 ## there is nothing to be built
 purism-blobs_output := .built
