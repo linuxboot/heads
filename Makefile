@@ -293,20 +293,21 @@ define define_module =
   $(eval $1_base_dir = $(or $($1_base_dir),$($1_dir)))
 
   ifneq ("$($1_repo)","")
+    $(eval $1_patch_name = $1$(if $($1_patch_version),-$($1_patch_version),))
     # Checkout the tree instead and touch the canary file so that we know
     # that the files are all present. No signature hashes are checked in
     # this case, since we don't have a stable version to compare against.
     $(build)/$($1_base_dir)/.canary:
 	git clone $($1_repo) "$(build)/$($1_base_dir)"
 	cd $(build)/$($1_base_dir) && git submodule update --init --checkout
-	if [ -r patches/$1.patch ]; then \
+	if [ -r patches/$($1_patch_name).patch ]; then \
 		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
-			< patches/$1.patch \
+			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
-	if [ -d patches/$1 ] && \
-	   [ -r patches/$1 ] ; then \
-		for patch in patches/$1/*.patch ; do \
+	if [ -d patches/$($1_patch_name) ] && \
+	   [ -r patches/$($1_patch_name) ] ; then \
+		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
 			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 				< $$$$patch \
@@ -315,6 +316,8 @@ define define_module =
 	fi
 	@touch "$$@"
   else
+    $(eval $1_patch_version ?= $($1_version))
+    $(eval $1_patch_name = $1-$($1_patch_version))
     # Fetch and verify the source tar file
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
@@ -333,14 +336,14 @@ define define_module =
     $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
-	if [ -r patches/$1-$($1_version).patch ]; then \
+	if [ -r patches/$($1_patch_name).patch ]; then \
 		( cd $$(dir $$@) ; patch -p1 ) \
-			< patches/$1-$($1_version).patch \
+			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
-	if [ -d patches/$1-$($1_version) ] && \
-	   [ -r patches/$1-$($1_version) ] ; then \
-		for patch in patches/$1-$($1_version)/*.patch ; do \
+	if [ -d patches/$($1_patch_name) ] && \
+	   [ -r patches/$($1_patch_name) ] ; then \
+		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
 			( cd $$(dir $$@) ; patch -p1 ) \
 				< $$$$patch \
