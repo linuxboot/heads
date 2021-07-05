@@ -95,6 +95,9 @@ check_and_get_blob () {
     fi
 }
 
+# ensure pwd is script dir
+cd "$(dirname "$0")"
+
 echo ""
 
 check_and_get_tools() {
