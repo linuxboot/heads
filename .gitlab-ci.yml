@@ -1,0 +1,40 @@
+include: 'https://raw.githubusercontent.com/Nitrokey/common-ci-jobs/master/common_jobs.yml'
+
+stages:
+  - pull-github
+  - build
+  - deploy
+
+variables:
+  #Repo for shared scripts (pull.sh release.sh, nightly_upload.sh):
+  GIT_STRATEGY: clone     #This seems to have no effect also set in webinterface
+  GIT_DEPTH: 0          #This seems to have no effect also set in webinterface
+  GIT_SUBMODULE_STRATEGY: recursive #This seems to have no effect also set in webinterfac
+  SCRIPTS_REPO: git@git.dotplex.com:nitrokey/gitlab-ci.git
+  REPO_USER: nitrokey
+  REPO_NAME: heads
+  MAIN_BRANCH: master
+  DEVICE_FOLDER: "nitropad"
+  COMMON_PULL: "true"
+  COMMON_UPLOAD_NIGHTLY: "false"
+  COMMON_GITHUB_RELEASE: "false"
+  COMMON_UPLOAD_FILES: "true"
+  UPLOAD_FOLDER: "heads"
+
+build-heads:
+  image: ghcr.io/lennardboediger/heads-build@sha256:00a821aada8aedae4877c61d0b653bdf23632208e4e9b8114311b400839570b8
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+  tags:
+    - docker
+  stage: build
+  script:
+    - make BOARD=x230-hotp-verification
+    - mkdir -p artifacts
+    - find /builds/ -name "coreboot.rom" -exec cp "{}"  artifacts/ \;
+  after_script:
+    - wget $icon_server/checkmark/$CI_COMMIT_REF_NAME/$CI_COMMIT_SHA/$CI_JOB_NAME/$CI_JOB_STATUS/${CI_JOB_URL#*/*/*/}
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 1 hrs
