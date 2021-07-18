@@ -8,7 +8,7 @@ util-linux_hash := accea4d678209f97f634f40a93b7e9fcad5915d1f4749f6c47bee6bf110fe
 
 util-linux_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--oldincludedir "$(INSTALL)/include" \
 	--without-ncurses \

@@ -13,7 +13,7 @@ libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea32
 
 libusb-compat_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	PKG_CONFIG=/bin/false \
 	LIBUSB_1_0_CFLAGS="-I$(INSTALL)/include/libusb-1.0" \
