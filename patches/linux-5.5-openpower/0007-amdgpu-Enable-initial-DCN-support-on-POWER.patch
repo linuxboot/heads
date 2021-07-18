@@ -1,0 +1,326 @@
+From 823ae813f113fe9d1c931b3d86f54e68ab24e68d Mon Sep 17 00:00:00 2001
+From: Timothy Pearson <tpearson@raptorengineering.com>
+Date: Sat, 7 Dec 2019 16:28:08 -0600
+Subject: [PATCH 2/3] amdgpu: Enable initial DCN support on POWER
+
+DCN requires floating point support to operate.  Add the appropriate
+x86/ppc64 guards and FPU / AltiVec / VSX context switches to DCN.
+
+Note that the current DC20 code doesn't contain all required FPU
+wrappers on x86 or POWER, so this patch is insufficient to fully
+enable DC20 on POWER.
+
+Signed-off-by: Timothy Pearson <tpearson@raptorengineering.com>
+---
+ drivers/gpu/drm/amd/display/Kconfig                |  8 +++---
+ drivers/gpu/drm/amd/display/dc/calcs/Makefile      |  9 +++++++
+ drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c   |  1 +
+ drivers/gpu/drm/amd/display/dc/dcn20/Makefile      |  8 ++++++
+ .../gpu/drm/amd/display/dc/dcn20/dcn20_resource.c  |  1 +
+ drivers/gpu/drm/amd/display/dc/dcn21/Makefile      |  8 ++++++
+ .../gpu/drm/amd/display/dc/dcn21/dcn21_resource.c  |  1 +
+ drivers/gpu/drm/amd/display/dc/dml/Makefile        |  9 +++++++
+ drivers/gpu/drm/amd/display/dc/dsc/Makefile        |  8 ++++++
+ drivers/gpu/drm/amd/display/dc/os_types.h          | 29 ++++++++++++++++++++++
+ 10 files changed, 78 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/Kconfig b/drivers/gpu/drm/amd/display/Kconfig
+index ae161fe86ebb..6cd274326e54 100644
+--- a/drivers/gpu/drm/amd/display/Kconfig
++++ b/drivers/gpu/drm/amd/display/Kconfig
+@@ -6,7 +6,7 @@ config DRM_AMD_DC
+ 	bool "AMD DC - Enable new display engine"
+ 	default y
+ 	select SND_HDA_COMPONENT if SND_HDA_CORE
+-	select DRM_AMD_DC_DCN1_0 if X86 && !(KCOV_INSTRUMENT_ALL && KCOV_ENABLE_COMPARISONS)
++	select DRM_AMD_DC_DCN1_0 if (X86 || PPC64) && !(KCOV_INSTRUMENT_ALL && KCOV_ENABLE_COMPARISONS)
+ 	help
+ 	  Choose this option if you want to use the new display engine
+ 	  support for AMDGPU. This adds required support for Vega and
+@@ -20,7 +20,7 @@ config DRM_AMD_DC_DCN1_0
+ config DRM_AMD_DC_DCN2_0
+ 	bool "DCN 2.0 family"
+ 	default y
+-	depends on DRM_AMD_DC && X86
++	depends on DRM_AMD_DC && (X86 || PPC64)
+ 	depends on DRM_AMD_DC_DCN1_0
+ 	help
+ 	  Choose this option if you want to have
+@@ -28,7 +28,7 @@ config DRM_AMD_DC_DCN2_0
+ 
+ config DRM_AMD_DC_DCN2_1
+ 	bool "DCN 2.1 family"
+-	depends on DRM_AMD_DC && X86
++	depends on DRM_AMD_DC && (X86 || PPC64)
+ 	depends on DRM_AMD_DC_DCN2_0
+ 	help
+ 	  Choose this option if you want to have
+@@ -37,7 +37,7 @@ config DRM_AMD_DC_DCN2_1
+ config DRM_AMD_DC_DSC_SUPPORT
+ 	bool "DSC support"
+ 	default y
+-	depends on DRM_AMD_DC && X86
++	depends on DRM_AMD_DC && (X86 || PPC64)
+ 	depends on DRM_AMD_DC_DCN1_0
+ 	depends on DRM_AMD_DC_DCN2_0
+ 	help
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/Makefile b/drivers/gpu/drm/amd/display/dc/calcs/Makefile
+index 26c6d735cdc7..429ac95b5dc6 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/calcs/Makefile
+@@ -1,5 +1,6 @@
+ #
+ # Copyright 2017 Advanced Micro Devices, Inc.
++# Copyright 2019 Raptor Engineering, LLC
+ #
+ # Permission is hereby granted, free of charge, to any person obtaining a
+ # copy of this software and associated documentation files (the "Software"),
+@@ -24,7 +25,13 @@
+ # It calculates Bandwidth and Watermarks values for HW programming
+ #
+ 
++ifdef CONFIG_X86_64
+ calcs_ccflags := -mhard-float -msse
++endif
++
++ifdef CONFIG_PPC64
++calcs_ccflags := -mhard-float -maltivec
++endif
+ 
+ ifdef CONFIG_CC_IS_GCC
+ ifeq ($(call cc-ifversion, -lt, 0701, y), y)
+@@ -32,6 +39,7 @@ IS_OLD_GCC = 1
+ endif
+ endif
+ 
++ifdef CONFIG_X86_64
+ ifdef IS_OLD_GCC
+ # Stack alignment mismatch, proceed with caution.
+ # GCC < 7.1 cannot compile code using `double` and -mpreferred-stack-boundary=3
+@@ -40,6 +48,7 @@ calcs_ccflags += -mpreferred-stack-boundary=4
+ else
+ calcs_ccflags += -msse2
+ endif
++endif
+ 
+ CFLAGS_$(AMDDALPATH)/dc/calcs/dcn_calcs.o := $(calcs_ccflags)
+ CFLAGS_$(AMDDALPATH)/dc/calcs/dcn_calc_auto.o := $(calcs_ccflags)
+diff --git a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+index cd5471263248..e34ff2f4a3de 100644
+--- a/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
++++ b/drivers/gpu/drm/amd/display/dc/calcs/dcn_calcs.c
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright 2017 Advanced Micro Devices, Inc.
++ * Copyright 2019 Raptor Engineering, LLC
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a
+  * copy of this software and associated documentation files (the "Software"),
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn20/Makefile b/drivers/gpu/drm/amd/display/dc/dcn20/Makefile
+index 10b47986526b..51fe3cf1ef10 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn20/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/dcn20/Makefile
+@@ -11,7 +11,13 @@ ifdef CONFIG_DRM_AMD_DC_DSC_SUPPORT
+ DCN20 += dcn20_dsc.o
+ endif
+ 
++ifdef CONFIG_X86_64
+ CFLAGS_$(AMDDALPATH)/dc/dcn20/dcn20_resource.o := -mhard-float -msse
++endif
++
++ifdef CONFIG_PPC64
++CFLAGS_$(AMDDALPATH)/dc/dcn20/dcn20_resource.o := -mhard-float -maltivec
++endif
+ 
+ ifdef CONFIG_CC_IS_GCC
+ ifeq ($(call cc-ifversion, -lt, 0701, y), y)
+@@ -19,6 +25,7 @@ IS_OLD_GCC = 1
+ endif
+ endif
+ 
++ifdef CONFIG_X86_64
+ ifdef IS_OLD_GCC
+ # Stack alignment mismatch, proceed with caution.
+ # GCC < 7.1 cannot compile code using `double` and -mpreferred-stack-boundary=3
+@@ -27,6 +34,7 @@ CFLAGS_$(AMDDALPATH)/dc/dcn20/dcn20_resource.o += -mpreferred-stack-boundary=4
+ else
+ CFLAGS_$(AMDDALPATH)/dc/dcn20/dcn20_resource.o += -msse2
+ endif
++endif
+ 
+ AMD_DAL_DCN20 = $(addprefix $(AMDDALPATH)/dc/dcn20/,$(DCN20))
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn20/dcn20_resource.c b/drivers/gpu/drm/amd/display/dc/dcn20/dcn20_resource.c
+index ebc393ee3230..d4558e8457c6 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn20/dcn20_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn20/dcn20_resource.c
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright 2016 Advanced Micro Devices, Inc.
++ * Copyright 2019 Raptor Engineering, LLC
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a
+  * copy of this software and associated documentation files (the "Software"),
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn21/Makefile b/drivers/gpu/drm/amd/display/dc/dcn21/Makefile
+index 5b8c17564bc1..390a4b6316b8 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn21/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/dcn21/Makefile
+@@ -4,7 +4,13 @@
+ 
+ DCN21 = dcn21_hubp.o dcn21_hubbub.o dcn21_resource.o dcn21_hwseq.o dcn21_link_encoder.o
+ 
++ifdef CONFIG_X86_64
+ CFLAGS_$(AMDDALPATH)/dc/dcn21/dcn21_resource.o := -mhard-float -msse
++endif
++
++ifdef CONFIG_PPC64
++CFLAGS_$(AMDDALPATH)/dc/dcn21/dcn21_resource.o := -mhard-float -maltivec
++endif
+ 
+ ifdef CONFIG_CC_IS_GCC
+ ifeq ($(call cc-ifversion, -lt, 0701, y), y)
+@@ -12,6 +18,7 @@ IS_OLD_GCC = 1
+ endif
+ endif
+ 
++ifdef CONFIG_X86_64
+ ifdef IS_OLD_GCC
+ # Stack alignment mismatch, proceed with caution.
+ # GCC < 7.1 cannot compile code using `double` and -mpreferred-stack-boundary=3
+@@ -20,6 +27,7 @@ CFLAGS_$(AMDDALPATH)/dc/dcn21/dcn21_resource.o += -mpreferred-stack-boundary=4
+ else
+ CFLAGS_$(AMDDALPATH)/dc/dcn21/dcn21_resource.o += -msse2
+ endif
++endif
+ 
+ AMD_DAL_DCN21 = $(addprefix $(AMDDALPATH)/dc/dcn21/,$(DCN21))
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_resource.c b/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_resource.c
+index b29b2c99a564..6a47c7f111fb 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn21/dcn21_resource.c
+@@ -1,5 +1,6 @@
+ /*
+ * Copyright 2018 Advanced Micro Devices, Inc.
++ * Copyright 2019 Raptor Engineering, LLC
+  *
+  * Permission is hereby granted, free of charge, to any person obtaining a
+  * copy of this software and associated documentation files (the "Software"),
+diff --git a/drivers/gpu/drm/amd/display/dc/dml/Makefile b/drivers/gpu/drm/amd/display/dc/dml/Makefile
+index 8df251626e22..ae49d23386e1 100644
+--- a/drivers/gpu/drm/amd/display/dc/dml/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/dml/Makefile
+@@ -1,5 +1,6 @@
+ #
+ # Copyright 2017 Advanced Micro Devices, Inc.
++# Copyright 2019 Raptor Engineering, LLC
+ #
+ # Permission is hereby granted, free of charge, to any person obtaining a
+ # copy of this software and associated documentation files (the "Software"),
+@@ -24,7 +25,13 @@
+ # It provides the general basic services required by other DAL
+ # subcomponents.
+ 
++ifdef CONFIG_X86_64
+ dml_ccflags := -mhard-float -msse
++endif
++
++ifdef CONFIG_PPC64
++dml_ccflags := -mhard-float -maltivec
++endif
+ 
+ ifdef CONFIG_CC_IS_GCC
+ ifeq ($(call cc-ifversion, -lt, 0701, y), y)
+@@ -32,6 +39,7 @@ IS_OLD_GCC = 1
+ endif
+ endif
+ 
++ifdef CONFIG_X86_64
+ ifdef IS_OLD_GCC
+ # Stack alignment mismatch, proceed with caution.
+ # GCC < 7.1 cannot compile code using `double` and -mpreferred-stack-boundary=3
+@@ -40,6 +48,7 @@ dml_ccflags += -mpreferred-stack-boundary=4
+ else
+ dml_ccflags += -msse2
+ endif
++endif
+ 
+ CFLAGS_$(AMDDALPATH)/dc/dml/display_mode_lib.o := $(dml_ccflags)
+ 
+diff --git a/drivers/gpu/drm/amd/display/dc/dsc/Makefile b/drivers/gpu/drm/amd/display/dc/dsc/Makefile
+index 641ffb7cfaed..28dc3d7f89e9 100644
+--- a/drivers/gpu/drm/amd/display/dc/dsc/Makefile
++++ b/drivers/gpu/drm/amd/display/dc/dsc/Makefile
+@@ -2,7 +2,13 @@
+ #
+ # Makefile for the 'dsc' sub-component of DAL.
+ 
++ifdef CONFIG_X86_64
+ dsc_ccflags := -mhard-float -msse
++endif
++
++ifdef CONFIG_PPC64
++dsc_ccflags := -mhard-float -maltivec
++endif
+ 
+ ifdef CONFIG_CC_IS_GCC
+ ifeq ($(call cc-ifversion, -lt, 0701, y), y)
+@@ -10,6 +16,7 @@ IS_OLD_GCC = 1
+ endif
+ endif
+ 
++ifdef CONFIG_X86_64
+ ifdef IS_OLD_GCC
+ # Stack alignment mismatch, proceed with caution.
+ # GCC < 7.1 cannot compile code using `double` and -mpreferred-stack-boundary=3
+@@ -18,6 +25,7 @@ dsc_ccflags += -mpreferred-stack-boundary=4
+ else
+ dsc_ccflags += -msse2
+ endif
++endif
+ 
+ CFLAGS_$(AMDDALPATH)/dc/dsc/rc_calc.o := $(dsc_ccflags)
+ CFLAGS_$(AMDDALPATH)/dc/dsc/rc_calc_dpi.o := $(dsc_ccflags)
+diff --git a/drivers/gpu/drm/amd/display/dc/os_types.h b/drivers/gpu/drm/amd/display/dc/os_types.h
+index 938735bf624d..64648f1fde77 100644
+--- a/drivers/gpu/drm/amd/display/dc/os_types.h
++++ b/drivers/gpu/drm/amd/display/dc/os_types.h
+@@ -50,9 +50,38 @@
+ #define dm_error(fmt, ...) DRM_ERROR(fmt, ##__VA_ARGS__)
+ 
+ #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
++#if defined(CONFIG_X86_64)
+ #include <asm/fpu/api.h>
+ #define DC_FP_START() kernel_fpu_begin()
+ #define DC_FP_END() kernel_fpu_end()
++#elif defined(CONFIG_PPC64)
++#include <asm/switch_to.h>
++#include <asm/cputable.h>
++#define DC_FP_START() { \
++	if (cpu_has_feature(CPU_FTR_VSX_COMP)) { \
++		preempt_disable(); \
++		enable_kernel_vsx(); \
++	} else if (cpu_has_feature(CPU_FTR_ALTIVEC_COMP)) { \
++		preempt_disable(); \
++		enable_kernel_altivec(); \
++	} else if (!cpu_has_feature(CPU_FTR_FPU_UNAVAILABLE)) { \
++		preempt_disable(); \
++		enable_kernel_fp(); \
++	} \
++}
++#define DC_FP_END() { \
++	if (cpu_has_feature(CPU_FTR_VSX_COMP)) { \
++		disable_kernel_vsx(); \
++		preempt_enable(); \
++	} else if (cpu_has_feature(CPU_FTR_ALTIVEC_COMP)) { \
++		disable_kernel_altivec(); \
++		preempt_enable(); \
++	} else if (!cpu_has_feature(CPU_FTR_FPU_UNAVAILABLE)) { \
++		disable_kernel_fp(); \
++		preempt_enable(); \
++	} \
++}
++#endif
+ #endif
+ 
+ /*

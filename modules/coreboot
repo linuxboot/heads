@@ -35,6 +35,10 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.15"
 	coreboot-blobs_hash := c0e2d8006da226208ba274a44895d102cb2879cf139cc67bba5f62e67b871f6d
 	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
+	coreboot_version = git
+	coreboot_commit_hash = 2207bbcccba31ad89cf21607b0d8d05d8dc47c03
+	coreboot_repo := https://github.com/Dasharo/coreboot
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 

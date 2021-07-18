@@ -1,0 +1,18 @@
+GCC 10+ defaults to `-fno-common`, breaking build of dtc binary.
+
+Signed-off-by: Sergii Dmytruk <sergii.dmytruk@3mdeb.com>
+
+diff --git a/scripts/dtc/Makefile b/scripts/dtc/Makefile
+index b5a5b1c..5c2f139 100644
+--- a/scripts/dtc/Makefile
++++ b/scripts/dtc/Makefile
+@@ -11,6 +11,9 @@ dtc-objs	+= dtc-lexer.lex.o dtc-parser.tab.o
+ # Source files need to get at the userspace version of libfdt_env.h to compile
+ HOST_EXTRACFLAGS := -I $(srctree)/$(src)/libfdt
+ 
++# Combine `yylloc` declarations from dtc-lexer.lex.o and dtc-parser.tab.o
++HOST_EXTRACFLAGS += -fcommon
++
+ ifeq ($(shell pkg-config --exists yaml-0.1 2>/dev/null && echo yes),)
+ ifneq ($(CHECK_DTBS),)
+ $(error dtc needs libyaml for DT schema validation support. \
