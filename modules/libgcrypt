@@ -1,4 +1,5 @@
 modules-$(CONFIG_GPG2) += libgcrypt
+
 libgcrypt_version := 1.8.6
 libgcrypt_dir := libgcrypt-$(libgcrypt_version)
 libgcrypt_tar := libgcrypt-$(libgcrypt_version).tar.bz2
@@ -7,7 +8,7 @@ libgcrypt_hash := 0cba2700617b99fc33864a0c16b1fa7fdf9781d9ed3509f5d767178e5fd7b9
 
 libgcrypt_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host=x86_64-linux-musl \
+	--host=$(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-static \
 	--with-gpg-error-prefix="$(INSTALL)" \

@@ -10,7 +10,7 @@ cairo_configure := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-DCAIRO_NO_MUTEX=1 -O3"  \
 	./configure \
-        --host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
 	--disable-xlib --disable-xcb --disable-pdf \
 	--disable-ps --disable-svg --disable-script \

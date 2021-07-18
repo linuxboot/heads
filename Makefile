@@ -52,6 +52,15 @@ include $(CONFIG)
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
+# Determine arch part for a host triplet
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+MUSL_ARCH := x86_64
+else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+MUSL_ARCH := powerpc64le
+else
+$(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
+endif
+
 # Create directories if they don't already exist
 BUILD_LOG	:= $(shell mkdir -p "$(log_dir)")
 PACKAGES	:= $(shell mkdir -p "$(packages)")

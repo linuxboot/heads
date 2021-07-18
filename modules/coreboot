@@ -5,6 +5,16 @@ ifeq "$(CONFIG_COREBOOT)" "y"
 CONFIG_COREBOOT_ROM			?= coreboot.rom
 CONFIG_COREBOOT_BOOTBLOCK	?=
 
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+	COREBOOT_TARGET := i386
+	LINUX_IMAGE_FILE := bzImage
+else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+	COREBOOT_TARGET := ppc64
+	LINUX_IMAGE_FILE := zImage
+else
+	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
+endif
+
 ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
 	coreboot_version := 4.8.1
 	coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
@@ -60,15 +70,21 @@ coreboot_configure := \
 
 COREBOOT_IASL="$(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/iasl"
 
-# coreboot is built with the 32-bit compiler; ideally we could use the same
-# x86_64-linux-musl -m32 to build it, but this causes some link errors that need
-# to be tracked down.
+# coreboot for x86 is built with the 32-bit compiler; ideally we could use the
+# same x86_64-linux-musl -m32 to build it, but this causes some link errors that
+# need to be tracked down.
 #	CROSS="$(CROSS)" \
+
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+COREBOOT_CROSS := $(dir $(CROSS))i386-linux-musl-
+else
+COREBOOT_CROSS := $(CROSS)
+endif
 
 coreboot_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
-	CROSS="$(dir $(CROSS))i386-linux-musl-" \
+	CROSS="$(COREBOOT_CROSS)" \
 	IASL="$(COREBOOT_IASL)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	BUILD_TIMELESS=1 \
@@ -82,13 +98,13 @@ coreboot_depend += linux initrd $(musl_dep)
 
 COREBOOT_TOOLCHAIN="$(build)/$(coreboot_base_dir)/.xcompile"
 $(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) crossgcc-i386
+	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN)
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
-	$(build)/$(BOARD)/bzImage \
+	$(build)/$(BOARD)/$(LINUX_IMAGE_FILE) \
 	$(build)/$(BOARD)/initrd.cpio.xz \
 
 # This produces a ROM image that is written with the flashrom program
