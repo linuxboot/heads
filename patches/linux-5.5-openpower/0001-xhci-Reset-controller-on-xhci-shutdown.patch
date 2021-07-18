@@ -1,0 +1,17 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Raptor Engineering Development Team <support@raptorengineering.com>
+Date: Wed, 3 Apr 2019 10:58:35 +1030
+Subject: [xhci] Reset controller on xhci shutdown
+
+diff --git a/drivers/usb/host/xhci.c b/drivers/usb/host/xhci.c
+index dbac0fa..30a4ea6 100644
+--- a/drivers/usb/host/xhci.c
++++ b/drivers/usb/host/xhci.c
+@@ -784,6 +784,7 @@ void xhci_shutdown(struct usb_hcd *hcd)
+ 		xhci_reset(xhci);
+ 	spin_unlock_irq(&xhci->lock);
+ 
++	pci_reset_function_locked(to_pci_dev(hcd->self.sysdev));
+ 	xhci_cleanup_msix(xhci);
+ 
+ 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
