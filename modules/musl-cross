@@ -44,6 +44,7 @@ CROSS_PATH ?= $(pwd)/crossgcc
 musl-cross_target := \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
+	$(MAKE_JOBS) \
 	both
 
 CROSS := $(CROSS_PATH)/bin/x86_64-linux-musl-
