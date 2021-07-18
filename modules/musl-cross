@@ -31,15 +31,11 @@ musl-cross_libraries := \
 
 else
 
-# Force a full build of the cross compiler for x86_64
-# (do not build i386 since coreboot uses its own compiler)
-
+# Force a full build of the cross compiler for target platform
+# No need to build i386 for x86 since coreboot uses its own compiler
 musl-cross_configure := \
-	/bin/echo -e >> Makefile 'both: musl-x86_64' ; \
-	/bin/echo -e >> Makefile 'musl-x86_64: extract_all' ; \
-	/bin/echo -e >> Makefile '\t$$$$''(MAKE) TARGET=x86_64-linux-musl install' ; \
-	/bin/echo -e >> Makefile 'musl-i386: extract_all' ; \
-	/bin/echo -e >> Makefile '\t$$$$''(MAKE) TARGET=i386-linux-musl install' ; \
+	/bin/echo -e >> Makefile 'musl-target:' ; \
+	/bin/echo -e >> Makefile '\t$$$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ;
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
@@ -47,10 +43,10 @@ musl-cross_target := \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
 	$(MAKE_JOBS) \
-	both
+	"musl-target"
 
-CROSS := $(CROSS_PATH)/bin/x86_64-linux-musl-
-musl-cross_libraries := $(CROSS_PATH)/x86_64-linux-musl/lib/libc.so
+CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
+musl-cross_libraries := $(CROSS_PATH)/$(subst -,_,$(MUSL_ARCH))-linux-musl/lib/libc.so
 
 endif
 

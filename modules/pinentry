@@ -15,7 +15,7 @@ pinentry_hash := 68076686fa724a290ea49cdf0d1c0c1500907d1b759a3bcbfbec0293e8f5657
 # location.
 pinentry_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host x86_64-linux-musl \
+	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--enable-pinentry-tty \
 	--disable-libsecret \

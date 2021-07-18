@@ -26,6 +26,7 @@ $(initrd_tmp_dir)/bin/busybox: $(build)/$(busybox_dir)/.build
 		$(MAKE) \
 			-C $(build)/$(busybox_dir) \
 			CC="$(heads_cc)" \
+			CROSS_COMPILE="$(CROSS)" \
 			CONFIG_PREFIX="$(initrd_bin_dir)/.." \
 			install \
 		| tee -a $(build)/log/busybox.log \

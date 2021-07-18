@@ -9,7 +9,7 @@ dropbear_hash := 2720ea54ed009af812701bcc290a2a601d5c107d12993e5d92c0f5f81f71889
 
 dropbear_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--disable-syslog \
 	--disable-lastlog \

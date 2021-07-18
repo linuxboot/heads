@@ -174,3 +174,19 @@ diff -u -r libgcrypt-1.8.3-clean/configure libgcrypt-1.8.3/configure
  
  # Compile-time system search path for libraries.
  sys_lib_search_path_spec=$lt_sys_lib_search_path_spec
+diff --git a/random/jitterentropy-base-user.h b/random/jitterentropy-base-user.h
+index 75dd768..8a8dbd5 100644
+--- a/random/jitterentropy-base-user.h
++++ b/random/jitterentropy-base-user.h
+@@ -86,9 +86,9 @@ jent_get_nstime(u64 *out)
+    * not rely on that extra little entropy.  */
+   if (!clock_gettime (CLOCK_REALTIME, &tv))
+     {
+-      tmp = time.tv_sec;
++      tmp = tv.tv_sec;
+       tmp = tmp << 32;
+-      tmp = tmp | time.tv_nsec;
++      tmp = tmp | tv.tv_nsec;
+     }
+   else
+     tmp = 0;
