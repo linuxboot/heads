@@ -2,6 +2,9 @@ modules-$(CONFIG_COREBOOT) += coreboot
 
 ifeq "$(CONFIG_COREBOOT)" "y"
 
+CONFIG_COREBOOT_ROM			?= coreboot.rom
+CONFIG_COREBOOT_BOOTBLOCK	?=
+
 ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
 	coreboot_version := 4.8.1
 	coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
@@ -67,7 +70,8 @@ coreboot_target := \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	$(MAKE_JOBS)
 
-coreboot_output := coreboot.rom
+coreboot_output := $(CONFIG_COREBOOT_ROM)
+coreboot_output += $(CONFIG_COREBOOT_BOOTBLOCK)
 coreboot_depend += linux initrd $(musl_dep)
 
 COREBOOT_TOOLCHAIN="$(build)/$(coreboot_base_dir)/.xcompile"
@@ -85,10 +89,19 @@ $(build)/$(coreboot_dir)/.build: \
 
 # This produces a ROM image that is written with the flashrom program
 ifneq ($(CONFIG_COREBOOT),)
+
 $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
+	# Use coreboot.rom, because custom output files might not be processed by cbfstool
 	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
-	$(call do-copy,$(dir $<)coreboot.rom,$@)
+	$(call do-copy,$(dir $<)$(CONFIG_COREBOOT_ROM),$@)
 	@touch $@   # update the time stamp
+
+ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
+$(build)/$(BOARD)/$(CB_BOOTBLOCK_FILE): $(build)/$(coreboot_dir)/.build
+	$(call do-copy,$(dir $<)$(CONFIG_COREBOOT_BOOTBLOCK),$@)
+	@touch $@   # update the time stamp
+endif
+
 endif
 
 #

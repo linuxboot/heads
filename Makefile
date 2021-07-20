@@ -9,8 +9,9 @@ GIT_STATUS	:= $(shell \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --tags --dirty)
 
-CB_OUTPUT_FILE := heads-$(BOARD)-$(HEADS_GIT_VERSION).rom
-LB_OUTPUT_FILE := linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+CB_OUTPUT_FILE		:= heads-$(BOARD)-$(HEADS_GIT_VERSION).rom
+CB_BOOTBLOCK_FILE	:= heads-$(BOARD)-$(HEADS_GIT_VERSION).bootblock
+LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
 
 all:
 -include .config
@@ -195,7 +196,12 @@ CROSS_TOOLS := \
 
 
 ifeq ($(CONFIG_COREBOOT), y)
+
 all: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
+ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
+all: $(build)/$(BOARD)/$(CB_BOOTBLOCK_FILE)
+endif
+
 else ifeq ($(CONFIG_LINUXBOOT), y)
 all: $(build)/$(BOARD)/$(LB_OUTPUT_FILE)
 else
