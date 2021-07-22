@@ -41,7 +41,7 @@ musl-cross_configure := \
 	/bin/echo -e >> Makefile 'musl-i386: extract_all' ; \
 	/bin/echo -e >> Makefile '\t$$$$''(MAKE) TARGET=i386-linux-musl install' ; \
 
-CROSS_PATH ?= $(pwd)/crossgcc
+CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
 musl-cross_target := \
 	OUTPUT="$(CROSS_PATH)" \
