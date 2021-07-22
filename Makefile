@@ -31,6 +31,8 @@ build		:= $(pwd)/build
 config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
 log_dir		:= $(build)/log
+# This is dynamic, must not expand right here
+board_build	= $(build)/$(BOARD)
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		?= $(shell nproc)
@@ -57,17 +59,17 @@ include $(CONFIG)
 CONFIG_HEADS	?= y
 
 # record the build date / git hashes and other files here
-HASHES		:= $(build)/$(BOARD)/hashes.txt
+HASHES		:= $(board_build)/hashes.txt
 
 # Create the board output directory if it doesn't already exist
 BOARD_LOG	:= $(shell \
-	mkdir -p "$(build)/$(BOARD)" ; \
+	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 )
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
-$(shell cpio -o < /dev/null > $(build)/$(BOARD)/initrd.cpio)
+$(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -134,13 +136,13 @@ CROSS_TOOLS := \
 
 ifeq ($(CONFIG_COREBOOT), y)
 
-all: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
+all: $(board_build)/$(CB_OUTPUT_FILE)
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
-all: $(build)/$(BOARD)/$(CB_BOOTBLOCK_FILE)
+all: $(board_build)/$(CB_BOOTBLOCK_FILE)
 endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
-all: $(build)/$(BOARD)/$(LB_OUTPUT_FILE)
+all: $(board_build)/$(LB_OUTPUT_FILE)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
@@ -155,7 +157,7 @@ FORCE:
 
 # Copies config while replacing predefined placeholders with actual values
 define install_config =
-	sed -e 's!@BOARD_BUILD_DIR@!$(build)/$(BOARD)!g' \
+	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
 	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
 	    "$1" > "$2"
 endef
@@ -529,7 +531,7 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 #
 # At the moment PowerPC can only load initrd bundled with the kernel.
 #
-bundle-$(CONFIG_LINUX_BUNDLED)	+= $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled
+bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
 all: $(bundle-y)
 
 #
@@ -593,13 +595,13 @@ modules.clean:
 # since we can't reflash the firmware in qemu to update the keychain.  Instead,
 # inject the public key ahead of time.  Specify the location of the key with
 # PUBKEY_ASC.
-inject_gpg: $(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)
+inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
 
-$(build)/$(BOARD)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
-	cp "$(build)/$(BOARD)/$(CB_OUTPUT_FILE)" \
-		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)"
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
+	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
 	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
 
 real.clean:
 	for dir in \
