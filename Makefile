@@ -20,20 +20,17 @@ all:
 
 modules-y 	:=
 pwd 		:= $(shell pwd)
-packages 	:= $(pwd)/packages
-build		:= $(pwd)/build
 config		:= $(pwd)/config
-INSTALL		:= $(pwd)/install
-log_dir		:= $(build)/log
-# This is dynamic, must not expand right here
+# These are dynamic, must not expand right here
+build		= $(pwd)/build/$(CONFIG_TARGET_ARCH)
+packages 	= $(pwd)/packages/$(CONFIG_TARGET_ARCH)
+INSTALL		= $(pwd)/install/$(CONFIG_TARGET_ARCH)
+log_dir		= $(build)/log
 board_build	= $(build)/$(BOARD)
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		?= $(shell nproc)
 MAKE_JOBS	?= -j$(CPUS) --max-load 16
-
-# Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
 WGET ?= wget
 
@@ -47,10 +44,17 @@ ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
 endif
 
+# By default, we are building for x86, up to a board to change this variable
+CONFIG_TARGET_ARCH := x86
+
 include $(CONFIG)
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
+
+# Create directories if they don't already exist
+BUILD_LOG	:= $(shell mkdir -p "$(log_dir)")
+PACKAGES	:= $(shell mkdir -p "$(packages)")
 
 # record the build date / git hashes and other files here
 HASHES		:= $(board_build)/hashes.txt
