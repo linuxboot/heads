@@ -33,7 +33,6 @@ mkdir -p /tmp/secret
 
 # Now it is safe to print a banner
 if [ -r /etc/motd ]; then
-	cat /etc/motd
 	cat /etc/motd > /dev/tty0
 fi
 
