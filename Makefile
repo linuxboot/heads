@@ -479,6 +479,7 @@ bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom
 bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
+bin_modules-$(CONFIG_CRYPTSETUP2) += cryptsetup2
 bin_modules-$(CONFIG_GPG) += gpg
 bin_modules-$(CONFIG_GPG2) += gpg2
 bin_modules-$(CONFIG_PINENTRY) += pinentry
