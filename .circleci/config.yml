@@ -267,6 +267,12 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: qemu-coreboot
+          target: qemu-coreboot
+          requires:
+            - librem_mini
+
+      - build:
           name: qemu-coreboot-fbwhiptail
           target: qemu-coreboot-fbwhiptail
           requires:
