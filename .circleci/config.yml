@@ -165,19 +165,12 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Coreboot 4.8.1
-      - build_and_persist:
-          name: qemu-coreboot
-          target: qemu-coreboot
-          requires:
-            - prep_env
-
       # Coreboot 4.11
       - build_and_persist:
           name: kgpe-d16_workstation
           target: kgpe-d16_workstation
           requires:
-            - qemu-coreboot
+            - prep_env
 
       # Coreboot 4.14
       - build_and_persist:
@@ -272,6 +265,12 @@ workflows:
       - build:
           name: t430-maximized
           target: t430-maximized
+          requires:
+            - librem_mini
+
+      - build:
+          name: qemu-coreboot
+          target: qemu-coreboot
           requires:
             - librem_mini
 
