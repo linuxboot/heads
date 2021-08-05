@@ -174,15 +174,15 @@ workflows:
 
       # Coreboot 4.14
       - build_and_persist:
-          name: librem_mini
-          target: librem_mini
+          name: x230-hotp-maximized
+          target: x230-hotp-maximized
           requires:
             - kgpe-d16_workstation
 
 
       - save_cache:
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
 #
 #
@@ -194,121 +194,115 @@ workflows:
           name: x220-hotp-maximized
           target: x220-hotp-maximized
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: x220-maximized
           target: x220-maximized
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t420-hotp-maximized
           target: t420-hotp-maximized
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t420-maximized
           target: t420-maximized
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: x230-flash
           target: x230-flash
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t430-flash
           target: t430-flash
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t430
           target: t430
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: x230
           target: x230
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: x230-hotp-verification
           target: x230-hotp-verification
           requires:
-            - librem_mini
-
-      - build:
-          name: x230-maximized
-          target: x230-maximized
-          requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t430-hotp-maximized
           target: t430-hotp-maximized
           requires:
-            - librem_mini
-
-      - build:
-          name: x230-hotp-maximized
-          target: x230-hotp-maximized
-          requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: t430-maximized
           target: t430-maximized
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: qemu-coreboot
           target: qemu-coreboot
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: qemu-coreboot-fbwhiptail
           target: qemu-coreboot-fbwhiptail
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: kgpe-d16_workstation-usb_keyboard
           target: kgpe-d16_workstation-usb_keyboard
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: kgpe-d16_server
           target: kgpe-d16_server
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: kgpe-d16_server-whiptail
           target: kgpe-d16_server-whiptail
           requires:
-            - librem_mini
+            - x230-hotp-maximized
+
+      - build:
+          name: librem_mini
+          target: librem_mini
+          requires:
+            - x230-hotp-maximized
 
       - build:
           name: librem_l1um
           target: librem_l1um
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
       - build:
           name: librem_mini_v2
           target: librem_mini_v2
           requires:
-            - librem_mini
+            - x230-hotp-maximized
 
 
 ########################
