@@ -87,4 +87,4 @@ url="otpauth://totp/$HOST?secret=$secret"
 secret=""
 
 qrenc "$url"
-#echo "$url"
+echo "$url"
