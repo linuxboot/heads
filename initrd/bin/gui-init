@@ -416,8 +416,9 @@ show_options_menu()
     'f' ' Flash/Update the BIOS -->' \
     'g' ' GPG Options -->' \
     'F' ' OEM Factory Reset / Re-Ownership -->' \
-    'R' ' Reencrypt LUKS container -->' \
-    'C' ' Change LUKS Disk Recovery Key passphrase ->' \
+    'C' ' Reencrypt LUKS container -->' \
+    'P' ' Change LUKS Disk Recovery Key passphrase ->' \
+    'R' ' Check/Update file hashes on root disk -->' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -445,13 +446,16 @@ show_options_menu()
     F )
       oem-factory-reset
       ;;
-    R )
+    C )
       luks_reencrypt
       luks_secrets_cleanup
       ;;
-    C )
+    P )
       luks_change_passphrase
       luks_secrets_cleanup
+      ;;
+    R )
+      root-hashes-gui.sh
       ;;
     x )
       recovery "User requested recovery shell"

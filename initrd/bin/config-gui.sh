@@ -7,6 +7,8 @@ set -e -o pipefail
 
 TRACE "Under /bin/config-gui.sh"
 
+ROOT_HASH_FILE="/boot/kexec_root_hashes.txt"
+
 param=$1
 
 while true; do
@@ -19,8 +21,11 @@ while true; do
     whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
     'b' ' Change the /boot device' \
-    's' ' Save the current configuration to the running BIOS' \
     'r' ' Clear GPG key(s) and reset all user settings' \
+    'R' ' Change the root device for hashing' \
+    'D' ' Change the root directories to hash' \
+    'B' ' Check root hashes at boot' \
+    's' ' Save the current configuration to the running BIOS' \
     'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -134,6 +139,97 @@ while true; do
         /bin/reboot
       else
         exit 0
+      fi
+    ;;
+    "R" )
+      CURRENT_OPTION=`grep 'CONFIG_ROOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
+      # filter out extraneous options
+      > /tmp/root_device_list.txt
+      for i in `cat /tmp/disklist.txt`; do
+        # remove block device from list if numeric partitions exist, since not bootable
+        DEV_NUM_PARTITIONS=$((`ls -1 $i* | wc -l`-1))
+        if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
+          echo $i >> /tmp/root_device_list.txt
+        else
+          ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp/root_device_list.txt
+        fi
+      done
+      file_selector "/tmp/root_device_list.txt" \
+          "Choose the default root device.\n\nCurrently set to $CURRENT_OPTION." \
+          "Root Device Selection"
+      if [ "$FILE" == "" ]; then
+        return
+      else
+        SELECTED_FILE=$FILE
+      fi
+
+      replace_config /etc/config.user "CONFIG_ROOT_DEV" "$SELECTED_FILE"
+      combine_configs
+
+      whiptail --title 'Config change successful' \
+        --msgbox "The root device was successfully changed to $SELECTED_FILE" 0 80
+    ;;
+    "D" )
+      CURRENT_OPTION=`grep 'CONFIG_ROOT_DIRLIST=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      
+      echo "The current list of directories to hash is $CURRENT_OPTION"
+      echo -e "\nEnter the new list of directories separated by spaces, without any beginning forward slashes:"
+      echo -e "(Press enter with the list empty to cancel)"
+      read -r NEW_CONFIG_ROOT_DIRLIST
+
+      # strip any leading forward slashes in case the user ignored us
+      NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
+
+      #check if list empty
+      if [ -s $NEW_CONFIG_ROOT_DIRLIST ] ; then
+        whiptail --title 'Config change canceled' \
+        --msgbox "Root device directory change canceled by user" 0 80
+        break
+      fi
+
+      replace_config /etc/config.user "CONFIG_ROOT_DIRLIST" "$NEW_CONFIG_ROOT_DIRLIST"
+      combine_configs
+
+      whiptail --title 'Config change successful' \
+        --msgbox "The root directories to hash was successfully changed to:\n$NEW_CONFIG_ROOT_DIRLIST" 0 80
+    ;;
+    "B" )
+      CURRENT_OPTION=`grep 'CONFIG_ROOT_CHECK_AT_BOOT=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      if [ "$CURRENT_OPTION" = "n" ]; then
+        if (whiptail --title 'Enable Root Hash Check at Boot?' \
+             --yesno "This will enable checking root hashes each time you boot.
+                    \nDepending on the directories you are checking, this might add
+                    \na minute or more to the boot time.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          replace_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "y"
+          combine_configs
+
+          # check that root hash file exists
+          if [ ! -f ${ROOT_HASH_FILE} ]; then
+            if (whiptail --title 'Generate Root Hash File' \
+                --yesno "\nNo root hash file exists.
+                        \nWould you like to create the initial hash file now?" 0 80) then
+                root-hashes-gui.sh -n
+              fi
+          fi
+
+          whiptail --title 'Config change successful' \
+            --msgbox "The root device will be checked at each boot." 0 80
+
+        fi
+      else
+        if (whiptail --title 'Disable Root Hash Check at Boot?' \
+             --yesno "This will disable checking root hashes each time you boot.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          replace_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "n"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "The root device will not be checked at each boot." 0 80
+        fi
       fi
     ;;
   esac
