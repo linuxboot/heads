@@ -10,37 +10,6 @@ warn() {
 	echo >&2 "$*";
 }
 
-recovery() {
-	echo >&2 "!!!!! $*"
-
-	# Remove any temporary secret files that might be hanging around
-	# but recreate the directory so that new tools can use it.
-	shred -n 10 -z -u /tmp/secret/* 2> /dev/null
-	rm -rf /tmp/secret
-	mkdir -p /tmp/secret
-
-	# ensure /tmp/config exists for recovery scripts that depend on it
-	touch /tmp/config
-
-	if [ "$CONFIG_TPM" = y ]; then
-		tpm extend -ix 4 -ic recovery
-	fi
-
-	while [ true ]
-	do
-		echo >&2 "!!!!! Starting recovery shell"
-		sleep 1
-
-		if [ -x /bin/setsid ]; then
-			/bin/setsid -c /bin/ash
-		else
-			/bin/ash
-		fi
-		# clear screen
-		printf "\033c"
-	done
-}
-
 pause_recovery() {
 	read -p 'Hit enter to proceed to recovery shell:'
 	recovery $*
