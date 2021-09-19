@@ -311,6 +311,11 @@ workflows:
           requires:
             - librem_mini
 
+      - build:
+          name: lemp10 
+          target: lemp10 
+          requires:
+            - librem_mini
 
 ########################
 ########################
