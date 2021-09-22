@@ -107,7 +107,7 @@ prompt_update_checksums()
     echo "Returning to the main menu"
   fi
 }
-update_totp()
+generate_totp_htop()
 {
   echo "Scan the QR code to add the new TOTP secret"
   /bin/seal-totp
@@ -342,7 +342,7 @@ while true; do
   if [ "$totp_confirm" = "g" ]; then
     if (whiptail --title 'Generate new TOTP/HOTP secret' \
         --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
-      update_totp
+      generate_totp_htop
     else
       echo "Returning to the main menu"
     fi
@@ -372,7 +372,7 @@ while true; do
         || die "Unable to create rollback file"
         mount -o ro,remount /boot
 
-        update_totp
+        generate_totp_htop
       else
         echo "Returning to the main menu"
       fi
