@@ -53,6 +53,7 @@ mount_boot()
     esac
   done
 }
+
 verify_global_hashes()
 {
   # Check the hashes of all the files, ignoring signatures for now
@@ -98,6 +99,7 @@ verify_global_hashes()
     return 1
   fi
 }
+
 prompt_update_checksums()
 {
   if (whiptail --title 'Update Checksums and sign all files in /boot' \
@@ -107,6 +109,7 @@ prompt_update_checksums()
     echo "Returning to the main menu"
   fi
 }
+
 generate_totp_htop()
 {
   echo "Scan the QR code to add the new TOTP secret"
