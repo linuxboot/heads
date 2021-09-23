@@ -7,7 +7,7 @@ set -e -o pipefail
 
 while true; do
   unset menu_choice
-  whiptail --clear --title "Firmware Management Menu" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "Firmware Management Menu" \
     --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n* Clears out /boot signatures\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 20 90 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
     'c' ' Flash the firmware with a new ROM, erase settings' \
@@ -21,7 +21,7 @@ while true; do
       exit 0
     ;;
     f|c )
-      if (whiptail --title 'Flash the BIOS with a new ROM' \
+      if (whiptail $BG_COLOR_WARNING --title 'Flash the BIOS with a new ROM' \
           --yesno "You will need to insert a USB drive containing your BIOS image (*.rom).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 16 90) then
         mount_usb
         if grep -q /media /proc/mounts ; then
@@ -33,7 +33,7 @@ while true; do
             ROM=$FILE
           fi
 
-          if (whiptail --title 'Flash ROM?' \
+          if (whiptail $BG_COLOR_WARNING --title 'Flash ROM?' \
               --yesno "This will replace your current ROM with:\n\n${ROM#"/media/"}\n\nDo you want to proceed?" 16 60) then
             if [ "$menu_choice" == "c" ]; then
               /bin/flash.sh -c "$ROM"
