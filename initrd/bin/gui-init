@@ -5,11 +5,12 @@ BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
 MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
+export MAIN_MENU_BG_COLOR=""
 
 . /etc/functions
 . /tmp/config
 
-first_pass=true
+last_half=X
 
 mount_boot()
 {
@@ -512,21 +513,14 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-last_half=X
+# detect whether any GPG keys exist in the keyring, if not, initialize that first
+check_gpg_key && update_totp && update_hotp
+
+if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT ]]; then
+  prompt_auto_default_boot
+fi
+
 while true; do
-  MAIN_MENU_OPTIONS=""
-  MAIN_MENU_BG_COLOR=""
-  # detect whether any GPG keys exist in the keyring, if not, initialize that first
-  check_gpg_key
-  
-  update_totp
-  
-  update_hotp
-
-  if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT && $first_pass = true ]]; then
-    prompt_auto_default_boot
-  fi
-
   show_main_menu
 done
 
