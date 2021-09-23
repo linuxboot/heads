@@ -24,7 +24,7 @@ fi
 stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
 if [ -z `cat /tmp/usb_block_devices` ]; then
   if [ -x /bin/whiptail ]; then
-    whiptail --title 'USB Drive Missing' \
+    whiptail $BG_COLOR --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
   else
     echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
@@ -81,7 +81,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     done < /tmp/usb_disk_list
 
     MENU_OPTIONS="$MENU_OPTIONS a Abort"
-    whiptail --clear --title "Select your USB disk" \
+    whiptail $BG_COLOR --clear --title "Select your USB disk" \
       --menu "Choose your USB disk [1-$n, a to abort]:" 20 120 8 \
       -- $MENU_OPTIONS \
       2>/tmp/whiptail

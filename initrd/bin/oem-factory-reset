@@ -51,7 +51,7 @@ whiptail_error()
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
-    whiptail --msgbox "${msg}\n\n" $WIDTH $HEIGHT $BG_COLOR_ERROR --title "Error"
+    whiptail $BG_COLOR_ERROR --msgbox "${msg}\n\n" $WIDTH $HEIGHT $BG_COLOR_ERROR --title "Error"
 }
 
 whiptail_error_die() 

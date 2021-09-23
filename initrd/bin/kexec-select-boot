@@ -135,7 +135,7 @@ get_menu_option() {
 
 confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
-		whiptail --clear --title "Confirm boot details" \
+		whiptail $BG_COLOR_WARNING --clear --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$option\n\n" 20 120 8 \
 			-- 'y' "Boot $name" 'd' "Make $name the default" \
 			2>/tmp/whiptail || die "Aborting boot attempt"

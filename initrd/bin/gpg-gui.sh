@@ -137,7 +137,7 @@ gpg_add_key_reflash() {
 
 while true; do
   unset menu_choice
-  whiptail --clear --title "GPG Management Menu" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 20 90 10 \
     'r' ' Add GPG key to running BIOS and reflash' \
     'a' ' Add GPG key to standalone BIOS image and flash' \
@@ -177,7 +177,7 @@ while true; do
           fi
           cp "$ROM" /tmp/gpg-gui.rom
 
-          if (whiptail --title 'Flash ROM?' \
+          if (whiptail $BG_COLOR_WARNING --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
             gpg_flash_rom
           else

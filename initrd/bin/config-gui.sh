@@ -14,7 +14,7 @@ while true; do
     unset param
   else
     unset menu_choice
-    whiptail --clear --title "Config Management Menu" \
+    whiptail $BG_COLOR_MAIN_MENU --clear --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
@@ -95,7 +95,7 @@ while true; do
     ;;
     "r" )
       # prompt for confirmation
-      if (whiptail --title 'Reset Configuration?' \
+      if (whiptail $BG_COLOR_WARNING --title 'Reset Configuration?' \
            --yesno "This will clear all GPG keys, clear boot signatures and checksums,
                   \nreset the /boot device, clear/reset the TPM (if present),
                   \nand reflash your BIOS with the cleaned configuration.
