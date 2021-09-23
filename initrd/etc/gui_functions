@@ -10,7 +10,7 @@ mount_usb()
   # Mount the USB boot device
   mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
   if [ $USB_FAILED -ne 0 ]; then
-    whiptail --title 'USB Drive Missing' \
+    whiptail $BG_COLOR_ERROR --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60
     mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
     if [ $USB_FAILED -ne 0 ]; then
