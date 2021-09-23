@@ -5,7 +5,7 @@ BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
 MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
-export MAIN_MENU_BG_COLOR=""
+export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
 . /tmp/config
@@ -24,6 +24,7 @@ mount_boot()
     fi
 
     # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: No Bootable OS Found!" \
         --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
     How would you like to proceed?" 30 90 4 \
@@ -40,6 +41,7 @@ mount_boot()
         if [ $? -eq 0 ]; then
           # update CONFIG_BOOT_DEV
           . /tmp/config
+          BG_COLOR_MAIN_MENU=""
         fi
         ;;
       u )
@@ -70,6 +72,7 @@ verify_global_hashes()
       --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
       update_checksums
     fi
+    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     return 1
   else
     CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
@@ -97,13 +100,14 @@ verify_global_hashes()
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
       update_checksums
     fi
+    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     return 1
   fi
 }
 
 prompt_update_checksums()
 {
-  if (whiptail --title 'Update Checksums and sign all files in /boot' \
+  if (whiptail $BG_COLOR_WARNING --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
     update_checksums
   else
@@ -137,6 +141,7 @@ update_totp()
     last_half=$half;
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
+      BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
       whiptail $BG_COLOR_ERROR --clear --title "ERROR: TOTP Generation Failed!" \
         --menu "    ERROR: Heads couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
@@ -154,16 +159,16 @@ update_totp()
       option=$(cat /tmp/whiptail)
       case "$option" in 
         g )
-          if (whiptail --title 'Generate new TOTP/HOTP secret' \
+          if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
-            generate_totp_htop
+            generate_totp_htop && BG_COLOR_MAIN_MENU=""
           fi
           ;;
         i )
           return 1
           ;;
         p )
-          reset_tpm
+          reset_tpm && BG_COLOR_MAIN_MENU=""
           ;;
         x )
           recovery "User requested recovery shell"
@@ -188,14 +193,15 @@ update_hotp()
     case "$?" in
       0 )
         HOTP="Success"
+        BG_COLOR_MAIN_MENU=""
       ;;
       4 )
         HOTP="Invalid code"
-        MAIN_MENU_BG_COLOR=$BG_COLOR_ERROR
+        BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
       ;;
       * )
         HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
-        MAIN_MENU_BG_COLOR=$BG_COLOR_WARNING
+        BG_COLOR_MAIN_MENU=$BG_COLOR_WARNING
       ;;
     esac
   else
@@ -236,6 +242,7 @@ check_gpg_key()
 {
   GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
   if [ $GPG_KEY_COUNT -eq 0 ]; then
+    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
       'g' ' Add a GPG key to the running BIOS' \
@@ -246,7 +253,7 @@ check_gpg_key()
     option=$(cat /tmp/whiptail)
     case "$option" in 
       g )
-        gpg-gui.sh
+        gpg-gui.sh && BG_COLOR_MAIN_MENU=""
         ;;
       i )
         return 1
@@ -277,7 +284,7 @@ prompt_auto_default_boot()
 show_main_menu()
 {
   date=`date "+%Y-%m-%d %H:%M"`
-  whiptail $MAIN_MENU_BG_COLOR --clear --title "$MAIN_MENU_TITLE" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
     'd' ' Default boot' \
     'r' ' Refresh TOTP/HOTP' \
@@ -308,7 +315,7 @@ show_main_menu()
 
 show_options_menu()
 {
-  whiptail --clear --title "HEADS Options" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "HEADS Options" \
     --menu "" 20 90 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
@@ -354,7 +361,7 @@ show_options_menu()
 
 show_boot_options_menu()
 {
-  whiptail --clear --title "Boot Options" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "Boot Options" \
     --menu "Select A Boot Option" 20 90 10 \
     'm' ' Show OS boot menu' \
     'u' ' USB boot' \
@@ -381,7 +388,7 @@ show_boot_options_menu()
 
 show_tpm_totp_hotp_options_menu()
 {
-  whiptail --clear --title "TPM/TOTP/HOTP Options" \
+  whiptail $BG_COLOR_MAIN_MENU --clear --title "TPM/TOTP/HOTP Options" \
     --menu "Select An Option" 20 90 10 \
     'g' ' Generate new TOTP/HOTP secret' \
     'r' ' Reset the TPM' \
@@ -421,7 +428,7 @@ prompt_totp_mismatch()
 reset_tpm()
 {
   if [ "$CONFIG_TPM" = "y" ]; then
-    if (whiptail --title 'Reset the TPM' \
+    if (whiptail $BG_COLOR_WARNING --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
       /bin/tpm-reset
 
@@ -447,7 +454,7 @@ reset_tpm()
       echo "Returning to the main menu"
     fi
   else
-    whiptail --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 30 90
+    whiptail $BG_COLOR_ERROR --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 30 90
   fi
 }
 
@@ -457,7 +464,7 @@ show_system_info()
   memtotal=$((${memtotal} / 1024 / 1024 + 1))
   cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
   kernel=$(uname -s -r)
-  whiptail --title 'System Info' \
+  whiptail $BG_COLOR_MAIN_MENU --title 'System Info' \
     --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
 }
 
@@ -480,7 +487,7 @@ attempt_default_boot()
   if [ -r "$DEFAULT_FILE" ]; then
     kexec-select-boot -b /boot -c "grub.cfg" -g \
     || recovery "Failed default boot"
-  elif (whiptail --title 'No Default Boot Option Configured' \
+  elif (whiptail $BG_COLOR_WARNING --title 'No Default Boot Option Configured' \
         --yesno "There is no default boot option configured yet.\nWould you like to load a menu of boot options?\nOtherwise you will return to the main menu." 16 90) then
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
   fi
