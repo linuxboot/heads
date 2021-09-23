@@ -48,6 +48,7 @@ mount_boot()
         exec /bin/usb-init
         ;;
       m )
+        skip_to_menu="true"
         break
         ;;
       * )
@@ -504,6 +505,13 @@ force_unsafe_boot()
 
 # gui-init start
 
+# Use stored HOTP key branding
+if [ -r /boot/kexec_hotp_key ]; then
+	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+else
+	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+fi
+
 if detect_boot_device ; then
   # /boot device with installed OS found
   clean_boot_check
@@ -513,15 +521,8 @@ else
   mount_boot
 fi
 
-# Use stored HOTP key branding
-if [ -r /boot/kexec_hotp_key ]; then
-	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-else
-	HOTPKEY_BRANDING="HOTP USB Security Dongle"
-fi
-
 # detect whether any GPG keys exist in the keyring, if not, initialize that first
-check_gpg_key && update_totp && update_hotp
+[[ "$skip_to_menu" != "true" ]] && check_gpg_key && update_totp && update_hotp
 
 if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT ]]; then
   prompt_auto_default_boot
