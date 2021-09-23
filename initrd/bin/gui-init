@@ -150,7 +150,24 @@ update_totp()
         'x' ' Exit to recovery shell' \
         2>/tmp/whiptail || recovery "GUI menu failed"
 
-      totp_confirm=$(cat /tmp/whiptail)
+      option=$(cat /tmp/whiptail)
+      case "$option" in 
+        g )
+          if (whiptail --title 'Generate new TOTP/HOTP secret' \
+              --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
+            generate_totp_htop
+          fi
+          ;;
+        i )
+          return 1
+          ;;
+        p )
+          reset_tpm
+          ;;
+        x )
+          recovery "User requested recovery shell"
+          ;;
+      esac
     fi
   fi
 }
@@ -220,12 +237,23 @@ check_gpg_key()
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
-      'G' ' Add a GPG key to the running BIOS' \
+      'g' ' Add a GPG key to the running BIOS' \
       'i' ' Ignore error and continue to main menu' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
 
-      totp_confirm=$(cat /tmp/whiptail)
+    option=$(cat /tmp/whiptail)
+    case "$option" in 
+      g )
+        gpg-gui.sh
+        ;;
+      i )
+        return 1
+        ;;
+      x )
+        recovery "User requested recovery shell"
+        ;;
+    esac
   fi
 }
 
@@ -239,43 +267,88 @@ prompt_auto_default_boot()
   read -t $CONFIG_AUTO_BOOT_TIMEOUT -s -n 1 -p "Automatic boot in $CONFIG_AUTO_BOOT_TIMEOUT seconds unless interrupted by keypress... "
   if [[ $? -ne 0 ]]; then
     IFS=$IFS_DEF
-    # skip to default boot
-    totp_confirm='y'
     echo -e "\n\nAttempting default boot...\n\n"
+    attempt_default_boot
   fi
   IFS=$IFS_DEF
 }
 
 show_main_menu()
 {
+  date=`date "+%Y-%m-%d %H:%M"`
   whiptail $MAIN_MENU_BG_COLOR --clear --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
-    'y' ' Default boot' \
+    'd' ' Default boot' \
     'r' ' Refresh TOTP/HOTP' \
-    'a' ' Options -->' \
-    'S' ' System Info' \
-    'P' ' Power Off' \
+    'o' ' Options -->' \
+    's' ' System Info' \
+    'p' ' Power Off' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
-  totp_confirm=$(cat /tmp/whiptail)
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    d )
+      attempt_default_boot
+      ;;
+    r )
+      update_totp && update_hotp
+      ;;
+    o )
+      show_options_menu
+      ;;
+    s )
+      show_system_info
+      ;;
+    p )
+      poweroff
+      ;;
+  esac
 }
 
 show_options_menu()
 {
   whiptail --clear --title "HEADS Options" \
     --menu "" 20 90 10 \
-    'o' ' Boot Options -->' \
+    'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
-    's' ' Update checksums and sign all files in /boot' \
+    'u' ' Update checksums and sign all files in /boot' \
     'c' ' Change configuration settings -->' \
     'f' ' Flash/Update the BIOS -->' \
-    'G' ' GPG Options -->' \
+    'g' ' GPG Options -->' \
     'F' ' OEM Factory Reset -->' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
-  totp_confirm=$(cat /tmp/whiptail)
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    b )
+      show_boot_options_menu
+      ;;
+    t )
+      show_tpm_totp_hotp_options_menu
+      ;;
+    u )
+      prompt_update_checksums
+      ;;
+    c )
+      config-gui.sh
+      ;;
+    f )
+      flash-gui.sh
+      ;;
+    g )
+      gpg-gui.sh
+      ;;
+    F )
+      oem-factory-reset
+      ;;
+    x )
+      recovery "User requested recovery shell"
+      ;;
+    r )
+      ;;
+  esac
 }
 
 show_boot_options_menu()
@@ -288,7 +361,21 @@ show_boot_options_menu()
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
-  totp_confirm=$(cat /tmp/whiptail)
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    m )
+      # select a kernel from the menu
+      select_os_boot_option
+      ;;
+    u )
+      exec /bin/usb-init
+      ;;
+    i )
+      force_unsafe_boot
+      ;;
+    r )
+      ;;
+  esac
 }
 
 show_tpm_totp_hotp_options_menu()
@@ -296,12 +383,25 @@ show_tpm_totp_hotp_options_menu()
   whiptail --clear --title "TPM/TOTP/HOTP Options" \
     --menu "Select An Option" 20 90 10 \
     'g' ' Generate new TOTP/HOTP secret' \
-    'p' ' Reset the TPM' \
-    'n' ' TOTP/HOTP does not match after refresh, troubleshoot' \
-    'r' ' <-- Return to main menu' \
+    'r' ' Reset the TPM' \
+    't' ' TOTP/HOTP does not match after refresh, troubleshoot' \
+    'm' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
-  totp_confirm=$(cat /tmp/whiptail)
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    g )
+      generate_totp_htop
+      ;;
+    r )
+      reset_tpm
+      ;;
+    t )
+      prompt_totp_mismatch
+      ;;
+    m )
+      ;;
+  esac
 }
 
 prompt_totp_mismatch()
@@ -416,122 +516,18 @@ last_half=X
 while true; do
   MAIN_MENU_OPTIONS=""
   MAIN_MENU_BG_COLOR=""
-  unset totp_confirm
-
   # detect whether any GPG keys exist in the keyring, if not, initialize that first
   check_gpg_key
+  
+  update_totp
+  
+  update_hotp
 
-  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then
-    update_totp
+  if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT && $first_pass = true ]]; then
+    prompt_auto_default_boot
   fi
 
-  if [ "$totp_confirm" = "i" -o -z "$totp_confirm" ]; then 
-    update_hotp
-
-    if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT && $first_pass = true ]]; then 
-      prompt_auto_default_boot
-    fi
-
-    if [ "$totp_confirm" != "y" -o -z "$totp_confirm" ]; then
-      show_main_menu
-    fi
-  fi
-
-  if [ "$totp_confirm" = "a" ]; then
-    show_options_menu
-  fi
-
-  if [ "$totp_confirm" = "o" ]; then
-    show_boot_options_menu
-  fi
-
-  if [ "$totp_confirm" = "t" ]; then
-    show_tpm_totp_hotp_options_menu
-  fi
-
-  if [ "$totp_confirm" = "x" ]; then
-    recovery "User requested recovery shell"
-  fi
-
-  if [ "$totp_confirm" = "r" ]; then
-    continue
-  fi
-
-  if [ "$totp_confirm" = "n" ]; then
-    prompt_totp_mismatch
-    continue
-  fi
-
-  if [ "$totp_confirm" = "u" ]; then
-    exec /bin/usb-init
-    continue
-  fi
-
-  if [ "$totp_confirm" = "g" ]; then
-    if (whiptail --title 'Generate new TOTP/HOTP secret' \
-        --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
-      generate_totp_htop
-    else
-      echo "Returning to the main menu"
-    fi
-    continue
-  fi
-
-  if [ "$totp_confirm" = "p" ]; then
-    reset_tpm
-    continue
-  fi
-
-  if [ "$totp_confirm" = "m" ]; then
-    # Try to select a kernel from the menu
-    select_os_boot_option
-    continue
-  fi
-
-  if [ "$totp_confirm" = "i" ]; then
-    force_unsafe_boot
-    continue
-  fi
-
-  if [ "$totp_confirm" = "s" ]; then
-    prompt_update_checksums
-    continue
-  fi
-
-  if [ "$totp_confirm" = "c" ]; then
-    config-gui.sh
-    continue
-  fi
-
-  if [ "$totp_confirm" = "f" ]; then
-    flash-gui.sh
-    continue
-  fi
-
-  if [ "$totp_confirm" = "G" ]; then
-    gpg-gui.sh
-    continue
-  fi
-
-  if [ "$totp_confirm" = "S" ]; then
-    show_system_info
-    continue
-  fi
-
-  if [ "$totp_confirm" = "F" ]; then
-    oem-factory-reset
-    continue
-  fi
-
-  if [ "$totp_confirm" = "P" ]; then
-    poweroff
-  fi
-
-  if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
-    # Try to boot the default
-    attempt_default_boot
-  fi
-
+  show_main_menu
 done
 
 recovery "Something failed during boot"
