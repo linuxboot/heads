@@ -63,7 +63,10 @@ gpg_flash_rom() {
 
   if (whiptail --title 'BIOS Flashed Successfully' \
       --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 16 90) then
-    update_checksums
+    if ! update_checksums ; then
+      whiptail $BG_COLOR_ERROR --title 'ERROR' \
+        --msgbox "Failed to update checksums / sign default config" 16 90
+    fi
   else
     /bin/reboot
   fi
