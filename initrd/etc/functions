@@ -286,12 +286,15 @@ update_checksums()
 		extparam=-r
 	fi
 	if ! kexec-sign-config -p /boot -u $extparam ; then
-	  echo "Failed to sign default config; press Enter to continue."
-	  read
+		rv=1
+	else
+		rv=0
 	fi
 
 	# switch back to ro mode
 	mount -o ro,remount /boot
+
+	return $rv
 }
 
 # detect and set /boot device

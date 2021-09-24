@@ -70,8 +70,14 @@ verify_global_hashes()
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Missing Hash File!' \
-      --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
-      update_checksums
+        --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
+      if update_checksums ; then
+        BG_COLOR_MAIN_MENU=""
+        return 0;
+      else
+        whiptail $BG_COLOR_ERROR --title 'ERROR' \
+          --msgbox "Failed to update checksums / sign default config" 16 90
+      fi
     fi
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     return 1
@@ -99,7 +105,13 @@ verify_global_hashes()
     fi
 
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
-      update_checksums
+      if update_checksums ; then
+        BG_COLOR_MAIN_MENU=""
+        return 0;
+      else
+        whiptail $BG_COLOR_ERROR --title 'ERROR' \
+          --msgbox "Failed to update checksums / sign default config" 16 90
+      fi
     fi
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     return 1
@@ -110,9 +122,10 @@ prompt_update_checksums()
 {
   if (whiptail $BG_COLOR_WARNING --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
-    update_checksums
-  else
-    echo "Returning to the main menu"
+    if ! update_checksums ; then
+      whiptail $BG_COLOR_ERROR --title 'ERROR' \
+        --msgbox "Failed to update checksums / sign default config" 16 90
+    fi
   fi
 }
 
