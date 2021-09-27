@@ -10,8 +10,6 @@ export BG_COLOR_MAIN_MENU=""
 . /etc/functions
 . /tmp/config
 
-last_half=X
-
 mount_boot()
 {
   
@@ -145,14 +143,11 @@ generate_totp_htop()
 
 update_totp()
 {
-  # update the TOTP code every thirty seconds
+  # update the TOTP code
   date=`date "+%Y-%m-%d %H:%M:%S"`
-  seconds=`date "+%s"`
-  half=`expr \( $seconds % 60 \) / 30`
   if [ "$CONFIG_TPM" = n ]; then
     TOTP="NO TPM"
-  elif [ "$half" != "$last_half" ]; then
-    last_half=$half;
+  else
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
       BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
