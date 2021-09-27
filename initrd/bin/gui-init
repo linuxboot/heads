@@ -198,10 +198,15 @@ update_hotp()
     HOTP=`unseal-hotp`
     enable_usb
     if ! hotp_verification info ; then
-      whiptail $BG_COLOR_WARNING --clear \
---title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
---msgbox "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90
+      if ! whiptail $BG_COLOR_WARNING --clear \
+          --title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
+          --yes-button "Retry" --no-button "Skip" \
+          --yesno "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90 ; then
+        HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
+        BG_COLOR_MAIN_MENU=$BG_COLOR_WARNING
+        return
       fi
+    fi
     # Don't output HOTP codes to screen, so as to make replay attacks harder
     hotp_verification check $HOTP
     case "$?" in
