@@ -170,14 +170,14 @@ update_totp()
         g )
           if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
-            generate_totp_htop && BG_COLOR_MAIN_MENU=""
+            generate_totp_htop && update_totp && BG_COLOR_MAIN_MENU=""
           fi
           ;;
         i )
           return 1
           ;;
         p )
-          reset_tpm && BG_COLOR_MAIN_MENU=""
+          reset_tpm && update_totp && BG_COLOR_MAIN_MENU=""
           ;;
         x )
           recovery "User requested recovery shell"
