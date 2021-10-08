@@ -179,7 +179,7 @@ workflows:
           requires:
             - qemu-coreboot
 
-      # Coreboot 4.13
+      # Coreboot 4.14
       - build_and_persist:
           name: librem_mini
           target: librem_mini
