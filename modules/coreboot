@@ -19,6 +19,11 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.13"
 	coreboot_hash := 4779da645a25ddebc78f1bd2bd0b740fb1e6479572648d4650042a2b9502856a
 	coreboot-blobs_hash := 060656b46a7859d038ddeec3f7e086e85f146a50b280c4babec23c1188264dc8
 	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.14"
+	coreboot_version := 4.14
+	coreboot_hash := d907379b727561d7ddd1d80b2fabaa373db00c9805719116f591cbc948173c6e
+	coreboot-blobs_hash := 9ee2fe5ba37d0e214000b8655acf8922de6df792adb75790559db4c160847921
+	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 
