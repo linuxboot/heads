@@ -1,0 +1,29 @@
+From d04b1b034221371c2f6a8179fea4f6cecebf2d53 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Fri, 15 Oct 2021 13:05:47 -0500
+Subject: [PATCH] soc/fsp_broadwell_de/acpi: Remove ADR from uncore object
+
+ACPI objects can have an HID or ADR, but not both.
+Remove the ADR since the HID is more relevent.
+
+Change-Id: I5cd0f786d12456a5788e9fd89335a1a2750dc4ba
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+---
+ src/soc/intel/fsp_broadwell_de/acpi/uncore.asl | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/soc/intel/fsp_broadwell_de/acpi/uncore.asl b/src/soc/intel/fsp_broadwell_de/acpi/uncore.asl
+index 86b1410c39..aded1db836 100644
+--- a/src/soc/intel/fsp_broadwell_de/acpi/uncore.asl
++++ b/src/soc/intel/fsp_broadwell_de/acpi/uncore.asl
+@@ -238,7 +238,6 @@ Device (UNC0)
+ 		Return (0xff)
+ 	}
+ 
+-	Name (_ADR, 0x00)
+ 	Method (_STA, 0, NotSerialized)
+ 	{
+ 		Return (0xf)
+-- 
+2.30.2
+

@@ -1,0 +1,82 @@
+--- ./util/crossgcc/buildgcc.orig	2021-10-08 15:52:50.284000000 -0400
++++ ./util/crossgcc/buildgcc	2021-10-08 15:54:37.051000000 -0400
+@@ -54,7 +54,7 @@
+ GCC_AUTOCONF_VERSION=2.69
+ BINUTILS_VERSION=2.32
+ GDB_VERSION=8.3
+-IASL_VERSION=20190703
++IASL_VERSION=20210105
+ PYTHON_VERSION=3.7.4
+ EXPAT_VERSION=2.2.7
+ # CLANG version number
+@@ -72,7 +72,7 @@
+ GCC_ARCHIVE="https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz"
+ BINUTILS_ARCHIVE="https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
+ GDB_ARCHIVE="https://ftpmirror.gnu.org/gdb/gdb-${GDB_VERSION}.tar.xz"
+-IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix2-${IASL_VERSION}.tar.gz"
++IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix-${IASL_VERSION}.tar.gz"
+ PYTHON_ARCHIVE="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz"
+ EXPAT_ARCHIVE="https://downloads.sourceforge.net/sourceforge/expat/expat-${EXPAT_VERSION}.tar.bz2"
+ # CLANG toolchain archive locations
+@@ -97,7 +97,7 @@
+ # shellcheck disable=SC2034
+ BINUTILS_DIR="binutils-${BINUTILS_VERSION}"
+ GDB_DIR="gdb-${GDB_VERSION}"
+-IASL_DIR="acpica-unix2-${IASL_VERSION}"
++IASL_DIR="acpica-unix-${IASL_VERSION}"
+ PYTHON_DIR="Python-${PYTHON_VERSION}"
+ EXPAT_DIR="expat-${EXPAT_VERSION}"
+ # CLANG toolchain directories
+diff -ruN util/crossgcc/sum.orig/acpica-unix-20210105.tar.gz.cksum util/crossgcc/sum/acpica-unix-20210105.tar.gz.cksum
+--- ./util/crossgcc/sum.orig/acpica-unix-20210105.tar.gz.cksum	1969-12-31 19:00:00.000000000 -0500
++++ ./util/crossgcc/sum/acpica-unix-20210105.tar.gz.cksum	2021-10-08 16:52:01.797000000 -0400
+@@ -0,0 +1 @@
++6d825e662eac26d36f58e7f1a698833267ab4a5b  tarballs/acpica-unix-20210105.tar.gz
+diff -ruN ./util/crossgcc/patches.orig/acpica-unix-20210105_iasl.patch ./util/crossgcc/patches/acpica-unix-20210105_iasl.patch
+--- /dev/null	1969-12-31 19:00:00.000000000 -0500
++++ ./util/crossgcc/patches/acpica-unix-20210105_iasl.patch	2021-10-14 10:56:18.477000000 -0400
+@@ -0,0 +1,28 @@
++diff --git a/source/compiler/asloptions.c b/source/compiler/asloptions.c
++index 4bf9465ba..14c61a122 100644
++--- a/source/compiler/asloptions.c
+++++ b/source/compiler/asloptions.c
++@@ -234,6 +234,7 @@ AslCommandLine (
++     if (AslGbl_DoSignon)
++     {
++         printf (ACPI_COMMON_SIGNON (ASL_COMPILER_NAME));
+++        printf ("%s\n", COREBOOT_TOOLCHAIN_VERSION);
++         if (AslGbl_IgnoreErrors)
++         {
++             printf ("Ignoring all errors, forcing AML file generation\n\n");
++@@ -866,6 +867,7 @@ AslDoOptions (
++         case '^':
++ 
++             printf (ACPI_COMMON_SIGNON (ASL_COMPILER_NAME));
+++            printf ("%s\n", COREBOOT_TOOLCHAIN_VERSION);
++             exit (0);
++ 
++         case 'a':
++@@ -879,6 +881,7 @@ AslDoOptions (
++ 
++             printf (ACPI_COMMON_SIGNON (ASL_COMPILER_NAME));
++             printf (ACPI_COMMON_BUILD_TIME);
+++            printf ("%s\n", COREBOOT_TOOLCHAIN_VERSION);
++             exit (0);
++ 
++         case 'e':
+
+--- ./util/crossgcc/buildgcc.orig	2021-10-15 12:24:39.039000000 -0400
++++ ./util/crossgcc/buildgcc	2021-10-15 12:28:00.268000000 -0400
+@@ -861,9 +861,9 @@
+ 	test "$UNAME" = "Cygwin" && HOST="_CYGWIN"
+ 	HOST="$HOST" CFLAGS="$CFLAGS" \
+ 	OPT_CFLAGS="-O -D_FORTIFY_SOURCE=2 -D COREBOOT_TOOLCHAIN_VERSION='\"coreboot toolchain v$CROSSGCC_VERSION $CROSSGCC_DATE\"' " \
+-	$MAKE $JOBS CC="$(hostcc host)" iasl acpibin acpidump acpiexec acpihelp acpinames acpisrc acpixtract
+-	rm -f "$DESTDIR$TARGETDIR/bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpinames,acpisrc,acpixtract}" || touch "$RDIR/.failed"
+-	cp bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpinames,acpisrc,acpixtract} "$DESTDIR$TARGETDIR/bin" || touch "$RDIR/.failed"
++	$MAKE $JOBS CC="$(hostcc host)" iasl acpibin acpidump acpiexec acpihelp acpisrc acpixtract
++	rm -f "$DESTDIR$TARGETDIR/bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpisrc,acpixtract}" || touch "$RDIR/.failed"
++	cp bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpisrc,acpixtract} "$DESTDIR$TARGETDIR/bin" || touch "$RDIR/.failed"
+ }
+ 
+ build_LLVM() {
