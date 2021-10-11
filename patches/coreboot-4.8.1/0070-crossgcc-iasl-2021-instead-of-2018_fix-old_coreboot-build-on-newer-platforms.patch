@@ -1,0 +1,35 @@
+--- ./util/crossgcc/buildgcc.orig	2021-10-08 15:52:50.284000000 -0400
++++ ./util/crossgcc/buildgcc	2021-10-08 15:54:37.051000000 -0400
+@@ -54,7 +54,7 @@
+ GCC_AUTOCONF_VERSION=2.69
+ BINUTILS_VERSION=2.30
+ GDB_VERSION=8.0
+-IASL_VERSION=20180531
++IASL_VERSION=20210105
+ PYTHON_VERSION=3.5.1
+ EXPAT_VERSION=2.2.1
+ # CLANG version number
+@@ -72,7 +72,7 @@
+ GCC_ARCHIVE="https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz"
+ BINUTILS_ARCHIVE="https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
+ GDB_ARCHIVE="https://ftpmirror.gnu.org/gdb/gdb-${GDB_VERSION}.tar.xz"
+-IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix2-${IASL_VERSION}.tar.gz"
++IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix-${IASL_VERSION}.tar.gz"
+ PYTHON_ARCHIVE="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz"
+ EXPAT_ARCHIVE="https://downloads.sourceforge.net/sourceforge/expat/expat-${EXPAT_VERSION}.tar.bz2"
+ # CLANG toolchain archive locations
+@@ -97,7 +97,7 @@
+ # shellcheck disable=SC2034
+ BINUTILS_DIR="binutils-${BINUTILS_VERSION}"
+ GDB_DIR="gdb-${GDB_VERSION}"
+-IASL_DIR="acpica-unix2-${IASL_VERSION}"
++IASL_DIR="acpica-unix-${IASL_VERSION}"
+ PYTHON_DIR="Python-${PYTHON_VERSION}"
+ EXPAT_DIR="expat-${EXPAT_VERSION}"
+ # CLANG toolchain directories
+diff -ruN util/crossgcc/sum.orig/acpica-unix-20210105.tar.gz.cksum util/crossgcc/sum/acpica-unix-20210105.tar.gz.cksum
+--- ./util/crossgcc/sum.orig/acpica-unix-20210105.tar.gz.cksum	1969-12-31 19:00:00.000000000 -0500
++++ ./util/crossgcc/sum/acpica-unix-20210105.tar.gz.cksum	2021-10-08 16:52:01.797000000 -0400
+@@ -0,0 +1 @@
++6d825e662eac26d36f58e7f1a698833267ab4a5b  tarballs/acpica-unix-20210105.tar.gz
+
