@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Abstraction layer over tpm commands to ensure the programmer does not have to
+# care about TPM 1.2 vs TPM2
+
+set -e pipefail
+
+# @param: code to be extended
+# @param (optional): PCR index to extend, default 4
+extend()
+{
+	local ARGUMENT=$1
+	local PCR=${2:-4}
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		tpm extend -ix $PCR -ic $ARGUMENT
+	elif ["$CONFIG_TPM2" = "y" ]; then
+		tpm2 pcrevent $PCR $ARGUMENT $1>/dev/null
+	fi
+}
+
+usage()
+{
+	echo "Usage: tpmx [COMMAND] [ARGS]                                                   "
+	echo "Commands:                                                                      "
+	echo "  extend [ARGUMENT] [PCR]    extends argument into pcr (default pcr is 4)      "
+	echo ""
+}
+
+cmd="$1"
+shift 1
+case "$cmd" in
+	extend)
+		extend"$@";;
+	*)
+		usage
+		exit 1
+esac
