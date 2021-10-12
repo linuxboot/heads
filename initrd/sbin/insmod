@@ -15,7 +15,6 @@ if [ -z "$MODULE_PCR" ]; then
 	MODULE_PCR=5
 fi
 
-
 if [ -z "$MODULE" ]; then
 	die "Usage: $0 module [args...]"
 fi
@@ -24,19 +23,12 @@ if [ ! -r "$MODULE" ]; then
 	die "$MODULE: not found?"
 fi
 
-if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
-	tpm_missing=1
-fi
+tpmx extend "$MODULE" "$MODULE_PCR" || die "$MODULE: tpm extend failed"
 
-if [ -z "$tpm_missing" ]; then
-	tpm extend -ix "$MODULE_PCR" -if "$MODULE" \
-	|| die "$MODULE: tpm extend failed"
-fi
-
-if [ ! -z "$*" -a -z "$tpm_missing" ]; then
+if [ ! -z "$*" ]; then
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
-	tpm extend -ix "$MODULE_PCR" -if $TMPFILE \
+	tpmx extend $TMPFILE "$MODULE_PCR" \
 	|| die "$MODULE: tpm extend on arguments failed"
 fi
 

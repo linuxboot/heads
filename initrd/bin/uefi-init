@@ -18,10 +18,8 @@ if [ -n "GUID" ]; then
 	uefi -r $GUID | gunzip -c > $TMPFILE \
 	|| die "Failed to read config GUID from ROM"
 
-	if [ "$CONFIG_TPM" = "y" ]; then
-		tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
-		|| die "$filename: tpm extend failed"
-	fi
+	tpmx extend "$TMPFILE" "$CONFIG_PCR" \
+	|| die "$filename: tpm extend failed"
 
 	( cd / ; cpio -iud < $TMPFILE 2>/dev/null ) \
 	|| die "Failed to extract config GUID"

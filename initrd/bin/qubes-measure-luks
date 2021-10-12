@@ -14,5 +14,4 @@ done
 sha256sum /tmp/lukshdr-* > /tmp/luksDump.txt || die "Unable to hash luks headers"
 rm /tmp/lukshdr-*
 
-tpm extend -ix 6 -if /tmp/luksDump.txt \
-|| die "Unable to extend PCR"
+tpmx extend /tmp/luksDump.txt 6 || die "Unable to extend PCR6"

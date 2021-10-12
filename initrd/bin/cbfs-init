@@ -18,13 +18,12 @@ for cbfsname in `echo $cbfsfiles`; do
 		|| die "$filename: mkdir failed"
 		cbfs -t 50 -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
-		if [ "$CONFIG_TPM" = "y" ]; then
-			TMPFILE=/tmp/cbfs.$$
-			echo "$filename" > $TMPFILE
-			cat $filename >> $TMPFILE
-			tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
-			|| die "$filename: tpm extend failed"
-		fi
+
+		TMPFILE=/tmp/cbfs.$$
+		echo "$filename" > $TMPFILE
+		cat $filename >> $TMPFILE
+		tpmx extend "$TMPFILE" "$CONFIG_PCR"  \
+		|| die "$filename: tpm extend failed"
 	fi
 done
 
