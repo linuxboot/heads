@@ -338,12 +338,8 @@ while true; do
 		user_select
 	fi
 
-	if [ "$CONFIG_TPM" = "y" \
-		-a ! -r "$TMP_KEY_DEVICES" ]; then
-		# Extend PCR4 as soon as possible
-		tpm extend -ix 4 -ic generic \
-		|| die "Failed to extend PCR 4"
-	fi
+	# Extend PCR4 as soon as possible
+	tpmx extend generic || die "Failed to extend PCR 4"
 
 	# if no saved options, scan the boot directory and generate
 	if [ ! -r "$TMP_MENU_FILE" ]; then

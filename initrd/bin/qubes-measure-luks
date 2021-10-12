@@ -10,5 +10,4 @@ for dev in "$@"; do
 	|| die "$dev: Unable to measure"
 done > /tmp/luksDump.txt
 
-tpm extend -ix 6 -if /tmp/luksDump.txt \
-|| die "Unable to extend PCR"
+tpmx extend /tmp/luksDump.txt 6 || die "Unable to extend PCR6"

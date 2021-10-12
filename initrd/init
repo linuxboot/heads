@@ -90,9 +90,7 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = "y" ]; then
-		tpm extend -ix 4 -ic recovery
-	fi
+	tpmx extend recovery
 	exec /bin/ash
 	exit
 fi
@@ -134,7 +132,6 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = "y" ]; then
-	tpm extend -ix 4 -ic recovery
-fi
+tpmx extend recovery
+
 exec /bin/ash
