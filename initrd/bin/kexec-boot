@@ -49,7 +49,9 @@ adjusted_cmd_line="n"
 adjust_cmd_line() {
 	if [ -n "$cmdremove" ]; then
 		for i in $cmdremove; do
-			cmdline="${cmdline//$i/}"
+			cmdline="${cmdline#$i }"
+			cmdline="${cmdline/ $i / }"
+			cmdline="${cmdline% $i}"
 		done
 	fi
 
