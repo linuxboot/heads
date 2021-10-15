@@ -65,3 +65,18 @@ diff -ruN ./util/crossgcc/patches.orig/acpica-unix-20210105_iasl.patch ./util/cr
 + 
 +         case 'e':
 
+--- ./util/crossgcc/buildgcc.orig	2021-10-15 12:24:39.039000000 -0400
++++ ./util/crossgcc/buildgcc	2021-10-15 12:28:00.268000000 -0400
+@@ -861,9 +861,9 @@
+ 	test "$UNAME" = "Cygwin" && HOST="_CYGWIN"
+ 	HOST="$HOST" CFLAGS="$CFLAGS" \
+ 	OPT_CFLAGS="-O -D_FORTIFY_SOURCE=2 -D COREBOOT_TOOLCHAIN_VERSION='\"coreboot toolchain v$CROSSGCC_VERSION $CROSSGCC_DATE\"' " \
+-	$MAKE $JOBS CC="$(hostcc host)" iasl acpibin acpidump acpiexec acpihelp acpinames acpisrc acpixtract
+-	rm -f "$DESTDIR$TARGETDIR/bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpinames,acpisrc,acpixtract}" || touch "$RDIR/.failed"
+-	cp bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpinames,acpisrc,acpixtract} "$DESTDIR$TARGETDIR/bin" || touch "$RDIR/.failed"
++	$MAKE $JOBS CC="$(hostcc host)" iasl acpibin acpidump acpiexec acpihelp acpisrc acpixtract
++	rm -f "$DESTDIR$TARGETDIR/bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpisrc,acpixtract}" || touch "$RDIR/.failed"
++	cp bin/{iasl,acpibin,acpidump,acpiexec,acpihelp,acpisrc,acpixtract} "$DESTDIR$TARGETDIR/bin" || touch "$RDIR/.failed"
+ }
+ 
+ build_LLVM() {
