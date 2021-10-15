@@ -1,5 +1,5 @@
---- clean/make-4.2/glob/glob.c	2013-10-20 17:14:38.000000000 +0000
-+++ make-4.2/glob/glob.c	2018-09-18 10:16:03.860886356 +0000
+--- clean/make-4.2.1/glob/glob.c   2013-10-20 19:14:38.000000000 +0200
++++ make-4.2.1/glob/glob.c      2021-09-18 17:51:09.814552369 +0200
 @@ -208,7 +208,7 @@
  #endif /* __GNU_LIBRARY__ || __DJGPP__ */
  
@@ -7,5 +7,14 @@
 -#if !defined __alloca && !defined __GNU_LIBRARY__
 +#if !defined __alloca && defined __GNU_LIBRARY__
  
- # ifdef	__GNUC__
+ # ifdef        __GNUC__
  #  undef alloca
+@@ -231,7 +231,7 @@
+ 
+ #endif
+ 
+-#ifndef __GNU_LIBRARY__
++#ifdef __GNU_LIBRARY__
+ # define __stat stat
+ # ifdef STAT_MACROS_BROKEN
+ #  undef S_ISDIR
