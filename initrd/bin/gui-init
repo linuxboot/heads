@@ -474,12 +474,19 @@ reset_tpm()
 
 show_system_info()
 {
+  battery_charge="$(print_battery_charge)"
+  battery_health="$(print_battery_health)"
+  if [ -n $battery_charge -a -n $battery_health ];then
+	  battery_status="\nBattery charge: $battery_charge%\nBattery health: $battery_health%\n"
+  fi
+
   memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
   memtotal=$((${memtotal} / 1024 / 1024 + 1))
   cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
   kernel=$(uname -s -r)
+  
   whiptail $BG_COLOR_MAIN_MENU --title 'System Info' \
-    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
+    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
 }
 
 select_os_boot_option()
