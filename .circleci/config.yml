@@ -172,7 +172,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.14
+      # Coreboot 4.13
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
@@ -287,23 +287,10 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: librem_mini
-          target: librem_mini
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: librem_l1um
           target: librem_l1um
           requires:
             - x230-hotp-maximized
-
-      - build:
-          name: librem_mini_v2
-          target: librem_mini_v2
-          requires:
-            - x230-hotp-maximized
-
 
 ########################
 ########################
