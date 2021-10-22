@@ -341,11 +341,11 @@ if [ "$prompt_output" == "y" \
 	};done
 
 	echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-	read -r GPG_USER_MAIL
-	while [[ ${#gpgcard_comment} -gt 60 ]]; do
+	read -r GPG_USER_COMMENT
+	while [[ ${#GPG_USER_COMMENT} -gt 60 ]]; do
 	{
 		echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-		read -r GPG_USER_MAIL
+		read -r GPG_USER_COMMENT
 	};done
 fi
 
