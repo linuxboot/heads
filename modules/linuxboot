@@ -1,8 +1,11 @@
 modules-$(CONFIG_LINUXBOOT) += linuxboot
 
-linuxboot_version := git
-linuxboot_repo := https://github.com/osresearch/linuxboot
+linuxboot_version := f0ea0af8609e235631f1fcb65a4f7eb69f28ea26
+linuxboot_hash := a814a12272718af74fead5dbf6f24491f30c259f56c074775e86f1572b2e2990
+linuxboot_tar := linuxboot-$(linuxboot_version).tar.gz
+linuxboot_url := https://github.com/osresearch/linuxboot/archive/$(linuxboot_version).tar.gz
 linuxboot_base_dir := linuxboot-$(linuxboot_version)
+linuxboot_depends := edk2
 
 # linuxboot builds are specialized on a per-target basis.
 # They can be specialized by defining $(CONFIG_LINUXBOOT_BOARD)
@@ -11,13 +14,8 @@ linuxboot_base_dir := linuxboot-$(linuxboot_version)
 linuxboot_board := $(or $(CONFIG_LINUXBOOT_BOARD),$(BOARD))
 linuxboot_dir := linuxboot-$(linuxboot_version)/build/$(linuxboot_board)
 
-linuxboot_configure := \
-	echo >&2 "Pre-building edk2" ; \
-	$(MAKE) \
-		-C $(build)/$(linuxboot_base_dir) \
-		BOARD=$(linuxboot_board) \
-		edk2.force \
-	|| exit 1 ; \
+linuxboot_configure = \
+	ln -sf ../edk2-$(edk2_version) $(build)/$(linuxboot_base_dir)/edk2 ; \
 	if [ "$(linuxboot_board)" = "qemu" ]; then \
 		echo >&2 "Pre-building edk2 OVMF" ; \
 		( cd $(build)/$(linuxboot_base_dir)/edk2/OvmfPkg ; \
