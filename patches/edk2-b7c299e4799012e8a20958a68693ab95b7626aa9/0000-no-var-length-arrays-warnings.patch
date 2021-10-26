@@ -7,7 +7,7 @@ index 27aa28b2fa..8a0633977b 100644
  BUILD_CFLAGS = -MD -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-deprecated-declarations -Wno-self-assign -Wno-unused-result -nostdlib -c -g
  else
 -BUILD_CFLAGS = -MD -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-deprecated-declarations -Wno-unused-result -nostdlib -c -g
-+BUILD_CFLAGS = -MD -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-vla-parameter -Wno-stringop-truncation -Wno-deprecated-declarations -Wno-unused-result -nostdlib -c -g
++BUILD_CFLAGS = -MD -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-vla-parameter -Wno-stringop-truncation -Wno-stringop-overflow -Wno-deprecated-declarations -Wno-unused-result -nostdlib -c -g
  endif
  BUILD_LFLAGS =
  BUILD_CXXFLAGS = -Wno-unused-result
