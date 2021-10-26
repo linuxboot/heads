@@ -353,16 +353,16 @@ calc()
 
 print_battery_health()
 {
-	if [ -d /sys/class/power_supply/BAT0 ]; then
-        	battery_health=$(calc $(cat /sys/class/power_supply/BAT0/charge_full)/$(cat /sys/class/power_supply/BAT0/charge_full_design)*100 | awk -F "." {'print $1'})
+	if [ -d /sys/class/power_supply/BAT* ]; then
+        	battery_health=$(calc $(cat /sys/class/power_supply/BAT*/charge_full)/$(cat /sys/class/power_supply/BAT*/charge_full_design)*100 | awk -F "." {'print $1'})
 		echo "$battery_health"
 	fi
 }
 
 print_battery_charge()
 {
-	if [ -d /sys/class/power_supply/BAT0 ]; then
-                battery_charge=$(calc $(cat /sys/class/power_supply/BAT0/charge_now)/$(cat /sys/class/power_supply/BAT0/charge_full)*100 | awk -F "." {'print $1'})
+	if [ -d /sys/class/power_supply/BAT* ]; then
+                battery_charge=$(calc $(cat /sys/class/power_supply/BAT*/charge_now)/$(cat /sys/class/power_supply/BAT*/charge_full)*100 | awk -F "." {'print $1'})
                 echo "$battery_charge"
         fi
 }
