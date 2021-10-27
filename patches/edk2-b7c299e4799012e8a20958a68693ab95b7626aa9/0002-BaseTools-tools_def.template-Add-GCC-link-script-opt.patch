@@ -1,0 +1,34 @@
+From 88e8498f8a72cff1f7af6852ec8166772913399e Mon Sep 17 00:00:00 2001
+From: Liming Gao <liming.gao@intel.com>
+Date: Thu, 1 Nov 2018 22:35:29 +0800
+Subject: [PATCH] BaseTools tools_def.template: Add GCC link script option in
+ ASLDLINK_FLAGS
+
+GCC link script is used to discard the unused section data from ELF image.
+ASLDLINK_FLAGS requires it to remove the unnecessary section data, then
+GenFw can be used to retrieve the correct data section from ELF image.
+
+Contributed-under: TianoCore Contribution Agreement 1.1
+Signed-off-by: Liming Gao <liming.gao@intel.com>
+Cc: Yonghong Zhu <yonghong.zhu@intel.com>
+Reviewed-by: Yonghong Zhu <yonghong.zhu@intel.com>
+---
+ BaseTools/Conf/tools_def.template | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/BaseTools/Conf/tools_def.template b/BaseTools/Conf/tools_def.template
+index a22b96c0b8..e0e68fd7fb 100755
+--- a/BaseTools/Conf/tools_def.template
++++ b/BaseTools/Conf/tools_def.template
+@@ -4253,7 +4253,7 @@ DEFINE GCC48_AARCH64_ASLDLINK_FLAGS  = DEF(GCC47_AARCH64_ASLDLINK_FLAGS)
+ DEFINE GCC49_IA32_CC_FLAGS           = DEF(GCC48_IA32_CC_FLAGS)
+ DEFINE GCC49_X64_CC_FLAGS            = DEF(GCC48_X64_CC_FLAGS)
+ DEFINE GCC49_IA32_X64_DLINK_COMMON   = -nostdlib -Wl,-n,-q,--gc-sections -z common-page-size=0x40
+-DEFINE GCC49_IA32_X64_ASLDLINK_FLAGS = DEF(GCC49_IA32_X64_DLINK_COMMON) -Wl,--entry,ReferenceAcpiTable -u ReferenceAcpiTable
++DEFINE GCC49_IA32_X64_ASLDLINK_FLAGS = DEF(GCC49_IA32_X64_DLINK_COMMON) -Wl,--defsym=PECOFF_HEADER_SIZE=0 DEF(GCC_DLINK2_FLAGS_COMMON) -Wl,--entry,ReferenceAcpiTable -u ReferenceAcpiTable
+ DEFINE GCC49_IA32_X64_DLINK_FLAGS    = DEF(GCC49_IA32_X64_DLINK_COMMON) -Wl,--entry,$(IMAGE_ENTRY_POINT) -u $(IMAGE_ENTRY_POINT) -Wl,-Map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map,--whole-archive
+ DEFINE GCC49_IA32_DLINK2_FLAGS       = DEF(GCC48_IA32_DLINK2_FLAGS)
+ DEFINE GCC49_X64_DLINK_FLAGS         = DEF(GCC49_IA32_X64_DLINK_FLAGS) -Wl,-melf_x86_64,--oformat=elf64-x86-64,-pie
+-- 
+2.25.1
+
