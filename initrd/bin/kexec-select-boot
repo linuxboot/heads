@@ -60,7 +60,7 @@ verify_global_hashes()
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' \
-				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
+				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 90
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
 	fi
@@ -240,7 +240,7 @@ default_select() {
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
-				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
+				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 90
 		fi
 		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
 	fi
