@@ -12,8 +12,8 @@ export TOP_PID=$$
 CLEAR="--clear"
 CONTINUE="--yes-button Continue"
 CANCEL="--no-button Cancel"
-HEIGHT="150"
-WIDTH="220"
+HEIGHT="30"
+WIDTH="90"
 
 USER_PIN_DEF=123456
 ADMIN_PIN_DEF=12345678
@@ -289,7 +289,7 @@ $TPM_STR
           * Sign all of the files in /boot with the new GPG key\n\n
         It requires that you already have an OS installed on a\n
         dedicated /boot partition. Do you wish to continue?\n" \
-        $WIDTH $HEIGHT $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text" ; then
+        $HEIGHT $WIDTH $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text" ; then
     exit 1
 fi
 
