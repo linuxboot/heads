@@ -86,10 +86,10 @@ gpg_post_gen_mgmt() {
     cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
     if [ $? -eq 0 ]; then
       whiptail --title "The GPG Key Copied Successfully" \
-        --msgbox "${GPG_GEN_KEY}.asc copied successfully." 16 60
+        --msgbox "${GPG_GEN_KEY}.asc copied successfully." 16 90
     else
       whiptail $BG_COLOR_ERROR --title 'ERROR: Copy Failed' \
-        --msgbox "Unable to copy ${GPG_GEN_KEY}.asc to /media" 16 60
+        --msgbox "Unable to copy ${GPG_GEN_KEY}.asc to /media" 16 90
     fi
     umount /media
   fi
@@ -204,7 +204,7 @@ while true; do
     "l" )
       GPG_KEYRING=`gpg -k`
       whiptail --title 'GPG Keyring' \
-        --msgbox "${GPG_KEYRING}" 16 60
+        --msgbox "${GPG_KEYRING}" 16 90
     ;;
     "p" )
         if (whiptail --title 'Export Public Key(s) to USB drive?' \
