@@ -233,6 +233,12 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t430-hotp-verification
+          target: t430-hotp-verification
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: x230
           target: x230
           requires:
