@@ -78,7 +78,8 @@ verify_global_hashes()
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     return 1
   else
-    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
+    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':' | tee -a /tmp/hash_output_mismatches)
+    CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
 
     # if files changed before package manager started, show stern warning
     if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
@@ -97,7 +98,19 @@ verify_global_hashes()
       fi
 
     else
-      TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+      if [ $CHANGED_FILES_COUNT -gt 10 ]; then
+        # drop to console to show full file list
+        whiptail $ERROR_BG_COLOR --title 'ERROR: Boot Hash Mismatch' \
+          --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 16 60
+
+        echo "Type \"q\" to exit the list and return." >> /tmp/hash_output_mismatches
+        less /tmp/hash_output_mismatches
+        #move outdated hash mismatch list
+        mv /tmp/hash_output_mismatches /tmp/hash_output_mismatch_old
+        TEXT="Would you like to update your checksums now?"
+      else
+        TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+      fi
     fi
 
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
