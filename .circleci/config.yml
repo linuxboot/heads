@@ -86,12 +86,8 @@ jobs:
 
       - run:
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
-          # Below when we download me_cleaner it's not really that important to validate it's
-          # integrity. This is because ./blobs/xx30/download_clean_me.sh does a hash check on
-          # it's result anyway.
+          # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           command: |
-            wget -O ./blobs/xx30/me_cleaner.py https://raw.githubusercontent.com/corna/me_cleaner/master/me_cleaner.py
-            chmod +x ./blobs/xx30/me_cleaner.py
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
 
       - persist_to_workspace:
