@@ -1,0 +1,33 @@
+From f02ed614d2a031aeb73777b06dc0934bb9520e50 Mon Sep 17 00:00:00 2001
+From: Patrick Georgi <patrick@georgi.software>
+Date: Fri, 22 Oct 2021 07:46:14 +0200
+Subject: [PATCH] util/sconfig: Avoid duplicate symbols in link step
+
+Recent linkers became more picky about unifying identical symbols, so
+avoid struct *device head to appear several times by marking it
+"extern".
+
+Follows a change in commit 79e8412665567c, but without carrying all the
+other refactorings done there.
+
+Change-Id: Icede0936cc99f1c183c09812bffc3cc9a3993efa
+Signed-off-by: Patrick Georgi <patrick@georgi.software>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/58534
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Martin Roth <martinroth@google.com>
+---
+
+diff --git a/util/sconfig/sconfig.h b/util/sconfig/sconfig.h
+index 119d7b5..3ca13b3 100644
+--- a/util/sconfig/sconfig.h
++++ b/util/sconfig/sconfig.h
+@@ -77,7 +77,7 @@
+ 	struct reg *reg;
+ };
+ 
+-struct device *head;
++extern struct device *head;
+ 
+ struct header;
+ struct header {
+
