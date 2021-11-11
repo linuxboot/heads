@@ -24,6 +24,12 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.14"
 	coreboot_hash := d907379b727561d7ddd1d80b2fabaa373db00c9805719116f591cbc948173c6e
 	coreboot-blobs_hash := 9ee2fe5ba37d0e214000b8655acf8922de6df792adb75790559db4c160847921
 	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.15"
+	coreboot_version := 4.15
+	coreboot_hash := 20e6aaa6dd0eaec7753441c799711d1b4630e3ca709536386f2242ac2c8a1ec5
+	coreboot-blobs_hash := c0e2d8006da226208ba274a44895d102cb2879cf139cc67bba5f62e67b871f6d
+	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 
@@ -42,7 +48,7 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
+EXTRA_FLAGS :? -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
 
 coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
