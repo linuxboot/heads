@@ -127,6 +127,10 @@ fi
 
 if [ "$dryrun" = "y" ]; then exit 0; fi
 
+if [ "$CONFIG_IO386" = y ]; then
+	lock_chip
+fi
+
 echo "Loading the new kernel:"
 echo "$kexeccmd"
 eval "$kexeccmd" \

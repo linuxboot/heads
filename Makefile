@@ -500,6 +500,7 @@ bin_modules-$(CONFIG_LVM2) += lvm2
 bin_modules-$(CONFIG_DROPBEAR) += dropbear
 bin_modules-$(CONFIG_FLASHTOOLS) += flashtools
 bin_modules-$(CONFIG_NEWT) += newt
+bin_modules-$(CONFIG_IO386) += io386
 bin_modules-$(CONFIG_CAIRO) += cairo
 bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
