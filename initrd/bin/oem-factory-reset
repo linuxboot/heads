@@ -51,7 +51,7 @@ whiptail_error()
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
-    whiptail $BG_COLOR_ERROR --msgbox "${msg}\n\n" $WIDTH $HEIGHT $BG_COLOR_ERROR --title "Error"
+    whiptail $BG_COLOR_ERROR --msgbox "${msg}\n\n" $HEIGHT $WIDTH $BG_COLOR_ERROR --title "Error"
 }
 
 whiptail_error_die() 
@@ -516,6 +516,6 @@ whiptail --msgbox "
     After rebooting, you will need to generate new TOTP/HOTP secrets\n
     when prompted in order to complete the setup process.\n\n
     Press Enter to reboot.\n" \
-    $WIDTH $HEIGHT --title "OEM Factory Reset Complete"
+    $HEIGHT $WIDTH --title "OEM Factory Reset Complete"
 
 reboot
