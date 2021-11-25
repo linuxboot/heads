@@ -5,6 +5,8 @@ commands:
     parameters:
       target:
         type: string
+      subcommand:
+        type: string
     steps:
       - run:
           name: Install dependencies
@@ -14,7 +16,7 @@ commands:
       - run:
           name: Make Board
           command: |
-            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=16 V=1 BOARD=<<parameters.target>> || touch ./tmpDir/failed_build
+            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=32 V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output build failing logs
@@ -23,7 +25,7 @@ commands:
       - run:
           name: Output hashes
           command: |
-            cat build/<<parameters.target>>/hashes.txt \
+            cat build/<<parameters.target>>/hashes.txt || echo "No hashes for this build step..."\
       - run:
           name: Archiving build logs.
           command: |
@@ -35,6 +37,7 @@ jobs:
   prep_env:
     docker:
       - image: debian:10
+    resource_class: large
     steps:
       - run:
           name: Install dependencies
@@ -98,14 +101,18 @@ jobs:
   build_and_persist:
     docker:
       - image: debian:10
+    resource_class: large
     parameters:
       target:
+        type: string
+      subcommand:
         type: string
     steps:
       - attach_workspace:
           at: ~/
       - build_board:
-          target: <<parameters.target>>
+          target: <<parameters.target>> 
+          subcommand: <<parameters.subcommand>>
       - persist_to_workspace:
           root: ~/
           paths:
@@ -117,11 +124,14 @@ jobs:
     parameters:
       target:
         type: string
+      subcommand:
+        type: string
     steps:
       - attach_workspace:
           at: ~/
       - build_board:
-          target: <<parameters.target>>
+          target: <<parameters.target>> 
+          subcommand: <<parameters.subcommand>>
 
   save_cache:
     docker:
@@ -131,17 +141,22 @@ jobs:
           at: ~/
       - save_cache:
           #Generate cache for the same musl-cross module definition if hash is not previously existing
+          #CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
           key: heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
-            - build/musl-cross-*
+            - build/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
       - save_cache:
           #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
+          #CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
           key: heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/coreboot-*
+            - build/coreboot-4.11
+            - build/coreboot-4.13
+            - build/coreboot-4.14
+            - build/coreboot-4.15
             - crossgcc
-            - build/musl-cross-*
+            - build/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
           key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
@@ -161,20 +176,44 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Coreboot 4.11
+      # Prerequisites
       - build_and_persist:
-          name: kgpe-d16_workstation
-          target: kgpe-d16_workstation
+          name: heads_musl-cross
+          target: x230-hotp-maximized
+          subcommand: musl-cross
           requires:
             - prep_env
 
+      # Coreboot 4.11
+      #- build_and_persist:
+      #    name: coreboot_411_buildstack
+      #    target: kgpe-d16_workstation
+      #    subcommand: coreboot 
+      #    requires:
+      #      - heads_musl-cross
+
+      # Coreboot 4.11
+      #- build_and_persist:
+      #    name: kgpe-d16_workstation
+      #    target: kgpe-d16_workstation
+      #    subcommand: coreboot
+      #    requires:
+      #      - coreboot_411_buildstack
+
+      # Coreboot 4.13
+      - build_and_persist:
+          name: coreboot_413_buildstack
+          target: x230-hotp-maximized
+          subcommand: coreboot
+          requires:
+            - heads_musl-cross
       # Coreboot 4.13
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
+          subcommand: ""
           requires:
-            - kgpe-d16_workstation
-
+            - coreboot_413_buildstack
 
       - save_cache:
           requires:
@@ -189,110 +228,128 @@ workflows:
       - build:
           name: x220-hotp-maximized
           target: x220-hotp-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: x220-maximized
           target: x220-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t420-hotp-maximized
           target: t420-hotp-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t420-maximized
           target: t420-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: x230-flash
           target: x230-flash
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t430-flash
           target: t430-flash
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t430
           target: t430
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t430-hotp-verification
           target: t430-hotp-verification
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: x230
           target: x230
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: x230-hotp-verification
           target: x230-hotp-verification
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t430-hotp-maximized
           target: t430-hotp-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: t430-maximized
           target: t430-maximized
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: qemu-coreboot
           target: qemu-coreboot
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
           name: qemu-coreboot-fbwhiptail
           target: qemu-coreboot-fbwhiptail
+          subcommand: ""
           requires:
             - x230-hotp-maximized
 
-      - build:
-          name: kgpe-d16_workstation-usb_keyboard
-          target: kgpe-d16_workstation-usb_keyboard
-          requires:
-            - x230-hotp-maximized
+              #- build:
+              #name: kgpe-d16_workstation-usb_keyboard
+              #target: kgpe-d16_workstation-usb_keyboard
+              #subcommand: ""
+              #requires:
+              #- x230-hotp-maximized
 
-      - build:
-          name: kgpe-d16_server
-          target: kgpe-d16_server
-          requires:
-            - x230-hotp-maximized
+              #- build:
+              #name: kgpe-d16_server
+              #target: kgpe-d16_server
+              #subcommand: ""
+              #requires:
+              #- x230-hotp-maximized
 
-      - build:
-          name: kgpe-d16_server-whiptail
-          target: kgpe-d16_server-whiptail
-          requires:
-            - x230-hotp-maximized
+              #- build:
+              #name: kgpe-d16_server-whiptail
+              #target: kgpe-d16_server-whiptail
+              #subcommand: ""
+              #requires:
+              #- x230-hotp-maximized
 
-      - build:
-          name: librem_l1um
-          target: librem_l1um
-          requires:
-            - x230-hotp-maximized
+              #- build:
+              #name: librem_l1um
+              #target: librem_l1um
+              #subcommand: ""
+              #requires:
+              #- x230-hotp-maximized
 
 ########################
 ########################
