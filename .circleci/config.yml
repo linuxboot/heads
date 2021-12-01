@@ -16,7 +16,7 @@ commands:
       - run:
           name: Make Board
           command: |
-            rm -rf build/<<parameters.target>>/* build/log/* && make CPUS=32 V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
+            rm -rf build/<<parameters.target>>/* build/log/* && make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output build failing logs
@@ -184,36 +184,21 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.11
-      #- build_and_persist:
-      #    name: coreboot_411_buildstack
-      #    target: kgpe-d16_workstation
-      #    subcommand: coreboot 
-      #    requires:
-      #      - heads_musl-cross
-
-      # Coreboot 4.11
-      #- build_and_persist:
-      #    name: kgpe-d16_workstation
-      #    target: kgpe-d16_workstation
-      #    subcommand: coreboot
-      #    requires:
-      #      - coreboot_411_buildstack
-
-      # Coreboot 4.13
-      - build_and_persist:
-          name: coreboot_413_buildstack
-          target: x230-hotp-maximized
-          subcommand: coreboot
-          requires:
-            - heads_musl-cross
       # Coreboot 4.13
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
           subcommand: ""
           requires:
-            - coreboot_413_buildstack
+            - heads_musl-cross
+
+      # Coreboot 4.11
+      #- build_and_persist:
+      #    name: librem_l1um
+      #    target: librem_l1um
+      #    subcommand: ""
+      #    requires:
+      #      - x230-hotp-maximized
 
       - save_cache:
           requires:
@@ -322,34 +307,34 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+      #KGPE-D16 turned off because CircleCI built time needs to be optimized. Kernel doesn't seem to enforce MAKE_JOBS properly
+      #- build:
+      #    name: kgpe-d16_workstation-usb_keyboard
+      #    target: kgpe-d16_workstation-usb_keyboard
+      #    subcommand: ""
+      #    requires:
+      #      - librem_l1um
 
-              #- build:
-              #name: kgpe-d16_workstation-usb_keyboard
-              #target: kgpe-d16_workstation-usb_keyboard
-              #subcommand: ""
-              #requires:
-              #- x230-hotp-maximized
+      #- build:
+      #    name: kgpe-d16_server
+      #    target: kgpe-d16_server
+      #    subcommand: ""
+      #    requires:
+      #      - librem_l1um
 
-              #- build:
-              #name: kgpe-d16_server
-              #target: kgpe-d16_server
-              #subcommand: ""
-              #requires:
-              #- x230-hotp-maximized
+      #- build:
+      #    name: kgpe-d16_server-whiptail
+      #    target: kgpe-d16_server-whiptail
+      #    subcommand: ""
+      #    requires:
+      #      - librem_l1um
 
-              #- build:
-              #name: kgpe-d16_server-whiptail
-              #target: kgpe-d16_server-whiptail
-              #subcommand: ""
-              #requires:
-              #- x230-hotp-maximized
-
-              #- build:
-              #name: librem_l1um
-              #target: librem_l1um
-              #subcommand: ""
-              #requires:
-              #- x230-hotp-maximized
+      #- build:
+      #    name: kgpe-d16_workstation
+      #    target: kgpe-d16_workstation
+      #    subcommand: ""
+      #    requires:
+      #      - librem_l1um
 
 ########################
 ########################
