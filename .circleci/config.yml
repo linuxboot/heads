@@ -232,8 +232,22 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t520-hotp-maximized
+          target: t520-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: t420-maximized
           target: t420-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t520-maximized
+          target: t520-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -288,8 +302,36 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t530-hotp-maximized
+          target: t530-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: w530-hotp-maximized
+          target: w530-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: t430-maximized
           target: t430-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t530-maximized
+          target: t530-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: w530-maximized
+          target: w530-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
