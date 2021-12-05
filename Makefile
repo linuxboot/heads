@@ -32,7 +32,7 @@ log_dir		:= $(build)/log
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		?= $(shell nproc)
-#MAKE_JOBS	?= -j$(CPUS) --max-load 16
+MAKE_JOBS	?= -j$(CPUS) --max-load 16
 
 # Create the log directory if it doesn't already exist
 BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
@@ -530,7 +530,7 @@ endif
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-: $(build)/$(coreboot_base_dir)/.canary
+: $(build)/$(coreboot_base_dir)/.canary musl-cross
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
