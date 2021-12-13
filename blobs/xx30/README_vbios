@@ -1,0 +1,15 @@
+The vbios scripts in this directory help owners with discrete GPU's to initialize them. In order to do so it is required to place the iGPU and dGPU roms into this folder. These can either be extracted from the backup of the bios or extracted automatically from bios updates provided online by Lenovo using the VBiosFinder tool (see https://github.com/coderobe/VBiosFinder). 
+
+The vbios scripts in this directory install the dependencies for VBiosFinder. They then run VBiosFinder against the latest relevant bios update, which finds and extracts the relevant roms. Finally, the scripts rename and move the relevant extracted roms, place them in this blobs directory, and clean up.
+
+The scripts require sudo to run, but should be run initally without sudo (e.g. ./vbios_w530.sh). The bios updates used, for example, are:
+
+* For the w530: https://download.lenovo.com/pccbbs/mobiles/g5uj39us.exe
+* For the t530: https://download.lenovo.com/pccbbs/mobiles/g4uj41us.exe
+
+The scripts have been successfully tested on Debian 10 and Ubuntu 21.04.
+
+NOTE: Once built the dGPU will still not yet be fully initialized. After successfully building the relevant rom for your board and before flashing it is necessary to build and use the nvramtool to change the value from Integrated-Only graphics to either Dual Graphics or Discrete Graphics. In the build directory find the coreboot version that you have just built. Navigate into that directory > utils > nvramtool and make the nvramtool. Then, for example, to initialize dual graphics run:
+
+nvramtool -C /path/to/12MB/rom -w hybrid_graphics_mode="Dual Graphics"
+
