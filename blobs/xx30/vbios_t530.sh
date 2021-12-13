@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sudo apt update
-sudo apt install wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
+sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
 
 git clone https://github.com/awilliam/rom-parser.git
 cd rom-parser
