@@ -383,7 +383,7 @@ workflows:
 
       - build:
           name: w530-dgpu-K2000m-maximized
-          target: w530-dgpu-2000m-maximized
+          target: w530-dgpu-K2000m-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
