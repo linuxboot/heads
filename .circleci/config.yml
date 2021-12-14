@@ -93,6 +93,16 @@ jobs:
           command: |
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
 
+      - run:
+          name: Download and extract t530 vbios roms for dgpu boards
+          command: |
+            ./blobs/xx30/vbios_t530.sh
+
+      - run:
+          name: Download and extract t530 vbios roms for dgpu boards
+          command: |
+            ./blobs/xx30/vbios_w530.sh
+
       - persist_to_workspace:
           root: ~/
           paths:
@@ -309,12 +319,33 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t530-dgpu-hotp-maximized
+          target: t530-dgpu-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: w530-hotp-maximized
           target: w530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
+      - build:
+          name: w530-dgpu-K1000m-hotp-maximized
+          target: w530-dgpu-K1000m-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized  
+
+      - build:
+          name: w530-dgpu-K2000m-hotp-maximized
+          target: w530-dgpu-K2000m-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized  
+            
       - build:
           name: t430-maximized
           target: t430-maximized
@@ -330,8 +361,29 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t530-dgpu-maximized
+          target: t530-dgpu-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: w530-maximized
           target: w530-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: w530-dgpu-K1000m-maximized
+          target: w530-dgpu-K1000m-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: w530-dgpu-K2000m-maximized
+          target: w530-dgpu-2000m-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
