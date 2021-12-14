@@ -99,7 +99,7 @@ jobs:
             ./blobs/xx30/vbios_t530.sh
 
       - run:
-          name: Download and extract t530 vbios roms for dgpu boards
+          name: Download and extract w530 vbios roms for dgpu boards
           command: |
             ./blobs/xx30/vbios_w530.sh
 
