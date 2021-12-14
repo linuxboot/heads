@@ -13,7 +13,7 @@ cd "$extractdir"
 
 echo "### Installing basic dependencies"
 sudo apt update
-sudo apt install wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
+sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
 
 echo "### Downloading rom-parser dependency"
 wget https://github.com/awilliam/rom-parser/archive/refs/heads/master.zip
