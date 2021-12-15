@@ -1,9 +1,9 @@
 #!/bin/bash
 
 BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROM_PARSER_SHA256SUM="082a04e789d2343a01649327a7c9ba5ae5186a2b38e3d9de15c078845e732819  master.zip"
+ROM_PARSER_SHA256SUM="f3db9e9b32c82fea00b839120e4f1c30b40902856ddc61a84bd3743996bed894  94a615302f89b94e70446270197e0f5138d678f3.zip"
 UEFI_EXTRACT_SHA256SUM="c9cf4066327bdf6976b0bd71f03c9e049ae39ed19ea3b3592bae3da8615d26d7  UEFIExtract_NE_A58_linux_x86_64.zip"
-VBIOS_FINDER_SHA256SUM="bbffe3c9c8a64c31485618fae2a2892fe2f4da7b45adaaba136fd45056bce9cd  master.zip"
+VBIOS_FINDER_SHA256SUM="bd07f47fb53a844a69c609ff268249ffe7bf086519f3d20474087224a23d70c5  c2d764975115de466fdb4963d7773b5bc8468a06.zip"
 BIOS_UPDATE_SHA256SUM="4769fdcfe34c40d285b8c7290305f04eb91d692f4bf25acd291d114353a958c2  g5uj39us.exe"
 K2000M_ROM_SHA256SUM="5005b582019b16d2073cec8cd384ec908d8ff38ab286a6dd65eadc0e89bfb4a8  vbios_10de_0ffb_1.rom"
 K1000M_ROM_SHA256SUM="6e28abb61cd4c69be7bd64e487681164cb487a48d77276f3108e3f192ceeee16  vbios_10de_0ffc_1.rom"
@@ -18,19 +18,19 @@ sudo apt update
 sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
 
 echo "### Downloading rom-parser dependency"
-wget https://github.com/awilliam/rom-parser/archive/refs/heads/master.zip
+wget https://github.com/awilliam/rom-parser/archive/94a615302f89b94e70446270197e0f5138d678f3.zip
 
 echo "### Verifying expected hash of rom-parser"
 echo "$ROM_PARSER_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification..." && exit 1; }
 
 echo "### Installing rom-parser dependency"
-unzip master.zip
-rm master.zip
-cd rom-parser-master
+unzip 94a615302f89b94e70446270197e0f5138d678f3.zip
+rm 94a615302f89b94e70446270197e0f5138d678f3.zip
+cd rom-parser-94a615302f89b94e70446270197e0f5138d678f3
 make
 sudo cp rom-parser /usr/sbin/
 cd ..
-rm -r rom-parser-master
+rm -r rom-parser-94a615302f89b94e70446270197e0f5138d678f3
 
 echo "### Downloading UEFIExtract dependency"
 wget https://github.com/LongSoft/UEFITool/releases/download/A58/UEFIExtract_NE_A58_linux_x86_64.zip
@@ -44,15 +44,15 @@ sudo mv UEFIExtract /usr/sbin/
 rm UEFIExtract_NE_A58_linux_x86_64.zip
 
 echo "### Downloading VBiosFinder"
-wget https://github.com/coderobe/VBiosFinder/archive/refs/heads/master.zip
+wget https://github.com/coderobe/VBiosFinder/archive/c2d764975115de466fdb4963d7773b5bc8468a06.zip
 
 echo "### Verifying expected hash of VBiosFinder"
 echo "$VBIOS_FINDER_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification..." && exit 1; }
 
 echo "### Installing VBiosFinder"
-unzip master.zip
-rm master.zip
-cd VBiosFinder-master
+unzip c2d764975115de466fdb4963d7773b5bc8468a06.zip
+rm c2d764975115de466fdb4963d7773b5bc8468a06.zip
+cd VBiosFinder-c2d764975115de466fdb4963d7773b5bc8468a06
 bundle install --path=vendor/bundle
 
 echo "### Downloading latest Lenovo bios update for w530"
@@ -78,6 +78,7 @@ mv vbios_10de_0ffc_1.rom $BLOBDIR/10de,0ffc.rom
 mv vbios_8086_0106_1.rom $BLOBDIR/8086,0106.rom
 cd ..
 cd ..
-rm -r VBiosFinder-master
+rm -r VBiosFinder-c2d764975115de466fdb4963d7773b5bc8468a06
 cd ..
 rm -r "$extractdir"
+
