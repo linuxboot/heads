@@ -44,10 +44,10 @@ hwclock -l -s
 . /etc/config
 
 #Specify whiptail background colors cues under FBWhiptail only
-if [ "$CONFIG_FBWHIPTAIL" = "y" ]; then
+if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
-elif [ "$CONFIG_NEWT" = "y" ];then
+else
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-""}"
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-""}"
 fi
