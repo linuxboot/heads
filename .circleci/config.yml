@@ -192,6 +192,14 @@ workflows:
           requires:
             - heads_musl-cross
 
+      # Coreboot 4.15
+      - build_and_persist:
+          name: librem_14
+          target: librem_14
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
       # Coreboot 4.11
       #- build_and_persist:
       #    name: librem_l1um
@@ -202,7 +210,7 @@ workflows:
 
       - save_cache:
           requires:
-            - x230-hotp-maximized
+            - librem_14
 
 #
 #
@@ -349,6 +357,49 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+
+      - build:
+          name: librem_13v2
+          target: librem_13v2
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_15v3
+          target: librem_15v3
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_13v4
+          target: librem_13v4
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_15v4
+          target: librem_15v4
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_mini
+          target: librem_mini
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_mini_v2
+          target: librem_mini_v2
+          subcommand: ""
+          requires:
+            - librem_14
+
       #KGPE-D16 turned off because CircleCI built time needs to be optimized. Kernel doesn't seem to enforce MAKE_JOBS properly
       #- build:
       #    name: kgpe-d16_workstation-usb_keyboard
