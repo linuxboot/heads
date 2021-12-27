@@ -12,7 +12,7 @@ commands:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo
       - run:
           name: Make Board
           command: |
@@ -43,7 +43,7 @@ jobs:
           name: Install dependencies
           command: |
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo
       - checkout
 
       - run:
@@ -92,6 +92,11 @@ jobs:
           # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           command: |
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+
+      - run:
+          name: Download and extract t430 vbios roms for dgpu boards
+          command: |
+            ./blobs/xx30/vbios_t430.sh
 
       - persist_to_workspace:
           root: ~/
@@ -310,6 +315,13 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t430-dgpu-hotp-maximized
+          target: t430-dgpu-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: t530-hotp-maximized
           target: t530-hotp-maximized
           subcommand: ""
@@ -326,6 +338,13 @@ workflows:
       - build:
           name: t430-maximized
           target: t430-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t430-dgpu-maximized
+          target: t430-dgpu-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
