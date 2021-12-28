@@ -17,7 +17,8 @@ extractdir=$(mktemp -d)
 cd "$extractdir"
 
 echo "### Installing basic dependencies"
-sudo apt update && sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
+sudo apt update && sudo apt install -y wget ruby ruby-dev bundler ruby-bundler p7zip-full upx-ucl 
+sudo gem install bundler:1.17.3
 
 echo "### Downloading rom-parser dependency"
 wget https://github.com/awilliam/rom-parser/archive/"$ROMPARSER".zip
@@ -57,7 +58,7 @@ echo "### Verifying expected hash of bios update"
 echo "$BIOS_UPDATE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification..." && exit 1; }
 
 echo "### Finding, extracting and saving vbios"
-./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"$BIOSUPDATE"
+sudo ./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"$BIOSUPDATE"
 
 echo "Verifying expected hash of extracted roms"
 cd output
@@ -65,9 +66,9 @@ echo "$DGPU_ROM_SHA256SUM" | sha256sum --check || { echo "dGPU rom failed sha256
 echo "$IGPU_ROM_SHA256SUM" | sha256sum --check || { echo "iGPU rom Failed sha256sum verification..." && exit 1; }
 
 echo "### Moving extracted roms to blobs directory"
-mv vbios_10de_0def_1.rom $BLOBDIR/10de,0def.rom
-mv vbios_8086_0106_1.rom $BLOBDIR/8086,0106.rom
+sudo mv vbios_10de_0def_1.rom $BLOBDIR/10de,0def.rom
+sudo mv vbios_8086_0106_1.rom $BLOBDIR/8086,0106.rom
 
 echo "### Cleaning Up"
 cd "$BLOBDIR"
-rm -rf "$extractdir"
+sudo rm -rf "$extractdir"
