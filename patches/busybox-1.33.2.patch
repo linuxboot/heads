@@ -1,0 +1,12 @@
+diff -u --recursive clean/busybox-1.33.2/libbb/messages.c busybox-1.33.2/libbb/messages.c
+--- clean/busybox-1.33.2/libbb/messages.c	2017-10-20 04:36:58.000000000 -0400
++++ busybox-1.33.2/libbb/messages.c	2018-02-09 12:02:45.918726483 -0500
+@@ -13,7 +13,7 @@
+
+ /* allow version to be extended, via CFLAGS */
+ #ifndef BB_EXTRA_VERSION
+-#define BB_EXTRA_VERSION " ("AUTOCONF_TIMESTAMP")"
++#define BB_EXTRA_VERSION " (heads)"
+ #endif
+
+ const char bb_banner[] ALIGN1 = "BusyBox v" BB_VER BB_EXTRA_VERSION;
