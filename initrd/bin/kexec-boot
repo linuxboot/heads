@@ -34,6 +34,10 @@ kexeccmd="kexec"
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
+if [ "$(load_config_value CONFIG_USE_BLOB_JAIL)" = "y" ]; then
+	cmdadd="$cmdadd firmware_class.path=/run/firmware/"
+fi
+
 fix_file_path() {
 	if [ "$printfiles" = "y" ]; then
 		# output file relative to local boot directory
@@ -119,6 +123,10 @@ do
 		fi
 		if [ -n "$override_initrd" ]; then
 			filepath="$override_initrd"
+		fi
+		firmware_initrd="$(inject_firmware.sh "$filepath" || true)"
+		if [ -n "$firmware_initrd" ]; then
+			filepath="$firmware_initrd"
 		fi
 		kexeccmd="$kexeccmd --initrd=$filepath"
 	fi
