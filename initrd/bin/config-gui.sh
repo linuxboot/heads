@@ -31,34 +31,44 @@ while true; do
     BASIC_MODE="$(load_config_value CONFIG_PUREBOOT_BASIC)"
     # check current Restricted Boot Mode
     RESTRICTED_BOOT="$(load_config_value CONFIG_RESTRICTED_BOOT)"
+    # check current state of blob jail
+    USE_JAIL="$(load_config_value CONFIG_USE_BLOB_JAIL)"
+    AUTOMATIC_POWERON="$(load_config_value CONFIG_AUTOMATIC_POWERON)"
     BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
     BASIC_USB_AUTOBOOT="$(load_config_value CONFIG_BASIC_USB_AUTOBOOT)"
-    AUTOMATIC_POWERON="$(load_config_value CONFIG_AUTOMATIC_POWERON)"
 
     dynamic_config_options=()
 
-    if [ "$BASIC_MODE" = "y" ]; then
-        dynamic_config_options+=( \
-            'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
-            'A' " $(get_inverted_config_display_action "$BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot" \
-            'U' " $(get_config_display_action "$BASIC_USB_AUTOBOOT") USB automatic boot" \
-        )
-    else
-        dynamic_config_options+=( \
-            'r' ' Clear GPG key(s) and reset all user settings' \
-            'R' ' Change the root device for hashing' \
-            'D' ' Change the root directories to hash' \
-            'B' ' Check root hashes at boot' \
-            'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
-            'L' " $(get_config_display_action "$RESTRICTED_BOOT") Restricted Boot" \
-        )
-    fi
+    # Options that don't apply to basic mode
+    [ "$BASIC_MODE" != "y" ] && dynamic_config_options+=(
+        'r' ' Clear GPG key(s) and reset all user settings'
+        'R' ' Change the root device for hashing'
+        'D' ' Change the root directories to hash'
+        'B' ' Check root hashes at boot'
+        'L' " $(get_config_display_action "$RESTRICTED_BOOT") Restricted Boot"
+    )
 
-    if [ "$CONFIG_SUPPORT_AUTOMATIC_POWERON" = "y" ]; then
-        dynamic_config_options+=( \
-            'N' " $(get_config_display_action "$AUTOMATIC_POWERON") Automatic Power-On" \
-        )
-    fi
+    # Basic itself is always available
+    dynamic_config_options+=(
+        'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode"
+    )
+
+    # Blob jail is only offered if this is a configuration with the blobs in
+    # firmware
+    [ "$CONFIG_SUPPORT_BLOB_JAIL" = "y" ] && dynamic_config_options+=(
+        'J' " $(get_config_display_action "$USE_JAIL") Firmware Blob Jail"
+    )
+
+    # Basic-only options for automatic boot
+    [ "$BASIC_MODE" = "y" ] && dynamic_config_options+=(
+        'A' " $(get_inverted_config_display_action "$BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot"
+        'U' " $(get_config_display_action "$BASIC_USB_AUTOBOOT") USB automatic boot"
+    )
+
+    # Automatic power on - requires board support
+    [ "$CONFIG_SUPPORT_AUTOMATIC_POWERON" = "y" ] && dynamic_config_options+=(
+        'N' " $(get_config_display_action "$AUTOMATIC_POWERON") Automatic Power-On"
+    )
 
     unset menu_choice
     whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
@@ -341,6 +351,31 @@ while true; do
           whiptail --title 'BIOS Updated Successfully' \
             --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
           /bin/reboot
+        fi
+      fi
+    ;;
+    "J" )
+      if [ "$USE_JAIL" = "n" ]; then
+        if (whiptail --title 'Enable Firmware Blob Jail?' \
+             --yesno "This will enable loading of firmware from flash on each boot
+                    \n\nDo you want to proceed?" 0 80) then
+
+          toggle_config /etc/config.user "CONFIG_USE_BLOB_JAIL"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Firmware Blob Jail use has been enabled;\nsave the config change and reboot for it to go into effect." 16 60
+
+        fi
+      else
+        if (whiptail --title 'Disable Firmware Blob Jail?' \
+             --yesno "This will disable loading of firmware from flash on each boot.
+                    \n\nDo you want to proceed?" 0 80) then
+          toggle_config /etc/config.user "CONFIG_USE_BLOB_JAIL"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Firmware Blob Jail use has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
