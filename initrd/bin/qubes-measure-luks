@@ -4,11 +4,18 @@
 
 die() { echo >&2 "$@"; exit 1; }
 
+#Following file should be clean since this script is called to populate /tmp/luksDump.txt
+# /tmp/luksDump.txt is then used by kexec-seal-key to calcfuturepcr into PCR 10 (unused) 
+# PCR 6 is then extended with that PCR 10 extended value (PCR 6 should be zeroed too at this point).
+rm -f /tmp/luksDump.txt
+
 # Measure the luks headers into PCR 6
 for dev in "$@"; do
-	cryptsetup luksDump $dev \
+	cryptsetup luksHeaderBackup $dev --header-backup-file /tmp/tmp_luks_header \
 	|| die "$dev: Unable to measure"
-done > /tmp/luksDump.txt
+	cat /tmp/tmp_luks_header >> /tmp/luksDump.txt
+	rm -f /tmp/tmp_luks_header
+done
 
 tpm extend -ix 6 -if /tmp/luksDump.txt \
 || die "Unable to extend PCR"
