@@ -6,9 +6,13 @@ die() { echo >&2 "$@"; exit 1; }
 
 # Measure the luks headers into PCR 6
 for dev in "$@"; do
-	cryptsetup luksDump $dev \
-	|| die "$dev: Unable to measure"
-done > /tmp/luksDump.txt
+	cryptsetup luksHeaderBackup $dev \
+		   --header-backup-file /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g') \
+		|| die "$dev: Unable to read luks header"
+done
+
+sha256sum /tmp/lukshdr-* > /tmp/luksDump.txt || die "Unable to hash luks headers"
+rm /tmp/lukshdr-*
 
 tpm extend -ix 6 -if /tmp/luksDump.txt \
 || die "Unable to extend PCR"
