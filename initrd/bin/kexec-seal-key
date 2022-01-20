@@ -152,3 +152,6 @@ fi
 
 shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
 || warn "Failed to delete the sealed secret - continuing"
+
+cp /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" \
+|| warn "Failed to have hashes of LUKS header - continuing"

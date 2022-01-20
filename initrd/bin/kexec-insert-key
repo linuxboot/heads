@@ -51,6 +51,8 @@ tpm extend -ix 4 -ic generic \
 
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
+	diff "$(dirname $INITRD)/kexec_lukshdr_hash.txt" /tmp/luksDump.txt \
+		&& echo "Headers of LUKSes to be unlocked via TPM do not change."
 	confirm_boot="n"
 	read \
 		-n 1 \
