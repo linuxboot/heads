@@ -1,0 +1,38 @@
+From 8d416eec8ba1d929b7afd4718161ae0c1c4e24e3 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@puri.sm>
+Date: Tue, 25 Jan 2022 19:48:38 -0600
+Subject: [PATCH 8/9] soc/intel/common/cse: skip heci_init() if HECI1 is
+ disabled
+
+If the HECI1 PCI device is disabled, either via devicetree or other
+method (HAP, me_cleaner), then we don't want/need to program a BAR,
+set the PCI config, or call heci_reset(), as the latter will result
+in a 15s timeout delay when booting.
+
+Test: build/boot Purism Librem 13v2, verify heci_reset()
+timeout delay is no longer present.
+
+Change-Id: I0babe417173d10e37327538dc9e7aae980225367
+Signed-off-by: Matt DeVillier <matt.devillier@puri.sm>
+---
+ src/soc/intel/common/block/cse/cse.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/soc/intel/common/block/cse/cse.c b/src/soc/intel/common/block/cse/cse.c
+index f37ff9589e..eb4597b82d 100644
+--- a/src/soc/intel/common/block/cse/cse.c
++++ b/src/soc/intel/common/block/cse/cse.c
+@@ -91,6 +91,10 @@ void heci_init(uintptr_t tempbar)
+ 
+ 	u16 pcireg;
+ 
++	/* Check if device enabled */
++	if (!is_cse_enabled())
++		return;
++
+ 	/* Assume it is already initialized, nothing else to do */
+ 	if (get_cse_bar(dev))
+ 		return;
+-- 
+2.30.2
+
