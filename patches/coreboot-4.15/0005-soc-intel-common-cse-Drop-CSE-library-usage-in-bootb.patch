@@ -1,0 +1,36 @@
+From 237477540b03e3066ce0ffe51310a06f91e89252 Mon Sep 17 00:00:00 2001
+From: Subrata Banik <subratabanik@google.com>
+Date: Wed, 26 Jan 2022 01:42:18 +0530
+Subject: [PATCH 7/9] soc/intel/common/cse: Drop CSE library usage in bootblock
+
+This patch drops the CSE common code block from getting compiled
+in bootblock without any SoC code using heci communication so
+early in the boot flow.
+
+BUG=none
+TEST=Able to build brya, purism/librem_skl without any compilation issue.
+
+Signed-off-by: Subrata Banik <subratabanik@google.com>
+Change-Id: Ib4d221c6f19b60aeaf64696e64d0c4209dbf14e7
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/61382
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Tim Wawrzynczak <twawrzynczak@chromium.org>
+Reviewed-by: EricR Lai <ericr_lai@compal.corp-partner.google.com>
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ src/soc/intel/common/block/cse/Makefile.inc | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/soc/intel/common/block/cse/Makefile.inc b/src/soc/intel/common/block/cse/Makefile.inc
+index eac7d90424..339ede11b8 100644
+--- a/src/soc/intel/common/block/cse/Makefile.inc
++++ b/src/soc/intel/common/block/cse/Makefile.inc
+@@ -1,4 +1,3 @@
+-bootblock-$(CONFIG_SOC_INTEL_COMMON_BLOCK_CSE) += cse.c
+ romstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_CSE) += cse.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_CSE) += cse.c
+ romstage-$(CONFIG_SOC_INTEL_CSE_LITE_SKU) += cse_lite.c
+-- 
+2.30.2
+
