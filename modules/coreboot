@@ -43,7 +43,7 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
-EXTRA_FLAGS :? -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
+EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
 
 coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
