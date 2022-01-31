@@ -1,0 +1,18 @@
+--- ./src/mainboard/asus/kgpe-d16/dsdt.asl.orig	2021-10-15 16:17:56.496000000 -0400
++++ ./src/mainboard/asus/kgpe-d16/dsdt.asl	2021-10-15 16:27:27.393000000 -0400
+@@ -126,7 +126,6 @@
+ 		{
+ 			/* BUS0 root bus */
+ 
+-			Name (_HID, EisaId ("PNP0A08"))         /* PCI-e root bus (SR5690) */
+ 			Name (_CID, EisaId ("PNP0A03"))         /* PCI root bus (SP5100) */
+ 			Name (_ADR, 0x00180001)
+ 			Name (_UID, 0x00)
+@@ -483,7 +482,6 @@
+ 
+ 			/* 0:14.3 SP5100 LPC */
+ 			Device (LPC) {
+-				Name (_HID, EisaId ("PNP0A05"))
+ 				Name (_ADR, 0x00140003)
+ 
+ 				/* Real Time Clock Device */
