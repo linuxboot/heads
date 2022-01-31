@@ -18,7 +18,8 @@ extractdir=$(mktemp -d)
 cd "$extractdir"
 
 echo "### Installing basic dependencies"
-sudo apt update && sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
+sudo apt update && sudo apt install -y wget ruby ruby-dev bundler ruby-bundler p7zip-full upx-ucl 
+sudo gem install bundler:1.17.3
 
 echo "### Downloading rom-parser dependency"
 wget https://github.com/awilliam/rom-parser/archive/"$ROMPARSER".zip
