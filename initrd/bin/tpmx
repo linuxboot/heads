@@ -3,7 +3,7 @@
 # Abstraction layer over tpm commands to ensure the programmer does not have to
 # care about TPM 1.2 vs TPM2
 
-set -e pipefail
+#set -e pipefail
 
 . /etc/functions
 
