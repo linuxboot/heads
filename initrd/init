@@ -43,6 +43,11 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
+if [ "$CONFIG_SWRAID" = "y" ]; then
+        export CONFIG_BOOT_DEV="/dev/md/localhost:boot"
+        /bin/mdadm --assemble --scan
+fi
+
 #Specify whiptail background colors cues under FBWhiptail only
 if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
