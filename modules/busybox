@@ -13,6 +13,7 @@ busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
 	$(MAKE_JOBS) \
 
 # Install symlinks when the busybox program is installed

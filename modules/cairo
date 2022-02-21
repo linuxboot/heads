@@ -8,7 +8,7 @@ cairo_hash := 8c90f00c500b2299c0a323dd9beead2a00353752b2092ead558139bd67f7bf16
 
 cairo_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-DCAIRO_NO_MUTEX=1 -O3"  \
+	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os"  \
 	./configure \
         --host i386-elf-linux \
 	--prefix="/" \

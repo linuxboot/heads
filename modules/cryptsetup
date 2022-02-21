@@ -10,8 +10,10 @@ cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6ad
 
 # Use an empty prefix so that the executables will not include the
 # build path.
-cryptsetup_configure := ./configure \
+cryptsetup_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os" \
+	./configure \
 	--host i386-elf-linux \
 	--prefix "/" \
 	--disable-gcrypt-pbkdf2 \

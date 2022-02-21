@@ -19,6 +19,7 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 #
 gpg_configure := ./configure \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
 	--build i386-elf-linux \
 	--host x86_64-linux-musl \
 	--with-libusb="$(INSTALL)" \

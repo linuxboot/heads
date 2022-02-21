@@ -8,6 +8,7 @@ libpng_hash := 574623a4901a9969080ab4a2df9437026c8a87150dfd5c235e28c94b212964a7
 
 libpng_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os" \
 	./configure \
         --host i386-elf-linux \
 	--prefix="/" \

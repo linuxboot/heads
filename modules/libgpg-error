@@ -5,8 +5,10 @@ libgpg-error_tar := libgpg-error-$(libgpg-error_version).tar.bz2
 libgpg-error_url := https://gnupg.org/ftp/gcrypt/libgpg-error/$(libgpg-error_tar)
 libgpg-error_hash := b32d6ff72a73cf79797f7f2d039e95e9c6f92f0c1450215410840ab62aea9763
 
-libgpg-error_configure := ./configure \
+libgpg-error_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
+	./configure \
 	--prefix "/" \
 	--host=x86_64-linux-musl \
 	--disable-static \

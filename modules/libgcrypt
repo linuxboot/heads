@@ -7,6 +7,7 @@ libgcrypt_hash := 0cba2700617b99fc33864a0c16b1fa7fdf9781d9ed3509f5d767178e5fd7b9
 
 libgcrypt_configure := ./configure \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
 	--host=x86_64-linux-musl \
 	--prefix "/" \
 	--disable-static \
