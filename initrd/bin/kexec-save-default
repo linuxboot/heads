@@ -57,7 +57,7 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 			-o "$add_key_confirm" = "Y" ]; then
 			lvm_suggest="e.g. qubes_dom0 or blank"
 			if [ "$CONFIG_SWRAID" = "y" ]; then
-				devices_suggest="e.g. /dev/md/localhost:boot"
+				devices_suggest="e.g. /dev/md/localhost:pv00"
 			else
 				devices_suggest="e.g. /dev/sda2 or blank"
 			fi
