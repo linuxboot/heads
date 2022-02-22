@@ -492,6 +492,13 @@ workflows:
           requires:
             - kgpe-d16_workstation
 
+      - build:
+          name: t430-hotp-maximized-raid
+          target: t430-hotp-maximized-raid
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
 ########################
 ########################
 ###    OLD STUFF     ###
