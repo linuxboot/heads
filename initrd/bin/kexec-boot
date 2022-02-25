@@ -1,13 +1,93 @@
 #!/bin/sh
 # Launches kexec from saved configuration entries
-set -e -o pipefail
-. /tmp/config
-. /etc/functions
+
+usage() {
+	cat <<End-of-message
+Usage
+=====
+
+Launches kexec from saved configuration entries
+	
+$0 -b /boot -e 'kexec params|...|...' [<options>]
+	
+Options
+-------
+
+### -a <additional configurations>
+
+Anything provided to the -a argument is appended to the kernel command line.  kernel option add statements normally come from the board configuration to pass board specific tweaks at the OS level.
+
+FOR EXAMPLE
+
+	-a 'intel_iommu=on intel_iommu=igfx_off'
+
+### -b <boot path>
+
+path to boot files.  e.g.  -b /boot
+
+### -e <kexec params>
+
+used to prepare parameters passed to kexec system call for booting operating systems on disk.  Fields are pipe separated. 
+
+	"<description>|[elf,xen,multiboot]|kernel <path>|initrd <path>|<parameters>"
+
+First field is ignored.  The second field is the type of booting.  See examples below.
+
+The other fields are kernel, initrd, and parameters to pass to the linux kernel.
+
+EXAMPLE 1: ELF
+
+boot a linux kernel and specify the root partition
+
+	-e "my custom boot|elf|kernel /vmlinuz|initrd /initrd.img|append root=/dev/sda1"
+
+EXAMPLE 2: XEN
+
+boot Qubes, with Xen hypervisor
+
+	-e "xen boot|xen|module /vmlinuz|module /vmlinuz-4.4.67-13.x86_64 placeholder root=/dev/mapper/root ro|module /initramfs-4.4.67-13.x86_64.img"
+
+EXAMPLE 3: MULTIBOOT
+
+boot Qubes, with Xen hypervisor and LUKS encrypted root partition
+
+	-e "Qubes, with Xen hypervisor|multiboot|kernel /xen-4.6.5.gz placeholder |module /vmlinuz-4.4.67-13.pvops.qubes.x86_64 placeholder root=/dev/mapper/luks-UUID ro rd.qubes.hide_all_usb|module /initramfs-4.4.67-13.pvops.qubes.x86_64.img"
+
+Currently, any multiboot entry is interpreted as a Xen-variant and kexec-boot overrides the arguments to the multiboot kernel with custom arguments. 
+
+### -f
+
+some sort of debug mode which prints information about files and sets dryrun on
+
+### -h
+
+show help
+
+### -i
+
+Use this parameter to ignore the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
+
+### -o <initrd>
+
+use the specified initrd for booting
+
+### -r <configurations to remove>
+
+kernel option remove statements normally come from board configuration to pass board specific tweaks at the OS level.  Anything provided to the -r argument is removed from the kernel command line. 
+
+For EXAMPLE:
+
+	-r 'quiet'
+
+In this case 'quiet' will be removed from the kernel command line before it is booted.
+
+End-of-message
+}
 
 dryrun="n"
 printfiles="n"
 printinitrd="n"
-while getopts "b:e:r:a:o:fi" arg; do
+while getopts "b:e:r:a:o:fih" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		e) entry="$OPTARG" ;;
@@ -16,11 +96,21 @@ while getopts "b:e:r:a:o:fi" arg; do
 		o) override_initrd="$OPTARG" ;;
 		f) dryrun="y"; printfiles="y" ;;
 		i) dryrun="y"; printinitrd="y" ;;
+		h) usage; exit 1;;
 	esac
 done
 
-if [ -z "$bootdir" -o -z "$entry" ]; then
-	die "Usage: $0 -b /boot -e 'kexec params|...|...'"
+set -e -o pipefail
+. /tmp/config
+. /etc/functions
+
+if [ -z "$bootdir" ]; then
+	usage
+	die "-b <boot> is required"
+fi
+if [ -z "$entry" ]; then
+	usage
+	die "-e <boot entry> is required"
 fi
 
 bootdir="${bootdir%%/}"

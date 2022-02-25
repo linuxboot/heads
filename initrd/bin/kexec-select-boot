@@ -1,8 +1,86 @@
 #!/bin/sh
 # Generic configurable boot script via kexec
-set -e -o pipefail
-. /tmp/config
-. /etc/functions
+
+usage() {
+	cat <<End-of-message
+Usage
+=====
+
+Generic configurable boot script via kexec
+	
+$0 -b /boot [options]
+	
+Options
+-------
+
+### -a <additional confiurations>
+
+Anything provided to the -a argument is appended to the kernel command line.  kernel option add statements normally come from the board configuration to pass board specific tweaks at the OS level.
+
+FOR EXAMPLE
+
+	-a 'intel_iommu=on intel_iommu=igfx_off'
+
+### -b
+
+path to boot files.  e.g.  -b /boot
+
+### -c = '*.cfg'
+
+specify the grub config file(s)
+
+### -d
+
+set the params device.  defaults to same as -b
+
+### -f
+
+force boot by considering hash and rollback checks as good
+
+### -g
+
+use graphical menus.  default is text only.
+
+### -h
+
+show help
+
+### -i
+
+Use this parameter to skip the verification of boot hashes and rollback counter.  This will boot a potentially compromised system.
+
+### -m
+
+show a boot menu
+
+### -o <initrd>
+
+use the specified initrd for booting
+
+### -p
+
+set the params folder.  defaults to same as -b
+
+### -r <configurations to remove>
+
+kernel option remove statements normally come from board configuration to pass board specific tweaks at the OS level.  Anything provided to the -r argument is removed from the kernel command line. 
+
+For EXAMPLE:
+
+	-r 'quiet'
+
+In this case 'quiet' will be removd from the kernel command line before it is booted.
+
+### -s
+
+Skip confirmation prompts.
+
+### -u
+
+specifies that the boot entries should be filtered to remove duplicates
+
+End-of-message
+}
 
 add=""
 remove=""
@@ -15,7 +93,7 @@ force_menu="n"
 gui_menu="n"
 force_boot="n"
 skip_confirm="n"
-while getopts "b:d:p:a:r:c:uimgfs" arg; do
+while getopts "b:d:p:a:r:c:uimgfsh" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		d) paramsdev="$OPTARG" ;;
@@ -29,11 +107,17 @@ while getopts "b:d:p:a:r:c:uimgfs" arg; do
 		g) gui_menu="y" ;;
 		f) force_boot="y"; valid_hash="y"; valid_rollback="y" ;;
 		s) skip_confirm="y" ;;
+		h) usage; exit 1;;
 	esac
 done
 
+set -e -o pipefail
+. /tmp/config
+. /etc/functions
+
 if [ -z "$bootdir" ]; then
-	die "Usage: $0 -b /boot"
+	usage
+	die "-b is required"
 fi
 
 if [ -z "$paramsdev" ]; then
