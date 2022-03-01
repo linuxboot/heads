@@ -202,7 +202,6 @@ update_hotp()
 {
   if [ -x /bin/hotp_verification ]; then
     HOTP=`unseal-hotp`
-    enable_usb
     if ! hotp_verification info ; then
       if ! whiptail $BG_COLOR_WARNING --clear \
           --title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
@@ -251,7 +250,6 @@ clean_boot_check()
 
    # check for USB security token
   if [ "$CONFIG_HOTPKEY" = "y" ]; then
-    enable_usb
     if ! gpg --card-status > /dev/null ; then
       return
     fi
@@ -541,6 +539,10 @@ if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+fi
+
+if [ "$CONFIG_HOTPKEY" = "y" ]; then
+  enable_usb
 fi
 
 if detect_boot_device ; then
