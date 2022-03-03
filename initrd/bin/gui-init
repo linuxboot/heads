@@ -249,7 +249,7 @@ clean_boot_check()
   [ $GPG_KEY_COUNT -ne 0 ] && return
 
    # check for USB security token
-  if [ "$CONFIG_HOTPKEY" = "y" ]; then
+  if [ -x /bin/hotp_verification ]; then
     if ! gpg --card-status > /dev/null ; then
       return
     fi
@@ -541,7 +541,7 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-if [ "$CONFIG_HOTPKEY" = "y" ]; then
+if [ -x /bin/hotp_verification ]; then
   enable_usb
 fi
 
