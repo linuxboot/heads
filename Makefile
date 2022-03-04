@@ -90,10 +90,8 @@ $(HEADS_MAKE): $(build)/$(make_dir)/.configured
 		$(VERBOSE_REDIRECT)
 
 # Once we have a proper Make, we can just pass arguments into it
-all linux cpio run: $(HEADS_MAKE)
-        LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $(MAKE_JOBS) $@
-%.clean %.vol %.menuconfig: $(HEADS_MAKE)
-        LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
+all linux cpio run: | $(HEADS_MAKE)
+%.clean %.vol %.menuconfig: | $(HEADS_MAKE)
 
 bootstrap: $(HEADS_MAKE)
 endif
@@ -135,10 +133,10 @@ $(HEADS_GAWK): $(build)/$(gawk_dir)/.configured
 		$(VERBOSE_REDIRECT)
 
 # Once we have a suitable version of gawk, we can rerun make
-all linux cpio run: $(HEADS_GAWK)
-	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $(MAKE_JOBS) $@
-%.clean %.vol %.menuconfig: $(HEADS_GAWK)
-	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $@
+all linux cpio run: | $(HEADS_MAKE) $(HEADS_GAWK)
+	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $(MAKE_JOBS)
+%.clean %.vol %.menuconfig: | $(HEADS_MAKE) $(HEADS_GAWK)
+	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE)
 
 bootstrap: $(HEADS_GAWK)
 endif
