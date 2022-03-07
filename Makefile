@@ -221,6 +221,10 @@ CROSS_TOOLS_NOCC := \
 	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
 	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
 
+#Some debugging info in link with locally built versions and usage for the rest Heads build:
+$(eval $(shell echo >&2 "$(DATE) Expected HEADS_GAWK is different then provided by OS: $(HEADS_GAWK)."))
+$(eval $(shell echo >&2 "$(DATE) Expected HEADS_MAKE is different then provided by OS: $(HEADS_MAKE)."))
+
 ifneq "$(HEADS_GAWK)" ""
 CROSS_TOOLS_NOCC += AWK=$(HEADS_GAWK)
 endif
@@ -228,13 +232,8 @@ endif
 ifneq "$(HEADS_MAKE)" ""
 $(HEADS_GAWK): | $(HEADS_MAKE)
 MAKE=$(HEADS_MAKE)
+$(eval $(shell echo >&2 "$(DATE) MAKE: $(MAKE) is expected to be built If build fails since not built, please build those prerequisites with: 'make bootstrap'"))
 endif
-
-#Some debugging info in link with locally built versions and usage for the rest Heads build:
-$(eval $(shell echo >&2 "$(DATE) Local built HEADS_GAWK only if different then provided by OS: $(HEADS_GAWK)")) 
-$(eval $(shell echo >&2 "$(DATE) Local built HEADS_MAKE only if different then provided by OS: $(HEADS_MAKE)")) 
-$(eval $(shell echo >&2 "$(DATE) Heads build system will call make from on as: MAKE: $(MAKE)" once built. ))
-
 
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \
