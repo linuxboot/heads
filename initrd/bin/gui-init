@@ -258,7 +258,7 @@ clean_boot_check()
   # OS is installed, no kexec files present, no GPG keys in keyring, security token present
   # prompt user to run OEM factory reset
   oem-factory-reset \
-    "Clean Boot Detected - Perform OEM Factory Reset?" "$BG_COLOR_WARNING"
+    "Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?" "$BG_COLOR_WARNING"
 }
 
 check_gpg_key()
@@ -346,7 +346,7 @@ show_options_menu()
     'c' ' Change configuration settings -->' \
     'f' ' Flash/Update the BIOS -->' \
     'g' ' GPG Options -->' \
-    'F' ' OEM Factory Reset -->' \
+    'F' ' OEM Factory Reset / Re-Ownership -->' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
