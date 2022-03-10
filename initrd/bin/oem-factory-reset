@@ -18,7 +18,20 @@ WIDTH="90"
 USER_PIN_DEF=123456
 ADMIN_PIN_DEF=12345678
 TPM_PASS_DEF=12345678
-CUSTOM_PASS=""
+USER_PIN=""
+ADMIN_PIN=""
+TPM_PASS=""
+
+# What are the Security components affected by custom passwords
+CUSTOM_PASS_AFFECTED_COMPONENTS=""
+
+if [ "$CONFIG_TPM" = "y" ]; then
+    CUSTOM_PASS_AFFECTED_COMPONENTS="TPM Ownership password"
+fi
+CUSTOM_PASS_AFFECTED_COMPONENTS="
+$CUSTOM_PASS_AFFECTED_COMPONENTS
+GPG Admin PIN
+GPG User PIN"
 
 RSA_KEY_LENGTH=3072
 
@@ -156,7 +169,7 @@ generate_checksums()
     # create Heads TPM counter
     if [ "$CONFIG_TPM" = "y" ]; then
       tpm counter_create \
-          -pwdo "$TPM_PASS_DEF" \
+          -pwdo "$TPM_PASS" \
           -pwdc '' \
           -la -3135106223 \
           | tee /tmp/counter \
@@ -190,7 +203,7 @@ generate_checksums()
     # sign kexec boot files
     if sha256sum $param_files 2>/dev/null | gpg \
             --pinentry-mode loopback \
-            --passphrase "$USER_PIN_DEF" \
+            --passphrase "$USER_PIN" \
             --digest-algo SHA256 \
             --detach-sign \
             -a \
@@ -266,7 +279,7 @@ set_default_boot_option()
 if [ "$1" != "" ]; then
     title_text=$1
 else
-    title_text="OEM Factory Reset"
+    title_text="OEM Factory Reset / Re-Ownership"
 fi
 if [ "$2" != "" ]; then
     bg_color=$2
@@ -276,42 +289,76 @@ fi
 
 # show warning prompt
 if [ "$CONFIG_TPM" = "y" ]; then
-    TPM_STR="          * ERASE the TPM and reset it with a default password\n"
+    TPM_STR="          * ERASE the TPM and own it with a password\n"
 else
     TPM_STR=""
 fi
 if ! whiptail --yesno "
-        This operation will automatically:\n\n
+        This operation will automatically:\n
 $TPM_STR
           * ERASE any keys or passwords on the GPG smart card,\n
-            reset it to a factory state, and generate new keys\n
+            reset it to a factory state, generate new keys\n
+            and optionally set custom PIN(s)
           * Add the new GPG key to the firmware and reflash it\n
           * Sign all of the files in /boot with the new GPG key\n\n
         It requires that you already have an OS installed on a\n
-        dedicated /boot partition. Do you wish to continue?\n" \
+        dedicated /boot partition. Do you wish to continue?" \
         $HEIGHT $WIDTH $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text" ; then
     exit 1
 fi
 
+# Inform user of security components affected for the following prompts
+echo -e "The following security components will be provisioned with defaults or chosen PINs/passwords:
+$CUSTOM_PASS_AFFECTED_COMPONENTS\n"
+
 # Prompt to change default passwords
-echo -e -n "Would you like to set a custom password? [y/N]: "
+echo -e -n "Would you like to set a single custom password that will be provisioned to all security components? [y/N]: "
 read -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
 ; then
-  echo -e "\nThe custom password will be used for the
-TPM admin and GPG user/admin passwords.
-It must be at least 8 characters in length.\n"
-  CUSTOM_PASS=""
+  echo -e "\nThe chosen custom password must be at least 8 characters in length.\n"
   echo
-  while [[  ${#CUSTOM_PASS} -lt 8 ]] ; do
+  while [[  ${#CUSTOM_SINGLE_PASS} -lt 8 ]] ; do
     echo -e -n "Enter the custom password: "
-    read CUSTOM_PASS
+    read CUSTOM_SINGLE_PASS
   done
   echo
-  TPM_PASS_DEF=$CUSTOM_PASS
+  TPM_PASS=$CUSTOM_SINGLE_PASS
+  USER_PIN=$CUSTOM_SINGLE_PASS
+  ADMIN_PIN=$CUSTOM_SINGLE_PASS
+else
+  echo -e -n "Would you like to set distinct PINs/passwords to be provisioned to security components? [y/N]: "
+  read -n 1 prompt_output
+  echo
+  if [ "$prompt_output" == "y" \
+    -o "$prompt_output" == "Y" ] \
+  ; then
+    echo -e "\nThey must be each at least 8 characters in length.\n"
+    echo
+    if [ "$CONFIG_TPM" = "y" ]; then
+      while [[  ${#TPM_PASS} -lt 8 ]] ; do
+        echo -e -n "Enter desired TPM Ownership password: "
+        read TPM_PASS
+      done
+    fi
+    while [[  ${#ADMIN_PIN} -lt 8 ]] ; do
+      echo -e -n "Enter desired GPG Admin PIN: "
+      read ADMIN_PIN
+    done
+    while [[  ${#USER_PIN} -lt 8 ]] ; do
+      echo -e -n "Enter desired GPG User PIN: "
+      read USER_PIN
+    done
+    echo
+  fi
 fi
+
+# If nothing is stored in custom variables, we set them to their defaults
+if [ "$TPM_PASS" == "" ]; then TPM_PASS=$TPM_PASS_DEF; fi
+if [ "$USER_PIN" == "" ]; then USER_PIN=$USER_PIN_DEF; fi
+if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=$ADMIN_PIN_DEF; fi
 
 # Prompt to change default GnuPG key information
 echo -e -n "Would you like to set custom user information for the GnuPG key? [y/N]: "
@@ -359,16 +406,19 @@ if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
 ; then
     GPG_EXPORT=1
-    # mount USB, then remount rw
-    echo -e "\nPlease insert an USB drive and hit enter.\n"
-    read
-    echo -e "\nChecking for USB media...\n"
-    # ensure /media not mounted
-    umount /media 2>/dev/null
-    # mount-usb will detect and prompt if no USB inserted
-    if ! mount-usb rw 2>/tmp/error; then
+    # mount USB over /media only if not already mounted
+    if ! grep -q /media /proc/mounts ; then
+      # mount USB in rw
+      if ! mount-usb rw 2>/tmp/error; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
+      fi
+    else
+      #/media already mounted, make sure it is in r+w mode
+      if ! mount -o remount,rw /media 2>/tmp/error; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Unable to remount in read+write USB on /media:\n\n${ERROR}"
+      fi
     fi
 else
     GPG_EXPORT=0
@@ -401,12 +451,12 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
   combine_configs
 fi
 
-## reset TPM and set default password
+## reset TPM and set password
 if [ "$CONFIG_TPM" = "y" ]; then
   echo -e "\nResetting TPM...\n"
   {
-      echo $TPM_PASS_DEF
-      echo $TPM_PASS_DEF
+      echo $TPM_PASS
+      echo $TPM_PASS
   } | /bin/tpm-reset >/dev/null 2>/tmp/error
   if [ $? -ne 0 ]; then
       ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -427,13 +477,12 @@ gpg_key_reset
 GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 
-if [ "$CUSTOM_PASS" != "" ]; then
+#Applying custom GPG PINs
+if [ "$USER_PIN" != "" -o "$ADMIN_PIN" != "" ]; then
   echo -e "\nChanging default GPG Admin PIN\n"
-  gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$CUSTOM_PASS"
+  gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$ADMIN_PIN"
   echo -e "\nChanging default GPG User PIN\n"
-  gpg_key_change_pin "1" "$USER_PIN_DEF" "$CUSTOM_PASS"
-  USER_PIN_DEF=$CUSTOM_PASS
-  ADMIN_PIN_DEF=$CUSTOM_PASS
+  gpg_key_change_pin "1" "$USER_PIN_DEF" "$USER_PIN"
 fi
 
 # export pubkey to file
@@ -450,7 +499,7 @@ if [ $GPG_EXPORT -ne 0 ]; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
     fi
-    umount /media 2>/dev/null
+    mount -o remount,ro /media 2>/dev/null
 fi
 
 ## flash generated key to ROM
@@ -510,12 +559,19 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
   generate_checksums
 fi
 
+## Show user current provisioned PINS/Password prior of reboot
+whiptail --msgbox "
+    TPM Owner Password: $TPM_PASS\n
+    GPG Admin PIN: $ADMIN_PIN\n
+    GPG User PIN: $USER_PIN\n\n" \
+    $HEIGHT $WIDTH --title "Provisioned secrets"
+
 ## all done -- reboot
 whiptail --msgbox "
-    The OEM Factory Reset has completed successfully\n\n
+    OEM Factory Reset / Re-Ownership has completed successfully\n\n
     After rebooting, you will need to generate new TOTP/HOTP secrets\n
     when prompted in order to complete the setup process.\n\n
     Press Enter to reboot.\n" \
-    $HEIGHT $WIDTH --title "OEM Factory Reset Complete"
+    $HEIGHT $WIDTH --title "OEM Factory Reset / Re-Ownership Complete"
 
 reboot
