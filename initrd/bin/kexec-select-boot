@@ -185,11 +185,13 @@ scan_options() {
 }
 
 save_default_option() {
-	read \
-		-n 1 \
-		-p "Saving a default will modify the disk. Proceed? (Y/n): " \
-		default_confirm
-	echo
+	if [ "$gui_menu" != "y" ]; then
+		read \
+			-n 1 \
+			-p "Saving a default will modify the disk. Proceed? (Y/n): " \
+			default_confirm
+		echo
+	fi
 
 	[ "$default_confirm" = "" ] && default_confirm="y"
 	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
