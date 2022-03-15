@@ -131,6 +131,10 @@ echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
 combine_configs
 . /tmp/config
 
+if [ "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
+	echo -e "***** BASIC mode: tamper detection disabled\n" > /dev/tty0
+fi
+
 # export firmware version
 export FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
 # chop off date, since will always be epoch w/timeless builds
@@ -140,6 +144,11 @@ FW_VER=${FW_VER::-10}
 # in the configuration file.
 if [ ! -z "$CONFIG_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+fi
+
+if [ "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
+	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
+	export CONFIG_HOTPKEY=n
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
