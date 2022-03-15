@@ -99,8 +99,7 @@ get_menu_option() {
 			parse_option
 			n=`expr $n + 1`
 			name=$(echo $name | tr " " "_")
-			kernel=$(echo $kernel | cut -f2 -d " ")
-			MENU_OPTIONS="$MENU_OPTIONS $n ${name}_[$kernel]"
+			MENU_OPTIONS="$MENU_OPTIONS $n ${name} "
 		done < $TMP_MENU_FILE
 
 		whiptail --clear --title "Select your boot option" \
