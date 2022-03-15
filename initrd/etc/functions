@@ -266,7 +266,7 @@ check_config() {
 		|| die 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig ]; then
+	if [ ! -r $1/kexec.sig -a "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
 		return
 	fi
 

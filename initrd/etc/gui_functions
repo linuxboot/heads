@@ -119,3 +119,16 @@ get_config_display_action()
 {
   [ "$1" = "y" ] && echo "Disable" || echo "Enable"
 }
+
+# Invert a config value
+invert_config()
+{
+  [ "$1" = "y" ] && echo "n" || echo "y"
+}
+
+# Get "Enable" or "Disable" for a config that internally is inverted (because it
+# disables a behavior that is on by default).
+get_inverted_config_display_action()
+{
+  get_config_display_action "$(invert_config "$1")"
+}

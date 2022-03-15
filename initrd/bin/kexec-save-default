@@ -194,8 +194,9 @@ if [ "$CONFIG_TPM" = "y" ];then
 		extparam=-r
 	fi
 fi
-kexec-sign-config -p $paramsdir $extparam \
-|| die "Failed to sign default config"
-
+if [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+	kexec-sign-config -p $paramsdir $extparam \
+		|| die "Failed to sign default config"
+fi
 # switch back to ro mode
 mount -o ro,remount $paramsdev

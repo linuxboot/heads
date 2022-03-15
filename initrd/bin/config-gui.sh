@@ -27,14 +27,32 @@ while true; do
     menu_choice=${param::1}
     unset param
   else
+    # check current PureBoot Mode
+    BASIC_MODE="$(load_config_value CONFIG_PUREBOOT_BASIC)"
+    BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
+
+    dynamic_config_options=()
+
+    if [ "$BASIC_MODE" = "y" ]; then
+        dynamic_config_options+=( \
+            'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
+            'A' " $(get_inverted_config_display_action "$BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot" \
+        )
+    else
+        dynamic_config_options+=( \
+            'r' ' Clear GPG key(s) and reset all user settings' \
+            'R' ' Change the root device for hashing' \
+            'D' ' Change the root directories to hash' \
+            'B' ' Check root hashes at boot' \
+            'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
+        )
+    fi
+
     unset menu_choice
     whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
     'b' ' Change the /boot device' \
-    'r' ' Clear GPG key(s) and reset all user settings' \
-    'R' ' Change the root device for hashing' \
-    'D' ' Change the root directories to hash' \
-    'B' ' Check root hashes at boot' \
+    "${dynamic_config_options[@]}" \
     's' ' Save the current configuration to the running BIOS' \
     'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -225,6 +243,61 @@ while true; do
 
           whiptail --title 'Config change successful' \
             --msgbox "The root device will not be checked at each boot." 0 80
+        fi
+      fi
+    ;;
+    "P" )
+      if [ "$BASIC_MODE" = "n" ]; then
+        if (whiptail --title 'Enable PureBoot Basic Mode?' \
+             --yesno "This will remove all signature checking on the firmware
+                    \nand boot files, and disable use of the Librem Key.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_PUREBOOT_BASIC" "y"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "PureBoot Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
+
+        fi
+      else
+        if (whiptail --title 'Disable PureBoot Basic Mode?' \
+             --yesno "This will enable all signature checking on the firmware
+                    \nand boot files, and enable use of the Librem Key.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_PUREBOOT_BASIC" "n"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "PureBoot Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
+    ;;
+    "A" )
+      if [ "$BASIC_NO_AUTOMATIC_DEFAULT" = "n" ]; then
+        if (whiptail --title 'Disable automatic default boot?' \
+             --yesno "You will need to select a default boot option.
+                    \nIf the boot options are changed, such as for an OS update,
+                    \nyou will be prompted to select a new default.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "y"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Automatic default boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      else
+        if (whiptail --title 'Enable automatic default boot?' \
+             --yesno "The first boot option will be used automatically.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "n"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Automatic default boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
