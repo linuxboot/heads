@@ -273,7 +273,7 @@ report_integrity_measurements()
     if [ $GPG_KEY_COUNT -ne 0 ]; then
         # Check and report TOTP
         # update the TOTP code every thirty seconds
-        date=`date "+%Y-%m-%d %H:%M:%S"`
+        date=`date "+%Y-%m-%d %H:%M:%S %Z"`
         seconds=`date "+%s"`
         half=`expr \( $seconds % 60 \) / 30`
         if [ "$CONFIG_TPM" = n ]; then
@@ -320,7 +320,7 @@ report_integrity_measurements()
         fi
 
 	    #Show results
-	    whiptail $MAIN_MENU_BG_COLOR --clear --title "Measured Integrity Report" --msgbox "Time (GMT/UTC timezone): $date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 30 90
+	    whiptail $MAIN_MENU_BG_COLOR --clear --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 30 90
     fi
 }
 

@@ -27,8 +27,8 @@ if [ -e /sys/class/net/eth0 ]; then
 				fi
 				hwclock -w
 				echo "" > /dev/tty0
-				echo "UTC/GMT current date and time:" > /dev/tty0
-				date > /dev/tty0
+				date=`date "+%Y-%m-%d %H:%M:%S %Z"`
+				echo "Time: $date" > /dev/tty0
 			fi
 		fi		 
 	fi
