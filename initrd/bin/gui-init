@@ -7,6 +7,7 @@ export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
 . /tmp/config
+. /bin/reencrypt-luks
 
 mount_boot()
 {
@@ -269,6 +270,7 @@ check_gpg_key()
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
       'g' ' Add a GPG key to the running BIOS' \
+      'F' ' OEM Factory Reset / Re-Ownership' \
       'i' ' Ignore error and continue to main menu' \
       'x' ' Exit to recovery shell' \
       2>/tmp/whiptail || recovery "GUI menu failed"
@@ -281,6 +283,10 @@ check_gpg_key()
       i )
         return 1
         ;;
+      F )
+      oem-factory-reset
+      ;;
+
       x )
         recovery "User requested recovery shell"
         ;;
@@ -347,6 +353,8 @@ show_options_menu()
     'f' ' Flash/Update the BIOS -->' \
     'g' ' GPG Options -->' \
     'F' ' OEM Factory Reset / Re-Ownership -->' \
+    'R' ' Reencrypt LUKS container -->' \
+    'C' ' Change LUKS Disk Recovery Key passphrase ->' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -373,6 +381,14 @@ show_options_menu()
       ;;
     F )
       oem-factory-reset
+      ;;
+    R )
+      luks_reencrypt
+      luks_secrets_cleanup
+      ;;
+    C )
+      luks_change_passphrase
+      luks_secrets_cleanup
       ;;
     x )
       recovery "User requested recovery shell"
