@@ -156,7 +156,7 @@ generate_totp_htop()
 update_totp()
 {
   # update the TOTP code
-  date=`date "+%Y-%m-%d %H:%M:%S"`
+  date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   if [ "$CONFIG_TPM" = n ]; then
     TOTP="NO TPM"
   else
@@ -312,7 +312,7 @@ prompt_auto_default_boot()
 
 show_main_menu()
 {
-  date=`date "+%Y-%m-%d %H:%M"`
+  date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   whiptail $BG_COLOR_MAIN_MENU --clear --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
     'd' ' Default boot' \
