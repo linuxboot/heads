@@ -25,14 +25,6 @@ TPM_PASS=""
 # What are the Security components affected by custom passwords
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
-if [ "$CONFIG_TPM" = "y" ]; then
-    CUSTOM_PASS_AFFECTED_COMPONENTS="TPM Ownership password"
-fi
-CUSTOM_PASS_AFFECTED_COMPONENTS="
-$CUSTOM_PASS_AFFECTED_COMPONENTS
-GPG Admin PIN
-GPG User PIN"
-
 RSA_KEY_LENGTH=3072
 
 GPG_USER_NAME="OEM Key"
@@ -45,6 +37,7 @@ SKIP_BOOT="n"
 
 . /etc/functions
 . /tmp/config
+. /bin/reencrypt-luks
 
 ## functions
 
@@ -307,12 +300,43 @@ $TPM_STR
     exit 1
 fi
 
+# Re-ownership of encrypted disk key, content and passphrase
+echo -e -n "Would you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past provisioned passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backuped header could be restored to access encrypted content with old passphrase) [y/N]: "
+read -n 1 prompt_output
+echo
+if [ "$prompt_output" == "y" \
+  -o "$prompt_output" == "Y" ];then
+  luks_new_Disk_Recovery_Key_passphrase_desired=1
+  echo -e "\n"
+fi
+
+echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new Disk Recovery key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backuped header to be restored to access encrypted data) [y/N]: "
+read -n 1 prompt_output
+echo
+if [ "$prompt_output" == "y" \
+  -o "$prompt_output" == "Y" ];then
+  test_luks_current_disk_recovery_key_passphrase
+  echo -e "\n"
+fi
+
+# Adapt message to be given to user in terms of security components that will be applied.
+if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+    CUSTOM_PASS_AFFECTED_COMPONENTS="LUKS Disk Recovery Key passphrase"
+fi
+if [ "$CONFIG_TPM" = "y" ]; then
+  CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
+TPM Ownership password"
+fi
+CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
+GPG Admin PIN
+GPG User PIN"
+
 # Inform user of security components affected for the following prompts
 echo -e "The following security components will be provisioned with defaults or chosen PINs/passwords:
 $CUSTOM_PASS_AFFECTED_COMPONENTS\n"
 
 # Prompt to change default passwords
-echo -e -n "Would you like to set a single custom password that will be provisioned to all security components? [y/N]: "
+echo -e -n "Would you like to set a single custom password that will be provisioned to previously stated security components? [y/N]: "
 read -n 1 prompt_output
 echo
 if [ "$prompt_output" == "y" \
@@ -328,8 +352,13 @@ if [ "$prompt_output" == "y" \
   TPM_PASS=$CUSTOM_SINGLE_PASS
   USER_PIN=$CUSTOM_SINGLE_PASS
   ADMIN_PIN=$CUSTOM_SINGLE_PASS
+	
+	# Only set if user said desired. Matches rest of logic
+	if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+  	luks_new_Disk_Recovery_Key_passphrase=$CUSTOM_SINGLE_PASS
+	fi
 else
-  echo -e -n "Would you like to set distinct PINs/passwords to be provisioned to security components? [y/N]: "
+  echo -e -n "Would you like to set distinct PINs/passwords to be provisioned to previously stated security components? [y/N]: "
   read -n 1 prompt_output
   echo
   if [ "$prompt_output" == "y" \
@@ -353,6 +382,19 @@ else
     done
     echo
   fi
+fi
+
+if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+  # We catch here if changing LUKS Disk Recovery Key passphrase was desired
+  #  but yet undone. This is if not being covered by the single password
+  echo -e "\nEnter desired replacement for current Disk Recovery Key passphrase (At least 8 characters long):"
+  while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
+  {
+    read -r luks_new_Disk_Recovery_Key_passphrase
+  };done
+  #We test that current Disk Recovery Key passphrase is known prior of going further
+  test_luks_current_disk_recovery_key_passphrase
+  echo -e "\n"
 fi
 
 # If nothing is stored in custom variables, we set them to their defaults
@@ -437,6 +479,8 @@ if ! gpg --card-status >/dev/null 2>&1 ; then
     fi
 fi
 
+# Action time...
+
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
 if ! detect_boot_device ; then
@@ -449,6 +493,19 @@ fi
 if [[ "$SKIP_BOOT" == "n" ]]; then
   replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
   combine_configs
+fi
+
+
+if [ -n "$luks_current_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+  #Reencryption of disk, disk recovery key and Disk Recovery Key passphrase change is requested
+  luks_reencrypt
+  luks_change_passphrase
+elif [ -n "$luks_current_Disk_Recovery_Key_passphrase" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+  #Reencryption of disk was requested but not passphrase change
+  luks_reencrypt
+elif [ -n "$luks_new_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+  #Passphrase change is requested without disk reencryption
+  luks_change_passphrase
 fi
 
 ## reset TPM and set password
@@ -559,9 +616,25 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
   generate_checksums
 fi
 
-## Show user current provisioned PINS/Password prior of reboot
+# Prepare whiptail output of provisioned secrets
+if [ -z "$luks_new_Disk_Recovery_Key_passphrase" -o -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+  luks_passphrase_changed=""
+else
+ luks_passphrase_changed="LUKS Disk Recovery Key passphrase:\n
+     $luks_new_Disk_Recovery_Key_passphrase"
+fi
+
+if [ "$CONFIG_TPM" = "y" ]; then
+  tpm_password_changed="
+    TPM Owner Password: $TPM_PASS\n"
+else
+  tpm_password_changed=""
+fi
+
+## Show to user current provisioned secrets prior of rebooting
 whiptail --msgbox "
-    TPM Owner Password: $TPM_PASS\n
+    $luks_passphrase_changed
+    $tpm_password_changed
     GPG Admin PIN: $ADMIN_PIN\n
     GPG User PIN: $USER_PIN\n\n" \
     $HEIGHT $WIDTH --title "Provisioned secrets"
@@ -573,5 +646,10 @@ whiptail --msgbox "
     when prompted in order to complete the setup process.\n\n
     Press Enter to reboot.\n" \
     $HEIGHT $WIDTH --title "OEM Factory Reset / Re-Ownership Complete"
+
+# Clean LUKS secrets
+luks_secrets_cleanup
+unset luks_passphrase_changed
+unset tpm_password_changed
 
 reboot
