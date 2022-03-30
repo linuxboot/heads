@@ -16,7 +16,6 @@ zlib_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
-	-fPIC \
 	install \
 
 zlib_libraries := libz.so.1
