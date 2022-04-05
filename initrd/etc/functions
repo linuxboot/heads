@@ -122,6 +122,14 @@ enable_usb()
 		|| die "xhci_pci: module load failed"
 		sleep 2
 	fi
+
+	if [ "$CONFIG_USB_KEYBOARD" = y ]; then
+		if ! lsmod | grep -q usbhid; then
+			insmod /lib/modules/usbhid.ko \
+			|| die "usbhid: module load failed"
+		fi
+	fi
+
 }
 
 confirm_gpg_card()
