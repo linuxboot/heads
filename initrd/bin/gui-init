@@ -6,8 +6,8 @@ MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
 export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
+. /etc/luks-functions
 . /tmp/config
-. /bin/reencrypt-luks
 
 mount_boot()
 {
