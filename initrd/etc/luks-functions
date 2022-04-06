@@ -34,7 +34,7 @@ select_luks_container()
 test_luks_current_disk_recovery_key_passphrase()
 {
 	while : ; do
-		select_luks_container
+		select_luks_container || return 1
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
 			#if no external provisioning provides current Disk Recovery Key passphrase
 			echo -e "\nEnter current Disk Recovery Key passphrase (Provisioned at OS installation or by OEM):"
@@ -73,7 +73,7 @@ test_luks_current_disk_recovery_key_passphrase()
 
 luks_reencrypt(){
 while : ; do
-	select_luks_container
+	select_luks_container || return 1
 	if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
 		#if no external provisioning provides current Disk Recovery Key passphrase
 		whiptail --title 'Reencrypt LUKS disk encrypted container ?' \
@@ -112,7 +112,7 @@ done
 luks_change_passphrase()
 {
 while : ; do
-	select_luks_container
+	select_luks_container || return 1
 	#if actual or new Disk Recovery Key is not provisioned by oem-provisioning file
 	if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ] || [ -z "$luks_new_Disk_Recovery_Key_passphrase" ] ; then
 		whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
