@@ -16,7 +16,7 @@ select_luks_container()
 		if [ $(cat /tmp/luks_devices.txt | wc -l) -gt 0 ]; then
 			file_selector "/tmp/luks_devices.txt" "Select LUKS container device"
 			if [ "$FILE" == "" ]; then
-				return
+				return 1
 			else
 				LUKS=$FILE
 				detect_boot_device
@@ -26,6 +26,7 @@ select_luks_container()
 			fi
 		else
 			warn "No encrypted device found."
+			return 1
 		fi
 	fi
 }
