@@ -8,6 +8,7 @@ die() {
 
 warn() {
 	echo >&2 "$*";
+	read -p 'Hit Enter to continue.'
 }
 
 recovery() {
