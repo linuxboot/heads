@@ -102,6 +102,9 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 
+#USB modules when a USB keyboard is defined in board config
+linux_modules-$(CONFIG_USB_KEYBOARD)	+= drivers/hid/usbhid/usbhid.ko
+
 # NVMe driver for winterfell and other servers
 linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme.ko
 linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
