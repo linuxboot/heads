@@ -321,6 +321,13 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: x230-hotp-maximized_usb-kb
+          target: x230-hotp-maximized_usb-kb
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: t430-hotp-maximized
           target: t430-hotp-maximized
           subcommand: ""
