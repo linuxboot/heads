@@ -36,8 +36,8 @@ SKIP_BOOT="n"
 ## External files sourced
 
 . /etc/functions
+. /etc/luks-functions
 . /tmp/config
-. /bin/reencrypt-luks
 
 ## functions
 
