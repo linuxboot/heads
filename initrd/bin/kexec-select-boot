@@ -137,7 +137,7 @@ confirm_menu_option() {
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
 		whiptail $BG_COLOR_WARNING --clear --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$kernel \n\n" 20 120 8 \
+			Confirm the boot details for $name:\n\n$(echo $kernel| fold -s -w 80) \n\n" 20 120 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
