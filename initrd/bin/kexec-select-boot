@@ -99,8 +99,7 @@ get_menu_option() {
 			parse_option
 			n=`expr $n + 1`
 			name=$(echo $name | tr " " "_")
-			kernel=$(echo $kernel | cut -f2 -d " ")
-			MENU_OPTIONS="$MENU_OPTIONS $n ${name}_[$kernel]"
+			MENU_OPTIONS="$MENU_OPTIONS $n ${name} "
 		done < $TMP_MENU_FILE
 
 		whiptail --clear --title "Select your boot option" \
@@ -135,9 +134,11 @@ get_menu_option() {
 
 confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
+		default_text="Make default"
+		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
 		whiptail $BG_COLOR_WARNING --clear --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$option\n\n" 20 120 8 \
-			-- 'y' "Boot $name" 'd' "Make $name the default" \
+			Confirm the boot details for $name:\n\n$(echo $kernel| fold -s -w 80) \n\n" 20 120 8 \
+			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
 		option_confirm=$(cat /tmp/whiptail)
@@ -184,11 +185,13 @@ scan_options() {
 }
 
 save_default_option() {
-	read \
-		-n 1 \
-		-p "Saving a default will modify the disk. Proceed? (Y/n): " \
-		default_confirm
-	echo
+	if [ "$gui_menu" != "y" ]; then
+		read \
+			-n 1 \
+			-p "Saving a default will modify the disk. Proceed? (Y/n): " \
+			default_confirm
+		echo
+	fi
 
 	[ "$default_confirm" = "" ] && default_confirm="y"
 	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
