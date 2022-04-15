@@ -156,6 +156,11 @@ generate_checksums()
         mount -o remount,rw /boot || whiptail_error_die "Unable to mount /boot"
     fi
 
+    #Check if previous TPM Disk unlock Key was set
+    if [ -e /boot/kexec_key_devices.txt ]; then
+        TPM_DISK_ENCRYPTION_KEY_SET=1
+    fi
+
     # clear any existing checksums/signatures
     rm /boot/kexec* 2>/dev/null
 
@@ -181,8 +186,10 @@ generate_checksums()
       echo "0" > /boot/kexec_hotp_counter
     fi 
 
-    # set default boot option
-    set_default_boot_option
+    # set default boot option only if no TPM Disk Unlock Key previously set
+    if [ -z "$TPM_DISK_ENCRYPTION_KEY_SET" ]; then
+        set_default_boot_option
+    fi
 
     # generate hashes
     find /boot -type f ! -name '*kexec*' -print0 \
