@@ -113,6 +113,12 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
+# MD / Software RAID drivers
+linux_modules-$(CONFIG_SWRAID)		+= drivers/md/dm-raid.ko
+linux_modules-$(CONFIG_SWRAID)		+= drivers/md/raid0.ko
+linux_modules-$(CONFIG_SWRAID)		+= drivers/md/raid1.ko
+
+
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 linux_target := \
