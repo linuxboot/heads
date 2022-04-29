@@ -360,7 +360,7 @@ if ! whiptail --yesno "
 $TPM_STR
           * ERASE any keys or passwords on the GPG smart card,\n
             reset it to a factory state, generate new keys\n
-            and optionally set custom PIN(s)
+            and optionally set custom PIN(s)\n
           * Add the new GPG key to the firmware and reflash it\n
           * Sign all of the files in /boot with the new GPG key\n\n
         It requires that you already have an OS installed on a\n
