@@ -1,5 +1,7 @@
 #!/bin/ash
 
+. /etc/functions
+
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
 
@@ -11,6 +13,16 @@ for module in `echo $network_modules`; do
 done
 
 if [ -e /sys/class/net/eth0 ]; then
+	#Randomize eth0 MAC address of maximized boards
+	if echo "$CONFIG_BOARD" | grep -q maximized; then
+		ifconfig eth0 down
+		echo "Generating random MAC address (might take a while)..."
+		mac=$(generate_random_mac_address)
+		echo "Assigning randomly generated MAC: $mac to eth0..."
+		ifconfig eth0 hw ether $mac
+		ifconfig eth0 up
+	fi
+
 	# Set up static IP
 	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
 		ifconfig eth0 $CONFIG_BOOT_STATIC_IP
