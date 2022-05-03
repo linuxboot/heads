@@ -385,6 +385,7 @@ echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ];then
   test_luks_current_disk_recovery_key_passphrase
+  luks_new_Disk_Recovery_Key_desired=1
   echo -e "\n"
 fi
 
@@ -565,14 +566,14 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
 fi
 
 
-if [ -n "$luks_current_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+if [ -n "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
   #Reencryption of disk, disk recovery key and Disk Recovery Key passphrase change is requested
   luks_reencrypt
   luks_change_passphrase
-elif [ -n "$luks_current_Disk_Recovery_Key_passphrase" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+elif [ -n "$luks_new_Disk_Recovery_Key_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
   #Reencryption of disk was requested but not passphrase change
   luks_reencrypt
-elif [ -n "$luks_new_Disk_Recovery_Key_passphrase" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+elif [ -z "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
   #Passphrase change is requested without disk reencryption
   luks_change_passphrase
 fi
