@@ -40,10 +40,11 @@ test_luks_current_disk_recovery_key_passphrase()
 			echo -e "\nEnter current Disk Recovery Key passphrase (Provisioned at OS installation or by OEM):"
 			read -r luks_current_Disk_Recovery_Key_passphrase
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
+			warn "Test opening "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
 			cryptsetup luksOpen $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		else
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Testing opening "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
+			warn "Test opening "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
 			cryptsetup luksOpen $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		fi
 		#Validate past cryptsetup-reencrypt attempts
@@ -81,6 +82,7 @@ while : ; do
 		echo -e "\nEnter current Disk Recovery Key passphrase (Provisioned at OS installation or by OEM):"
 		read -r luks_current_Disk_Recovery_Key_passphrase
 		echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
+		warn "Reencrypting "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
 		cryptsetup-reencrypt -B 64 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 	else
 		echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
