@@ -22,6 +22,9 @@ USER_PIN=""
 ADMIN_PIN=""
 TPM_PASS=""
 
+#Circumvent Librem Key/Nitrokey HOTP firmware bug https://github.com/osresearch/heads/issues/1167
+MAX_HOTP_GPG_PIN_LENGTH=25
+
 # What are the Security components affected by custom passwords
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
@@ -412,9 +415,9 @@ echo
 if [ "$prompt_output" == "y" \
   -o "$prompt_output" == "Y" ] \
 ; then
-  echo -e "\nThe chosen custom password must be at least 8 characters in length.\n"
+  echo -e "\nThe chosen custom password must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
   echo
-  while [[  ${#CUSTOM_SINGLE_PASS} -lt 8 ]] ; do
+  while [[  ${#CUSTOM_SINGLE_PASS} -lt 8 ]] || [[ ${#CUSTOM_SINGLE_PASS} -gt $MAX_HOTP_GPG_PIN_LENGTH ]] ; do
     echo -e -n "Enter the custom password: "
     read CUSTOM_SINGLE_PASS
   done
@@ -442,11 +445,13 @@ else
         read TPM_PASS
       done
     fi
-    while [[  ${#ADMIN_PIN} -lt 8 ]] ; do
+    while [[ ${#ADMIN_PIN} -lt 8 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]] ; do
+      echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
       echo -e -n "Enter desired GPG Admin PIN: "
       read ADMIN_PIN
     done
-    while [[  ${#USER_PIN} -lt 8 ]] ; do
+    while [[  ${#USER_PIN} -lt 8 ]] || [[ ${#USER_PIN} -gt 64 ]]; do
+      echo -e -n "\nThis PIN should be between 8 to 64 characters in length.\n"
       echo -e -n "Enter desired GPG User PIN: "
       read USER_PIN
     done
