@@ -43,6 +43,18 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
+# Check for SWRAID, load modules, set boot dev and assemble arrays
+if [ "$CONFIG_SWRAID" = "y" ]; then
+       swraidmodules="md-mod raid0 raid1"
+       for swraidmodule in `echo $swraidmodules`; do
+               if [ -f /lib/modules/$swraidmodule.ko ]; then
+                       insmod /lib/modules/$swraidmodule.ko
+               fi
+       done
+        export CONFIG_BOOT_DEV="/dev/md/localhost:boot"
+        /bin/mdadm --assemble --scan
+fi
+
 #Specify whiptail background colors cues under FBWhiptail only
 if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
