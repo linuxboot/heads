@@ -25,6 +25,12 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.15"
 	coreboot-blobs_hash := c0e2d8006da226208ba274a44895d102cb2879cf139cc67bba5f62e67b871f6d
 	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.17"
+	coreboot_version := 4.17
+	coreboot_hash := 95da11d1c6a450385101a68799258a398ce965f4e46cce6fe8d5ebd74e50c125
+	coreboot-blobs_hash := a2277fe7a2b2aab5da0aa335158460e00b852382f6736f2179992805702eb607
+	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 

@@ -13,7 +13,7 @@ commands:
           command: |
             ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo unzip
       - run:
           name: Make Board
           command: |
@@ -45,7 +45,7 @@ jobs:
           command: |
             ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime 
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo unzip
       - checkout
 
       - run:
@@ -94,6 +94,11 @@ jobs:
           # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           command: |
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+
+      - run:
+          name: Download and extract xx30 ACM BIOS and SINIT
+          command: |
+            ./blobs/xx30/download_extract_acm.sh
 
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
@@ -332,6 +337,14 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+
+      - build:
+          name: x230-hotp-maximized-acm
+          target: x230-hotp-maximized-acm
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+              
       - build:
           name: t530-hotp-maximized
           target: t530-hotp-maximized
