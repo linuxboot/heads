@@ -2,9 +2,9 @@ modules-$(CONFIG_MBEDTLS) += mbedtls
 
 mbedtls_version := 2.4.2
 mbedtls_dir := mbedtls-$(mbedtls_version)
-mbedtls_tar := mbedtls-$(mbedtls_version)-gpl.tgz
-mbedtls_url := https://tls.mbed.org/download/$(mbedtls_tar)
-mbedtls_hash := d01f2d5586a52055329d194d909103f445bd2d0b6b2b5f1c830fbf828ac6299f
+mbedtls_tar := mbedtls-$(mbedtls_version).tar.gz
+mbedtls_url := https://github.com/ARMmbed/mbedtls/archive/$(mbedtls_tar)
+mbedtls_hash := b7afab6a0f86e29c6055848b70d183c4e2531cb0ec955b66c0e4e1b7e4954bf4
 
 mbedtls_libraries := library/libmbedcrypto.so.0
 
