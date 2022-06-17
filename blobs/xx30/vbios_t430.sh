@@ -61,7 +61,7 @@ echo "### Extracting bios update"
 innoextract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"$BIOSUPDATE" || { echo "Failed to extract $BIOSUPDATE" && exit 1; }
 
 echo "### Finding, extracting and saving vbios"
-sudo ./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"app/G?ETB?WW/\$01D5?00.FL1" || { echo "Failed to extract FL1" && exit 1; }
+sudo ./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"app/G1ETC2WW/\$01D2000.FL1" || { echo "Failed to extract FL1" && exit 1; }
 
 echo "Verifying expected hash of extracted roms"
 cd output
