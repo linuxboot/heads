@@ -192,21 +192,13 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Prerequisites
-      - build_and_persist:
-          name: bootstrap_musl-cross-make
-          target: x230-hotp-maximized
-          subcommand: bootstrap musl-cross
-          requires:
-            - prep_env
-
       # Coreboot 4.13
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
           subcommand: ""
           requires:
-            - bootstrap_musl-cross-make
+            - prep_env
 
       # Coreboot 4.15
       - build_and_persist:
@@ -217,18 +209,18 @@ workflows:
             - x230-hotp-maximized
 
       # Coreboot 4.11
-      - build_and_persist:
-          name: kgpe-d16_workstation
-          target: kgpe-d16_workstation
-          subcommand: ""
-          requires:
-            - librem_14
+#      - build_and_persist:
+#          name: librem_l1um 
+#          target: librem_l1um
+#          subcommand: ""
+#          requires:
+#            - librem_14
 
       #Cache one workspace per Coreboot version, ideally the boards including the highest number of modules, since not rebuilt across builds.
       #Below, 4.11, 4.13, 4.15
       - save_cache:
           requires:
-            - kgpe-d16_workstation
+            - librem_15v4
 
 #
 #
@@ -473,33 +465,33 @@ workflows:
           requires:
             - librem_14
 
-      - build:
-          name: kgpe-d16_workstation-usb_keyboard
-          target: kgpe-d16_workstation-usb_keyboard
-          subcommand: ""
-          requires:
-            - kgpe-d16_workstation
+#      - build:
+#          name: kgpe-d16_workstation-usb_keyboard
+#          target: kgpe-d16_workstation-usb_keyboard
+#          subcommand: ""
+#          requires:
+#            - kgpe-d16_workstation
 
-      - build:
-          name: kgpe-d16_server
-          target: kgpe-d16_server
-          subcommand: ""
-          requires:
-            - kgpe-d16_workstation
+#      - build:
+#          name: kgpe-d16_server
+#          target: kgpe-d16_server
+#          subcommand: ""
+#          requires:
+#            - kgpe-d16_workstation
 
-      - build:
-          name: kgpe-d16_server-whiptail
-          target: kgpe-d16_server-whiptail
-          subcommand: ""
-          requires:
-            - kgpe-d16_workstation
+#      - build:
+#          name: kgpe-d16_server-whiptail
+#          target: kgpe-d16_server-whiptail
+#          subcommand: ""
+#          requires:
+#            - kgpe-d16_workstation
 
-      - build:
-          name: librem_l1um
-          target: librem_l1um
-          subcommand: ""
-          requires:
-            - kgpe-d16_workstation
+#      - build:
+#          name: librem_l1um
+#          target: librem_l1um
+#          subcommand: ""
+#          requires:
+#            - librem_14
 
 ########################
 ########################
