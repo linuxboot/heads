@@ -42,107 +42,6 @@ WGET ?= wget
 # Timestamps should be in ISO format
 DATE=`date --rfc-3339=seconds`
 
-# Check that we have a correct version of make
-# that matches at least the major version
-LOCAL_MAKE_VERSION := $(shell $(MAKE) --version | head -1 | cut -d' ' -f3)
-include modules/make
-
-# Check we have a suitable version of gawk
-# that's at least the same major version
-LOCAL_GAWK_VERSION := $(shell gawk --version 2>/dev/null | head -1 | cut -d' ' -f3 | cut -d, -f1)
-LOCAL_GAWK_MAJOR_VERSION := $(patsubst .%,.,$(LOCAL_GAWK_VERSION))
-include modules/gawk
-
-ifeq "" "$(filter $(make_version)%,$(LOCAL_MAKE_VERSION))"
-# This is incorrect local version of make
-# Wrong make version detected -- build our local version
-# and re-invoke the Makefile with it instead.
-$(eval $(shell echo >&2 "$(DATE) Wrong OS deployed make detected: $(LOCAL_MAKE_VERSION). Building and using $(make_version)..." ))
-HEADS_MAKE := $(build)/$(make_dir)/make
-
-# How to download and build the correct version of make
-$(packages)/$(make_tar):
-	$(WGET) -O "$@.tmp" "$(make_url)"
-	if ! echo "$(make_hash)  $@.tmp" | sha256sum --check -; then \
-		exit 1 ; \
-	fi
-	mv "$@.tmp" "$@"
-
-$(build)/$(make_dir)/.extract: $(packages)/$(make_tar)
-	tar xf "$<" -C "$(build)"
-	touch "$@"
-
-$(build)/$(make_dir)/.patch: $(build)/$(make_dir)/.extract
-	( cd "$(dir $@)" ; patch -p1 ) < "patches/make-$(make_version).patch"
-	touch "$@"
-
-$(build)/$(make_dir)/.configured: $(build)/$(make_dir)/.patch
-	cd "$(dir $@)" ; \
-	./configure 2>&1 \
-	| tee "$(log_dir)/make.configure.log" \
-	$(VERBOSE_REDIRECT)
-	touch "$@"
-
-$(HEADS_MAKE): $(build)/$(make_dir)/.configured
-	make -C "$(dir $@)" $(MAKE_JOBS) \
-		2>&1 \
-		| tee "$(log_dir)/make.log" \
-		$(VERBOSE_REDIRECT)
-
-# Once we have a proper Make, we can just pass arguments into it
-all linux cpio run: $(HEADS_MAKE)
-        LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $(MAKE_JOBS) $@
-%.clean %.vol %.menuconfig: $(HEADS_MAKE)
-        LANG=C MAKE=$(HEADS_MAKE) $(HEADS_MAKE) $@
-
-bootstrap: $(HEADS_MAKE)
-endif
-
-# Wrong gawk version
-ifeq "" "$(filter $(LOCAL_GAWK_MAJOR_VERSION)%,$(gawk_version))"
-# Wrong gawk version detected -- build our local version
-# and re-invoke the Makefile with it instead.
-$(eval $(shell echo >&2 "$(DATE) Wrong OS deployed gawk detected: $(LOCAL_GAWK_VERSION). Building and using $(gawk_version)..."))
-HEADS_GAWK := $(build)/$(gawk_dir)/gawk
-
-# How to download and build the correct version of gawk
-$(packages)/$(gawk_tar):
-	$(WGET) -O "$@.tmp" "$(gawk_url)"
-	if ! echo "$(gawk_hash)  $@.tmp" | sha256sum --check -; then \
-		exit 1 ; \
-	fi
-	mv "$@.tmp" "$@"
-
-$(build)/$(gawk_dir)/.extract: $(packages)/$(gawk_tar)
-	tar xf "$<" -C "$(build)"
-	touch "$@"
-
-$(build)/$(gawk_dir)/.patch: $(build)/$(gawk_dir)/.extract
-#	( cd "$(dir $@)" ; patch -p1 ) < "patches/gawk-$(gawk_version).patch"
-	touch "$@"
-
-$(build)/$(gawk_dir)/.configured: $(build)/$(gawk_dir)/.patch
-	cd "$(dir $@)" ; \
-	./configure 2>&1 \
-	| tee "$(log_dir)/gawk.configure.log" \
-	$(VERBOSE_REDIRECT)
-	touch "$@"
-
-$(HEADS_GAWK): $(build)/$(gawk_dir)/.configured
-	$(MAKE) -C "$(dir $@)" $(MAKE_JOBS) \
-		2>&1 \
-		| tee "$(log_dir)/gawk.log" \
-		$(VERBOSE_REDIRECT)
-
-# Once we have a suitable version of gawk, we can rerun make
-all linux cpio run: $(HEADS_GAWK)
-	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $(MAKE_JOBS) $@
-%.clean %.vol %.menuconfig: $(HEADS_GAWK)
-	LANG=C HEADS_GAWK=$(HEADS_GAWK) $(MAKE) $@
-
-bootstrap: $(HEADS_GAWK)
-endif
-
 BOARD		?= qemu-coreboot
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
@@ -224,20 +123,6 @@ CROSS_TOOLS_NOCC := \
 	OBJDUMP="$(CROSS)objdump" \
 	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
 	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
-
-ifneq "$(HEADS_GAWK)" ""
-CROSS_TOOLS_NOCC += AWK=$(HEADS_GAWK)
-endif
-
-ifneq "$(HEADS_MAKE)" ""
-MAKE=$(HEADS_MAKE)
-endif
-
-#Some debugging info in link with locally built versions and usage for the rest Heads build:
-$(eval $(shell echo >&2 "$(DATE) Local built HEADS_GAWK only if different then provided by OS: $(HEADS_GAWK)")) 
-$(eval $(shell echo >&2 "$(DATE) Local built HEADS_MAKE only if different then provided by OS: $(HEADS_MAKE)")) 
-$(eval $(shell echo >&2 "$(DATE) Heads build system will call make from now on as: MAKE: $(MAKE)." ))
-
 
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \
