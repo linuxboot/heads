@@ -9,8 +9,10 @@ GIT_STATUS	:= $(shell \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --tags --dirty)
 
-CB_OUTPUT_FILE		:= heads-$(BOARD)-$(HEADS_GIT_VERSION).rom
-CB_BOOTBLOCK_FILE	:= heads-$(BOARD)-$(HEADS_GIT_VERSION).bootblock
+CB_OUTPUT_BASENAME	:= heads-$(BOARD)-$(HEADS_GIT_VERSION)
+CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
+CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
+CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
 LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
 
 all:
@@ -579,6 +581,18 @@ modules.clean:
 		$(MAKE) -C "build/$$dir" clean ; \
 		rm "build/$$dir/.configured" ; \
 	done
+
+# Inject a GPG key into the image - this is most useful when testing in qemu,
+# since we can't reflash the firmware in qemu to update the keychain.  Instead,
+# inject the public key ahead of time.  Specify the location of the key with
+# PUBKEY_ASC.
+inject_gpg: $(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)
+
+$(build)/$(BOARD)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
+	cp "$(build)/$(BOARD)/$(CB_OUTPUT_FILE)" \
+		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)"
+	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
+		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
 
 real.clean:
 	for dir in \
