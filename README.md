@@ -70,11 +70,18 @@ Notes:
 * Building coreboot's cross compilers can take a while.  Luckily this is only done once.
 * Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
 * Currently only tested in QEMU, the Thinkpad x230, Librem series and the Chell Chromebook.
-** Xen and the TPM do not work in QEMU, so it is only for testing the `initrd` image.
+** Xen does not work in QEMU.  Signing, HOTP, and TOTP do work; see below.
 * Building for the Lenovo X220 requires binary blobs to be placed in the blobs/x220/ folder.
 See the readme.md file in that folder
 * Building for the Librem 13 v2/v3 or Librem 15 v3/v4 requires binary blobs to be placed in
 the blobs/librem_skl folder. See the readme.md file in that folder
+
+QEMU:
+---
+
+OS booting can be tested in QEMU using a software TPM.  HOTP can be tested by forwarding a USB token from the host to the guest.
+
+For more information and setup instructions, refer to the [qemu-coreboot-fbwhiptail-tpm1-hotp documentation](boards/qemu-coreboot-fbwhiptail-tpm1-hotp/qemu-coreboot-fbwhiptail-tpm1-hotp.md).
 
 coreboot console messages
 ---
