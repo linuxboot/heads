@@ -1,0 +1,21 @@
+modules-$(CONFIG_NVMUTIL) += nvmutil
+
+nvmutil_depends := $(musl_dep)
+
+nvmutil_version := 20220815
+nvmutil_dir := nvmutil-tools-$(nvmutil_version)
+nvmutil_tar := $(nvmutil_version).tar.gz
+nvmutil_url := https://notabug.org/osboot/nvmutil/archive/$(nvmutil_tar)
+nvmutil_hash := f990081eec798dc632b5060c5d5f4ee448a59e0a6b9214a9e78413a91b80f9e5
+
+nvmutil_target := \
+	$(CROSS_TOOLS) \
+	CFLAGS="-I$(INSTALL)/include" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+
+nvmutil_output := \
+	nvm \
+
+nvmutil_libraries := \
+
+nvmutil_configure := 
