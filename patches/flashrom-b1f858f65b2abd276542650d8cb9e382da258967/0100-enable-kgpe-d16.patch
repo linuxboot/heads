@@ -1,8 +1,8 @@
 diff --git a/Makefile b/Makefile
-index 7242b09..c2fb32e 100644
+index e475cbdb..27197f08 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -236,6 +236,16 @@ UNSUPPORTED_FEATURES += CONFIG_GFXNVIDIA=yes
+@@ -263,6 +263,16 @@ UNSUPPORTED_FEATURES += CONFIG_GFXNVIDIA=yes
  else
  override CONFIG_GFXNVIDIA = no
  endif
@@ -19,7 +19,7 @@ index 7242b09..c2fb32e 100644
  ifeq ($(CONFIG_SATASII), yes)
  UNSUPPORTED_FEATURES += CONFIG_SATASII=yes
  else
-@@ -492,6 +502,16 @@ UNSUPPORTED_FEATURES += CONFIG_GFXNVIDIA=yes
+@@ -565,6 +575,16 @@ UNSUPPORTED_FEATURES += CONFIG_GFXNVIDIA=yes
  else
  override CONFIG_GFXNVIDIA = no
  endif
@@ -36,7 +36,7 @@ index 7242b09..c2fb32e 100644
  ifeq ($(CONFIG_SATASII), yes)
  UNSUPPORTED_FEATURES += CONFIG_SATASII=yes
  else
-@@ -616,6 +636,12 @@ CONFIG_NIC3COM ?= yes
+@@ -692,6 +712,12 @@ CONFIG_NIC3COM ?= yes
  # Enable NVIDIA graphics cards. Note: write and erase do not work properly.
  CONFIG_GFXNVIDIA ?= yes
  
@@ -49,7 +49,7 @@ index 7242b09..c2fb32e 100644
  # Always enable SiI SATA controllers for now.
  CONFIG_SATASII ?= yes
  
-@@ -728,6 +754,8 @@ ifeq ($(CONFIG_ENABLE_LIBPCI_PROGRAMMERS), no)
+@@ -819,6 +845,8 @@ ifeq ($(CONFIG_ENABLE_LIBPCI_PROGRAMMERS), no)
  override CONFIG_INTERNAL = no
  override CONFIG_NIC3COM = no
  override CONFIG_GFXNVIDIA = no
@@ -58,7 +58,7 @@ index 7242b09..c2fb32e 100644
  override CONFIG_SATASII = no
  override CONFIG_ATAHPT = no
  override CONFIG_ATAVIA = no
-@@ -840,6 +868,18 @@ PROGRAMMER_OBJS += gfxnvidia.o
+@@ -946,6 +974,18 @@ PROGRAMMER_OBJS += gfxnvidia.o
  NEED_LIBPCI += CONFIG_GFXNVIDIA
  endif
  
@@ -79,7 +79,7 @@ index 7242b09..c2fb32e 100644
  PROGRAMMER_OBJS += satasii.o
 diff --git a/ast1100.c b/ast1100.c
 new file mode 100644
-index 0000000..c7474e5
+index 00000000..c7474e5d
 --- /dev/null
 +++ b/ast1100.c
 @@ -0,0 +1,420 @@
@@ -505,7 +505,7 @@ index 0000000..c7474e5
 +}
 diff --git a/ast2400.c b/ast2400.c
 new file mode 100644
-index 0000000..761a38d
+index 00000000..761a38d4
 --- /dev/null
 +++ b/ast2400.c
 @@ -0,0 +1,425 @@
@@ -935,10 +935,10 @@ index 0000000..761a38d
 +	return 0;
 +}
 diff --git a/flashchips.c b/flashchips.c
-index 58dd4f3..719185b 100644
+index 7d10abf5..7d4b3ee8 100644
 --- a/flashchips.c
 +++ b/flashchips.c
-@@ -12273,7 +12273,7 @@ const struct flashchip flashchips[] = {
+@@ -12388,7 +12388,7 @@ const struct flashchip flashchips[] = {
  		.total_size	= 1024,
  		.page_size	= 256,
  		.feature_bits	= FEATURE_WRSR_WREN,
@@ -947,7 +947,7 @@ index 58dd4f3..719185b 100644
  		.probe		= probe_spi_rdid,
  		.probe_timing	= TIMING_ZERO,
  		.block_erasers	=
-@@ -16659,11 +16659,20 @@ const struct flashchip flashchips[] = {
+@@ -16774,11 +16774,20 @@ const struct flashchip flashchips[] = {
  		.block_erasers	=
  		{
  			{
@@ -969,7 +969,7 @@ index 58dd4f3..719185b 100644
  				.eraseblocks = { {64 * 1024, 512} },
  				.block_erase = spi_block_erase_d8,
 diff --git a/flashrom.c b/flashrom.c
-index e540027..75bfd89 100644
+index c18a04fc..42ce989a 100644
 --- a/flashrom.c
 +++ b/flashrom.c
 @@ -6,6 +6,7 @@
@@ -980,7 +980,7 @@ index e540027..75bfd89 100644
   * (Written by Nico Huber <nico.huber@secunet.com> for secunet)
   *
   * This program is free software; you can redistribute it and/or modify
-@@ -133,6 +134,30 @@ const struct programmer_entry programmer_table[] = {
+@@ -157,6 +158,30 @@ const struct programmer_entry programmer_table[] = {
  	},
  #endif
  
@@ -1012,7 +1012,7 @@ index e540027..75bfd89 100644
  	{
  		.name			= "drkaiser",
 diff --git a/pcidev.c b/pcidev.c
-index 54c1fd3..97c8c1f 100644
+index e13b78ce..4af1c556 100644
 --- a/pcidev.c
 +++ b/pcidev.c
 @@ -33,11 +33,13 @@ enum pci_bartype {
@@ -1052,7 +1052,7 @@ index 54c1fd3..97c8c1f 100644
  	case TYPE_IOBAR:
  		msg_pdbg("I/O\n");
 diff --git a/programmer.h b/programmer.h
-index 3cf53b9..7be47d1 100644
+index 9a7892d7..192bff1e 100644
 --- a/programmer.h
 +++ b/programmer.h
 @@ -5,6 +5,7 @@
@@ -1073,10 +1073,10 @@ index 3cf53b9..7be47d1 100644
 +#if CONFIG_AST2400 == 1
 +	PROGRAMMER_AST2400,
 +#endif
- #if CONFIG_DRKAISER == 1
- 	PROGRAMMER_DRKAISER,
+ #if CONFIG_RAIDEN == 1
+ 	PROGRAMMER_RAIDEN,
  #endif
-@@ -401,6 +408,18 @@ int gfxnvidia_init(void);
+@@ -416,6 +423,18 @@ int gfxnvidia_init(void);
  extern const struct dev_entry gfx_nvidia[];
  #endif
  
@@ -1092,6 +1092,6 @@ index 3cf53b9..7be47d1 100644
 +extern const struct dev_entry bmc_aspeed_ast2400[];
 +#endif
 +
- /* drkaiser.c */
- #if CONFIG_DRKAISER == 1
- int drkaiser_init(void);
+ /* raiden_debug_spi.c */
+ #if CONFIG_RAIDEN == 1
+ int raiden_debug_spi_init(void);
