@@ -41,7 +41,7 @@ $(build)/$(linux_dir)/.configured: $(linux_kconfig)
 
 linux_configure := \
 	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(call install_config,$(pwd)/$(linux_kconfig),$(build)/$(linux_dir)/.config) \
 	&& $(MAKE) -C .. \
 		CROSS_COMPILE="$(CROSS)" \
 		O="$(build)/$(linux_dir)" \
