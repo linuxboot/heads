@@ -153,6 +153,13 @@ all:
 .SUFFIXES:
 FORCE:
 
+# Copies config while replacing predefined placeholders with actual values
+define install_config =
+	sed -e 's!@BOARD_BUILD_DIR@!$(build)/$(BOARD)!g' \
+	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
+	    "$1" > "$2"
+endef
+
 # Make helpers to operate on lists of things
 # Prefix is "smart" and doesn't add the prefix for absolute file paths
 define prefix =
