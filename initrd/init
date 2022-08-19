@@ -43,6 +43,13 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
+# set CONFIG_TPM dynamically before init
+if [ -e /dev/tpm0 ]; then
+	CONFIG_TPM='y'
+else
+	CONFIG_TPM='n'
+fi
+
 #Specify whiptail background colors cues under FBWhiptail only
 if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
@@ -96,6 +103,12 @@ if [ "$boot_option" = "r" ]; then
 	exec /bin/ash
 	exit
 fi
+
+# Override CONFIG_TPM from /etc/config with runtime value determined above.
+#
+# Values in user config have higher priority during combining thus effectively
+# changing the value for the rest of the scripts which source /tmp/config.
+echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
 
 combine_configs
 . /tmp/config
