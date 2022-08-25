@@ -18,15 +18,9 @@ LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
 all:
 -include .config
 
-ifneq "$(TOOLCHAIN)" ""
-$(info Using $(TOOLCHAIN) for cross compiler and packages)
-packages	?= $(TOOLCHAIN)/packages
-CROSS		:= $(TOOLCHAIN)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
-endif
-
 modules-y 	:=
 pwd 		:= $(shell pwd)
-packages 	?= $(pwd)/packages
+packages 	:= $(pwd)/packages
 build		:= $(pwd)/build
 config		:= $(pwd)/config
 INSTALL		:= $(pwd)/install
