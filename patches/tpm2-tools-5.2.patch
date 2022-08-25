@@ -1,0 +1,21 @@
+diff --git a/Makefile.am b/Makefile.am
+index c58f0f34..a2bade09 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -93,7 +93,7 @@ tss2_tools = \
+ 
+ # Bundle all the tools into a single program similar to busybox
+ bin_PROGRAMS += tools/tpm2
+-tools_tpm2_LDADD = $(LDADD) $(CURL_LIBS)
++tools_tpm2_LDADD = $(LDADD)
+ tools_tpm2_CFLAGS = $(AM_CFLAGS) -DTPM2_TOOLS_MAX="$(words $(tpm2_tools))"
+ tools_tpm2_SOURCES = \
+ 	tools/tpm2_tool.c \
+@@ -127,7 +127,6 @@ tpm2_tools = \
+     tools/tpm2_encryptdecrypt.c \
+     tools/tpm2_evictcontrol.c \
+     tools/tpm2_flushcontext.c \
+-    tools/tpm2_getekcertificate.c \
+     tools/tpm2_getrandom.c \
+     tools/tpm2_gettime.c \
+     tools/tpm2_hash.c \

@@ -38,19 +38,21 @@ if [ "$counter_value" == "" ]; then
 fi
 
 #counter_value=$(printf "%d" 0x${counter_value})
+if [ "$CONFIG_TPM" = "y" ]; then
+	tpm nv_readvalue \
+		-in 4d47 \
+		-sz 312 \
+		-of "$HOTP_SEALED" \
+		|| die "Unable to retrieve sealed file from TPM NV"
 
-tpm nv_readvalue \
-	-in 4d47 \
-	-sz 312 \
-	-of "$HOTP_SEALED" \
-|| die "Unable to retrieve sealed file from TPM NV"
-
-tpm unsealfile  \
-	-hk 40000000 \
-	-if "$HOTP_SEALED" \
-	-of "$HOTP_SECRET" \
-|| die "Unable to unseal HOTP secret"
-
+	tpm unsealfile  \
+		-hk 40000000 \
+		-if "$HOTP_SEALED" \
+		-of "$HOTP_SECRET" \
+		|| die "Unable to unseal HOTP secret"
+elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	tpmr unseal 0x81004d47 sha256:0,1,2,3,4,7 >> "$HOTP_SECRET"
+fi
 shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then

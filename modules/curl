@@ -1,0 +1,71 @@
+# cURL and libcurl
+modules-$(CONFIG_CURL) += curl
+
+curl_depends := openssl zlib $(musl_dep)
+
+curl_version := 7.83.1
+curl_dir := curl-$(curl_version)
+curl_tar := curl-$(curl_version).tar.xz
+curl_url := https://curl.se/download/$(curl_tar)
+curl_hash := 2cb9c2356e7263a1272fd1435ef7cdebf2cd21400ec287b068396deb705c22c4
+
+curl_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host $(target) \
+	--prefix "/" \
+	--with-openssl \
+	--enable-optimize \
+	--disable-ares \
+	--disable-rt \
+	--disable-ech \
+	--disable-dependency-tracking \
+	--enable-shared \
+	--disable-static \
+	--enable-http \
+	--disable-ftp \
+	--enable-file \
+	--disable-ldap \
+	--disable-ldaps \
+	--disable-rtsp \
+	--enable-proxy \
+	--disable-dict \
+	--enable-telnet	\
+	--enable-tftp \
+	--disable-pop3 \
+	--disable-imap \
+	--disable-smb \
+	--disable-smtp \
+	--disable-gopher \
+	--disable-mqtt \
+	--enable-manual \
+	--disable-libcurl-option \
+	--enable-openssl-auto-load-config \
+	--enable-versioned-symbols \
+	--disable-threaded-resolver \
+	--disable-sspi \
+	--enable-crypto-auth \
+	--disable-ntlm \
+	--enable-tls-srp \
+	--enable-unix-sockets \
+	--enable-cookies \
+	--enable-socketpair \
+	--enable-http-auth \
+	--enable-doh \
+	--enable-mime \
+	--enable-dateparse \
+	--enable-netrc \
+	--enable-progress-meter \
+	--disable-dnsshuffle \
+	--enable-get-easy-options \
+	--enable-alt-svc \
+	--enable-headers-api \
+	--enable-hsts \
+
+curl_target := $(MAKE_JOBS) \
+	&& $(MAKE) -C $(build)/$(curl_dir) \
+		DESTDIR="$(INSTALL)" \
+		install
+
+curl_libraries := lib/.libs/libcurl.so.4
+
+curl_output := src/.libs/curl

@@ -57,7 +57,7 @@ die() {
 	exit 1
 }
 
-whiptail_error() 
+whiptail_error()
 {
     local msg=$1
     if [ "$msg" = "" ]; then
@@ -66,7 +66,7 @@ whiptail_error()
     whiptail $BG_COLOR_ERROR --msgbox "${msg}\n\n" $HEIGHT $WIDTH $BG_COLOR_ERROR --title "Error"
 }
 
-whiptail_error_die() 
+whiptail_error_die()
 {
     whiptail_error "$@"
     die
@@ -131,11 +131,11 @@ gpg_key_reset()
         echo ${USER_PIN_DEF}
         echo 0
         echo y
-        echo ${GPG_USER_NAME} 
+        echo ${GPG_USER_NAME}
         echo ${GPG_USER_MAIL}
         echo ${GPG_USER_COMMENT}
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null 
+        > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
@@ -159,7 +159,7 @@ gpg_key_change_pin()
         echo q
         echo q
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null 
+        > /tmp/gpg_card_edit_output 2>/dev/null
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output | fold -s`
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
@@ -184,26 +184,28 @@ generate_checksums()
     rm /boot/kexec* 2>/dev/null
 
     # create Heads TPM counter
-    if [ "$CONFIG_TPM" = "y" ]; then
-      tpm counter_create \
-          -pwdo "$TPM_PASS" \
-          -pwdc '' \
-          -la -3135106223 \
-          | tee /tmp/counter \
-          || whiptail_error_die "Unable to create TPM counter"
-      TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
+    if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+	    if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+		    tpmr counter_create \
+			 -pwdo "$TPM_PASS_DEF" \
+			 -pwdc '' \
+			 -la -3135106223 \
+			    | tee /tmp/counter \
+			    || whiptail_error_die "Unable to create TPM counter"
+		    TPM_COUNTER=`cut -d: -f1 < /tmp/counter`
 
-      # increment TPM counter
-      increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
-          || whiptail_error_die "Unable to increment tpm counter"
+		    # increment TPM counter
+		    increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 \
+			    || whiptail_error_die "Unable to increment tpm counter"
 
-      # create rollback file
-      sha256sum /tmp/counter-$TPM_COUNTER > /boot/kexec_rollback.txt 2>/dev/null \
-          || whiptail_error_die "Unable to create rollback file"
-    else
-      ## needs to exist for initial call to unseal-hotp
-      echo "0" > /boot/kexec_hotp_counter
-    fi 
+		    # create rollback file
+		    sha256sum /tmp/counter-$TPM_COUNTER > /boot/kexec_rollback.txt 2>/dev/null \
+			    || whiptail_error_die "Unable to create rollback file"
+	    else
+		    ## needs to exist for initial call to unseal-hotp
+		    echo "0" > /boot/kexec_hotp_counter
+	    fi
+    fi
 
     # set default boot option only if no TPM Disk Unlock Key previously set
     if [ -z "$TPM_DISK_ENCRYPTION_KEY_SET" ]; then
@@ -370,7 +372,7 @@ else
 fi
 
 # show warning prompt
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
     TPM_STR="          * ERASE the TPM and own it with a password\n"
 else
     TPM_STR=""
@@ -612,10 +614,12 @@ if [ "$CONFIG_TPM" = "y" ]; then
       echo $TPM_PASS
       echo $TPM_PASS
   } | /bin/tpm-reset >/dev/null 2>/tmp/error
-  if [ $? -ne 0 ]; then
-      ERROR=$(tail -n 1 /tmp/error | fold -s)
-      whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
-  fi
+elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	tpmr reset
+fi
+if [ $? -ne 0 ]; then
+	ERROR=$(tail -n 1 /tmp/error | fold -s)
+	whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
 fi
 
 # clear local keyring

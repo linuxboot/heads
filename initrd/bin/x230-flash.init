@@ -14,7 +14,7 @@ insmod /lib/modules/xhci-pci.ko
 insmod /lib/modules/e1000e.ko
 insmod /lib/modules/usb-storage.ko
 
-tpm extend -ix 4 -ic recovery
+tpmr extend -ix 4 -ic recovery
 sleep 2
 
 echo '***** Starting recovery shell'
