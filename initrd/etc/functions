@@ -41,8 +41,8 @@ recovery() {
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
 
-	if [ "$CONFIG_TPM" = y ]; then
-		tpm extend -ix 4 -ic recovery
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpmr extend -ix 4 -ic recovery
 	fi
 
 	while [ true ]
@@ -65,7 +65,11 @@ pause_recovery() {
 }
 
 pcrs() {
-	head -8 /sys/class/tpm/tpm0/pcrs
+	if [ "$CONFIG_TPM" = "y" ]; then
+		head -8 /sys/class/tpm/tpm0/pcrs
+	elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpm2 pcrread sha256
+	fi
 }
 
 confirm_totp()
@@ -81,7 +85,7 @@ confirm_totp()
 		date=`date "+%Y-%m-%d %H:%M:%S"`
 		seconds=`date "+%s"`
 		half=`expr \( $seconds % 60 \) / 30`
-		if [ "$CONFIG_TPM" != y ]; then
+		if [ "$CONFIG_TPM" != "y" -a "$CONFIG_TPM2_TOOLS" != "y" ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then
 			last_half=$half;
@@ -249,7 +253,7 @@ check_tpm_counter()
 		warn "$1 does not exist; creating new TPM counter"
 		read -s -p "TPM Owner password: " tpm_password
 		echo
-		tpm counter_create \
+		tpmr counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \
 			-la $LABEL \
@@ -266,14 +270,14 @@ check_tpm_counter()
 read_tpm_counter()
 {
 	TRACE "Under /etc/functions:read_tpm_counter"
-	tpm counter_read -ix "$1" | tee "/tmp/counter-$1" \
+	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" \
 	|| die "Counter read failed"
 }
 
 increment_tpm_counter()
 {
 	TRACE "Under /etc/functions:increment_tpm_counter"
-	tpm counter_increment -ix "$1" -pwdc '' \
+	tpmr counter_increment -ix "$1" -pwdc '' \
 		| tee /tmp/counter-$1 \
 	|| die "Counter increment failed"
 }
@@ -358,8 +362,10 @@ update_checksums()
 
 	# sign and auto-roll config counter
 	extparam=
-	if [ "$CONFIG_TPM" = "y" ]; then
-		extparam=-r
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			extparam=-r
+		fi
 	fi
 	if ! kexec-sign-config -p /boot -u $extparam ; then
 		rv=1

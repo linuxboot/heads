@@ -1,0 +1,212 @@
+#!/bin/sh
+# TPM Wrapper - to unify tpm and tpm2 subcommands
+
+. /etc/functions
+
+SECRET_DIR="/tmp/secret"
+PRIMARY_HANDLE="0x81000000"
+ENC_SESSION_FILE="enc.ctx"
+DEC_SESSION_FILE="dec.ctx"
+PRIMARY_HANDLE_FILE="primary.handle"
+
+set -e -o pipefail
+if [ -r "/tmp/config" ]; then
+	. /tmp/config
+else
+	. /etc/config
+fi
+
+# tpm1 does not need to convert options
+if [ "$CONFIG_TPM" = "y" ]; then
+	exec tpm "$@"
+fi
+
+if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+	echo >&2 "No TPM2!"
+	exit 1
+fi
+
+tpm2_extend() {
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			-ic)
+				hash="`echo $2|sha256sum|cut -d' ' -f1`"
+				shift 2;;
+			-if)
+				hash="`sha256sum $2|cut -d' ' -f1`"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	tpm2 pcrextend "$index:sha256=$hash"
+	exec tpm2 pcrread "sha256:$index"
+}
+
+tpm2_counter_read() {
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	echo "$index: `tpm2 nvread 0x$index | xxd -pc8`"
+}
+
+tpm2_counter_inc() {
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			-pwdc)
+				pwd="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	tpm2 nvincrement "0x$index" > /dev/console
+	echo "$index: `tpm2 nvread 0x$index | xxd -pc8`"
+}
+
+tpm2_counter_cre() {
+	while true; do
+		case "$1" in
+			-pwdo)
+				pwdo="$2"
+				shift 2;;
+			-pwdof)
+				pwdo="file:$2"
+				shift 2;;
+			-pwdc)
+				pwd="$2"
+				shift 2;;
+			-la)
+				label="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	rand_index="1`dd if=/dev/urandom bs=1 count=3 | xxd -pc3`"
+	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" -P "$pwdo" "0x$rand_index" > /dev/console
+	echo "$rand_index: (valid after an increment)"
+}
+
+tpm2_startsession() {
+	mkdir -p "$SECRET_DIR"
+	tpm2 flushcontext \
+		--transient-object \
+		|| die "tpm2_flushcontext: unable to flush transient handles"
+
+	tpm2 flushcontext \
+		--loaded-session \
+		|| die "tpm2_flushcontext: unable to flush sessions"
+
+	tpm2 flushcontext \
+		--saved-session \
+		|| die "tpm2_flushcontext: unable to flush saved session"
+	tpm2 readpublic -c "$PRIMARY_HANDLE" -t "/tmp/$PRIMARY_HANDLE_FILE"
+	tpm2 startauthsession -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$ENC_SESSION_FILE"
+	tpm2 startauthsession -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$DEC_SESSION_FILE"
+	tpm2 sessionconfig --disable-encrypt "/tmp/$DEC_SESSION_FILE"
+}
+
+tpm2_sealfile() {
+	#TODO remove this: tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
+	file="$1" #$KEY_FILE
+	handle="$2" # 0x8100000$TPM_INDEX
+	pcrl="$3" #sha256:0,1,2,3,4,5,6,7
+	pcrf="$4"
+	pass="$5"
+	mkdir -p "$SECRET_DIR"
+	bname="`basename $file`"
+	tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy"
+	if [ "$pass" ];then
+		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE" -p "$pass"
+	else
+		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE"
+	fi
+	tpm2 load -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
+	read -s -p "New TPM owner password: " key_password
+	# remove possible data occupying this handle
+	tpm2 evictcontrol -C o -P "$key_password" -c "$handle" 2>/dev/null || true
+	tpm2 evictcontrol -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle" 
+}
+
+tpm2_unseal() {
+	#TODO: remove this: tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
+	handle="$1"
+	pcrl="$2"
+	pass="$3"
+	echo "debug handle: $handle prcl: $pcrl pass $pass" 
+	if [ "$pass" ];then
+		tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl+$pass"
+	else
+		tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl"
+	fi
+}
+
+tpm2_reset() {
+	echo '*****'
+	echo '***** WARNING: This will erase all keys and secrets from the TPM'
+	echo '*****'
+
+	read -s -p "New TPM owner password: " key_password
+	echo
+
+	if [ -z "$key_password" ]; then
+		die "Empty owner password is not allowed"
+	fi
+
+	read -s -p "Repeat owner password: " key_password2
+	echo
+
+
+	if [ "$key_password" != "$key_password2" ]; then
+		die "Key passwords do not match"
+	fi
+	mkdir -p "$SECRET_DIR"
+	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
+	tpm2 changeauth -c owner "$key_password"
+	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" -c "$SECRET_DIR/primary.ctx" -P "$key_password"
+	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" -P "$key_password"
+	shred -u "$SECRET_DIR/primary.ctx"
+	tpm2_startsession
+}
+subcmd="$1"
+shift 1
+case "$subcmd" in
+	extend)
+		tpm2_extend "$@";;
+	counter_read)
+		tpm2_counter_read "$@";;
+	counter_increment)
+		tpm2_counter_inc "$@";;
+	counter_create)
+		tpm2_counter_cre "$@";;
+	nv_definespace)
+		tpm2_nvdef "$@";;
+	nv_writevalue)
+		tpm2_nvw "$@";;
+	nv_readvalue)
+		tpm2_nvr "$@";;
+	seal)
+		tpm2_sealfile "$@";;
+	startsession)
+		tpm2_startsession "$@";;
+	unseal)
+		tpm2_unseal "$@";;
+	reset)
+		tpm2_reset;;
+	*)
+		echo "Command $subcmd not wrapped!"
+		exit 1
+esac

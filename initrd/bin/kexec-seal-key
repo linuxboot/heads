@@ -36,20 +36,27 @@ if [ -r "$KEY_LVM" ]; then
 		|| die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
-# Key slot 0 is the manual recovery pass phrase
-# that they user entered when they installed Qubes,
+echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
+echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
+echo "DEBUG: Show PCRs"
+pcrs
+
+# LUKS Key slot 0 is the manual recovery pass phrase
+# that they user entered when they installed OS,
 # key slot 1 is the one that we've generated.
 read -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > "$RECOVERY_KEY"
 echo
 
-read -s -p "New disk unlock password for booting: " key_password
-echo
-read -s -p "Repeat unlock code: " key_password2
-echo
+if [ "$CONFIG_AUTO_UNLOCK" != y ]; then
+	read -s -p "New disk unlock password for booting: " key_password
+	echo
+	read -s -p "Repeat unlock code: " key_password2
+	echo
 
-if [ "$key_password" != "$key_password2" ]; then
-	die "Key passwords do not match"
+	if [ "$key_password" != "$key_password2" ]; then
+		die "Key passwords do not match"
+	fi
 fi
 
 # Generate key file
@@ -83,73 +90,138 @@ done
 # since it should still be zero
 cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
-luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
-# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
-# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
-if [ -x /bin/hotp_verification ]; then
-  pcr_5="X"
-else
-  pcr_5="0000000000000000000000000000000000000000"
-fi
-
-# Note that PCR 4 needs to be set with the "normal-boot"
-# path value, which we do not have right now since we are
-# in a recovery shell.
-# used to be -ix 4 f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d \
-# now just all zeros in a normal boot
-# PCR 5 must be all zero since no kernel modules should have
-# been loaded during a normal boot, but might have been
-# loaded in the recovery shell.
-# Otherwise use the current values of the PCRs, which will be read
-# from the TPM as part of the sealing ("X").
-tpm sealfile2 \
-	-if "$KEY_FILE" \
-	-of "$TPM_SEALED" \
-	-pwdd "$key_password" \
-	-hk 40000000 \
-	-ix 0 X \
-	-ix 1 X \
-	-ix 2 X \
-	-ix 3 X \
-	-ix 4 0000000000000000000000000000000000000000 \
-	-ix 5 $pcr_5 \
-	-ix 6 $luks_pcr \
-	-ix 7 X \
-|| die "Unable to seal secret"
-
-shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
-|| die "Failed to delete key file"
-
-# try it without the owner password first
-if ! tpm nv_writevalue \
-	-in $TPM_INDEX \
-	-if "$TPM_SEALED" \
-; then
-	# to create an nvram space we need the TPM owner password
-	# and the TPM physical presence must be asserted.
+if [ "$CONFIG_TPM" = "y" ];then
+	luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
+	# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
+	# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
+	# If modules should be loaded during normal boot, skip verification of PCR5
 	#
-	# The permissions are 0 since there is nothing special
-	# about the sealed file
-	tpm physicalpresence -s \
-	|| warn "Warning: Unable to assert physical presence"
+	#TODO: check condition, no libdata.ko
+	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+		pcr_5="X"
+	else
+		pcr_5="0000000000000000000000000000000000000000"
+	fi
 
-	read -s -p "TPM Owner password: " tpm_password
-	echo
+	# Note that PCR 4 needs to be set with the "normal-boot"
+	# path value, which we do not have right now since we are
+	# in a "init" mode
+	# used to be -ix 4 f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d \
+	# now just all zeros in a normal boot
+	# PCR 5 must be all zero since no kernel modules should have
+	# been loaded during a normal boot, but might have been
+	# loaded in the recovery shell.
+	# Otherwise use the current values of the PCRs, which will be read
+	# from the TPM as part of the sealing ("X").
+	if [ "$CONFIG_AUTO_UNLOCK" != y ]; then
+		tpm sealfile2 \
+			-if "$KEY_FILE" \
+			-of "$TPM_SEALED" \
+			-pwdd "$key_password" \
+			-hk 40000000 \
+			-ix 0 X \
+			-ix 1 X \
+			-ix 2 X \
+			-ix 3 X \
+			-ix 4 0000000000000000000000000000000000000000 \
+			-ix 5 $pcr_5 \
+			-ix 6 $luks_pcr \
+			-ix 7 X
+	else
+		tpm sealfile2 \
+			-if "$KEY_FILE" \
+			-of "$TPM_SEALED" \
+			-hk 40000000 \
+			-ix 0 X \
+			-ix 1 X \
+			-ix 2 X \
+			-ix 3 X \
+			-ix 4 0000000000000000000000000000000000000000 \
+			-ix 5 $pcr_5 \
+			-ix 6 $luks_pcr \
+			-ix 7 X
+	fi
 
-	tpm nv_definespace \
-		-in $TPM_INDEX \
-		-sz $TPM_SIZE \
-		-pwdo "$tpm_password" \
-		-per 0 \
-	|| warn "Warning: Unable to define NVRAM space; trying anyway"
+	if [ $? -ne 0 ]; then
+		die "Unable to seal secret"
+	fi
 
+	shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
+		|| die "Failed to delete key file"
 
-	tpm nv_writevalue \
+	# try it without the owner password first
+	if ! tpm nv_writevalue \
 		-in $TPM_INDEX \
 		-if "$TPM_SEALED" \
-	|| die "Unable to write sealed secret to NVRAM"
+		; then
+		# to create an nvram space we need the TPM owner password
+		# and the TPM physical presence must be asserted.
+		#
+		# The permissions are 0 since there is nothing special
+		# about the sealed file
+		tpm physicalpresence -s \
+			|| warn "Warning: Unable to assert physical presence"
+
+		read -s -p "TPM Owner password: " tpm_password
+		echo
+
+		tpm nv_definespace \
+			-in $TPM_INDEX \
+			-sz $TPM_SIZE \
+			-pwdo "$tpm_password" \
+			-per 0 \
+			|| warn "Warning: Unable to define NVRAM space; trying anyway"
+
+
+		tpm nv_writevalue \
+			-in $TPM_INDEX \
+			-if "$TPM_SEALED" \
+			|| die "Unable to write sealed secret to NVRAM"
+	fi
+elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	pcrf="/tmp/secret/pcrf.bin"
+	#TODO: verify logic below against tpm2
+	tpm2 pcrread -o "$pcrf" sha256:0,1,2,3
+	# pcr 4 is expected to be zero (init mode)
+	dd if=/dev/zero bs=32 count=1 >> "$pcrf"
+	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+		# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
+		# 
+		# binary pcr dump can only go via stderr for redirection
+		# sadly this busybox has buggy support for "2>>" and "2|"
+		# so we need workaround...
+		tpm2 pcrread -o /dev/stderr sha256:5 2>&1 >/dev/console | cat >> "$pcrf"
+	else
+		#no kernel modules are expected to be measured+loaded
+		dd if=/dev/zero bs=32 count=1 >> "$pcrf"
+	fi
+	# Use pcr 23 to precompute the value for pcr 6
+	tpmr extend -ix 23 -if /tmp/luksDump.txt
+	tpm2 pcrread -o /dev/stderr sha256:23 2>&1 >/dev/console | cat >> "$pcrf"
+	#TODO: delete the following pcrs output on screen
+	# goal is to validate that what is in pcr 23 is at pcr 6 at unseal
+	pcrs
+	tpm2 pcrreset 23
+	# We take into consideration user files in cbfs
+	tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf"
+	if [ "$CONFIG_AUTO_UNLOCK" = "y" ]; then
+		#TODO: There is no CONFIG_AUTO_UNLOCK. Should be removed
+		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf"
+	else
+		#TODO: wrap TPM disk encryption key passphrase, otherwise prompt to user looks like if we were asking for TPM ownership passphrase
+		#TODO: everything is supposed to be under $pcrf, why considering them twice?
+		# TODO: review syntax to not duplicate expending pcr 2 times with pcr0-7: find a way to only use $pcrf? : sha256 "$pcrf" "$key_password"
+		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
+	fi
+	if [ $? -eq 0 ]; then
+		# should be okay if this fails
+		shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
+	fi
 fi
 
 shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
 || warn "Failed to delete the sealed secret - continuing"
+
+cp /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" \
+|| warn "Failed to have hashes of LUKS header - continuing"

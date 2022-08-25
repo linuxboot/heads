@@ -25,18 +25,20 @@ if [ ! -r "$MODULE" ]; then
 fi
 
 if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
-	tpm_missing=1
+   if [ ! -c /dev/tpmrm0 -o ! -x /bin/tpm2 ]; then
+	   tpm_missing=1
+   fi
 fi
 
 if [ -z "$tpm_missing" ]; then
-	tpm extend -ix "$MODULE_PCR" -if "$MODULE" \
+	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 	|| die "$MODULE: tpm extend failed"
 fi
 
 if [ ! -z "$*" -a -z "$tpm_missing" ]; then
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
-	tpm extend -ix "$MODULE_PCR" -if $TMPFILE \
+	tpmr extend -ix "$MODULE_PCR" -if $TMPFILE \
 	|| die "$MODULE: tpm extend on arguments failed"
 fi
 

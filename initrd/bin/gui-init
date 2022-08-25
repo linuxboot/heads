@@ -182,6 +182,12 @@ update_totp()
       if [ "$skip_to_menu" = "true" ]; then
         return 1  # Already asked to skip to menu from a prior error
       fi
+      
+      echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
+      echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
+      echo "DEBUG: Show PCRs"
+      pcrs
+
       whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
         --menu "    ERROR: Heads couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
@@ -507,7 +513,7 @@ prompt_totp_mismatch()
 reset_tpm()
 {
   TRACE "Under /bin/gui-init:reset_tpm"
-  if [ "$CONFIG_TPM" = "y" ]; then
+  if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
     if (whiptail $BG_COLOR_WARNING --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
       /bin/tpm-reset
