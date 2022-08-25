@@ -1,0 +1,40 @@
+# GNU bash
+modules-$(CONFIG_BASH) += bash
+
+bash_version := 5.1.16
+bash_dir := bash-$(bash_version)
+bash_tar := bash-$(bash_version).tar.gz
+bash_url := https://ftpmirror.gnu.org/bash/$(bash_tar)
+bash_hash := 5bac17218d3911834520dad13cd1f85ab944e1c09ae1aba55906be1f8192f558
+
+bash_configure := ./configure \
+	$(CROSS_TOOLS) \
+	--host $(target) \
+	--prefix="/usr" \
+        --enable-largefile \
+        --infodir=/usr/share/info \
+        --mandir=/usr/share/man \
+        --without-bash-malloc \
+	--disable-coprocesses \
+	--disable-debugger \
+	--disable-net-redirections \
+	--enable-single-help-strings \
+	--disable-nls \
+
+bash_target := $(MAKE_JOBS) \
+	&& $(MAKE) -C $(build)/$(bash_dir) \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+ifeq "$(CONFIG_BASH)" "y"
+initrd_bins += $(initrd_tmp_dir)/bin/bash
+endif
+
+$(build)/$(bash_dir)/bash: $(build)/$(bash_dir)/.build
+
+# Replace /bin/bash linked to busybox
+$(initrd_tmp_dir)/bin/bash: $(build)/$(bash_dir)/bash $(initrd_tmp_dir)/bin/busybox
+	install -Dm 755 "$<" "$@"
+	$(CROSS)strip --preserve-dates "$@" 2>&-
+
+bash_depends := $(musl_dep) busybox

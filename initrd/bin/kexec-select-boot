@@ -50,6 +50,22 @@ bootdir="${bootdir%%/}"
 paramsdev="${paramsdev%%/}"
 paramsdir="${paramsdir%%/}"
 
+PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ -r "$PRIMHASH_FILE" ]; then
+		sha256sum -c "$PRIMHASH_FILE" \
+			|| {
+			echo "FATAL: Hash of TPM2 primary key handle mismatch!";
+			echo "If you have not intentionally regenerated TPM2 primary key,";
+			warn "your system may have been compromised!";
+		}
+	else
+		echo "WARNING: Hash of TPM2 primary key handle does not exist!"
+		echo "Please rebuild the boot hash tree."
+		default_failed="y"
+	fi
+fi
+
 verify_global_hashes()
 {
 	echo "+++ Checking verified boot hash file "
@@ -299,23 +315,22 @@ do_boot()
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ "$CONFIG_TPM" = "y" \
-		-a -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
-		|| die "!!! Failed to extract the initrd from boot option"
+			|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
 			die "!!! No initrd file found in boot option"
 		fi
 
 		kexec-insert-key $INITRD \
-		|| die "!!! Failed to insert disk key into a new initrd"
+			|| die "!!! Failed to insert disk key into a new initrd"
 
 		kexec-boot -b "$bootdir" -e "$option" \
 			-a "$add" -r "$remove" -o "/tmp/secret/initrd.cpio" \
-		|| die "!!! Failed to boot w/ options: $option"
+			|| die "!!! Failed to boot w/ options: $option"
 	else
 		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" \
-		|| die "!!! Failed to boot w/ options: $option"
+			|| die "!!! Failed to boot w/ options: $option"
 	fi
 }
 
@@ -344,11 +359,12 @@ while true; do
 		user_select
 	fi
 
-	if [ "$CONFIG_TPM" = "y" \
-		-a ! -r "$TMP_KEY_DEVICES" ]; then
-		# Extend PCR4 as soon as possible
-		tpm extend -ix 4 -ic generic \
-		|| die "Failed to extend PCR 4"
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		if [ ! -r "$TMP_KEY_DEVICES" ]; then
+			# Extend PCR4 as soon as possible
+			tpmr extend -ix 4 -ic generic \
+				|| die "Failed to extend PCR 4"
+		fi
 	fi
 
 	# if no saved options, scan the boot directory and generate
@@ -356,7 +372,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ "$CONFIG_TPM" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"
@@ -368,7 +384,7 @@ while true; do
 			fi
 		fi
 
-		if [ -r "$TMP_ROLLBACK_FILE" ]; then
+		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" -a -r "$TMP_ROLLBACK_FILE" ]; then
 			# in the case of iso boot with a rollback file, do not assume valid
 			valid_rollback="n"
 

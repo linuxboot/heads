@@ -134,5 +134,15 @@ echo "$kexeccmd"
 eval "$kexeccmd" \
 || die "Failed to load the new kernel"
 
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	# Add a random passphrase to platform hierarchy to prevent TPM2 from
+	# being cleared in the OS.
+	# This passphrase is only effective before the next boot.
+	echo "Locking platform hierarchy..."
+	randpass=$(dd if=/dev/urandom bs=4 count=1 | xxd -p)
+	tpm2 changeauth -c platform "$randpass" \
+		|| warn "Failed to lock platform hierarchy of TPM2!"
+fi
+
 echo "Starting the new kernel"
 exec kexec -e

@@ -34,6 +34,7 @@ paramsdir="${paramsdir%%/}"
 TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
 HASH_FILE="$paramsdir/kexec_default_hashes.txt"
+PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
@@ -47,7 +48,7 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]; then
 	if [ ! -r "$KEY_DEVICES" ]; then
 		read \
 			-n 1 \
@@ -93,14 +94,14 @@ if [[ "$CONFIG_TPM" = "y" && "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]]; then
 		lvm vgscan || true
 
 		read \
-			-p "Encrypted LVM group? ($lvm_suggest): " \
+			-p "LVM group containing Encrypted LVs (retype to keep)? ($lvm_suggest): " \
 			lvm_volume_group
 
 		echo "+++ Block devices (blkid): "
 		blkid || true
 
 		read \
-			-p "Encrypted devices? ($devices_suggest): " \
+			-p "Encrypted devices (retype to keep)? ($devices_suggest): " \
 			key_devices
 
 		save_key_params="-s -p $paramsdev"
@@ -122,6 +123,14 @@ if [ ! -d $paramsdir ]; then
 	mkdir -p $paramsdir \
 	|| die "Failed to create params directory"
 fi
+
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ ! -r "$PRIMHASH_FILE" ]; then
+		sha256sum /tmp/primary.handle > "$PRIMHASH_FILE" \
+			|| die "ERROR: Failed to Hash TPM2 primary key handle!"
+	fi
+fi
+
 rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
 echo "$entry" > $ENTRY_FILE
 ( cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f| \
@@ -179,8 +188,10 @@ fi
 
 # sign and auto-roll config counter
 extparam=
-if [ "$CONFIG_TPM" = "y" ]; then
-	extparam=-r
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+	if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+		extparam=-r
+	fi
 fi
 kexec-sign-config -p $paramsdir $extparam \
 || die "Failed to sign default config"

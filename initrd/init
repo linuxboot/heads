@@ -16,6 +16,8 @@ mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev 2>/dev/ttyprintk
 mount /proc 2>/dev/ttyprintk
 mount /sys 2>/dev/ttyprintk
+mount /sys/kernel/security 2>/dev/ttyprintk
+
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	mount /sys/firmware/efi/efivars
 fi
@@ -27,6 +29,13 @@ mount /dev/pts 2>/dev/ttyprintk
 if [ ! -r /dev/ptmx ]; then
 	ln -s /dev/pts/ptmx /dev/ptmx
 fi
+
+
+[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
+[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
+[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
+# Needed by bash
+[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
@@ -46,10 +55,10 @@ hwclock -l -s
 TRACE "Under init"
 
 # set CONFIG_TPM dynamically before init
-if [ -e /dev/tpm0 ]; then
-	CONFIG_TPM='y'
-else
+if [ ! -e /dev/tpm0 ]; then
 	CONFIG_TPM='n'
+	CONFIG_TPM2_TOOLS='n'
+	warn 'No TPM found...'
 fi
 
 #Specify whiptail background colors cues under FBWhiptail only
@@ -59,6 +68,11 @@ if [ -x /bin/fbwhiptail ]; then
 else
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-""}"
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-""}"
+fi
+
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	# Initialize tpm2 encrypted sessions here
+	tpmr startsession
 fi
 
 if [ "$CONFIG_COREBOOT" = "y" ]; then
@@ -99,8 +113,8 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = "y" ]; then
-		tpm extend -ix 4 -ic recovery
+	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpmr extend -ix 4 -ic recovery
 	fi
 	exec /bin/ash
 	exit
@@ -156,7 +170,7 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = "y" ]; then
-	tpm extend -ix 4 -ic recovery
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = y ]; then
+	tpmr extend -ix 4 -ic recovery
 fi
 exec /bin/ash
