@@ -11,7 +11,7 @@ libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 
 libusb_configure := ./configure\
 	$(CROSS_TOOLS)\
-	--host i386-elf-linux\
+	--host $(MUSL_ARCH)-elf-linux\
 	--prefix "/"\
 	--disable-udev\
 	--disable-tests\

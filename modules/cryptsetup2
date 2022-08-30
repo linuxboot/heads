@@ -12,7 +12,7 @@ cryptsetup2_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e
 # build path.
 cryptsetup2_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--disable-rpath \
 	--disable-gcrypt-pbkdf2 \

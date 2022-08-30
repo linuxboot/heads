@@ -18,26 +18,19 @@ LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
 all:
 -include .config
 
-ifneq "$(TOOLCHAIN)" ""
-$(info Using $(TOOLCHAIN) for cross compiler and packages)
-packages	?= $(TOOLCHAIN)/packages
-CROSS		:= $(TOOLCHAIN)/crossgcc/x86_64-linux-musl/bin/x86_64-linux-musl-
-endif
-
 modules-y 	:=
 pwd 		:= $(shell pwd)
-packages 	?= $(pwd)/packages
-build		:= $(pwd)/build
 config		:= $(pwd)/config
-INSTALL		:= $(pwd)/install
-log_dir		:= $(build)/log
+# These are dynamic, must not expand right here
+build		= $(pwd)/build/$(CONFIG_TARGET_ARCH)
+packages 	= $(pwd)/packages/$(CONFIG_TARGET_ARCH)
+INSTALL		= $(pwd)/install/$(CONFIG_TARGET_ARCH)
+log_dir		= $(build)/log
+board_build	= $(build)/$(BOARD)
 
 # Controls how many parallel jobs are invoked in subshells
 CPUS		?= $(shell nproc)
 MAKE_JOBS	?= -j$(CPUS) --max-load 16
-
-# Create the log directory if it doesn't already exist
-BUILD_LOG := $(shell mkdir -p "$(log_dir)" )
 
 WGET ?= wget
 
@@ -51,23 +44,39 @@ ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
 endif
 
+# By default, we are building for x86, up to a board to change this variable
+CONFIG_TARGET_ARCH := x86
+
 include $(CONFIG)
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
+# Determine arch part for a host triplet
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+MUSL_ARCH := x86_64
+else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+MUSL_ARCH := powerpc64le
+else
+$(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
+endif
+
+# Create directories if they don't already exist
+BUILD_LOG	:= $(shell mkdir -p "$(log_dir)")
+PACKAGES	:= $(shell mkdir -p "$(packages)")
+
 # record the build date / git hashes and other files here
-HASHES		:= $(build)/$(BOARD)/hashes.txt
+HASHES		:= $(board_build)/hashes.txt
 
 # Create the board output directory if it doesn't already exist
 BOARD_LOG	:= $(shell \
-	mkdir -p "$(build)/$(BOARD)" ; \
+	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 )
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
-$(shell cpio -o < /dev/null > $(build)/$(BOARD)/initrd.cpio)
+$(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -134,13 +143,13 @@ CROSS_TOOLS := \
 
 ifeq ($(CONFIG_COREBOOT), y)
 
-all: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
+all: $(board_build)/$(CB_OUTPUT_FILE)
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
-all: $(build)/$(BOARD)/$(CB_BOOTBLOCK_FILE)
+all: $(board_build)/$(CB_BOOTBLOCK_FILE)
 endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
-all: $(build)/$(BOARD)/$(LB_OUTPUT_FILE)
+all: $(board_build)/$(LB_OUTPUT_FILE)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
@@ -152,6 +161,13 @@ all:
 .INTERMEDIATE:
 .SUFFIXES:
 FORCE:
+
+# Copies config while replacing predefined placeholders with actual values
+define install_config =
+	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
+	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
+	    "$1" > "$2"
+endef
 
 # Make helpers to operate on lists of things
 # Prefix is "smart" and doesn't add the prefix for absolute file paths
@@ -522,7 +538,7 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 #
 # At the moment PowerPC can only load initrd bundled with the kernel.
 #
-bundle-$(CONFIG_LINUX_BUNDLED)	+= $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled
+bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
 all: $(bundle-y)
 
 #
@@ -586,13 +602,13 @@ modules.clean:
 # since we can't reflash the firmware in qemu to update the keychain.  Instead,
 # inject the public key ahead of time.  Specify the location of the key with
 # PUBKEY_ASC.
-inject_gpg: $(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)
+inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
 
-$(build)/$(BOARD)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(build)/$(BOARD)/$(CB_OUTPUT_FILE)
-	cp "$(build)/$(BOARD)/$(CB_OUTPUT_FILE)" \
-		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)"
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
+	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
 	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(build)/$(BOARD)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
 
 real.clean:
 	for dir in \

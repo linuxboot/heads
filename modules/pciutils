@@ -19,6 +19,7 @@ pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe6
 pciutils_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	HOST=$(MUSL_ARCH)-linux-musl \
 	ZLIB=no \
 	HWDB=no \
 	LIBKMOD=no \
@@ -43,6 +44,6 @@ pciutils_output := \
 
 pciutils_libraries := \
 	lib/libpci.so.3.5.4 \
-	../../install/lib/libpci.so.3\
+	$(INSTALL)/lib/libpci.so.3\
 
 pciutils_configure := 
