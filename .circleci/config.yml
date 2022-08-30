@@ -3,6 +3,8 @@ version: 2.1
 commands:
   build_board:
     parameters:
+      arch:
+        type: string
       target:
         type: string
       subcommand:
@@ -17,22 +19,22 @@ commands:
       - run:
           name: Make Board
           command: |
-            rm -rf build/<<parameters.target>>/* build/log/* && make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
+            rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/* && make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
           command: |
-            cat build/<<parameters.target>>/hashes.txt || echo "No hashes for this build step..."\
+            cat build/<<parameters.arch>>/<<parameters.target>>/hashes.txt || echo "No hashes for this build step..."\
       - run:
           name: Archiving build logs.
           command: |
-             tar zcvf build/<<parameters.target>>/logs.tar.gz $(find build/ -name "*.log")
+             tar zcvf build/<<parameters.arch>>/<<parameters.target>>/logs.tar.gz $(find build/ -name "*.log")
       - run:
           name: Output build failing logs
           command: |
-            if [[ -f ./tmpDir/failed_build ]]; then find ./build/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Step hasn't failed. Continuing with next step..."; fi \
+            if [[ -f ./tmpDir/failed_build ]]; then find ./build/<<parameters.arch>>/ -name "*.log" -type f -mmin -1|while read log; do echo ""; echo '==>' "$log" '<=='; echo ""; cat $log;done; exit 1;else echo "Step hasn't failed. Continuing with next step..."; fi \
       - store_artifacts:
-          path: build/<<parameters.target>>
+          path: build/<<parameters.arch>>/<<parameters.target>>
 
 jobs:
   prep_env:
@@ -115,6 +117,9 @@ jobs:
       - image: debian:11
     resource_class: large
     parameters:
+      arch:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -123,6 +128,7 @@ jobs:
       - attach_workspace:
           at: ~/
       - build_board:
+          arch: <<parameters.arch>>
           target: <<parameters.target>> 
           subcommand: <<parameters.subcommand>>
       - persist_to_workspace:
@@ -135,6 +141,9 @@ jobs:
       - image: debian:11
     resource_class: large
     parameters:
+      arch:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -143,6 +152,7 @@ jobs:
       - attach_workspace:
           at: ~/
       - build_board:
+          arch: <<parameters.arch>>
           target: <<parameters.target>> 
           subcommand: <<parameters.subcommand>>
 
@@ -159,7 +169,7 @@ jobs:
           key: heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
-            - build/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - packages
       - save_cache:
           #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
@@ -167,12 +177,12 @@ jobs:
           key: heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
-            - build/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - packages
-            - build/coreboot-4.11
-            - build/coreboot-4.13
-            - build/coreboot-4.14
-            - build/coreboot-4.15
+            - build/x86/coreboot-4.11
+            - build/x86/coreboot-4.13
+            - build/x86/coreboot-4.14
+            - build/x86/coreboot-4.15
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
           key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
