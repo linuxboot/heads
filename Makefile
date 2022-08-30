@@ -260,7 +260,7 @@ define define_module =
 	git clone $($1_repo) "$(build)/$($1_base_dir)"
 	cd $(build)/$($1_base_dir) && git submodule update --init --checkout
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$($1_base_dir) ) \
+		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
@@ -268,7 +268,7 @@ define define_module =
 	   [ -r patches/$($1_patch_name) ] ; then \
 		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( git apply --verbose --reject --binary --directory build/$($1_base_dir) ) \
+			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
@@ -296,7 +296,7 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$($1_base_dir) ) \
+		( cd $$(dir $$@) ; patch -p1 ) \
 			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
@@ -304,7 +304,7 @@ define define_module =
 	   [ -r patches/$($1_patch_name) ] ; then \
 		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( git apply --verbose --reject --binary --directory build/$($1_base_dir) ) \
+			( cd $$(dir $$@) ; patch -p1 ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
