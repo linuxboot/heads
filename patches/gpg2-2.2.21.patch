@@ -12,7 +12,7 @@ diff -u --recursive /home/tlaurion/build/clean/gnupg-2.2.10/configure gnupg-2.2.
  MAKEFLAGS=
 diff -u --recursive gnupg-2.2.10/common/ttyio.c gnupg-2.2.10/common/ttyio.c.mod 
 --- gnupg-2.2.10/common/ttyio.c	2017-08-28 06:22:54.000000000 -0400
-+++ gnupg-2.2.10/common/ttyio.c.mod	2018-09-18 23:00:07.386250017 -0400
++++ gnupg-2.2.10/common/ttyio.c	2018-09-18 23:00:07.386250017 -0400
 @@ -190,7 +190,9 @@
  #elif defined (HAVE_W32CE_SYSTEM)
      ttyfp = stderr;
