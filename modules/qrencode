@@ -12,7 +12,7 @@ qrencode_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--without-tools \
-	--host i386-elf-linux \
+	--host $(MUSL_ARCH)-elf-linux \
 
 qrencode_target := \
 	$(MAKE_JOBS) \

@@ -1,4 +1,5 @@
 modules-$(CONFIG_GPG2) += libassuan
+
 libassuan_version := 2.5.3
 libassuan_dir := libassuan-$(libassuan_version)
 libassuan_tar := libassuan-$(libassuan_version).tar.bz2
@@ -7,7 +8,7 @@ libassuan_hash := 91bcb0403866b4e7c4bc1cc52ed4c364a9b5414b3994f718c70303f7f765e7
 
 libassuan_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--host x86_64-linux-musl \
+	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-static \
 	--disable-debug \

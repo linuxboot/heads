@@ -16,7 +16,7 @@ MY_CROSS_TOOLS := \
 libhidapi-libusb_configure := ./bootstrap && \
 	./configure \
 	$(MY_CROSS_TOOLS) \
-	--host i386-elf-linux\
+	--host $(MUSL_ARCH)-elf-linux\
 	--prefix "/"
 
 
