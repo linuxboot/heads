@@ -16,10 +16,10 @@ assignees: ''
 - [ ] Other (please specify)
 
 **3. What version of coreboot are you trying to build**
-- [ ] 4.8.1 (current heads:master default)
 - [ ] 4.13
 - [ ] 4.14
 - [ ] 4.15
+- [ ] 4.17
 - [ ] Other (please specify)
 
 **4. In building the rom where did you get the blobs?**
