@@ -20,6 +20,7 @@ util-linux_configure := ./configure \
 	--disable-all-programs \
 	--enable-libuuid \
 	--enable-libblkid \
+	--enable-agetty \
 
 
 util-linux_target := \
@@ -33,5 +34,8 @@ util-linux_target := \
 util-linux_libraries += \
 	.libs/libuuid.so.1 \
 	.libs/libblkid.so.1 \
+
+util-linux_agetty-$(CONFIG_USE_AGETTY) := agetty
+util-linux_output := $(util-linux_agetty-y)
 
 util-linux_depends := $(musl_dep)

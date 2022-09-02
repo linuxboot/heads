@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joel Stanley <joel@jms.id.au>
+Date: Wed, 3 Apr 2019 10:58:35 +1030
+Subject: [PATCH 2/2] Release OpenPower kernel
+
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 63152c5ca136..d5bfc0358601 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,7 +2,7 @@
+ VERSION = 5
+ PATCHLEVEL = 5
+ SUBLEVEL = 0
+-EXTRAVERSION =
++EXTRAVERSION = -openpower1
+ NAME = Kleptomaniac Octopus
+ 
+ # *DOCUMENTATION*

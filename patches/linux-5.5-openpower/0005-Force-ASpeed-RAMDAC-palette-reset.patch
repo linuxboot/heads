@@ -1,0 +1,26 @@
+From 33cb4510b70e7625636a4280e29081ce7cef69e9 Mon Sep 17 00:00:00 2001
+From: Raptor Engineering Development Team <support@raptorengineering.com>
+Date: Fri, 2 Feb 2018 07:37:41 -0600
+Subject: [PATCH] Force ASpeed RAMDAC palette reset
+
+---
+ drivers/gpu/drm/ast/ast_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/ast/ast_drv.c b/drivers/gpu/drm/ast/ast_drv.c
+index 8124eaa92ed3..c44797598760 100644
+--- a/drivers/gpu/drm/ast/ast_drv.c
++++ b/drivers/gpu/drm/ast/ast_drv.c
+@@ -35,7 +35,7 @@
+ #include "ast_drv.h"
+ 
+ int ast_modeset = -1;
+-int ast_resetpalette = -1;
++int ast_resetpalette = 1;
+ 
+ MODULE_PARM_DESC(modeset, "Disable/Enable modesetting");
+ MODULE_PARM_DESC(resetpalette, "Disable/Enable palette reset on load");
+-- 
+2.15.1
+
+
