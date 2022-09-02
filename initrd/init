@@ -136,6 +136,13 @@ else
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
 		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+
+		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
+			for console in $CONFIG_BOOT_EXTRA_TTYS; do
+				setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
+			done
+		fi
+
 		exec "$CONFIG_BOOTSCRIPT"
 
 		# We should never reach here, but just in case...
