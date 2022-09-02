@@ -15,7 +15,7 @@ commands:
           command: |
             ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo libssl-dev device-tree-compiler u-boot-tools
       - run:
           name: Make Board
           command: |
@@ -129,12 +129,15 @@ jobs:
           at: ~/
       - build_board:
           arch: <<parameters.arch>>
-          target: <<parameters.target>> 
+          target: <<parameters.target>>
           subcommand: <<parameters.subcommand>>
       - persist_to_workspace:
           root: ~/
           paths:
-            - .
+            - project/packages/<<parameters.arch>>
+            - project/build/<<parameters.arch>>
+            - project/crossgcc/<<parameters.arch>>
+            - project/install/<<parameters.arch>>
 
   build:
     docker:
@@ -170,6 +173,7 @@ jobs:
           paths:
             - crossgcc
             - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - packages
       - save_cache:
           #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
@@ -178,11 +182,13 @@ jobs:
           paths:
             - crossgcc
             - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - packages
             - build/x86/coreboot-4.11
             - build/x86/coreboot-4.13
             - build/x86/coreboot-4.14
             - build/x86/coreboot-4.15
+            - build/ppc64/coreboot-git
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
           key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
@@ -226,11 +232,21 @@ workflows:
 #          requires:
 #            - librem_14
 
+      # Coreboot for Talos
+      - build_and_persist:
+          name: talos-2_server
+          arch: ppc64
+          target: talos-2_server
+          subcommand: ""
+          requires:
+            - prep_env
+
       #Cache one workspace per Coreboot version, ideally the boards including the highest number of modules, since not rebuilt across builds.
       #Below, 4.11, 4.13, 4.15
       - save_cache:
           requires:
-            - librem_15v4
+            - librem_14
+            - talos-2_server
 
 #
 #
@@ -502,6 +518,14 @@ workflows:
 #          subcommand: ""
 #          requires:
 #            - librem_14
+
+      - build:
+          name: talos-2_workstation
+          arch: ppc64
+          target: talos-2_workstation
+          subcommand: ""
+          requires:
+            - talos-2_server
 
 ########################
 ########################

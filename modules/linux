@@ -19,6 +19,10 @@ linux_hash := 9c4ebf21fe949f80fbcfbbd6e7fe181040d325e89475e230ab53ef01f9d55605
 else ifeq "$(CONFIG_LINUX_VERSION)" "5.4.69"
 linux_version := 5.4.69
 linux_hash := a8b31d716b397303a183e42ad525ff2871024a43e3ea530d0fdf73b7f9d27da7
+else ifeq "$(CONFIG_LINUX_VERSION)" "5.5-openpower"
+linux_version := 5.5
+linux_patch_version := 5.5-openpower
+linux_hash := a6fbd4ee903c128367892c2393ee0d9657b6ed3ea90016d4dc6f1f6da20b2330
 #
 # linuxboot systems should *NOT* use 5.10.5 until a proper review has
 # been done. This is because `0000-efi_bds.patch` did not cleanly port
