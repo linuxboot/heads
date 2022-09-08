@@ -2,11 +2,11 @@
 CONFIG_BUSYBOX ?= y
 modules-$(CONFIG_BUSYBOX) += busybox
 
-busybox_version := 1.32.0
+busybox_version := 1.35.0
 busybox_dir := busybox-$(busybox_version)
 busybox_tar := busybox-$(busybox_version).tar.bz2
 busybox_url := https://busybox.net/downloads/$(busybox_tar)
-busybox_hash := c35d87f1d04b2b153d33c275c2632e40d388a88f19a9e71727e0bbbff51fe689
+busybox_hash := faeeb244c35a348a334f4a59e44626ee870fb07b6884d68c10ae8bc19f83a694
 
 busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := config/busybox.config

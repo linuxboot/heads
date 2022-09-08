@@ -1,0 +1,28 @@
+modules-$(CONFIG_BLAKE2) += blake2
+
+blake2_depends := $(musl_dep)
+
+blake2_version := 54f4faa4c16ea34bcd59d16e8da46a64b259fc07
+blake2_dir := blake2-$(blake2_version)
+blake2_tar := blake2-$(blake2_version).tar.gz
+blake2_url := https://github.com/BLAKE2/BLAKE2/archive/$(blake2_version).tar.gz
+blake2_hash := 710753a61f3f67eff11bc1a4e3374651a266493e6c1691c70197e72c3c6379d9
+
+blake2_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	CFLAGS=" -Os -std=c89 -Wall -Wextra -pedantic -Wno-long-long -I../sse" \
+	CROSS="$(CROSS)" \
+	PREFIX="/" \
+	DESTDIR="$(INSTALL)" \
+	-C ./b2sum \
+
+
+
+blake2_output := \
+	b2sum/b2sum \
+
+#blake2_configure := \
+#  INSTALL="$(INSTALL)" \
+#  CROSS="$(CROSS)" \
+#  $(CROSS_TOOLS) $(MAKE) GITVERSION="" PKGCONFIG="" && $(MAKE) install INSTALL="$(INSTALL)"
