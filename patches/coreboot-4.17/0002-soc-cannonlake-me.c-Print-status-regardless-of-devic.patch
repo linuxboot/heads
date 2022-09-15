@@ -1,7 +1,7 @@
-From d7775b8a5a018930eece1ce9e50cb00863845d2e Mon Sep 17 00:00:00 2001
+From 5d905d79d5c6ac8fc8814d0baea1522f50ed48f9 Mon Sep 17 00:00:00 2001
 From: Matt DeVillier <matt.devillier@puri.sm>
 Date: Fri, 19 Jun 2020 17:02:22 -0500
-Subject: [PATCH 2/9] soc/cannonlake/me.c: Print status regardless of device
+Subject: [PATCH 2/3] soc/cannonlake/me.c: Print status regardless of device
  enable state
 
 Checking the CSE device status before printing means it will skip
@@ -32,5 +32,5 @@ index 7bbe1ae730..4fe5a96ade 100644
  	hfsts2.data = me_read_config32(PCI_ME_HFSTS2);
  	hfsts3.data = me_read_config32(PCI_ME_HFSTS3);
 -- 
-2.30.2
+2.25.1
 
