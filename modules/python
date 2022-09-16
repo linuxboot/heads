@@ -1,0 +1,41 @@
+modules-$(CONFIG_PYTHON) += python
+
+python_depends := $(musl_dep)
+
+python_version := 3.9.2
+python_dir := python-$(python_version)
+python_tar := Python-$(python_version).tar.xz
+python_url := https://www.python.org/ftp/python/$(python_version)/$(python_tar)
+python_hash := 3c2034c54f811448f516668dce09d24008a0716c3a794dd8639b5388cbde247d
+
+# Use an empty prefix so that the executables will not include the
+# build path.
+python_configure := \
+	PKG_CONFIG="/bin/false" \
+	READELF="$(CROSS)readelf" \
+	ac_cv_file__dev_ptmx=no \
+	ac_cv_file__dev_ptc=no \
+	have_openssl=no \
+	CFLAGS="-Os" \
+	./configure \
+	--with-cxx-main="$(CROSS)gcc" \
+	--host "$(MUSL_ARCH)-elf-linux" \
+	--build "$(MUSL_ARCH)-linux-gnu" \
+	--disable-ipv6 \
+	--oldincludedir="$(INSTALL)/include" \
+	--prefix="/" \
+	--exec-prefix="/" \
+
+# but after building, replace prefix so that they will be installed
+# in the correct directory.
+python_target := \
+	$(MAKE_JOBS) \
+	&& $(MAKE) \
+		CC="$(heads_cc)" \
+		-C $(build)/$(python_dir) \
+		prefix="$(INSTALL)" \
+		install
+
+python_output := \
+	python \
+

@@ -459,6 +459,7 @@ bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
 bin_modules-$(CONFIG_MSRTOOLS) += msrtools
 bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
 bin_modules-$(CONFIG_UTIL_LINUX) += util-linux
+bin_modules-$(CONFIG_PYTHON) += python
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
