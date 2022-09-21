@@ -23,6 +23,7 @@ python_configure := \
         -L$(INSTALL)/lib" \
 	$(CROSS_TOOLS_NOCC) \
 	./configure \
+	--enable-optimizations \
 	--with-cxx-main=$(CROSS)gcc \
 	--with-libc="$(musl-cross_libraries)" \
 	--host $(MUSL_ARCH)-linux-musl \
