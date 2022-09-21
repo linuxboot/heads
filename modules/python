@@ -17,14 +17,19 @@ python_configure := \
 	ac_cv_file__dev_ptc=no \
 	have_openssl=no \
 	CFLAGS="-Os" \
+	CC="$(CROSS)gcc \
+        -D__MUSL__ \
+        -isystem $(INSTALL)/include \
+        -L$(INSTALL)/lib" \
+	$(CROSS_TOOLS_NOCC) \
 	./configure \
-	--with-cxx-main="$(CROSS)gcc" \
-	--host "$(MUSL_ARCH)-elf-linux" \
-	--build "$(MUSL_ARCH)-linux-gnu" \
+	--with-cxx-main=$(CROSS)gcc \
+	--with-libc="$(musl-cross_libraries)" \
+	--host $(MUSL_ARCH)-linux-musl \
+	--build $(MUSL_ARCH) \
 	--disable-ipv6 \
-	--oldincludedir="$(INSTALL)/include" \
-	--prefix="/" \
-	--exec-prefix="/" \
+	--prefix="" \
+	--exec-prefix="" \
 
 # but after building, replace prefix so that they will be installed
 # in the correct directory.
@@ -34,6 +39,7 @@ python_target := \
 		CC="$(heads_cc)" \
 		-C $(build)/$(python_dir) \
 		prefix="$(INSTALL)" \
+		DESTDIR="$(INSTALL)" \
 		install
 
 python_output := \
