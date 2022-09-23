@@ -18,6 +18,7 @@ cd "$extractdir"
 
 echo "### Installing basic dependencies"
 sudo apt update && sudo apt install -y wget ruby ruby-dev ruby-bundler p7zip-full upx-ucl 
+sudo gen install bundler:1.17.3
 
 echo "### Downloading rom-parser dependency"
 wget https://github.com/awilliam/rom-parser/archive/"$ROMPARSER".zip || { echo "Failed to download $ROMPARSER" && exit 1; }
