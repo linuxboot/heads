@@ -98,6 +98,11 @@ jobs:
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
 
       - run:
+          name: Download and extract t430 vbios roms for dgpu boards
+          command: |
+            ./blobs/xx30/vbios_t430.sh
+
+      - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
             ./blobs/xx30/vbios_t530.sh
@@ -325,6 +330,13 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t430-dgpu-hotp-maximized
+          target: t430-dgpu-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: x230
           target: x230
           subcommand: ""
@@ -396,6 +408,13 @@ workflows:
       - build:
           name: t430-maximized
           target: t430-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t430-dgpu-maximized
+          target: t430-dgpu-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
