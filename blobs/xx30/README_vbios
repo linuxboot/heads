@@ -6,6 +6,7 @@ The scripts require sudo to run, but should be run initally without sudo (e.g. .
 
 * For the w530: https://download.lenovo.com/pccbbs/mobiles/g5uj39us.exe
 * For the t530: https://download.lenovo.com/pccbbs/mobiles/g4uj41us.exe
+* For the t430: https://download.lenovo.com/pccbbs/mobiles/g1uj49us.exe
 
 The scripts have been successfully tested on Debian 10 and Ubuntu 21.04.
 
