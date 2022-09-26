@@ -6,8 +6,9 @@ set -e -o pipefail
 
 dryrun="n"
 printfiles="n"
+printfilestohash="n"
 printinitrd="n"
-while getopts "b:e:r:a:o:fi" arg; do
+while getopts "b:e:r:a:o:fhi" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
 		e) entry="$OPTARG" ;;
@@ -15,6 +16,7 @@ while getopts "b:e:r:a:o:fi" arg; do
 		a) cmdadd="$OPTARG" ;;
 		o) override_initrd="$OPTARG" ;;
 		f) dryrun="y"; printfiles="y" ;;
+		h) dryrun="y"; printfilestohash="y" ;;
 		i) dryrun="y"; printinitrd="y" ;;
 	esac
 done
@@ -32,12 +34,12 @@ kexeccmd="kexec"
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
-fix_file_path() {
-	if [ "$printfiles" = "y" ]; then
-		# output file relative to local boot directory
-		echo ".$firstval"
-	fi
+printfilename() {
+	# output filename relative to local boot directory
+	echo ".$firstval"
+}
 
+fix_file_path() {
 	filepath="$bootdir$firstval"
 
 	if ! [ -r $filepath ]; then
@@ -59,6 +61,17 @@ adjust_cmd_line() {
 	adjusted_cmd_line="y"
 }
 
+hash_modules="y"
+if [ "$CONFIG_BOOT_RESPECT_MOD_SIG_ENFORCE" = "y" ]; then
+	# check whether "module.sig_enforce=1" present
+	# in the "append" line
+	if grep -q '^append.*\ module.sig_enforce=1'; then
+		hash_modules="n"
+	fi << EOF
+$kexecparams
+EOF
+fi
+
 module_number="1"
 while read line
 do
@@ -67,6 +80,11 @@ do
 	restval=`echo $line | cut -d\  -f3-`
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
+		if [ "$printfiles" = "y" \
+			-o "$printfilestohash" = "y" ] \
+		; then
+			printfilename
+		fi
 		if [ "$kexectype" = "xen" ]; then
 			# always use xen with custom arguments
 			kexeccmd="$kexeccmd -l $filepath"
@@ -80,6 +98,12 @@ do
 	fi
 	if [ "$key" = "module" ]; then
 		fix_file_path
+		if [ "$printfiles" = "y" \
+				-o "$printfilestohash" = "y" \
+				-a "$hash_modules" = "y" ] \
+		; then
+				printfilename
+		fi
 		cmdline="$restval"
 		if [ "$kexectype" = "xen" ]; then
 			if [ "$module_number" -eq 1 ]; then
@@ -99,6 +123,12 @@ do
 	fi
 	if [ "$key" = "initrd" ]; then
 		fix_file_path
+		if [ "$printfiles" = "y" \
+				-o "$printfilestohash" = "y" \
+				-a "$hash_modules" = "y" ] \
+		; then
+				printfilename
+		fi
 		if [ "$printinitrd" = "y" ]; then
 			# output the current path to initrd
 			echo $filepath
