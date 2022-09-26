@@ -459,6 +459,8 @@ bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
 bin_modules-$(CONFIG_MSRTOOLS) += msrtools
 bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
 bin_modules-$(CONFIG_UTIL_LINUX) += util-linux
+bin_modules-$(CONFIG_ZSTD) += zstd
+bin_modules-$(CONFIG_BLAKE2) += blake2
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \

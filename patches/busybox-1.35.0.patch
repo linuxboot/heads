@@ -1,0 +1,26 @@
+diff -u --recursive clean/busybox-1.28.0/libbb/messages.c busybox-1.28.0/libbb/messages.c
+--- clean/busybox-1.28.0/libbb/messages.c	2017-10-20 04:36:58.000000000 -0400
++++ busybox-1.35.0/libbb/messages.c	2018-02-09 12:02:45.918726483 -0500
+@@ -13,7 +13,7 @@
+ 
+ /* allow version to be extended, via CFLAGS */
+ #ifndef BB_EXTRA_VERSION
+-#define BB_EXTRA_VERSION " ("AUTOCONF_TIMESTAMP")"
++#define BB_EXTRA_VERSION " (heads)"
+ #endif
+ 
+ const char bb_banner[] ALIGN1 = "BusyBox v" BB_VER BB_EXTRA_VERSION;
+--- Makefile.orig	2022-08-26 12:39:20.559000000 -0400
++++ busybox-1.35.0/Makefile	2022-08-26 12:39:32.850000000 -0400
+@@ -278,8 +278,8 @@
+ # We need some generic definitions
+ include $(srctree)/scripts/Kbuild.include
+ 
+-HOSTCFLAGS	+= $(call hostcc-option,-Wall -Wstrict-prototypes -O2 -fomit-frame-pointer,)
+-HOSTCXXFLAGS	+= -O2
++HOSTCFLAGS	+= $(call hostcc-option,-Wall -Wstrict-prototypes -Os -fomit-frame-pointer,)
++HOSTCXXFLAGS	+= -Os
+ 
+ # For maximum performance (+ possibly random breakage, uncomment
+ # the following)
+
