@@ -123,10 +123,10 @@ flash_rom() {
       || die "$ROM: Config preservation failed"
     fi
     # persist serial number from CBFS
-    if cbfs -r serial_number > /tmp/serial 2>/dev/null; then
+    if cbfs.sh -r serial_number > /tmp/serial 2>/dev/null; then
       echo "Persisting system serial"
-      cbfs -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
-      cbfs -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
+      cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
+      cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
     fi
     # persist PCHSTRP9 from flash descriptor
     if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
