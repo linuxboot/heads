@@ -7,7 +7,7 @@ GIT_STATUS	:= $(shell \
 	else \
 		echo dirty ; \
 	fi)
-HEADS_GIT_VERSION	:= $(shell git describe --tags --dirty)
+HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 
 CB_OUTPUT_BASENAME	:= heads-$(BOARD)-$(HEADS_GIT_VERSION)
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
