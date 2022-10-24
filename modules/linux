@@ -202,8 +202,43 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
 	@touch $@ # force a timestamp update
 	@sha256sum "$@" | tee -a "$(HASHES)"
 
+# modifydefconfig target allows us edit current in tree defconfig config
+# under linux decompressed+patched directory and put it back in git tree 
+# to check changes with git difftool 
+# useful for development cycle of linux kernel version bumps.
+linux.modifydefconfig:
+	cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" && \
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		menuconfig && \
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		savedefconfig && \
+	mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+
+# generateoldconfig target allows us to copy current in git tree defconfig
+# into decompressed linux directory's .config file. This permits
+# us to edit that .config file and remove unneeded stuff prior
+# of calling saveconfig target from heads main directory (cd -)
+linux.generateoldconfig:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		olddefconfig \
+	&& echo "" \
+	&& echo "You can now edit $(build)/$(linux_dir)/.config" \
+	&& echo "Either:" \
+	&& echo " Manually through text editor" \
+	&& echo " Through make BOARD=XYZ linux.menuconfig" \
+	&& echo "" \
+	&& echo "To save chances in git tree for review, type:" \
+	&& echo "make BOARD=XYZ linux.saveconfig" 
+
 # menuconfig target allows us to easily reconfigure this Linux kernel
-# Afterwars make linux.saveconfig to generate a minimal config from it
+# Afterwards make linux.saveconfig to generate a minimal config from it
 linux.menuconfig:
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
