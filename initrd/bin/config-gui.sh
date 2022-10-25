@@ -29,6 +29,8 @@ while true; do
   else
     # check current PureBoot Mode
     BASIC_MODE="$(load_config_value CONFIG_PUREBOOT_BASIC)"
+    # check current Restricted Boot Mode
+    RESTRICTED_BOOT="$(load_config_value CONFIG_RESTRICTED_BOOT)"
     BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
 
     dynamic_config_options=()
@@ -45,6 +47,7 @@ while true; do
             'D' ' Change the root directories to hash' \
             'B' ' Check root hashes at boot' \
             'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
+            'L' " $(get_config_display_action "$RESTRICTED_BOOT") Restricted Boot" \
         )
     fi
 
@@ -247,7 +250,10 @@ while true; do
       fi
     ;;
     "P" )
-      if [ "$BASIC_MODE" = "n" ]; then
+      if ! [ "$RESTRICTED_BOOT" = n ]; then
+          whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
+            --msgbox "Disable Restricted Boot to enable Basic Mode." 0 80
+      elif [ "$BASIC_MODE" = "n" ]; then
         if (whiptail --title 'Enable PureBoot Basic Mode?' \
              --yesno "This will remove all signature checking on the firmware
                     \nand boot files, and disable use of the Librem Key.
@@ -271,6 +277,61 @@ while true; do
 
           whiptail --title 'Config change successful' \
             --msgbox "PureBoot Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
+    ;;
+    "L" )
+      if [ "$RESTRICTED_BOOT" = "n" ]; then
+        if (whiptail --title 'Enable Restricted Boot Mode?' \
+             --yesno "This will disable booting from any unsigned files,
+                    \nincluding kernels that have not yet been signed,
+                    \n.isos without signatures, raw USB disks,
+                    \nand will disable failsafe boot mode.
+                    \n\nThis will also disable the recovery console.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_RESTRICTED_BOOT" "y"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Restricted Boot mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
+
+        fi
+      else
+        if (whiptail --title 'Disable Restricted Boot Mode?' \
+             --yesno "This will allow booting from unsigned devices,
+                    \nand will re-enable failsafe boot mode.
+                    \n\nThis will also RESET the TPM and re-enable the recovery console.
+                    \n\nProceeding will automatically update the boot firmware, reset TPM and reboot!
+                    \n\nDo you want to proceed?" 0 80) then
+
+          # Wipe the TPM TOTP/HOTP secret before flashing.  Otherwise, enabling
+          # Restricted Boot again might restore the firmware to an identical
+          # state, and there would be no evidence that it had been temporarily
+          # disabled.
+          if ! wipe-totp >/dev/null 2>/tmp/error; then
+            ERROR=$(tail -n 1 /tmp/error | fold -s)
+            whiptail $BG_COLOR_ERROR --title 'ERROR: erasing TOTP secret' \
+              --msgbox "Erasing TOTP Secret Failed\n\n${ERROR}" 0 80
+            exit 1
+          fi
+
+          # We can't allow Restricted Boot to be disabled without flashing the
+          # firmware - this would allow the use of unrestricted mode without
+          # leaving evidence in the firmware.  Disable it by flashing the new
+          # config directly.
+          FLASH_USER_CONFIG=/tmp/config-gui-config-user
+          cp /etc/config.user "$FLASH_USER_CONFIG"
+          set_config "$FLASH_USER_CONFIG" "CONFIG_RESTRICTED_BOOT" "n"
+
+          read_rom /tmp/config-gui.rom
+
+          replace_rom_file /tmp/config-gui.rom "heads/initrd/etc/config.user" "$FLASH_USER_CONFIG"
+
+          /bin/flash.sh /tmp/config-gui.rom
+          whiptail --title 'BIOS Updated Successfully' \
+            --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
+          /bin/reboot
         fi
       fi
     ;;
