@@ -250,6 +250,32 @@ cleanup_shred() {
 	shred -n 10 -z -u "$1" 2>/dev/null || true
 }
 
+# tpm2_destroy: Destroy a sealed file in the TPM.  The mechanism differs by
+# TPM version - TPM2 evicts the file object, so it no longer exists.
+tpm2_destroy() {
+	index="$1"	# Index of the sealed file
+	size="$2"	# Size of zeroes to overwrite for TPM1 (unused in TPM2)
+
+	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
+	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
+
+	# remove possible data occupying this handle
+	tpm2 evictcontrol -Q -C p -c "$handle" 2>/dev/null \
+		|| die "Unable to evict secret"
+}
+
+# tpm1_destroy: Destroy a sealed file in the TPM.  The mechanism differs by
+# TPM version - TPM1 overwrites the file with zeroes, since this can be done
+# without authorization.  (Deletion requires authorization.)
+tpm1_destroy() {
+	index="$1"	# Index of the sealed file
+	size="$2"	# Size of zeroes to overwrite for TPM1
+
+	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero
+	tpm nv_writevalue -in "$index" -if /tmp/wipe-totp-zero \
+		|| die "Unable to wipe sealed secret"
+}
+
 # tpm2_seal: Seal a file against PCR values and, optionally, a password.
 # If a password is given, both the PCRs and password are required to unseal the
 # file.  PCRs are provided as a PCR list and data file.  PCR data must be
@@ -576,6 +602,8 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 			echo "$PCR_SIZE";;
 		calcfuturepcr)
 			shift; tpm1_calcfuturepcr "$@";;
+		destroy)
+			shift; tpm1_destroy "$@";;
 		seal)
 			shift; tpm1_seal "$@";;
 		startsession)
@@ -615,6 +643,8 @@ case "$subcmd" in
 		tpm2_counter_inc "$@";;
 	counter_create)
 		tpm2_counter_cre "$@";;
+	destroy)
+		tpm2_destroy "$@";;
 	seal)
 		tpm2_seal "$@";;
 	startsession)
