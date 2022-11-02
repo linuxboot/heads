@@ -5,13 +5,12 @@
 enable_usb
 
 if ! lsmod | grep -q usb_storage; then
-  count=$(ls /dev/sd* 2>/dev/null | wc -l)
   timeout=0
   echo "Scanning for USB storage devices..."
   insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
   || die "usb_storage: module load failed"
-  while [[ $count == $(ls /dev/sd* 2>/dev/null | wc -l) ]]; do 
-    [[ $timeout -ge 4 ]] && break
+  while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do 
+    [[ $timeout -ge 8 ]] && break
     sleep 1
     timeout=$(($timeout+1))
   done
@@ -21,7 +20,7 @@ if [ ! -d /media ]; then
   mkdir /media
 fi
 
-stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
+list_usb_storage > /tmp/usb_block_devices
 if [ -z `cat /tmp/usb_block_devices` ]; then
   if [ -x /bin/whiptail ]; then
     whiptail $BG_COLOR --title 'USB Drive Missing' \
@@ -31,7 +30,7 @@ if [ -z `cat /tmp/usb_block_devices` ]; then
     read
   fi
   sleep 1
-  stat -c %N /sys/block/sd* 2>/dev/null | grep usb | cut -f1 -d ' ' | sed "s/[']//g;s|/sys/block|/dev|" > /tmp/usb_block_devices
+  list_usb_storage > /tmp/usb_block_devices
   if [ -z `cat /tmp/usb_block_devices` ]; then
     if [ -x /bin/whiptail ]; then
       whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
@@ -46,28 +45,13 @@ fi
 USB_MOUNT_DEVICE=""
 # Check for the common case: a single USB disk with one partition
 if [ `cat /tmp/usb_block_devices | wc -l` -eq 1 ]; then
-  USB_BLOCK_DEVICE=`cat /tmp/usb_block_devices`
-  # Subtract out block device
-  let USB_NUM_PARTITIONS=`ls -1 ${USB_BLOCK_DEVICE}* | wc -l`-1
-  if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
-    USB_MOUNT_DEVICE=${USB_BLOCK_DEVICE}
-  elif [ ${USB_NUM_PARTITIONS} -eq 1 ]; then
-    USB_MOUNT_DEVICE=`ls -1 ${USB_BLOCK_DEVICE}* | tail -n1`
-  fi
+  USB_MOUNT_DEVICE=`cat /tmp/usb_block_devices`
 fi
 # otherwise, let the user pick
 if [ -z ${USB_MOUNT_DEVICE} ]; then
   > /tmp/usb_disk_list
   for i in `cat /tmp/usb_block_devices`; do
-    # remove block device from list if numeric partitions exist, since not bootable
-    let USB_NUM_PARTITIONS=`ls -1 $i* | wc -l`-1
-    if [ ${USB_NUM_PARTITIONS} -eq 0 ]; then
-      echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
-    else
-      for j in $(ls $i* | tail -${USB_NUM_PARTITIONS}); do
-        echo $j $(blkid | grep $j | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
-      done
-    fi
+    echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
   done
 
   if [ -x /bin/whiptail ]; then

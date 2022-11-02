@@ -132,6 +132,36 @@ enable_usb()
 
 }
 
+list_usb_storage()
+{
+	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
+		cut -f1 -d ' ' |
+		sed "s/[']//g" |
+		while read b; do
+			# Ignore devices of size 0, such as empty SD card
+			# readers on laptops attached via USB.
+			if [ "$(cat "$b/size")" -gt 0 ]; then
+				echo "$b"
+			fi
+		done |
+		sed "s|/sys/block|/dev|" |
+		while read b; do
+			# If the device has a partition table, ignore it and
+			# include the partitions instead - even if the kernel
+			# hasn't detected the partitions yet.  Such a device is
+			# never usable directly, and this allows the "wait for
+			# disks" loop in mount-usb to correctly wait for the
+			# partitions.
+			if fdisk -l "$b" | grep -q "doesn't contain a valid partition table"; then
+				# No partition table, include this device
+				echo "$b"
+			else
+				# Has a partition table, include partitions
+				ls -1 "$b"* | awk 'NR!=1 {print $0}'
+			fi
+		done
+}
+
 confirm_gpg_card()
 {
 	read \
