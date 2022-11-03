@@ -11,6 +11,16 @@ ROOT_HASH_FILE="/boot/kexec_root_hashes.txt"
 
 param=$1
 
+# Read the current ROM; if it fails display an error and exit.
+read_rom() {
+  /bin/flash.sh -r "$1"
+  if [ ! -s "$1" ]; then
+    whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+      --msgbox "Unable to read BIOS" 0 80
+    exit 1
+  fi
+}
+
 while true; do
   if [ ! -z "$param" ]; then
     # use first char from parameter
@@ -82,17 +92,9 @@ while true; do
         --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 16 60
     ;;
     "s" )
-      /bin/flash.sh -r /tmp/config-gui.rom
-      if [ ! -s /tmp/config-gui.rom ]; then
-        whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
-          --msgbox "Unable to read BIOS" 16 60
-        exit 1
-      fi
+      read_rom /tmp/config-gui.rom
 
-      if (cbfs.sh -o /tmp/config-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
-        cbfs.sh -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
-      fi
-      cbfs.sh -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+      replace_rom_file /tmp/config-gui.rom "heads/initrd/etc/config.user" /etc/config.user
 
       if (whiptail --title 'Update ROM?' \
           --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
@@ -111,13 +113,7 @@ while true; do
                   \nreset the /boot device, clear/reset the TPM (if present),
                   \nand reflash your BIOS with the cleaned configuration.
                   \n\nDo you want to proceed?" 0 80) then
-        # read current firmware
-        /bin/flash.sh -r /tmp/config-gui.rom
-        if [ ! -s /tmp/config-gui.rom ]; then
-          whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
-            --msgbox "Unable to read BIOS" 16 60
-          exit 1
-        fi
+        read_rom /tmp/config-gui.rom
         # clear local keyring
         rm /.gnupg/* | true
         # clear /boot signatures/checksums
