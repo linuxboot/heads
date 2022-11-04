@@ -260,7 +260,7 @@ define define_module =
 	git clone $($1_repo) "$(build)/$($1_base_dir)"
 	cd $(build)/$($1_base_dir) && git reset --hard $($1_commit_hash) && git submodule update --init --checkout
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
@@ -268,7 +268,7 @@ define define_module =
 	   [ -r patches/$($1_patch_name) ] ; then \
 		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( cd $(build)/$($1_base_dir) ; patch -p1 ) \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
@@ -296,7 +296,7 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( cd $$(dir $$@) ; patch -p1 ) \
+		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 			< patches/$($1_patch_name).patch \
 			|| exit 1 ; \
 	fi
@@ -304,7 +304,7 @@ define define_module =
 	   [ -r patches/$($1_patch_name) ] ; then \
 		for patch in patches/$($1_patch_name)/*.patch ; do \
 			echo "Applying patch file : $$$$patch " ;  \
-			( cd $$(dir $$@) ; patch -p1 ) \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 				< $$$$patch \
 				|| exit 1 ; \
 		done ; \
