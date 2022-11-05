@@ -159,8 +159,41 @@ else
 fi
 
 if [ ! -e "$ROM" ]; then
-	die "Usage: $0 [-c|-r] <path_to_image.rom>"
+    die "Usage: $0 [-c|-r] <path/to/image.(rom|tgz)>"
+fi
+
+if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
+    if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
+        rm -rf /tmp/verified_rom
+        mkdir /tmp/verified_rom
+
+        tar -C /tmp/verified_rom -xf $ROM
+        if ! (cd /tmp/verified_rom/ && sha256sum -cs hashes.txt); then
+            die "Provided tgz image did not pass hash verification"
+        fi
+
+        echo "Reading current flash and building an update image"
+        flashrom $CONFIG_FLASHROM_OPTIONS -r /tmp/flash.sh.bak \
+            || die "Read of flash has failed"
+
+        # ROM and bootblock already have ECC
+        bootblock=$(echo /tmp/verified_rom/*.bootblock)
+        rom=$(echo /tmp/verified_rom/*.rom)
+        kernel=$(echo /tmp/verified_rom/*-zImage.bundled)
+        pnor /tmp/flash.sh.bak -aw HBB < $bootblock
+        pnor /tmp/flash.sh.bak -aw HBI < $rom
+        pnor /tmp/flash.sh.bak -aw BOOTKERNEL < $kernel
+        rm -rf /tmp/verified_rom
+
+        ROM=/tmp/flash.sh.bak
+    else
+        die "$CONFIG_BOARD doesn't support tgz image format"
+    fi
 fi
 
 flash_rom $ROM
+
+# don't leave temporary files lying around
+rm -f /tmp/flash.sh.bak
+
 exit 0
