@@ -53,4 +53,4 @@ export BG_COLOR_MAIN_MENU=""
   FB_OPTIONS=""
   if whiptail --version |grep "fbwhiptail"; then FB_OPTIONS="--text-size 12"; fi
   whiptail $BG_COLOR_MAIN_MENU $FB_OPTIONS --title 'System Info' \
-	    --msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')\n\n$(cat /tmp/devices_usb_pci)" 40 90
+	    --msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')\n\n$(cat /tmp/devices_usb_pci)" 0 80
