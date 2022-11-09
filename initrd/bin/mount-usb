@@ -5,18 +5,7 @@
 TRACE "Under /bin/mount-usb"
 
 enable_usb
-
-if ! lsmod | grep -q usb_storage; then
-  timeout=0
-  echo "Scanning for USB storage devices..."
-  insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
-  || die "usb_storage: module load failed"
-  while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do 
-    [[ $timeout -ge 8 ]] && break
-    sleep 1
-    timeout=$(($timeout+1))
-  done
-fi
+enable_usb_storage
 
 if [ ! -d /media ]; then
   mkdir /media
