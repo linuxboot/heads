@@ -32,6 +32,7 @@ while true; do
     # check current Restricted Boot Mode
     RESTRICTED_BOOT="$(load_config_value CONFIG_RESTRICTED_BOOT)"
     BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
+    BASIC_USB_AUTOBOOT="$(load_config_value CONFIG_BASIC_USB_AUTOBOOT)"
 
     dynamic_config_options=()
 
@@ -39,6 +40,7 @@ while true; do
         dynamic_config_options+=( \
             'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
             'A' " $(get_inverted_config_display_action "$BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot" \
+            'U' " $(get_config_display_action "$BASIC_USB_AUTOBOOT") USB automatic boot" \
         )
     else
         dynamic_config_options+=( \
@@ -359,6 +361,32 @@ while true; do
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic default boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
+    ;;
+    "U" )
+      if [ "$BASIC_USB_AUTOBOOT" = "n" ]; then
+        if (whiptail --title 'Enable USB automatic boot?' \
+             --yesno "During boot, an attached bootable USB disk will be booted
+                    \nby default instead of the installed operating system.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_BASIC_USB_AUTOBOOT" "y"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "USB automatic boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      else
+        if (whiptail --title 'Disable USB automatic boot?' \
+             --yesno "USB disks will no longer be booted by default.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_config /etc/config.user "CONFIG_BASIC_USB_AUTOBOOT" "n"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "USB automatic boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
