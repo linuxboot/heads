@@ -62,10 +62,10 @@ gpg_flash_rom() {
   /bin/flash.sh /tmp/gpg-gui.rom
 
   if (whiptail --title 'BIOS Flashed Successfully' \
-      --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 16 90) then
+      --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80) then
     if ! update_checksums ; then
       whiptail $BG_COLOR_ERROR --title 'ERROR' \
-        --msgbox "Failed to update checksums / sign default config" 16 90
+        --msgbox "Failed to update checksums / sign default config" 0 80
     fi
   else
     /bin/reboot
@@ -80,21 +80,21 @@ gpg_post_gen_mgmt() {
   GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
   gpg --export --armor $GPG_GEN_KEY > "/tmp/${GPG_GEN_KEY}.asc"
   if (whiptail --title 'Add Public Key to USB disk?' \
-      --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 16 90) then
+      --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 0 80) then
     mount_usb
     mount -o remount,rw /media
     cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
     if [ $? -eq 0 ]; then
       whiptail --title "The GPG Key Copied Successfully" \
-        --msgbox "${GPG_GEN_KEY}.asc copied successfully." 16 90
+        --msgbox "${GPG_GEN_KEY}.asc copied successfully." 0 80
     else
       whiptail $BG_COLOR_ERROR --title 'ERROR: Copy Failed' \
-        --msgbox "Unable to copy ${GPG_GEN_KEY}.asc to /media" 16 90
+        --msgbox "Unable to copy ${GPG_GEN_KEY}.asc to /media" 0 80
     fi
     umount /media
   fi
   if (whiptail --title 'Add Public Key to Running BIOS?' \
-      --yesno "Would you like to add the GPG public key you generated to the BIOS?\n\nThis makes it a trusted key used to sign files in /boot\n\n" 16 90) then
+      --yesno "Would you like to add the GPG public key you generated to the BIOS?\n\nThis makes it a trusted key used to sign files in /boot\n\n" 0 80) then
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
@@ -108,7 +108,7 @@ gpg_post_gen_mgmt() {
 
 gpg_add_key_reflash() {
   if (whiptail --title 'GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 0 80) then
     mount_usb
     if grep -q /media /proc/mounts ; then
       find /media -name '*.key' > /tmp/filelist.txt
@@ -129,7 +129,7 @@ gpg_add_key_reflash() {
       fi
 
       if (whiptail --title 'Update ROM?' \
-          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
         gpg_flash_rom
       else
         exit 0
@@ -141,7 +141,7 @@ gpg_add_key_reflash() {
 while true; do
   unset menu_choice
   whiptail $BG_COLOR_MAIN_MENU --clear --title "GPG Management Menu" \
-    --menu 'Select the GPG function to perform' 20 90 10 \
+    --menu 'Select the GPG function to perform' 0 80 10 \
     'r' ' Add GPG key to running BIOS and reflash' \
     'a' ' Add GPG key to standalone BIOS image and flash' \
     'e' ' Replace GPG key(s) in the current ROM and reflash' \
@@ -159,7 +159,7 @@ while true; do
     ;;
     "a" )
       if (whiptail --title 'ROM and GPG public key required' \
-          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 16 90) then
+          --yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 0 80) then
         mount_usb
         if grep -q /media /proc/mounts ; then
           find /media -name '*.key' > /tmp/filelist.txt
@@ -181,7 +181,7 @@ while true; do
           cp "$ROM" /tmp/gpg-gui.rom
 
           if (whiptail $BG_COLOR_WARNING --title 'Flash ROM?' \
-              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 16 90) then
+              --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 0 80) then
             gpg_flash_rom
           else
             exit 0
@@ -204,11 +204,11 @@ while true; do
     "l" )
       GPG_KEYRING=`gpg -k`
       whiptail --title 'GPG Keyring' \
-        --msgbox "${GPG_KEYRING}" 16 90
+        --msgbox "${GPG_KEYRING}" 0 80
     ;;
     "p" )
         if (whiptail --title 'Export Public Key(s) to USB drive?' \
-          --yesno "Would you like to copy GPG public key(s) to a USB drive?\n\nThe file will show up as public-key.asc" 16 90) then
+          --yesno "Would you like to copy GPG public key(s) to a USB drive?\n\nThe file will show up as public-key.asc" 0 80) then
         mount_usb
         mount -o remount,rw /media
         gpg --export --armor > "/tmp/public-key.asc"

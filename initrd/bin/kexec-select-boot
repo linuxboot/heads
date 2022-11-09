@@ -60,7 +60,7 @@ verify_global_hashes()
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' \
-				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 90
+				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
 	fi
@@ -103,7 +103,7 @@ get_menu_option() {
 		done < $TMP_MENU_FILE
 
 		whiptail --clear --title "Select your boot option" \
-			--menu "Choose the boot option [1-$n, a to abort]:" 20 120 8 \
+			--menu "Choose the boot option [1-$n, a to abort]:" 0 80 8 \
 			-- $MENU_OPTIONS \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
@@ -137,7 +137,7 @@ confirm_menu_option() {
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
 		whiptail $BG_COLOR_WARNING --clear --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$(echo $kernel| fold -s -w 80) \n\n" 20 120 8 \
+			--menu "Confirm the boot details for $name:\n\n$(echo $kernel| fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
@@ -243,7 +243,7 @@ default_select() {
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
-				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 90
+				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 		fi
 		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
 	fi

@@ -12,8 +12,8 @@ export TOP_PID=$$
 CLEAR="--clear"
 CONTINUE="--yes-button Continue"
 CANCEL="--no-button Cancel"
-HEIGHT="30"
-WIDTH="90"
+HEIGHT="0"
+WIDTH="80"
 
 USER_PIN_DEF=123456
 ADMIN_PIN_DEF=12345678
@@ -298,7 +298,7 @@ report_integrity_measurements()
             HOTP=`unseal-hotp` > /dev/null 2>&1
             enable_usb
             if ! hotp_verification info > /dev/null 2>&1 ; then
-                whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please insert your HOTP enabled USB Security dongle' --msgbox "Your HOTP enabled USB Security dongle was not detected.\n\nPlease remove it and insert it again." 30 90
+                whiptail $CONFIG_WARNING_BG_COLOR --clear --title 'WARNING: Please insert your HOTP enabled USB Security dongle' --msgbox "Your HOTP enabled USB Security dongle was not detected.\n\nPlease remove it and insert it again." 0 80
             fi
             # Don't output HOTP codes to screen, so as to make replay attacks harder
             hotp_verification check $HOTP
@@ -330,7 +330,7 @@ report_integrity_measurements()
         fi
 
 	    #Show results
-	    whiptail $MAIN_MENU_BG_COLOR --clear --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 30 90
+	    whiptail $MAIN_MENU_BG_COLOR --clear --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
     fi
 }
 
