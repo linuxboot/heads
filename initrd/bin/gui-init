@@ -357,18 +357,11 @@ check_gpg_key()
 prompt_auto_default_boot()
 {
   TRACE "Under /bin/gui-init:prompt_auto_default_boot"
-  # save IFS before changing, restore after read
-  IFS_DEF=$IFS
-  IFS=''
-  first_pass=false
   echo -e "\nHOTP verification success\n\n"
-  read -t $CONFIG_AUTO_BOOT_TIMEOUT -s -n 1 -p "Automatic boot in $CONFIG_AUTO_BOOT_TIMEOUT seconds unless interrupted by keypress... "
-  if [[ $? -ne 0 ]]; then
-    IFS=$IFS_DEF
+  if pause_automatic_boot; then
     echo -e "\n\nAttempting default boot...\n\n"
     attempt_default_boot
   fi
-  IFS=$IFS_DEF
 }
 
 show_main_menu()
