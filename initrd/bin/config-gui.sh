@@ -15,7 +15,7 @@ while true; do
   else
     unset menu_choice
     whiptail $BG_COLOR_MAIN_MENU --clear --title "Config Management Menu" \
-    --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 20 90 10 \
+    --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
     'r' ' Clear GPG key(s) and reset all user settings' \
@@ -88,7 +88,7 @@ while true; do
       cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 
       if (whiptail --title 'Update ROM?' \
-          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 16 90) then
+          --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
         /bin/flash.sh /tmp/config-gui.rom
         whiptail --title 'BIOS Updated Successfully' \
           --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
@@ -103,7 +103,7 @@ while true; do
            --yesno "This will clear all GPG keys, clear boot signatures and checksums,
                   \nreset the /boot device, clear/reset the TPM (if present),
                   \nand reflash your BIOS with the cleaned configuration.
-                  \n\nDo you want to proceed?" 16 90) then
+                  \n\nDo you want to proceed?" 0 80) then
         # read current firmware
         /bin/flash.sh -r /tmp/config-gui.rom
         if [ ! -s /tmp/config-gui.rom ]; then

@@ -24,7 +24,7 @@ mount_boot()
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: No Bootable OS Found!" \
         --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
-    How would you like to proceed?" 30 90 4 \
+    How would you like to proceed?" 0 80 4 \
         'b' ' Select a new boot device' \
         'u' ' Boot from USB' \
         'm' ' Continue to the main menu' \
@@ -67,13 +67,13 @@ verify_global_hashes()
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
     if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Missing Hash File!' \
-        --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 30 90) then
+        --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU=""
         return 0;
       else
         whiptail $BG_COLOR_ERROR --title 'ERROR' \
-          --msgbox "Failed to update checksums / sign default config" 16 90
+          --msgbox "Failed to update checksums / sign default config" 0 80
       fi
     fi
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
@@ -114,13 +114,13 @@ verify_global_hashes()
       fi
     fi
 
-    if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 30 90) then
+    if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU=""
         return 0;
       else
         whiptail $BG_COLOR_ERROR --title 'ERROR' \
-          --msgbox "Failed to update checksums / sign default config" 16 90
+          --msgbox "Failed to update checksums / sign default config" 0 80
       fi
     fi
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
@@ -131,10 +131,10 @@ verify_global_hashes()
 prompt_update_checksums()
 {
   if (whiptail $BG_COLOR_WARNING --title 'Update Checksums and sign all files in /boot' \
-      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 16 90) then
+      --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80) then
     if ! update_checksums ; then
       whiptail $BG_COLOR_ERROR --title 'ERROR' \
-        --msgbox "Failed to update checksums / sign default config" 16 90
+        --msgbox "Failed to update checksums / sign default config" 0 80
     fi
   fi
 }
@@ -170,7 +170,7 @@ update_totp()
   If this is the first time the system has booted, you should
   reset the TPM and set your own password.\n
   If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n
-  How would you like to proceed?" 30 90 4 \
+  How would you like to proceed?" 0 80 4 \
         'g' ' Generate new HOTP/TOTP secret' \
         'i' ' Ignore error and continue to main menu' \
         'p' ' Reset the TPM' \
@@ -181,7 +181,7 @@ update_totp()
       case "$option" in 
         g )
           if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
-              --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 16 90) then
+              --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
             generate_totp_htop && update_totp && BG_COLOR_MAIN_MENU=""
           fi
           ;;
@@ -207,7 +207,7 @@ update_hotp()
       if ! whiptail $BG_COLOR_WARNING --clear \
           --title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
           --yes-button "Retry" --no-button "Skip" \
-          --yesno "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 30 90 ; then
+          --yesno "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 0 80 ; then
         HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
         BG_COLOR_MAIN_MENU=$BG_COLOR_WARNING
         return
@@ -268,7 +268,7 @@ check_gpg_key()
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
     whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
-      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 30 90 4 \
+      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Add a GPG key to the running BIOS' \
       'F' ' OEM Factory Reset / Re-Ownership' \
       'i' ' Ignore error and continue to main menu' \
@@ -314,7 +314,7 @@ show_main_menu()
 {
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   whiptail $BG_COLOR_MAIN_MENU --clear --title "$MAIN_MENU_TITLE" \
-    --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 20 90 10 \
+    --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 0 80 10 \
     'd' ' Default boot' \
     'r' ' Refresh TOTP/HOTP' \
     'o' ' Options -->' \
@@ -345,7 +345,7 @@ show_main_menu()
 show_options_menu()
 {
   whiptail $BG_COLOR_MAIN_MENU --clear --title "HEADS Options" \
-    --menu "" 20 90 10 \
+    --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
     'u' ' Update checksums and sign all files in /boot' \
@@ -401,7 +401,7 @@ show_options_menu()
 show_boot_options_menu()
 {
   whiptail $BG_COLOR_MAIN_MENU --clear --title "Boot Options" \
-    --menu "Select A Boot Option" 20 90 10 \
+    --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
     'u' ' USB boot' \
     'i' ' Ignore tampering and force a boot (Unsafe!)' \
@@ -428,7 +428,7 @@ show_boot_options_menu()
 show_tpm_totp_hotp_options_menu()
 {
   whiptail $BG_COLOR_MAIN_MENU --clear --title "TPM/TOTP/HOTP Options" \
-    --menu "Select An Option" 20 90 10 \
+    --menu "Select An Option" 0 80 10 \
     'g' ' Generate new TOTP/HOTP secret' \
     'r' ' Reset the TPM' \
     't' ' TOTP/HOTP does not match after refresh, troubleshoot' \
@@ -454,7 +454,7 @@ show_tpm_totp_hotp_options_menu()
 prompt_totp_mismatch()
 {
   if (whiptail $BG_COLOR_WARNING --title "TOTP/HOTP code mismatched" \
-    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 30 90) then
+    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
     echo ""
     echo "To correct clock drift: 'date -s HH:MM:SS'"
     echo "and save it to the RTC: 'hwclock -w'"
@@ -468,7 +468,7 @@ reset_tpm()
 {
   if [ "$CONFIG_TPM" = "y" ]; then
     if (whiptail $BG_COLOR_WARNING --title 'Reset the TPM' \
-        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 16 90) then
+        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
       /bin/tpm-reset
 
       # now that the TPM is reset, remove invalid TPM counter files
@@ -493,7 +493,7 @@ reset_tpm()
       echo "Returning to the main menu"
     fi
   else
-    whiptail $BG_COLOR_ERROR --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 30 90
+    whiptail $BG_COLOR_ERROR --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
   fi
 }
 
@@ -534,7 +534,7 @@ attempt_default_boot()
     kexec-select-boot -b /boot -c "grub.cfg" -g \
     || recovery "Failed default boot"
   elif (whiptail $BG_COLOR_WARNING --title 'No Default Boot Option Configured' \
-        --yesno "There is no default boot option configured yet.\nWould you like to load a menu of boot options?\nOtherwise you will return to the main menu." 16 90) then
+        --yesno "There is no default boot option configured yet.\nWould you like to load a menu of boot options?\nOtherwise you will return to the main menu." 0 80) then
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
   fi
 }
@@ -543,7 +543,7 @@ force_unsafe_boot()
 {
   # Run the menu selection in "force" mode, bypassing hash checks
   if (whiptail $BG_COLOR_WARNING --title 'Unsafe Forced Boot Selected!' \
-      --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 16 90) then
+      --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 0 80) then
     mount_boot && kexec-select-boot -m -b /boot -c "grub.cfg" -g -f
   fi
 }
