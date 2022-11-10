@@ -39,41 +39,41 @@ check_path() {
 }
 
 echo_entry() {
-	if [ "$kexectype" = "elf" ]; then
-		if [ -z "$kernel" ]; then return; fi
+	if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
-		# The kernel must exist - if it doesn't, ignore this entry, it
-		# wouldn't work anyway.  This could happen if there was a
-		# GRUB variable in the kernel path, etc.
-		if ! check_path "$path"; then return; fi
-		entry="$name|$kexectype|kernel $path"
-		if [ -n "$initrd" ]; then
-			for init in $(echo $initrd | tr ',' ' '); do
-				fix_path $init
-				# The initrd must also exist
-				if ! check_path "$path"; then return; fi
-				entry="$entry|initrd $path"
-			done
-		fi
-		if [ -n "$append" ]; then
-			entry="$entry|append $append"
-		fi
+	fix_path $kernel
+	# The kernel must exist - if it doesn't, ignore this entry, it
+	# wouldn't work anyway.  This could happen if there was a
+	# GRUB variable in the kernel path, etc.
+	if ! check_path "$path"; then return; fi
+	entry="$name|$kexectype|kernel $path"
 
-		# Double-expand here in case there are variables in the kernel
-		# parameters - some configs do this and can boot with empty
-		# expansions (Debian Live ISOs use this for loopback boots)
-		echo $(eval "echo \"$entry\"")
-	fi
-	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
-		if [ -z "$kernel" ]; then return; fi
+	case "$kexectype" in
+		elf)
+			if [ -n "$initrd" ]; then
+				for init in $(echo $initrd | tr ',' ' '); do
+					fix_path $init
+					# The initrd must also exist
+					if ! check_path "$path"; then return; fi
+					entry="$entry|initrd $path"
+				done
+			fi
+			if [ -n "$append" ]; then
+				entry="$entry|append $append"
+			fi
+			;;
+		multiboot|xen)
+			entry="$entry$modules"
+			;;
+		*)
+			return
+			;;
+	esac
 
-		fix_path $kernel
-		# The kernel must exist
-		if ! check_path "$path"; then return; fi
-		# Double-expand to clear variable expansions
-		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
-	fi
+	# Double-expand here in case there are variables in the kernel
+	# parameters - some configs do this and can boot with empty
+	# expansions (Debian Live ISOs use this for loopback boots)
+	echo $(eval "echo \"$entry\"")
 }
 
 search_entry() {
