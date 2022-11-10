@@ -94,11 +94,17 @@ grub_entry() {
 			modules="$modules|module $path"
 			;;
 		linux*)
-			kernel=`echo $trimcmd | cut -d\  -f2`
+			# Some configs have a device specification in the kernel
+			# or initrd path.  Assume this would be /boot and remove
+			# it.  Keep the '/' following the device, since this
+			# path is relative to the device root, not the config
+			# location.
+			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
 			append=`echo $trimcmd | cut -d\  -f3-`
 			;;
 		initrd*)
-			initrd="$val"
+			# Trim off device specification as above
+			initrd="$(echo "$val" | sed "s/([^)]*)//g")"
 			;;
 	esac
 }
