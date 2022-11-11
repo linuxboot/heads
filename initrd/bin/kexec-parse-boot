@@ -28,30 +28,52 @@ fix_path() {
 	fi
 }
 
+# GRUB kernel lines (linux/multiboot) can include a command line.  Check whether
+# the file path exists in $bootdir.
+check_path() {
+	local checkpath firstval
+	checkpath="$1"
+	firstval="$(echo "$checkpath" | cut -d\  -f1)"
+	if ! [ -r "$bootdir$firstval" ]; then return 1; fi
+	return 0
+}
+
 echo_entry() {
-	if [ "$kexectype" = "elf" ]; then
-		if [ -z "$kernel" ]; then return; fi
+	if [ -z "$kernel" ]; then return; fi
 
-		fix_path $kernel
-		entry="$name|$kexectype|kernel $path"
-		if [ -n "$initrd" ]; then
-			for init in $(echo $initrd | tr ',' ' '); do
-				fix_path $init
-				entry="$entry|initrd $path"
-			done
-		fi
-		if [ -n "$append" ]; then
-			entry="$entry|append $append"
-		fi
+	fix_path $kernel
+	# The kernel must exist - if it doesn't, ignore this entry, it
+	# wouldn't work anyway.  This could happen if there was a
+	# GRUB variable in the kernel path, etc.
+	if ! check_path "$path"; then return; fi
+	entry="$name|$kexectype|kernel $path"
 
-		echo $(eval "echo \"$entry\"")
-	fi
-	if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
-		if [ -z "$kernel" ]; then return; fi
+	case "$kexectype" in
+		elf)
+			if [ -n "$initrd" ]; then
+				for init in $(echo $initrd | tr ',' ' '); do
+					fix_path $init
+					# The initrd must also exist
+					if ! check_path "$path"; then return; fi
+					entry="$entry|initrd $path"
+				done
+			fi
+			if [ -n "$append" ]; then
+				entry="$entry|append $append"
+			fi
+			;;
+		multiboot|xen)
+			entry="$entry$modules"
+			;;
+		*)
+			return
+			;;
+	esac
 
-		fix_path $kernel
-		echo $(eval "echo \"$name|$kexectype|kernel $path$modules\"")
-	fi
+	# Double-expand here in case there are variables in the kernel
+	# parameters - some configs do this and can boot with empty
+	# expansions (Debian Live ISOs use this for loopback boots)
+	echo $(eval "echo \"$entry\"")
 }
 
 search_entry() {
@@ -94,11 +116,17 @@ grub_entry() {
 			modules="$modules|module $path"
 			;;
 		linux*)
-			kernel=`echo $trimcmd | cut -d\  -f2`
+			# Some configs have a device specification in the kernel
+			# or initrd path.  Assume this would be /boot and remove
+			# it.  Keep the '/' following the device, since this
+			# path is relative to the device root, not the config
+			# location.
+			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
 			append=`echo $trimcmd | cut -d\  -f3-`
 			;;
 		initrd*)
-			initrd="$val"
+			# Trim off device specification as above
+			initrd="$(echo "$val" | sed "s/([^)]*)//g")"
 			;;
 	esac
 }
