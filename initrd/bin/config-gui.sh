@@ -82,10 +82,10 @@ while true; do
         exit 1
       fi
 
-      if (cbfs -o /tmp/config-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
-        cbfs -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
+      if (cbfs.sh -o /tmp/config-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
+        cbfs.sh -o /tmp/config-gui.rom -d "heads/initrd/etc/config.user"
       fi
-      cbfs -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+      cbfs.sh -o /tmp/config-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 
       if (whiptail --title 'Update ROM?' \
           --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
@@ -118,8 +118,8 @@ while true; do
         rm /boot/kexec* | true
         mount -o remount,ro /boot
         # clear GPG keys and user settings
-        for i in `cbfs -o /tmp/config-gui.rom -l | grep -e "heads/"`; do
-          cbfs -o /tmp/config-gui.rom -d $i
+        for i in `cbfs.sh -o /tmp/config-gui.rom -l | grep -e "heads/"`; do
+          cbfs.sh -o /tmp/config-gui.rom -d $i
         done
         # flash cleared ROM
         /bin/flash.sh -c /tmp/config-gui.rom
