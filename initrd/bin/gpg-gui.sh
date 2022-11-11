@@ -19,10 +19,10 @@ gpg_flash_rom() {
   gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
   gpg --update-trust
 
-  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.kbx"); then
-    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.kbx"
-    if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg"); then
-      cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
+  if (cbfs.sh -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.kbx"); then
+    cbfs.sh -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.kbx"
+    if (cbfs.sh -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/pubring.gpg"); then
+      cbfs.sh -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/pubring.gpg"
       if [ -e /.gnupg/pubring.gpg ];then
         rm /.gnupg/pubring.gpg
       fi
@@ -31,33 +31,33 @@ gpg_flash_rom() {
 
   #to be compatible with gpgv1
   if [ -e /.gnupg/pubring.kbx ];then
-    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+    cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
     if [ -e /.gnupg/pubring.gpg ];then
       rm /.gnupg/pubring.gpg
     fi
   fi
   if [ -e /.gnupg/pubring.gpg ];then
-    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+    cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
   fi
 
-  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
-    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
+  if (cbfs.sh -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/trustdb.gpg") then
+    cbfs.sh -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/trustdb.gpg"
   fi
   if [ -e /.gnupg/trustdb.gpg ]; then
-    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+    cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
   fi
 
   #Remove old method owner trust exported file
-  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
-    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
+  if (cbfs.sh -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/.gnupg/otrust.txt") then
+    cbfs.sh -o /tmp/gpg-gui.rom -d "heads/initrd/.gnupg/otrust.txt"
   fi
 
   # persist user config changes
-  if (cbfs -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
-    cbfs -o /tmp/gpg-gui.rom -d "heads/initrd/etc/config.user"
+  if (cbfs.sh -o /tmp/gpg-gui.rom -l | grep -q "heads/initrd/etc/config.user") then
+    cbfs.sh -o /tmp/gpg-gui.rom -d "heads/initrd/etc/config.user"
   fi
   if [ -e /etc/config.user ]; then
-    cbfs -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+    cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
   fi
   /bin/flash.sh /tmp/gpg-gui.rom
 

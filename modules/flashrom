@@ -8,14 +8,27 @@ flashrom_tar := $(flashrom_dir).tar.gz
 flashrom_url := https://github.com/flashrom/flashrom/archive/$(flashrom_version).tar.gz
 flashrom_hash := 4873ad50f500629c244fc3fbee64b56403a82307d7f555dfa235336a200c336c
 
-flashrom_target := \
-	$(MAKE_JOBS) \
-	$(CROSS_TOOLS) \
+# Default options for flashrom
+flashrom_cfg := \
 	WARNERROR=no \
 	CONFIG_NOTHING=yes \
 	CONFIG_INTERNAL=yes \
 	CONFIG_DUMMY=yes \
 	CONFIG_AST1100=yes \
+
+ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+flashrom_cfg := \
+	WARNERROR=no \
+	CONFIG_NOTHING=yes \
+	CONFIG_LINUX_MTD=yes \
+	CONFIG_DUMMY=yes \
+	CONFIG_AST1100=yes
+endif
+
+flashrom_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	$(flashrom_cfg)
 
 flashrom_output := \
 	flashrom

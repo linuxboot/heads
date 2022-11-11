@@ -659,24 +659,24 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error ; then
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
 # clear any existing heads/gpg files from current firmware
-for i in `cbfs -o /tmp/oem-setup.rom -l | grep -e "heads/"`; do
-    cbfs -o /tmp/oem-setup.rom -d $i
+for i in `cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"`; do
+    cbfs.sh -o /tmp/oem-setup.rom -d $i
 done
 # add heads/gpg files to current firmware
 if [ -e /.gnupg/pubring.kbx ];then
-    cbfs -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
     if [ -e /.gnupg/pubring.gpg ];then
         rm /.gnupg/pubring.gpg
     fi
 elif [ -e /.gnupg/pubring.gpg ];then
-    cbfs -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
 fi
 if [ -e /.gnupg/trustdb.gpg ]; then
-    cbfs -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
 fi
 # persist user config changes (boot device)
 if [ -e /etc/config.user ]; then
-    cbfs -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 fi
 # flash updated firmware image
 echo -e "\nAdding generated key to current firmware and re-flashing...\n"

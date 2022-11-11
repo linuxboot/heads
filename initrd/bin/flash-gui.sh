@@ -22,10 +22,10 @@ while true; do
     ;;
     f|c )
       if (whiptail $BG_COLOR_WARNING --title 'Flash the BIOS with a new ROM' \
-          --yesno "You will need to insert a USB drive containing your BIOS image (*.rom).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80) then
+          --yesno "You will need to insert a USB drive containing your BIOS image (*.rom or *.tgz).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80) then
         mount_usb
         if grep -q /media /proc/mounts ; then
-          find /media ! -path '*/\.*' -type f -name '*.rom' | sort > /tmp/filelist.txt
+          find /media ! -path '*/\.*' -type f \( -name '*.rom' -o -name '*.tgz' \) | sort > /tmp/filelist.txt
           file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
           if [ "$FILE" == "" ]; then
             return
