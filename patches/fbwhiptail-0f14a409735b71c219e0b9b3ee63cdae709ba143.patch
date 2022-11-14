@@ -1,8 +1,9 @@
---- fbwhiptail-0f14a409735b71c219e0b9b3ee63cdae709ba143/whiptail.orig	2022-11-14 14:12:40.556000000 -0500
-+++ fbwhiptail-0f14a409735b71c219e0b9b3ee63cdae709ba143/whiptail	2022-11-14 14:15:03.362000000 -0500
-@@ -1,2 +1,5 @@
+--- fbwhiptail-0f14a409735b71c219e0b9b3ee63cdae709ba143/whiptail.orig	2022-11-14 15:21:23.799000000 -0500
++++ fbwhiptail-0f14a409735b71c219e0b9b3ee63cdae709ba143/whiptail	2022-11-14 15:22:17.498000000 -0500
+@@ -1,2 +1,6 @@
  #!/bin/sh
-+if [ $(tty) == "/dev/hvc0" ]; then
-+       die "fbwhiptail menus cannot be drawn serial/non-fb enabled consoles. Run commands manually."
-+fi 
++if [[ $(echo $(readlink /proc/self/fd/0)) == "/dev/hvc0" || $(echo $(readlink /proc/self/fd/0)) == "/dev/ttyS0" ]]; then
++	. /etc/functions
++	die "fbwhiptail non-usable on serial/non-fb enabled consoles. Run commands manually."
++fi
  fbwhiptail --notags "$@"
