@@ -1,6 +1,6 @@
 #!/bin/ash
 mknod /dev/ttyprintk c 5 3
-echo "hello world" > /dev/ttyprintk
+echo "ttyprintk hello world on tty: $(tty)" > /dev/ttyprintk
 
 # Setup our path
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
@@ -20,7 +20,7 @@ if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	mount /sys/firmware/efi/efivars
 fi
 
-# Setup the pty psudeo filesystem
+# Setup the pty pseudo filesystem
 mkdir /dev/pts
 mount /dev/pts 2>/dev/ttyprintk
 
