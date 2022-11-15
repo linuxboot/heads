@@ -140,7 +140,7 @@ gpg_add_key_reflash() {
 
 while true; do
   unset menu_choice
-  whiptail $BG_COLOR_MAIN_MENU --clear --title "GPG Management Menu" \
+  whiptail $BG_COLOR_MAIN_MENU --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 0 80 10 \
     'r' ' Add GPG key to running BIOS and reflash' \
     'a' ' Add GPG key to standalone BIOS image and flash' \

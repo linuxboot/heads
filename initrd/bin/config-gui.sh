@@ -14,7 +14,7 @@ while true; do
     unset param
   else
     unset menu_choice
-    whiptail $BG_COLOR_MAIN_MENU --clear --title "Config Management Menu" \
+    whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
     'b' ' Change the /boot device' \
     's' ' Save the current configuration to the running BIOS' \
