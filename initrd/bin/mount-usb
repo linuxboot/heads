@@ -65,7 +65,7 @@ if [ -z ${USB_MOUNT_DEVICE} ]; then
     done < /tmp/usb_disk_list
 
     MENU_OPTIONS="$MENU_OPTIONS a Abort"
-    whiptail $BG_COLOR --clear --title "Select your USB disk" \
+    whiptail $BG_COLOR --title "Select your USB disk" \
       --menu "Choose your USB disk [1-$n, a to abort]:" 0 80 8 \
       -- $MENU_OPTIONS \
       2>/tmp/whiptail
