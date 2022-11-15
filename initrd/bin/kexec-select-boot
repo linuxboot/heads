@@ -102,7 +102,7 @@ get_menu_option() {
 			MENU_OPTIONS="$MENU_OPTIONS $n ${name} "
 		done < $TMP_MENU_FILE
 
-		whiptail --clear --title "Select your boot option" \
+		whiptail --title "Select your boot option" \
 			--menu "Choose the boot option [1-$n, a to abort]:" 0 80 8 \
 			-- $MENU_OPTIONS \
 			2>/tmp/whiptail || die "Aborting boot attempt"
@@ -136,7 +136,7 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
-		whiptail $BG_COLOR_WARNING --clear --title "Confirm boot details" \
+		whiptail $BG_COLOR_WARNING --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$(echo $kernel| fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
