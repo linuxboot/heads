@@ -3,11 +3,13 @@
 
 die() {
 	echo >&2 "$*";
+	sleep 2;
 	exit 1;
 }
 
 warn() {
 	echo >&2 "$*";
+	sleep 1;
 }
 
 recovery() {
