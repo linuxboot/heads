@@ -22,7 +22,7 @@ mount_boot()
 
     # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
-    whiptail $BG_COLOR_ERROR --clear --title "ERROR: No Bootable OS Found!" \
+    whiptail $BG_COLOR_ERROR --title "ERROR: No Bootable OS Found!" \
         --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
     How would you like to proceed?" 0 80 4 \
         'b' ' Select a new boot device' \
@@ -66,7 +66,7 @@ verify_global_hashes()
   if ( cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ) then
     return 0
   elif [ ! -f $TMP_HASH_FILE ]; then
-    if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Missing Hash File!' \
+    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Missing Hash File!' \
         --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU=""
@@ -114,7 +114,7 @@ verify_global_hashes()
       fi
     fi
 
-    if (whiptail $BG_COLOR_ERROR --clear --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80) then
+    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU=""
         return 0;
@@ -163,7 +163,7 @@ update_totp()
     TOTP=`unseal-totp`
     if [ $? -ne 0 ]; then
       BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
-      whiptail $BG_COLOR_ERROR --clear --title "ERROR: TOTP Generation Failed!" \
+      whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
         --menu "    ERROR: Heads couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
   your BIOS, you should generate a new HOTP/TOTP secret.\n
@@ -204,7 +204,7 @@ update_hotp()
   if [ -x /bin/hotp_verification ]; then
     HOTP=`unseal-hotp`
     if ! hotp_verification info ; then
-      if ! whiptail $BG_COLOR_WARNING --clear \
+      if ! whiptail $BG_COLOR_WARNING \
           --title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
           --yes-button "Retry" --no-button "Skip" \
           --yesno "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 0 80 ; then
@@ -267,7 +267,7 @@ check_gpg_key()
   GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
-    whiptail $BG_COLOR_ERROR --clear --title "ERROR: GPG keyring empty!" \
+    whiptail $BG_COLOR_ERROR --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Add a GPG key to the running BIOS' \
       'F' ' OEM Factory Reset / Re-Ownership' \
@@ -313,7 +313,7 @@ prompt_auto_default_boot()
 show_main_menu()
 {
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
-  whiptail $BG_COLOR_MAIN_MENU --clear --title "$MAIN_MENU_TITLE" \
+  whiptail $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 0 80 10 \
     'd' ' Default boot' \
     'r' ' Refresh TOTP/HOTP' \
@@ -344,7 +344,7 @@ show_main_menu()
 
 show_options_menu()
 {
-  whiptail $BG_COLOR_MAIN_MENU --clear --title "HEADS Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "HEADS Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
@@ -400,7 +400,7 @@ show_options_menu()
 
 show_boot_options_menu()
 {
-  whiptail $BG_COLOR_MAIN_MENU --clear --title "Boot Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "Boot Options" \
     --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
     'u' ' USB boot' \
@@ -427,7 +427,7 @@ show_boot_options_menu()
 
 show_tpm_totp_hotp_options_menu()
 {
-  whiptail $BG_COLOR_MAIN_MENU --clear --title "TPM/TOTP/HOTP Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "TPM/TOTP/HOTP Options" \
     --menu "Select An Option" 0 80 10 \
     'g' ' Generate new TOTP/HOTP secret' \
     'r' ' Reset the TPM' \
@@ -493,7 +493,7 @@ reset_tpm()
       echo "Returning to the main menu"
     fi
   else
-    whiptail $BG_COLOR_ERROR --clear --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
+    whiptail $BG_COLOR_ERROR --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
   fi
 }
 

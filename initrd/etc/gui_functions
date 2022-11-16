@@ -43,7 +43,7 @@ file_selector()
       done < $FILE_LIST
 
       MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail --clear --title "${MENU_TITLE}" \
+      whiptail --title "${MENU_TITLE}" \
         --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
         -- $MENU_OPTIONS \
         2>/tmp/whiptail || die "Aborting"
