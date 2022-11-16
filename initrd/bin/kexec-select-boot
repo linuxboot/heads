@@ -197,18 +197,7 @@ parse_option() {
 scan_options() {
 	echo "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
-	if [ -r $option_file ]; then rm $option_file; fi
-	for i in `find $bootdir -name "$config"`; do
-		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >> $option_file
-	done
-	# FC29/30+ may use BLS format grub config files
-	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
-	# only parse these if $option_file is still empty
-	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in `find $bootdir -name "$config"`; do
-			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
-		done
-	fi
+	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
 		die "Failed to parse any boot options"
 	fi

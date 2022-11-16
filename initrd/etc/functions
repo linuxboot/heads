@@ -523,6 +523,27 @@ detect_boot_device()
 	return 1
 }
 
+scan_boot_options()
+{
+	local bootdir config option_file
+	bootdir="$1"
+	config="$2"
+	option_file="$3"
+
+	if [ -r $option_file ]; then rm $option_file; fi
+	for i in `find $bootdir -name "$config"`; do
+		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >> $option_file
+	done
+	# FC29/30+ may use BLS format grub config files
+	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+	# only parse these if $option_file is still empty
+	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
+		for i in `find $bootdir -name "$config"`; do
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
+		done
+	fi
+}
+
 calc()
 { 
 	awk "BEGIN { print "$*" }"; 
