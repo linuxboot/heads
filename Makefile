@@ -555,6 +555,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 initrd-y += $(pwd)/blobs/dev.cpio
 initrd-y += $(build)/$(initrd_dir)/modules.cpio
 initrd-y += $(build)/$(initrd_dir)/tools.cpio
+initrd-y += $(build)/$(initrd_dir)/board.cpio
 initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
 #$(build)/$(initrd_dir)/.build: $(build)/$(initrd_dir)/initrd.cpio.xz
@@ -582,6 +583,17 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 #
 bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
 all: $(bundle-y)
+
+# The board.cpio is built from the board's initrd/ directory.  It contains
+# board-specific support scripts.
+
+ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
+$(build)/$(initrd_dir)/board.cpio:
+	cpio -H newc -o </dev/null >"$@"
+else
+$(build)/$(initrd_dir)/board.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
+endif
 
 #
 # The heads.cpio is built from the initrd directory in the
