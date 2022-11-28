@@ -33,6 +33,7 @@ while true; do
     RESTRICTED_BOOT="$(load_config_value CONFIG_RESTRICTED_BOOT)"
     BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
     BASIC_USB_AUTOBOOT="$(load_config_value CONFIG_BASIC_USB_AUTOBOOT)"
+    AUTOMATIC_POWERON="$(load_config_value CONFIG_AUTOMATIC_POWERON)"
 
     dynamic_config_options=()
 
@@ -50,6 +51,12 @@ while true; do
             'B' ' Check root hashes at boot' \
             'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode" \
             'L' " $(get_config_display_action "$RESTRICTED_BOOT") Restricted Boot" \
+        )
+    fi
+
+    if [ "$CONFIG_SUPPORT_AUTOMATIC_POWERON" = "y" ]; then
+        dynamic_config_options+=( \
+            'N' " $(get_config_display_action "$AUTOMATIC_POWERON") Automatic Power-On" \
         )
     fi
 
@@ -387,6 +394,31 @@ while true; do
 
           whiptail --title 'Config change successful' \
             --msgbox "USB automatic boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
+    ;;
+    "N" )
+      if [ "$AUTOMATIC_POWERON" = "n" ]; then
+        if (whiptail --title 'Enable automatic power-on?' \
+             --yesno "The system will boot automatically when power is applied.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          toggle_config /etc/config.user "CONFIG_AUTOMATIC_POWERON"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Automatic power-on enabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      else
+        if (whiptail --title 'Disable automatic power-on?' \
+             --yesno "The system will stay off when power is applied.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          toggle_config /etc/config.user "CONFIG_AUTOMATIC_POWERON"
+          combine_configs
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Automatic power-on disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
