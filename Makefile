@@ -499,6 +499,7 @@ bin_modules-$(CONFIG_OPENSSL) += openssl
 bin_modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
 bin_modules-$(CONFIG_BASH) += bash
 bin_modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
+bin_modules-$(CONFIG_IOPORT) += ioport
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
