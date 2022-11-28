@@ -151,6 +151,11 @@ if [ "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
 	export CONFIG_HOTPKEY=n
 fi
 
+# Perform board-specific init if present
+if [ -x /bin/board-init.sh ]; then
+	/bin/board-init.sh
+fi
+
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 else
