@@ -1,18 +1,19 @@
 modules-$(CONFIG_FLASHROM) += flashrom
 
-flashrom_depends := pciutils $(musl_dep)
+flashrom_depends := pciutils libusb $(musl_dep)
 
-flashrom_version := b1f858f65b2abd276542650d8cb9e382da258967
+flashrom_version := 6b2061bc0699202f81aeb782f301f1bba9f8a826
 flashrom_dir := flashrom-$(flashrom_version)
 flashrom_tar := $(flashrom_dir).tar.gz
-flashrom_url := https://github.com/flashrom/flashrom/archive/$(flashrom_version).tar.gz
-flashrom_hash := 4873ad50f500629c244fc3fbee64b56403a82307d7f555dfa235336a200c336c
+flashrom_url := https://github.com/Dasharo/flashrom/archive/$(flashrom_version).tar.gz
+flashrom_hash := 1295be687e1d3806e1489671ad4e1abe1561e83010e43eff367a35dfb603ab51
 
 # Default options for flashrom
 flashrom_cfg := \
 	WARNERROR=no \
 	CONFIG_NOTHING=yes \
 	CONFIG_INTERNAL=yes \
+	CONFIG_INTERNAL_X86=yes \
 	CONFIG_DUMMY=yes \
 	CONFIG_AST1100=yes \
 
@@ -20,15 +21,19 @@ ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 flashrom_cfg := \
 	WARNERROR=no \
 	CONFIG_NOTHING=yes \
-	CONFIG_LINUX_MTD=yes \
-	CONFIG_DUMMY=yes \
-	CONFIG_AST1100=yes
+	CONFIG_LINUX_MTD=yes
 endif
 
 flashrom_target := \
 	$(MAKE_JOBS) \
+	PREFIX="$(INSTALL)" \
+	INSTALL="$(INSTALL)" \
+	DESTDIR="$(INSTALL)" \
+	LIBS_BASE="$(INSTALL)" \
+	CFLAGS="-I$(INSTALL)/include/libusb-1.0 -I$(INSTALL)/include/pci" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+	$(flashrom_cfg) \
 	$(CROSS_TOOLS) \
-	$(flashrom_cfg)
 
 flashrom_output := \
 	flashrom
