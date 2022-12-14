@@ -80,7 +80,7 @@ jobs:
             #Restore existing cache for matching modules digest, validated to be exactly the same as in github current commit.
             #This cache was made on top of below caches, if previously existing. If no module definition changed, we reuse this one. Otherwise...
             - heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            #If precedent cache not found, restore cache for coreboot module (and patches) and musl-cross-make digests (bi-yearly modified)
+            #If precedent cache not found, restore cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
             #Otehrwise....
             - heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             #If precedent cache not found. Restore cache for musl-cross-make module digest (rarely modified).
@@ -188,6 +188,7 @@ jobs:
             - build/x86/coreboot-4.13
             - build/x86/coreboot-4.14
             - build/x86/coreboot-4.15
+            - build/x86/coreboot-4.17
             - build/ppc64/coreboot-git
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
@@ -224,15 +225,7 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-      # Coreboot 4.11
-#      - build_and_persist:
-#          name: librem_l1um 
-#          target: librem_l1um
-#          subcommand: ""
-#          requires:
-#            - librem_14
-
-      # Coreboot for Talos
+      # Coreboot for Talos (PPC)
       - build_and_persist:
           name: talos-2_server
           arch: ppc64
@@ -242,7 +235,7 @@ workflows:
             - prep_env
 
       #Cache one workspace per Coreboot version, ideally the boards including the highest number of modules, since not rebuilt across builds.
-      #Below, 4.11, 4.13, 4.15
+      #Below, 4.11, 4.13, 4.17
       - save_cache:
           requires:
             - librem_14
@@ -358,6 +351,7 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+
       - build:
           name: t530-hotp-maximized
           target: t530-hotp-maximized
