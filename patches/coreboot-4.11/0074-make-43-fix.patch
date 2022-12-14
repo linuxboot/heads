@@ -1,0 +1,75 @@
+From 0f6f70c3942c152c512b1aa51b6f6079a05e003b Mon Sep 17 00:00:00 2001
+From: Nico Huber <nico.h@gmx.de>
+Date: Sun, 09 Feb 2020 11:24:32 +0100
+Subject: [PATCH] Makefile.inc: Adapt $(spc) definition
+
+GNU Make 4.3 is more picky about the $(spc) definition. It seems, the
+variable ends up empty. The old definition worked for nearly 8 years,
+RIP.
+
+Tested with GNU Make 4.2.1 and 4.3.
+
+Change-Id: I7981e0066b550251ae4a98d7b50e83049fc5586a
+Signed-off-by: Nico Huber <nico.h@gmx.de>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/38790
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-by: Paul Menzel <paulepanter@users.sourceforge.net>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+
+diff --git a/Makefile.inc b/Makefile.inc
+index 648bc4f..1f18726 100644
+--- a/Makefile.inc
++++ b/Makefile.inc
+@@ -159,7 +159,7 @@
+ #######################################################################
+ # Helper functions for ramstage postprocess
+ spc :=
+-spc +=
++spc := $(spc) $(spc)
+ comma := ,
+ 
+ # Returns all files and dirs below `dir` (recursively).
+
+From 1c08a9a9c4986f2b3c47322f041e289121536dc0 Mon Sep 17 00:00:00 2001
+From: Nico Huber <nico.h@gmx.de>
+Date: Sun, 09 Feb 2020 11:44:27 +0100
+Subject: [PATCH] Makefile.inc: Use `define` for cbfs-files-processor-defconfig
+
+The body contains a `#` and GNU make 4.3 disagrees with earlier versions
+if it should be treated as a comment. Turn it into a `define` which has
+clearer semantics regarding comments (interpretation is supposed to be
+deferred until the variable is expanded).
+
+Change-Id: I589542abbd14082c3ecc4a2456ebd809fb6911ea
+Signed-off-by: Nico Huber <nico.h@gmx.de>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/38793
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-by: Paul Menzel <paulepanter@users.sourceforge.net>
+Reviewed-by: Patrick Georgi <pgeorgi@google.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+
+diff --git a/Makefile.inc b/Makefile.inc
+index 2690e8f..648bc4f 100644
+--- a/Makefile.inc
++++ b/Makefile.inc
+@@ -316,15 +316,16 @@
+ # Reduce a .config file to its minimal representation
+ # arg1: input
+ # arg2: output
+-cbfs-files-processor-defconfig= \
++define cbfs-files-processor-defconfig
+ 	$(eval $(2): $(1) $(obj)/build.h $(objutil)/kconfig/conf; \
+ 		+printf "    CREATE     $(2) (from $(1))\n"; \
+-		printf "\# This image was built using coreboot " > $(2).tmp && \
++		printf "# This image was built using coreboot " > $(2).tmp && \
+ 		grep "\<COREBOOT_VERSION\>" $(obj)/build.h |cut -d\" -f2 >> $(2).tmp && \
+ 		$(MAKE) DOTCONFIG=$(1) DEFCONFIG=$(2).tmp2 savedefconfig && \
+ 		cat $(2).tmp2 >> $(2).tmp && \
+ 		rm -f $(2).tmp2 && \
+ 		\mv -f $(2).tmp $(2))
++endef
+ 
+ #######################################################################
+ # Compile a C file with a bare struct definition into binary
