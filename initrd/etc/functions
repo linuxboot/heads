@@ -255,11 +255,11 @@ check_config() {
 	fi
 
 	if [ ! -r $1/kexec.sig ]; then
-		return
+		warn '$1/kexec.sig detached signature not found. Generate new checksums and sign boot content?'
 	fi
 
 	if [ `find $1/kexec*.txt | wc -l` -eq 0 ]; then
-		return
+		warn '$1/kexec*.txt not found. Generate new checksums and sign /boot content?'
 	fi
 
 	if [ "$2" != "force" ]; then

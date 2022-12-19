@@ -535,9 +535,12 @@ show_system_info()
 select_os_boot_option()
 {
   mount_boot
-  if verify_global_hashes ; then
-    kexec-select-boot -m -b /boot -c "grub.cfg" -g
+  
+  if ! verify_global_hashes ; then
+    return
   fi
+  
+  kexec-select-boot -m -b /boot -c "grub.cfg" -g
 }
 
 attempt_default_boot()
