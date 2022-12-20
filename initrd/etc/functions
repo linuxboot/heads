@@ -38,8 +38,6 @@ recovery() {
 		else
 			/bin/ash
 		fi
-		# clear screen
-		printf "\033c"
 	done
 }
 
@@ -309,8 +307,6 @@ combine_configs() {
 
 update_checksums()
 {
-	# clear screen
-	printf "\033c"
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts ; then
 		mount -o ro /boot \
