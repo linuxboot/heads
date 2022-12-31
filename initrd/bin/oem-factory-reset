@@ -195,9 +195,14 @@ generate_checksums()
     fi
 
     # generate hashes
-    find /boot -type f ! -name '*kexec*' -print0 \
-        | xargs -0 sha256sum > /boot/kexec_hashes.txt 2>/dev/null \
-        || whiptail_error_die "Error generating kexec hashes"
+    (
+        set -e -o pipefail
+        cd /boot
+        find ./ -type f ! -path './kexec*' -print0 \
+            | xargs -0 sha256sum > /boot/kexec_hashes.txt 2>/dev/null
+        print_tree > /boot/kexec_tree.txt
+    )
+    [ $? -eq 0 ] || whiptail_error_die "Error generating kexec hashes"
 
     param_files=`find /boot/kexec*.txt`
     [ -z "$param_files" ] \
