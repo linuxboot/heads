@@ -335,6 +335,31 @@ update_checksums()
 	return $rv
 }
 
+print_tree() {
+	#use \x0 as long as possible to avoid issues with newlines in file names
+	find ./ ! -path './kexec*' -print0 | sort -z | xargs -0 printf "%s\n"
+}
+
+verify_checksums()
+{
+	local boot_dir="$1"
+
+	(
+		set +e -o pipefail
+		local ret=0
+		cd "$boot_dir" || ret=1
+		sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output || ret=1
+
+		# also make sure that the file & directory structure didn't change
+		# (sha256sum won't detect added files)
+		print_tree > /tmp/tree_output || ret=1
+		diff "$TMP_TREE_FILE" /tmp/tree_output > /tmp/tree_diff || ret=1
+		grep -E '^\+[^\+].*$' /tmp/tree_diff | sed -E 's/^\+(.*)/(new) \1/g' >> /tmp/hash_output
+		exit $ret
+	)
+	return $?
+}
+
 # detect and set /boot device
 # mount /boot if successful
 detect_boot_device()

@@ -66,12 +66,13 @@ verify_global_hashes()
   # Check the hashes of all the files, ignoring signatures for now
   check_config /boot force
   TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+  TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
   TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
   TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
-  if ( cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ) then
+  if verify_checksums /boot ; then
     return 0
-  elif [ ! -f $TMP_HASH_FILE ]; then
+  elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]] ; then
     if (whiptail $BG_COLOR_ERROR --title 'ERROR: Missing Hash File!' \
         --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 0 80) then
       if update_checksums ; then

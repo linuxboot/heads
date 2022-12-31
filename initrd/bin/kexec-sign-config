@@ -27,12 +27,16 @@ confirm_gpg_card
 if [ "$update" = "y" ]; then
 	(
 		cd /boot
-		find ./ -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum > /boot/kexec_hashes.txt
+		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum > /boot/kexec_hashes.txt
 		if [ -e /boot/kexec_default_hashes.txt ]; then
 			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
 			echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
 		fi
+
+		#also save the file & directory structure to detect added files
+		print_tree > /boot/kexec_tree.txt
 	)
+	[ $? -eq 0 ] || die "$paramsdir: Failed to update hashes."
 
 	# Remove any package trigger log files
 	# We don't need them after the user decides to sign
