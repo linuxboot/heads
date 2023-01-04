@@ -16,11 +16,10 @@ Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
 Reviewed-by: Aaron Durbin <adurbin@chromium.org>
 
 diff --git a/src/arch/x86/Makefile.inc b/src/arch/x86/Makefile.inc
-index 6297384..1a1aa40 100644
+index cc094d1..132c6d8 100644
 --- a/src/arch/x86/Makefile.inc
 +++ b/src/arch/x86/Makefile.inc
-
-@@ -50,7 +50,7 @@
+@@ -56,7 +56,7 @@ pci$(stripped_vgabios_dgpu_id).rom-type := optionrom
  # into a single generated file.
  crt0s = $(cpu_incs-y)
  
@@ -28,3 +27,4 @@ index 6297384..1a1aa40 100644
 +$(objgenerated)/assembly.inc: build-dirs $$(crt0s)
  	@printf "    GEN        $(subst $(obj)/,,$(@))\n"
  	printf '$(foreach crt0,$(crt0s),#include "$(crt0)"\n)' > $@
+ 
