@@ -110,7 +110,7 @@ $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
 # proceed with the build.
 
 # Force pipelines to fail if any of the commands in the pipe fail
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o pipefail -c
 
 # Include the musl-cross module early so that $(CROSS) will
