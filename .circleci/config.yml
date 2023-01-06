@@ -11,67 +11,10 @@ commands:
         type: string
     steps:
       - run:
-          name: Install dependencies
-          command: |
-            ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
-            apt update
-            apt install -y \
-              autoconf \
-              automake \
-              bc \
-              bison \
-              build-essential \
-              bzip2 \
-              ccache \
-              cmake \
-              cpio \
-              curl \
-              device-tree-compiler \
-              doxygen \
-              e2fsprogs \
-              flex \
-              gawk \
-              git \
-              gnat \
-              gnupg \
-              graphviz \
-              iasl \
-              imagemagick \
-              innoextract \
-              libdigest-sha-perl \
-              libelf-dev \
-              libncurses5-dev \
-              libssl-dev \
-              libtool \
-              libudev-dev \
-              libudev1 \
-              libusb-1.0-0-dev \
-              m4 \
-              nasm \
-              ncurses-dev \
-              parted \
-              patch \
-              pkg-config \
-              python \
-              python2 \
-              python3 \
-              rsync \
-              sharutils \
-              sudo \
-              texinfo \
-              u-boot-tools \
-              udev \
-              unzip \
-              uuid-dev \
-              wget \
-              zip \
-              zlib1g-dev \
-              ;
-      - run:
           name: Make Board (FULL ORDERED BUILD LOGS HERE UNTIL JOB FAILED)
           command: |
             rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/*
-            make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
+            nix --print-build-logs --verbose develop --ignore-environment --command make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -100,63 +43,21 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: debian:11
+      - image: nixos/nix:2.16.1
     resource_class: large
     working_directory: ~/heads
     steps:
-      - run:
-          name: Install dependencies
-          command: |
-            ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime 
-            apt update
-            apt install -y \
-              autoconf \
-              automake \
-              bc \
-              bison \
-              build-essential \
-              bzip2 \
-              ccache \
-              cmake \
-              cpio \
-              doxygen \
-              flex \
-              gawk \
-              git \
-              gnat \
-              gnupg \
-              graphviz \
-              iasl \
-              imagemagick \
-              innoextract \
-              libdigest-sha-perl \
-              libelf-dev \
-              libncurses5-dev \
-              libtool \
-              libudev-dev \
-              libudev1 \
-              libusb-1.0-0-dev \
-              m4 \
-              nasm \
-              ncurses-dev \
-              patch \
-              pkg-config \
-              python \
-              python2 \
-              python3 \
-              rsync \
-              sudo \
-              texinfo \
-              udev \
-              uuid-dev \
-              wget \
-              zlib1g-dev \
-              ;
       - checkout
       - run:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1"
+      - run:
+          name: Fetch nix dependencies
+          command: |
+            mkdir -p ~/.config/nix
+            echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
+            nix --print-build-logs --verbose develop --ignore-environment --command true
       - run:
           name: Make tmp dir
           command: |
@@ -189,20 +90,24 @@ jobs:
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx20/download_parse_me.sh
+            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx20/download_parse_me.sh
       - run:
           # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
-            ./blobs/xx30/vbios_t530.sh
+            echo skipping for now
+            exit 0
+            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/vbios_t530.sh
       - run:
           name: Download and extract w530 vbios roms for dgpu boards
           command: |
-            ./blobs/xx30/vbios_w530.sh
+            echo skipping for now
+            exit 0
+            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/vbios_w530.sh
       - persist_to_workspace:
           root: ~/
           paths:
@@ -210,7 +115,7 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: debian:11
+      - image: nixos/nix:2.16.1
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -238,7 +143,7 @@ jobs:
 
   build:
     docker:
-      - image: debian:11
+      - image: nixos/nix:2.16.1
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -259,7 +164,7 @@ jobs:
 
   save_cache:
     docker:
-      - image: debian:11
+      - image: nixos/nix:2.16.1
     resource_class: large
     working_directory: ~/heads
     steps:
