@@ -472,11 +472,14 @@ show_tpm_totp_hotp_options_menu()
 prompt_totp_mismatch()
 {
   if (whiptail $BG_COLOR_WARNING --title "TOTP/HOTP code mismatched" \
-    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s HH:MM:SS'\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
+    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
     echo ""
-    echo "To correct clock drift: 'date -s HH:MM:SS'"
+    echo "To correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone"
     echo "and save it to the RTC: 'hwclock -w'"
-    echo "then reboot and try again"
+    echo ""
+    echo "Alternatively you could do this automatically with an Ethernet cable connected to a functional network: 'network-init-recovery'"
+    echo ""
+    echo "Then reboot and try again"
     echo ""
     recovery "TOTP/HOTP mismatch"
   fi
