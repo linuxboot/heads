@@ -336,8 +336,65 @@ update_checksums()
 }
 
 print_tree() {
-	#use \x0 as long as possible to avoid issues with newlines in file names
-	find ./ ! -path './kexec*' -print0 | sort -z | xargs -0 printf "%s\n"
+	find ./ ! -path './kexec*' -print0 | sort -z
+}
+
+# Escape zero-delimited standard input for use in shell.
+# These characters are passed verbatim: a-zA-Z0-9,._+:@%/-
+# These escapes are used to replace their corresponding characters: #n#r#t# #v#b
+# Other characters are rendered as hexadecimal escapes
+# escape_zero [prefix] [escape character]
+# prefix: \0 in the input will result in \n[prefix]
+# escape character: character to use for escapes (default: #); \ may be interpreted by `whiptail`
+escape_zero() {
+	local prefix="$1"
+	local echar="${2:-#}"
+	local todo=""
+
+	echo -e -n "$prefix"
+	xxd -p | tr -d '\n' |
+	{
+		while IFS= read -r -n2 -d '' ; do
+			if [ -n "$todo" ] ; then
+				#REPLY == "  " is EOF
+				[[ "$REPLY" == "  " ]] && echo '' || echo -e -n "$todo"
+				todo=""
+			fi
+
+			case "$REPLY" in
+				00)
+					todo="\n$prefix"
+					;;
+				08)
+					echo -n "${echar}b"
+					;;
+				09)
+					echo -n "${echar}t"
+					;;
+				0a)
+					echo -n "${echar}n"
+					;;
+				0b)
+					echo -n "${echar}v"
+					;;
+				0d)
+					echo -n "${echar}r"
+					;;
+
+				20)
+					echo -n "${echar} "
+					;;
+				#%+,-./ 0-9:    @A-0      P-Z_     a-o    p-z
+				2[5b-f]|3[0-9a]|4[0-9a-f]|5[0-9af]|6[1-f]|7[0-9a])
+					echo -e -n '\x'"$REPLY"
+					;;
+				# All others are escaped
+				[0-9a-f][0-9a-f])
+					echo -n "${echar}x$REPLY"
+					;;
+			esac
+		done
+	}
 }
 
 verify_checksums()
@@ -353,8 +410,17 @@ verify_checksums()
 		# also make sure that the file & directory structure didn't change
 		# (sha256sum won't detect added files)
 		print_tree > /tmp/tree_output || ret=1
-		diff "$TMP_TREE_FILE" /tmp/tree_output > /tmp/tree_diff || ret=1
-		grep -E '^\+[^\+].*$' /tmp/tree_diff | sed -E 's/^\+(.*)/(new) \1/g' >> /tmp/hash_output
+		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output &> /dev/null ; then
+			ret=1
+			# produce a diff that can safely be presented to the user
+			# this is relatively hard as file names may e.g. contain backslashes etc.,
+			# which are interpreted by whiptail, less, ...
+			escape_zero "(new) " < "$TMP_TREE_FILE" > "${TMP_TREE_FILE}.user"
+			escape_zero "(new) " < /tmp/tree_output > /tmp/tree_output.user
+			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >> /tmp/hash_output
+			rm -f "${TMP_TREE_FILE}.user"
+			rm -f /tmp/tree_output.user
+		fi
 		exit $ret
 	)
 	return $?
