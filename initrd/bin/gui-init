@@ -73,8 +73,8 @@ verify_global_hashes()
   if verify_checksums /boot ; then
     return 0
   elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]] ; then
-    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Missing Hash File!' \
-        --yesno "The file containing hashes for /boot is missing!\n\nIf you are setting this system up for the first time, select Yes to update\nyour list of checksums.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to update your checksums now?" 0 80) then
+    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Missing File!' \
+        --yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an\nolder version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to create the missing files now?" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU=""
         return 0;
