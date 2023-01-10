@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -e
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0")
+Obtain mrc.bin from a Haswell Chromebook firmware image.
+"
+}
+
+MRC_BIN_HASH="d368ba45096a3b5490ed27014e1f9004bc363434ffdce0c368c08a89c4746722"
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        BLOB_DIR="$(cd "$(dirname "$0")" && pwd)"
+        COREBOOT_DIR="$(find "${BLOB_DIR}/../../build/x86/" -maxdepth 1 -type d -name 'coreboot-*')"
+
+        pushd "${COREBOOT_DIR}"
+
+        # https://doc.coreboot.org/northbridge/intel/haswell/mrc.bin.html#obtaining-mrc-bin
+        make -C util/cbfstool
+        cd util/chromeos
+        ./crosfirmware.sh peppy
+        ../cbfstool/cbfstool coreboot-*.bin extract -f mrc.bin -n mrc.bin -r RO_SECTION
+
+        if ! echo "${MRC_BIN_HASH} mrc.bin" | sha256sum --check; then
+            echo "SHA256 checksum for mrc.bin doesn't match."
+            exit 1
+        fi
+
+        popd
+
+        mv "${COREBOOT_DIR}/util/chromeos/mrc.bin" "$(dirname "$0")/mrc.bin"
+    fi
+fi
