@@ -1,8 +1,8 @@
-qemu-coreboot-fbwhiptal-tpm1-hotp
+qemu-coreboot-(fb)whiptal-tpm1-(hotp) board
 ===
 
-The `qemu-coreboot-fbwhiptail-tpm1-hotp` configuration permits testing of most features of Heads.  It
- requires a supported USB token (which will be reset for use with the VM, do not use a token needed for a
+The `qemu-coreboot-fbwhiptail-tpm1-hotp` configuration (and their variants) permits testing of most features of Heads.  
+ It requires a supported USB token (which will be reset for use with the VM, do not use a token needed for a
  real machine).  With KVM acceleration, speed is comparable to a real machine.  If KVM is unavailable,
  lightweight desktops are still usable.
 
@@ -10,7 +10,7 @@ Heads is currently unable to reflash firmware within qemu, which means that OEM 
  cannot be fully performed within the VM.  Instead, a GPG key can be injected in the Heads image from the
  host during the build.
 
-The TPM and disks for this configuration are persisted in the build/qemu-coreboot-fbwhiptail-tpm1-hotp/ directory.
+The TPM and disks for this configuration are persisted in the build/qemu-coreboot-fbwhiptail-tpm1-hotp/ directory by default.
 
 Bootstrapping a working system
 ===
@@ -48,6 +48,16 @@ Bootstrapping a working system
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
 7. Initialize the TPM - select "Reset the TPM" at the TOTP error prompt and follow prompts
 8. Select "Default boot" and follow prompts to sign /boot for the first time and set a default boot option
+
+You can reuse an already created ROOT_DISK_IMG by passing its path at runtime.
+Ex: `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+
+On a daily development cycle, usage looks like:
+1. `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 inject_gpg`
+2. `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+
+The first command builds latest uncommited/unsigned changes and injects the public key inside of the rom to be ran by the second command.
+To test across all qemu variants, one only has to change BOARD name and run the two previous commands, adapting `QEMU_MEMORY_SIZE=1G` or modifying the file directly under build dir to adapt to host resources.
 
 swtpm on Debian Bullseye
 ===
