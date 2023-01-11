@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0") path_to_original_rom
+Extract Intel firmware from the original ROM.
+"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        if [[ -n "$1" ]]; then
+            BLOB_DIR="$(cd "$(dirname "$0")" && pwd)"
+            COREBOOT_DIR="$(find "${BLOB_DIR}/../../build/x86/" -maxdepth 1 -type d -name 'coreboot-*')"
+
+            pushd "${COREBOOT_DIR}"
+            cd util/me_cleaner
+
+            # Neutralize and shrink Intel ME.
+            # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+            python me_cleaner.py -S -r -t -d -O out.bin -D ifd_shrinked.bin -M me_shrinked.bin "$1"
+
+            mv ifd_shrinked.bin "${BLOB_DIR}/ifd.bin"
+            mv me_shrinked.bin "${BLOB_DIR}/me.bin"
+            rm ./*.bin
+
+            cd ../ifdtool
+            make
+
+            # Extract the Intel Gigabit Ethernet (GbE) firmware from the
+            # original ROM.
+            ./ifdtool -x "$1"
+
+            mv flashregion_3_gbe.bin "${BLOB_DIR}/gbe.bin"
+            rm ./*.bin
+
+            popd
+
+        else
+            echo "ERROR: You must supply a path to the original ROM."
+            exit 1
+        fi
+    fi
+fi
