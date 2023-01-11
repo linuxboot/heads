@@ -322,9 +322,8 @@ report_integrity_measurements()
         check_config /boot force
         TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 
-        if cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+	if ( cd /boot && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ); then
             HASH="OK"
-            cd /
             else
                 HASH="ALTERED"
         fi

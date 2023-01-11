@@ -52,7 +52,7 @@ verify_global_hashes()
 {
 	echo "+++ Checking verified boot hash file "
 	# Check the hashes of all the files
-	if cd $bootdir && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ; then
+	if ( cd $bootdir && sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output ); then
 		echo "+++ Verified boot hashes "
 		valid_hash='y'
 		valid_global_hash='y'
@@ -236,7 +236,7 @@ default_select() {
 	# Enforce that default option hashes are valid
 	echo "+++ Checking verified default boot hash file "
 	# Check the hashes of all the files
-	if cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" > /tmp/hash_output ; then
+	if ( cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" > /tmp/hash_output ); then
 		echo "+++ Verified default boot hashes "
 		valid_hash='y'
 	else
