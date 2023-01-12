@@ -52,7 +52,7 @@ verify_global_hashes()
 {
 	echo "+++ Checking verified boot hash file "
 	# Check the hashes of all the files
-	if verify_checksums "$bootdir" ; then
+	if verify_checksums "$bootdir" "$gui_menu" ; then
 		echo "+++ Verified boot hashes "
 		valid_hash='y'
 		valid_global_hash='y'
