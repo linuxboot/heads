@@ -157,6 +157,7 @@ generate_totp_htop()
     echo "Once you have scanned the QR code, hit Enter to continue"
     read
   fi
+  reboot
 }
 
 update_totp()
