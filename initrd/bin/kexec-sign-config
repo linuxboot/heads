@@ -23,6 +23,8 @@ paramsdir="${paramsdir%%/}"
 
 confirm_gpg_card
 
+assert_signable
+
 # update hashes in /boot before signing
 if [ "$update" = "y" ]; then
 	(

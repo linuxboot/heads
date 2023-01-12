@@ -397,6 +397,24 @@ escape_zero() {
 	}
 }
 
+# Currently heads doesn't support signing file names with certain characters
+# due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
+# may be intepreted by `whiptail`, `less` et al (e.g. \n, \b, ...).
+assert_signable() {
+	# ensure /boot mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot || die "Unable to mount /boot"
+	fi
+
+	find /boot -print0 > /tmp/signable.ref
+	local del='\001-\037\134\177-\377'
+	LC_ALL=C tr -d "$del" < /tmp/signable.ref > /tmp/signable.del || die "Failed to execute tr."
+	if ! cmp -s "/tmp/signable.ref" "/tmp/signable.del" &> /dev/null ; then
+		die "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"Please investigate!"
+	fi
+	rm -f /tmp/signable.*
+}
+
 verify_checksums()
 {
 	local boot_dir="$1"
