@@ -400,6 +400,7 @@ escape_zero() {
 verify_checksums()
 {
 	local boot_dir="$1"
+	local gui="${2:-y}"
 
 	(
 		set +e -o pipefail
@@ -412,6 +413,7 @@ verify_checksums()
 		print_tree > /tmp/tree_output || ret=1
 		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output &> /dev/null ; then
 			ret=1
+			[[ "$gui" != "y" ]] && exit "$ret"
 			# produce a diff that can safely be presented to the user
 			# this is relatively hard as file names may e.g. contain backslashes etc.,
 			# which are interpreted by whiptail, less, ...
