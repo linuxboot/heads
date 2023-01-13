@@ -17,7 +17,9 @@ recovery() {
 
 	# Remove any temporary secret files that might be hanging around
 	# but recreate the directory so that new tools can use it.
-	shred -n 10 -z -u /tmp/secret/* 2> /dev/null
+
+	#safe to always be true. Otherwise "set -e" would make it exit here
+	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
 	rm -rf /tmp/secret
 	mkdir -p /tmp/secret
 
