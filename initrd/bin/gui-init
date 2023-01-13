@@ -157,6 +157,8 @@ generate_totp_htop()
     echo "Once you have scanned the QR code, hit Enter to continue"
     read
   fi
+  # clear screen
+  printf "\033c"
 }
 
 update_totp()
