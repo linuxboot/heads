@@ -339,10 +339,11 @@ print_tree() {
 	find ./ ! -path './kexec*' -print0 | sort -z
 }
 
-# Escape zero-delimited standard input for use in shell.
-# These characters are passed verbatim: a-zA-Z0-9,._+:@%/-
-# These escapes are used to replace their corresponding characters: #n#r#t# #v#b
-# Other characters are rendered as hexadecimal escapes
+# Escape zero-delimited standard input to safely display it to the user in e.g.
+# `whiptail`, `less`, `echo`, `cat`. Doesn't produce shell-escaped output.
+# Most printable characters are passed verbatim (exception: \).
+# These escapes are used to replace their corresponding characters: #n#r#t#v#b
+# Other characters are rendered as hexadecimal escapes.
 # escape_zero [prefix] [escape character]
 # prefix: \0 in the input will result in \n[prefix]
 # escape character: character to use for escapes (default: #); \ may be interpreted by `whiptail`
@@ -350,9 +351,11 @@ escape_zero() {
 	local prefix="$1"
 	local echar="${2:-#}"
 	local todo=""
+	local echar_hex="$(echo -n "$echar" | xxd -p -c1)"
+	[ ${#echar_hex} -eq 2 ] || die "Invalid escape character $echar passed to escape_zero(). Programming error?!"
 
 	echo -e -n "$prefix"
-	xxd -p | tr -d '\n' |
+	xxd -p -c1 | tr -d '\n' |
 	{
 		while IFS= read -r -n2 -d '' ; do
 			if [ -n "$todo" ] ; then
@@ -380,16 +383,15 @@ escape_zero() {
 				0d)
 					echo -n "${echar}r"
 					;;
-
-				20)
-					echo -n "${echar} "
+				"$echar_hex")
+					echo -n "$echar$echar"
 					;;
-				#%+,-./ 0-9:    @A-0      P-Z_     a-o    p-z
-				2[5b-f]|3[0-9a]|4[0-9a-f]|5[0-9af]|6[1-f]|7[0-9a])
+				#interpreted characters:
+				2[0-9a-f]|3[0-9a-f]|4[0-9a-f]|5[0-9abd-f]|6[0-9a-f]|7[0-9a-e])
 					echo -e -n '\x'"$REPLY"
 					;;
 				# All others are escaped
-				[0-9a-f][0-9a-f])
+				*)
 					echo -n "${echar}x$REPLY"
 					;;
 			esac
