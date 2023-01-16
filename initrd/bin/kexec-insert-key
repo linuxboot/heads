@@ -35,19 +35,8 @@ cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 # we know that the first 0x3400 bytes are the microcode
 INITRD_DIR=/tmp/secret/initrd
 SECRET_CPIO=/tmp/secret/initrd.cpio
-
-# Not all distro put crypttab under /etc/ within initramfs, but finding it at
-# runtime needs unpacking, which may be hard to do, so it is made overridable
-# with a file at /boot/kexec_initrd_crypttab_path.txt, whose content could be
-# obtained with $ cpio -t < ${uncompressed_initrd} | grep crypttab .
-
 bootdir=$(dirname "$INITRD")
-if [ -r $bootdir/kexec_initrd_crypttab_path.txt ]; then
-	crypttab_path=$(cat $bootdir/kexec_initrd_crypttab_path.txt)
-else
-	crypttab_path=etc/crypttab
-fi
-mkdir -p "$INITRD_DIR/$(dirname $crypttab_path)"
+mkdir -p "$INITRD_DIR/etc"
 
 # Attempt to unseal the disk key from the TPM
 # should we give this some number of tries?
@@ -84,18 +73,30 @@ echo '+++ Building initrd'
 dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 || die "Failed to copy initrd to /tmp"
 
-# The "target" field of the record within the crypttab stored in the root
-# file system for the luks container which is going to be unlocked via
-# kexec-insert-key should be modified into the same "luks-$uuid" format,
-# otherwise the boot sequence will get stuck when OS is trying to unlock them
-# again, in order to map them according to "target" fields written in the
-# crypttab stored in the root fs.
-
 if [ "$unseal_failed" = "n" ]; then
-	# overwrite crypttab to mirror the behavior for in seal-key
-	for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
-		# In Debian, the "luks" option at last should not be omitted
-		echo "luks-$uuid UUID=$uuid /secret.key luks" >> "$INITRD_DIR/$crypttab_path"
-	done
+	# kexec-save-default might have created crypttab overrides to be injected in initramfs through additional cpio 
+	if [ -r "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
+		echo "$bootdir/kexec_initrd_crypttab_overrides.txt found..."
+		echo "Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
+		# kexec-save-default has found crypttab files under initrd and saved them
+		cat "$bootdir/kexec_initrd_crypttab_overrides.txt" | while read line; do
+			crypttab_file=$(echo "$line" | awk -F ':' {'print $1'})
+			crypttab_entry=$(echo "$line" | awk -F ':' {'print $NF'})
+			# Replace each initrd crypttab file with modified entry containing /secret.key path
+			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
+			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" > /dev/null
+			echo "initramfs's $crypttab_file will be overriden with $crypttab_entry"
+		done
+	else
+		# No crypttab files were found under selected default boot option's initrd file
+		crypttab_file="etc/crypttab"
+		mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
+		# overwrite crypttab to mirror behavior of seal-key
+		echo "The following /etc/crypttab lines will be passed through cpio into kexec call for default boot option:"
+		for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
+			# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
+			echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"
+		done
+	fi
 	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
 fi
