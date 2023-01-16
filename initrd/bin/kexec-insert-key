@@ -47,7 +47,10 @@ if [ -r $bootdir/kexec_initrd_crypttab_path.txt ]; then
 else
 	crypttab_path=etc/crypttab
 fi
-mkdir -p "$INITRD_DIR/$(dirname $crypttab_path)"
+
+#For most OSes, crypttab config file taken into consideration is under /etc/crypttab
+#Debian11+ looks only for /cryptroot/crypttab. We add that path by default
+mkdir -p "$INITRD_DIR/$(dirname $crypttab_path)" "$INITRD_DIR/cryptroot"
 
 # Attempt to unseal the disk key from the TPM
 # should we give this some number of tries?
@@ -95,7 +98,8 @@ if [ "$unseal_failed" = "n" ]; then
 	# overwrite crypttab to mirror the behavior for in seal-key
 	for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
 		# In Debian, the "luks" option at last should not be omitted
-		echo "luks-$uuid UUID=$uuid /secret.key luks" >> "$INITRD_DIR/$crypttab_path"
+		# crypttab files in initramfs are overwritten from the ones passed below
+		echo "luks-$uuid UUID=$uuid /secret.key luks" | tee "$INITRD_DIR/$crypttab_path" "$INITRD_DIR/cryptroot/crypttab" > /dev/null
 	done
 	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
 fi
