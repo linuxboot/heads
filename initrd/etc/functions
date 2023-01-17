@@ -155,7 +155,16 @@ list_usb_storage()
 			# never usable directly, and this allows the "wait for
 			# disks" loop in mount-usb to correctly wait for the
 			# partitions.
-			if fdisk -l "$b" | grep -q "doesn't contain a valid partition table"; then
+			# This check: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
+			# covers the case of a device without partition table but
+			# formatted as fat32, which contains a sortof partition table.
+			# this causes fdisk to not print the invalid partition table
+			# message and instead it'll print an empty table with header.
+			# In both cases the output is 5 lines: 3 about device info,
+			# 1 empty line and the 5th will be the table header or the
+			# unvalid message.
+			DISK_DATA=$(fdisk -l "$b")
+			if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || [ $(echo "$DISK_DATA" | wc -l) -eq 5 ]; then
 				# No partition table, include this device
 				echo "$b"
 			else
