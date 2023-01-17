@@ -93,6 +93,11 @@ confirm_totp()
 
 enable_usb()
 {
+	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning 
+	if ! lsmod | grep -q ehci_hcd; then
+                insmod /lib/modules/ehci-hcd.ko \
+                || die "ehci_hcd: module load failed"
+        fi
 	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
 		if ! lsmod | grep -q uhci_hcd; then
 			insmod /lib/modules/uhci-hcd.ko \
@@ -106,10 +111,6 @@ enable_usb()
 			insmod /lib/modules/ohci-pci.ko \
 			|| die "ohci_pci: module load failed"
 		fi
-	fi
-	if ! lsmod | grep -q ehci_hcd; then
-		insmod /lib/modules/ehci-hcd.ko \
-		|| die "ehci_hcd: module load failed"
 	fi
 	if ! lsmod | grep -q ehci_pci; then
 		insmod /lib/modules/ehci-pci.ko \
