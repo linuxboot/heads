@@ -335,6 +335,122 @@ update_checksums()
 	return $rv
 }
 
+print_tree() {
+	find ./ ! -path './kexec*' -print0 | sort -z
+}
+
+# Escape zero-delimited standard input to safely display it to the user in e.g.
+# `whiptail`, `less`, `echo`, `cat`. Doesn't produce shell-escaped output.
+# Most printable characters are passed verbatim (exception: \).
+# These escapes are used to replace their corresponding characters: #n#r#t#v#b
+# Other characters are rendered as hexadecimal escapes.
+# escape_zero [prefix] [escape character]
+# prefix: \0 in the input will result in \n[prefix]
+# escape character: character to use for escapes (default: #); \ may be interpreted by `whiptail`
+escape_zero() {
+	local prefix="$1"
+	local echar="${2:-#}"
+	local todo=""
+	local echar_hex="$(echo -n "$echar" | xxd -p -c1)"
+	[ ${#echar_hex} -eq 2 ] || die "Invalid escape character $echar passed to escape_zero(). Programming error?!"
+
+	echo -e -n "$prefix"
+	xxd -p -c1 | tr -d '\n' |
+	{
+		while IFS= read -r -n2 -d '' ; do
+			if [ -n "$todo" ] ; then
+				#REPLY == "  " is EOF
+				[[ "$REPLY" == "  " ]] && echo '' || echo -e -n "$todo"
+				todo=""
+			fi
+
+			case "$REPLY" in
+				00)
+					todo="\n$prefix"
+					;;
+				08)
+					echo -n "${echar}b"
+					;;
+				09)
+					echo -n "${echar}t"
+					;;
+				0a)
+					echo -n "${echar}n"
+					;;
+				0b)
+					echo -n "${echar}v"
+					;;
+				0d)
+					echo -n "${echar}r"
+					;;
+				"$echar_hex")
+					echo -n "$echar$echar"
+					;;
+				#interpreted characters:
+				2[0-9a-f]|3[0-9a-f]|4[0-9a-f]|5[0-9abd-f]|6[0-9a-f]|7[0-9a-e])
+					echo -e -n '\x'"$REPLY"
+					;;
+				# All others are escaped
+				*)
+					echo -n "${echar}x$REPLY"
+					;;
+			esac
+		done
+	}
+}
+
+# Currently heads doesn't support signing file names with certain characters
+# due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
+# may be intepreted by `whiptail`, `less` et al (e.g. \n, \b, ...).
+assert_signable() {
+	# ensure /boot mounted
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot || die "Unable to mount /boot"
+	fi
+
+	find /boot -print0 > /tmp/signable.ref
+	local del='\001-\037\134\177-\377'
+	LC_ALL=C tr -d "$del" < /tmp/signable.ref > /tmp/signable.del || die "Failed to execute tr."
+	if ! cmp -s "/tmp/signable.ref" "/tmp/signable.del" &> /dev/null ; then
+		local user_out="/tmp/hash_output_mismatches"
+		local add="Please investigate!"
+		[ -f "$user_out" ] && add="Please investigate the following relative paths to /boot (where # are sanitized invalid characters):"$'\n'"$(cat "$user_out")"
+		recovery "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"$add"
+	fi
+	rm -f /tmp/signable.*
+}
+
+verify_checksums()
+{
+	local boot_dir="$1"
+	local gui="${2:-y}"
+
+	(
+		set +e -o pipefail
+		local ret=0
+		cd "$boot_dir" || ret=1
+		sha256sum -c "$TMP_HASH_FILE" > /tmp/hash_output || ret=1
+
+		# also make sure that the file & directory structure didn't change
+		# (sha256sum won't detect added files)
+		print_tree > /tmp/tree_output || ret=1
+		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output &> /dev/null ; then
+			ret=1
+			[[ "$gui" != "y" ]] && exit "$ret"
+			# produce a diff that can safely be presented to the user
+			# this is relatively hard as file names may e.g. contain backslashes etc.,
+			# which are interpreted by whiptail, less, ...
+			escape_zero "(new) " < "$TMP_TREE_FILE" > "${TMP_TREE_FILE}.user"
+			escape_zero "(new) " < /tmp/tree_output > /tmp/tree_output.user
+			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >> /tmp/hash_output
+			rm -f "${TMP_TREE_FILE}.user"
+			rm -f /tmp/tree_output.user
+		fi
+		exit $ret
+	)
+	return $?
+}
+
 # detect and set /boot device
 # mount /boot if successful
 detect_boot_device()
