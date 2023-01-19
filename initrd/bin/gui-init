@@ -149,17 +149,20 @@ prompt_update_checksums()
 generate_totp_htop()
 {
   echo "Scan the QR code to add the new TOTP secret"
-  /bin/seal-totp "$BOARD_NAME"
-  if [ -x /bin/hotp_verification ]; then
-    echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
-    read
-    /bin/seal-hotpkey
+  if /bin/seal-totp "$BOARD_NAME"; then
+    if [ -x /bin/hotp_verification ]; then
+      echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
+      read
+      /bin/seal-hotpkey
+    else
+      echo "Once you have scanned the QR code, hit Enter to continue"
+      read
+    fi
+    # clear screen
+    printf "\033c"
   else
-    echo "Once you have scanned the QR code, hit Enter to continue"
-    read
+    warn "Sealing of measurements inside of TPM failed. You might want to take ownership of TPM by resetting it."
   fi
-  # clear screen
-  printf "\033c"
 }
 
 update_totp()
