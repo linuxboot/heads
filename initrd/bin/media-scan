@@ -11,8 +11,19 @@ if grep -q /boot /proc/mounts ; then
 		|| die "Unable to unmount /boot"
 fi
 
-# Mount the USB boot device
-mount_usb || die "Unable to mount /media"
+available_partitions="$(blkid | while read line; do echo $line | awk -F ":" {'print $1'}; done )"
+
+if [ "$1" == "usb" ]; then
+	# Mount the USB boot device
+	mount_usb || die "Unable to mount /media"
+elif $(echo $available_partitions | grep -q "$1"); then
+	if grep -q /media /proc/mounts; then
+		umount /media \
+			|| die "Unable to unmount /media"
+	fi
+	mount "$1" /media \
+		|| die "Unable to mount $1 to /media"
+fi
 
 # Get USB boot device
 USB_BOOT_DEV=$(grep "/media" /etc/mtab | cut -f 1 -d' ')
