@@ -290,43 +290,43 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: x230-flash
-          target: x230-flash
+          name: x230-legacy-flash
+          target: x230-legacy-flash
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: t430-flash
-          target: t430-flash
+          name: t430-legacy-flash
+          target: t430-legacy-flash
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: t430
-          target: t430
+          name: t430-legacy
+          target: t430-legacy
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: t430-hotp-verification
-          target: t430-hotp-verification
+          name: t430-hotp-legacy
+          target: t430-hotp-legacy
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: x230
-          target: x230
+          name: x230-legacy
+          target: x230-legacy
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: x230-hotp-verification
-          target: x230-hotp-verification
+          name: x230-hotp-legacy
+          target: x230-hotp-legacy
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -348,6 +348,20 @@ workflows:
       - build:
           name: x230-maximized
           target: x230-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: x230-maximized-fhd_edp
+          target: x230-maximized-fhd_edp
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: x230-hotp-maximized-fhd_edp
+          target: x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
             - x230-hotp-maximized
