@@ -17,7 +17,7 @@ commands:
             apt update
             apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo libssl-dev device-tree-compiler u-boot-tools
       - run:
-          name: Make Board
+          name: Make Board (FULL ORDERED BUILD LOGS HERE UNTIL JOB FAILED)
           command: |
             rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/* && make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
