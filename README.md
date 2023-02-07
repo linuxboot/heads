@@ -23,7 +23,7 @@ More information is available in [the 33C3 presentation of building "Slightly mo
 
 Documentation
 ===
-Please refer to [Heads-wiki](https://osresearch.net) for your Heads' documentation needs.
+Please refer to [Heads-wiki](https://web.archive.org/web/20230203072945/https://osresearch.net/) for your Heads' documentation needs.
 
 
 Building heads
