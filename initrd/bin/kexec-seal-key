@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This will generate a disk encryption key and seal / ecncrypt
 # with the current PCRs and then store it in the TPM NVRAM.
 # It will then need to be bundled into initrd that is booted.

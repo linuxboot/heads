@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Reencrypt LUKS container and change Disk Recovery Key associated passphrase (Slot 0: main slot)
 
 . /etc/functions

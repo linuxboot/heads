@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Generate a random secret, seal it with the PCRs
 # and write it to the TPM NVRAM.
 #

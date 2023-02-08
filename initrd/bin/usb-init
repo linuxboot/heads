@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Boot a USB installation
 
 . /etc/functions

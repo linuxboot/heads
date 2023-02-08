@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Scan for USB installation options
 set -e -o pipefail
 . /etc/functions

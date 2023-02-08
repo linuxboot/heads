@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Sign a valid directory of kexec params
 set -e -o pipefail
 . /tmp/config

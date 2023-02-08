@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Shell functions for most initialization scripts
 
 die() {
@@ -51,9 +51,9 @@ recovery() {
 		sleep 1
 
 		if [ -x /bin/setsid ]; then
-			/bin/setsid -c /bin/ash
+			/bin/setsid -c /bin/bash
 		else
-			/bin/ash
+			/bin/bash
 		fi
 	done
 }

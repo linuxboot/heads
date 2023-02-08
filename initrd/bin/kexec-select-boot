@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Generic configurable boot script via kexec
 set -e -o pipefail
 . /tmp/config

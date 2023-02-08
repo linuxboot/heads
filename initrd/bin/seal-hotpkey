@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Retrieve the sealed TOTP secret and initialize a USB Security dongle with it
 
 . /etc/functions

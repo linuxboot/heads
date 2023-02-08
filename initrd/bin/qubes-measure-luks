@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Measure all of the luks disk encryption headers into
 # a PCR so that we can detect disk swap attacks.
 . /etc/functions

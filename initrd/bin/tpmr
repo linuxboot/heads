@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # TPM Wrapper - to unify tpm and tpm2 subcommands
 
 . /etc/functions

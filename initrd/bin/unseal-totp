@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Retrieve the sealed file from the NVRAM, unseal it and compute the totp
 
 . /etc/functions

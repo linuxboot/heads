@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 set -e -o pipefail
 . /etc/functions
 
