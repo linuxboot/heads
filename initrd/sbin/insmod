@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # extend a TPM PCR with a module and then load it
 # any arguments will also be measured.
 # The default PCR to be extended is 5, but can be

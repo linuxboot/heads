@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 mknod /dev/ttyprintk c 5 3
 echo "hello world" > /dev/ttyprintk
 
@@ -30,12 +30,14 @@ if [ ! -r /dev/ptmx ]; then
 	ln -s /dev/pts/ptmx /dev/ptmx
 fi
 
-
-[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
-[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
-[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
 # Needed by bash
-[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
+if ! [ -L /bin/bash ]; then
+	# /bin/bash is not a symbolink link (not busybox)
+	[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
+	[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
+	[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
+	[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
+fi
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
@@ -116,7 +118,7 @@ if [ "$boot_option" = "r" ]; then
 	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		tpmr extend -ix 4 -ic recovery
 	fi
-	exec /bin/ash
+	exec /bin/bash
 	exit
 fi
 
@@ -173,4 +175,4 @@ fi
 if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = y ]; then
 	tpmr extend -ix 4 -ic recovery
 fi
-exec /bin/ash
+exec /bin/bash

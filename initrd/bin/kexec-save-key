@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Generate a TPM key used to unlock LUKS disks
 set -e -o pipefail
 . /etc/functions

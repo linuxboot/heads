@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Automated setup of TPM, GPG keys, and disk
 
 TRACE "Under /bin/oem-factory-reset"

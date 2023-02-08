@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Boot from signed ISO
 set -e -o pipefail
 . /etc/functions

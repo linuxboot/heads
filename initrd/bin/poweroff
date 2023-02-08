@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 . /etc/functions
 
 TRACE "Under /bin/poweroff"

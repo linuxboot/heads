@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # based off of flashrom-x230
 #

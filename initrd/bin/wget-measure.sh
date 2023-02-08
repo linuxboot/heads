@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # get a file and extend a TPM PCR
 . /etc/functions
 

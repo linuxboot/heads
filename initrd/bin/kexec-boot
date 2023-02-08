@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Launches kexec from saved configuration entries
 set -e -o pipefail
 . /tmp/config
