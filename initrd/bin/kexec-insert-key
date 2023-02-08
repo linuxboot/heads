@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Unseal a disk key from TPM and add to a new initramfs
 set -e -o pipefail
 . /etc/functions

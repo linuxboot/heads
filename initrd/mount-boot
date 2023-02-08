@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Extract the GPG signed dmsetup configuration from
 # the header of the file system, validate it against
 # the trusted key database, and execute it to mount

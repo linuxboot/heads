@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Initialize the USB and network device drivers,
 # invoke a recovery shell and prompt the user for how to proceed
 
@@ -23,4 +23,4 @@ echo '  mount -o ro /dev/sdb1 /media'
 echo '  flash.sh /media/t430.rom'
 echo ''
 
-exec /bin/ash
+exec /bin/bash

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Mount a USB device
 . /etc/functions
 

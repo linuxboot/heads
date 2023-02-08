@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Retrieve the sealed file and counter from the NVRAM, unseal it and compute the hotp
 
 . /etc/functions
