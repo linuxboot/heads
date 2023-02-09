@@ -1,0 +1,201 @@
+git fetch https://review.coreboot.org/coreboot refs/changes/50/28950/22 && git format-patch -1 --stdout FETCH_HEAD
+From 06fe32bb5f65c784e7819b875c505fcceab11b99 Mon Sep 17 00:00:00 2001
+From: Alexander Couzens <lynxis@fe80.eu>
+Date: Sat, 19 Mar 2022 13:42:33 +0000
+Subject: [PATCH] lenovo/x230: introduce FHD variant
+
+There is a modification for the x230 which uses the 2nd DP from the dock
+as the integrated panel's connection, which allows using a custom eDP
+panel instead of the stock LVDS display.
+
+There are several adapter boards present on the market and all of them
+uses the same method of enabling the custom eDP panel.
+
+To make this work with coreboot, the internal LVDS connector should be
+disabled in libgfxinit. The VBT has been modified as well, which allows
+brightness controls to work out of the box.
+
+The modifications done to the VBT are:
+- Remove the LVDS port entry.
+- Move the DP-3 (which is the 2nd DP on the dock) entry to the first
+  position on the list.
+- Set the DP-3 as internally connected.
+
+This has been reported to work with the following panels:
+- LP125WF2-SPB4 (1920*1080, 12.5")
+- LQ125T1JW02 (2560*1440, 12.5")
+- LQ133M1JW21 (1920*1080, 13.3")
+- LTN133HL10-201 (1920*1080, 13.3")
+- B133HAN04.6 (1920*1080, 13.3")
+- B133QAN02.0 (2560*1600, 13.3")
+
+Other eDP panels not on this list should work as well.
+
+Change-Id: I0355d39a61956792e69bccd5274cfc2749d72bf0
+Signed-off-by: Alexander Couzens <lynxis@fe80.eu>
+Signed-off-by: Felix Singer <felixsinger@posteo.net>
+---
+ src/mainboard/lenovo/x230/Kconfig             |  15 ++++++++-----
+ src/mainboard/lenovo/x230/Kconfig.name        |   3 +++
+ src/mainboard/lenovo/x230/Makefile.inc        |   5 +++++
+ .../lenovo/x230/variants/x230_edp/data.vbt    | Bin 0 -> 4281 bytes
+ .../x230/variants/x230_edp/gma-mainboard.ads  |  21 ++++++++++++++++++
+ 5 files changed, 38 insertions(+), 6 deletions(-)
+ create mode 100644 src/mainboard/lenovo/x230/variants/x230_edp/data.vbt
+ create mode 100644 src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
+
+diff --git a/src/mainboard/lenovo/x230/Kconfig b/src/mainboard/lenovo/x230/Kconfig
+index a6fd796206..7aa5af6d85 100644
+--- a/src/mainboard/lenovo/x230/Kconfig
++++ b/src/mainboard/lenovo/x230/Kconfig
+@@ -1,4 +1,4 @@
+-if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T || BOARD_LENOVO_X230S
++if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T || BOARD_LENOVO_X230S || BOARD_LENOVO_X230_EDP
+ 
+ config BOARD_SPECIFIC_OPTIONS
+ 	def_bool y
+@@ -11,7 +11,7 @@ config BOARD_SPECIFIC_OPTIONS
+ 	select H8_HAS_BAT_TRESHOLDS_IMPL
+ 	select H8_HAS_PRIMARY_FN_KEYS if BOARD_LENOVO_X230S
+ 	select NO_UART_ON_SUPERIO
+-	select BOARD_ROMSIZE_KB_12288 if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T
++	select BOARD_ROMSIZE_KB_12288 if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T || BOARD_LENOVO_X230_EDP
+ 	select BOARD_ROMSIZE_KB_16384 if BOARD_LENOVO_X230S
+ 	select HAVE_ACPI_TABLES
+ 	select HAVE_OPTION_TABLE
+@@ -20,7 +20,7 @@ config BOARD_SPECIFIC_OPTIONS
+ 	select INTEL_INT15
+ 	select DRIVERS_RICOH_RCE822
+ 	select MAINBOARD_HAS_LPC_TPM
+-	select MAINBOARD_HAS_TPM1 if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T
++	select MAINBOARD_HAS_TPM1 if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T || BOARD_LENOVO_X230_EDP
+ 	select MAINBOARD_HAS_LIBGFXINIT
+ 	select GFX_GMA_PANEL_1_ON_LVDS if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T
+ 	select INTEL_GMA_HAVE_VBT
+@@ -54,12 +54,12 @@ config MAINBOARD_DIR
+ 
+ config VARIANT_DIR
+ 	string
+-	default "x230" if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T
++	default "x230" if BOARD_LENOVO_X230 || BOARD_LENOVO_X230T || BOARD_LENOVO_X230_EDP
+ 	default "x230s" if BOARD_LENOVO_X230S
+ 
+ config MAINBOARD_PART_NUMBER
+ 	string
+-	default "ThinkPad X230" if BOARD_LENOVO_X230
++	default "ThinkPad X230" if BOARD_LENOVO_X230 || BOARD_LENOVO_X230_EDP
+ 	default "ThinkPad X230t" if BOARD_LENOVO_X230T
+ 	default "ThinkPad X230s" if BOARD_LENOVO_X230S
+ 
+@@ -67,6 +67,10 @@ config OVERRIDE_DEVICETREE
+ 	string
+ 	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
+ 
++config INTEL_GMA_VBT_FILE
++default "variants/x230_edp/data.vbt" if BOARD_LENOVO_X230_EDP
+++
++
+ config USBDEBUG_HCD_INDEX
+ 	int
+ 	default 2
+@@ -83,4 +86,4 @@ config PS2M_EISAID
+ config THINKPADEC_HKEY_EISAID
+ 	default "LEN0068"
+ 
+-endif # BOARD_LENOVO_X230 || BOARD_LENOVO_X230T ||  BOARD_LENOVO_X230S
++endif # BOARD_LENOVO_X230 || BOARD_LENOVO_X230T ||  BOARD_LENOVO_X230S || BOARD_LENOVO_X230_EDP
+diff --git a/src/mainboard/lenovo/x230/Kconfig.name b/src/mainboard/lenovo/x230/Kconfig.name
+index 1a01436879..e7290a12dd 100644
+--- a/src/mainboard/lenovo/x230/Kconfig.name
++++ b/src/mainboard/lenovo/x230/Kconfig.name
+@@ -6,3 +6,6 @@ config BOARD_LENOVO_X230T
+ 
+ config BOARD_LENOVO_X230S
+ 	bool "ThinkPad X230s"
++
++config BOARD_LENOVO_X230_EDP
++	bool "ThinkPad X230 eDP Mod (2K/FHD)"
+diff --git a/src/mainboard/lenovo/x230/Makefile.inc b/src/mainboard/lenovo/x230/Makefile.inc
+index 8e801f145d..6e6f9f90b9 100644
+--- a/src/mainboard/lenovo/x230/Makefile.inc
++++ b/src/mainboard/lenovo/x230/Makefile.inc
+@@ -5,4 +5,9 @@ bootblock-y += variants/$(VARIANT_DIR)/gpio.c
+ romstage-y += variants/$(VARIANT_DIR)/early_init.c
+ romstage-y += variants/$(VARIANT_DIR)/gpio.c
+ ramstage-y += variants/$(VARIANT_DIR)/hda_verb.c
++
++ifeq ($(CONFIG_BOARD_LENOVO_X230_EDP),y)
++ramstage-$(CONFIG_MAINBOARD_USE_LIBGFXINIT) += variants/x230_edp/gma-mainboard.ads
++else
+ ramstage-$(CONFIG_MAINBOARD_USE_LIBGFXINIT) += variants/$(VARIANT_DIR)/gma-mainboard.ads
++endif
+diff --git a/src/mainboard/lenovo/x230/variants/x230_edp/data.vbt b/src/mainboard/lenovo/x230/variants/x230_edp/data.vbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..13384d45571ff76e592335143d01315e37893186
+GIT binary patch
+literal 4281
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads b/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
+new file mode 100644
+index 0000000000..f7cf0bc264
+--- /dev/null
++++ b/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
+@@ -0,0 +1,21 @@
++-- SPDX-License-Identifier: GPL-2.0-or-later
++
++with HW.GFX.GMA;
++with HW.GFX.GMA.Display_Probing;
++
++use HW.GFX.GMA;
++use HW.GFX.GMA.Display_Probing;
++
++private package GMA.Mainboard is
++
++   ports : constant Port_List :=
++     (DP1,
++      DP2,
++      DP3,
++      HDMI1,
++      HDMI2,
++      HDMI3,
++      Analog,
++      others => Disabled);
++
++end GMA.Mainboard;
+-- 
+2.30.2
