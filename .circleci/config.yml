@@ -209,7 +209,7 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Coreboot 4.13
+      # Coreboot 4.19
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
@@ -217,7 +217,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.15
+      # Coreboot 4.17
       - build_and_persist:
           name: librem_14
           target: librem_14

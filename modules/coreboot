@@ -35,6 +35,12 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.17"
 	coreboot-blobs_hash := a2277fe7a2b2aab5da0aa335158460e00b852382f6736f2179992805702eb607
 	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.19"
+        coreboot_version := 4.19
+        coreboot_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
+        coreboot-blobs_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
+        coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+        EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 	coreboot_version = git
 	coreboot_commit_hash = 2207bbcccba31ad89cf21607b0d8d05d8dc47c03
