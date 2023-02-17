@@ -1,4 +1,4 @@
-qemu-coreboot-(fb)whiptal-tpm1-(hotp) board
+qemu-coreboot-(fb)whiptail-tpm1-(hotp) board
 ===
 
 The `qemu-coreboot-fbwhiptail-tpm1-hotp` configuration (and their variants) permits testing of most features of Heads.  
