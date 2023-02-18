@@ -5,6 +5,8 @@
 . /etc/functions
 . /tmp/config
 
+DEBUG "Under /bin/x230-flash.init"
+
 insmod /lib/modules/ehci-hcd.ko
 insmod /lib/modules/ehci-pci.ko
 insmod /lib/modules/xhci-hcd.ko

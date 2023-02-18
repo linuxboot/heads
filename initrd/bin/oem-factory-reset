@@ -1,7 +1,10 @@
 #!/bin/sh
 # Automated setup of TPM, GPG keys, and disk
 
+DEBUG "Under /bin/oem-factory-reset"
+
 set -o pipefail
+. /etc/functions
 
 # use TERM to exit on error
 trap "exit 1" TERM

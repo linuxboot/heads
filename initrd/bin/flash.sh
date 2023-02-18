@@ -6,6 +6,8 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
+DEBUG "Under /bin/flash.sh"
+
 case "$CONFIG_FLASHROM_OPTIONS" in
   -* )
     echo "Board $CONFIG_BOARD detected, continuing..."

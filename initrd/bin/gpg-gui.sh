@@ -5,6 +5,7 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
+DEBUG "Under /bin/gpg-gui.sh"
 gpg_flash_rom() {
 
   if [ "$1" = "replace" ]; then

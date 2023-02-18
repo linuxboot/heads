@@ -5,6 +5,8 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
+DEBUG "Under /bin/flash-gui.sh"
+
 while true; do
   unset menu_choice
   whiptail $BG_COLOR_MAIN_MENU --title "Firmware Management Menu" \
