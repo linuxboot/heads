@@ -623,7 +623,7 @@ check_gpg_key
 update_totp
 update_hotp
 
-if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT ]]; then
+if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
   prompt_auto_default_boot
 fi
 
