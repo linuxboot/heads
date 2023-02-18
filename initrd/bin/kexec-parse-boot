@@ -1,5 +1,9 @@
 #!/bin/sh
 set -e -o pipefail
+. /etc/functions
+
+DEBUG "Under /bin/kexec-parse-boot"
+
 bootdir="$1"
 file="$2"
 

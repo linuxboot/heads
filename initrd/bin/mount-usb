@@ -2,6 +2,8 @@
 # Mount a USB device
 . /etc/functions
 
+DEBUG "Under /bin/mount-usb"
+
 enable_usb
 
 if ! lsmod | grep -q usb_storage; then

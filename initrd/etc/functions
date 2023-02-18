@@ -12,7 +12,15 @@ warn() {
 	sleep 1;
 }
 
+DEBUG() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+		echo >&2 "DEBUG: $*";
+	fi
+}
+
+
 recovery() {
+	DEBUG "Under /etc/functions:recovery"
 	echo >&2 "!!!!! $*"
 
 	# Remove any temporary secret files that might be hanging around
@@ -44,6 +52,7 @@ recovery() {
 }
 
 pause_recovery() {
+	DEBUG "Under /etc/functions:pause_recovery"
 	read -p 'Hit enter to proceed to recovery shell:'
 	recovery $*
 }
@@ -54,6 +63,7 @@ pcrs() {
 
 confirm_totp()
 {
+	DEBUG "Under /etc/functions:confirm_totp"
 	prompt="$1"
 	last_half=X
 	unset totp_confirm
@@ -93,6 +103,7 @@ confirm_totp()
 
 enable_usb()
 {
+	DEBUG "Under /etc/functions:enable_usb"
 	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning 
 	if ! lsmod | grep -q ehci_hcd; then
                 insmod /lib/modules/ehci-hcd.ko \
@@ -137,6 +148,7 @@ enable_usb()
 
 list_usb_storage()
 {
+	DEBUG "Under /etc/functions:list_usb_storage"
 	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
 		cut -f1 -d ' ' |
 		sed "s/[']//g" |
@@ -176,6 +188,7 @@ list_usb_storage()
 
 confirm_gpg_card()
 {
+	DEBUG "Under /etc/functions:confirm_gpg_card"
 	read \
 		-n 1 \
 		-p "Please confirm that your GPG card is inserted [Y/n]: " \
@@ -219,6 +232,7 @@ confirm_gpg_card()
 
 check_tpm_counter()
 {
+  DEBUG "Under /etc/functions:check_tpm_counter"
   LABEL=${2:-3135106223}
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
@@ -244,18 +258,21 @@ check_tpm_counter()
 
 read_tpm_counter()
 {
+	DEBUG "Under /etc/functions:read_tpm_counter"
 	tpm counter_read -ix "$1" | tee "/tmp/counter-$1" \
 	|| die "Counter read failed"
 }
 
 increment_tpm_counter()
 {
+	DEBUG "Under /etc/functions:increment_tpm_counter"
 	tpm counter_increment -ix "$1" -pwdc '' \
 		| tee /tmp/counter-$1 \
 	|| die "Counter increment failed"
 }
 
 check_config() {
+	DEBUG "Under /etc/functions:check_config"
 	if [ ! -d /tmp/kexec ]; then
 		mkdir /tmp/kexec \
 		|| die 'Failed to make kexec tmp dir'
@@ -284,6 +301,7 @@ check_config() {
 }
 
 preserve_rom() {
+	DEBUG "Under /etc/functions:preserve_rom"
 	new_rom="$1"
 	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
 
@@ -299,6 +317,7 @@ preserve_rom() {
 	done
 }
 replace_config() {
+	DEBUG "Under /etc/functions:replace_config"
 	CONFIG_FILE=$1
 	CONFIG_OPTION=$2
 	NEW_SETTING=$3
@@ -314,11 +333,13 @@ replace_config() {
 	rm -f ${CONFIG_FILE}.tmp
 }
 combine_configs() {
+	DEBUG "Under /etc/functions:combine_configs"
 	cat /etc/config* > /tmp/config
 }
 
 update_checksums()
 {
+	DEBUG "Under /etc/functions:update_checksums"
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts ; then
 		mount -o ro /boot \
@@ -346,6 +367,7 @@ update_checksums()
 }
 
 print_tree() {
+	DEBUG "Under /etc/functions:print_tree"
 	find ./ ! -path './kexec*' -print0 | sort -z
 }
 
@@ -413,6 +435,7 @@ escape_zero() {
 # due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
 # may be intepreted by `whiptail`, `less` et al (e.g. \n, \b, ...).
 assert_signable() {
+	DEBUG "Under /etc/functions:assert_signable"
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts ; then
 		mount -o ro /boot || die "Unable to mount /boot"
@@ -432,6 +455,7 @@ assert_signable() {
 
 verify_checksums()
 {
+	DEBUG "Under /etc/functions:verify_checksums"
 	local boot_dir="$1"
 	local gui="${2:-y}"
 
@@ -465,6 +489,7 @@ verify_checksums()
 # mount /boot if successful
 detect_boot_device()
 {
+	DEBUG "Under /etc/functions:detect_boot_device"
 	# unmount /boot to be safe
 	cd / && umount /boot 2>/dev/null
 

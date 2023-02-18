@@ -10,12 +10,15 @@ HOTP_KEY="/boot/kexec_hotp_key"
 
 mount_boot()
 {
+  DEBUG "Under /bin/seal-htopkey:mount_boot"
   # Mount local disk if it is not already mounted
   if ! grep -q /boot /proc/mounts ; then
     mount -o ro /boot \
       || recovery "Unable to mount /boot"
   fi
 }
+
+DEBUG "Under /bin/seal-hotpkey"
 
 # Use stored HOTP key branding (this might be useful after OEM reset)
 if [ -r /boot/kexec_hotp_key ]; then

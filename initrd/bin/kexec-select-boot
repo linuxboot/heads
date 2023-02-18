@@ -4,6 +4,8 @@ set -e -o pipefail
 . /tmp/config
 . /etc/functions
 
+DEBUG "Under /bin/kexec-select-boot"
+
 add=""
 remove=""
 config="*.cfg"

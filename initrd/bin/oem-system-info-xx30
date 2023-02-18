@@ -9,6 +9,8 @@ export BG_COLOR_MAIN_MENU=""
 . /etc/luks-functions
 . /tmp/config
 
+DEBUG "Under /bin/oem-system-info-xx30"
+
   battery_charge="$(print_battery_charge)"
   battery_health="$(print_battery_health)"
   if [ -n $battery_charge -a -n $battery_health ];then

@@ -2,6 +2,8 @@
 set -e -o pipefail
 . /etc/functions
 
+DEBUG "Under /bin/key-init"
+
 # Post processing of keys
 
 # Import user's keys

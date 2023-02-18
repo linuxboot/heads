@@ -6,6 +6,7 @@
 
 mount_boot()
 {
+	DEBUG "Under /bin/generic-init:mount_boot"
 	# Mount local disk if it is not already mounted
 	if ! grep -q /boot /proc/mounts ; then
 		mount -o ro /boot \

@@ -3,6 +3,8 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
+DEBUG "Under /bin/cbfs.sh"
+
 if pnor "$2" -r HBI > /tmp/pnor.part 2>/dev/null; then
     cbfs "$@" -o /tmp/pnor.part && pnor "$2" -w HBI < /tmp/pnor.part
 else

@@ -1,3 +1,6 @@
 #!/bin/sh
 # if we are using the full GPG we need a wrapper for the gpgv executable
+. /etc/functions
+
+DEBUG "Under /bin/gpgv"
 exec gpg --verify "$@"
