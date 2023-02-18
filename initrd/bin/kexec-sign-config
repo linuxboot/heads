@@ -4,6 +4,8 @@ set -e -o pipefail
 . /tmp/config
 . /etc/functions
 
+DEBUG "Under /bin/kexec-sign-config"
+
 rollback="n"
 update="n"
 while getopts "p:c:ur" arg; do

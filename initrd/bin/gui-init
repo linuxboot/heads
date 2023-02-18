@@ -17,7 +17,7 @@ skip_to_menu="false"
 
 mount_boot()
 {
-  
+  DEBUG "Under /bin/gui-init:mount_boot"
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
@@ -63,6 +63,7 @@ mount_boot()
 
 verify_global_hashes()
 {
+  DEBUG "Under /bin/gui-init:verify_global_hashes"
   # Check the hashes of all the files, ignoring signatures for now
   check_config /boot force
   TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
@@ -137,6 +138,7 @@ verify_global_hashes()
 
 prompt_update_checksums()
 {
+  DEBUG "Under /bin/gui-init:prompt_update_checksums"
   if (whiptail $BG_COLOR_WARNING --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80) then
     if ! update_checksums ; then
@@ -148,6 +150,7 @@ prompt_update_checksums()
 
 generate_totp_htop()
 {
+  DEBUG "Under /bin/gui-init:generate_totp_htop"
   echo "Scan the QR code to add the new TOTP secret"
   if /bin/seal-totp "$BOARD_NAME"; then
     if [ -x /bin/hotp_verification ]; then
@@ -167,6 +170,7 @@ generate_totp_htop()
 
 update_totp()
 {
+  DEBUG "Under /bin/gui-init:update_totp"
   # update the TOTP code
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   if [ "$CONFIG_TPM" = n ]; then
@@ -217,6 +221,7 @@ update_totp()
 
 update_hotp()
 {
+  DEBUG "Under /bin/gui-init:update_hotp"
   if [ -x /bin/hotp_verification ]; then
     HOTP=`unseal-hotp`
     if ! hotp_verification info ; then
@@ -255,6 +260,7 @@ update_hotp()
 
 clean_boot_check()
 {
+  DEBUG "Under /bin/gui-init:mount_boot"
   # assume /boot mounted
   if ! grep -q /boot /proc/mounts ; then
     return
@@ -283,6 +289,7 @@ clean_boot_check()
 
 check_gpg_key()
 {
+  DEBUG "Under /bin/gui-init:check_gpg_key"
   GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
@@ -319,6 +326,7 @@ check_gpg_key()
 
 prompt_auto_default_boot()
 {
+  DEBUG "Under /bin/gui-init:prompt_auto_default_boot"
   # save IFS before changing, restore after read
   IFS_DEF=$IFS
   IFS=''
@@ -335,6 +343,7 @@ prompt_auto_default_boot()
 
 show_main_menu()
 {
+  DEBUG "Under /bin/gui-init:show_main_menu"
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   whiptail $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 0 80 10 \
@@ -368,6 +377,7 @@ show_main_menu()
 
 show_options_menu()
 {
+  DEBUG "Under /bin/gui-init:show_options_menu"
   whiptail $BG_COLOR_MAIN_MENU --title "HEADS Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
@@ -424,6 +434,7 @@ show_options_menu()
 
 show_boot_options_menu()
 {
+  DEBUG "Under /bin/gui-init:show_boot_options_menu"
   whiptail $BG_COLOR_MAIN_MENU --title "Boot Options" \
     --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
@@ -451,6 +462,7 @@ show_boot_options_menu()
 
 show_tpm_totp_hotp_options_menu()
 {
+  DEBUG "Under /bin/gui-init:show_tpm_totp_hotp_options_menu"
   whiptail $BG_COLOR_MAIN_MENU --title "TPM/TOTP/HOTP Options" \
     --menu "Select An Option" 0 80 10 \
     'g' ' Generate new TOTP/HOTP secret' \
@@ -477,6 +489,7 @@ show_tpm_totp_hotp_options_menu()
 
 prompt_totp_mismatch()
 {
+  DEBUG "Under /bin/gui-init:prompt_totp_mismatch"
   if (whiptail $BG_COLOR_WARNING --title "TOTP/HOTP code mismatched" \
     --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
     echo ""
@@ -493,6 +506,7 @@ prompt_totp_mismatch()
 
 reset_tpm()
 {
+  DEBUG "Under /bin/gui-init:reset_tpm"
   if [ "$CONFIG_TPM" = "y" ]; then
     if (whiptail $BG_COLOR_WARNING --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
@@ -526,6 +540,7 @@ reset_tpm()
 
 show_system_info()
 {
+  DEBUG "Under /bin/gui-init:show_system_info"
   battery_charge="$(print_battery_charge)"
   battery_health="$(print_battery_health)"
   if [ -n $battery_charge -a -n $battery_health ];then
@@ -543,6 +558,7 @@ show_system_info()
 
 select_os_boot_option()
 {
+  DEBUG "Under /bin/gui-init:select_os_boot_option"
   mount_boot
   if verify_global_hashes ; then
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
@@ -551,6 +567,7 @@ select_os_boot_option()
 
 attempt_default_boot()
 {
+  DEBUG "Under /bin/gui-init:attempt_default_boot"
   mount_boot
     
   if ! verify_global_hashes; then
@@ -568,6 +585,7 @@ attempt_default_boot()
 
 force_unsafe_boot()
 {
+  DEBUG "Under /bin/gui-init:force_unsafe_boot"
   # Run the menu selection in "force" mode, bypassing hash checks
   if (whiptail $BG_COLOR_WARNING --title 'Unsafe Forced Boot Selected!' \
       --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 0 80) then
@@ -576,6 +594,7 @@ force_unsafe_boot()
 }
 
 # gui-init start
+DEBUG "Under /bin/gui-init, start"
 
 # Use stored HOTP key branding
 if [ -r /boot/kexec_hotp_key ]; then
@@ -609,6 +628,7 @@ if [[ "$HOTP" = "Success" && $CONFIG_AUTO_BOOT_TIMEOUT ]]; then
 fi
 
 while true; do
+  DEBUG "Under gui-init:while true loop"
   skip_to_menu="false"
   show_main_menu
 done

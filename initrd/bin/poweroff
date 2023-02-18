@@ -1,4 +1,7 @@
 #!/bin/sh
+. /etc/functions
+
+DEBUG "Under /bin/poweroff"
 
 # Sync all mounted filesystems
 echo s > /proc/sysrq-trigger

@@ -3,6 +3,8 @@
 set -e -o pipefail
 . /etc/functions
 
+DEBUG "Under /bin/kexec-insert-key"
+
 TMP_KEY_DEVICES="/tmp/kexec/kexec_key_devices.txt"
 TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
 

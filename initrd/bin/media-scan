@@ -5,6 +5,8 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
+DEBUG "Under /bin/media-scan"
+
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then
 	umount /boot \

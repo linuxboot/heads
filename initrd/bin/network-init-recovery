@@ -2,6 +2,8 @@
 
 . /etc/functions
 
+DEBUG "Under /bin/network-init-recovery"
+
 # bring up the ethernet; maybe should do DHCP?
 ifconfig lo 127.0.0.1
 

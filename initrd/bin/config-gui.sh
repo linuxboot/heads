@@ -5,6 +5,8 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
+DEBUG "Under /bin/config-gui.sh"
+
 param=$1
 
 while true; do

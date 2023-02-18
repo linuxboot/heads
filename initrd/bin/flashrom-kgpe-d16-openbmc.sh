@@ -1,6 +1,8 @@
 #!/bin/sh
 . /etc/functions
 
+DEBUG "Under /bin/flashrom-kgpe-d16-openbmc.sh"
+
 ROM="$1"
 if [ -z "$1" ]; then
 	die "Usage: $0 /media/kgpe-d16-openbmc.rom"

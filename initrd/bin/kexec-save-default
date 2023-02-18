@@ -4,6 +4,8 @@ set -e -o pipefail
 . /tmp/config
 . /etc/functions
 
+DEBUG "Under /bin/kexec-save-default"
+
 while getopts "b:d:p:i:" arg; do
 	case $arg in
 		b) bootdir="$OPTARG" ;;
