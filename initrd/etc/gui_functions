@@ -1,8 +1,10 @@
 #!/bin/sh
 # Shell functions for common operations using fbwhiptail
+. /etc/functions
 
 mount_usb()
 {
+  TRACE "under gui_functions:mount_usb"
   # Unmount any previous USB device
   if grep -q /media /proc/mounts ; then
     umount /media || die "Unable to unmount /media"
@@ -23,6 +25,7 @@ mount_usb()
 
 file_selector()
 {
+  TRACE "under gui_functions:file_selector"
   FILE=""
   FILE_LIST=$1
   MENU_MSG=${2:-"Choose the file"}

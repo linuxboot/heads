@@ -1,6 +1,9 @@
 #!/bin/sh
 # Measure all of the luks disk encryption headers into
 # a PCR so that we can detect disk swap attacks.
+. /etc/functions
+
+TRACE "Under /bin/qubes-measure-luks"
 
 die() { echo >&2 "$@"; exit 1; }
 

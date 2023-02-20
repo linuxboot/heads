@@ -3,6 +3,7 @@
 # with the current PCRs and then store it in the TPM NVRAM.
 # It will then need to be bundled into initrd that is booted.
 set -e -o pipefail
+. /etc/functions
 
 TPM_INDEX=3
 TPM_SIZE=312
