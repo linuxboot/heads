@@ -1,7 +1,7 @@
 #!/bin/sh
 # Automated setup of TPM, GPG keys, and disk
 
-DEBUG "Under /bin/oem-factory-reset"
+TRACE "Under /bin/oem-factory-reset"
 
 set -o pipefail
 . /etc/functions

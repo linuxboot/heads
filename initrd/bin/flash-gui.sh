@@ -5,7 +5,7 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
-DEBUG "Under /bin/flash-gui.sh"
+TRACE "Under /bin/flash-gui.sh"
 
 while true; do
   unset menu_choice
