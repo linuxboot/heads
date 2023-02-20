@@ -4,7 +4,7 @@ set -e -o pipefail
 . /tmp/config
 . /etc/functions
 
-DEBUG "Under /bin/kexec-boot"
+TRACE "Under /bin/kexec-boot"
 
 dryrun="n"
 printfiles="n"

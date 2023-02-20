@@ -2,7 +2,7 @@
 # Mount a USB device
 . /etc/functions
 
-DEBUG "Under /bin/mount-usb"
+TRACE "Under /bin/mount-usb"
 
 enable_usb
 

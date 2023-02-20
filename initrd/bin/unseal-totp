@@ -6,7 +6,7 @@
 TOTP_SEALED="/tmp/secret/totp.sealed"
 TOTP_SECRET="/tmp/secret/totp.key"
 
-DEBUG "Under /bin/unseal-totp"
+TRACE "Under /bin/unseal-totp"
 
 tpm nv_readvalue \
 	-in 4d47 \

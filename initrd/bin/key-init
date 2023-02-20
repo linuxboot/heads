@@ -2,7 +2,7 @@
 set -e -o pipefail
 . /etc/functions
 
-DEBUG "Under /bin/key-init"
+TRACE "Under /bin/key-init"
 
 # Post processing of keys
 

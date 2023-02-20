@@ -43,7 +43,7 @@ hwclock -l -s
 . /etc/functions
 . /etc/config
 
-DEBUG "Under init"
+TRACE "Under init"
 
 # set CONFIG_TPM dynamically before init
 if [ -e /dev/tpm0 ]; then
