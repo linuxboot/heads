@@ -3,7 +3,7 @@
 # a PCR so that we can detect disk swap attacks.
 . /etc/functions
 
-DEBUG "Under /bin/qubes-measure-luks"
+TRACE "Under /bin/qubes-measure-luks"
 
 die() { echo >&2 "$@"; exit 1; }
 

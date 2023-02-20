@@ -1,7 +1,7 @@
 #!/bin/sh
 . /etc/functions
 
-DEBUG "Under /bin/flashrom-kgpe-d16-openbmc.sh"
+TRACE "Under /bin/flashrom-kgpe-d16-openbmc.sh"
 
 ROM="$1"
 if [ -z "$1" ]; then

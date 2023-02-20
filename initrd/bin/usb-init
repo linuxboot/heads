@@ -4,7 +4,7 @@
 . /etc/functions
 . /tmp/config
 
-DEBUG "Under /bin/usb-init"
+TRACE "Under /bin/usb-init"
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Extend PCR4 as soon as possible

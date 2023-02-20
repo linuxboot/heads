@@ -6,7 +6,7 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-DEBUG "Under /bin/flash.sh"
+TRACE "Under /bin/flash.sh"
 
 case "$CONFIG_FLASHROM_OPTIONS" in
   -* )
