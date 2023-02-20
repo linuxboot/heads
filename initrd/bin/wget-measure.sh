@@ -1,7 +1,9 @@
 #!/bin/sh
 # get a file and extend a TPM PCR
+. /etc/functions
 
 die() {
+	TRACE "Under /bin/wget-measure.sh:die"
         echo >&2 "$@"
         exit 1
 }
