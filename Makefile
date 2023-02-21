@@ -125,6 +125,9 @@ heads_cc	:= $(CROSS)gcc \
 	-isystem $(INSTALL)/include \
 	-L$(INSTALL)/lib \
 
+# Cross-compiling with pkg-config requires clearing PKG_CONFIG_PATH and setting
+# both PKG_CONFIG_LIBDIR and PKG_CONFIG_SYSROOT_DIR.
+# https://autotools.info/pkgconfig/cross-compiling.html
 CROSS_TOOLS_NOCC := \
 	AR="$(CROSS)ar" \
 	LD="$(CROSS)ld" \
@@ -132,7 +135,8 @@ CROSS_TOOLS_NOCC := \
 	NM="$(CROSS)nm" \
 	OBJCOPY="$(CROSS)objcopy" \
 	OBJDUMP="$(CROSS)objdump" \
-	PKG_CONFIG_PATH="$(INSTALL)/lib/pkgconfig" \
+	PKG_CONFIG_PATH= \
+	PKG_CONFIG_LIBDIR="$(INSTALL)/lib/pkgconfig" \
 	PKG_CONFIG_SYSROOT_DIR="$(INSTALL)" \
 
 CROSS_TOOLS := \
