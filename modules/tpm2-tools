@@ -26,4 +26,4 @@ tpm2-tools_target := $(MAKE_JOBS) \
 
 tpm2-tools_output := tools/tpm2
 
-tpm2-tools_depends := tpm2-tss curl $(musl_dep)
+tpm2-tools_depends := openssl tpm2-tss $(musl_dep)
