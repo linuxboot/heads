@@ -522,6 +522,7 @@ reset_tpm()
       mount_boot
       mount -o rw,remount /boot
       rm -f /boot/kexec_rollback.txt
+      rm -f /boot/kexec_primhdl_hash.txt
 
       # create Heads TPM counter before any others
       check_tpm_counter /boot/kexec_rollback.txt \
