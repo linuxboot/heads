@@ -115,18 +115,20 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		tpmr extend -ix 4 -ic recovery
 	fi
 	exec /bin/bash
 	exit
 fi
 
-# Override CONFIG_TPM from /etc/config with runtime value determined above.
+# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
+# determined above.
 #
 # Values in user config have higher priority during combining thus effectively
 # changing the value for the rest of the scripts which source /tmp/config.
 echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
+echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
 
 combine_configs
 . /tmp/config
@@ -172,7 +174,7 @@ else
 fi
 
 # belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = y ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr extend -ix 4 -ic recovery
 fi
 exec /bin/bash

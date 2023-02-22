@@ -48,7 +48,7 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]; then
 	if [ ! -r "$KEY_DEVICES" ]; then
 		read \
 			-n 1 \
@@ -186,7 +186,7 @@ fi
 
 # sign and auto-roll config counter
 extparam=
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+if [ "$CONFIG_TPM" = "y" ];then
 	if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 		extparam=-r
 	fi

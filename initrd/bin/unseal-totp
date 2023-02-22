@@ -8,7 +8,10 @@ TOTP_SECRET="/tmp/secret/totp.key"
 
 TRACE "Under /bin/unseal-totp"
 
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	tpmr unseal 0x81004d47 sha256:0,1,2,3,4,7 > "$TOTP_SECRET" \
+		|| die "Unable to unseal totp secret"
+elif [ "$CONFIG_TPM" = "y" ]; then
 	tpm nv_readvalue \
 		-in 4d47 \
 		-sz 312 \
@@ -19,9 +22,6 @@ if [ "$CONFIG_TPM" = "y" ]; then
 		-hk 40000000 \
 		-if "$TOTP_SEALED" \
 		-of "$TOTP_SECRET" \
-		|| die "Unable to unseal totp secret"
-elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	tpmr unseal 0x81004d47 sha256:0,1,2,3,4,7 > "$TOTP_SECRET" \
 		|| die "Unable to unseal totp secret"
 fi
 

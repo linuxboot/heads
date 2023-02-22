@@ -20,7 +20,9 @@ if [ "$key_password" != "$key_password2" ]; then
     die "Key passwords do not match"
 fi
 
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	tpmr reset "$key_password"
+elif [ "$CONFIG_TPM" = "y" ]; then
     # Make sure the TPM is ready to be reset
     tpm physicalpresence -s
     tpm physicalenable
@@ -33,8 +35,4 @@ if [ "$CONFIG_TPM" = "y" ]; then
     tpm physicalpresence -s
     tpm physicalenable
     tpm physicalsetdeactivated -c
-fi
-
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	tpmr reset "$key_password"
 fi
