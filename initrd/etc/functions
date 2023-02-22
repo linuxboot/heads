@@ -41,7 +41,7 @@ recovery() {
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
 
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		tpmr extend -ix 4 -ic recovery
 	fi
 
@@ -65,10 +65,10 @@ pause_recovery() {
 }
 
 pcrs() {
-	if [ "$CONFIG_TPM" = "y" ]; then
-		head -8 /sys/class/tpm/tpm0/pcrs
-	elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		tpm2 pcrread sha256
+	elif [ "$CONFIG_TPM" = "y" ]; then
+		head -8 /sys/class/tpm/tpm0/pcrs
 	fi
 }
 
@@ -85,7 +85,7 @@ confirm_totp()
 		date=`date "+%Y-%m-%d %H:%M:%S"`
 		seconds=`date "+%s"`
 		half=`expr \( $seconds % 60 \) / 30`
-		if [ "$CONFIG_TPM" != "y" -a "$CONFIG_TPM2_TOOLS" != "y" ]; then
+		if [ "$CONFIG_TPM" != "y" ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then
 			last_half=$half;
@@ -362,7 +362,7 @@ update_checksums()
 
 	# sign and auto-roll config counter
 	extparam=
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+	if [ "$CONFIG_TPM" = "y" ];then
 		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 			extparam=-r
 		fi

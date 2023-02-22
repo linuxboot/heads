@@ -16,12 +16,11 @@ else
 	. /etc/config
 fi
 
-# tpm1 does not need to convert options
-if [ "$CONFIG_TPM" = "y" ]; then
-	exec tpm "$@"
-fi
-
 if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+	# tpm1 does not need to convert options
+	if [ "$CONFIG_TPM" = "y" ]; then
+		exec tpm "$@"
+	fi
 	echo >&2 "No TPM2!"
 	exit 1
 fi

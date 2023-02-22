@@ -6,7 +6,7 @@
 
 TRACE "Under /bin/usb-init"
 
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	# Extend PCR4 as soon as possible
 	tpmr extend -ix 4 -ic usb
 fi

@@ -91,7 +91,7 @@ done
 cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 
-if [ "$CONFIG_TPM" = "y" ];then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 	# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
 	# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5

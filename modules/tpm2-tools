@@ -1,6 +1,13 @@
 # TPM2 tools program
 modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
 
+# CONFIG_TPM means any TPM version.  (CONFIG_TPM2_TOOLS differentiates them when
+# they must be handled differently, which should be localized.)  Boards setting
+# CONFIG_TPM2_TOOLS=y imply CONFIG_TPM=y.
+ifeq "$(CONFIG_TPM2_TOOLS)" "y"
+	export CONFIG_TPM=y
+endif
+
 tpm2-tools_version := 5.2
 #tpm2-tools_version := 78a7681
 #tpm2-tools_repo := https://github.com/tpm2-software/tpm2-tools.git

@@ -315,7 +315,7 @@ do_boot()
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 			|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
@@ -359,7 +359,7 @@ while true; do
 		user_select
 	fi
 
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		if [ ! -r "$TMP_KEY_DEVICES" ]; then
 			# Extend PCR4 as soon as possible
 			tpmr extend -ix 4 -ic generic \
@@ -372,7 +372,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"
