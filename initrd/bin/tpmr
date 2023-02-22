@@ -155,24 +155,7 @@ tpm2_unseal() {
 }
 
 tpm2_reset() {
-	echo '*****'
-	echo '***** WARNING: This will erase all keys and secrets from the TPM'
-	echo '*****'
-
-	read -s -p "New TPM owner password: " key_password
-	echo
-
-	if [ -z "$key_password" ]; then
-		die "Empty owner password is not allowed"
-	fi
-
-	read -s -p "Repeat owner password: " key_password2
-	echo
-
-
-	if [ "$key_password" != "$key_password2" ]; then
-		die "Key passwords do not match"
-	fi
+	key_password="$1"
 	mkdir -p "$SECRET_DIR"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
 	tpm2 changeauth -c owner "$key_password"
@@ -205,7 +188,7 @@ case "$subcmd" in
 	unseal)
 		tpm2_unseal "$@";;
 	reset)
-		tpm2_reset;;
+		tpm2_reset "$@";;
 	*)
 		echo "Command $subcmd not wrapped!"
 		exit 1
