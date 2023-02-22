@@ -20,7 +20,7 @@ for cbfsname in `echo $cbfsfiles`; do
 		|| die "$filename: mkdir failed"
 		cbfs -t 50 -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
-		if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		if [ "$CONFIG_TPM" = "y" ]; then
 			TMPFILE=/tmp/cbfs.$$
 			echo "$filename" > $TMPFILE
 			cat $filename >> $TMPFILE

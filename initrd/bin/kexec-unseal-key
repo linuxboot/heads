@@ -23,7 +23,28 @@ echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
 echo "DEBUG: Show PCRs"
 pcrs
 
-if [ "$CONFIG_TPM" = "y" ];then
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ "$CONFIG_ATTEST_TOOLS" = "y" ]; then
+		echo "Bring up network for remote attestation"
+		network-init-recovery
+	fi
+	for tries in 1 2 3; do
+		if [ "$CONFIG_AUTO_UNLOCK" = "y" ]; then
+			tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" > "$key_file"
+		else
+			tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
+		fi
+
+		if [ $? -eq 0 ]; then
+			# should be okay if this fails
+			shred -n 10 -z -u /tmp/secret/sealed 2> /dev/null || true
+			exit 0
+		fi
+
+		pcrs
+		warn "Unable to unseal disk encryption key"
+	done
+elif [ "$CONFIG_TPM" = "y" ]; then
 	tpm nv_readvalue \
 	    -in "$TPM_INDEX" \
 	    -sz "$TPM_SIZE" \
@@ -59,27 +80,6 @@ if [ "$CONFIG_TPM" = "y" ];then
 		pcrs
 		warn "Unable to unseal disk encryption key"
 	done
-elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ "$CONFIG_ATTEST_TOOLS" = "y" ]; then
-		echo "Bring up network for remote attestation"
-		network-init-recovery
-	fi
-	for tries in 1 2 3; do
-	if [ "$CONFIG_AUTO_UNLOCK" = "y" ]; then
-		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" > "$key_file"
-	else
-		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
-	fi
-
-	if [ $? -eq 0 ]; then
-		# should be okay if this fails
-		shred -n 10 -z -u /tmp/secret/sealed 2> /dev/null || true
-		exit 0
-	fi
-
-	pcrs
-	warn "Unable to unseal disk encryption key"
-done
 fi
 
 die "Retry count exceeded..."

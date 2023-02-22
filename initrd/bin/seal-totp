@@ -28,7 +28,7 @@ dd \
 || die "Unable to generate 20 random bytes"
 
 secret="`base32 < $TOTP_SECRET`"
-if [ "$CONFIG_TPM" = "y" ];then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	# Use the current values of the PCRs, which will be read
 	# from the TPM as part of the sealing ("X").
 	# PCR4 == 0 means that we are still in the boot process and

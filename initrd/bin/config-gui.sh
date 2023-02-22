@@ -126,7 +126,7 @@ while true; do
         # flash cleared ROM
         /bin/flash.sh -c /tmp/config-gui.rom
         # reset TPM if present
-        if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+        if [ "$CONFIG_TPM" = "y" ]; then
           /bin/tpm-reset
         fi
         whiptail --title 'Configuration Reset Updated Successfully' \

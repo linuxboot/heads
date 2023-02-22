@@ -27,7 +27,7 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	tpm nv_readvalue \
 		-in 4d47 \
 		-sz 312 \

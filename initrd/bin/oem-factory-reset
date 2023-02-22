@@ -184,7 +184,7 @@ generate_checksums()
     rm /boot/kexec* 2>/dev/null
 
     # create Heads TPM counter
-    if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ];then
+    if [ "$CONFIG_TPM" = "y" ];then
 	    if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 		    tpmr counter_create \
 			 -pwdo "$TPM_PASS_DEF" \
@@ -309,7 +309,7 @@ report_integrity_measurements()
         date=`date "+%Y-%m-%d %H:%M:%S %Z"`
         seconds=`date "+%s"`
         half=`expr \( $seconds % 60 \) / 30`
-        if [ "$CONFIG_TPM" != "y" -a "$CONFIG_TPM2_TOOLS" != "y" ]; then
+        if [ "$CONFIG_TPM" != "y" ]; then
             TOTP="NO TPM"
         elif [ "$half" != "$last_half" ]; then
             last_half=$half;
@@ -372,7 +372,7 @@ else
 fi
 
 # show warning prompt
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
     TPM_STR="          * ERASE the TPM and own it with a password\n"
 else
     TPM_STR=""
@@ -418,7 +418,7 @@ fi
 if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
     CUSTOM_PASS_AFFECTED_COMPONENTS="LUKS Disk Recovery Key passphrase"
 fi
-if [ "$CONFIG_TPM" = "y" ] || [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
   CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
 TPM Ownership password"
 fi
@@ -461,7 +461,7 @@ else
   ; then
     echo -e "\nThey must be each at least 8 characters in length.\n"
     echo
-    if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+    if [ "$CONFIG_TPM" = "y" ]; then
       while [[  ${#TPM_PASS} -lt 8 ]] ; do
         echo -e -n "Enter desired TPM Ownership password: "
         read TPM_PASS
@@ -608,7 +608,7 @@ elif [ -z "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_K
 fi
 
 ## reset TPM and set password
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
   echo -e "\nResetting TPM...\n"
   {
       echo $TPM_PASS
@@ -723,7 +723,7 @@ else
      $luks_new_Disk_Recovery_Key_passphrase"
 fi
 
-if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
   tpm_password_changed="
     TPM Owner Password: $TPM_PASS\n"
 else
