@@ -135,7 +135,7 @@ tpm2_sealfile() {
 		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE"
 	fi
 	tpm2 load -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
-	read -s -p "New TPM owner password: " key_password
+	read -s -p "TPM owner password: " key_password
 	# remove possible data occupying this handle
 	tpm2 evictcontrol -C o -P "$key_password" -c "$handle" 2>/dev/null || true
 	tpm2 evictcontrol -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle" 
