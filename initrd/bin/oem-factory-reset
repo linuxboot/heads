@@ -309,7 +309,7 @@ report_integrity_measurements()
         date=`date "+%Y-%m-%d %H:%M:%S %Z"`
         seconds=`date "+%s"`
         half=`expr \( $seconds % 60 \) / 30`
-        if [ "$CONFIG_TPM" = n ]; then
+        if [ "$CONFIG_TPM" != "y" -a "$CONFIG_TPM2_TOOLS" != "y" ]; then
             TOTP="NO TPM"
         elif [ "$half" != "$last_half" ]; then
             last_half=$half;
@@ -418,7 +418,7 @@ fi
 if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
     CUSTOM_PASS_AFFECTED_COMPONENTS="LUKS Disk Recovery Key passphrase"
 fi
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] || [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
   CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
 TPM Ownership password"
 fi
@@ -461,7 +461,7 @@ else
   ; then
     echo -e "\nThey must be each at least 8 characters in length.\n"
     echo
-    if [ "$CONFIG_TPM" = "y" ]; then
+    if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
       while [[  ${#TPM_PASS} -lt 8 ]] ; do
         echo -e -n "Enter desired TPM Ownership password: "
         read TPM_PASS
@@ -608,14 +608,12 @@ elif [ -z "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_K
 fi
 
 ## reset TPM and set password
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
   echo -e "\nResetting TPM...\n"
   {
       echo $TPM_PASS
       echo $TPM_PASS
   } | /bin/tpm-reset >/dev/null 2>/tmp/error
-elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	tpmr reset
 fi
 if [ $? -ne 0 ]; then
 	ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -725,7 +723,7 @@ else
      $luks_new_Disk_Recovery_Key_passphrase"
 fi
 
-if [ "$CONFIG_TPM" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" -o "$CONFIG_TPM2_TOOLS" = "y" ]; then
   tpm_password_changed="
     TPM Owner Password: $TPM_PASS\n"
 else
