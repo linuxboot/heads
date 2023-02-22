@@ -125,10 +125,8 @@ if [ ! -d $paramsdir ]; then
 fi
 
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ ! -r "$PRIMHASH_FILE" ]; then
-		sha256sum /tmp/primary.handle > "$PRIMHASH_FILE" \
-			|| die "ERROR: Failed to Hash TPM2 primary key handle!"
-	fi
+	sha256sum /tmp/primary.handle > "$PRIMHASH_FILE" \
+		|| die "ERROR: Failed to Hash TPM2 primary key handle!"
 fi
 
 rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
