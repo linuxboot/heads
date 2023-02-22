@@ -30,7 +30,7 @@ flashrom_target := \
 	INSTALL="$(INSTALL)" \
 	DESTDIR="$(INSTALL)" \
 	LIBS_BASE="$(INSTALL)" \
-	CFLAGS="-I$(INSTALL)/include/libusb-1.0 -I$(INSTALL)/include/pci" \
+	CFLAGS="-Os -I$(INSTALL)/include/libusb-1.0 -I$(INSTALL)/include/pci" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 	$(flashrom_cfg) \
 	$(CROSS_TOOLS) \
