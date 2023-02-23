@@ -29,11 +29,7 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		network-init-recovery
 	fi
 	for tries in 1 2 3; do
-		if [ "$CONFIG_AUTO_UNLOCK" = "y" ]; then
-			tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" > "$key_file"
-		else
-			tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
-		fi
+		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
 
 		if [ $? -eq 0 ]; then
 			# should be okay if this fails
@@ -52,24 +48,17 @@ elif [ "$CONFIG_TPM" = "y" ]; then
 		|| die "Unable to read key from TPM NVRAM"
 
 	for tries in 1 2 3; do
-		if [ "$CONFIG_AUTO_UNLOCK" != y ]; then
-			read -s -p "Enter unlock password (blank to abort): " tpm_password
-			echo
-			if [ -z "$tpm_password" ]; then
-				die "Aborting unseal disk encryption key"
-			fi
-
-			tpm unsealfile \
-			    -if "$sealed_file" \
-			    -of "$key_file" \
-			    -pwdd "$tpm_password" \
-			    -hk 40000000
-		else
-			tpm unsealfile \
-			    -if "$sealed_file" \
-			    -of "$key_file" \
-			    -hk 40000000
+		read -s -p "Enter unlock password (blank to abort): " tpm_password
+		echo
+		if [ -z "$tpm_password" ]; then
+			die "Aborting unseal disk encryption key"
 		fi
+
+		tpm unsealfile \
+			-if "$sealed_file" \
+			-of "$key_file" \
+			-pwdd "$tpm_password" \
+			-hk 40000000
 
 		if [ $? -eq 0 ]; then
 			# should be okay if this fails

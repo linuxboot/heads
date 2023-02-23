@@ -48,15 +48,13 @@ read -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > "$RECOVERY_KEY"
 echo
 
-if [ "$CONFIG_AUTO_UNLOCK" != y ]; then
-	read -s -p "New disk unlock password for booting: " key_password
-	echo
-	read -s -p "Repeat unlock code: " key_password2
-	echo
+read -s -p "New disk unlock password for booting: " key_password
+echo
+read -s -p "Repeat unlock code: " key_password2
+echo
 
-	if [ "$key_password" != "$key_password2" ]; then
-		die "Key passwords do not match"
-	fi
+if [ "$key_password" != "$key_password2" ]; then
+	die "Key passwords do not match"
 fi
 
 # Generate key file
@@ -114,34 +112,19 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	# loaded in the recovery shell.
 	# Otherwise use the current values of the PCRs, which will be read
 	# from the TPM as part of the sealing ("X").
-	if [ "$CONFIG_AUTO_UNLOCK" != y ]; then
-		tpm sealfile2 \
-			-if "$KEY_FILE" \
-			-of "$TPM_SEALED" \
-			-pwdd "$key_password" \
-			-hk 40000000 \
-			-ix 0 X \
-			-ix 1 X \
-			-ix 2 X \
-			-ix 3 X \
-			-ix 4 0000000000000000000000000000000000000000 \
-			-ix 5 $pcr_5 \
-			-ix 6 $luks_pcr \
-			-ix 7 X
-	else
-		tpm sealfile2 \
-			-if "$KEY_FILE" \
-			-of "$TPM_SEALED" \
-			-hk 40000000 \
-			-ix 0 X \
-			-ix 1 X \
-			-ix 2 X \
-			-ix 3 X \
-			-ix 4 0000000000000000000000000000000000000000 \
-			-ix 5 $pcr_5 \
-			-ix 6 $luks_pcr \
-			-ix 7 X
-	fi
+	tpm sealfile2 \
+		-if "$KEY_FILE" \
+		-of "$TPM_SEALED" \
+		-pwdd "$key_password" \
+		-hk 40000000 \
+		-ix 0 X \
+		-ix 1 X \
+		-ix 2 X \
+		-ix 3 X \
+		-ix 4 0000000000000000000000000000000000000000 \
+		-ix 5 $pcr_5 \
+		-ix 6 $luks_pcr \
+		-ix 7 X
 
 	if [ $? -ne 0 ]; then
 		die "Unable to seal secret"
@@ -205,15 +188,7 @@ elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	tpm2 pcrreset 23
 	# We take into consideration user files in cbfs
 	tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf"
-	if [ "$CONFIG_AUTO_UNLOCK" = "y" ]; then
-		#TODO: There is no CONFIG_AUTO_UNLOCK. Should be removed
-		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf"
-	else
-		#TODO: wrap TPM disk encryption key passphrase, otherwise prompt to user looks like if we were asking for TPM ownership passphrase
-		#TODO: everything is supposed to be under $pcrf, why considering them twice?
-		# TODO: review syntax to not duplicate expending pcr 2 times with pcr0-7: find a way to only use $pcrf? : sha256 "$pcrf" "$key_password"
-		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
-	fi
+	tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	if [ $? -eq 0 ]; then
 		# should be okay if this fails
 		shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
