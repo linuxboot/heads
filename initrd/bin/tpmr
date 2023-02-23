@@ -16,6 +16,8 @@ else
 	. /etc/config
 fi
 
+TRACE "Under /bin/tpmr"
+
 if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	# tpm1 does not need to convert options
 	if [ "$CONFIG_TPM" = "y" ]; then
@@ -26,26 +28,35 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 fi
 
 tpm2_extend() {
+	TRACE "Under /bin/tpmr:tpm2_extend"
+	DEBUG "value of passed arguments: $1 $2 $3 $4 $5 $6"
 	while true; do
 		case "$1" in
 			-ix)
+				DEBUG "case: -ix $2"
 				index="$2"
 				shift 2;;
 			-ic)
+				DEBUG "case: -ic $2"
 				hash="`echo $2|sha256sum|cut -d' ' -f1`"
 				shift 2;;
 			-if)
+				DEBUG "case: -if $2"
 				hash="`sha256sum $2|cut -d' ' -f1`"
 				shift 2;;
 			*)
 				break;;
 		esac
 	done
+	DEBUG "tpm2 pcrextend $index:sha256=$hash"
 	tpm2 pcrextend "$index:sha256=$hash"
-	exec tpm2 pcrread "sha256:$index"
+	DEBUG "tpm2 pcread sha256:$index"
+	tpm2 pcrread "sha256:$index"
+	DEBUG "$(pcrs)"
 }
 
 tpm2_counter_read() {
+	TRACE "Under /bin/tpmr:tpm2_counter_read"
 	while true; do
 		case "$1" in
 			-ix)
@@ -59,6 +70,7 @@ tpm2_counter_read() {
 }
 
 tpm2_counter_inc() {
+	TRACE "Under /bin/tpmr:tpm2_counter_inc"
 	while true; do
 		case "$1" in
 			-ix)
@@ -76,6 +88,7 @@ tpm2_counter_inc() {
 }
 
 tpm2_counter_cre() {
+	TRACE "Under /bin/tpmr:tpm2_counter_cre"
 	while true; do
 		case "$1" in
 			-pwdo)
@@ -100,6 +113,7 @@ tpm2_counter_cre() {
 }
 
 tpm2_startsession() {
+	TRACE "Under /bin/tpmr:tpm2_startsession"
 	mkdir -p "$SECRET_DIR"
 	tpm2 flushcontext \
 		--transient-object \
@@ -119,6 +133,7 @@ tpm2_startsession() {
 }
 
 tpm2_sealfile() {
+	TRACE "Under /bin/tpmr:tpm2_sealfile"
 	#TODO remove this: tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	file="$1" #$KEY_FILE
 	handle="$2" # 0x8100000$TPM_INDEX
@@ -127,6 +142,7 @@ tpm2_sealfile() {
 	pass="$5"
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
+	DEBUG "tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy""
 	tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy"
 	if [ "$pass" ];then
 		echo -n "$pass" | tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE" -p "file:-"
@@ -141,11 +157,12 @@ tpm2_sealfile() {
 }
 
 tpm2_unseal() {
+	TRACE "Under /bin/tpmr:tpm2_unseal"
 	#TODO: remove this: tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
 	handle="$1"
 	pcrl="$2"
 	pass="$3"
-	echo "debug handle: $handle prcl: $pcrl pass: $pass" >/dev/console
+	DEBUG "handle: $handle prcl: $pcrl pass: $pass"
 	if [ "$pass" ];then
 		echo -n "$pass" | tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl+file:-"
 	else
@@ -154,6 +171,7 @@ tpm2_unseal() {
 }
 
 tpm2_reset() {
+	TRACE "Under /bin/tpmr:tpm2_reset"
 	key_password="$1"
 	mkdir -p "$SECRET_DIR"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"

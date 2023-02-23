@@ -297,8 +297,13 @@ user_select() {
 		else
 			echo "+++ Rebooting to start the new default option"
 			sleep 2
-			reboot \
-			|| die "!!! Failed to reboot system"
+			if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
+				reboot \
+				|| die "!!! Failed to reboot system"
+			else
+				DEBUG "Rebooting is required prior of booting default boot entry"
+				sleep 2
+			fi
 		fi
 	fi
 

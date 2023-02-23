@@ -14,6 +14,8 @@ RECOVERY_KEY="/tmp/secret/recovery.key"
 . /etc/functions
 . /tmp/config
 
+TRACE "Under kexec-seal-key"
+
 paramsdir=$1
 if [ -z "$paramsdir" ]; then
 	die "Usage $0 /boot"
@@ -36,10 +38,7 @@ if [ -r "$KEY_LVM" ]; then
 		|| die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
-echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
-echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
-echo "DEBUG: Show PCRs"
-pcrs
+DEBUG "$(pcrs)"
 
 # LUKS Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed OS,
@@ -169,25 +168,30 @@ elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	# pcr 4 is expected to be zero (init mode)
 	dd if=/dev/zero bs=32 count=1 >> "$pcrf"
 	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+		DEBUG "TPM2, with PCR5 involvement (additional kernel modules are loaded per board config)..."
 		# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 		# 
 		# binary pcr dump can only go via stderr for redirection
 		# sadly this busybox has buggy support for "2>>" and "2|"
 		# so we need workaround...
+		DEBUG "tpm2 pcrread -o /dev/stderr sha256:5 2>&1 >/dev/console | cat >> "$pcrf""
 		tpm2 pcrread -o /dev/stderr sha256:5 2>&1 >/dev/console | cat >> "$pcrf"
 	else
+		DEBUG "TPM2, without PCR5 involvement. Inserting 32 zero bytes under pcrf..."
 		#no kernel modules are expected to be measured+loaded
 		dd if=/dev/zero bs=32 count=1 >> "$pcrf"
 	fi
 	# Use pcr 23 to precompute the value for pcr 6
 	tpmr extend -ix 23 -if /tmp/luksDump.txt
 	tpm2 pcrread -o /dev/stderr sha256:23 2>&1 >/dev/console | cat >> "$pcrf"
-	#TODO: delete the following pcrs output on screen
 	# goal is to validate that what is in pcr 23 is at pcr 6 at unseal
-	pcrs
+	DEBUG "PCR23 content used to simulate PCR6 content at unseal:" 
+	DEBUG "$(pcrs)"
 	tpm2 pcrreset 23
 	# We take into consideration user files in cbfs
+	DEBUG "tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf""
 	tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf"
+	DEBUG "tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password""
 	tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	if [ $? -eq 0 ]; then
 		# should be okay if this fails
