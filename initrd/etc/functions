@@ -14,13 +14,13 @@ warn() {
 
 DEBUG() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo >&2 "DEBUG: $*";
+		echo "DEBUG: $*" | tee -a /tmp/debug.log >&2;
 	fi
 }
 
 TRACE() {
         if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
-                echo >&2 "TRACE: $*";
+                echo "TRACE: $*" | tee -a /tmp/debug.log >&2;
         fi
 }
 
