@@ -129,7 +129,7 @@ tpm2_sealfile() {
 	bname="`basename $file`"
 	tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy"
 	if [ "$pass" ];then
-		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE" -p "$pass"
+		echo -n "$pass" | tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE" -p "file:-"
 	else
 		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE"
 	fi
@@ -145,9 +145,9 @@ tpm2_unseal() {
 	handle="$1"
 	pcrl="$2"
 	pass="$3"
-	echo "debug handle: $handle prcl: $pcrl pass $pass" 
+	echo "debug handle: $handle prcl: $pcrl pass: $pass" >/dev/console
 	if [ "$pass" ];then
-		tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl+$pass"
+		echo -n "$pass" | tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl+file:-"
 	else
 		tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl"
 	fi
