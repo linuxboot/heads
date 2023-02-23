@@ -18,57 +18,48 @@ if [ -z "$key_file" ]; then
 	key_file="/tmp/secret/secret.key"
 fi
 
+# TPM1 only - read the sealed value first manually
+if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+	tpm nv_readvalue \
+		-in "$TPM_INDEX" \
+		-sz "$TPM_SIZE" \
+		-of "$sealed_file" \
+		|| die "Unable to read key from TPM NVRAM"
+fi
+
 echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
 echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
 echo "DEBUG: Show PCRs"
 pcrs
 
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ "$CONFIG_ATTEST_TOOLS" = "y" ]; then
-		echo "Bring up network for remote attestation"
-		network-init-recovery
+for tries in 1 2 3; do
+	read -s -p "Enter unlock password (blank to abort): " tpm_password
+	echo
+	if [ -z "$tpm_password" ]; then
+		die "Aborting unseal disk encryption key"
 	fi
-	for tries in 1 2 3; do
-		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
 
-		if [ $? -eq 0 ]; then
-			# should be okay if this fails
-			shred -n 10 -z -u /tmp/secret/sealed 2> /dev/null || true
-			exit 0
-		fi
-
-		pcrs
-		warn "Unable to unseal disk encryption key"
-	done
-elif [ "$CONFIG_TPM" = "y" ]; then
-	tpm nv_readvalue \
-	    -in "$TPM_INDEX" \
-	    -sz "$TPM_SIZE" \
-	    -of "$sealed_file" \
-		|| die "Unable to read key from TPM NVRAM"
-
-	for tries in 1 2 3; do
-		read -s -p "Enter unlock password (blank to abort): " tpm_password
-		echo
-		if [ -z "$tpm_password" ]; then
-			die "Aborting unseal disk encryption key"
-		fi
-
+	unseal_result=1
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$tpm_password" > "$key_file"
+		unseal_result="$?"
+	else
 		tpm unsealfile \
 			-if "$sealed_file" \
 			-of "$key_file" \
 			-pwdd "$tpm_password" \
 			-hk 40000000
+		unseal_result="$?"
+	fi
 
-		if [ $? -eq 0 ]; then
-			# should be okay if this fails
-			shred -n 10 -z -u /tmp/secret/sealed 2> /dev/null || true
-			exit 0
-		fi
+	if [ $? -eq 0 ]; then
+		# should be okay if this fails
+		shred -n 10 -z -u "$sealed_file" 2> /dev/null || true
+		exit 0
+	fi
 
-		pcrs
-		warn "Unable to unseal disk encryption key"
-	done
-fi
+	pcrs
+	warn "Unable to unseal disk encryption key"
+done
 
 die "Retry count exceeded..."
