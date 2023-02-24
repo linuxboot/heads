@@ -162,6 +162,8 @@ tpm2_sealfile() {
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
 
+	DEBUG "tpm2_sealfile: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+
 	# Create a policy requiring both PCRs and the object's authentication
 	# value using a trial session.
 	TRIAL_SESSION=/tmp/sealfile_trial.session
@@ -209,18 +211,20 @@ tpm2_sealfile() {
 	echo # new line after password prompt
 	# remove possible data occupying this handle
 	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$handle" 2>/dev/null || true
-	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle"
+	DO_WITH_DEBUG tpm2 evictcontrol -Q -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 
 # Unseal a file sealed by tpm2_sealfile.  The PCR list must be provided, the
 # password must be provided if one was used to seal (and cannot be provided if
 # no password was used to seal).
 tpm2_unsealfile() {
-	TRACE "Under /bin/tpmr:tpm2_unseal"
+	TRACE "Under /bin/tpmr:tpm2_unsealfile"
 	handle="$1"
 	pcrl="$2"
 	file="$3"
 	pass="$4"
+
+	DEBUG "tpm2_unsealfile: handle=$handle pcrl=$pcrl file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
 
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
