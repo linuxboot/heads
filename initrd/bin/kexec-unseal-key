@@ -44,9 +44,8 @@ for tries in 1 2 3; do
 
 	unseal_result=1
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-		DEBUG "tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$tpm_password" > "$key_file""
-		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$tpm_password" > "$key_file" \
-			|| unseal_result="$?"
+		tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$key_file" "$tpm_password"
+		unseal_result="$?"
 	else
 		tpm unsealfile \
 			-if "$sealed_file" \

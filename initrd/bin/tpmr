@@ -115,26 +115,45 @@ tpm2_counter_cre() {
 tpm2_startsession() {
 	TRACE "Under /bin/tpmr:tpm2_startsession"
 	mkdir -p "$SECRET_DIR"
-	tpm2 flushcontext \
+	tpm2 flushcontext -Q \
 		--transient-object \
 		|| die "tpm2_flushcontext: unable to flush transient handles"
 
-	tpm2 flushcontext \
+	tpm2 flushcontext -Q \
 		--loaded-session \
 		|| die "tpm2_flushcontext: unable to flush sessions"
 
-	tpm2 flushcontext \
+	tpm2 flushcontext -Q \
 		--saved-session \
 		|| die "tpm2_flushcontext: unable to flush saved session"
-	tpm2 readpublic -c "$PRIMARY_HANDLE" -t "/tmp/$PRIMARY_HANDLE_FILE"
-	tpm2 startauthsession -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$ENC_SESSION_FILE"
-	tpm2 startauthsession -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$DEC_SESSION_FILE"
-	tpm2 sessionconfig --disable-encrypt "/tmp/$DEC_SESSION_FILE"
+	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "/tmp/$PRIMARY_HANDLE_FILE"
+	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$ENC_SESSION_FILE"
+	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$DEC_SESSION_FILE"
+	tpm2 sessionconfig -Q --disable-encrypt "/tmp/$DEC_SESSION_FILE"
 }
 
+# Trap EXIT with cleanup_session() to release a TPM2 session and delete the
+# session file.  E.g.:
+#   trap "cleanup_session '$SESSION_FILE'" EXIT
+cleanup_session() {
+	session_file="$1"
+	if [ -f "$session_file" ]; then
+		DEBUG "Clean up session: $session_file"
+		# Nothing else we can do if this fails, still remove the file
+		tpm2 flushcontext -Q "$session_file" || DEBUG "Flush failed for session $session_file"
+		rm -f "$session_file"
+	else
+		DEBUG "No need to clean up session: $session_file"
+	fi
+}
+
+# tpm2_sealfile: Seal a file against PCR values and, optionally, a password.
+# If a password is given, both the PCRs and password are required to unseal the
+# file.  PCRs are provided as a PCR list and data file.  PCR data must be
+# provided - TPM2 allows the TPM to fall back to current PCR values, but it is
+# not required to support this.
 tpm2_sealfile() {
 	TRACE "Under /bin/tpmr:tpm2_sealfile"
-	#TODO remove this: tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	file="$1" #$KEY_FILE
 	handle="$2" # 0x8100000$TPM_INDEX
 	pcrl="$3" #sha256:0,1,2,3,4,5,6,7
@@ -142,32 +161,90 @@ tpm2_sealfile() {
 	pass="$5"
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
-	DEBUG "tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy""
-	tpm2 createpolicy --policy-pcr -l "$pcrl" -f "$pcrf" -L "$SECRET_DIR/pcr.policy"
-	if [ "$pass" ];then
-		echo -n "$pass" | tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE" -p "file:-"
-	else
-		tpm2 create -C "/tmp/$PRIMARY_HANDLE_FILE" -i "$file" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -L "$SECRET_DIR/pcr.policy" -S "/tmp/$DEC_SESSION_FILE"
+
+	# Create a policy requiring both PCRs and the object's authentication
+	# value using a trial session.
+	TRIAL_SESSION=/tmp/sealfile_trial.session
+	AUTH_POLICY=/tmp/sealfile_auth.policy
+	rm -f "$TRIAL_SESSION" "$AUTH_POLICY"
+	tpm2 startauthsession -g sha256 -S "$TRIAL_SESSION"
+	# We have to clean up the session
+	trap "cleanup_session '$TRIAL_SESSION'" EXIT
+	# Save the policy hash in case the password policy is not used (we have
+	# to get this from the last step, whichever it is).
+	tpm2 policypcr -Q -l "$pcrl" -f "$pcrf" -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
+	CREATE_PASS_ARGS=()
+	if [ "$pass" ]; then
+		# Add an object authorization policy (the object authorization
+		# will be the password).  Save the digest, this is the resulting
+		# policy.
+		tpm2 policypassword -Q -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
+		# Pass the password to create later
+		# TODO: Providing the raw password to the TPM limits it to the
+		# size of the largest supported hash (at least 32 chars, sha256)
+		CREATE_PASS_ARGS=(-p "hex:$(echo -n "$pass" | xxd -p | tr -d '\n ')")
 	fi
-	tpm2 load -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
+
+	# Create the object with this policy and the auth value.
+	# NOTE: We disable USERWITHAUTH and enable ADMINWITHPOLICY so the
+	# password cannot be used on its own, the PCRs are also required.
+	# (The default is to allow either policy auth _or_ password auth.  In
+	# this case the policy includes the password, and we don't want to allow
+	# the password on its own.)
+	# TODO: Check the other default attributes, do we want them?
+	# TODO: Providing the password directly limits it to the size of the
+	# largest hash supported by the TPM (at least 32 chars for sha256)
+	# TODO: The attributes aren't working yet, rejected with 'inconsistent attributes'
+	#	-a 'sign|decrypt|fixedtpm|fixedparent|sensitivedataorigin|adminwithpolicy'
+	tpm2 create -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+		-i "$file" \
+		-u "$SECRET_DIR/$bname.priv" \
+		-r "$SECRET_DIR/$bname.pub" \
+		-L "$AUTH_POLICY" \
+		-S "/tmp/$DEC_SESSION_FILE" \
+		"${CREATE_PASS_ARGS[@]}"
+
+	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
 	read -s -p "TPM owner password: " key_password
+	echo # new line after password prompt
 	# remove possible data occupying this handle
-	tpm2 evictcontrol -C o -P "$key_password" -c "$handle" 2>/dev/null || true
-	tpm2 evictcontrol -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle" 
+	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$handle" 2>/dev/null || true
+	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 
-tpm2_unseal() {
+# Unseal a file sealed by tpm2_sealfile.  The PCR list must be provided, the
+# password must be provided if one was used to seal (and cannot be provided if
+# no password was used to seal).
+tpm2_unsealfile() {
 	TRACE "Under /bin/tpmr:tpm2_unseal"
-	#TODO: remove this: tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "file:-" > "$key_file"
 	handle="$1"
 	pcrl="$2"
-	pass="$3"
-	DEBUG "handle: $handle prcl: $pcrl pass: $pass"
-	if [ "$pass" ];then
-		echo -n "$pass" | tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl+file:-"
-	else
-		tpm2 unseal -c "$handle" -S "/tmp/$ENC_SESSION_FILE" -p "pcr:$pcrl"
+	file="$3"
+	pass="$4"
+
+	POLICY_SESSION=/tmp/unsealfile_policy.session
+	rm -f "$POLICY_SESSION"
+	tpm2 startauthsession -Q -g sha256 -c "/tmp/$PRIMARY_HANDLE_FILE" -S "$POLICY_SESSION" --policy-session
+	trap "cleanup_session '$POLICY_SESSION'" EXIT
+	# Check the PCR policy
+	tpm2 policypcr -Q -l "$pcrl" -S "$POLICY_SESSION"
+	UNSEAL_PASS_SUFFIX=""
+	if [ "$pass" ]; then
+		# Add the object authorization policy (the actual password is
+		# provided later, but we must include this so the policy we
+		# attempt to use is correct).
+		tpm2 policypassword -Q -S "$POLICY_SESSION"
+		# When unsealing, include the password with the auth session
+		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | xxd -p | tr -d '\n ')"
+		# Disable encryption in the policy session - there seems to be a
+		# bug in tpm2's decryption.  If we leave encryption enabled, the
+		# unseal succeeds but we receive garbage, probably because it
+		# was decrypted incorrectly.  However, this causes the unsealed
+		# data to be sent in the clear from the TPM.
+		tpm2 sessionconfig -Q --disable-encrypt "$POLICY_SESSION"
 	fi
+
+	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" > "$file"
 }
 
 tpm2_reset() {
@@ -203,7 +280,7 @@ case "$subcmd" in
 	startsession)
 		tpm2_startsession "$@";;
 	unseal)
-		tpm2_unseal "$@";;
+		tpm2_unsealfile "$@";;
 	reset)
 		tpm2_reset "$@";;
 	*)
