@@ -18,6 +18,11 @@ DEBUG() {
 	fi
 }
 
+DO_WITH_DEBUG() {
+	DEBUG "$@"
+	"$@"
+}
+
 TRACE() {
         if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
                 echo "TRACE: $*" | tee -a /tmp/debug.log >&2;
