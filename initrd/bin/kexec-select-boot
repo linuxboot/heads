@@ -302,7 +302,9 @@ user_select() {
 				|| die "!!! Failed to reboot system"
 			else
 				DEBUG "Rebooting is required prior of booting default boot entry"
-				sleep 2
+				# Instead of rebooting, drop to a recovery shell
+				# for a chance to inspect debug output
+				recovery "!!! Entering recovery to inspect debug output, reboot to continue"
 			fi
 		fi
 	fi
