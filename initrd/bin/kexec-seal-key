@@ -191,7 +191,7 @@ elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	# We take into consideration user files in cbfs
 	DEBUG "tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf""
 	tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf"
-	DEBUG "tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password""
+	DEBUG "tpmr seal $KEY_FILE 0x8100000$TPM_INDEX sha256:0,1,2,3,4,5,6,7 $pcrf <password>"
 	tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	if [ $? -eq 0 ]; then
 		# should be okay if this fails
