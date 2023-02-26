@@ -4,7 +4,7 @@ set -e
 
 function usage() {
     echo -n \
-        "Usage: $(basename "$0")
+        "Usage: $(basename "$0") path_to_output_directory
 Obtain mrc.bin from a Haswell Chromebook firmware image.
 "
 }
@@ -15,24 +15,28 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     if [[ "${1:-}" == "--help" ]]; then
         usage
     else
-        BLOB_DIR="$(cd "$(dirname "$0")" && pwd)"
-        COREBOOT_DIR="$(find "${BLOB_DIR}/../../build/x86/" -maxdepth 1 -type d -name 'coreboot-*')"
-
-        pushd "${COREBOOT_DIR}"
-
-        # https://doc.coreboot.org/northbridge/intel/haswell/mrc.bin.html#obtaining-mrc-bin
-        make -C util/cbfstool
-        cd util/chromeos
-        ./crosfirmware.sh peppy
-        ../cbfstool/cbfstool coreboot-*.bin extract -f mrc.bin -n mrc.bin -r RO_SECTION
-
-        if ! echo "${MRC_BIN_HASH} mrc.bin" | sha256sum --check; then
-            echo "SHA256 checksum for mrc.bin doesn't match."
+        if [[ -z "${COREBOOT_DIR}" ]]; then
+            echo "ERROR: No COREBOOT_DIR variable defined."
             exit 1
         fi
 
-        popd
+        if [[ ! -f "$1/mrc.bin" ]]; then
+            pushd "${COREBOOT_DIR}"
 
-        mv "${COREBOOT_DIR}/util/chromeos/mrc.bin" "$(dirname "$0")/mrc.bin"
+            # https://doc.coreboot.org/northbridge/intel/haswell/mrc.bin.html#obtaining-mrc-bin
+            make -C util/cbfstool
+            cd util/chromeos
+            ./crosfirmware.sh peppy
+            ../cbfstool/cbfstool coreboot-*.bin extract -f mrc.bin -n mrc.bin -r RO_SECTION
+
+            popd
+
+            mv "${COREBOOT_DIR}/util/chromeos/mrc.bin" "$1/mrc.bin"
+        fi
+
+        if ! echo "${MRC_BIN_HASH} $1/mrc.bin" | sha256sum --check; then
+            echo "ERROR: SHA256 checksum for mrc.bin doesn't match."
+            exit 1
+        fi
     fi
 fi
