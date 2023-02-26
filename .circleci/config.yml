@@ -430,6 +430,20 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t440p-maximized
+          target: t440p-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t440p-hotp-maximized
+          target: t440p-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: qemu-coreboot
           target: qemu-coreboot
           subcommand: ""
