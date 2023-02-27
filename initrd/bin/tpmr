@@ -181,10 +181,10 @@ tpm2_sealfile() {
 		# will be the password).  Save the digest, this is the resulting
 		# policy.
 		tpm2 policypassword -Q -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
-		# Pass the password to create later
-		# TODO: Providing the raw password to the TPM limits it to the
-		# size of the largest supported hash (at least 32 chars, sha256)
-		CREATE_PASS_ARGS=(-p "hex:$(echo -n "$pass" | xxd -p | tr -d '\n ')")
+		# Pass the password to create later.  Pass the sha256sum of the
+		# password to the TPM so the password is not limited to 32 chars
+		# in length.
+		CREATE_PASS_ARGS=(-p "hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)")
 	fi
 
 	# Create the object with this policy and the auth value.
@@ -237,7 +237,7 @@ tpm2_unsealfile() {
 		# attempt to use is correct).
 		tpm2 policypassword -Q -S "$POLICY_SESSION"
 		# When unsealing, include the password with the auth session
-		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | xxd -p | tr -d '\n ')"
+		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)"
 		# Disable encryption in the policy session - there seems to be a
 		# bug in tpm2's decryption.  If we leave encryption enabled, the
 		# unseal succeeds but we receive garbage, probably because it
