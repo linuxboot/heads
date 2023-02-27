@@ -18,15 +18,6 @@ fi
 
 TRACE "Under /bin/tpmr"
 
-if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
-	# tpm1 does not need to convert options
-	if [ "$CONFIG_TPM" = "y" ]; then
-		exec tpm "$@"
-	fi
-	echo >&2 "No TPM2!"
-	exit 1
-fi
-
 tpm2_extend() {
 	TRACE "Under /bin/tpmr:tpm2_extend"
 	DEBUG "value of passed arguments: $1 $2 $3 $4 $5 $6"
@@ -260,6 +251,47 @@ tpm2_reset() {
 	shred -u "$SECRET_DIR/primary.ctx"
 	tpm2_startsession
 }
+
+# Perform final cleanup before boot and lock the platform heirarchy.
+tpm2_kexec_finalize() {
+	# Flush sessions and transient objects
+	tpm2 flushcontext -Q --transient-object \
+		|| warn "tpm2_flushcontext: unable to flush transient handles"
+	tpm2 flushcontext -Q --loaded-session \
+		|| warn "tpm2_flushcontext: unable to flush sessions"
+	tpm2 flushcontext -Q --saved-session \
+		|| warn "tpm2_flushcontext: unable to flush saved session"
+
+	# Add a random passphrase to platform hierarchy to prevent TPM2 from
+	# being cleared in the OS.
+	# This passphrase is only effective before the next boot.
+	echo "Locking platform hierarchy..."
+	randpass=$(dd if=/dev/urandom bs=4 count=1 | xxd -p)
+	tpm2 changeauth -c platform "$randpass" \
+		|| warn "Failed to lock platform hierarchy of TPM2!"
+}
+
+if [ "$CONFIG_TPM" != "y" ]; then
+	echo >&2 "No TPM!"
+	exit 1
+fi
+
+# TPM1 - most commands forward directly to tpm, but some are still wrapped for
+# consistency with tpm2.
+if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+	subcmd="$1"
+	# Don't shift yet, for most commands we will just forward to tpm.
+	case "$subcmd" in
+		kexec_finalize)
+			;;	# Nothing on TPM1.
+		*)
+			exec tpm "$@"
+			;;
+	esac
+	exit 0
+fi
+
+# TPM2 - all commands implemented as wrappers around tpm2
 subcmd="$1"
 shift 1
 case "$subcmd" in
@@ -285,6 +317,8 @@ case "$subcmd" in
 		tpm2_unsealfile "$@";;
 	reset)
 		tpm2_reset "$@";;
+	kexec_finalize)
+		tpm2_kexec_finalize "$@";;
 	*)
 		echo "Command $subcmd not wrapped!"
 		exit 1
