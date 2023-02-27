@@ -1,0 +1,139 @@
+--- ./configure	2017-02-22 07:07:46.595740152 -0500
++++ ./configure	2023-02-27 13:34:27.068000000 -0500
+@@ -13408,7 +13408,7 @@
+   version_type=linux # correct to gnu/linux during the next big refactor
+   need_lib_prefix=no
+   need_version=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test ia64 = "$host_cpu"; then
+     # AIX 5 supports IA64
+     library_names_spec='$libname$release$shared_ext$major $libname$release$shared_ext$versuffix $libname$shared_ext'
+@@ -13698,16 +13698,16 @@
+     ;;
+   freebsd3.[01]* | freebsdelf3.[01]*)
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   freebsd3.[2-9]* | freebsdelf3.[2-9]* | \
+   freebsd4.[0-5] | freebsdelf4.[0-5] | freebsd4.1.1 | freebsdelf4.1.1)
+     shlibpath_overrides_runpath=no
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   *) # from 4.6 on, and DragonFly
+     shlibpath_overrides_runpath=yes
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     ;;
+   esac
+   ;;
+@@ -13722,7 +13722,7 @@
+   shlibpath_var=LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   sys_lib_dlsearch_path_spec='/boot/home/config/lib /boot/common/lib /boot/system/lib'
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ hpux9* | hpux10* | hpux11*)
+@@ -13734,7 +13734,7 @@
+   case $host_cpu in
+   ia64*)
+     shrext_cmds='.so'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.so"
+     shlibpath_var=LD_LIBRARY_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -13750,7 +13750,7 @@
+     ;;
+   hppa*64*)
+     shrext_cmds='.sl'
+-    hardcode_into_libs=yes
++    hardcode_into_libs=no
+     dynamic_linker="$host_os dld.sl"
+     shlibpath_var=LD_LIBRARY_PATH # How should we handle SHLIB_PATH
+     shlibpath_overrides_runpath=yes # Unless +noenvvar is specified.
+@@ -13783,7 +13783,7 @@
+   dynamic_linker='Interix 3.x ld.so.1 (PE, like ELF)'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ irix5* | irix6* | nonstopux*)
+@@ -13820,7 +13820,7 @@
+   shlibpath_overrides_runpath=no
+   sys_lib_search_path_spec="/usr/lib$libsuff /lib$libsuff /usr/local/lib$libsuff"
+   sys_lib_dlsearch_path_spec="/usr/lib$libsuff /lib$libsuff"
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ # No shared lib support for Linux oldld, aout, or coff.
+@@ -13841,7 +13841,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   dynamic_linker='Android linker'
+   # Don't embed -rpath directories since the linker doesn't support them.
+@@ -13896,7 +13896,7 @@
+   # This implies no fast_install, which is unacceptable.
+   # Some rework will be needed to allow for fast_install
+   # before this can be enabled.
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+ 
+   # Add ABI-specific directories to the system library path.
+   sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /lib /usr/lib"
+@@ -13936,7 +13936,7 @@
+   fi
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ newsos6)
+@@ -13954,7 +13954,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   dynamic_linker='ldqnx.so'
+   ;;
+ 
+@@ -14026,7 +14026,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   # ldd complains unless libraries are executable
+   postinstall_cmds='chmod +x $lib'
+   ;;
+@@ -14083,7 +14083,7 @@
+   soname_spec='$libname$release$shared_ext$major'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=yes
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   if test yes = "$with_gnu_ld"; then
+     sys_lib_search_path_spec='/usr/local/lib /usr/gnu/lib /usr/ccs/lib /usr/lib /lib'
+   else
+@@ -14105,7 +14105,7 @@
+   library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
++  hardcode_into_libs=no
+   ;;
+ 
+ uts4*)

@@ -9,12 +9,11 @@ libusb_url := https://downloads.sourceforge.net/project/libusb/libusb-1.0/libusb
 libusb_url := https://github.com/libusb/libusb/releases/download/v$(libusb_version)/$(libusb_tar)
 libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 
-libusb_configure := ./configure\
+libusb_configure := ./configure \
 	$(CROSS_TOOLS)\
 	--host $(MUSL_ARCH)-elf-linux\
 	--prefix "/"\
 	--disable-udev\
-	--disable-tests\
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
