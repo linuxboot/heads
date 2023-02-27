@@ -193,17 +193,15 @@ tpm2_sealfile() {
 	# (The default is to allow either policy auth _or_ password auth.  In
 	# this case the policy includes the password, and we don't want to allow
 	# the password on its own.)
-	# TODO: Check the other default attributes, do we want them?
 	# TODO: Providing the password directly limits it to the size of the
 	# largest hash supported by the TPM (at least 32 chars for sha256)
-	# TODO: The attributes aren't working yet, rejected with 'inconsistent attributes'
-	#	-a 'sign|decrypt|fixedtpm|fixedparent|sensitivedataorigin|adminwithpolicy'
 	tpm2 create -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
 		-i "$file" \
 		-u "$SECRET_DIR/$bname.priv" \
 		-r "$SECRET_DIR/$bname.pub" \
 		-L "$AUTH_POLICY" \
 		-S "/tmp/$DEC_SESSION_FILE" \
+		-a "fixedtpm|fixedparent|adminwithpolicy" \
 		"${CREATE_PASS_ARGS[@]}"
 
 	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
