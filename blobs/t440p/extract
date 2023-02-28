@@ -18,33 +18,31 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
             exit 1
         fi
 
-        if [[ -n "$1" ]]; then
-            pushd "${COREBOOT_DIR}"
+        original_rom="$(realpath "$1")"
+        output_dir="$(realpath "${2:-./}")"
 
-            cd util/me_cleaner
+        # Neutralize Intel ME and resize the Intel Flash Descriptor (IFD)
+        # layout.
+        # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+        pushd "${COREBOOT_DIR}/util/me_cleaner"
 
-            # Neutralize and shrink Intel ME.
-            # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
-            python me_cleaner.py -S -r -t -d -O out.bin -D ifd_shrinked.bin -M me_shrinked.bin "$1"
+        python me_cleaner.py -S -r -t -d -O out.bin -D ifd_shrinked.bin -M me_shrinked.bin "${original_rom}"
 
-            mv ifd_shrinked.bin "$2/ifd.bin"
-            mv me_shrinked.bin "$2/me.bin"
-            rm ./*.bin
+        mv ifd_shrinked.bin "${output_dir}/ifd.bin"
+        mv me_shrinked.bin "${output_dir}/me.bin"
+        rm ./*.bin
 
-            cd ../ifdtool
-            make
+        popd
 
-            # Extract the Intel Gigabit Ethernet (GbE) firmware from the
-            # original ROM.
-            ./ifdtool -x "$1"
+        # Extract the Intel Gigabit Ethernet (GbE) firmware.
+        pushd "${COREBOOT_DIR}/util/ifdtool"
 
-            mv flashregion_3_gbe.bin "$2/gbe.bin"
-            rm ./*.bin
+        make
+        ./ifdtool -x "${original_rom}"
 
-            popd
-        else
-            echo "ERROR: You must supply a path to the original ROM."
-            exit 1
-        fi
+        mv flashregion_3_gbe.bin "${output_dir}/gbe.bin"
+        rm ./*.bin
+
+        popd
     fi
 fi
