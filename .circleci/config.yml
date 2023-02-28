@@ -217,7 +217,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.15
+      # Coreboot 4.17
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -234,8 +234,7 @@ workflows:
           requires:
             - prep_env
 
-      #Cache one workspace per Coreboot version, ideally the boards including the highest number of modules, since not rebuilt across builds.
-      #Below, 4.11, 4.13, 4.17
+      #Cache one workspace per architecture. Make sure workspace caches are chainloaded and the last in chain for an arch is saved.
       - save_cache:
           requires:
             - librem_14
@@ -434,14 +433,14 @@ workflows:
           target: t440p-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - librem_14
 
       - build:
           name: t440p-hotp-maximized
           target: t440p-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - librem_14
 
       - build:
           name: qemu-coreboot
