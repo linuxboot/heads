@@ -138,13 +138,20 @@ cleanup_session() {
 	fi
 }
 
-# tpm2_sealfile: Seal a file against PCR values and, optionally, a password.
+# Clean up a file by shredding it.  No-op if the file wasn't created.  Use with
+# trap EXIT, e.g.:
+#   trap "cleanup_shred '$FILE'" EXIT
+cleanup_shred() {
+	shred -n 10 -z -u "$1" 2>/dev/null || true
+}
+
+# tpm2_seal: Seal a file against PCR values and, optionally, a password.
 # If a password is given, both the PCRs and password are required to unseal the
 # file.  PCRs are provided as a PCR list and data file.  PCR data must be
 # provided - TPM2 allows the TPM to fall back to current PCR values, but it is
 # not required to support this.
-tpm2_sealfile() {
-	TRACE "Under /bin/tpmr:tpm2_sealfile"
+tpm2_seal() {
+	TRACE "Under /bin/tpmr:tpm2_seal"
 	file="$1" #$KEY_FILE
 	handle="$2" # 0x8100000$TPM_INDEX
 	pcrl="$3" #sha256:0,1,2,3,4,5,6,7
@@ -153,7 +160,7 @@ tpm2_sealfile() {
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
 
-	DEBUG "tpm2_sealfile: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+	DEBUG "tpm2_seal: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
 
 	# Create a policy requiring both PCRs and the object's authentication
 	# value using a trial session.
@@ -203,17 +210,21 @@ tpm2_sealfile() {
 	DO_WITH_DEBUG tpm2 evictcontrol -Q -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 
-# Unseal a file sealed by tpm2_sealfile.  The PCR list must be provided, the
+# Unseal a file sealed by tpm2_seal.  The PCR list must be provided, the
 # password must be provided if one was used to seal (and cannot be provided if
 # no password was used to seal).
-tpm2_unsealfile() {
-	TRACE "Under /bin/tpmr:tpm2_unsealfile"
-	handle="$1"
+tpm2_unseal() {
+	TRACE "Under /bin/tpmr:tpm2_unseal"
+	index="$1"
 	pcrl="$2"
-	file="$3"
-	pass="$4"
+	size="$3"
+	file="$4"
+	pass="$5"
 
-	DEBUG "tpm2_unsealfile: handle=$handle pcrl=$pcrl file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
+	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
+
+	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl size=$size file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
 
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
@@ -238,6 +249,14 @@ tpm2_unsealfile() {
 	fi
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" > "$file"
+
+	# We don't need to know the size to unseal in TPM2, but TPM1 does.
+	# Ensure the correct size is provided so both will work.
+	# TODO - This isn't actually what -sz means to tpm nv_readvalue
+	#actual_size="$(stat -c "%s" "$file")"
+	#if [ "$actual_size" -ne "$size" ]; then
+	#	die "Expected size $size for $file but got $actual_size"
+	#fi
 }
 
 tpm2_reset() {
@@ -271,6 +290,41 @@ tpm2_kexec_finalize() {
 		|| warn "Failed to lock platform hierarchy of TPM2!"
 }
 
+tpm1_unseal() {
+	TRACE "Under /bin/tpmr:tpm1_unseal"
+	index="$1"
+	pcrl="$2"
+	size="$3"
+	file="$4"
+	pass="$5"
+
+	# pcrl (the PCR list) is unused in TPM1.  The TPM itself knows which
+	# PCRs were used to seal and checks them.  We can't verify that it's
+	# correct either, so just ignore it in TPM1.
+
+	sealed_file="$SECRET_DIR/tpm1_unseal_sealed.bin"
+	trap "cleanup_shred '$sealed_file'" EXIT
+
+	rm -f "$sealed_file"
+
+	tpm nv_readvalue \
+		-in "$index" \
+		-sz "$size" \
+		-of "$sealed_file" \
+		|| die "Unable to read sealed file from TPM NVRAM"
+
+	PASS_ARGS=()
+	if [ "$pass" ]; then
+		PASS_ARGS=(-pwdd "$pass")
+	fi
+
+	tpm unsealfile \
+		-if "$sealed_file" \
+		-of "$file" \
+		"${PASS_ARGS[@]}" \
+		-hk 40000000
+}
+
 if [ "$CONFIG_TPM" != "y" ]; then
 	echo >&2 "No TPM!"
 	exit 1
@@ -284,6 +338,8 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	case "$subcmd" in
 		kexec_finalize)
 			;;	# Nothing on TPM1.
+		unseal)
+			shift; tpm1_unseal "$@";;
 		*)
 			exec tpm "$@"
 			;;
@@ -310,11 +366,11 @@ case "$subcmd" in
 	nv_readvalue)
 		tpm2_nvr "$@";;
 	seal)
-		tpm2_sealfile "$@";;
+		tpm2_seal "$@";;
 	startsession)
 		tpm2_startsession "$@";;
 	unseal)
-		tpm2_unsealfile "$@";;
+		tpm2_unseal "$@";;
 	reset)
 		tpm2_reset "$@";;
 	kexec_finalize)

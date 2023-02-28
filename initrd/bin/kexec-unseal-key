@@ -14,20 +14,10 @@ TRACE "Under kexec-unseal-key"
 
 mkdir -p /tmp/secret
 
-sealed_file="/tmp/secret/sealed.key"
 key_file="$1"
 
 if [ -z "$key_file" ]; then
 	key_file="/tmp/secret/secret.key"
-fi
-
-# TPM1 only - read the sealed value first manually
-if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
-	tpm nv_readvalue \
-		-in "$TPM_INDEX" \
-		-sz "$TPM_SIZE" \
-		-of "$sealed_file" \
-		|| die "Unable to read key from TPM NVRAM"
 fi
 
 echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
@@ -42,22 +32,9 @@ for tries in 1 2 3; do
 		die "Aborting unseal disk encryption key"
 	fi
 
-	unseal_result=1
-	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-		DO_WITH_DEBUG tpmr unseal "0x8100000$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$key_file" "$tpm_password"
-		unseal_result="$?"
-	else
-		tpm unsealfile \
-			-if "$sealed_file" \
-			-of "$key_file" \
-			-pwdd "$tpm_password" \
-			-hk 40000000 \
-			|| unseal_result="$?"
-	fi
+	DO_WITH_DEBUG tpmr unseal "$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$TPM_SIZE" "$key_file" "$tpm_password"
 
-	shred -n 10 -z -u "$sealed_file" 2> /dev/null || true
-
-	if [ "$unseal_result" -eq 0 ]; then
+	if [ "$?" -eq 0 ]; then
 		exit 0
 	fi
 
