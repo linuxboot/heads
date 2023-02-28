@@ -20,7 +20,11 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
             exit 1
         fi
 
-        if [[ ! -f "$1/me.bin" ]]; then
+        output_dir="$(realpath "${1:-./}")"
+
+        if [[ ! -f "${output_dir}/me.bin" ]]; then
+            # Unpack Lenovo's Windows installer into a temporary directory and
+            # extract the Intel ME blob.
             pushd "$(mktemp -d)"
 
             curl -O https://download.lenovo.com/pccbbs/mobiles/glrg22ww.exe
@@ -30,22 +34,22 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 
             popd
 
-            pushd "${COREBOOT_DIR}/util/me_cleaner"
-
             # Neutralize and shrink Intel ME. Note that this doesn't include
-            # --soft-disable to set the "ME Disable" or "ME Disable B" (e.g., High
-            # Assurance Program) bits, as they are defined within the Flash
+            # --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
+            # High Assurance Program) bits, as they are defined within the Flash
             # Descriptor.
             # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+            pushd "${COREBOOT_DIR}/util/me_cleaner"
+
             python me_cleaner.py -r -t -O me_shrinked.bin ME9.1_5M_Production.bin
 
-            popd
+            mv me_shrinked.bin "${output_dir}/me.bin"
+            rm ./*.bin
 
-            mv "${COREBOOT_DIR}/util/me_cleaner/me_shrinked.bin" "$1/me.bin"
-            rm "${COREBOOT_DIR}/util/me_cleaner/"*.bin
+            popd
         fi
 
-        if ! echo "${ME_BIN_HASH} $1/me.bin" | sha256sum --check; then
+        if ! echo "${ME_BIN_HASH} ${output_dir}/me.bin" | sha256sum --check; then
             echo "ERROR: SHA256 checksum for me.bin doesn't match."
             exit 1
         fi
