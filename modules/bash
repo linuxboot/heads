@@ -7,7 +7,7 @@ bash_tar := bash-$(bash_version).tar.gz
 bash_url := https://ftpmirror.gnu.org/bash/$(bash_tar)
 bash_hash := 5bac17218d3911834520dad13cd1f85ab944e1c09ae1aba55906be1f8192f558
 
-bash_configure := ./configure \
+bash_configure := CFLAGS=-Os ./configure \
 	$(CROSS_TOOLS) \
 	--host $(target) \
 	--prefix="/usr" \
@@ -20,6 +20,7 @@ bash_configure := ./configure \
 	--disable-net-redirections \
 	--enable-single-help-strings \
 	--disable-nls \
+	--disable-readline \
 
 bash_target := $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(bash_dir) \
