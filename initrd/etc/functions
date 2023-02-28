@@ -56,9 +56,9 @@ recovery() {
 		sleep 1
 
 		if [ -x /bin/setsid ]; then
-			/bin/setsid -c /bin/bash
+			/bin/setsid -c /bin/sh
 		else
-			/bin/bash
+			/bin/sh
 		fi
 	done
 }
