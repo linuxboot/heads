@@ -15,7 +15,7 @@ commands:
           command: |
             ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
             apt update
-            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo libssl-dev device-tree-compiler u-boot-tools
+            apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo libssl-dev device-tree-compiler u-boot-tools sharutils e2fsprogs parted curl unzip
       - run:
           name: Make Board (FULL ORDERED BUILD LOGS HERE UNTIL JOB FAILED)
           command: |
@@ -217,7 +217,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.15
+      # Coreboot 4.17
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -234,8 +234,7 @@ workflows:
           requires:
             - prep_env
 
-      #Cache one workspace per Coreboot version, ideally the boards including the highest number of modules, since not rebuilt across builds.
-      #Below, 4.11, 4.13, 4.17
+      #Cache one workspace per architecture. Make sure workspace caches are chainloaded and the last in chain for an arch is saved.
       - save_cache:
           requires:
             - librem_14
@@ -442,6 +441,20 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+
+      - build:
+          name: t440p-maximized
+          target: t440p-maximized
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: t440p-hotp-maximized
+          target: t440p-hotp-maximized
+          subcommand: ""
+          requires:
+            - librem_14
 
       - build:
           name: qemu-coreboot
