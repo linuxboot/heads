@@ -217,14 +217,17 @@ tpm2_unseal() {
 	TRACE "Under /bin/tpmr:tpm2_unseal"
 	index="$1"
 	pcrl="$2"
-	size="$3"
+	sealed_size="$3"
 	file="$4"
 	pass="$5"
+
+	# TPM2 doesn't care about sealed_size, only TPM1 needs that.  We don't
+	# have to separately read the sealed file on TPM2.
 
 	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
 	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
 
-	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl size=$size file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
 
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
@@ -249,14 +252,6 @@ tpm2_unseal() {
 	fi
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" > "$file"
-
-	# We don't need to know the size to unseal in TPM2, but TPM1 does.
-	# Ensure the correct size is provided so both will work.
-	# TODO - This isn't actually what -sz means to tpm nv_readvalue
-	#actual_size="$(stat -c "%s" "$file")"
-	#if [ "$actual_size" -ne "$size" ]; then
-	#	die "Expected size $size for $file but got $actual_size"
-	#fi
 }
 
 tpm2_reset() {
@@ -294,7 +289,7 @@ tpm1_unseal() {
 	TRACE "Under /bin/tpmr:tpm1_unseal"
 	index="$1"
 	pcrl="$2"
-	size="$3"
+	sealed_size="$3"
 	file="$4"
 	pass="$5"
 
@@ -309,7 +304,7 @@ tpm1_unseal() {
 
 	tpm nv_readvalue \
 		-in "$index" \
-		-sz "$size" \
+		-sz "$sealed_size" \
 		-of "$sealed_file" \
 		|| die "Unable to read sealed file from TPM NVRAM"
 
