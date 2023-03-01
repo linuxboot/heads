@@ -1,5 +1,5 @@
 # GNU bash
-modules-y += bash
+modules-$(CONFIG_BASH) += bash
 
 bash_version := 5.1.16
 bash_dir := bash-$(bash_version)
