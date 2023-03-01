@@ -8,7 +8,9 @@ qrencode_hash := e794e26a96019013c0e3665cb06b18992668f352c5553d0a553f5d144f7f2a7
 
 qrencode_libraries := .libs/libqrencode.so.3
 
-qrencode_configure := ./configure \
+qrencode_configure := \
+	CFLAGS="-Os" \
+	./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--without-tools \
