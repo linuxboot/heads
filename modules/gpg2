@@ -11,8 +11,10 @@ gpg2_hash := 61e83278fb5fa7336658a8b73ab26f379d41275bb1c7c6e694dd9f9a6e8e76ec
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
-gpg2_configure := ./configure \
+gpg2_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
+	./configure \
 	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
 	--host $(MUSL_ARCH)-linux-musl \
 	--with-libusb="$(INSTALL)" \
