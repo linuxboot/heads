@@ -227,9 +227,9 @@ workflows:
 
       # Coreboot for Talos (PPC)
       - build_and_persist:
-          name: talos-2_server
+          name: talos-2
           arch: ppc64
-          target: talos-2_server
+          target: talos-2
           subcommand: ""
           requires:
             - prep_env
@@ -238,7 +238,7 @@ workflows:
       - save_cache:
           requires:
             - librem_14
-            - talos-2_server
+            - talos-2
 
 #
 #
@@ -539,14 +539,6 @@ workflows:
 #          subcommand: ""
 #          requires:
 #            - librem_14
-
-      - build:
-          name: talos-2_workstation
-          arch: ppc64
-          target: talos-2_workstation
-          subcommand: ""
-          requires:
-            - talos-2_server
 
 ########################
 ########################
