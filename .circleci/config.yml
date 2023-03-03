@@ -471,6 +471,26 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t400-maximized
+          target: t400-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t400-maximized-debug
+          target: t400-maximized-debug
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+      - build:
+          name: x200-maximized
+          target: x200-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: librem_13v2
           target: librem_13v2
           subcommand: ""
