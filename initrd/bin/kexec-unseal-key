@@ -32,7 +32,9 @@ for tries in 1 2 3; do
 		die "Aborting unseal disk encryption key"
 	fi
 
-	DO_WITH_DEBUG tpmr unseal "$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$TPM_SIZE" "$key_file" "$tpm_password"
+	DO_WITH_DEBUG --mask-position 6 \
+		tpmr unseal "$TPM_INDEX" "sha256:0,1,2,3,4,5,6,7" "$TPM_SIZE" \
+		"$key_file" "$tpm_password"
 
 	if [ "$?" -eq 0 ]; then
 		exit 0
