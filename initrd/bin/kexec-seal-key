@@ -93,8 +93,6 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
 	# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
 	# If modules should be loaded during normal boot, skip verification of PCR5
-	#
-	#TODO: check condition, no libdata.ko
 	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
 		pcr_5="X"
 	else
@@ -163,19 +161,13 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	fi
 elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	pcrf="/tmp/secret/pcrf.bin"
-	#TODO: verify logic below against tpm2
 	tpm2 pcrread -o "$pcrf" sha256:0,1,2,3
 	# pcr 4 is expected to be zero (init mode)
 	dd if=/dev/zero bs=32 count=1 >> "$pcrf"
 	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
 		DEBUG "TPM2, with PCR5 involvement (additional kernel modules are loaded per board config)..."
 		# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
-		# 
-		# binary pcr dump can only go via stderr for redirection
-		# sadly this busybox has buggy support for "2>>" and "2|"
-		# so we need workaround...
-		DEBUG "tpm2 pcrread -o /dev/stderr sha256:5 2>&1 >/dev/console | cat >> "$pcrf""
-		tpm2 pcrread -o /dev/stderr sha256:5 2>&1 >/dev/console | cat >> "$pcrf"
+		tpm2 pcrread -o >(cat >>"$pcrf") sha256:5
 	else
 		DEBUG "TPM2, without PCR5 involvement. Inserting 32 zero bytes under pcrf..."
 		#no kernel modules are expected to be measured+loaded
@@ -184,16 +176,13 @@ elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	# Use pcr 23 to precompute the value for pcr 6
 	tpm2 pcrreset 23
 	tpmr extend -ix 23 -if /tmp/luksDump.txt
-	tpm2 pcrread -o /dev/stderr sha256:23 2>&1 >/dev/console | cat >> "$pcrf"
-	# goal is to validate that what is in pcr 23 is at pcr 6 at unseal
-	DEBUG "PCR23 content used to simulate PCR6 content at unseal:" 
-	DEBUG "$(pcrs)"
+	tpm2 pcrread -o >(cat >>"$pcrf") sha256:23
 	tpm2 pcrreset 23
 	# We take into consideration user files in cbfs
-	DEBUG "tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf""
-	tpm2 pcrread -o /dev/stderr sha256:7 2>&1 >/dev/console | cat >> "$pcrf"
-	DEBUG "tpmr seal $KEY_FILE 0x8100000$TPM_INDEX sha256:0,1,2,3,4,5,6,7 $pcrf <password>"
-	tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
+	tpm2 pcrread -o >(cat >>"$pcrf") sha256:7
+	DO_WITH_DEBUG --mask-position 5 \
+		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" \
+		sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
 	if [ $? -eq 0 ]; then
 		# should be okay if this fails
 		shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
