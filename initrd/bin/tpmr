@@ -43,7 +43,6 @@ tpm2_extend() {
 	tpm2 pcrextend "$index:sha256=$hash"
 	DEBUG "tpm2 pcread sha256:$index"
 	tpm2 pcrread "sha256:$index"
-	DEBUG "$(pcrs)"
 }
 
 tpm2_counter_read() {
@@ -228,6 +227,14 @@ tpm2_unseal() {
 	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
 
 	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+
+	# If we don't have the primary handle (TPM hasn't been reset), tpm2 will
+	# print nonsense error messages about an unexpected handle value.  We
+	# can't do anything without a primary handle.
+	if [ ! -f "/tmp/$PRIMARY_HANDLE_FILE" ]; then
+		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
+		exit 1
+	fi
 
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
