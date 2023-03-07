@@ -2,6 +2,37 @@
 # Shell functions for most initialization scripts
 . /etc/ash_functions
 
+# Print <hidden> or <empty> depending on whether $1 is empty.  Useful to mask an
+# optional password parameter.
+mask_param() {
+	if [ -z "$1" ]; then
+		echo "<empty>"
+	else
+		echo "<hidden>"
+	fi
+}
+
+# Trace a command with DEBUG, then execute it.
+# A password parameter can be masked by passing --mask-position N before the
+# command to execute, the debug trace will just indicate whether the password
+# was empty or nonempty (which is important when use of a password is optional).
+# N=0 is the name of the command to be executed, N=1 is its first parameter,
+# etc.
+DO_WITH_DEBUG() {
+	if [ "$1" == "--mask-position" ]; then
+		mask_position="$2"
+		shift
+		shift
+		DEBUG_ARGS=("$@")
+
+		DEBUG_ARGS[$mask_position]="$(mask_param "${DEBUG_ARGS[$mask_position]}")"
+		DEBUG "${DEBUG_ARGS[@]}"
+	else
+		DEBUG "$@"
+	fi
+	"$@"
+}
+
 recovery() {
 	TRACE "Under /etc/functions:recovery"
 	echo >&2 "!!!!! $*"

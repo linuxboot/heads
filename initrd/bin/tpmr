@@ -20,29 +20,23 @@ TRACE "Under /bin/tpmr"
 
 tpm2_extend() {
 	TRACE "Under /bin/tpmr:tpm2_extend"
-	DEBUG "value of passed arguments: $1 $2 $3 $4 $5 $6"
 	while true; do
 		case "$1" in
 			-ix)
-				DEBUG "case: -ix $2"
 				index="$2"
 				shift 2;;
 			-ic)
-				DEBUG "case: -ic $2"
 				hash="`echo $2|sha256sum|cut -d' ' -f1`"
 				shift 2;;
 			-if)
-				DEBUG "case: -if $2"
 				hash="`sha256sum $2|cut -d' ' -f1`"
 				shift 2;;
 			*)
 				break;;
 		esac
 	done
-	DEBUG "tpm2 pcrextend $index:sha256=$hash"
 	tpm2 pcrextend "$index:sha256=$hash"
-	DEBUG "tpm2 pcread sha256:$index"
-	tpm2 pcrread "sha256:$index"
+	DO_WITH_DEBUG tpm2 pcrread "sha256:$index"
 }
 
 tpm2_counter_read() {
@@ -159,7 +153,7 @@ tpm2_seal() {
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
 
-	DEBUG "tpm2_seal: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+	DEBUG "tpm2_seal: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$(mask_param "$pass")"
 
 	# Create a policy requiring both PCRs and the object's authentication
 	# value using a trial session.
@@ -206,7 +200,9 @@ tpm2_seal() {
 	echo # new line after password prompt
 	# remove possible data occupying this handle
 	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$handle" 2>/dev/null || true
-	DO_WITH_DEBUG tpm2 evictcontrol -Q -C o -P "$key_password" -c "$SECRET_DIR/$bname.seal.ctx" "$handle"
+	DO_WITH_DEBUG --mask-position 6 \
+		tpm2 evictcontrol -Q -C o -P "$key_password" \
+		-c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 
 # Unseal a file sealed by tpm2_seal.  The PCR list must be provided, the
@@ -226,7 +222,7 @@ tpm2_unseal() {
 	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
 	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
 
-	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl file=$file pass=$([ "$pass" ] && echo "<yes>" || echo "<no>")"
+	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl file=$file pass=$(mask_param "$pass")"
 
 	# If we don't have the primary handle (TPM hasn't been reset), tpm2 will
 	# print nonsense error messages about an unexpected handle value.  We
@@ -285,7 +281,7 @@ tpm2_kexec_finalize() {
 	# Add a random passphrase to platform hierarchy to prevent TPM2 from
 	# being cleared in the OS.
 	# This passphrase is only effective before the next boot.
-	echo "Locking platform hierarchy..."
+	echo "Locking TPM2 platform hierarchy..."
 	randpass=$(dd if=/dev/urandom bs=4 count=1 | xxd -p)
 	tpm2 changeauth -c platform "$randpass" \
 		|| warn "Failed to lock platform hierarchy of TPM2!"
