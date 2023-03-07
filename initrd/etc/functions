@@ -1,35 +1,6 @@
 #!/bin/bash
 # Shell functions for most initialization scripts
-
-die() {
-	echo >&2 "$*";
-	sleep 2;
-	exit 1;
-}
-
-warn() {
-	echo >&2 "$*";
-	sleep 1;
-}
-
-DEBUG() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo "DEBUG: $*" | tee -a /tmp/debug.log >&2;
-	fi
-}
-
-DO_WITH_DEBUG() {
-	DEBUG "$@"
-	"$@"
-}
-
-TRACE() {
-        if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
-                echo "TRACE: $*" | tee -a /tmp/debug.log >&2;
-        fi
-}
-
-
+. /etc/ash_functions
 
 recovery() {
 	TRACE "Under /etc/functions:recovery"
@@ -316,22 +287,6 @@ check_config() {
 	|| die "Failed to copy kexec boot params to tmp"
 }
 
-preserve_rom() {
-	TRACE "Under /etc/functions:preserve_rom"
-	new_rom="$1"
-	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
-
-	for old_file in `echo $old_files`; do
-		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
-		if [ -z "$new_file" ]; then
-			echo "+++ Adding $old_file to $1"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
-			|| die "Failed to read cbfs file from ROM"
-			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
-			|| die "Failed to write cbfs file to new ROM file"
-		fi
-	done
-}
 replace_config() {
 	TRACE "Under /etc/functions:replace_config"
 	CONFIG_FILE=$1
