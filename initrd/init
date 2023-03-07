@@ -31,13 +31,10 @@ if [ ! -r /dev/ptmx ]; then
 fi
 
 # Needed by bash
-if ! [ -L /bin/bash ]; then
-	# /bin/bash is not a symbolink link (not busybox)
-	[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
-	[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
-	[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
-	[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
-fi
+[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
+[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
+[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
+[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
