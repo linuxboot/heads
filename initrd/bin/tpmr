@@ -360,12 +360,6 @@ case "$subcmd" in
 		tpm2_counter_inc "$@";;
 	counter_create)
 		tpm2_counter_cre "$@";;
-	nv_definespace)
-		tpm2_nvdef "$@";;
-	nv_writevalue)
-		tpm2_nvw "$@";;
-	nv_readvalue)
-		tpm2_nvr "$@";;
 	seal)
 		tpm2_seal "$@";;
 	startsession)
