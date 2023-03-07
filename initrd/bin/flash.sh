@@ -1,9 +1,11 @@
-#!/bin/bash
+#!/bin/ash
 #
 # based off of flashrom-x230
 #
+# NOTE: This script is used on legacy-flash boards and runs with busybox ash,
+# not bash
 set -e -o pipefail
-. /etc/functions
+. /etc/ash_functions
 . /tmp/config
 
 TRACE "Under /bin/flash.sh"
