@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/ash
 # Initialize the USB and network device drivers,
 # invoke a recovery shell and prompt the user for how to proceed
 
-. /etc/functions
+. /etc/ash_functions
 . /tmp/config
 
 insmod /lib/modules/ehci-hcd.ko
@@ -23,4 +23,4 @@ echo '  mount -o ro /dev/sdb1 /media'
 echo '  flash.sh /media/t430.rom'
 echo ''
 
-exec /bin/bash
+exec /bin/sh
