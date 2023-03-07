@@ -118,7 +118,7 @@ if [ "$boot_option" = "r" ]; then
 	if [ "$CONFIG_TPM" = "y" ]; then
 		tpmr extend -ix 4 -ic recovery
 	fi
-	exec /bin/bash
+	exec /bin/sh
 	exit
 fi
 
@@ -177,4 +177,4 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr extend -ix 4 -ic recovery
 fi
-exec /bin/bash
+exec /bin/sh
