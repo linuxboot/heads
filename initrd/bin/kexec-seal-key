@@ -182,6 +182,7 @@ elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		dd if=/dev/zero bs=32 count=1 >> "$pcrf"
 	fi
 	# Use pcr 23 to precompute the value for pcr 6
+	tpm2 pcrreset 23
 	tpmr extend -ix 23 -if /tmp/luksDump.txt
 	tpm2 pcrread -o /dev/stderr sha256:23 2>&1 >/dev/console | cat >> "$pcrf"
 	# goal is to validate that what is in pcr 23 is at pcr 6 at unseal
