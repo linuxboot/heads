@@ -238,11 +238,16 @@ tpm2_unseal() {
 
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
-	tpm2 startauthsession -Q -g sha256 -c "/tmp/$PRIMARY_HANDLE_FILE" -S "$POLICY_SESSION" --policy-session
+	tpm2 startauthsession -Q -g sha256 -S "$POLICY_SESSION" --policy-session
 	trap "cleanup_session '$POLICY_SESSION'" EXIT
 	# Check the PCR policy
 	tpm2 policypcr -Q -l "$pcrl" -S "$POLICY_SESSION"
 	UNSEAL_PASS_SUFFIX=""
+
+	HMAC_SESSION=/tmp/unsealfile_hmac.session
+	tpm2 startauthsession -g sha256 -c "/tmp/$PRIMARY_HANDLE_FILE" -S "$HMAC_SESSION" --hmac-session
+	trap "cleanup_session '$POLICY_SESSION'" EXIT
+
 	if [ "$pass" ]; then
 		# Add the object authorization policy (the actual password is
 		# provided later, but we must include this so the policy we
@@ -250,15 +255,9 @@ tpm2_unseal() {
 		tpm2 policypassword -Q -S "$POLICY_SESSION"
 		# When unsealing, include the password with the auth session
 		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)"
-		# Disable encryption in the policy session - there seems to be a
-		# bug in tpm2's decryption.  If we leave encryption enabled, the
-		# unseal succeeds but we receive garbage, probably because it
-		# was decrypted incorrectly.  However, this causes the unsealed
-		# data to be sent in the clear from the TPM.
-		tpm2 sessionconfig -Q --disable-encrypt "$POLICY_SESSION"
 	fi
 
-	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" > "$file"
+	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" -S "$HMAC_SESSION" > "$file"
 }
 
 tpm2_reset() {
