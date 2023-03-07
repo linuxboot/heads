@@ -101,7 +101,7 @@ coreboot_output := $(CONFIG_COREBOOT_ROM)
 coreboot_output += $(CONFIG_COREBOOT_BOOTBLOCK)
 coreboot_depend += linux initrd $(musl_dep)
 
-COREBOOT_TOOLCHAIN="$(build)/$(coreboot_base_dir)/.xcompile"
+COREBOOT_TOOLCHAIN=$(build)/$(coreboot_base_dir)/.xcompile
 $(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
 	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
 
