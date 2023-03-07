@@ -26,10 +26,10 @@ tpm2_extend() {
 				index="$2"
 				shift 2;;
 			-ic)
-				hash="`echo $2|sha256sum|cut -d' ' -f1`"
+				hash="$(echo -n "$2"|sha256sum|cut -d' ' -f1)"
 				shift 2;;
 			-if)
-				hash="`sha256sum $2|cut -d' ' -f1`"
+				hash="$(sha256sum "$2"|cut -d' ' -f1)"
 				shift 2;;
 			*)
 				break;;
