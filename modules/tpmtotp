@@ -2,14 +2,11 @@ modules-$(CONFIG_TPMTOTP) += tpmtotp
 
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
-#tpmtotp_version := git
-#tpmtotp_repo := https://github.com/osresearch/tpmtotp
-
-tpmtotp_version := 18b860fdcf5a55537c8395b891f2b2a5c24fc00a
+tpmtotp_version := 363f1de935a77eb53972e77509f469023516d43a
 tpmtotp_dir := tpmtotp-$(tpmtotp_version)
 tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
-tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/$(tpmtotp_version).tar.gz
-tpmtotp_hash := 1082f2b0e4af833e04220dddedcc21a39eb39ee4dc5668bb010e7bcc795c606c
+tpmtotp_url := https://github.com/JonathonHall-Purism/tpmtotp/archive/$(tpmtotp_version).tar.gz
+tpmtotp_hash := 225ba63a5e912809e40ee58d6d4ea4e4a3150fd05d97b4f4c02196be7dcd0272
 
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
