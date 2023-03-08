@@ -418,38 +418,6 @@ tpm2_unseal() {
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" -S "$HMAC_SESSION" > "$file"
 }
-
-tpm2_reset() {
-	TRACE "Under /bin/tpmr:tpm2_reset"
-	key_password="$1"
-	mkdir -p "$SECRET_DIR"
-	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
-	tpm2 changeauth -c owner "$key_password"
-	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" -c "$SECRET_DIR/primary.ctx" -P "$key_password"
-	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" -P "$key_password"
-	shred -u "$SECRET_DIR/primary.ctx"
-	tpm2_startsession
-}
-
-# Perform final cleanup before boot and lock the platform heirarchy.
-tpm2_kexec_finalize() {
-	# Flush sessions and transient objects
-	tpm2 flushcontext -Q --transient-object \
-		|| warn "tpm2_flushcontext: unable to flush transient handles"
-	tpm2 flushcontext -Q --loaded-session \
-		|| warn "tpm2_flushcontext: unable to flush sessions"
-	tpm2 flushcontext -Q --saved-session \
-		|| warn "tpm2_flushcontext: unable to flush saved session"
-
-	# Add a random passphrase to platform hierarchy to prevent TPM2 from
-	# being cleared in the OS.
-	# This passphrase is only effective before the next boot.
-	echo "Locking TPM2 platform hierarchy..."
-	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none | xxd -p)
-	tpm2 changeauth -c platform "$randpass" \
-		|| warn "Failed to lock platform hierarchy of TPM2!"
-}
-
 tpm1_unseal() {
 	TRACE "Under /bin/tpmr:tpm1_unseal"
 	index="$1"
@@ -483,6 +451,37 @@ tpm1_unseal() {
 		-of "$file" \
 		"${PASS_ARGS[@]}" \
 		-hk 40000000
+}
+
+tpm2_reset() {
+	TRACE "Under /bin/tpmr:tpm2_reset"
+	key_password="$1"
+	mkdir -p "$SECRET_DIR"
+	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
+	tpm2 changeauth -c owner "$key_password"
+	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" -c "$SECRET_DIR/primary.ctx" -P "$key_password"
+	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" -P "$key_password"
+	shred -u "$SECRET_DIR/primary.ctx"
+	tpm2_startsession
+}
+
+# Perform final cleanup before boot and lock the platform heirarchy.
+tpm2_kexec_finalize() {
+	# Flush sessions and transient objects
+	tpm2 flushcontext -Q --transient-object \
+		|| warn "tpm2_flushcontext: unable to flush transient handles"
+	tpm2 flushcontext -Q --loaded-session \
+		|| warn "tpm2_flushcontext: unable to flush sessions"
+	tpm2 flushcontext -Q --saved-session \
+		|| warn "tpm2_flushcontext: unable to flush saved session"
+
+	# Add a random passphrase to platform hierarchy to prevent TPM2 from
+	# being cleared in the OS.
+	# This passphrase is only effective before the next boot.
+	echo "Locking TPM2 platform hierarchy..."
+	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none | xxd -p)
+	tpm2 changeauth -c platform "$randpass" \
+		|| warn "Failed to lock platform hierarchy of TPM2!"
 }
 
 tpm2_shutdown() {
