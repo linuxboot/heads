@@ -88,109 +88,35 @@ done
 cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
 
-if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
-	luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
-	# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
-	# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
-	# If modules should be loaded during normal boot, skip verification of PCR5
-	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
-		pcr_5="X"
-	else
-		pcr_5="0000000000000000000000000000000000000000"
-	fi
-
-	# Note that PCR 4 needs to be set with the "normal-boot"
-	# path value, which we do not have right now since we are
-	# in a "init" mode
-	# used to be -ix 4 f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d \
-	# now just all zeros in a normal boot
-	# PCR 5 must be all zero since no kernel modules should have
-	# been loaded during a normal boot, but might have been
-	# loaded in the recovery shell.
-	# Otherwise use the current values of the PCRs, which will be read
-	# from the TPM as part of the sealing ("X").
-	tpm sealfile2 \
-		-if "$KEY_FILE" \
-		-of "$TPM_SEALED" \
-		-pwdd "$key_password" \
-		-hk 40000000 \
-		-ix 0 X \
-		-ix 1 X \
-		-ix 2 X \
-		-ix 3 X \
-		-ix 4 0000000000000000000000000000000000000000 \
-		-ix 5 $pcr_5 \
-		-ix 6 $luks_pcr \
-		-ix 7 X
-
-	if [ $? -ne 0 ]; then
-		die "Unable to seal secret"
-	fi
-
-	shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
-		|| die "Failed to delete key file"
-
-	# try it without the owner password first
-	if ! tpm nv_writevalue \
-		-in $TPM_INDEX \
-		-if "$TPM_SEALED" \
-		; then
-		# to create an nvram space we need the TPM owner password
-		# and the TPM physical presence must be asserted.
-		#
-		# The permissions are 0 since there is nothing special
-		# about the sealed file
-		tpm physicalpresence -s \
-			|| warn "Warning: Unable to assert physical presence"
-
-		read -s -p "TPM Owner password: " tpm_password
-		echo
-
-		tpm nv_definespace \
-			-in $TPM_INDEX \
-			-sz $TPM_SIZE \
-			-pwdo "$tpm_password" \
-			-per 0 \
-			|| warn "Warning: Unable to define NVRAM space; trying anyway"
-
-
-		tpm nv_writevalue \
-			-in $TPM_INDEX \
-			-if "$TPM_SEALED" \
-			|| die "Unable to write sealed secret to NVRAM"
-	fi
-elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	pcrf="/tmp/secret/pcrf.bin"
-	tpm2 pcrread -o "$pcrf" sha256:0,1,2,3
-	# pcr 4 is expected to be zero (init mode)
-	dd if=/dev/zero bs=32 count=1 >> "$pcrf"
-	if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
-		DEBUG "TPM2, with PCR5 involvement (additional kernel modules are loaded per board config)..."
-		# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
-		tpm2 pcrread -o >(cat >>"$pcrf") sha256:5
-	else
-		DEBUG "TPM2, without PCR5 involvement. Inserting 32 zero bytes under pcrf..."
-		#no kernel modules are expected to be measured+loaded
-		dd if=/dev/zero bs=32 count=1 >> "$pcrf"
-	fi
-	# Use pcr 23 to precompute the value for pcr 6
-	tpm2 pcrreset 23
-	tpmr extend -ix 23 -if /tmp/luksDump.txt
-	tpm2 pcrread -o >(cat >>"$pcrf") sha256:23
-	tpm2 pcrreset 23
-	# We take into consideration user files in cbfs
-	tpm2 pcrread -o >(cat >>"$pcrf") sha256:7
-	DO_WITH_DEBUG --mask-position 5 \
-		tpmr seal "$KEY_FILE" "0x8100000$TPM_INDEX" \
-		sha256:0,1,2,3,4,5,6,7 "$pcrf" "$key_password"
-	if [ $? -eq 0 ]; then
-		# should be okay if this fails
-		shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
-	fi
+pcrf="/tmp/secret/pcrf.bin"
+tpmr pcrread 0 "$pcrf"
+tpmr pcrread -a 1 "$pcrf"
+tpmr pcrread -a 2 "$pcrf"
+tpmr pcrread -a 3 "$pcrf"
+# Note that PCR 4 needs to be set with the "normal-boot" path value, which is 0.
+dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 >> "$pcrf"
+if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+	DEBUG "Seal with PCR5 involvement (additional kernel modules are loaded per board config)..."
+	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
+	tpmr pcrread -a 5 "$pcrf"
+else
+	DEBUG "Seal without PCR5 involvement, PCR5=0..."
+	#no kernel modules are expected to be measured+loaded
+	dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 >> "$pcrf"
 fi
+# Precompute the value for pcr 6
+tpmr calcfuturepcr -a "/tmp/luksDump.txt" "$pcrf"
+# We take into consideration user files in cbfs
+tpmr pcrread -a 7 "$pcrf"
 
-shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
-|| warn "Failed to delete the sealed secret - continuing"
+DO_WITH_DEBUG --mask-position 6 \
+	tpmr seal "$KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
+	"$TPM_SIZE" "$key_password"
+
+# should be okay if this fails
+shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
+shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
+|| warn "Failed to delete key file - continuing"
 
 cp /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" \
 || warn "Failed to have hashes of LUKS header - continuing"
