@@ -8,7 +8,7 @@ TOTP_SECRET="/tmp/secret/totp.key"
 TRACE "Under /bin/unseal-totp"
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	tpmr unseal 4d47 sha256:0,1,2,3,4,7 312 "$TOTP_SECRET" \
+	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" \
 		|| die "Unable to unseal totp secret"
 fi
 

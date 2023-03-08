@@ -38,7 +38,7 @@ fi
 
 #counter_value=$(printf "%d" 0x${counter_value})
 if [ "$CONFIG_TPM" = "y" ]; then
-	tpmr unseal 4d47 sha256:0,1,2,3,4,7 312 "$HOTP_SECRET"
+	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"
 fi
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then
