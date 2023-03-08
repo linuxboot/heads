@@ -467,6 +467,8 @@ tpm2_reset() {
 
 # Perform final cleanup before boot and lock the platform heirarchy.
 tpm2_kexec_finalize() {
+	TRACE "Under /bin/tpmr:tpm2_kexec_finalize"
+
 	# Flush sessions and transient objects
 	tpm2 flushcontext -Q --transient-object \
 		|| warn "tpm2_flushcontext: unable to flush transient handles"
@@ -485,6 +487,8 @@ tpm2_kexec_finalize() {
 }
 
 tpm2_shutdown() {
+	TRACE "Under /bin/tpmr:tpm2_shutdown"
+
 	# Prepare for shutdown.
 	# This is a "clear" shutdown (do not preserve runtime state) since we
 	# are not going to resume later, we are powering off (or rebooting).
