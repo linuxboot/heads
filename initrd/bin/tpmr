@@ -300,7 +300,9 @@ tpm2_seal() {
 		-a "fixedtpm|fixedparent|adminwithpolicy" \
 		"${CREATE_PASS_ARGS[@]}"
 
-	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" -u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" -c "$SECRET_DIR/$bname.seal.ctx"
+	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
+		-c "$SECRET_DIR/$bname.seal.ctx"
 	read -s -p "TPM owner password: " key_password
 	echo # new line after password prompt
 	# remove possible data occupying this handle
@@ -403,10 +405,6 @@ tpm2_unseal() {
 	tpm2 policypcr -Q -l "sha256:$pcrl" -S "$POLICY_SESSION"
 	UNSEAL_PASS_SUFFIX=""
 
-	HMAC_SESSION=/tmp/unsealfile_hmac.session
-	tpm2 startauthsession -g sha256 -c "/tmp/$PRIMARY_HANDLE_FILE" -S "$HMAC_SESSION" --hmac-session
-	trap "cleanup_session '$POLICY_SESSION'" EXIT
-
 	if [ "$pass" ]; then
 		# Add the object authorization policy (the actual password is
 		# provided later, but we must include this so the policy we
@@ -416,7 +414,8 @@ tpm2_unseal() {
 		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)"
 	fi
 
-	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" -S "$HMAC_SESSION" > "$file"
+	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
+		-S "/tmp/$ENC_SESSION_FILE" > "$file"
 }
 tpm1_unseal() {
 	TRACE "Under /bin/tpmr:tpm1_unseal"
