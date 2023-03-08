@@ -477,6 +477,13 @@ tpm1_unseal() {
 		-hk 40000000
 }
 
+tpm2_shutdown() {
+	# Prepare for shutdown.
+	# This is a "clear" shutdown (do not preserve runtime state) since we
+	# are not going to resume later, we are powering off (or rebooting).
+	tpm2 shutdown -Q --clear
+}
+
 if [ "$CONFIG_TPM" != "y" ]; then
 	echo >&2 "No TPM!"
 	exit 1
@@ -495,12 +502,14 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 			echo "$PCR_SIZE";;
 		calcfuturepcr)
 			shift; tpm1_calcfuturepcr "$@";;
-		kexec_finalize)
-			;;	# Nothing on TPM1.
 		seal)
 			shift; tpm1_seal "$@";;
 		unseal)
 			shift; tpm1_unseal "$@";;
+		kexec_finalize)
+			;;	# Nothing on TPM1.
+		shutdown)
+			;;	# Nothing on TPM1.
 		*)
 			exec tpm "$@"
 			;;
@@ -537,6 +546,8 @@ case "$subcmd" in
 		tpm2_reset "$@";;
 	kexec_finalize)
 		tpm2_kexec_finalize "$@";;
+	shutdown)
+		tpm2_shutdown "$@";;
 	*)
 		echo "Command $subcmd not wrapped!"
 		exit 1
