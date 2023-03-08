@@ -6,8 +6,10 @@ util-linux_tar := util-linux-$(util-linux_version).tar.xz
 util-linux_url := https://www.kernel.org/pub/linux/utils/util-linux/v2.29/$(util-linux_tar)
 util-linux_hash := accea4d678209f97f634f40a93b7e9fcad5915d1f4749f6c47bee6bf110fe8e3
 
-util-linux_configure := ./configure \
+util-linux_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
+	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--oldincludedir "$(INSTALL)/include" \

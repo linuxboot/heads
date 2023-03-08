@@ -8,6 +8,7 @@ pixman_hash := 21b6b249b51c6800dc9553b65106e1e37d0e25df942c90531d4c3997aa20a88e
 
 pixman_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
