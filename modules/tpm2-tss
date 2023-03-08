@@ -37,4 +37,9 @@ tpm2-tss_libraries := \
 	src/tss2-tcti/.libs/libtss2-tctildr.so.0 \
 	src/tss2-tcti/.libs/libtss2-tcti-device.so.0 \
 
+# The pcap TCTI driver is only included if enabled in the board config.
+ifeq "$(CONFIG_TPM2_CAPTURE_PCAP)" "y"
+tpm2-tss_libraries += src/tss2-tcti/.libs/libtss2-tcti-pcap.so.0
+endif
+
 tpm2-tss_depends := openssl $(musl_dep)
