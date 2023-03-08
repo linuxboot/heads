@@ -220,6 +220,7 @@ tpm2_startsession() {
 # session file.  E.g.:
 #   trap "cleanup_session '$SESSION_FILE'" EXIT
 cleanup_session() {
+	TRACE "Under /bin/tpmr:cleanup_session"
 	session_file="$1"
 	if [ -f "$session_file" ]; then
 		DEBUG "Clean up session: $session_file"
@@ -235,6 +236,7 @@ cleanup_session() {
 # trap EXIT, e.g.:
 #   trap "cleanup_shred '$FILE'" EXIT
 cleanup_shred() {
+	TRACE "Under /bin/tpmr:cleanup_shred"
 	shred -n 10 -z -u "$1" 2>/dev/null || true
 }
 
