@@ -34,7 +34,7 @@ tpmr pcrread -a 1 "$pcrf"
 tpmr pcrread -a 2 "$pcrf"
 tpmr pcrread -a 3 "$pcrf"
 # pcr 4 is expected to be zero (boot mode: init)
-dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 >> "$pcrf"
+dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 status=none >> "$pcrf"
 # pcr 5 (kernel modules loaded) is not measured at sealing/unsealing of totp
 # pcr 6 (drive luks header) is not measured at sealing/unsealing of totp
 # pcr 7 is containing measurements of user injected stuff in cbfs
