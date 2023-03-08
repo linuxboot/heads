@@ -10,6 +10,7 @@ lvm2_hash := 23a3d1cddd41b3ef51812ebf83e9fa491f502fe74130d4263be327a91914660d
 # so we force it via the configure cache.
 lvm2_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
 	PKG_CONFIG=/bin/false \
 	MODPROBE_CMD=/bin/false \
 	ac_cv_func_malloc_0_nonnull=yes \

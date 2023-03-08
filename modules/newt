@@ -20,7 +20,8 @@ newt_output := \
 newt_libraries := \
 	libnewt.so.0.52 \
 
-newt_configure := ./autogen.sh; ./configure \
+newt_configure := \
+	./autogen.sh && CFLAGS="-Os" ./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--host $(MUSL_ARCH)-elf-linux \
