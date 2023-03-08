@@ -13,8 +13,10 @@ pinentry_hash := 68076686fa724a290ea49cdf0d1c0c1500907d1b759a3bcbfbec0293e8f5657
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
-pinentry_configure := ./configure \
+pinentry_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os" \
+	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--enable-pinentry-tty \

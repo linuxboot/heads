@@ -6,7 +6,9 @@ kexec_tar := kexec-tools-$(kexec_version).tar.gz
 kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
 kexec_hash := 40623d4321be2865ef9ea2cd6ec998d31dcf93d0f74353cbd3aa06d8821e3e41
 
-kexec_configure := ./configure \
+kexec_configure := \
+	CFLAGS="-g -Os -fno-strict-aliasing -Wall -Wstrict-prototypes" \
+	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--target $(MUSL_ARCH) \
