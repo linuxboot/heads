@@ -164,7 +164,7 @@ generate_totp_htop()
     # clear screen
     printf "\033c"
   else
-    warn "Sealing of measurements inside of TPM failed. You might want to take ownership of TPM by resetting it."
+    warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed. Try "Generate new HOTP/TOTP secret" option if you updated firmware content."
   fi
 }
 
@@ -366,8 +366,7 @@ show_main_menu()
       attempt_default_boot
       ;;
     r )
-      update_totp
-      update_hotp
+      update_totp && update_hotp
       ;;
     o )
       show_options_menu
