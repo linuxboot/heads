@@ -67,7 +67,7 @@ recovery() {
 
 pause_recovery() {
 	TRACE "Under /etc/functions:pause_recovery"
-	read -p 'Hit enter to proceed to recovery shell:'
+	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
 	recovery $*
 }
 

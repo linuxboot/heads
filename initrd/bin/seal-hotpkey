@@ -27,6 +27,7 @@ else
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
+	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" \
 		|| die "Unable to unseal HOTP secret"
 fi
