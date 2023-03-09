@@ -146,14 +146,14 @@ if [ "$save_key" = "y" ]; then
 	current_default_initrd=$(cat /boot/kexec_default_hashes.txt | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
 	
 	# Get crypttab files paths from initrd
-	echo "Checking current selected default boot's $current_default_initrd for existing crypttab files..."
+	echo "+++ Checking current selected default boot's $current_default_initrd for existing crypttab files..."
 	# First either decompress or use the original if it's not compressed
 	initrd_decompressed="/tmp/initrd_extract/initrd_decompressed.cpio"
 	zcat < "$current_default_initrd" > "$initrd_decompressed" 2> /dev/null || initrd_decompressed="$current_default_initrd"
 	crypttab_files=$(cpio --list --quiet < "$initrd_decompressed" | grep crypttab 2> /dev/null) || true
 	
 	if [ ! -z "$crypttab_files" ]; then
-		echo "Extracting current selected default boot's $current_default_initrd for found crypttab files analysis..."
+		echo "+++ Extracting current selected default boot's $current_default_initrd for found crypttab files analysis..."
 		cpio -id --quiet < $initrd_decompressed $crypttab_files 2> /dev/null
 		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
 		
@@ -172,12 +172,12 @@ if [ "$save_key" = "y" ]; then
 		cd - > /dev/null
 
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
-		echo "The following OS crypttab file:entry were modified from default boot's initrd:"
+		echo "+++ The following OS crypttab file:entry were modified from default boot's initrd:"
 		cat $bootdir/kexec_initrd_crypttab_overrides.txt
-		echo "Heads added /secret.key in those entries and saved them under $bootdir/kexec_initrd_crypttab_overrides.txt"
-		echo "Those overrides will be part of detached signed digests and used to prepare cpio injected at kexec of selected default boot entry."
+		echo "+++ Heads added /secret.key in those entries and saved them under $bootdir/kexec_initrd_crypttab_overrides.txt"
+		echo "+++ Those overrides will be part of detached signed digests and used to prepare cpio injected at kexec of selected default boot entry."
 	else
-		echo "No crypttab file found in extracted initrd. Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
+		echo "+++ No crypttab file found in extracted initrd. Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
 		rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt" || true
 	fi
 	# Cleanup
