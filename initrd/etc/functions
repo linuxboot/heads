@@ -247,19 +247,30 @@ confirm_gpg_card()
 	fi
 }
 
+# Prompt for an owner password if it is not already set in tpm_password.  Sets
+# tpm_password.  Tools should optionally accept a TPM password on the command
+# line, since some flows need it multiple times and only one prompt is ideal.
+prompt_tpm_password() {
+	if [ -n "$tpm_password" ]; then
+		return 0;
+	fi
+
+	read -s -p "TPM Owner password: " tpm_password
+	echo # new line after password prompt
+}
 
 check_tpm_counter()
 {
   TRACE "Under /etc/functions:check_tpm_counter"
   LABEL=${2:-3135106223}
+  tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
 		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		read -s -p "TPM Owner password: " tpm_password
-		echo
+		prompt_tpm_password
 		tpmr counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \

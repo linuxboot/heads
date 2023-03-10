@@ -262,7 +262,9 @@ tpm2_seal() {
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	pcrf="$4"
 	sealed_size="$5"	# Not used for TPM2
-	pass="$6"
+	pass="$6"	# May be empty to seal with no password
+	tpm_password="$7"	# Owner password - will prompt if needed and not empty
+	# Owner password is always needed for TPM2.
 
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
@@ -313,13 +315,12 @@ tpm2_seal() {
 	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
 		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
 		-c "$SECRET_DIR/$bname.seal.ctx"
-	read -s -p "TPM owner password: " key_password
-	echo # new line after password prompt
+	prompt_tpm_password
 	# remove possible data occupying this handle
-	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$key_password")" \
+	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
 		-c "$handle" 2>/dev/null || true
 	DO_WITH_DEBUG --mask-position 6 \
-		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$key_password")" \
+		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
 		-c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 tpm1_seal() {
@@ -329,7 +330,8 @@ tpm1_seal() {
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	pcrf="$4"
 	sealed_size="$5"
-	pass="$6"
+	pass="$6"	# May be empty to seal with no password
+	tpm_password="$7"	# Owner password - will prompt if needed and not empty
 
 	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
 	trap "cleanup_shred '$sealed_file'" EXIT
@@ -368,8 +370,7 @@ tpm1_seal() {
 		tpm physicalpresence -s \
 			|| warn "Warning: Unable to assert physical presence"
 
-		read -s -p "TPM Owner password: " tpm_password
-		echo
+		prompt_tpm_password
 
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
 			-pwdo "$tpm_password" -per 0 \
