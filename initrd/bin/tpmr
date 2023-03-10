@@ -226,9 +226,9 @@ tpm2_startsession() {
 	tpm2 sessionconfig -Q --disable-encrypt "/tmp/$DEC_SESSION_FILE"
 }
 
-# Trap EXIT with cleanup_session() to release a TPM2 session and delete the
+# Use cleanup_session() with at_exit to release a TPM2 session and delete the
 # session file.  E.g.:
-#   trap "cleanup_session '$SESSION_FILE'" EXIT
+#   at_exit cleanup_session "$SESSION_FILE"
 cleanup_session() {
 	TRACE "Under /bin/tpmr:cleanup_session"
 	session_file="$1"
@@ -243,8 +243,8 @@ cleanup_session() {
 }
 
 # Clean up a file by shredding it.  No-op if the file wasn't created.  Use with
-# trap EXIT, e.g.:
-#   trap "cleanup_shred '$FILE'" EXIT
+# at_exit, e.g.:
+#   at_exit cleanup_shred "$FILE"
 cleanup_shred() {
 	TRACE "Under /bin/tpmr:cleanup_shred"
 	shred -n 10 -z -u "$1" 2>/dev/null || true
@@ -281,7 +281,7 @@ tpm2_seal() {
 	rm -f "$TRIAL_SESSION" "$AUTH_POLICY"
 	tpm2 startauthsession -g sha256 -S "$TRIAL_SESSION"
 	# We have to clean up the session
-	trap "cleanup_session '$TRIAL_SESSION'" EXIT
+	at_exit cleanup_session "$TRIAL_SESSION"
 	# Save the policy hash in case the password policy is not used (we have
 	# to get this from the last step, whichever it is).
 	tpm2 policypcr -Q -l "sha256:$pcrl" -f "$pcrf" -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
@@ -334,7 +334,7 @@ tpm1_seal() {
 	tpm_password="$7"	# Owner password - will prompt if needed and not empty
 
 	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
-	trap "cleanup_shred '$sealed_file'" EXIT
+	at_exit cleanup_shred "$sealed_file"
 
 	POLICY_ARGS=()
 
@@ -412,7 +412,7 @@ tpm2_unseal() {
 	POLICY_SESSION=/tmp/unsealfile_policy.session
 	rm -f "$POLICY_SESSION"
 	tpm2 startauthsession -Q -g sha256 -S "$POLICY_SESSION" --policy-session
-	trap "cleanup_session '$POLICY_SESSION'" EXIT
+	at_exit cleanup_session "$POLICY_SESSION"
 	# Check the PCR policy
 	tpm2 policypcr -Q -l "sha256:$pcrl" -S "$POLICY_SESSION"
 	UNSEAL_PASS_SUFFIX=""
@@ -442,7 +442,7 @@ tpm1_unseal() {
 	# correct either, so just ignore it in TPM1.
 
 	sealed_file="$SECRET_DIR/tpm1_unseal_sealed.bin"
-	trap "cleanup_shred '$sealed_file'" EXIT
+	at_exit cleanup_shred "$sealed_file"
 
 	rm -f "$sealed_file"
 
