@@ -150,9 +150,10 @@ prompt_update_checksums()
 
 generate_totp_htop()
 {
+  tpm_password="$1"	# May be empty, will prompt if needed and empty
   TRACE "Under /bin/gui-init:generate_totp_htop"
   echo "Scan the QR code to add the new TOTP secret"
-  if /bin/seal-totp "$BOARD_NAME"; then
+  if /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
     if [ -x /bin/hotp_verification ]; then
       echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
       read
@@ -509,13 +510,39 @@ prompt_totp_mismatch()
   fi
 }
 
+prompt_new_owner_password() {
+  read -s -p "New TPM owner password: " key_password
+  echo
+
+  if [ -z "$key_password" ]; then
+    echo "Empty owner password is not allowed" >&2
+    return 1
+  fi
+
+  read -s -p "Repeat owner password: " key_password2
+  echo
+
+  if [ "$key_password" != "$key_password2" ]; then
+    echo "Key passwords do not match" >&2
+    return 1
+  fi
+}
+
 reset_tpm()
 {
   TRACE "Under /bin/gui-init:reset_tpm"
   if [ "$CONFIG_TPM" = "y" ]; then
     if (whiptail $BG_COLOR_WARNING --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
-      /bin/tpm-reset
+
+      if ! prompt_new_owner_password; then
+        echo "Press Enter to return to the menu..."
+        read
+        echo
+        return 1
+      fi
+
+      tpmr reset "$key_password"
 
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
@@ -524,7 +551,7 @@ reset_tpm()
       rm -f /boot/kexec_primhdl_hash.txt
 
       # create Heads TPM counter before any others
-      check_tpm_counter /boot/kexec_rollback.txt \
+      check_tpm_counter /boot/kexec_rollback.txt "" "$key_password" \
       || die "Unable to find/create tpm counter"
       counter="$TPM_COUNTER"
 
@@ -535,7 +562,7 @@ reset_tpm()
       || die "Unable to create rollback file"
       mount -o ro,remount /boot
 
-      generate_totp_htop
+      generate_totp_htop "$key_password"
     else
       echo "Returning to the main menu"
     fi
