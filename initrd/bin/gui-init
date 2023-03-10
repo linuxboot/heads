@@ -184,10 +184,10 @@ update_totp()
         return 1  # Already asked to skip to menu from a prior error
       fi
       
-      echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
-      echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
-      echo "DEBUG: Show PCRs"
-      pcrs
+      DEBUG "CONFIG_TPM: $CONFIG_TPM"
+      DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
+      DEBUG "Show PCRs"
+      DEBUG "$(pcrs)"
 
       whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
         --menu "    ERROR: Heads couldn't generate the TOTP code.\n

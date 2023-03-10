@@ -20,10 +20,10 @@ if [ -z "$key_file" ]; then
 	key_file="/tmp/secret/secret.key"
 fi
 
-echo "DEBUG: CONFIG_TPM: $CONFIG_TPM"
-echo "DEBUG: CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
-echo "DEBUG: Show PCRs"
-pcrs
+DEBUG "CONFIG_TPM: $CONFIG_TPM"
+DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
+DEBUG "Show PCRs"
+DEBUG "$(pcrs)"
 
 for tries in 1 2 3; do
 	read -s -p "Enter unlock password (blank to abort): " tpm_password
