@@ -37,6 +37,15 @@ hex2bin() {
 	sed 's/\([0-9A-F]\{2\}\)/\\\\\\x\1/gI' | xargs printf
 }
 
+# Render a password as 'hex:<hexdump>' for use with tpm2-tools.  Passwords
+# should always be passed this way to avoid ambiguity.  (Passing with no prefix
+# would choke if the password happened to start with 'file:' or 'hex:'.  Passing
+# as a file still chokes if the password begins with 'hex:', oddly tpm2-tools
+# accepts 'hex:' in the file content.)
+tpm2_password_hex() {
+	echo "hex:$(echo -n "$1" | xxd -p | tr -d ' \n')"
+}
+
 # usage: tpmr pcrread [-a] <index> <file>
 # Reads PCR binary data and writes to file.
 # -a: Append to file.  Default is to overwrite.
@@ -192,7 +201,8 @@ tpm2_counter_cre() {
 		esac
 	done
 	rand_index="1`dd if=/dev/urandom bs=1 count=3 | xxd -pc3`"
-	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" -P "$pwdo" "0x$rand_index" > /dev/console
+	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
+		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" > /dev/console
 	echo "$rand_index: (valid after an increment)"
 }
 
@@ -282,7 +292,7 @@ tpm2_seal() {
 		# Pass the password to create later.  Pass the sha256sum of the
 		# password to the TPM so the password is not limited to 32 chars
 		# in length.
-		CREATE_PASS_ARGS=(-p "hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)")
+		CREATE_PASS_ARGS=(-p "$(tpm2_password_hex "$pass")")
 	fi
 
 	# Create the object with this policy and the auth value.
@@ -306,9 +316,10 @@ tpm2_seal() {
 	read -s -p "TPM owner password: " key_password
 	echo # new line after password prompt
 	# remove possible data occupying this handle
-	tpm2 evictcontrol -Q -C o -P "$key_password" -c "$handle" 2>/dev/null || true
+	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$key_password")" \
+		-c "$handle" 2>/dev/null || true
 	DO_WITH_DEBUG --mask-position 6 \
-		tpm2 evictcontrol -Q -C o -P "$key_password" \
+		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$key_password")" \
 		-c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 tpm1_seal() {
@@ -411,7 +422,7 @@ tpm2_unseal() {
 		# attempt to use is correct).
 		tpm2 policypassword -Q -S "$POLICY_SESSION"
 		# When unsealing, include the password with the auth session
-		UNSEAL_PASS_SUFFIX="+hex:$(echo -n "$pass" | sha256sum | cut -d ' ' -f 1)"
+		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
 	fi
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
@@ -457,9 +468,11 @@ tpm2_reset() {
 	key_password="$1"
 	mkdir -p "$SECRET_DIR"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
-	tpm2 changeauth -c owner "$key_password"
-	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" -c "$SECRET_DIR/primary.ctx" -P "$key_password"
-	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" -P "$key_password"
+	tpm2 changeauth -c owner "$(tpm2_password_hex "$key_password")"
+	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
+		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$key_password")"
+	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
+		-P "$(tpm2_password_hex "$key_password")"
 	shred -u "$SECRET_DIR/primary.ctx"
 	tpm2_startsession
 
