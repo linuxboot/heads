@@ -462,6 +462,38 @@ tpm2_reset() {
 	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" -P "$key_password"
 	shred -u "$SECRET_DIR/primary.ctx"
 	tpm2_startsession
+
+	# Set the dictionary attack parameters.  TPM2 defaults vary widely, we
+	# want consistent behavior on any TPM.
+	# * --max-tries=10: Allow 10 failures before lockout.  This allows the
+	#   user to quickly "burst" 10 failures without significantly impacting
+	#   the rate allowed for a dictionary attacker.
+	#   Most TPM2 flows ask for the owner password 2-4 times, so this allows
+	#   a handful of mistypes and some headroom for an expected unseal
+	#   failure if firmware is updated.
+	#   Remember that an auth failure is also counted any time an unclean
+	#   shutdown occurs (see TPM2 spec part 1, section 19.8.6, "Non-orderly
+	#   Shutdown").
+	# * --recovery-time=3600: Forget an auth failure every 1 hour.
+	# * --lockout-recovery-time: After a failed lockout recovery auth, the
+	#   TPM must be reset to try again.
+	#
+	# Heads does not offer a way to reset dictionary attack lockout, instead
+	# the TPM can be reset and new secrets sealed.
+	tpm2 dictionarylockout -Q --setup-parameters \
+		--max-tries=10 \
+		--recovery-time=3600 \
+		--lockout-recovery-time=0 \
+		--auth="session:/tmp/$ENC_SESSION_FILE"
+
+	# Set a random DA lockout password, so the DA lockout can't be cleared
+	# with a password.  Heads doesn't offer dictionary attach reset, instead
+	# the TPM can be reset and new secrets sealed.
+	#
+	# The default lockout password is empty, so we must set this, and we
+	# don't need to provide any auth (use the default empty password).
+	tpm2 changeauth -Q -c lockout \
+		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none | xxd -p | tr -d ' \n')"
 }
 
 # Perform final cleanup before boot and lock the platform heirarchy.
