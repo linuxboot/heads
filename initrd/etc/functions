@@ -576,3 +576,37 @@ generate_random_mac_address()
 	#Borrowed from https://stackoverflow.com/questions/42660218/bash-generate-random-mac-address-unicast
 	hexdump -n 6 -ve '1/1 "%.2x "' /dev/urandom | awk -v a="2,6,a,e" -v r="$RANDOM" 'BEGIN{srand(r);}NR==1{split(a,b,",");r=int(rand()*4+1);printf "%s%s:%s:%s:%s:%s:%s\n",substr($1,0,1),b[r],$2,$3,$4,$5,$6}'
 }
+
+# Add a command to be invoked at exit.  (Note that trap EXIT replaces any
+# existing handler.)  Commands are invoked in reverse order, so they can be used
+# to clean up resources, etc.
+# The parameters are all executed as-is and do _not_ require additional quoting
+# (unlike trap).  E.g.:
+# at_exit shred "$file" #<-- file is expanded when calling at_exit, no extra quoting needed
+at_exit() {
+	AT_EXIT_HANDLERS+=("$@") # Command and args
+	AT_EXIT_HANDLERS+=("$#") # Number of elements in this command
+}
+
+# Array of all exit handler command arguments with lengths of each command at
+# the end.  For example:
+#   at_exit echo hello
+#   at_exit echo a b c
+# results in:
+# AT_EXIT_HANDLERS=(echo hello 2 echo a b c 4)
+
+AT_EXIT_HANDLERS=()
+# Each handler is an array AT_EXIT_HANDLER_{i}
+run_at_exit_handlers() {
+	local cmd_pos cmd_len
+	cmd_pos="${#AT_EXIT_HANDLERS[@]}"
+	# Silence trace if there are no handlers, this is common and occurs a lot
+	[ "$cmd_pos" -gt 0 ] && DEBUG "Running at_exit handlers"
+	while [ "$cmd_pos" -gt 0 ]; do
+		cmd_pos="$((cmd_pos-1))"
+		cmd_len="${AT_EXIT_HANDLERS[$cmd_pos]}"
+		cmd_pos="$((cmd_pos-cmd_len))"
+		"${AT_EXIT_HANDLERS[@]:$cmd_pos:$cmd_len}"
+	done
+}
+trap run_at_exit_handlers EXIT
