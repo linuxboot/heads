@@ -15,6 +15,7 @@ HOST="$1"
 if [ -z "$HOST" ]; then
 	HOST="TPMTOTP"
 fi
+TPM_PASSWORD="$2"
 
 TOTP_SECRET="/tmp/secret/totp.key"
 TOTP_SEALED="/tmp/secret/totp.sealed"
@@ -41,7 +42,7 @@ DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modul
 DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not firmware integrity attestation related)"
 # pcr 7 is containing measurements of user injected stuff in cbfs
 tpmr pcrread -a 7 "$pcrf"
-tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 \
+tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" \
 	|| die "Unable to write sealed secret to NVRAM"
 shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
 
