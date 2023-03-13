@@ -1,5 +1,5 @@
-#!/bin/bash
-. /etc/functions
+#!/bin/ash
+. /etc/ash_functions
 
 TRACE "Under /bin/reboot"
 
