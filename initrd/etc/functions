@@ -33,44 +33,6 @@ DO_WITH_DEBUG() {
 	"$@"
 }
 
-recovery() {
-	TRACE "Under /etc/functions:recovery"
-	echo >&2 "!!!!! $*"
-
-	# Remove any temporary secret files that might be hanging around
-	# but recreate the directory so that new tools can use it.
-
-	#safe to always be true. Otherwise "set -e" would make it exit here
-	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
-	rm -rf /tmp/secret
-	mkdir -p /tmp/secret
-
-	# ensure /tmp/config exists for recovery scripts that depend on it
-	touch /tmp/config
-
-	if [ "$CONFIG_TPM" = "y" ]; then
-		tpmr extend -ix 4 -ic recovery
-	fi
-
-	while [ true ]
-	do
-		echo >&2 "!!!!! Starting recovery shell"
-		sleep 1
-
-		if [ -x /bin/setsid ]; then
-			/bin/setsid -c /bin/sh
-		else
-			/bin/sh
-		fi
-	done
-}
-
-pause_recovery() {
-	TRACE "Under /etc/functions:pause_recovery"
-	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
-	recovery $*
-}
-
 pcrs() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		tpm2 pcrread sha256
@@ -344,10 +306,6 @@ replace_config() {
 	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
   sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
 	rm -f ${CONFIG_FILE}.tmp
-}
-combine_configs() {
-	TRACE "Under /etc/functions:combine_configs"
-	cat /etc/config* > /tmp/config
 }
 
 update_checksums()
