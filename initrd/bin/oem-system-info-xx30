@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # System Info
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 

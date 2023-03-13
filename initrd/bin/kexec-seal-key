@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This will generate a disk encryption key and seal / ecncrypt
 # with the current PCRs and then store it in the TPM NVRAM.
 # It will then need to be bundled into initrd that is booted.
@@ -13,6 +13,8 @@ RECOVERY_KEY="/tmp/secret/recovery.key"
 
 . /etc/functions
 . /tmp/config
+
+TRACE "Under kexec-seal-key"
 
 paramsdir=$1
 if [ -z "$paramsdir" ]; then
@@ -36,8 +38,10 @@ if [ -r "$KEY_LVM" ]; then
 		|| die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
-# Key slot 0 is the manual recovery pass phrase
-# that they user entered when they installed Qubes,
+DEBUG "$(pcrs)"
+
+# LUKS Key slot 0 is the manual recovery pass phrase
+# that they user entered when they installed OS,
 # key slot 1 is the one that we've generated.
 read -s -p "Enter disk recovery key: " disk_password
 echo -n "$disk_password" > "$RECOVERY_KEY"
@@ -83,73 +87,37 @@ done
 # since it should still be zero
 cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
 	|| die "Unable to measure the LUKS headers"
-luks_pcr=`tpm calcfuturepcr -ix 16 -if /tmp/luksDump.txt`
 
-# HOTP USB Secrity Dongle loads USB modules which changes PCR5.
-# In the event HOTP USB Security Dongle is enabled, skip verification of PCR5
-if [ -x /bin/hotp_verification ]; then
-  pcr_5="X"
+pcrf="/tmp/secret/pcrf.bin"
+tpmr pcrread 0 "$pcrf"
+tpmr pcrread -a 1 "$pcrf"
+tpmr pcrread -a 2 "$pcrf"
+tpmr pcrread -a 3 "$pcrf"
+# Note that PCR 4 needs to be set with the "normal-boot" path value, which is 0.
+dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 status=none >> "$pcrf"
+if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+	DEBUG "Sealing TPM disk unlock key with PCR5 involvement (additional kernel modules are loaded per board config)..."
+	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
+	tpmr pcrread -a 5 "$pcrf"
 else
-  pcr_5="0000000000000000000000000000000000000000"
+	DEBUG "Sealing TPM disk unlock key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
+	#no kernel modules are expected to be measured+loaded
+	dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 status=none >> "$pcrf"
 fi
+# Precompute the value for pcr 6
+DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of TPM disk unlock key..."
+tpmr calcfuturepcr -a "/tmp/luksDump.txt" "$pcrf"
+# We take into consideration user files in cbfs
+tpmr pcrread -a 7 "$pcrf"
 
-# Note that PCR 4 needs to be set with the "normal-boot"
-# path value, which we do not have right now since we are
-# in a recovery shell.
-# used to be -ix 4 f8fa3b6e32e7c6fe04c366e74636e505b28f3b0d \
-# now just all zeros in a normal boot
-# PCR 5 must be all zero since no kernel modules should have
-# been loaded during a normal boot, but might have been
-# loaded in the recovery shell.
-# Otherwise use the current values of the PCRs, which will be read
-# from the TPM as part of the sealing ("X").
-tpm sealfile2 \
-	-if "$KEY_FILE" \
-	-of "$TPM_SEALED" \
-	-pwdd "$key_password" \
-	-hk 40000000 \
-	-ix 0 X \
-	-ix 1 X \
-	-ix 2 X \
-	-ix 3 X \
-	-ix 4 0000000000000000000000000000000000000000 \
-	-ix 5 $pcr_5 \
-	-ix 6 $luks_pcr \
-	-ix 7 X \
-|| die "Unable to seal secret"
+DO_WITH_DEBUG --mask-position 7 \
+	tpmr seal "$KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
+	"$TPM_SIZE" "$key_password"
 
+# should be okay if this fails
+shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
 shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
-|| die "Failed to delete key file"
+|| warn "Failed to delete key file - continuing"
 
-# try it without the owner password first
-if ! tpm nv_writevalue \
-	-in $TPM_INDEX \
-	-if "$TPM_SEALED" \
-; then
-	# to create an nvram space we need the TPM owner password
-	# and the TPM physical presence must be asserted.
-	#
-	# The permissions are 0 since there is nothing special
-	# about the sealed file
-	tpm physicalpresence -s \
-	|| warn "Warning: Unable to assert physical presence"
-
-	read -s -p "TPM Owner password: " tpm_password
-	echo
-
-	tpm nv_definespace \
-		-in $TPM_INDEX \
-		-sz $TPM_SIZE \
-		-pwdo "$tpm_password" \
-		-per 0 \
-	|| warn "Warning: Unable to define NVRAM space; trying anyway"
-
-
-	tpm nv_writevalue \
-		-in $TPM_INDEX \
-		-if "$TPM_SEALED" \
-	|| die "Unable to write sealed secret to NVRAM"
-fi
-
-shred -n 10 -z -u "$TPM_SEALED" 2> /dev/null \
-|| warn "Failed to delete the sealed secret - continuing"
+cp /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" \
+|| warn "Failed to have hashes of LUKS header - continuing"

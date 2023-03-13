@@ -1,0 +1,633 @@
+#!/bin/bash
+# TPM Wrapper - to unify tpm and tpm2 subcommands
+
+. /etc/functions
+
+SECRET_DIR="/tmp/secret"
+PRIMARY_HANDLE="0x81000000"
+ENC_SESSION_FILE="enc.ctx"
+DEC_SESSION_FILE="dec.ctx"
+PRIMARY_HANDLE_FILE="primary.handle"
+
+# PCR size in bytes.  Set when we determine what TPM version is in use.
+# TPM1 PCRs are always 20 bytes.  TPM2 is allowed to provide multiple PCR banks
+# with different algorithms - we always use SHA-256, so they are 32 bytes.
+PCR_SIZE=
+
+# Export CONFIG_TPM2_CAPTURE_PCAP=y from your board config to capture tpm2 pcaps to
+# /tmp/tpm0.pcap; Wireshark can inspect these.  (This must be enabled at build
+# time so the pcap TCTI driver is included.)
+if [ -n "$CONFIG_TPM2_CAPTURE_PCAP" ]; then
+	export TPM2TOOLS_TCTI="pcap:device:/dev/tpmrm0"
+	export TCTI_PCAP_FILE="/tmp/tpm0.pcap"
+fi
+
+set -e -o pipefail
+if [ -r "/tmp/config" ]; then
+	. /tmp/config
+else
+	. /etc/config
+fi
+
+TRACE "Under /bin/tpmr"
+
+# Busybox xxd lacks -r, and we get hex dumps from TPM1 commands.  This converts
+# a hex dump to binary data using sed and printf
+hex2bin() {
+	sed 's/\([0-9A-F]\{2\}\)/\\\\\\x\1/gI' | xargs printf
+}
+
+# Render a password as 'hex:<hexdump>' for use with tpm2-tools.  Passwords
+# should always be passed this way to avoid ambiguity.  (Passing with no prefix
+# would choke if the password happened to start with 'file:' or 'hex:'.  Passing
+# as a file still chokes if the password begins with 'hex:', oddly tpm2-tools
+# accepts 'hex:' in the file content.)
+tpm2_password_hex() {
+	echo "hex:$(echo -n "$1" | xxd -p | tr -d ' \n')"
+}
+
+# usage: tpmr pcrread [-a] <index> <file>
+# Reads PCR binary data and writes to file.
+# -a: Append to file.  Default is to overwrite.
+tpm2_pcrread() {
+	TRACE "Under /bin/tpmr:tpm2_pcrread"
+	if [ "$1" = "-a" ]; then
+		APPEND=y
+		shift
+	fi
+
+	index="$1"
+	file="$2"
+
+	if [ -z "$APPEND" ]; then
+		# Don't append - truncate file now so real command always
+		# appends
+		true >"$file"
+	fi
+
+	DO_WITH_DEBUG tpm2 pcrread -Q -o >(cat >>"$file") "sha256:$index"
+}
+tpm1_pcrread() {
+	TRACE "Under /bin/tpmr:tpm1_pcrread"
+	if [ "$1" = "-a" ]; then
+		APPEND=y
+		shift
+	fi
+
+	index="$1"
+	file="$2"
+
+	if [ -z "$APPEND" ]; then
+		# Don't append - truncate file now so real command always
+		# appends
+		true >"$file"
+	fi
+
+	DO_WITH_DEBUG tpm pcrread -ix "$index" | hex2bin >>"$file"
+}
+
+# usage: tpmr calcfuturepcr [-a] <input_file> <output_file>
+# Uses the scratch PCR to calculate a future PCR value (TPM2 23, TPM1 16). The
+# data in input file are hashed into a PCR, and the PCR value is placed in
+# output_file.
+# -a: Append to output_file.  Default is to overwrite
+tpm2_calcfuturepcr() {
+	TRACE "Under /bin/tpmr:tpm2_calcfuturepcr"
+	if [ "$1" = "-a" ]; then
+		APPEND=y
+		shift
+	fi
+
+	input_file="$1"
+	output_file="$2"
+
+	if [ -z "$APPEND" ]; then
+		true >"$output_file"
+	fi
+
+	tpm2 pcrreset -Q 23
+	DO_WITH_DEBUG tpmr extend -ix 23 -if "$input_file"
+	DO_WITH_DEBUG tpm2 pcrread -Q -o >(cat >>"$output_file") sha256:23
+	tpm2 pcrreset -Q 23
+}
+tpm1_calcfuturepcr() {
+	TRACE "Under /bin/tpmr:tpm1_calcfuturepcr"
+	if [ "$1" = "-a" ]; then
+		APPEND=y
+		shift
+	fi
+
+	input_file="$1"
+	output_file="$2"
+
+	if [ -z "$APPEND" ]; then
+		true >"$output_file"
+	fi
+
+	DO_WITH_DEBUG tpm calcfuturepcr -ix 16 -if "$input_file" | hex2bin >>"$output_file"
+}
+
+tpm2_extend() {
+	TRACE "Under /bin/tpmr:tpm2_extend"
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			-ic)
+				hash="$(echo -n "$2"|sha256sum|cut -d' ' -f1)"
+				shift 2;;
+			-if)
+				hash="$(sha256sum "$2"|cut -d' ' -f1)"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	tpm2 pcrextend "$index:sha256=$hash"
+	DO_WITH_DEBUG tpm2 pcrread "sha256:$index"
+}
+
+tpm2_counter_read() {
+	TRACE "Under /bin/tpmr:tpm2_counter_read"
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	echo "$index: `tpm2 nvread 0x$index | xxd -pc8`"
+}
+
+tpm2_counter_inc() {
+	TRACE "Under /bin/tpmr:tpm2_counter_inc"
+	while true; do
+		case "$1" in
+			-ix)
+				index="$2"
+				shift 2;;
+			-pwdc)
+				pwd="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	tpm2 nvincrement "0x$index" > /dev/console
+	echo "$index: `tpm2 nvread 0x$index | xxd -pc8`"
+}
+
+tpm2_counter_cre() {
+	TRACE "Under /bin/tpmr:tpm2_counter_cre"
+	while true; do
+		case "$1" in
+			-pwdo)
+				pwdo="$2"
+				shift 2;;
+			-pwdof)
+				pwdo="file:$2"
+				shift 2;;
+			-pwdc)
+				pwd="$2"
+				shift 2;;
+			-la)
+				label="$2"
+				shift 2;;
+			*)
+				break;;
+		esac
+	done
+	rand_index="1`dd if=/dev/urandom bs=1 count=3 | xxd -pc3`"
+	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
+		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" > /dev/console
+	echo "$rand_index: (valid after an increment)"
+}
+
+tpm2_startsession() {
+	TRACE "Under /bin/tpmr:tpm2_startsession"
+	mkdir -p "$SECRET_DIR"
+	tpm2 flushcontext -Q \
+		--transient-object \
+		|| die "tpm2_flushcontext: unable to flush transient handles"
+
+	tpm2 flushcontext -Q \
+		--loaded-session \
+		|| die "tpm2_flushcontext: unable to flush sessions"
+
+	tpm2 flushcontext -Q \
+		--saved-session \
+		|| die "tpm2_flushcontext: unable to flush saved session"
+	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "/tmp/$PRIMARY_HANDLE_FILE"
+	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$ENC_SESSION_FILE"
+	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$DEC_SESSION_FILE"
+	tpm2 sessionconfig -Q --disable-encrypt "/tmp/$DEC_SESSION_FILE"
+}
+
+# Use cleanup_session() with at_exit to release a TPM2 session and delete the
+# session file.  E.g.:
+#   at_exit cleanup_session "$SESSION_FILE"
+cleanup_session() {
+	TRACE "Under /bin/tpmr:cleanup_session"
+	session_file="$1"
+	if [ -f "$session_file" ]; then
+		DEBUG "Clean up session: $session_file"
+		# Nothing else we can do if this fails, still remove the file
+		tpm2 flushcontext -Q "$session_file" || DEBUG "Flush failed for session $session_file"
+		rm -f "$session_file"
+	else
+		DEBUG "No need to clean up session: $session_file"
+	fi
+}
+
+# Clean up a file by shredding it.  No-op if the file wasn't created.  Use with
+# at_exit, e.g.:
+#   at_exit cleanup_shred "$FILE"
+cleanup_shred() {
+	TRACE "Under /bin/tpmr:cleanup_shred"
+	shred -n 10 -z -u "$1" 2>/dev/null || true
+}
+
+# tpm2_seal: Seal a file against PCR values and, optionally, a password.
+# If a password is given, both the PCRs and password are required to unseal the
+# file.  PCRs are provided as a PCR list and data file.  PCR data must be
+# provided - TPM2 allows the TPM to fall back to current PCR values, but it is
+# not required to support this.
+tpm2_seal() {
+	TRACE "Under /bin/tpmr:tpm2_seal"
+	file="$1" #$KEY_FILE
+	index="$2"
+	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
+	pcrf="$4"
+	sealed_size="$5"	# Not used for TPM2
+	pass="$6"	# May be empty to seal with no password
+	tpm_password="$7"	# Owner password - will prompt if needed and not empty
+	# Owner password is always needed for TPM2.
+
+	mkdir -p "$SECRET_DIR"
+	bname="`basename $file`"
+
+	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
+	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
+
+	DEBUG "tpm2_seal: file=$file handle=$handle pcrl=$pcrl pcrf=$pcrf pass=$(mask_param "$pass")"
+
+	# Create a policy requiring both PCRs and the object's authentication
+	# value using a trial session.
+	TRIAL_SESSION=/tmp/sealfile_trial.session
+	AUTH_POLICY=/tmp/sealfile_auth.policy
+	rm -f "$TRIAL_SESSION" "$AUTH_POLICY"
+	tpm2 startauthsession -g sha256 -S "$TRIAL_SESSION"
+	# We have to clean up the session
+	at_exit cleanup_session "$TRIAL_SESSION"
+	# Save the policy hash in case the password policy is not used (we have
+	# to get this from the last step, whichever it is).
+	tpm2 policypcr -Q -l "sha256:$pcrl" -f "$pcrf" -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
+	CREATE_PASS_ARGS=()
+	if [ "$pass" ]; then
+		# Add an object authorization policy (the object authorization
+		# will be the password).  Save the digest, this is the resulting
+		# policy.
+		tpm2 policypassword -Q -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
+		# Pass the password to create later.  Pass the sha256sum of the
+		# password to the TPM so the password is not limited to 32 chars
+		# in length.
+		CREATE_PASS_ARGS=(-p "$(tpm2_password_hex "$pass")")
+	fi
+
+	# Create the object with this policy and the auth value.
+	# NOTE: We disable USERWITHAUTH and enable ADMINWITHPOLICY so the
+	# password cannot be used on its own, the PCRs are also required.
+	# (The default is to allow either policy auth _or_ password auth.  In
+	# this case the policy includes the password, and we don't want to allow
+	# the password on its own.)
+	tpm2 create -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+		-i "$file" \
+		-u "$SECRET_DIR/$bname.priv" \
+		-r "$SECRET_DIR/$bname.pub" \
+		-L "$AUTH_POLICY" \
+		-S "/tmp/$DEC_SESSION_FILE" \
+		-a "fixedtpm|fixedparent|adminwithpolicy" \
+		"${CREATE_PASS_ARGS[@]}"
+
+	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
+		-c "$SECRET_DIR/$bname.seal.ctx"
+	prompt_tpm_password
+	# remove possible data occupying this handle
+	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
+		-c "$handle" 2>/dev/null || true
+	DO_WITH_DEBUG --mask-position 6 \
+		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
+		-c "$SECRET_DIR/$bname.seal.ctx" "$handle"
+}
+tpm1_seal() {
+	TRACE "Under /bin/tpmr:tpm1_seal"
+	file="$1"
+	index="$2"
+	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
+	pcrf="$4"
+	sealed_size="$5"
+	pass="$6"	# May be empty to seal with no password
+	tpm_password="$7"	# Owner password - will prompt if needed and not empty
+
+	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
+	at_exit cleanup_shred "$sealed_file"
+
+	POLICY_ARGS=()
+
+	# If a password was given, add it to the policy arguments
+	if [ "$pass" ]; then
+		POLICY_ARGS+=(-pwdd "$pass")
+	fi
+
+	# Transform the PCR list and PCR file to discrete arguments
+	IFS=',' read -r -a PCR_LIST <<<"$pcrl"
+	pcr_file_index=0
+	for pcr in "${PCR_LIST[@]}"; do
+		# Read each PCR_SIZE block from the file and pass as hex
+		POLICY_ARGS+=(-ix "$pcr"
+			"$(dd if="$pcrf" skip="$pcr_file_index" bs="$PCR_SIZE" count=1 status=none | xxd -p | tr -d ' ')"
+			)
+		pcr_file_index=$((pcr_file_index+1))
+	done
+
+	tpm sealfile2 \
+		-if "$file" \
+		-of "$sealed_file" \
+		-hk 40000000 \
+		"${POLICY_ARGS[@]}"
+
+	# try it without the owner password first
+	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
+		# to create an nvram space we need the TPM owner password
+		# and the TPM physical presence must be asserted.
+		#
+		# The permissions are 0 since there is nothing special
+		# about the sealed file
+		tpm physicalpresence -s \
+			|| warn "Warning: Unable to assert physical presence"
+
+		prompt_tpm_password
+
+		tpm nv_definespace -in "$index" -sz "$sealed_size" \
+			-pwdo "$tpm_password" -per 0 \
+			|| warn "Warning: Unable to define NVRAM space; trying anyway"
+
+
+		tpm nv_writevalue -in "$index" -if "$sealed_file" \
+			|| die "Unable to write sealed secret to NVRAM"
+	fi
+}
+
+# Unseal a file sealed by tpm2_seal.  The PCR list must be provided, the
+# password must be provided if one was used to seal (and cannot be provided if
+# no password was used to seal).
+tpm2_unseal() {
+	TRACE "Under /bin/tpmr:tpm2_unseal"
+	index="$1"
+	pcrl="$2" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
+	sealed_size="$3"
+	file="$4"
+	pass="$5"
+
+	# TPM2 doesn't care about sealed_size, only TPM1 needs that.  We don't
+	# have to separately read the sealed file on TPM2.
+
+	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
+	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
+
+	DEBUG "tpm2_unseal: handle=$handle pcrl=$pcrl file=$file pass=$(mask_param "$pass")"
+
+	# If we don't have the primary handle (TPM hasn't been reset), tpm2 will
+	# print nonsense error messages about an unexpected handle value.  We
+	# can't do anything without a primary handle.
+	if [ ! -f "/tmp/$PRIMARY_HANDLE_FILE" ]; then
+		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
+		exit 1
+	fi
+
+	POLICY_SESSION=/tmp/unsealfile_policy.session
+	rm -f "$POLICY_SESSION"
+	tpm2 startauthsession -Q -g sha256 -S "$POLICY_SESSION" --policy-session
+	at_exit cleanup_session "$POLICY_SESSION"
+	# Check the PCR policy
+	tpm2 policypcr -Q -l "sha256:$pcrl" -S "$POLICY_SESSION"
+	UNSEAL_PASS_SUFFIX=""
+
+	if [ "$pass" ]; then
+		# Add the object authorization policy (the actual password is
+		# provided later, but we must include this so the policy we
+		# attempt to use is correct).
+		tpm2 policypassword -Q -S "$POLICY_SESSION"
+		# When unsealing, include the password with the auth session
+		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
+	fi
+
+	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
+		-S "/tmp/$ENC_SESSION_FILE" > "$file"
+}
+tpm1_unseal() {
+	TRACE "Under /bin/tpmr:tpm1_unseal"
+	index="$1"
+	pcrl="$2"
+	sealed_size="$3"
+	file="$4"
+	pass="$5"
+
+	# pcrl (the PCR list) is unused in TPM1.  The TPM itself knows which
+	# PCRs were used to seal and checks them.  We can't verify that it's
+	# correct either, so just ignore it in TPM1.
+
+	sealed_file="$SECRET_DIR/tpm1_unseal_sealed.bin"
+	at_exit cleanup_shred "$sealed_file"
+
+	rm -f "$sealed_file"
+
+	tpm nv_readvalue \
+		-in "$index" \
+		-sz "$sealed_size" \
+		-of "$sealed_file" \
+		|| die "Unable to read sealed file from TPM NVRAM"
+
+	PASS_ARGS=()
+	if [ "$pass" ]; then
+		PASS_ARGS=(-pwdd "$pass")
+	fi
+
+	tpm unsealfile \
+		-if "$sealed_file" \
+		-of "$file" \
+		"${PASS_ARGS[@]}" \
+		-hk 40000000
+}
+
+tpm2_reset() {
+	TRACE "Under /bin/tpmr:tpm2_reset"
+	key_password="$1"
+	mkdir -p "$SECRET_DIR"
+	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
+	tpm2 changeauth -c owner "$(tpm2_password_hex "$key_password")"
+	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$key_password")"
+	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
+		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$key_password")"
+	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
+		-P "$(tpm2_password_hex "$key_password")"
+	shred -u "$SECRET_DIR/primary.ctx"
+	tpm2_startsession
+
+	# Set the dictionary attack parameters.  TPM2 defaults vary widely, we
+	# want consistent behavior on any TPM.
+	# * --max-tries=10: Allow 10 failures before lockout.  This allows the
+	#   user to quickly "burst" 10 failures without significantly impacting
+	#   the rate allowed for a dictionary attacker.
+	#   Most TPM2 flows ask for the owner password 2-4 times, so this allows
+	#   a handful of mistypes and some headroom for an expected unseal
+	#   failure if firmware is updated.
+	#   Remember that an auth failure is also counted any time an unclean
+	#   shutdown occurs (see TPM2 spec part 1, section 19.8.6, "Non-orderly
+	#   Shutdown").
+	# * --recovery-time=3600: Forget an auth failure every 1 hour.
+	# * --lockout-recovery-time: After a failed lockout recovery auth, the
+	#   TPM must be reset to try again.
+	#
+	# Heads does not offer a way to reset dictionary attack lockout, instead
+	# the TPM can be reset and new secrets sealed.
+	tpm2 dictionarylockout -Q --setup-parameters \
+		--max-tries=10 \
+		--recovery-time=3600 \
+		--lockout-recovery-time=0 \
+		--auth="session:/tmp/$ENC_SESSION_FILE"
+
+	# Set a random DA lockout password, so the DA lockout can't be cleared
+	# with a password.  Heads doesn't offer dictionary attach reset, instead
+	# the TPM can be reset and new secrets sealed.
+	#
+	# The default lockout password is empty, so we must set this, and we
+	# don't need to provide any auth (use the default empty password).
+	tpm2 changeauth -Q -c lockout \
+		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none | xxd -p | tr -d ' \n')"
+}
+tpm1_reset() {
+	TRACE "Under /bin/tpmr:tpm1_reset"
+	key_password="$1"
+
+	# Make sure the TPM is ready to be reset
+	tpm physicalpresence -s
+	tpm physicalenable
+	tpm physicalsetdeactivated -c
+	tpm forceclear
+	tpm physicalenable
+	tpm takeown -pwdo "$key_password"
+
+	# And now turn it all back on
+	tpm physicalpresence -s
+	tpm physicalenable
+	tpm physicalsetdeactivated -c
+}
+
+# Perform final cleanup before boot and lock the platform heirarchy.
+tpm2_kexec_finalize() {
+	TRACE "Under /bin/tpmr:tpm2_kexec_finalize"
+
+	# Flush sessions and transient objects
+	tpm2 flushcontext -Q --transient-object \
+		|| warn "tpm2_flushcontext: unable to flush transient handles"
+	tpm2 flushcontext -Q --loaded-session \
+		|| warn "tpm2_flushcontext: unable to flush sessions"
+	tpm2 flushcontext -Q --saved-session \
+		|| warn "tpm2_flushcontext: unable to flush saved session"
+
+	# Add a random passphrase to platform hierarchy to prevent TPM2 from
+	# being cleared in the OS.
+	# This passphrase is only effective before the next boot.
+	echo "Locking TPM2 platform hierarchy..."
+	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none | xxd -p)
+	tpm2 changeauth -c platform "$randpass" \
+		|| warn "Failed to lock platform hierarchy of TPM2!"
+}
+
+tpm2_shutdown() {
+	TRACE "Under /bin/tpmr:tpm2_shutdown"
+
+	# Prepare for shutdown.
+	# This is a "clear" shutdown (do not preserve runtime state) since we
+	# are not going to resume later, we are powering off (or rebooting).
+	tpm2 shutdown -Q --clear
+}
+
+if [ "$CONFIG_TPM" != "y" ]; then
+	echo >&2 "No TPM!"
+	exit 1
+fi
+
+# TPM1 - most commands forward directly to tpm, but some are still wrapped for
+# consistency with tpm2.
+if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+	PCR_SIZE=20	# TPM1 PCRs are always SHA-1
+	subcmd="$1"
+	# Don't shift yet, for most commands we will just forward to tpm.
+	case "$subcmd" in
+		pcrread)
+			shift; tpm1_pcrread "$@";;
+		pcrsize)
+			echo "$PCR_SIZE";;
+		calcfuturepcr)
+			shift; tpm1_calcfuturepcr "$@";;
+		seal)
+			shift; tpm1_seal "$@";;
+		startsession)
+			;;	# Nothing on TPM1.
+		unseal)
+			shift; tpm1_unseal "$@";;
+		reset)
+			shift; tpm1_reset "$@";;
+		kexec_finalize)
+			;;	# Nothing on TPM1.
+		shutdown)
+			;;	# Nothing on TPM1.
+		*)
+			DEBUG "Direct translation from tpmr to tpm1 call"
+			DO_WITH_DEBUG exec tpm "$@"
+			;;
+	esac
+	exit 0
+fi
+
+# TPM2 - all commands implemented as wrappers around tpm2
+PCR_SIZE=32	# We use the SHA-256 PCRs
+subcmd="$1"
+shift 1
+case "$subcmd" in
+	pcrread)
+		tpm2_pcrread "$@";;
+	pcrsize)
+		echo "$PCR_SIZE";;
+	calcfuturepcr)
+		tpm2_calcfuturepcr "$@";;
+	extend)
+		tpm2_extend "$@";;
+	counter_read)
+		tpm2_counter_read "$@";;
+	counter_increment)
+		tpm2_counter_inc "$@";;
+	counter_create)
+		tpm2_counter_cre "$@";;
+	seal)
+		tpm2_seal "$@";;
+	startsession)
+		tpm2_startsession "$@";;
+	unseal)
+		tpm2_unseal "$@";;
+	reset)
+		tpm2_reset "$@";;
+	kexec_finalize)
+		tpm2_kexec_finalize "$@";;
+	shutdown)
+		tpm2_shutdown "$@";;
+	*)
+		echo "Command $subcmd not wrapped!"
+		exit 1
+esac

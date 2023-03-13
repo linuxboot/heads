@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 set -e -o pipefail
 . /etc/functions
 
@@ -19,7 +19,7 @@ if [ -n "GUID" ]; then
 	|| die "Failed to read config GUID from ROM"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
+		tpmr extend -ix "$CONFIG_PCR" -if $TMPFILE \
 		|| die "$filename: tpm extend failed"
 	fi
 

@@ -1,0 +1,33 @@
+diff --git a/Makefile.am b/Makefile.am
+index 7132215..32e2193 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -93,7 +93,7 @@ tss2_tools = \
+ 
+ # Bundle all the tools into a single program similar to busybox
+ bin_PROGRAMS += tools/tpm2
+-tools_tpm2_LDADD = $(LDADD) $(CURL_LIBS)
++tools_tpm2_LDADD = $(LDADD)
+ tools_tpm2_CFLAGS = $(AM_CFLAGS) -DTPM2_TOOLS_MAX="$(words $(tpm2_tools))"
+ tools_tpm2_SOURCES = \
+ 	tools/tpm2_tool.c \
+@@ -127,7 +127,6 @@ tpm2_tools = \
+     tools/tpm2_encryptdecrypt.c \
+     tools/tpm2_evictcontrol.c \
+     tools/tpm2_flushcontext.c \
+-    tools/tpm2_getekcertificate.c \
+     tools/tpm2_getrandom.c \
+     tools/tpm2_gettime.c \
+     tools/tpm2_hash.c \
+diff --git a/configure.ac b/configure.ac
+index f1c1711..7279baa 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -59,7 +59,6 @@ PKG_CHECK_MODULES([TSS2_MU], [tss2-mu])
+ PKG_CHECK_MODULES([TSS2_RC], [tss2-rc])
+ PKG_CHECK_MODULES([TSS2_SYS], [tss2-sys])
+ PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 1.1.0])
+-PKG_CHECK_MODULES([CURL], [libcurl])
+ 
+ # pretty print of devicepath if efivar library is present
+ PKG_CHECK_MODULES([EFIVAR], [efivar],,[true])

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Measure all of the luks disk encryption headers into
 # a PCR so that we can detect disk swap attacks.
 . /etc/functions
@@ -17,5 +17,5 @@ done
 sha256sum /tmp/lukshdr-* > /tmp/luksDump.txt || die "Unable to hash luks headers"
 rm /tmp/lukshdr-*
 
-tpm extend -ix 6 -if /tmp/luksDump.txt \
+tpmr extend -ix 6 -if /tmp/luksDump.txt \
 || die "Unable to extend PCR"
