@@ -221,6 +221,27 @@ prompt_tpm_password() {
 	echo # new line after password prompt
 }
 
+# Prompt for a new owner password when resetting the TPM.  Returned in
+# key_password.  The password must be 1-32 characters and must be entered twice,
+# the script will loop until this is met.
+prompt_new_owner_password() {
+	local key_password2
+	key_password=1
+	key_password2=2
+	while [ "$key_password" != "$key_password2" ] || [ "${#key_password}" -gt 32 ] || [ -z "$key_password" ]; do
+		read -s -p "New TPM owner passphrase (2 words suggested, 1-32 characters max): " key_password
+		echo
+
+		read -s -p "Repeat chosen TPM owner passphrase: " key_password2
+		echo
+
+		if [ "$key_password" != "$key_password2" ]; then
+			echo "Passphrases entered do not match. Try again!"
+			echo
+		fi
+	done
+}
+
 check_tpm_counter()
 {
   TRACE "Under /etc/functions:check_tpm_counter"
