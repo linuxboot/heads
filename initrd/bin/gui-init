@@ -510,24 +510,6 @@ prompt_totp_mismatch()
   fi
 }
 
-prompt_new_owner_password() {
-  read -s -p "New TPM owner password: " key_password
-  echo
-
-  if [ -z "$key_password" ]; then
-    echo "Empty owner password is not allowed" >&2
-    return 1
-  fi
-
-  read -s -p "Repeat owner password: " key_password2
-  echo
-
-  if [ "$key_password" != "$key_password2" ]; then
-    echo "Key passwords do not match" >&2
-    return 1
-  fi
-}
-
 reset_tpm()
 {
   TRACE "Under /bin/gui-init:reset_tpm"
