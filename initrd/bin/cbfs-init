@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 set -e -o pipefail
 . /etc/functions
 
@@ -24,7 +24,7 @@ for cbfsname in `echo $cbfsfiles`; do
 			TMPFILE=/tmp/cbfs.$$
 			echo "$filename" > $TMPFILE
 			cat $filename >> $TMPFILE
-			tpm extend -ix "$CONFIG_PCR" -if $TMPFILE \
+			tpmr extend -ix "$CONFIG_PCR" -if $TMPFILE \
 			|| die "$filename: tpm extend failed"
 		fi
 	fi

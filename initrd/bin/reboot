@@ -1,7 +1,12 @@
-#!/bin/sh
-. /etc/functions
+#!/bin/ash
+. /etc/ash_functions
 
 TRACE "Under /bin/reboot"
+
+# Shut down TPM
+if [ "$CONFIG_TPM" = "y" ]; then
+	tpmr shutdown
+fi
 
 # Sync all mounted filesystems
 echo s > /proc/sysrq-trigger

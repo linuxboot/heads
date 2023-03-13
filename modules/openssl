@@ -1,0 +1,64 @@
+# OpenSSL library
+modules-$(CONFIG_OPENSSL) += openssl
+
+openssl_version := 3.0.8
+openssl_dir := openssl-$(openssl_version)
+openssl_tar := openssl-$(openssl_version).tar.gz
+openssl_url := https://www.openssl.org/source/$(openssl_tar)
+openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
+
+# hack to provide path to libgcc
+LIBGCC_DIR := $(dir $(shell $(heads_cc) -print-libgcc-file-name))
+
+# The only optional algorithm that's enabled is SM3.  tpm2-tss uses SHA, AES,
+# and SM3.
+openssl_configure := \
+	$(CROSS_TOOLS) \
+	CFLAGS="-Os" \
+	LDFLAGS="-L$(LIBGCC_DIR)" \
+	./Configure \
+		--prefix="/" \
+		no-tests \
+		linux-$(strip $(arch)) \
+		no-aria \
+		no-bf \
+		no-blake2 \
+		no-camellia \
+		no-cast \
+		no-chacha \
+		no-cmac \
+		no-des \
+		no-dh \
+		no-dsa \
+		no-ecdh \
+		no-ecdsa \
+		no-idea \
+		no-md4 \
+		no-mdc2 \
+		no-ocb \
+		no-poly1305 \
+		no-rc2 \
+		no-rc4 \
+		no-rmd160 \
+		no-scrypt \
+		no-seed \
+		no-siphash \
+		no-siv \
+		no-sm2 \
+		no-sm4 \
+		no-whirlpool \
+
+openssl_target := $(MAKE_JOBS) \
+	build_programs \
+	&& \
+	$(MAKE) \
+		-C "$(build)/$(openssl_dir)" \
+		DESTDIR="$(INSTALL)" \
+		LIBDIR="lib" \
+		install_sw \
+
+# Only libcrypto is needed currently, libssl is not included in initrd
+openssl_libraries := \
+	libcrypto.so.3 \
+
+openssl_depends := $(musl_dep)
