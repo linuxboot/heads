@@ -578,6 +578,8 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 			shift; tpm1_calcfuturepcr "$@";;
 		seal)
 			shift; tpm1_seal "$@";;
+		startsession)
+			;;	# Nothing on TPM1.
 		unseal)
 			shift; tpm1_unseal "$@";;
 		reset)
