@@ -72,7 +72,7 @@ else
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-""}"
 fi
 
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM" = "y" ]; then
 	# Initialize tpm2 encrypted sessions here
 	tpmr startsession
 fi
