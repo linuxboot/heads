@@ -1,4 +1,7 @@
-#!/bin/ash
+#! /bin/ash
+# Note this is used on legacy-flash boards that lack bash, it runs with busybox
+# ash.  Calls to bash scripts must be guarded by checking config.
+
 mknod /dev/ttyprintk c 5 3
 echo "hello world" > /dev/ttyprintk
 
@@ -16,6 +19,7 @@ mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
 mount /dev 2>/dev/ttyprintk
 mount /proc 2>/dev/ttyprintk
 mount /sys 2>/dev/ttyprintk
+
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	mount /sys/firmware/efi/efivars
 fi
@@ -27,6 +31,12 @@ mount /dev/pts 2>/dev/ttyprintk
 if [ ! -r /dev/ptmx ]; then
 	ln -s /dev/pts/ptmx /dev/ptmx
 fi
+
+# Needed by bash
+[ -e /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
+[ -e /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
+[ -e /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
+[ -e /dev/fd ] || ln -s /proc/self/fd /dev/fd
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
@@ -40,16 +50,16 @@ fi
 hwclock -l -s
 
 # Read the system configuration parameters
-. /etc/functions
+. /etc/ash_functions
 . /etc/config
 
 TRACE "Under init"
 
 # set CONFIG_TPM dynamically before init
-if [ -e /dev/tpm0 ]; then
-	CONFIG_TPM='y'
-else
+if [ ! -e /dev/tpm0 ]; then
 	CONFIG_TPM='n'
+	CONFIG_TPM2_TOOLS='n'
+	warn 'No TPM found...'
 fi
 
 #Specify whiptail background colors cues under FBWhiptail only
@@ -61,8 +71,13 @@ else
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-""}"
 fi
 
+if [ "$CONFIG_TPM" = "y" ]; then
+	# Initialize tpm2 encrypted sessions here
+	tpmr startsession
+fi
+
 if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
+	[ -x /bin/bash ] && /bin/cbfs-init
 fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
@@ -71,7 +86,7 @@ fi
 # Set GPG_TTY before calling gpg in key-init
 export GPG_TTY=/dev/console
 
-/bin/key-init
+[ -x /bin/bash ] && /bin/key-init
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
@@ -100,17 +115,19 @@ if [ "$boot_option" = "r" ]; then
 	recovery 'User requested recovery shell'
 	# just in case...
 	if [ "$CONFIG_TPM" = "y" ]; then
-		tpm extend -ix 4 -ic recovery
+		tpmr extend -ix 4 -ic recovery
 	fi
-	exec /bin/ash
+	exec /bin/sh
 	exit
 fi
 
-# Override CONFIG_TPM from /etc/config with runtime value determined above.
+# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
+# determined above.
 #
 # Values in user config have higher priority during combining thus effectively
 # changing the value for the rest of the scripts which source /tmp/config.
 echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
+echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
 
 combine_configs
 . /tmp/config
@@ -157,6 +174,6 @@ fi
 
 # belts and suspenders, just in case...
 if [ "$CONFIG_TPM" = "y" ]; then
-	tpm extend -ix 4 -ic recovery
+	tpmr extend -ix 4 -ic recovery
 fi
-exec /bin/ash
+exec /bin/sh

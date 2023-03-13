@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Boot a USB installation
 
 . /etc/functions
@@ -8,7 +8,7 @@ TRACE "Under /bin/usb-init"
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Extend PCR4 as soon as possible
-	tpm extend -ix 4 -ic usb
+	tpmr extend -ix 4 -ic usb
 fi
 
 media-scan usb

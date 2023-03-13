@@ -471,6 +471,13 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: qemu-coreboot-fbwhiptail-tpm2-hotp
+          target: qemu-coreboot-fbwhiptail-tpm2-hotp
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: librem_13v2
           target: librem_13v2
           subcommand: ""

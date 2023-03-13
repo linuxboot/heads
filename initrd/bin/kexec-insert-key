@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Unseal a disk key from TPM and add to a new initramfs
 set -e -o pipefail
 . /etc/functions
@@ -49,7 +49,7 @@ if ! kexec-unseal-key "$INITRD_DIR/secret.key" ; then
 fi
 
 # Override PCR 4 so that user can't read the key
-tpm extend -ix 4 -ic generic \
+tpmr extend -ix 4 -ic generic \
 	|| die 'Unable to scramble PCR'
 
 # Check to continue
@@ -78,8 +78,8 @@ dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
 if [ "$unseal_failed" = "n" ]; then
 	# kexec-save-default might have created crypttab overrides to be injected in initramfs through additional cpio 
 	if [ -r "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
-		echo "$bootdir/kexec_initrd_crypttab_overrides.txt found..."
-		echo "Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
+		echo "+++ $bootdir/kexec_initrd_crypttab_overrides.txt found..."
+		echo "+++ Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
 		# kexec-save-default has found crypttab files under initrd and saved them
 		cat "$bootdir/kexec_initrd_crypttab_overrides.txt" | while read line; do
 			crypttab_file=$(echo "$line" | awk -F ':' {'print $1'})
@@ -87,14 +87,14 @@ if [ "$unseal_failed" = "n" ]; then
 			# Replace each initrd crypttab file with modified entry containing /secret.key path
 			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
 			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" > /dev/null
-			echo "initramfs's $crypttab_file will be overriden with $crypttab_entry"
+			echo "+++ initramfs's $crypttab_file will be overriden with: $crypttab_entry"
 		done
 	else
 		# No crypttab files were found under selected default boot option's initrd file
 		crypttab_file="etc/crypttab"
 		mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
 		# overwrite crypttab to mirror behavior of seal-key
-		echo "The following /etc/crypttab lines will be passed through cpio into kexec call for default boot option:"
+		echo "+++ The following /etc/crypttab lines will be passed through cpio into kexec call for default boot option:"
 		for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
 			# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
 			echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"

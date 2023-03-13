@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Launches kexec from saved configuration entries
 set -e -o pipefail
 . /tmp/config
@@ -133,6 +133,10 @@ echo "Loading the new kernel:"
 echo "$kexeccmd"
 eval "$kexeccmd" \
 || die "Failed to load the new kernel"
+
+if [ "$CONFIG_TPM" = "y" ]; then
+	tpmr kexec_finalize
+fi
 
 echo "Starting the new kernel"
 exec kexec -e

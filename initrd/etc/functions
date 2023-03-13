@@ -1,71 +1,44 @@
-#!/bin/sh
+#!/bin/bash
 # Shell functions for most initialization scripts
+. /etc/ash_functions
 
-die() {
-	echo >&2 "$*";
-	sleep 2;
-	exit 1;
-}
-
-warn() {
-	echo >&2 "$*";
-	sleep 1;
-}
-
-DEBUG() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo >&2 "DEBUG: $*";
+# Print <hidden> or <empty> depending on whether $1 is empty.  Useful to mask an
+# optional password parameter.
+mask_param() {
+	if [ -z "$1" ]; then
+		echo "<empty>"
+	else
+		echo "<hidden>"
 	fi
 }
 
-TRACE() {
-        if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
-                echo >&2 "TRACE: $*";
-        fi
-}
+# Trace a command with DEBUG, then execute it.
+# A password parameter can be masked by passing --mask-position N before the
+# command to execute, the debug trace will just indicate whether the password
+# was empty or nonempty (which is important when use of a password is optional).
+# N=0 is the name of the command to be executed, N=1 is its first parameter,
+# etc.
+DO_WITH_DEBUG() {
+	if [ "$1" == "--mask-position" ]; then
+		mask_position="$2"
+		shift
+		shift
+		DEBUG_ARGS=("$@")
 
-
-
-recovery() {
-	TRACE "Under /etc/functions:recovery"
-	echo >&2 "!!!!! $*"
-
-	# Remove any temporary secret files that might be hanging around
-	# but recreate the directory so that new tools can use it.
-
-	#safe to always be true. Otherwise "set -e" would make it exit here
-	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
-	rm -rf /tmp/secret
-	mkdir -p /tmp/secret
-
-	# ensure /tmp/config exists for recovery scripts that depend on it
-	touch /tmp/config
-
-	if [ "$CONFIG_TPM" = y ]; then
-		tpm extend -ix 4 -ic recovery
+		DEBUG_ARGS[$mask_position]="$(mask_param "${DEBUG_ARGS[$mask_position]}")"
+		DEBUG "${DEBUG_ARGS[@]}"
+	else
+		DEBUG "$@"
 	fi
-
-	while [ true ]
-	do
-		echo >&2 "!!!!! Starting recovery shell"
-		sleep 1
-
-		if [ -x /bin/setsid ]; then
-			/bin/setsid -c /bin/ash
-		else
-			/bin/ash
-		fi
-	done
-}
-
-pause_recovery() {
-	TRACE "Under /etc/functions:pause_recovery"
-	read -p 'Hit enter to proceed to recovery shell:'
-	recovery $*
+	"$@"
 }
 
 pcrs() {
-	head -8 /sys/class/tpm/tpm0/pcrs
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpm2 pcrread sha256
+	elif [ "$CONFIG_TPM" = "y" ]; then
+		head -8 /sys/class/tpm/tpm0/pcrs
+	fi
 }
 
 confirm_totp()
@@ -81,7 +54,7 @@ confirm_totp()
 		date=`date "+%Y-%m-%d %H:%M:%S"`
 		seconds=`date "+%s"`
 		half=`expr \( $seconds % 60 \) / 30`
-		if [ "$CONFIG_TPM" != y ]; then
+		if [ "$CONFIG_TPM" != "y" ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then
 			last_half=$half;
@@ -236,20 +209,52 @@ confirm_gpg_card()
 	fi
 }
 
+# Prompt for an owner password if it is not already set in tpm_password.  Sets
+# tpm_password.  Tools should optionally accept a TPM password on the command
+# line, since some flows need it multiple times and only one prompt is ideal.
+prompt_tpm_password() {
+	if [ -n "$tpm_password" ]; then
+		return 0;
+	fi
+
+	read -s -p "TPM Owner password: " tpm_password
+	echo # new line after password prompt
+}
+
+# Prompt for a new owner password when resetting the TPM.  Returned in
+# key_password.  The password must be 1-32 characters and must be entered twice,
+# the script will loop until this is met.
+prompt_new_owner_password() {
+	local key_password2
+	key_password=1
+	key_password2=2
+	while [ "$key_password" != "$key_password2" ] || [ "${#key_password}" -gt 32 ] || [ -z "$key_password" ]; do
+		read -s -p "New TPM owner passphrase (2 words suggested, 1-32 characters max): " key_password
+		echo
+
+		read -s -p "Repeat chosen TPM owner passphrase: " key_password2
+		echo
+
+		if [ "$key_password" != "$key_password2" ]; then
+			echo "Passphrases entered do not match. Try again!"
+			echo
+		fi
+	done
+}
 
 check_tpm_counter()
 {
   TRACE "Under /etc/functions:check_tpm_counter"
   LABEL=${2:-3135106223}
+  tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
 		TPM_COUNTER=`grep counter- "$1" | cut -d- -f2`
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		read -s -p "TPM Owner password: " tpm_password
-		echo
-		tpm counter_create \
+		prompt_tpm_password
+		tpmr counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \
 			-la $LABEL \
@@ -266,14 +271,14 @@ check_tpm_counter()
 read_tpm_counter()
 {
 	TRACE "Under /etc/functions:read_tpm_counter"
-	tpm counter_read -ix "$1" | tee "/tmp/counter-$1" \
+	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" \
 	|| die "Counter read failed"
 }
 
 increment_tpm_counter()
 {
 	TRACE "Under /etc/functions:increment_tpm_counter"
-	tpm counter_increment -ix "$1" -pwdc '' \
+	tpmr counter_increment -ix "$1" -pwdc '' \
 		| tee /tmp/counter-$1 \
 	|| die "Counter increment failed"
 }
@@ -307,22 +312,6 @@ check_config() {
 	|| die "Failed to copy kexec boot params to tmp"
 }
 
-preserve_rom() {
-	TRACE "Under /etc/functions:preserve_rom"
-	new_rom="$1"
-	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
-
-	for old_file in `echo $old_files`; do
-		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
-		if [ -z "$new_file" ]; then
-			echo "+++ Adding $old_file to $1"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
-			|| die "Failed to read cbfs file from ROM"
-			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
-			|| die "Failed to write cbfs file to new ROM file"
-		fi
-	done
-}
 replace_config() {
 	TRACE "Under /etc/functions:replace_config"
 	CONFIG_FILE=$1
@@ -339,10 +328,6 @@ replace_config() {
   sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
 	rm -f ${CONFIG_FILE}.tmp
 }
-combine_configs() {
-	TRACE "Under /etc/functions:combine_configs"
-	cat /etc/config* > /tmp/config
-}
 
 update_checksums()
 {
@@ -358,8 +343,10 @@ update_checksums()
 
 	# sign and auto-roll config counter
 	extparam=
-	if [ "$CONFIG_TPM" = "y" ]; then
-		extparam=-r
+	if [ "$CONFIG_TPM" = "y" ];then
+		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			extparam=-r
+		fi
 	fi
 	if ! kexec-sign-config -p /boot -u $extparam ; then
 		rv=1
@@ -568,3 +555,37 @@ generate_random_mac_address()
 	#Borrowed from https://stackoverflow.com/questions/42660218/bash-generate-random-mac-address-unicast
 	hexdump -n 6 -ve '1/1 "%.2x "' /dev/urandom | awk -v a="2,6,a,e" -v r="$RANDOM" 'BEGIN{srand(r);}NR==1{split(a,b,",");r=int(rand()*4+1);printf "%s%s:%s:%s:%s:%s:%s\n",substr($1,0,1),b[r],$2,$3,$4,$5,$6}'
 }
+
+# Add a command to be invoked at exit.  (Note that trap EXIT replaces any
+# existing handler.)  Commands are invoked in reverse order, so they can be used
+# to clean up resources, etc.
+# The parameters are all executed as-is and do _not_ require additional quoting
+# (unlike trap).  E.g.:
+# at_exit shred "$file" #<-- file is expanded when calling at_exit, no extra quoting needed
+at_exit() {
+	AT_EXIT_HANDLERS+=("$@") # Command and args
+	AT_EXIT_HANDLERS+=("$#") # Number of elements in this command
+}
+
+# Array of all exit handler command arguments with lengths of each command at
+# the end.  For example:
+#   at_exit echo hello
+#   at_exit echo a b c
+# results in:
+# AT_EXIT_HANDLERS=(echo hello 2 echo a b c 4)
+
+AT_EXIT_HANDLERS=()
+# Each handler is an array AT_EXIT_HANDLER_{i}
+run_at_exit_handlers() {
+	local cmd_pos cmd_len
+	cmd_pos="${#AT_EXIT_HANDLERS[@]}"
+	# Silence trace if there are no handlers, this is common and occurs a lot
+	[ "$cmd_pos" -gt 0 ] && DEBUG "Running at_exit handlers"
+	while [ "$cmd_pos" -gt 0 ]; do
+		cmd_pos="$((cmd_pos-1))"
+		cmd_len="${AT_EXIT_HANDLERS[$cmd_pos]}"
+		cmd_pos="$((cmd_pos-cmd_len))"
+		"${AT_EXIT_HANDLERS[@]:$cmd_pos:$cmd_len}"
+	done
+}
+trap run_at_exit_handlers EXIT

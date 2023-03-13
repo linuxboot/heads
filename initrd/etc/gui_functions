@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Shell functions for common operations using fbwhiptail
 . /etc/functions
 

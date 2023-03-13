@@ -131,6 +131,10 @@ linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
+ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
+EXTRA_FLAGS += -Wno-cast-function-type
+endif
+
 linux_target := \
 	O="$(build)/$(linux_dir)" \
 	ARCH="$(LINUX_ARCH)" \

@@ -1,9 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 # Retrieve the sealed TOTP secret and initialize a USB Security dongle with it
 
 . /etc/functions
 
-HOTP_SEALED="/tmp/secret/hotp.sealed"
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
 HOTP_KEY="/boot/kexec_hotp_key"
@@ -27,19 +26,11 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-tpm nv_readvalue \
-	-in 4d47 \
-	-sz 312 \
-	-of "$HOTP_SEALED" \
-|| die "Unable to retrieve sealed file from TPM NV"
-
-tpm unsealfile  \
-	-hk 40000000 \
-	-if "$HOTP_SEALED" \
-	-of "$HOTP_SECRET" \
-|| die "Unable to unseal HOTP secret"
-
-shred -n 10 -z -u "$HOTP_SEALED" 2> /dev/null
+if [ "$CONFIG_TPM" = "y" ]; then
+	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
+	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" \
+		|| die "Unable to unseal HOTP secret"
+fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots

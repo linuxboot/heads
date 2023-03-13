@@ -52,6 +52,9 @@ include $(CONFIG)
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
+# Unless otherwise specified, we are building bash to have non-interactive shell for scripts (arrays and bashisms)
+CONFIG_BASH	?= y
+
 # Determine arch part for a host triplet
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 MUSL_ARCH := x86_64
@@ -118,6 +121,8 @@ SHELL := /usr/bin/env bash
 include modules/musl-cross
 
 musl_dep	:= musl-cross
+target		:= $(shell echo $(CROSS) | grep -Eoe '([^/]*?)-linux-musl')
+arch		:= $(subst -linux-musl, , $(target))
 heads_cc	:= $(CROSS)gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
@@ -143,7 +148,9 @@ CROSS_TOOLS := \
 	CC="$(heads_cc)" \
 	$(CROSS_TOOLS_NOCC) \
 
-
+# Targets to build payload only
+.PHONY: payload
+payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 
 ifeq ($(CONFIG_COREBOOT), y)
 
@@ -158,7 +165,7 @@ else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
-all:
+all payload:
 	@sha256sum $< | tee -a "$(HASHES)"
 
 # Disable all built in rules
@@ -462,7 +469,9 @@ bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
 bin_modules-$(CONFIG_MSRTOOLS) += msrtools
 bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
-bin_modules-$(CONFIG_UTIL_LINUX) += util-linux
+bin_modules-$(CONFIG_OPENSSL) += openssl
+bin_modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
+bin_modules-$(CONFIG_BASH) += bash
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \

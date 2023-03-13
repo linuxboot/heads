@@ -1,0 +1,87 @@
+#!/bin/sh
+#
+# Core shell functions that do not require bash.  These functions are used with
+# busybox ash on legacy-flash boards, and with bash on all other boards.
+
+die() {
+	echo >&2 "$*";
+	sleep 2;
+	exit 1;
+}
+
+warn() {
+	echo >&2 "$*";
+	sleep 1;
+}
+
+DEBUG() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+		echo "DEBUG: $*" | tee -a /tmp/debug.log >&2;
+	fi
+}
+
+TRACE() {
+        if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
+                echo "TRACE: $*" | tee -a /tmp/debug.log >&2;
+        fi
+}
+
+preserve_rom() {
+	TRACE "Under /etc/functions:preserve_rom"
+	new_rom="$1"
+	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+
+	for old_file in `echo $old_files`; do
+		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
+		if [ -z "$new_file" ]; then
+			echo "+++ Adding $old_file to $1"
+			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
+			|| die "Failed to read cbfs file from ROM"
+			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
+			|| die "Failed to write cbfs file to new ROM file"
+		fi
+	done
+}
+
+recovery() {
+	TRACE "Under /etc/functions:recovery"
+	echo >&2 "!!!!! $*"
+
+	# Remove any temporary secret files that might be hanging around
+	# but recreate the directory so that new tools can use it.
+
+	#safe to always be true. Otherwise "set -e" would make it exit here
+	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
+	rm -rf /tmp/secret
+	mkdir -p /tmp/secret
+
+	# ensure /tmp/config exists for recovery scripts that depend on it
+	touch /tmp/config
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		tpmr extend -ix 4 -ic recovery
+	fi
+
+	while [ true ]
+	do
+		echo >&2 "!!!!! Starting recovery shell"
+		sleep 1
+
+		if [ -x /bin/setsid ]; then
+			/bin/setsid -c /bin/sh
+		else
+			/bin/sh
+		fi
+	done
+}
+
+pause_recovery() {
+	TRACE "Under /etc/functions:pause_recovery"
+	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	recovery $*
+}
+
+combine_configs() {
+	TRACE "Under /etc/functions:combine_configs"
+	cat /etc/config* > /tmp/config
+}
