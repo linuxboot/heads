@@ -34,10 +34,10 @@ if [ ! -r /dev/ptmx ]; then
 fi
 
 # Needed by bash
-[ -a /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
-[ -a /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
-[ -a /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
-[ -a /dev/fd ] || ln -s /proc/self/fd /dev/fd
+[ -e /dev/stdin ] || ln -s /proc/self/fd/0 /dev/stdin
+[ -e /dev/stdout ] || ln -s /proc/self/fd/1 /dev/stdout
+[ -e /dev/stderr ] || ln -s /proc/self/fd/2 /dev/stderr
+[ -e /dev/fd ] || ln -s /proc/self/fd /dev/fd
 
 # Recovery shells will erase anything from here
 mkdir -p /tmp/secret
@@ -78,7 +78,7 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 fi
 
 if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
+	[ -x /bin/bash ] && /bin/cbfs-init
 fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
@@ -87,7 +87,7 @@ fi
 # Set GPG_TTY before calling gpg in key-init
 export GPG_TTY=/dev/console
 
-/bin/key-init
+[ -x /bin/bash ] && /bin/key-init
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
