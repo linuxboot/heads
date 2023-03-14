@@ -169,18 +169,21 @@ if [ "$save_key" = "y" ]; then
 			done
 		done
 
-		cd - > /dev/null
-
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
 		echo "+++ The following OS crypttab file:entry were modified from default boot's initrd:"
 		cat $bootdir/kexec_initrd_crypttab_overrides.txt
 		echo "+++ Heads added /secret.key in those entries and saved them under $bootdir/kexec_initrd_crypttab_overrides.txt"
 		echo "+++ Those overrides will be part of detached signed digests and used to prepare cpio injected at kexec of selected default boot entry."
 	else
-		echo "+++ No crypttab file found in extracted initrd. Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
-		rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt" || true
+		echo "+++ No crypttab file found in extracted initrd. A generic crypttab will be generated"
+		if [ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
+			echo "+++ Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
+			rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt"
+		fi
 	fi
+
 	# Cleanup
+	cd /
 	rm -rf /tmp/initrd_extract || true
 fi
 
