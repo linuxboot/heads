@@ -43,7 +43,7 @@ fi
 
 CAP_ZIP_SHA256SUM="9ea900eccd4a649237b000f1a34beb73cd92fb203d9639d8b7d22ef2a030d360  P8Z77-V-PRO-ASUS-2104.zip"
 CAP_FILE_SHA256SUM="7cf39a893cd6af774e3623a6b80c3e8f8989934b384eff28aba4726e80faa962  P8Z77-V-PRO-ASUS-2104.CAP"
-FINAL_IFD_SHA256SUM="e8be1dc16b79d6031df5e599bc5811c83aeccece7589e6386366f3e37fa0fb07 flashregion_0_flashdescriptor.bin"
+FINAL_IFD_SHA256SUM="dea50bf6577a0b36db54a62890c939d9c1a942eaf93c4479e00a9a2e48b8bf5d flashregion_0_flashdescriptor.bin"
 FINAL_ME_SHA256SUM="8dda1e8360fbb2da05bfcd187f6e7b8a272a67d66bc0074bbfd1410eb35e3e17 $BLOBDIR/me.bin"
 FINAL_GBE_SHA256SUM="fca4deb13633712113e1824bfd5afa32f487ca7129ca012fecf5d7502ec1d5ba  flashregion_3_gbe.bin"
 ZIPURL="https://dlcdnets.asus.com/pub/ASUS/mb/LGA1155/P8Z77-V_PRO/P8Z77-V-PRO-ASUS-2104.zip"
@@ -57,8 +57,8 @@ cd "$extractdir"
 
 /bin/cat <<EOF > layout.txt
 00000000:00000fff fd
-0001c000:007fffff bios
-00003000:0001bfff me
+0001b000:007fffff bios
+00003000:0001afff me
 00001000:00002fff gb
 EOF
 
