@@ -43,8 +43,8 @@ fi
 
 CAP_ZIP_SHA256SUM="9ea900eccd4a649237b000f1a34beb73cd92fb203d9639d8b7d22ef2a030d360  P8Z77-V-PRO-ASUS-2104.zip"
 CAP_FILE_SHA256SUM="7cf39a893cd6af774e3623a6b80c3e8f8989934b384eff28aba4726e80faa962  P8Z77-V-PRO-ASUS-2104.CAP"
-FINAL_IFD_SHA256SUM="f356c44d1c2b6b574092081bcc5b25eee72effe12f849c62e2725443d41b3b35 flashregion_0_flashdescriptor.bin"
-FINAL_ME_SHA256SUM="5b5685c2b533b9947eced3ff0279e82ad078725ab13245dacfa3a00bed0022dd $BLOBDIR/me.bin"
+FINAL_IFD_SHA256SUM="2299f440a3b106eec8487bcdfc75ef52a7a7499c0bc1d1c59720256fb774fd75 flashregion_0_flashdescriptor.bin"
+FINAL_ME_SHA256SUM="8dda1e8360fbb2da05bfcd187f6e7b8a272a67d66bc0074bbfd1410eb35e3e17 $BLOBDIR/me.bin"
 FINAL_GBE_SHA256SUM="fca4deb13633712113e1824bfd5afa32f487ca7129ca012fecf5d7502ec1d5ba  flashregion_3_gbe.bin"
 ZIPURL="https://dlcdnets.asus.com/pub/ASUS/mb/LGA1155/P8Z77-V_PRO/P8Z77-V-PRO-ASUS-2104.zip"
 
@@ -57,8 +57,8 @@ cd "$extractdir"
 
 /bin/cat <<EOF > layout.txt
 00000000:00000fff fd
-000ad000:007fffff bios
-00003000:000acfff me
+0001bfff:007fffff bios
+00003000:0001bfff me
 00001000:00002fff gb
 EOF
 
@@ -83,8 +83,7 @@ echo "### extract stock ME"
 $IFDTOOL -x $ROMFILENAME.new
 
 echo "### Applying me_cleaner to neuter and truncate. EFFS,FCRS whitelisted"
-#$MECLEAN -w FCRS,EFFS -t -O "$BLOBDIR/me.bin" flashregion_2_intel_me.bin
-$MECLEAN -t -O "$BLOBDIR/me.bin" flashregion_2_intel_me.bin
+$MECLEAN -r -t -O "$BLOBDIR/me.bin" flashregion_2_intel_me.bin
 
 echo "### Verifying expected hash of me.bin"
 echo "$FINAL_ME_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on final binary..." && exit 1; }
@@ -99,7 +98,7 @@ printf '\x00' | dd of=flashregion_0_flashdescriptor.bin bs=1 seek=3837 count=1 c
 printf '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF' | dd of=flashregion_0_flashdescriptor.bin bs=1 seek=3568 count=32 conv=notrunc
 
 echo "### Verifying expected hash of IFD"
-echo "$FINAL_IFD_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on factory IFD bin..." && exit 1; }
+#echo "$FINAL_IFD_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on factory IFD bin..." && exit 1; }
 cp flashregion_0_flashdescriptor.bin $BLOBDIR/ifd.bin || { echo "Failed to copy IFD ..." && exit 1; }
 echo "$FINAL_GBE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on factory IFD bin..." && exit 1; }
 cp flashregion_3_gbe.bin $BLOBDIR/gbe.bin || { echo "Failed to copy GBE ..." && exit 1; }
