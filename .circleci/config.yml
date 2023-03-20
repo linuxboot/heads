@@ -98,11 +98,6 @@ jobs:
             ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
 
       - run:
-          name: Download and neuter p8z77-m_pro ME
-          command: |
-            ./blobs/p8z77-m_pro/download_BIOS_clean.sh
-
-      - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
             ./blobs/xx30/vbios_t530.sh
