@@ -28,12 +28,11 @@ if [ -z "$MECLEAN" ]; then
   fi
 fi
 
-CAP_ZIP_SHA256SUM="9ea900eccd4a649237b000f1a34beb73cd92fb203d9639d8b7d22ef2a030d360  P8Z77-V-PRO-ASUS-2104.zip"
-CAP_FILE_SHA256SUM="7cf39a893cd6af774e3623a6b80c3e8f8989934b384eff28aba4726e80faa962  P8Z77-V-PRO-ASUS-2104.CAP"
-FINAL_IFD_SHA256SUM="f076be608c189da9532484b8152bc34029d1b1a8e28f630799fd474c47cb3f88 $BLOBDIR/ifd.bin"
-FINAL_ME_SHA256SUM="8dda1e8360fbb2da05bfcd187f6e7b8a272a67d66bc0074bbfd1410eb35e3e17 $BLOBDIR/me.bin"
-FINAL_GBE_SHA256SUM="fca4deb13633712113e1824bfd5afa32f487ca7129ca012fecf5d7502ec1d5ba  $BLOBDIR/gbe.bin"
-ZIPURL="https://dlcdnets.asus.com/pub/ASUS/mb/LGA1155/P8Z77-V_PRO/P8Z77-V-PRO-ASUS-2104.zip"
+CAP_ZIP_SHA256SUM="baf7f513227542c507e46735334663f63a0df5be9f6632d7b0f0cca5d3b9f980  P8Z77-M-PRO-ASUS-2203.zip"
+CAP_FILE_SHA256SUM="d9bf292778655d4e20f5db2154cd6a2229e42b60ce670a68d759f1dac757aaf0  P8Z77-M-PRO-ASUS-2203.CAP"
+FINAL_IFD_SHA256SUM="092caeee117de27c0eb30587defcb6449a33c7c325b6f3c47b5a7a79670b5c3f  $BLOBDIR/ifd.bin"
+FINAL_ME_SHA256SUM="8dda1e8360fbb2da05bfcd187f6e7b8a272a67d66bc0074bbfd1410eb35e3e17  $BLOBDIR/me.bin"
+ZIPURL="https://dlcdnets.asus.com/pub/ASUS/mb/LGA1155/P8Z77-M_PRO/P8Z77-M-PRO-ASUS-2203.zip"
 
 ZIPFILENAME=`echo $ZIPURL | sed 's/.*\///'`
 ROMFILENAME=`echo $ZIPFILENAME | sed 's/\.zip$/\.ROM/'`
@@ -54,13 +53,10 @@ echo "### Verifying expected hash of $ROMFILENAME"
 echo "$CAP_FILE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on extracted binary..." && exit 1; }
 
 echo "### extracing BIOS from Capsule"
-dd bs=1024 skip=2 if=P8Z77-V-PRO-ASUS-2104.CAP of=P8Z77-V-PRO-ASUS-2104.ROM || { echo "Failed to de-cap the ROM..." && exit 1; }
+dd bs=1024 skip=2 if=P8Z77-M-PRO-ASUS-2203.CAP of=P8Z77-M-PRO-ASUS-2203.ROM || { echo "Failed to de-cap the ROM..." && exit 1; }
 
 echo "### Applying me_cleaner to neuter and truncate. EFFS,FCRS whitelisted"
-$MECLEAN -S -r -t -d -O  /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" P8Z77-V-PRO-ASUS-2104.ROM
-
-echo "### Extracting GBE binary"
-dd of="$BLOBDIR/gbe.bin" if=P8Z77-V-PRO-ASUS-2104.ROM bs=1 skip=4096 count=8192 conv=notrunc iflag=skip_bytes,count_bytes
+$MECLEAN -S -r -t -d -O  /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me.bin" P8Z77-M-PRO-ASUS-2203.ROM
 
 echo "### Modifying VSCC length and identifiers"
 
@@ -69,7 +65,6 @@ printf '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF
 
 echo "### Verifying expected hashes"
 echo "$FINAL_IFD_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on generated IFD bin..." && exit 1; }
-echo "$FINAL_GBE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on extracted GBE bin..." && exit 1; }
 echo "$FINAL_ME_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on generated ME binary..." && exit 1; }
 
 echo "###Cleaning up..."
