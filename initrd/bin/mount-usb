@@ -23,7 +23,7 @@ if [ ! -d /media ]; then
 fi
 
 list_usb_storage > /tmp/usb_block_devices
-if [ -z `cat /tmp/usb_block_devices` ]; then
+if [ -z "$(cat /tmp/usb_block_devices)" ]; then
   if [ -x /bin/whiptail ]; then
     whiptail $BG_COLOR --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 16 60

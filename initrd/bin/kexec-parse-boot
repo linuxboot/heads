@@ -2,10 +2,10 @@
 set -e -o pipefail
 . /etc/functions
 
-TRACE "Under /bin/kexec-parse-boot"
-
 bootdir="$1"
 file="$2"
+
+TRACE "Under /bin/kexec-parse-boot bootdir=$bootdir file=$file"
 
 if [ -z "$bootdir" -o -z "$file" ]; then
 	die "Usage: $0 /boot /boot/grub/grub.cfg"
@@ -81,21 +81,27 @@ echo_entry() {
 }
 
 search_entry() {
+	TRACE " Under /bin/kexec-parse-boot: search_entry"
 	case $line in
 		menuentry* | MENUENTRY* )
 			state="grub"
 			reset_entry
-			name=`echo $line | tr "'" "\"" | cut -d\" -f 2`
+			name=`echo $line |sed 's/\.\.\. //' | tr "'" "\"" | cut -d\" -f 2`
+			DEBUG "search_entry: grub menuentry: line= $line"
+			DEBUG "search_entry: grub menuentry: name= $name"
 			;;
 
 		label* | LABEL* )
 			state="syslinux"
 			reset_entry
 			name=`echo $line | cut -c6- `
+			DEBUG "search_entry: syslinux label: line= $line"
+			DEBUG "search_entry: syslinux label: name= $name"
 	esac
 }
 
 grub_entry() {
+	TRACE " Under /bin/kexec-parse-boot: grub_entry"
 	if [ "$line" = "}" ]; then
 		echo_entry
 		state="search"
@@ -111,6 +117,7 @@ grub_entry() {
 			# TODO: differentiate between Xen and other multiboot kernels
 			kexectype="xen"
 			kernel="$val"
+			DEBUG "multiboot kernel= $kernel"
 			;;
 		module*)
 			case $val in
@@ -118,6 +125,7 @@ grub_entry() {
 			esac
 			fix_path $val
 			modules="$modules|module $path"
+			DEBUG "linux modules= $modules"
 			;;
 		linux*)
 			# Some configs have a device specification in the kernel
@@ -125,12 +133,16 @@ grub_entry() {
 			# it.  Keep the '/' following the device, since this
 			# path is relative to the device root, not the config
 			# location.
+			DEBUG "linux trimcmd prior of kernel/append parsing: $trimcmd"
 			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
-			append=`echo $trimcmd | cut -d\  -f3-`
+			append=`echo $trimcmd | cut -d\  -f3- | sed 's/ ---//'`
+			DEBUG "linux kernel= $kernel"
+			DEBUG "linux append= $append"
 			;;
 		initrd*)
 			# Trim off device specification as above
 			initrd="$(echo "$val" | sed "s/([^)]*)//g")"
+			DEBUG "linux initrd= $initrd"
 			;;
 	esac
 }
@@ -173,6 +185,7 @@ EOF
 }
 
 syslinux_entry() {
+	TRACE " Under /bin/kexec-parse-boot: sysentry_linux"
 	case $line in
 		"")
 			syslinux_end
@@ -215,7 +228,7 @@ syslinux_entry() {
 			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 				syslinux_multiboot_append
 			else
-				append="$val"
+				append=`echo $val |sed 's/ ---//'`
 			fi
 			;;
 	esac
