@@ -31,6 +31,8 @@ kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
 kexeccmd="kexec"
 
+DEBUG "kexectype= $kexectype"
+
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
@@ -62,6 +64,19 @@ adjust_cmd_line() {
 }
 
 module_number="1"
+
+if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+	#TODO: make it cleaner, BOOT_RECOVERY_SERIAL can be used in other cases
+	#kexeccmd="$kexeccmd --serial=$CONFIG_BOOT_RECOVERY_SERIAL --serial-baud=115200 --reset-vga --console-serial --console-vga"
+	#TODO: check whatsup with kexec patch, since newer kernels do not expose inteldrmfb anymore... so might have to update kexec
+	#  --reuse-video-type might be of help
+	#kexeccmd="$kexeccmd --reset-vga --console-serial --console-vga"
+	#kexeccmd="$kexeccmd --reuse-video-type"
+	#Nope.... reuse doesn't do the trick
+	#kexeccmd="$kexeccmd --console-vga"
+	kexeccmd="$kexeccmd --reset-vga"
+fi
+
 while read line
 do
 	key=`echo $line | cut -d\  -f1`
@@ -72,6 +87,7 @@ do
 		if [ "$kexectype" = "xen" ]; then
 			# always use xen with custom arguments
 			kexeccmd="$kexeccmd -l $filepath"
+			#TODO: verify if Xen still supports no-real-mode
 			kexeccmd="$kexeccmd --command-line \"$restval no-real-mode reboot=no vga=current\""
 		elif [ "$kexectype" = "multiboot" ]; then
 			kexeccmd="$kexeccmd -l $filepath"
