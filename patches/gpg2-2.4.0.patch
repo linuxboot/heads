@@ -1,0 +1,23 @@
+diff -u --recursive gnupg-2.4.0/configure gnupg-2.4.0/configure
+--- gnupg-2.4.0/configure	2016-08-17 09:20:25.000000000 -0400
++++ gnupg-2.4.0/configure	2018-01-20 16:55:14.502067084 -0500
+@@ -572,7 +572,7 @@
+ ac_clean_files=
+ ac_config_libobj_dir=.
+ LIBOBJS=
+-cross_compiling=no
++cross_compiling=yes
+ subdirs=
+ MFLAGS=
+ MAKEFLAGS=
+--- gnupg-2.4.0/common/ttyio.c.orig	2023-03-24 02:37:40.384435064 +0100
++++ gnupg-2.4.0/common/ttyio.c	2023-03-24 02:38:21.825961221 +0100
+@@ -186,7 +186,7 @@
+   SetConsoleMode (con.out, DEF_OUTMODE);
+ 
+ #else /* Unix */
+-  ttyfp = batchmode? stderr : fopen (tty_get_ttyname (), "r+");
++  ttyfp = stderr;
+   if (!ttyfp)
+     {
+       log_error ("cannot open '%s': %s\n", tty_get_ttyname (), strerror(errno));
