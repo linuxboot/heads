@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += libgcrypt
 
-libgcrypt_version := 1.8.6
+libgcrypt_version := 1.10.1
 libgcrypt_dir := libgcrypt-$(libgcrypt_version)
 libgcrypt_tar := libgcrypt-$(libgcrypt_version).tar.bz2
 libgcrypt_url := https://gnupg.org/ftp/gcrypt/libgcrypt/$(libgcrypt_tar)
-libgcrypt_hash := 0cba2700617b99fc33864a0c16b1fa7fdf9781d9ed3509f5d767178e5fd7b975
+libgcrypt_hash := ef14ae546b0084cd84259f61a55e07a38c3b53afc0f546bffcef2f01baffe9de
 
 libgcrypt_configure := \
 	$(CROSS_TOOLS) \
@@ -15,6 +15,7 @@ libgcrypt_configure := \
 	--disable-static \
 	--with-gpg-error-prefix="$(INSTALL)" \
 	--disable-asm \
+	--disable-doc \
 
 libgcrypt_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
