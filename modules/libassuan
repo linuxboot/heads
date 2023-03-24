@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += libassuan
 
-libassuan_version := 2.5.3
+libassuan_version := 2.5.5
 libassuan_dir := libassuan-$(libassuan_version)
 libassuan_tar := libassuan-$(libassuan_version).tar.bz2
 libassuan_url := https://gnupg.org/ftp/gcrypt/libassuan/$(libassuan_tar)
-libassuan_hash := 91bcb0403866b4e7c4bc1cc52ed4c364a9b5414b3994f718c70303f7f765e702
+libassuan_hash := 8e8c2fcc982f9ca67dcbb1d95e2dc746b1739a4668bc20b3a3c5be632edb34e4
 
 libassuan_configure := \
 	CFLAGS="-Os" \
@@ -13,7 +13,6 @@ libassuan_configure := \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-static \
-	--disable-debug \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libassuan_target := $(MAKE_JOBS) \
