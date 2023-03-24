@@ -1,6 +1,6 @@
-diff -u -r libassuan-2.5.1-clean/configure libassuan-2.5.1/configure
---- libassuan-2.5.1-clean/configure	2017-12-07 06:55:50.000000000 -0800
-+++ libassuan-2.5.1/configure	2020-01-12 13:39:50.655638965 -0800
+diff -u -r libassuan-2.5.5-clean/configure libassuan-2.5.5/configure
+--- libassuan-2.5.5-clean/configure	2017-12-07 06:55:50.000000000 -0800
++++ libassuan-2.5.5/configure	2020-01-12 13:39:50.655638965 -0800
 @@ -10781,7 +10781,7 @@
    version_type=linux # correct to gnu/linux during the next big refactor
    need_lib_prefix=no
