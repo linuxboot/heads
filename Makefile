@@ -469,6 +469,7 @@ bin_modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 bin_modules-$(CONFIG_HOTPKEY) += hotp-verification
 bin_modules-$(CONFIG_MSRTOOLS) += msrtools
 bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
+bin_modules-$(CONFIG_UTIL_LINUX) += util-linux
 bin_modules-$(CONFIG_OPENSSL) += openssl
 bin_modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
 bin_modules-$(CONFIG_BASH) += bash
