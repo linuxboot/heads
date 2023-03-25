@@ -27,47 +27,40 @@ while true; do
     menu_choice=${param::1}
     unset param
   else
-    # check current PureBoot Mode
-    BASIC_MODE="$(load_config_value CONFIG_PUREBOOT_BASIC)"
-    # check current Restricted Boot Mode
-    RESTRICTED_BOOT="$(load_config_value CONFIG_RESTRICTED_BOOT)"
-    # check current state of blob jail
-    USE_JAIL="$(load_config_value CONFIG_USE_BLOB_JAIL)"
-    AUTOMATIC_POWERON="$(load_config_value CONFIG_AUTOMATIC_POWERON)"
-    BASIC_NO_AUTOMATIC_DEFAULT="$(load_config_value CONFIG_BASIC_NO_AUTOMATIC_DEFAULT)"
-    BASIC_USB_AUTOBOOT="$(load_config_value CONFIG_BASIC_USB_AUTOBOOT)"
+    # Re-source config because we change it when an option is toggled
+    . /tmp/config
 
     dynamic_config_options=()
 
     # Options that don't apply to basic mode
-    [ "$BASIC_MODE" != "y" ] && dynamic_config_options+=(
+    [ "$CONFIG_PUREBOOT_BASIC" != "y" ] && dynamic_config_options+=(
         'r' ' Clear GPG key(s) and reset all user settings'
         'R' ' Change the root device for hashing'
         'D' ' Change the root directories to hash'
         'B' ' Check root hashes at boot'
-        'L' " $(get_config_display_action "$RESTRICTED_BOOT") Restricted Boot"
+        'L' " $(get_config_display_action "$CONFIG_RESTRICTED_BOOT") Restricted Boot"
     )
 
-    # Basic itself is always available
+    # Basic itself is always available (though RB will refuse to enable it)
     dynamic_config_options+=(
-        'P' " $(get_config_display_action "$BASIC_MODE") PureBoot Basic Mode"
+        'P' " $(get_config_display_action "$CONFIG_PUREBOOT_BASIC") PureBoot Basic Mode"
     )
 
     # Blob jail is only offered if this is a configuration with the blobs in
     # firmware
     [ "$CONFIG_SUPPORT_BLOB_JAIL" = "y" ] && dynamic_config_options+=(
-        'J' " $(get_config_display_action "$USE_JAIL") Firmware Blob Jail"
+        'J' " $(get_config_display_action "$CONFIG_USE_BLOB_JAIL") Firmware Blob Jail"
     )
 
     # Basic-only options for automatic boot
-    [ "$BASIC_MODE" = "y" ] && dynamic_config_options+=(
-        'A' " $(get_inverted_config_display_action "$BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot"
-        'U' " $(get_config_display_action "$BASIC_USB_AUTOBOOT") USB automatic boot"
+    [ "$CONFIG_PUREBOOT_BASIC" = "y" ] && dynamic_config_options+=(
+        'A' " $(get_inverted_config_display_action "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot"
+        'U' " $(get_config_display_action "$CONFIG_BASIC_USB_AUTOBOOT") USB automatic boot"
     )
 
     # Automatic power on - requires board support
     [ "$CONFIG_SUPPORT_AUTOMATIC_POWERON" = "y" ] && dynamic_config_options+=(
-        'N' " $(get_config_display_action "$AUTOMATIC_POWERON") Automatic Power-On"
+        'N' " $(get_config_display_action "$CONFIG_AUTOMATIC_POWERON") automatic power-on"
     )
 
     unset menu_choice
@@ -269,17 +262,16 @@ while true; do
       fi
     ;;
     "P" )
-      if ! [ "$RESTRICTED_BOOT" = n ]; then
+      if [ "$CONFIG_RESTRICTED_BOOT" = "y" ]; then
           whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
             --msgbox "Disable Restricted Boot to enable Basic Mode." 0 80
-      elif [ "$BASIC_MODE" = "n" ]; then
+      elif [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
         if (whiptail --title 'Enable PureBoot Basic Mode?' \
              --yesno "This will remove all signature checking on the firmware
                     \nand boot files, and disable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_PUREBOOT_BASIC" "y"
-          combine_configs
+          set_user_config "CONFIG_PUREBOOT_BASIC" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "PureBoot Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -291,8 +283,7 @@ while true; do
                     \nand boot files, and enable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_PUREBOOT_BASIC" "n"
-          combine_configs
+          set_user_config "CONFIG_PUREBOOT_BASIC" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "PureBoot Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -300,7 +291,7 @@ while true; do
       fi
     ;;
     "L" )
-      if [ "$RESTRICTED_BOOT" = "n" ]; then
+      if [ "$CONFIG_RESTRICTED_BOOT" != "y" ]; then
         if (whiptail --title 'Enable Restricted Boot Mode?' \
              --yesno "This will disable booting from any unsigned files,
                     \nincluding kernels that have not yet been signed,
@@ -309,8 +300,7 @@ while true; do
                     \n\nThis will also disable the recovery console.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_RESTRICTED_BOOT" "y"
-          combine_configs
+          set_user_config "CONFIG_RESTRICTED_BOOT" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "Restricted Boot mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -355,13 +345,12 @@ while true; do
       fi
     ;;
     "J" )
-      if [ "$USE_JAIL" = "n" ]; then
+      if [ "$CONFIG_USE_BLOB_JAIL" != "y" ]; then
         if (whiptail --title 'Enable Firmware Blob Jail?' \
              --yesno "This will enable loading of firmware from flash on each boot
                     \n\nDo you want to proceed?" 0 80) then
 
-          toggle_config /etc/config.user "CONFIG_USE_BLOB_JAIL"
-          combine_configs
+          set_user_config "CONFIG_USE_BLOB_JAIL" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "Firmware Blob Jail use has been enabled;\nsave the config change and reboot for it to go into effect." 16 60
@@ -371,8 +360,8 @@ while true; do
         if (whiptail --title 'Disable Firmware Blob Jail?' \
              --yesno "This will disable loading of firmware from flash on each boot.
                     \n\nDo you want to proceed?" 0 80) then
-          toggle_config /etc/config.user "CONFIG_USE_BLOB_JAIL"
-          combine_configs
+
+          set_user_config "CONFIG_USE_BLOB_JAIL" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "Firmware Blob Jail use has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -380,15 +369,14 @@ while true; do
       fi
     ;;
     "A" )
-      if [ "$BASIC_NO_AUTOMATIC_DEFAULT" = "n" ]; then
+      if [ "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" != "y" ]; then
         if (whiptail --title 'Disable automatic default boot?' \
              --yesno "You will need to select a default boot option.
                     \nIf the boot options are changed, such as for an OS update,
                     \nyou will be prompted to select a new default.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "y"
-          combine_configs
+          set_user_config "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic default boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -398,8 +386,7 @@ while true; do
              --yesno "The first boot option will be used automatically.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "n"
-          combine_configs
+          set_user_config "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic default boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -407,14 +394,13 @@ while true; do
       fi
     ;;
     "U" )
-      if [ "$BASIC_USB_AUTOBOOT" = "n" ]; then
+      if [ "$CONFIG_BASIC_USB_AUTOBOOT" != "y" ]; then
         if (whiptail --title 'Enable USB automatic boot?' \
              --yesno "During boot, an attached bootable USB disk will be booted
                     \nby default instead of the installed operating system.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_BASIC_USB_AUTOBOOT" "y"
-          combine_configs
+          set_user_config "CONFIG_BASIC_USB_AUTOBOOT" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "USB automatic boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -424,8 +410,7 @@ while true; do
              --yesno "USB disks will no longer be booted by default.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_BASIC_USB_AUTOBOOT" "n"
-          combine_configs
+          set_user_config "CONFIG_BASIC_USB_AUTOBOOT" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "USB automatic boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -433,13 +418,12 @@ while true; do
       fi
     ;;
     "N" )
-      if [ "$AUTOMATIC_POWERON" = "n" ]; then
+      if [ "$CONFIG_AUTOMATIC_POWERON" != "y" ]; then
         if (whiptail --title 'Enable automatic power-on?' \
              --yesno "The system will boot automatically when power is applied.
                     \n\nDo you want to proceed?" 0 80) then
 
-          toggle_config /etc/config.user "CONFIG_AUTOMATIC_POWERON"
-          combine_configs
+          set_user_config "CONFIG_AUTOMATIC_POWERON" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic power-on enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -449,8 +433,7 @@ while true; do
              --yesno "The system will stay off when power is applied.
                     \n\nDo you want to proceed?" 0 80) then
 
-          toggle_config /etc/config.user "CONFIG_AUTOMATIC_POWERON"
-          combine_configs
+          set_user_config "CONFIG_AUTOMATIC_POWERON" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic power-on disabled;\nsave the config change and reboot for it to go into effect." 0 80
