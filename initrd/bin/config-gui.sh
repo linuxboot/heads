@@ -435,6 +435,11 @@ while true; do
 
           set_user_config "CONFIG_AUTOMATIC_POWERON" "n"
 
+          # Disable the EC BRAM setting too, otherwise it persists until
+          # manually disabled.  On the off chance the user does not actually
+          # flash this change, we'll enable it again during boot.
+          set_ec_poweron.sh n
+
           whiptail --title 'Config change successful' \
             --msgbox "Automatic power-on disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi

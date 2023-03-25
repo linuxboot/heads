@@ -1,22 +1,16 @@
-#!/bin/ash
+#!/bin/bash
 set -o pipefail
 
 . /tmp/config
 
-# Set the Mini v2 EC's automatic power-on setting.
-# CONFIG_AUTOMATIC_POWERON is three-valued:
-# y - enable automatic power on in EC
-# n - disable automatic power on in EC
-# <blank> - don't configure EC, could be configured from OS
-
-# EC BRAM bank 1
-BRAMADDR=0x360
-BRAMDATA=0x361
-
+# If CONFIG_AUTOMATIC_POWERON is set, always set the EC BRAM setting during
+# boot.  It persists as long as the RTC battery is set, but set it during every
+# boot for robustness in case the battery is temporarily removed, or the user
+# toggles in config-gui and then does not flash, etc.
 if [ "$CONFIG_AUTOMATIC_POWERON" = "y" ]; then
-	outb "$BRAMADDR" 0x29	# Select byte at offset 29h
-	outb "$BRAMDATA" 0x00	# 0 -> automatic power on
-elif [ "$CONFIG_AUTOMATIC_POWERON" = "n" ]; then
-	outb "$BRAMADDR" 0x29	# Select byte at offset 29h
-	outb "$BRAMDATA" 0x01	# 1 -> stay off
+	set_ec_poweron.sh y
 fi
+
+# Don't disable the setting in the EC BRAM though if CONFIG_AUTOMATIC_POWERON
+# is not enabled.  The default is disabled anyway, and the OS could configure
+# it.
