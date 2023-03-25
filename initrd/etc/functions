@@ -314,24 +314,8 @@ replace_config() {
 	rm -f ${CONFIG_FILE}.tmp
 }
 
-invert_yn() {
-	if [ "$1" = "y" ]; then
-		echo "n"
-	else
-		echo "y"
-	fi
-}
-
-toggle_config() {
-	CONFIG_FILE="$1"
-	CONFIG_OPTION="$2"
-
-	NEW_SETTING="$(invert_yn "$(load_config_value "$CONFIG_OPTION")")"
-	set_config "$CONFIG_FILE" "$CONFIG_SETTING" "$NEW_SETTING"
-}
-
-# Set a config variable to a given value - replace it if it exists, or add it.
-# If added, the variable will be exported.
+# Set a config variable in a specific file to a given value - replace it if it
+# exists, or add it.  If added, the variable will be exported.
 set_config() {
 	CONFIG_FILE="$1"
 	CONFIG_OPTION="$2"
@@ -342,6 +326,17 @@ set_config() {
 	else
 		echo "export $CONFIG_OPTION=$NEW_SETTING" >>"$CONFIG_FILE"
 	fi
+}
+
+# Set a value in config.user, re-combine configs, and update configs in the
+# environment.
+set_user_config() {
+	CONFIG_OPTION="$1"
+	NEW_SETTING="$2"
+
+	set_config /etc/config.user "$CONFIG_OPTION" "$NEW_SETTING"
+	combine_configs
+	. /tmp/config
 }
 
 # Load a config value to a variable, defaulting to 'n'
