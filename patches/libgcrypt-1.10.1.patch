@@ -174,3 +174,22 @@ diff -u -r libgcrypt-1.8.10-clean/configure libgcrypt-1.8.10/configure
  
  # Compile-time system search path for libraries.
  sys_lib_search_path_spec=$lt_sys_lib_search_path_spec
+--- libgcrypt-1.10.1/Makefile.in.orig	2023-03-27 09:35:30.902000000 -0400
++++ libgcrypt-1.10.1/Makefile.in	2023-03-27 09:37:17.803000000 -0400
+@@ -417,12 +417,12 @@
+ GITLOG_TO_CHANGELOG = gitlog-to-changelog
+ @BUILD_DOC_FALSE@doc = 
+ @BUILD_DOC_TRUE@doc = doc
+-DIST_SUBDIRS = m4 compat mpi cipher random src doc tests
+-SUBDIRS = compat mpi cipher random src $(doc) tests
++DIST_SUBDIRS = m4 compat mpi cipher random src doc
++SUBDIRS = compat mpi cipher random src $(doc)
+ EXTRA_DIST = autogen.sh autogen.rc README.GIT LICENSES      	           \
+              ChangeLog-2011 build-aux/ChangeLog-2011 doc/ChangeLog-2011    \
+              m4/ChangeLog-2011 cipher/ChangeLog-2011 src/ChangeLog-2011    \
+-             random/ChangeLog-2011 tests/ChangeLog-2011 mpi/ChangeLog-2011 \
++             random/ChangeLog-2011 mpi/ChangeLog-2011 \
+              build-aux/git-log-footer build-aux/git-log-fix VERSION
+ 
+ DISTCLEANFILES = 
+
