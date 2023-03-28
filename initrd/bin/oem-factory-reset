@@ -128,10 +128,10 @@ gpg_key_reset()
         echo ${ADMIN_PIN_DEF}
         echo ${USER_PIN_DEF}
         echo 0
-        echo y
         echo ${GPG_USER_NAME}
         echo ${GPG_USER_MAIL}
         echo ${GPG_USER_COMMENT}
+        echo ${USER_PIN_DEF}
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
