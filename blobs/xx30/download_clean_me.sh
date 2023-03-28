@@ -24,7 +24,7 @@ ME8_5M_PRODUCTION_SHA256SUM="821c6fa16e62e15bc902ce2e958ffb61f63349a471685bed0dc
 
 
 if [ -z "$MECLEAN" ]; then
-  MECLEAN=`command -v $BLOBDIR/../../build/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1|head -n1`
+  MECLEAN=`command -v $BLOBDIR/../../build/x86/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1|head -n1`
   if [ -z "$MECLEAN" ]; then
     echo "me_cleaner.py required but not found or specified with -m. Aborting."
     exit 1;
