@@ -147,6 +147,22 @@ coreboot.saveconfig:
 		DEFCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
 		savedefconfig
 
+coreboot.modify_defconfig_in_place:
+	$(MAKE) \
+		-C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		menuconfig \
+	&& $(MAKE) \
+		-C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		DEFCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		savedefconfig \
+
+coreboot.modify_and_save_oldconfig_in_place:
+	$(MAKE) menuconfig \
+		-C "$(build)/$(coreboot_base_dir)" \
+		obj="$(build)/$(coreboot_dir)" \
+		DOTCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
 
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree

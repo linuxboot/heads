@@ -210,7 +210,7 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
 # under linux decompressed+patched directory through menuconfig
 # and put it back in git tree to check changes with git difftool iteratively 
 # Useful for development cycle of linux kernel version bumps in defconfig stored format.
-linux.modify_defconfig:
+linux.modify_defconfig_in_place:
 	cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" && \
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
@@ -224,9 +224,12 @@ linux.modify_defconfig:
 		savedefconfig \
 	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
 
-linux.generate_and_save-oldconfig:
+linux.modify_and_save_oldconfig_in_place:
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+                O="$(build)/$(linux_dir)" \
+                menuconfig \
 	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \

@@ -65,18 +65,6 @@ adjust_cmd_line() {
 
 module_number="1"
 
-if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
-	#TODO: make it cleaner, BOOT_RECOVERY_SERIAL can be used in other cases
-	#kexeccmd="$kexeccmd --serial=$CONFIG_BOOT_RECOVERY_SERIAL --serial-baud=115200 --reset-vga --console-serial --console-vga"
-	#TODO: check whatsup with kexec patch, since newer kernels do not expose inteldrmfb anymore... so might have to update kexec
-	#  --reuse-video-type might be of help
-	#kexeccmd="$kexeccmd --reset-vga --console-serial --console-vga"
-	#kexeccmd="$kexeccmd --reuse-video-type"
-	#Nope.... reuse doesn't do the trick
-	#kexeccmd="$kexeccmd --console-vga"
-	kexeccmd="$kexeccmd --reset-vga"
-fi
-
 while read line
 do
 	key=`echo $line | cut -d\  -f1`
@@ -92,6 +80,13 @@ do
 		elif [ "$kexectype" = "multiboot" ]; then
 			kexeccmd="$kexeccmd -l $filepath"
 			kexeccmd="$kexeccmd --command-line \"$restval\""
+		elif [ "$kexectype" = "elf" ]; then
+			DEBUG "kexectype= $kexectype"
+			#kexeccmd="$kexeccmd --noefi --console-vga -l $filepath"
+			kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath"
+			#kexeccmd="$kexeccmd --noefi --reset-vga -l $filepath"
+			#kexeccmd="$kexeccmd --noefi --console-vga --reuse-video-type -l $filepath"
+			#kexeccmd="$kexeccmd --noefi --real-mode --console-vga --reuse-video-type -l $filepath"
 		else
 			kexeccmd="$kexeccmd -l $filepath"
 		fi
@@ -147,6 +142,7 @@ if [ "$dryrun" = "y" ]; then exit 0; fi
 
 echo "Loading the new kernel:"
 echo "$kexeccmd"
+DEBUG "$kexeccmd"
 eval "$kexeccmd" \
 || die "Failed to load the new kernel"
 
