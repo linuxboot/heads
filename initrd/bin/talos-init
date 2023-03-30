@@ -8,5 +8,9 @@
 devmem 0x80060300D0010081 8 254
 devmem 0x80060300D0010082 8 254
 
+# Alias for cbmem to remove need for '-f' option in every call
+echo "alias cbmem='cbmem -f /sys/firmware/cbmem'" >> $HOME/.profile
+export ENV=$HOME/.profile
+
 # Proceed with standard init path
 exec /bin/gui-init
