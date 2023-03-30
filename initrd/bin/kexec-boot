@@ -31,8 +31,6 @@ kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
 kexeccmd="kexec"
 
-DEBUG "kexectype= $kexectype"
-
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
@@ -64,7 +62,6 @@ adjust_cmd_line() {
 }
 
 module_number="1"
-
 while read line
 do
 	key=`echo $line | cut -d\  -f1`
@@ -82,11 +79,15 @@ do
 			kexeccmd="$kexeccmd --command-line \"$restval\""
 		elif [ "$kexectype" = "elf" ]; then
 			DEBUG "kexectype= $kexectype"
+			DEBUG "restval= $restval"
+			DEBUG "filepath= $filepath"
 			#kexeccmd="$kexeccmd --noefi --console-vga -l $filepath"
-			kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath"
+			#kexeccmd="$kexeccmd --command-line \"$restval vga=current\"" 
 			#kexeccmd="$kexeccmd --noefi --reset-vga -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --console-vga --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --real-mode --console-vga --reuse-video-type -l $filepath"
+			#kexeccmd="$kexeccmd -l $filepath --command-line \"$restval vga=current\""
+			kexeccmd="$kexeccmd -l $filepath"		
 		else
 			kexeccmd="$kexeccmd -l $filepath"
 		fi

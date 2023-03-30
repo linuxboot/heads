@@ -85,9 +85,7 @@ search_entry() {
 		menuentry* | MENUENTRY* )
 			state="grub"
 			reset_entry
-			name=`echo $line |sed 's/\.\.\. //' | tr "'" "\"" | cut -d\" -f 2`
-			TRACE " search_entry: grub menuentry: line= $line"
-			TRACE " search_entry: grub menuentry: name= $name"
+			name=`echo $line | tr "'" "\"" | cut -d\" -f 2`
 			;;
 
 		label* | LABEL* )
@@ -133,9 +131,7 @@ grub_entry() {
 			# location.
 			DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
 			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
-			append=`echo $trimcmd | cut -d\  -f3- | sed 's/ ---//'`
-			DEBUG " grub_entry: linux kernel= $kernel"
-			DEBUG " grub_entry: linux append= $append"
+			append=`echo $trimcmd | cut -d\  -f3-`
 			;;
 		initrd*)
 			# Trim off device specification as above
@@ -225,7 +221,7 @@ syslinux_entry() {
 			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 				syslinux_multiboot_append
 			else
-				append=`echo $val |sed 's/ ---//'`
+				append="$val"
 			fi
 			;;
 	esac
