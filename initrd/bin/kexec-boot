@@ -61,6 +61,10 @@ adjust_cmd_line() {
 	adjusted_cmd_line="y"
 }
 
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+	kexeccmd="$kexeccmd -d"
+fi
+
 module_number="1"
 while read line
 do
@@ -80,15 +84,17 @@ do
 		elif [ "$kexectype" = "elf" ]; then
 			DEBUG "kexectype= $kexectype"
 			DEBUG "restval= $restval"
+			DEBUG "kexeccmd= $kexeccmd"
 			DEBUG "filepath= $filepath"
-			#kexeccmd="$kexeccmd --noefi --console-vga -l $filepath"
+			kexeccmd="$kexeccmd --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd --command-line \"$restval vga=current\"" 
 			#kexeccmd="$kexeccmd --noefi --reset-vga -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --console-vga --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --real-mode --console-vga --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd -l $filepath --command-line \"$restval vga=current\""
-			kexeccmd="$kexeccmd -l $filepath"		
+			#kexeccmd="$kexeccmd -l $filepath"		
 		else
+			DEBUG "unknown kexectype!!!!"
 			kexeccmd="$kexeccmd -l $filepath"
 		fi
 	fi
@@ -152,4 +158,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 fi
 
 echo "Starting the new kernel"
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+	exec kexec -d -e
+fi
 exec kexec -e
