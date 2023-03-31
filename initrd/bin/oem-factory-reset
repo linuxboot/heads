@@ -1,10 +1,14 @@
 #!/bin/bash
 # Automated setup of TPM, GPG keys, and disk
 
-TRACE "Under /bin/oem-factory-reset"
-
 set -o pipefail
+
+## External files sourced
 . /etc/functions
+. /etc/luks-functions
+. /tmp/config
+
+TRACE "Under /bin/oem-factory-reset"
 
 # use TERM to exit on error
 trap "exit 1" TERM
@@ -38,12 +42,6 @@ GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
 GPG_USER_COMMENT="OEM-generated key"
 SKIP_BOOT="n"
-
-## External files sourced
-
-. /etc/functions
-. /etc/luks-functions
-. /tmp/config
 
 ## functions
 
@@ -81,7 +79,7 @@ gpg_key_reset()
         echo y
         echo yes
     } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
+        > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
@@ -97,7 +95,7 @@ gpg_key_reset()
             echo forcesig
             echo ${ADMIN_PIN_DEF}
         } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-            > /tmp/gpg_card_edit_output 2>/dev/null
+            > /tmp/gpg_card_edit_output 2>&1
         if [ $? -ne 0 ]; then
             ERROR=`cat /tmp/gpg_card_edit_output`
             whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
@@ -117,7 +115,7 @@ gpg_key_reset()
         echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
         echo ${ADMIN_PIN_DEF}
     } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
+        > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
@@ -135,7 +133,7 @@ gpg_key_reset()
         echo ${GPG_USER_MAIL}
         echo ${GPG_USER_COMMENT}
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
+        > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output`
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
@@ -159,7 +157,7 @@ gpg_key_change_pin()
         echo q
         echo q
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>/dev/null
+        > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=`cat /tmp/gpg_card_edit_output | fold -s`
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
@@ -187,7 +185,7 @@ generate_checksums()
     if [ "$CONFIG_TPM" = "y" ];then
 	    if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 		    tpmr counter_create \
-			 -pwdo "$TPM_PASS_DEF" \
+			 -pwdo "$TPM_PASS" \
 			 -pwdc '' \
 			 -la -3135106223 \
 			    | tee /tmp/counter \
