@@ -27,7 +27,7 @@ TRACE() {
 }
 
 preserve_rom() {
-	TRACE "Under /etc/functions:preserve_rom"
+	TRACE "Under /etc/ash_functions:preserve_rom"
 	new_rom="$1"
 	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
 
@@ -44,7 +44,7 @@ preserve_rom() {
 }
 
 recovery() {
-	TRACE "Under /etc/functions:recovery"
+	TRACE "Under /etc/ash_functions:recovery"
 	echo >&2 "!!!!! $*"
 
 	# Remove any temporary secret files that might be hanging around
@@ -76,12 +76,56 @@ recovery() {
 }
 
 pause_recovery() {
-	TRACE "Under /etc/functions:pause_recovery"
+	TRACE "Under /etc/ash_functions:pause_recovery"
 	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
 	recovery $*
 }
 
 combine_configs() {
-	TRACE "Under /etc/functions:combine_configs"
+	TRACE "Under /etc/ash_functions:combine_configs"
 	cat /etc/config* > /tmp/config
+}
+
+enable_usb()
+{
+	TRACE "Under /etc/ash_functions:enable_usb"
+	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning 
+	if ! lsmod | grep -q ehci_hcd; then
+		insmod /lib/modules/ehci-hcd.ko \
+			|| die "ehci_hcd: module load failed"
+	fi
+	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
+		if ! lsmod | grep -q uhci_hcd; then
+			insmod /lib/modules/uhci-hcd.ko \
+			|| die "uhci_hcd: module load failed"
+		fi
+		if ! lsmod | grep -q ohci_hcd; then
+			insmod /lib/modules/ohci-hcd.ko \
+			|| die "ohci_hcd: module load failed"
+		fi
+		if ! lsmod | grep -q ohci_pci; then
+			insmod /lib/modules/ohci-pci.ko \
+			|| die "ohci_pci: module load failed"
+		fi
+	fi
+	if ! lsmod | grep -q ehci_pci; then
+		insmod /lib/modules/ehci-pci.ko \
+		|| die "ehci_pci: module load failed"
+	fi
+	if ! lsmod | grep -q xhci_hcd; then
+		insmod /lib/modules/xhci-hcd.ko \
+		|| die "xhci_hcd: module load failed"
+	fi
+	if ! lsmod | grep -q xhci_pci; then
+		insmod /lib/modules/xhci-pci.ko \
+		|| die "xhci_pci: module load failed"
+		sleep 2
+	fi
+
+	if [ "$CONFIG_USB_KEYBOARD" = y ]; then
+		if ! lsmod | grep -q usbhid; then
+			insmod /lib/modules/usbhid.ko \
+			|| die "usbhid: module load failed"
+		fi
+	fi
 }
