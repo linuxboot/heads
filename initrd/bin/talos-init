@@ -1,0 +1,16 @@
+#!/bin/sh
+# BMC on Talos must be informed that OS has been started in order to enable fan
+# control. This is done by writing 0xFE to I/O ports 0x81 and 0x82 (in that
+# order) through LPC connected to first CPU. LPC I/O space of first CPU is
+# mapped to memory at 0x80060300D0010000, I/O port number has to be added to
+# this address. Write can be performed using busybox's devmem applet.
+
+devmem 0x80060300D0010081 8 254
+devmem 0x80060300D0010082 8 254
+
+# Alias for cbmem to remove need for '-f' option in every call
+echo "alias cbmem='cbmem -f /sys/firmware/cbmem'" >> $HOME/.profile
+export ENV=$HOME/.profile
+
+# Proceed with standard init path
+exec /bin/gui-init
