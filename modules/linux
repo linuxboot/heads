@@ -107,6 +107,9 @@ linux_modules-$(CONFIG_LINUX_MLX4)	+= drivers/net/ethernet/mellanox/mlx4/mlx4_en
 # Broadcom 57302 (25g) for Tioga Pass
 linux_modules-$(CONFIG_LINUX_BCM)	+= drivers/net/ethernet/broadcom/bnxt/bnxt_en.ko
 
+# Broadcom BCM5719 for Talos II
+linux_modules-$(CONFIG_LINUX_TG3)	+= drivers/net/ethernet/broadcom/tg3.ko
+
 # USB modules for both types of controllers
 # older boards also need ohci and uhci
 linux_modules-$(CONFIG_LINUX_USB_COMPANION_CONTROLLER)	+= drivers/usb/host/uhci-hcd.ko
