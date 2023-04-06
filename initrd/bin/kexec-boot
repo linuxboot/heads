@@ -29,7 +29,7 @@ bootdir="${bootdir%%/}"
 
 kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
-kexeccmd="kexec"
+kexeccmd="kexec --kexec-syscall-auto"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
@@ -85,13 +85,29 @@ do
 			DEBUG "restval= $restval"
 			DEBUG "filepath= $filepath"
 			#kexeccmd="$kexeccmd -l $filepath --reset-vga --console-vga"
-			kexeccmd="$kexeccmd -d --noefi --entry-32bit -l $filepath"
+			#kexeccmd="$kexeccmd --noefi --entry-32bit --reset-vga -l $filepath"
 			#kexeccmd="$kexeccmd --command-line \"$restval vga=current\"" 
 			#kexeccmd="$kexeccmd --noefi --reset-vga -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --console-vga --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --real-mode --console-vga --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd -l $filepath --command-line \"$restval vga=current\""
 			#kexeccmd="$kexeccmd -l $filepath"		
+			#
+			#noefi: to skip second kernel efi setup. Let's say we wanted to kexec into ReactOS: https://www.phoronix.com/news/MTUzNDk
+			#reset-vga: to reset vga adapter prior of execing next kernel. Useful when no vga output or corrupted: http://www.solemnwarning.net/kexec-loader/readme.html
+			#reuse-video-type: force reuse screen_info unconditionally https://git.centos.org/rpms/kexec-tools/blob/8c3ceb714dbce12cc7c72e2ed728465e9a296314/f/SOURCES/kexec-tools-2.0.19-x86-Introduce-a-new-option-reuse-video-type.patch
+			#Qemu seems to have its own subset of problems, which also affect real hardware on kexec.
+			# https://bugzilla.redhat.com/show_bug.cgi?id=1335830#c11
+			#  Solution here is to ask second kernel to set nomodeset so DRM is responsible to setup console.
+			#   As this sounds, this might work but would not give us working console on real hardware
+			#acpi_rdsp problems?
+
+			#retry attempts:
+			#kexeccmd="$kexeccmd --entry-32bit --reset-vga -l $filepath"
+			#kexeccmd="$kexeccmd --entry-32bit --reuse-video-type -l $filepath"
+			#kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath" #nomodeset added to board
+			# nomodeset just gives a warning on kernel init that no gpu will be initialized...
+			kexeccmd="$kexeccmd --entry-32bit -l $filepath"
 			DEBUG "kexeccmd= $kexeccmd"
 		else
 			DEBUG "unknown kexectype!!!!"
@@ -149,7 +165,6 @@ if [ "$dryrun" = "y" ]; then exit 0; fi
 
 echo "Loading the new kernel:"
 echo "$kexeccmd"
-DEBUG "$kexeccmd"
 eval "$kexeccmd" \
 || die "Failed to load the new kernel"
 
@@ -159,6 +174,7 @@ fi
 
 echo "Starting the new kernel"
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then 
+	DEBUG "kexeccmd= $kexeccmd"
 	DO_WITH_DEBUG exec kexec -d -e
 fi
 exec kexec -e
