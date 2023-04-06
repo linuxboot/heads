@@ -508,13 +508,8 @@ if [ "$prompt_output" == "y" \
 	echo -e "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
 	echo -e "Real Name (Comment) email@address.org"
 
-	echo -e "\nEnter your Real Name (At least 5 characters long):"
+	echo -e "\nEnter your Real Name (Optional):"
 	read -r GPG_USER_NAME
-	while [[ ${#GPG_USER_NAME} -lt 5 ]]; do
-	{
-		echo -e "\nEnter your Real Name (At least 5 characters long):"
-		read -r GPG_USER_NAME
-	};done
 
 	echo -e "\nEnter your email@adress.org:"
 	read -r GPG_USER_MAIL
