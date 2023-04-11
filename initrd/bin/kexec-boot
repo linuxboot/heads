@@ -109,7 +109,7 @@ do
 			#kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath" #nomodeset added to board
 			# nomodeset just gives a warning on kernel init that no gpu will be initialized...
 			#kexeccmd="$kexeccmd --entry-32bit -l $filepath"
-			kexeccmd="$kexeccmd -l $filepath"
+			kexeccmd="$kexeccmd -l $filepath --noefi --reuse-video-type"
 			DEBUG "kexeccmd= $kexeccmd"
 		else
 			DEBUG "unknown kexectype!!!!"
