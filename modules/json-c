@@ -28,7 +28,7 @@ json-c_configure := \
 	echo -e "$(toolchain_file)" | sed 's/\\//g' > toolchain && \
 	mkdir -p build && \
 	cd build && \
-	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain
+	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel
 
 json-c_target := \
 	$(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build \
