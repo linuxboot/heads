@@ -88,3 +88,26 @@ index 948ee63..833a897 100644
  
  $(BIN_TO_HEX): CC=$(BUILD_CC)
  $(BIN_TO_HEX): CFLAGS=$(BUILD_CFLAGS)
+--- a/kexec/arch/i386/x86-linux-setup.c.orig	2023-04-11 15:44:59.905000000 -0400
++++ b/kexec/arch/i386/x86-linux-setup.c	2023-04-11 15:45:03.830000000 -0400
+@@ -146,9 +146,11 @@
+             || 0 == strcmp(fix.id, "inteldrmfb") || 0 == strcmp(fix.id, "i915drmfb")) {
+ 		/* VIDEO_TYPE_VLFB */
+ 		real_mode->orig_video_isVGA = 0x23;
++		dbgprintf("%s: VIDEO_TYPE_VLFB setuped.\n", __func__);
+ 	} else if (0 == strcmp(fix.id, "EFI VGA")) {
+ 		/* VIDEO_TYPE_EFI */
+ 		real_mode->orig_video_isVGA = 0x70;
++		dbgprintf("%s: VIDEO_TYPE_EFI setuped.\n", __func__);
+ 	} else if (arch_options.reuse_video_type) {
+ 		int err;
+ 		off_t offset = offsetof(typeof(*real_mode), orig_video_isVGA);
+@@ -159,6 +161,7 @@
+ 			goto out;
+ 	} else {
+ 		real_mode->orig_video_isVGA = 0;
++		dbgprintf("%s: VIDEO_TYPE not VGA.\n", __func__);
+ 		close(fd);
+ 		return 0;
+ 	}
+

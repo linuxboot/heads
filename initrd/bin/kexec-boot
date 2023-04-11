@@ -29,7 +29,8 @@ bootdir="${bootdir%%/}"
 
 kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
-kexeccmd="kexec --kexec-syscall-auto"
+#kexeccmd="kexec --kexec-syscall-auto" #this is desired, but doesn't work for Tinycore. Fallback to default:
+kexeccmd="kexec"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
@@ -107,7 +108,8 @@ do
 			#kexeccmd="$kexeccmd --entry-32bit --reuse-video-type -l $filepath"
 			#kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath" #nomodeset added to board
 			# nomodeset just gives a warning on kernel init that no gpu will be initialized...
-			kexeccmd="$kexeccmd --entry-32bit -l $filepath"
+			#kexeccmd="$kexeccmd --entry-32bit -l $filepath"
+			kexeccmd="$kexeccmd -l $filepath"
 			DEBUG "kexeccmd= $kexeccmd"
 		else
 			DEBUG "unknown kexectype!!!!"
