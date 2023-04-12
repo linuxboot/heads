@@ -29,7 +29,7 @@ bootdir="${bootdir%%/}"
 
 kexectype=`echo $entry | cut -d\| -f2`
 kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
-#kexeccmd="kexec --kexec-syscall-auto" #this is desired, but doesn't work for Tinycore. Fallback to default:
+#kexeccmd="kexec --kexec-syscall-auto" #this is desired, but doesn't work for Tinycore. Also doesn't work with kexec2 calls as of now....Fallback to default:
 kexeccmd="kexec"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
@@ -109,7 +109,8 @@ do
 			#kexeccmd="$kexeccmd --noefi --reuse-video-type -l $filepath" #nomodeset added to board
 			# nomodeset just gives a warning on kernel init that no gpu will be initialized...
 			#kexeccmd="$kexeccmd --entry-32bit -l $filepath"
-			kexeccmd="$kexeccmd -l $filepath --noefi --reuse-video-type"
+			#TODO: how to dynamically setup noefi? Linuxboot can use u-root as EFI payload. Maybe not needed once resolved
+			kexeccmd="$kexeccmd --noefi --entry-32bit --console-vga -l $filepath"
 			DEBUG "kexeccmd= $kexeccmd"
 		else
 			DEBUG "unknown kexectype!!!!"
