@@ -16,7 +16,6 @@ tpmtotp_target := \
 tpmtotp_output := \
 	totp \
 	hotp \
-	base32 \
 	qrenc \
 	util/tpm \
 
