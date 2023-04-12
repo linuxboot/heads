@@ -245,7 +245,7 @@ define do-copy =
 		if cmp --quiet "$1" "$2" ; then \
 			echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		fi ; \
-		cp -a "$1" "$2" ; \
+		cp -a --remove-destination "$1" "$2" ; \
 	)
 	@sha256sum "$(2:$(pwd)/%=%)"
 endef
@@ -426,7 +426,7 @@ $(call map, define_module, $(modules-y))
 #
 define install =
 	@-mkdir -p "$(dir $2)"
-	$(call do,INSTALL,$2,cp -a "$1" "$2")
+	$(call do,INSTALL,$2,cp -a --remove-destination "$1" "$2")
 endef
 
 #
@@ -435,7 +435,7 @@ endef
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
-	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a "$$<" "$$@")
+	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
 	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
