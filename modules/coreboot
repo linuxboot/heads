@@ -147,6 +147,15 @@ coreboot.saveconfig:
 		DEFCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
 		savedefconfig
 
+coreboot.save_defconfig_in_place:
+	$(MAKE) \
+                -C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		DEFCONFIG="$(build)/$(coreboot_dir)/defconfig" \
+		savedefconfig \
+	&& mv "$(build)/$(coreboot_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
+	
+
 coreboot.modify_defconfig_in_place:
 	$(MAKE) \
 		-C "$(build)/$(coreboot_base_dir)" \
