@@ -21,14 +21,20 @@ reset_entry() {
 }
 
 filedir=`dirname $file`
+DEBUG "filedir= $filedir"
 bootdir="${bootdir%%/}"
+DEBUG "bootdir= $bootdir"
 bootlen="${#bootdir}"
+DEBUG "bootlen= $bootlen"
 appenddir="${filedir:$bootlen}"
+DEBUG "appenddir= $appenddir"
 
 fix_path() {
 	path="$@"
 	if [ "${path:0:1}" != "/" ]; then
+		DEBUG "fix_path: path was $@"
 		path="$appenddir/$path"
+		DEBUG "fix_path: path is now $path"
 	fi
 }
 
@@ -38,7 +44,10 @@ check_path() {
 	local checkpath firstval
 	checkpath="$1"
 	firstval="$(echo "$checkpath" | cut -d\  -f1)"
-	if ! [ -r "$bootdir$firstval" ]; then return 1; fi
+	if ! [ -r "$bootdir$firstval" ]; then
+		DEBUG "$bootdir$firstval doesn't exist"
+		return 1; 
+	fi
 	return 0
 }
 
@@ -111,6 +120,7 @@ grub_entry() {
 			# TODO: differentiate between Xen and other multiboot kernels
 			kexectype="xen"
 			kernel="$val"
+			DEBUG " grub_entry multiboot kernel= $kernel"
 			;;
 		module*)
 			case $val in
@@ -118,6 +128,7 @@ grub_entry() {
 			esac
 			fix_path $val
 			modules="$modules|module $path"
+			DEBUG " grub_entry linux modules= $modules"
 			;;
 		linux*)
 			# Some configs have a device specification in the kernel
@@ -125,12 +136,14 @@ grub_entry() {
 			# it.  Keep the '/' following the device, since this
 			# path is relative to the device root, not the config
 			# location.
+			DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
 			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
 			append=`echo $trimcmd | cut -d\  -f3-`
 			;;
 		initrd*)
 			# Trim off device specification as above
 			initrd="$(echo "$val" | sed "s/([^)]*)//g")"
+			DEBUG " grub_entry: linux initrd= $initrd"
 			;;
 	esac
 }
@@ -206,16 +219,19 @@ syslinux_entry() {
 					;;
 				*)
 					kernel="${val#"$bootdir"}"
+					DEBUG "kernel= $kernel"
 			esac
 			;;
 		initrd* | INITRD* )
 			initrd="${val#"$bootdir"}"
+			DEBUG "initrd= $initrd"
 			;;
 		append* | APPEND* )
 			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
 				syslinux_multiboot_append
 			else
 				append="$val"
+				DEBUG "append= $append"
 			fi
 			;;
 	esac

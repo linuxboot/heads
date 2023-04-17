@@ -182,7 +182,7 @@ scan_options() {
 	option_file="/tmp/kexec_options.txt"
 	if [ -r $option_file ]; then rm $option_file; fi
 	for i in `find $bootdir -name "$config"`; do
-		kexec-parse-boot "$bootdir" "$i" >> $option_file
+		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >> $option_file
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
