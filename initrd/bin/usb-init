@@ -11,5 +11,5 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr extend -ix 4 -ic usb
 fi
 
-media-scan usb
+DO_WITH_DEBUG media-scan usb
 recovery "Something failed during USB boot"
