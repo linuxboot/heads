@@ -218,12 +218,12 @@ syslinux_entry() {
 					state="search"
 					;;
 				*)
-					kernel="${val#"$bootdir"}"
+					kernel="$val"
 					DEBUG "kernel= $kernel"
 			esac
 			;;
 		initrd* | INITRD* )
-			initrd="${val#"$bootdir"}"
+			initrd="$val"
 			DEBUG "initrd= $initrd"
 			;;
 		append* | APPEND* )
