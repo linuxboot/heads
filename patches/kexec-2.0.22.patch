@@ -21,13 +21,14 @@ diff --git a/kexec/arch/i386/x86-linux-setup.c b/kexec/arch/i386/x86-linux-setup
 index 057ee14..43e017a 100644
 --- a/kexec/arch/i386/x86-linux-setup.c
 +++ b/kexec/arch/i386/x86-linux-setup.c
-@@ -137,7 +137,8 @@ static int setup_linux_vesafb(struct x86_linux_param_header *real_mode)
+@@ -137,7 +137,9 @@ static int setup_linux_vesafb(struct x86_linux_param_header *real_mode)
  		goto out;
  	if (-1 == ioctl(fd, FBIOGET_VSCREENINFO, &var))
  		goto out;
 -	if (0 == strcmp(fix.id, "VESA VGA")) {
 +	if (0 == strcmp(fix.id, "VESA VGA")
-+            || 0 == strcmp(fix.id, "inteldrmfb")) {
++            || 0 == strcmp(fix.id, "inteldrmfb")
++            || 0 == strcmp(fix.id, "i915drmfb")) {
  		/* VIDEO_TYPE_VLFB */
  		real_mode->orig_video_isVGA = 0x23;
  	} else if (0 == strcmp(fix.id, "EFI VGA")) {
