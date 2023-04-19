@@ -1,10 +1,10 @@
 modules-$(CONFIG_KEXEC) += kexec
 
-kexec_version := 2.0.22
+kexec_version := 2.0.26
 kexec_dir := kexec-tools-$(kexec_version)
 kexec_tar := kexec-tools-$(kexec_version).tar.gz
 kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
-kexec_hash := 40623d4321be2865ef9ea2cd6ec998d31dcf93d0f74353cbd3aa06d8821e3e41
+kexec_hash := 89bdd941542c64fec16311858df304ed3a3908c1a60874d69df5d9bf1611e062
 
 kexec_configure := \
 	CFLAGS="-g -Os -fno-strict-aliasing -Wall -Wstrict-prototypes" \
