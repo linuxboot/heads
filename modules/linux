@@ -206,34 +206,57 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
 	@touch $@ # force a timestamp update
 	@sha256sum "$@" | tee -a "$(HASHES)"
 
-# modifydefconfig target allows us edit current in tree defconfig config
-# under linux decompressed+patched directory and put it back in git tree 
-# to check changes with git difftool 
-# useful for development cycle of linux kernel version bumps.
-linux.modifydefconfig:
+# modify_and_save_defconfig_in_place target allows us edit current in tree defconfig config
+# under linux decompressed+patched directory through menuconfig
+# and put it back in git tree to check changes with git difftool iteratively 
+# Useful for development cycle of linux kernel version bumps if stored in defconfig format.
+linux.modify_and_save_defconfig_in_place:
 	cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" && \
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
 		menuconfig && \
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
-		savedefconfig && \
-	mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+		CROSS_COMPILE="$(CROSS)" \
+		savedefconfig \
+	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
 
-# generateoldconfig target allows us to copy current in git tree defconfig
-# into decompressed linux directory's .config file. This permits
-# us to edit that .config file and remove unneeded stuff prior
-# of calling saveconfig target from heads main directory (cd -)
-linux.generateoldconfig:
+# modify_and_save_oldconfig_in_place target allows us edit current config in oldconfig format
+# under linux decompressed+patched directory through menuconfig
+# and put it back in git tree to check changes with git difftool iteratively
+# Useful for development cycle of linux kernel version bumps if stored in oldconfig format.
+linux.modify_and_save_oldconfig_in_place:
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
 	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		menuconfig \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		olddefconfig \
+	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
+
+# generate_old_config target allows us to copy current in git tree defconfig
+# into decompressed linux directory's .config file. This permits
+# us to edit that .config file and remove unneeded stuff prior
+# of calling save_defconfig target from heads main directory (cd -)
+# to store it where the board expects it stored and used from.
+linux.generate_old_config:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
 		olddefconfig \
 	&& echo "" \
 	&& echo "You can now edit $(build)/$(linux_dir)/.config" \
@@ -243,6 +266,15 @@ linux.generateoldconfig:
 	&& echo "" \
 	&& echo "To save chances in git tree for review, type:" \
 	&& echo "make BOARD=XYZ linux.saveconfig" 
+linux.generate_and_save-versioned-oldconfig:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		olddefconfig \
+	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)"
 
 # menuconfig target allows us to easily reconfigure this Linux kernel
 # Afterwards make linux.saveconfig to generate a minimal config from it
@@ -251,14 +283,47 @@ linux.menuconfig:
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
 		menuconfig \
+
+#Add some tooling to permit us to keep track of what we currently use.
+# regenerate_and_save_defconfig: regenerate a defconfig from current board linux config and overwrites it
+# regenerate_and_save_versioned_defconfig : same as avove but doesn't overwrite: writes it in seperate versioned file
+linux.regenerate_and_save_defconfig:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		savedefconfig \
+	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+linux.regenerate_and_save_versioned_defconfig:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		savedefconfig \
+	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"
 
 # The config file in the repo is stored as a "defconfig" format
 # which only includes the options that have changed from the defaults.
-linux.saveconfig:
+# Here dave_defconfig takes .config under extracted linux dir and save it back to where board expects it
+linux.save_defconfig:
 	$(MAKE) \
 		-C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
-		savedefconfig
-	mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+		CROSS_COMPILE="$(CROSS)" \
+		savedefconfig \
+	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+#Same as above, but instead of overwriting the board's expected file, we store it in a file versioned by kernel version
+linux.save_versioned_defconfig:
+	$(MAKE) \
+		-C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		savedefconfig \
+	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"
