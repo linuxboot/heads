@@ -92,6 +92,7 @@ coreboot_target := \
 	CROSS="$(COREBOOT_CROSS)" \
 	IASL="$(COREBOOT_IASL)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+	xcompile="$(build)/$(coreboot_base_dir)/.xcompile" \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
