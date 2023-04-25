@@ -1,0 +1,11 @@
+--- clean/bash-5.1.16/Makefile.in	2020-12-16 16:13:10.000000000 -0600
++++ bash-5.1.16/Makefile.in	2023-04-25 14:16:38.849618679 -0600
+@@ -626,7 +626,7 @@
+ 	@${MAKE} ${MFLAGS} tests TESTSCRIPT=run-gprof
+ 
+ version.h:  $(SOURCES) config.h Makefile patchlevel.h
+-	$(SHELL) $(SUPPORT_SRC)mkversion.sh -b -S ${topdir} -s $(RELSTATUS) -d $(Version) -o newversion.h \
++	$(SHELL) $(SUPPORT_SRC)mkversion.sh -S ${topdir} -s $(RELSTATUS) -d $(Version) -o newversion.h \
+ 		&& mv newversion.h version.h
+ 
+ bashversion$(EXEEXT): buildversion.o $(SUPPORT_SRC)bashversion.c
