@@ -61,6 +61,11 @@ adjust_cmd_line() {
 	adjusted_cmd_line="y"
 }
 
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+	#If expecting debug output, have kexec load (-l) output debug info
+	kexeccmd="$kexeccmd -d"
+fi
+
 module_number="1"
 while read line
 do
@@ -76,7 +81,14 @@ do
 		elif [ "$kexectype" = "multiboot" ]; then
 			kexeccmd="$kexeccmd -l $filepath"
 			kexeccmd="$kexeccmd --command-line \"$restval\""
+		elif [ "$kexectype" = "elf" ]; then
+			DEBUG "kexectype= $kexectype"
+			DEBUG "restval= $restval"
+			DEBUG "filepath= $filepath"
+			kexeccmd="$kexeccmd -l $filepath"
+			DEBUG "kexeccmd= $kexeccmd"
 		else
+			DEBUG "unknown kexectype!!!!"
 			kexeccmd="$kexeccmd -l $filepath"
 		fi
 	fi
