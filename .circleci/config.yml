@@ -533,6 +533,20 @@ workflows:
           requires:
             - librem_14
 
+      - build:
+          name: p8z77-v-tpm1-maximized
+          target: p8z77-v-tpm1-maximized
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: p8z77-v-tpm1-hotp-maximized
+          target: p8z77-v-tpm1-hotp-maximized
+          subcommand: ""
+          requires:
+            - librem_14
+
 #      - build:
 #          name: kgpe-d16_workstation-usb_keyboard
 #          target: kgpe-d16_workstation-usb_keyboard
