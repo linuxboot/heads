@@ -101,24 +101,47 @@ gpg_key_reset()
             whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
         fi
     fi
-    # Set RSA key length
-    {
-        echo admin
-        echo key-attr
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>&1
-    if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output`
-        whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
+    # use p256 for key generation if requested
+    if [ "$CONFIG_GPG_DEFAULT_ALGO" = "p256" ];then
+      {
+          echo admin
+          echo key-attr
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+      } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit --expert \
+          > /tmp/gpg_card_edit_output 2>&1
+      if [ $? -ne 0 ]; then
+          ERROR=`cat /tmp/gpg_card_edit_output`
+          whiptail_error_die "Setting key to NIST-P256 in USB security dongle failed."
+      fi
+    # fallback to RSA key generation by default
+    else
+      # Set RSA key length
+      {
+          echo admin
+          echo key-attr
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+      } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+          > /tmp/gpg_card_edit_output 2>&1
+      if [ $? -ne 0 ]; then
+          ERROR=`cat /tmp/gpg_card_edit_output`
+          whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
+      fi
     fi
     # Generate OEM GPG keys
     {
