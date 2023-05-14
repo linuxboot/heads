@@ -1,0 +1,117 @@
+include: 'https://raw.githubusercontent.com/Nitrokey/common-ci-jobs/master/common_jobs.yml'
+
+stages:
+  - pull-github
+  - build
+  - deploy
+
+variables:
+  #Repo for shared scripts (pull.sh release.sh, nightly_upload.sh):
+  GIT_STRATEGY: clone               #This seems to have no effect also set in webinterface
+  GIT_DEPTH: 0                      #This seems to have no effect also set in webinterface
+  GIT_SUBMODULE_STRATEGY: recursive #This seems to have no effect also set in webinterface
+  REPO_NAME: heads
+  MAIN_BRANCH: nitropad
+  DEVICE_FOLDER: "nitropad"
+  COMMON_PULL: "true"
+  COMMON_UPLOAD_NIGHTLY: "false"
+  COMMON_GITHUB_RELEASE: "true"
+  COMMON_UPLOAD_FILES: "false"
+  UPLOAD_FOLDER: "heads"
+
+
+build-nitropad-nv4x:
+  image: registry.git.nitrokey.com/nitrokey/heads/heads-build:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  tags:
+    - docker
+  stage: build
+  script: 
+    - make BOARD=nitropad-nv41
+    - ./create-npf.sh nitropad-nv41
+    - mkdir -p artifacts
+    - find /builds/ -name "heads*.rom" -exec cp "{}"  artifacts/ \;
+    - find /builds/ -name "*.npf" -exec cp "{}"  artifacts/ \;
+  after_script:
+    - wget $icon_server/checkmark/$CI_COMMIT_REF_NAME/$CI_COMMIT_SHA/$CI_JOB_NAME/$CI_JOB_STATUS/${CI_JOB_URL#*/*/*/}
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 30 hrs
+
+build-nitropad-ns5x:
+  image: registry.git.nitrokey.com/nitrokey/heads/heads-build:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  tags:
+    - docker
+  stage: build
+  script: 
+    - make BOARD=nitropad-ns50
+    - ./create-npf.sh nitropad-ns50
+    - mkdir -p artifacts
+    - find /builds/ -name "heads*.rom" -exec cp "{}"  artifacts/ \;
+    - find /builds/ -name "*.npf" -exec cp "{}"  artifacts/ \;
+  after_script:
+    - wget $icon_server/checkmark/$CI_COMMIT_REF_NAME/$CI_COMMIT_SHA/$CI_JOB_NAME/$CI_JOB_STATUS/${CI_JOB_URL#*/*/*/}
+  artifacts:
+    paths:
+      - artifacts
+    expire_in: 30 hrs
+
+
+#build-heads-x230:
+#  image: registry.git.nitrokey.com/nitrokey/heads/heads-build:latest
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "push"'
+#    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+#  tags:
+#    - docker
+#  stage: build
+#  script: 
+#    - make BOARD=x230-hotp-verification
+#    - ./create-npf.sh x230-hotp-verification
+#    - blobs/xx30/download_clean_me.sh
+#    - make BOARD=x230-hotp-maximized
+#    - ./create-npf.sh x230-hotp-maximized
+#    - mkdir -p artifacts
+#    - find /builds/ -name "*.rom"
+#    - find /builds/ -name "*.npf"
+#    - find /builds/ -name "heads*.rom" -exec cp "{}"  artifacts/ \;
+#    - find /builds/ -name "*.npf" -exec cp "{}"  artifacts/ \;
+#  after_script:
+#    - wget $icon_server/checkmark/$CI_COMMIT_REF_NAME/$CI_COMMIT_SHA/$CI_JOB_NAME/$CI_JOB_STATUS/${CI_JOB_URL#*/*/*/}
+#  artifacts:
+#    paths:
+#      - artifacts
+#    expire_in: 30 hrs
+#
+#build-heads-t430:
+#  image: registry.git.nitrokey.com/nitrokey/heads/heads-build:latest
+#  rules:
+#    - if: '$CI_PIPELINE_SOURCE == "push"'
+#    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+#  tags:
+#    - docker
+#  stage: build
+#  script: 
+#    - make BOARD=t430-hotp-verification
+#    - ./create-npf.sh t430-hotp-verification
+#    - blobs/xx30/download_clean_me.sh
+#    - make BOARD=t430-hotp-maximized
+#    - ./create-npf.sh t430-hotp-maximized
+#    - mkdir -p artifacts
+#    - ls /builds/
+#    - find /builds/ -name "*.rom"
+#    - find /builds/ -name "*.npf"
+#    - find /builds/ -name "heads*.rom" -exec cp "{}"  artifacts/ \;
+#    - find /builds/ -name "*.npf" -exec cp "{}"  artifacts/ \;
+#  after_script:
+#    - wget $icon_server/checkmark/$CI_COMMIT_REF_NAME/$CI_COMMIT_SHA/$CI_JOB_NAME/$CI_JOB_STATUS/${CI_JOB_URL#*/*/*/}
+#  artifacts:
+#    paths:
+#      - artifacts
+#    expire_in: 30 hrs
