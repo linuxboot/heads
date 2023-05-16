@@ -1,0 +1,22 @@
+# EDK2 is required by Linuxboot.
+modules-$(CONFIG_LINUXBOOT) += edk2
+
+edk2_version := b7c299e4799012e8a20958a68693ab95b7626aa9
+edk2_hash := 78f48f46414b019b5fcd2d7049fd79e955d25f2965123d0bbdf7226564db33e5
+edk2_tar := edk2-$(edk2_version).tar.gz
+edk2_dir := edk2-$(edk2_version)
+edk2_url := https://github.com/linuxboot/edk2/archive/$(edk2_version).tar.gz
+edk2_depends := $(musl_dep)
+
+# Use musl for compilation to avoid errors with GCC and create a dummy
+# .git file so Linuxboot doesn't try to clone EDK2 again.
+edk2_configure := \
+    cd $(build)/$(edk2_dir) \
+    && source edksetup.sh \
+    && sed -i \
+      's|DEFINE GCC5_$(CONFIG_EDK2_PLATFORM)_PREFIX         = ENV(GCC5_BIN)|DEFINE GCC5_$(CONFIG_EDK2_PLATFORM)_PREFIX         = $(CROSS)|' \
+      Conf/tools_def.txt \
+    && touch .git
+
+# EDK2 will be built via the Linuxboot module, so no build target here.
+edk2_target := nothing || true
