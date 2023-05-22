@@ -46,7 +46,11 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 	coreboot_patch_version = talos_2
 	coreboot_commit_hash = c8aed443c631042ad2b0326c35cd0b774752b924
 	coreboot_repo := https://github.com/Dasharo/coreboot
-
+else ifeq "$(CONFIG_COREBOOT_VERSION)" "nitrokey"
+	coreboot_version = git
+	coreboot_commit_hash = 6328eebb101fd0ded7168e1377da6a1a82a8e2da
+	coreboot_repo := https://github.com/Nitrokey/coreboot
+	coreboot_depends := $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "purism"
 	coreboot_version := git
 	coreboot_repo := https://source.puri.sm/coreboot/coreboot
@@ -70,7 +74,7 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
-EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
+EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-address-of-packed-member
 
 coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
