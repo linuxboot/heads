@@ -8,6 +8,11 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr shutdown
 fi
 
+# Run special EC-based poweroff for Nitropad-Nxx
+if [ "${CONFIG_BOARD%_*}" = nitropad-nv41 || "${CONFIG_BOARD%_*}" = nitropad-ns51 ]; then
+	/bin/nitropad-shutdown.sh
+fi
+
 # Sync all mounted filesystems
 echo s > /proc/sysrq-trigger
 
