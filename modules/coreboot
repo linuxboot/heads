@@ -43,7 +43,7 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.19"
         EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 	coreboot_version = git
-	coreboot_commit_hash = b2d4cc237c51b84c0b465976a56c6deb21b9f263
+	coreboot_commit_hash = 068ad520e4ae898d356add72ea7d2a13913b76ab
 	coreboot_repo := https://github.com/Dasharo/coreboot
 
 else
