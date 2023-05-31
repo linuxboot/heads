@@ -29,6 +29,8 @@ build-nitropad-nv4x:
     - docker
   stage: build
   script: 
+    - make BOARD=nitropad-nv41 || true
+    - rm -rf build/x86/openssl-3.0.8
     - make BOARD=nitropad-nv41
     - ./create-npf.sh nitropad-nv41
     - mkdir -p artifacts
@@ -50,6 +52,8 @@ build-nitropad-ns5x:
     - docker
   stage: build
   script: 
+    - make BOARD=nitropad-ns50 || true
+    - rm -rf build/x86/openssl-3.0.8
     - make BOARD=nitropad-ns50
     - ./create-npf.sh nitropad-ns50
     - mkdir -p artifacts
