@@ -264,27 +264,52 @@ define define_module =
 
   ifneq ("$($1_repo)","")
     $(eval $1_patch_name = $1$(if $($1_patch_version),-$($1_patch_version),))
-    # Checkout the tree instead and touch the canary file so that we know
-    # that the files are all present. No signature hashes are checked in
-    # this case, since we don't have a stable version to compare against.
-    $(build)/$($1_base_dir)/.canary:
-	git clone $($1_repo) "$(build)/$($1_base_dir)"
-	cd $(build)/$($1_base_dir) && git reset --hard $($1_commit_hash) && git submodule update --init --checkout
-	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-			< patches/$($1_patch_name).patch \
-			|| exit 1 ; \
+    # First time:
+    #   Checkout the tree instead and create the canary file with repo and
+    #   revision so that we know that the files are all present and their
+    #   version.
+    #
+    # Other times:
+    #   If .canary contains the same repo and revision combination, do nothing.
+    #   Otherwise, pull a new revision and checkout with update of submodules
+    #
+    # No signature hashes are checked in this case, since we don't have a
+    # stable version to compare against.
+    #
+    # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
+	#      module-specific cleanup action to get rid of it.
+    $(build)/$($1_base_dir)/.canary: FORCE
+	if [ ! -e "$$@" ]; then \
+		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && git submodule update --init --checkout; \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
+	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
+		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) && \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		git -C "$(build)/$($1_base_dir)" clean -df && \
+		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
+		git -C "$(build)/$($1_base_dir)" submodule sync && \
+		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
-	if [ -d patches/$($1_patch_name) ] && \
-	   [ -r patches/$($1_patch_name) ] ; then \
-		for patch in patches/$($1_patch_name)/*.patch ; do \
-			echo "Applying patch file : $$$$patch " ;  \
+	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		if [ -r patches/$($1_patch_name).patch ]; then \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< $$$$patch \
+				< patches/$($1_patch_name).patch \
 				|| exit 1 ; \
-		done ; \
+		fi && \
+		if [ -d patches/$($1_patch_name) ] && \
+		   [ -r patches/$($1_patch_name) ] ; then \
+			for patch in patches/$($1_patch_name)/*.patch ; do \
+				echo "Applying patch file : $$$$patch " ;  \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
+					< $$$$patch \
+					|| exit 1 ; \
+			done ; \
+		fi && \
+		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
-	@touch "$$@"
   else
     $(eval $1_patch_version ?= $($1_version))
     $(eval $1_patch_name = $1-$($1_patch_version))
