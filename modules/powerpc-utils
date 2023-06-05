@@ -1,0 +1,27 @@
+modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
+
+powerpc-utils_version := 1.3.5
+powerpc-utils_dir := powerpc-utils-$(powerpc-utils_version)
+powerpc-utils_tar := powerpc-utils-$(powerpc-utils_version).tar.gz
+powerpc-utils_url := https://github.com/ibm-power-utilities/powerpc-utils/archive/v$(powerpc-utils_version)/$(powerpc-utils_tar)
+powerpc-utils_hash := 77efe3978ac9c251c4728a35b9aebd6076583939a8e26cc7f07ffa86432a8bf0
+
+powerpc-utils_configure := \
+	./autogen.sh && \
+	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
+	./configure \
+	--host $(MUSL_ARCH)-elf-linux \
+	--prefix "/" \
+	--without-systemd \
+	--without-librtas
+
+powerpc-utils_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install
+
+powerpc-utils_output := src/nvram
+
+powerpc-utils_depends := $(musl_dep)
