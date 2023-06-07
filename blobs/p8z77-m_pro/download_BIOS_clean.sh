@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # P7 ASUS
 
 function printusage {

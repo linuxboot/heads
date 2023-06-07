@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Generate dm-verity hashes and sign the root hash
 #
 # Output looks like
