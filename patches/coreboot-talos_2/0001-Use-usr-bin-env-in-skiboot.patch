@@ -1,0 +1,321 @@
+Use /usr/bin/env in skiboot's shebangs
+
+diff --git a/payloads/external/skiboot/Makefile b/payloads/external/skiboot/Makefile
+index e4db9bb5616..8ce85049afe 100644
+--- a/payloads/external/skiboot/Makefile
++++ b/payloads/external/skiboot/Makefile
+@@ -22,6 +22,7 @@ $(skiboot_elf): | $(skiboot_dir) $(build_dir)
+ $(skiboot_dir):
+ 	git clone $(skiboot_git_repo) $(skiboot_dir)
+ 	git -C $(skiboot_dir) checkout $(skiboot_revision)
++	git -C $(skiboot_dir) apply $(CURDIR)/patches/*.patch
+ 
+ $(build_dir):
+ 	mkdir -p $(build_dir)
+diff --git a/payloads/external/skiboot/patches/0001-Update-shebangs-to-use-usr-bin-env.patch b/payloads/external/skiboot/patches/0001-Update-shebangs-to-use-usr-bin-env.patch
+new file mode 100644
+index 00000000000..23e6d80514d
+--- /dev/null
++++ b/payloads/external/skiboot/patches/0001-Update-shebangs-to-use-usr-bin-env.patch
+@@ -0,0 +1,301 @@
++From fcdc09787c255ea43a0efc035e6e346b4b2c161a Mon Sep 17 00:00:00 2001
++From: Sergii Dmytruk <sergii.dmytruk@3mdeb.com>
++Date: Fri, 9 Jun 2023 20:40:09 +0300
++Subject: [PATCH] Update shebangs to use /usr/bin/env
++
++Signed-off-by: Sergii Dmytruk <sergii.dmytruk@3mdeb.com>
++---
++ external/boot-tests/boot_test.sh             | 2 +-
++ external/boot-tests/extract_gcov.sh          | 2 +-
++ external/gard/test/add_test.sh               | 2 +-
++ external/npu/run_procedure.sh                | 2 +-
++ external/pflash/build-all-arch.sh            | 2 +-
++ external/read_esel.sh                        | 2 +-
++ hdata/test/dtdiff_wrap.sh                    | 2 +-
++ libstb/sign-with-local-keys.sh               | 2 +-
++ make_version.sh                              | 2 +-
++ opal-ci/build-centos7.sh                     | 2 +-
++ opal-ci/build-docs.sh                        | 2 +-
++ opal-ci/build-fedora29.sh                    | 2 +-
++ opal-ci/build-qemu-powernv.sh                | 2 +-
++ opal-ci/build-ubuntu-16.04.sh                | 2 +-
++ opal-ci/build-ubuntu-18.04.sh                | 2 +-
++ opal-ci/build-ubuntu-latest.sh               | 2 +-
++ opal-ci/install-deps-qemu-powernv.sh         | 2 +-
++ test/hello_world/run_mambo_hello_world.sh    | 2 +-
++ test/hello_world/run_mambo_p9_hello_world.sh | 2 +-
++ test/hello_world/run_qemu_hello_world.sh     | 2 +-
++ test/make-boot-coverage-report.sh            | 2 +-
++ test/run.sh                                  | 2 +-
++ test/run_mambo_boot_test.sh                  | 2 +-
++ test/run_qemu_boot_test.sh                   | 2 +-
++ test/sreset_world/run_mambo_p9_sreset.sh     | 2 +-
++ test/sreset_world/run_mambo_sreset.sh        | 2 +-
++ 26 files changed, 26 insertions(+), 26 deletions(-)
++ mode change 100644 => 100755 external/read_esel.sh
++
++diff --git a/external/boot-tests/boot_test.sh b/external/boot-tests/boot_test.sh
++index 233467c2..ade47f13 100755
++--- a/external/boot-tests/boot_test.sh
+++++ b/external/boot-tests/boot_test.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ # Lets try for /bin/sh but bashisms will sneak in.
++ 
++ # partial bash strict mode
++diff --git a/external/boot-tests/extract_gcov.sh b/external/boot-tests/extract_gcov.sh
++index c40e01e5..0c2f8ae5 100755
++--- a/external/boot-tests/extract_gcov.sh
+++++ b/external/boot-tests/extract_gcov.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ if [ "$SKIBOOT_GCOV" != 1 ]; then
++     echo "Skipping GCOV test on physical hardware. Enable with SKIBOOT_GCOV=1"
++diff --git a/external/gard/test/add_test.sh b/external/gard/test/add_test.sh
++index 8e773609..b401414c 100755
++--- a/external/gard/test/add_test.sh
+++++ b/external/gard/test/add_test.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash -uex
+++#!/usr/bin/env bash
++ #
++ # this is a really dumb script for auto-generating test cases from known good-data
++ #
++diff --git a/external/npu/run_procedure.sh b/external/npu/run_procedure.sh
++index f61ec8d4..6605c883 100755
++--- a/external/npu/run_procedure.sh
+++++ b/external/npu/run_procedure.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ # Copyright 2016 IBM Corp.
++ #
++diff --git a/external/pflash/build-all-arch.sh b/external/pflash/build-all-arch.sh
++index 5974fbce..ef709c57 100755
++--- a/external/pflash/build-all-arch.sh
+++++ b/external/pflash/build-all-arch.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ #
++ # Script to build all pflash backends
++ #
++diff --git a/external/read_esel.sh b/external/read_esel.sh
++old mode 100644
++new mode 100755
++index 492fbce1..872d8cbf
++--- a/external/read_esel.sh
+++++ b/external/read_esel.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ # Copyright 2013-2014 IBM Corp.
++ #
++ # Licensed under the Apache License, Version 2.0 (the "License");
++diff --git a/hdata/test/dtdiff_wrap.sh b/hdata/test/dtdiff_wrap.sh
++index 75c18baf..55cd016b 100755
++--- a/hdata/test/dtdiff_wrap.sh
+++++ b/hdata/test/dtdiff_wrap.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ # Takes /dev/stdin as dtb, saves to file, does dtdiff
++ # Also runs parameter through a dts->dtb->dts conversion
++diff --git a/libstb/sign-with-local-keys.sh b/libstb/sign-with-local-keys.sh
++index b78a079b..164e53a1 100755
++--- a/libstb/sign-with-local-keys.sh
+++++ b/libstb/sign-with-local-keys.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ PAYLOAD=$1
++ OUTPUT=$2
++diff --git a/make_version.sh b/make_version.sh
++index 59fe01c7..fa8bdb44 100755
++--- a/make_version.sh
+++++ b/make_version.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ usage() {
++ 	echo "$0 [ prefix ]"
++diff --git a/opal-ci/build-centos7.sh b/opal-ci/build-centos7.sh
++index 79b4c2e9..96dcad00 100755
++--- a/opal-ci/build-centos7.sh
+++++ b/opal-ci/build-centos7.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/build-docs.sh b/opal-ci/build-docs.sh
++index 817773bf..3f56b61c 100644
++--- a/opal-ci/build-docs.sh
+++++ b/opal-ci/build-docs.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/build-fedora29.sh b/opal-ci/build-fedora29.sh
++index 56099d28..3b1c63a4 100755
++--- a/opal-ci/build-fedora29.sh
+++++ b/opal-ci/build-fedora29.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/build-qemu-powernv.sh b/opal-ci/build-qemu-powernv.sh
++index 904f0e67..8c6ba96c 100755
++--- a/opal-ci/build-qemu-powernv.sh
+++++ b/opal-ci/build-qemu-powernv.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ set -e
++ set -vx
++ 
++diff --git a/opal-ci/build-ubuntu-16.04.sh b/opal-ci/build-ubuntu-16.04.sh
++index 39fb3f1c..cffbfdfc 100755
++--- a/opal-ci/build-ubuntu-16.04.sh
+++++ b/opal-ci/build-ubuntu-16.04.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/build-ubuntu-18.04.sh b/opal-ci/build-ubuntu-18.04.sh
++index 6fd755f3..dde32b12 100755
++--- a/opal-ci/build-ubuntu-18.04.sh
+++++ b/opal-ci/build-ubuntu-18.04.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/build-ubuntu-latest.sh b/opal-ci/build-ubuntu-latest.sh
++index 16c33a9f..099b5c5c 100755
++--- a/opal-ci/build-ubuntu-latest.sh
+++++ b/opal-ci/build-ubuntu-latest.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ set -uo pipefail
++ set -e
++diff --git a/opal-ci/install-deps-qemu-powernv.sh b/opal-ci/install-deps-qemu-powernv.sh
++index a67daf40..506c9470 100755
++--- a/opal-ci/install-deps-qemu-powernv.sh
+++++ b/opal-ci/install-deps-qemu-powernv.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ set -e
++ sudo apt-get -y install eatmydata
++ sudo eatmydata apt-get -y install gcc python g++ pkg-config \
++diff --git a/test/hello_world/run_mambo_hello_world.sh b/test/hello_world/run_mambo_hello_world.sh
++index 54d445b1..a5bb99ad 100755
++--- a/test/hello_world/run_mambo_hello_world.sh
+++++ b/test/hello_world/run_mambo_hello_world.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ 
++ if [ -z "$MAMBO_PATH" ]; then
++diff --git a/test/hello_world/run_mambo_p9_hello_world.sh b/test/hello_world/run_mambo_p9_hello_world.sh
++index 9560527a..45f3eaa6 100755
++--- a/test/hello_world/run_mambo_p9_hello_world.sh
+++++ b/test/hello_world/run_mambo_p9_hello_world.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ if [ -z "$P9MAMBO_PATH" ]; then
++     P9MAMBO_PATH=/opt/ibm/systemsim-p9/
++diff --git a/test/hello_world/run_qemu_hello_world.sh b/test/hello_world/run_qemu_hello_world.sh
++index 4f12958d..b1a70d62 100755
++--- a/test/hello_world/run_qemu_hello_world.sh
+++++ b/test/hello_world/run_qemu_hello_world.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ QEMU_ARGS="-M powernv -nographic -device ipmi-bmc-sim,id=bmc0 -device isa-ipmi-bt,bmc=bmc0,irq=10"
++ 
++diff --git a/test/make-boot-coverage-report.sh b/test/make-boot-coverage-report.sh
++index 210880ee..0bdeff15 100755
++--- a/test/make-boot-coverage-report.sh
+++++ b/test/make-boot-coverage-report.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ # We cheat and do this in a shell script so I don't go Makefile crazy.
++ 
++diff --git a/test/run.sh b/test/run.sh
++index e159bd30..8c28e222 100755
++--- a/test/run.sh
+++++ b/test/run.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ t=$(mktemp) || exit 1
++ 
++diff --git a/test/run_mambo_boot_test.sh b/test/run_mambo_boot_test.sh
++index adff1804..675138d9 100755
++--- a/test/run_mambo_boot_test.sh
+++++ b/test/run_mambo_boot_test.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ 
++ if [ -z "$MAMBO_PATH" ]; then
++diff --git a/test/run_qemu_boot_test.sh b/test/run_qemu_boot_test.sh
++index db657eed..8fe751f7 100755
++--- a/test/run_qemu_boot_test.sh
+++++ b/test/run_qemu_boot_test.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ QEMU_ARGS="-M powernv -m 3G -nographic -device ipmi-bmc-sim,id=bmc0 -device isa-ipmi-bt,bmc=bmc0,irq=10"
++ 
++diff --git a/test/sreset_world/run_mambo_p9_sreset.sh b/test/sreset_world/run_mambo_p9_sreset.sh
++index 926ce3e4..25e95365 100755
++--- a/test/sreset_world/run_mambo_p9_sreset.sh
+++++ b/test/sreset_world/run_mambo_p9_sreset.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ if [ -z "$P9MAMBO_PATH" ]; then
++     P9MAMBO_PATH=/opt/ibm/systemsim-p9/
++diff --git a/test/sreset_world/run_mambo_sreset.sh b/test/sreset_world/run_mambo_sreset.sh
++index 8fba5eb9..6192aa4f 100755
++--- a/test/sreset_world/run_mambo_sreset.sh
+++++ b/test/sreset_world/run_mambo_sreset.sh
++@@ -1,4 +1,4 @@
++-#!/bin/bash
+++#!/usr/bin/env bash
++ 
++ 
++ if [ -z "$MAMBO_PATH" ]; then
++-- 
++2.35.8
++
