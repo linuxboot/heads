@@ -8,6 +8,10 @@
 devmem 0x80060300D0010081 8 254
 devmem 0x80060300D0010082 8 254
 
+# Disable fast-reset which doesn't reset TPM and results in different values of
+# PRCs every time.
+nvram -p ibm,skiboot --update-config fast-reset=0
+
 # Alias for cbmem to remove need for '-f' option in every call
 echo "alias cbmem='cbmem -f /sys/firmware/cbmem'" >> $HOME/.profile
 export ENV=$HOME/.profile
