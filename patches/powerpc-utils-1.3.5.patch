@@ -1,0 +1,17 @@
+AC_FUNC_MALLOC somehow fails to find malloc(), so drop the check
+
+Weirdly, it doesn't fail configuration, but instead adds -Dmalloc=rpl_malloc
+and fails linking.
+
+diff --git a/configure.ac.orig b/configure.ac
+index a7be3ee95c..74aade323b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -33,7 +33,6 @@ AC_TYPE_UINT8_T
+ # Checks for library functions.
+ AC_FUNC_FORK
+ AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
+-AC_FUNC_MALLOC
+ AC_FUNC_MKTIME
+ AC_CHECK_FUNCS([memset strchr strcspn strdup strerror strrchr strstr strtol strtoul strtoull gettimeofday])
+ 
