@@ -90,7 +90,7 @@ while true; do
       CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
       if ! fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt ; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: No bootable devices found' \
-          --msgbox "    $ERROR\n\n" 16 60
+          --msgbox "    $ERROR\n\n" 0 80
         exit 1
       fi
       # filter out extraneous options
@@ -121,7 +121,7 @@ while true; do
       if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error ; then
         ERROR=`cat /tmp/error`
         whiptail $BG_COLOR_ERROR --title 'ERROR: unable to mount /boot' \
-          --msgbox "    $ERROR\n\n" 16 60
+          --msgbox "    $ERROR\n\n" 0 80
         exit 1
       fi
 
@@ -129,7 +129,7 @@ while true; do
       combine_configs
 
       whiptail --title 'Config change successful' \
-        --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 16 60
+        --msgbox "The /boot device was successfully changed to $SELECTED_FILE" 0 80
     ;;
     "s" )
       read_rom /tmp/config-gui.rom
@@ -140,7 +140,7 @@ while true; do
           --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
         /bin/flash.sh /tmp/config-gui.rom
         whiptail --title 'BIOS Updated Successfully' \
-          --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 16 60
+          --msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
         /bin/reboot
       else
         exit 0
@@ -171,7 +171,7 @@ while true; do
           /bin/tpm-reset
         fi
         whiptail --title 'Configuration Reset Updated Successfully' \
-          --msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 16 60
+          --msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 0 80
         /bin/reboot
       else
         exit 0
