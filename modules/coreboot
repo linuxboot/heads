@@ -50,7 +50,7 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "purism"
 	coreboot_version := git
 	coreboot_repo := https://source.puri.sm/coreboot/coreboot
-	coreboot_commit_hash := 6b65c78be89bb640b4b19a187de8400751ed1df5
+	coreboot_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
 	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
