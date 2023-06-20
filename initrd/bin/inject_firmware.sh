@@ -36,7 +36,8 @@ ORIG_INITRD="$1"
 INITRD_ROOT="/tmp/inject_firmware_initrd_root"
 rm -rf "$INITRD_ROOT" || true
 mkdir "$INITRD_ROOT"
-gunzip <"$ORIG_INITRD" | (cd "$INITRD_ROOT"; cpio -i init 2>/dev/null)
+# Unpack just 'init' from the original initrd
+unpack_initramfs.sh "$ORIG_INITRD" "$INITRD_ROOT" init
 
 # Copy the firmware into the initrd
 for f in $(cbfs -l | grep firmware); do
@@ -50,6 +51,7 @@ done
 # awk will happily pass through a binary file, so look for the match we want
 # before modifying init to ensure it's a shell script and not an ELF, etc.
 if ! grep -E -q '^exec run-init .*\$\{rootmnt\}' "$INITRD_ROOT/init"; then
+	WARN "Can't apply firmware blob jail, unknown init script"
 	exit 0
 fi
 
@@ -79,11 +81,14 @@ awk -e "$AWK_INSERT_CP" "$INITRD_ROOT/init" >"$INITRD_ROOT/init_fw"
 mv "$INITRD_ROOT/init_fw" "$INITRD_ROOT/init"
 chmod a+x "$INITRD_ROOT/init"
 
-# Pad the original initrd to 512 byte blocks, the last gzip blob is often not
-# padded.  (If it is not gzip-compressed, we would already have failed above.)
+# Pad the original initrd to 512 byte blocks.  Uncompressed cpio contents must
+# be 4-byte aligned, and anecdotally gzip frames might not be padded by dracut.
+# Linux ignores zeros between archive segments, so any extra padding is not
+# harmful.
 FW_INITRD="/tmp/inject_firmware_initrd.cpio.gz"
 dd if="$ORIG_INITRD" of="$FW_INITRD" bs=512 conv=sync status=none
-# Pack up the new contents and append to the initrd
-(cd "$INITRD_ROOT"; find . | cpio -o -H newc) | gzip >>"$FW_INITRD"
+# Pack up the new contents and append to the initrd.  Don't spend time
+# compressing this.
+(cd "$INITRD_ROOT"; find . | cpio -o -H newc) >>"$FW_INITRD"
 # Use this initrd
 echo "$FW_INITRD"
