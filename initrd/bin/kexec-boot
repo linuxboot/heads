@@ -150,7 +150,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr kexec_finalize
 fi
 
-if [ -x /bin/io386 ]; then
+if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ]; then
 	lock_chip
 fi
 
