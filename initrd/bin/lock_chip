@@ -9,7 +9,15 @@
 . /etc/ash_functions
 
 TRACE "Under /bin/lock_chip"
-APM_CNT=0xb2
-FIN_CODE=0xcb
-echo "Finalizing chipset"
-io386 -o b -b x $APM_CNT $FIN_CODE
+if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ]; then
+	APM_CNT=0xb2
+	FIN_CODE=0xcb
+fi
+
+if [ -n "$APM_CNT" -a -n "$FIN_CODE" ]; then
+	echo "Finalizing chipset"
+	io386 -o b -b x $APM_CNT $FIN_CODE
+else
+	echo "NOT Finalizing chipset"
+	echo "lock_chip called without valid APM_CNT and FIN_CODE defined under bin/lock_chip."
+fi
