@@ -1,0 +1,20 @@
+modules-$(CONFIG_ZSTD) += zstd
+
+zstd_version := 1.5.5
+zstd_dir := zstd-$(zstd_version)
+zstd_tar := zstd-$(zstd_version).tar.gz
+zstd_url := https://github.com/facebook/zstd/releases/download/v$(zstd_version)/$(zstd_tar)
+zstd_hash := 9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4
+
+zstd_configure := true
+
+# Only the decompressor is built and installed, to be able to read zstd-compressed
+# initramfs archives.
+zstd_target := \
+	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Os" \
+	HAVE_ZLIB=0 \
+	HAVE_LZMA=0 \
+	HAVE_LZ4=0 \
+	zstd-decompress
+
+zstd_output := programs/zstd-decompress
