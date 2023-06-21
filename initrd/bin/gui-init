@@ -605,7 +605,7 @@ force_unsafe_boot()
 {
   TRACE "Under /bin/gui-init:force_unsafe_boot"
   if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR: Restricted Boot Enabled' --msgbox "Restricted Boot is Enabled, forced boot not allowed.\n\nPress OK to return to the Main Menu" 0 80
+      whiptail $BG_COLOR_ERROR --title 'ERROR: Restricted Boot Enabled' --msgbox "Restricted Boot is Enabled, forced boot not allowed.\n\nPress OK to return to the Main Menu" 16 60
       return
   fi
   # Run the menu selection in "force" mode, bypassing hash checks
