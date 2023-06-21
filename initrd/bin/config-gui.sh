@@ -10,6 +10,20 @@ TRACE "Under /bin/config-gui.sh"
 param=$1
 
 while true; do
+  dynamic_config_options=(
+    'b' ' Change the /boot device'
+    's' ' Save the current configuration to the running BIOS' \
+    'r' ' Clear GPG key(s) and reset all user settings' \
+  )
+  if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ];then
+    dynamic_config_options+=(
+      't' ' Deactivate Platform Locking to permit OS write access to firmware'
+    )
+  fi
+  dynamic_config_options+=(
+  'x' ' Return to Main Menu'
+  )
+  
   if [ ! -z "$param" ]; then
     # use first char from parameter
     menu_choice=${param::1}
@@ -18,16 +32,19 @@ while true; do
     unset menu_choice
     whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
-    'b' ' Change the /boot device' \
-    's' ' Save the current configuration to the running BIOS' \
-    'r' ' Clear GPG key(s) and reset all user settings' \
-    'x' ' Return to Main Menu' \
+    "${dynamic_config_options[@]}" \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
     menu_choice=$(cat /tmp/whiptail)
   fi
 
   case "$menu_choice" in
+    "t" )
+      unset CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE
+      replace_config /etc/config.user "CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" "n"
+      combine_configs
+      . /tmp/config
+    ;;
     "x" )
       exit 0
     ;;
