@@ -2,7 +2,7 @@
 # Boot from a local disk installation
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
-MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
+MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Boot Menu"
 export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
@@ -94,7 +94,7 @@ verify_global_hashes()
     # if files changed before package manager started, show stern warning
     if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
       PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
-      TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files Heads has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
+      TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
 
     # if files changed after package manager started, probably caused by package manager
     elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then 
@@ -189,7 +189,7 @@ update_totp()
       DEBUG "$(pcrs)"
 
       whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
-        --menu "    ERROR: Heads couldn't generate the TOTP code.\n
+        --menu "    ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
   your BIOS, you should generate a new HOTP/TOTP secret.\n
   If this is the first time the system has booted, you should
@@ -265,7 +265,7 @@ update_hotp()
 
   if [[ "$CONFIG_TPM" = n && "$HOTP" = "Invalid code" ]]; then
     whiptail $BG_COLOR_ERROR --title "ERROR: HOTP Validation Failed!" \
-      --menu "ERROR: Heads couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+      --menu "ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Generate new TOTP/HOTP secret' \
       'i' ' Ignore error and continue to main menu' \
       'x' ' Exit to recovery shell' \
@@ -328,7 +328,7 @@ check_gpg_key()
       return 1  # Already asked to skip to menu from a prior error
     fi
     whiptail $BG_COLOR_ERROR --title "ERROR: GPG keyring empty!" \
-      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+      --menu "ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Add a GPG key to the running BIOS' \
       'F' ' OEM Factory Reset / Re-Ownership' \
       'i' ' Ignore error and continue to main menu' \
@@ -401,7 +401,7 @@ show_main_menu()
 show_options_menu()
 {
   TRACE "Under /bin/gui-init:show_options_menu"
-  whiptail $BG_COLOR_MAIN_MENU --title "HEADS Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
