@@ -30,7 +30,9 @@ while true; do
     # Re-source config because we change it when an option is toggled
     . /tmp/config
 
-    dynamic_config_options=()
+    dynamic_config_options=(
+      'b' ' Change the /boot device'
+    )
 
     # Options that don't apply to basic mode
     [ "$CONFIG_BASIC" != "y" ] && dynamic_config_options+=(
@@ -63,19 +65,31 @@ while true; do
         'N' " $(get_config_display_action "$CONFIG_AUTOMATIC_POWERON") automatic power-on"
     )
 
+    [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ] && dynamic_config_options+=(
+        't' ' Deactivate Platform Locking to permit OS write access to firmware'
+    )
+
+    dynamic_config_options+=(
+      's' ' Save the current configuration to the running BIOS' \
+      'x' ' Return to Main Menu'
+    )
+
     unset menu_choice
     whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
-    'b' ' Change the /boot device' \
     "${dynamic_config_options[@]}" \
-    's' ' Save the current configuration to the running BIOS' \
-    'x' ' Return to Main Menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
     menu_choice=$(cat /tmp/whiptail)
   fi
 
   case "$menu_choice" in
+    "t" )
+      unset CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE
+      replace_config /etc/config.user "CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" "n"
+      combine_configs
+      . /tmp/config
+    ;;
     "x" )
       exit 0
     ;;

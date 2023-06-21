@@ -57,6 +57,7 @@ recovery() {
 
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
+	. /tmp/config
 
 	if [ "$CONFIG_TPM" = "y" ]; then
 		tpmr extend -ix 4 -ic recovery
