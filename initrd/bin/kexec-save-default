@@ -194,7 +194,7 @@ if [ "$CONFIG_TPM" = "y" ];then
 		extparam=-r
 	fi
 fi
-if [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+if [ "$CONFIG_BASIC" != "y" ]; then
 	kexec-sign-config -p $paramsdir $extparam \
 		|| die "Failed to sign default config"
 fi
