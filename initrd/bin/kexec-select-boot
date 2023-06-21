@@ -257,7 +257,7 @@ default_select() {
 	fi
 	parse_option
 
-	if [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Enforce that default option hashes are valid
 		echo "+++ Checking verified default boot hash file "
 		# Check the hashes of all the files
@@ -321,7 +321,7 @@ user_select() {
 
 do_boot()
 {
-	if [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+	if [ "$CONFIG_BASIC" != "y" ]; then
 		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" \
 				|| die "!!! Failed to boot w/ options: $option"
 	fi
@@ -354,7 +354,7 @@ do_boot()
 }
 
 while true; do
-	if [ "$force_boot" = "y" -o "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
+	if [ "$force_boot" = "y" -o "$CONFIG_BASIC" = "y" ]; then
 	  check_config $paramsdir force
 	else
 	  check_config $paramsdir
@@ -372,7 +372,7 @@ while true; do
 # even if hashes don't match
 	if [ "$force_boot" = "y" ]; then
 		scan_options
-		if [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+		if [ "$CONFIG_BASIC" != "y" ]; then
 			# Remove boot splash and make background red in the event of a forced boot
 			add="$add vt.default_red=0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff"
 			remove="$remove splash quiet"
@@ -393,7 +393,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ "$CONFIG_TPM" = "y" -a "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+	if [ "$CONFIG_TPM" = "y" -a "$CONFIG_BASIC" != "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"

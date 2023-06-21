@@ -135,10 +135,14 @@ fi
 echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
 echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
 
+# CONFIG_BASIC was previously CONFIG_PUREBOOT_BASIC in the PureBoot distribution.
+# Substitute it in config.user if present for backward compatibility.
+sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.user
+
 combine_configs
 . /tmp/config
 
-if [ "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
+if [ "$CONFIG_BASIC" = "y" ]; then
 	echo -e "***** BASIC mode: tamper detection disabled\n" > /dev/tty0
 fi
 
@@ -153,7 +157,7 @@ if [ ! -z "$CONFIG_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
 fi
 
-if [ "$CONFIG_PUREBOOT_BASIC" = "y" ]; then
+if [ "$CONFIG_BASIC" = "y" ]; then
 	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
 	export CONFIG_HOTPKEY=n
 fi
