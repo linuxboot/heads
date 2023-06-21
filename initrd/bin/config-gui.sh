@@ -33,7 +33,7 @@ while true; do
     dynamic_config_options=()
 
     # Options that don't apply to basic mode
-    [ "$CONFIG_PUREBOOT_BASIC" != "y" ] && dynamic_config_options+=(
+    [ "$CONFIG_BASIC" != "y" ] && dynamic_config_options+=(
         'r' ' Clear GPG key(s) and reset all user settings'
         'R' ' Change the root device for hashing'
         'D' ' Change the root directories to hash'
@@ -43,7 +43,7 @@ while true; do
 
     # Basic itself is always available (though RB will refuse to enable it)
     dynamic_config_options+=(
-        'P' " $(get_config_display_action "$CONFIG_PUREBOOT_BASIC") PureBoot Basic Mode"
+        'P' " $(get_config_display_action "$CONFIG_BASIC") PureBoot Basic Mode"
     )
 
     # Blob jail is only offered if this is a configuration with the blobs in
@@ -53,7 +53,7 @@ while true; do
     )
 
     # Basic-only options for automatic boot
-    [ "$CONFIG_PUREBOOT_BASIC" = "y" ] && dynamic_config_options+=(
+    [ "$CONFIG_BASIC" = "y" ] && dynamic_config_options+=(
         'A' " $(get_inverted_config_display_action "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot"
         'U' " $(get_config_display_action "$CONFIG_BASIC_USB_AUTOBOOT") USB automatic boot"
     )
@@ -265,13 +265,13 @@ while true; do
       if [ "$CONFIG_RESTRICTED_BOOT" = "y" ]; then
           whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
             --msgbox "Disable Restricted Boot to enable Basic Mode." 0 80
-      elif [ "$CONFIG_PUREBOOT_BASIC" != "y" ]; then
+      elif [ "$CONFIG_BASIC" != "y" ]; then
         if (whiptail --title 'Enable PureBoot Basic Mode?' \
              --yesno "This will remove all signature checking on the firmware
                     \nand boot files, and disable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_user_config "CONFIG_PUREBOOT_BASIC" "y"
+          set_user_config "CONFIG_BASIC" "y"
 
           whiptail --title 'Config change successful' \
             --msgbox "PureBoot Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
@@ -283,7 +283,7 @@ while true; do
                     \nand boot files, and enable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_user_config "CONFIG_PUREBOOT_BASIC" "n"
+          set_user_config "CONFIG_BASIC" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "PureBoot Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
