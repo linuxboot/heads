@@ -1,0 +1,31 @@
+modules-$(CONFIG_IO386) += io386
+
+io386_depends := $(musl_dep)
+
+io386_version := fc73fcf8e51a70638679c3e9b0ada10527f8a7c1
+io386_dir := io386-$(io386_version)
+io386_tar := io386-$(io386_version).tar.gz
+io386_url := https://github.com/hardenedlinux/io386/archive/$(io386_version).tar.gz
+io386_hash := 874898af57d86dc057cea39b4a7e0621fc64aa4fb777dfb1eeb11e9134bc9a06
+
+io386_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	CFLAGS="-Os" \
+	SHARED=yes \
+	PREFIX="/" \
+	&& \
+	$(MAKE) \
+	-C $(build)/$(io386_dir) \
+	$(CROSS_TOOLS) \
+	SHARED=yes \
+	PREFIX="/" \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+io386_output := \
+	io386
+
+io386_libraries :=
+
+io386_configure :=
