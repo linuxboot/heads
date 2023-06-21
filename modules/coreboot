@@ -75,7 +75,7 @@ EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-err
 coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
 	&& $(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config) \
-	&& echo 'CONFIG_LOCALVERSION="Heads-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
+	&& echo 'CONFIG_LOCALVERSION="$(BRAND_NAME)-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
 	&& echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(BOARD)"' >> $(build)/$(coreboot_dir)/.config \
 	&& $(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \

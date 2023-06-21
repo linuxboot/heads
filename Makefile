@@ -9,7 +9,10 @@ GIT_STATUS	:= $(shell \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 
-CB_OUTPUT_BASENAME	:= heads-$(BOARD)-$(HEADS_GIT_VERSION)
+# Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
+BRAND_NAME	?= Heads
+
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
 CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
 CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
@@ -177,6 +180,7 @@ FORCE:
 define install_config =
 	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
 	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
+	    -e 's!@BRAND_NAME@!$(BRAND_NAME)!g' \
 	    "$1" > "$2"
 endef
 
@@ -631,6 +635,8 @@ $(initrd_tmp_dir)/etc/config: FORCE
 		echo export GIT_STATUS=$(GIT_STATUS) \
 		>> $@ ; \
 		echo export CONFIG_BOARD=$(BOARD) \
+		>> $@ ; \
+		echo export CONFIG_BRAND_NAME=$(BRAND_NAME) \
 		>> $@ ; \
 	)
 

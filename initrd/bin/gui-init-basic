@@ -2,7 +2,7 @@
 # Boot from a local disk installation
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
-MAIN_MENU_TITLE="${BOARD_NAME} | PureBoot Basic Boot Menu"
+MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Basic Boot Menu"
 export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
@@ -103,7 +103,7 @@ show_main_menu()
 show_options_menu()
 {
   TRACE "Under /bin/gui-init:show_options_menu"
-  whiptail $BG_COLOR_MAIN_MENU --title "PureBoot Basic Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Basic Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     'c' ' Change configuration settings -->' \

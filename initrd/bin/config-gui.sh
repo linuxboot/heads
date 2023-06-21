@@ -43,7 +43,7 @@ while true; do
 
     # Basic itself is always available (though RB will refuse to enable it)
     dynamic_config_options+=(
-        'P' " $(get_config_display_action "$CONFIG_BASIC") PureBoot Basic Mode"
+        'P' " $(get_config_display_action "$CONFIG_BASIC") $CONFIG_BRAND_NAME Basic Mode"
     )
 
     # Blob jail is only offered if this is a configuration with the blobs in
@@ -266,7 +266,7 @@ while true; do
           whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
             --msgbox "Disable Restricted Boot to enable Basic Mode." 0 80
       elif [ "$CONFIG_BASIC" != "y" ]; then
-        if (whiptail --title 'Enable PureBoot Basic Mode?' \
+        if (whiptail --title "Enable $CONFIG_BRAND_NAME Basic Mode?" \
              --yesno "This will remove all signature checking on the firmware
                     \nand boot files, and disable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
@@ -274,11 +274,11 @@ while true; do
           set_user_config "CONFIG_BASIC" "y"
 
           whiptail --title 'Config change successful' \
-            --msgbox "PureBoot Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
+            --msgbox "$CONFIG_BRAND_NAME Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
 
         fi
       else
-        if (whiptail --title 'Disable PureBoot Basic Mode?' \
+        if (whiptail --title "Disable $CONFIG_BRAND_NAME Basic Mode?" \
              --yesno "This will enable all signature checking on the firmware
                     \nand boot files, and enable use of the Librem Key.
                     \n\nDo you want to proceed?" 0 80) then
@@ -286,7 +286,7 @@ while true; do
           set_user_config "CONFIG_BASIC" "n"
 
           whiptail --title 'Config change successful' \
-            --msgbox "PureBoot Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
+            --msgbox "$CONFIG_BRAND_NAME Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
