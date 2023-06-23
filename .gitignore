@@ -16,7 +16,6 @@ config/*.old
 *~
 crossgcc
 clean
-*.map
 *.sec
 *.dep
 *.ffs
