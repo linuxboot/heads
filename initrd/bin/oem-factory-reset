@@ -392,8 +392,11 @@ fi
 # We show current integrity measurements status and time
 report_integrity_measurements
 
-echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
-read -n 1 use_defaults
+use_defaults=n
+if [ "$CONFIG_OEMRESET_OFFER_DEFAULTS" = y ]; then
+	echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
+	read -n 1 use_defaults
+fi
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	# Re-ownership of encrypted disk key, content and passphrase
