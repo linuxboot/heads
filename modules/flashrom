@@ -14,8 +14,6 @@ flashrom_cfg := \
 	CONFIG_NOTHING=yes \
 	CONFIG_INTERNAL=yes \
 	CONFIG_INTERNAL_X86=yes \
-	CONFIG_DUMMY=yes \
-	CONFIG_AST1100=yes \
 
 ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 flashrom_cfg := \
@@ -23,6 +21,13 @@ flashrom_cfg := \
 	CONFIG_NOTHING=yes \
 	CONFIG_LINUX_MTD=yes
 endif
+
+#Only enable AST1100 if requested per board configs
+ifeq "$(CONFIG_FLASHROM_AST1100)" "y"
+flashrom_cfg += CONFIG_AST1100=yes
+endif
+
+
 
 flashrom_target := \
 	$(MAKE_JOBS) \
