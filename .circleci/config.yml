@@ -24,7 +24,11 @@ commands:
       - run:
           name: Output hashes
           command: |
-            cat build/<<parameters.arch>>/<<parameters.target>>/hashes.txt || echo "No hashes for this build step..."\
+            cat build/<<parameters.arch>>/<<parameters.target>>/hashes.txt || echo "No hashes.txt for this build step..."
+      - run:
+          name: Output sizes
+          command: |
+            cat build/<<parameters.arch>>/<<parameters.target>>/sizes.txt || echo "No sizes.txt for this build step..."
       - run:
           name: Archiving build logs.
           command: |
