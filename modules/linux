@@ -195,6 +195,7 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build
 	$(call do-copy,$(dir $<)/$(linux_output),$@)
 	@touch $@ # force a timestamp update
 	@sha256sum "$@" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$@" | tee -a "$(SIZES)"
 
 # Build kernel second time, now that initrd is built.
 $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
