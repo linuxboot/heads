@@ -73,11 +73,13 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 
 # record the build date / git hashes and other files here
 HASHES		:= $(board_build)/hashes.txt
+SIZES		:= $(board_build)/sizes.txt
 
 # Create the board output directory if it doesn't already exist
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
+	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
@@ -170,6 +172,7 @@ endif
 
 all payload:
 	@sha256sum $< | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
 
 # Disable all built in rules
 .INTERMEDIATE:
@@ -234,6 +237,7 @@ define do-cpio =
 		rm "$1.tmp" ; \
 	fi
 	@sha256sum "$1" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$1" | tee -a "$(SIZES)"
 	$(call do,HASHES   , $1,\
 		( cd "$2"; \
 		echo "-----" ; \
@@ -241,6 +245,14 @@ define do-cpio =
 		| xargs -0 sha256sum ; \
 		echo "-----" ; \
 		) >> "$(HASHES)" \
+	)
+	$(call do,SIZES    , $1,\
+		( cd "$2"; \
+		echo "-----" ; \
+		find . -type f -print0 \
+		| xargs -0 stat -c "%8s:%n" ; \
+		echo "-----" ; \
+		) >> "$(SIZES)" \
 	)
 endef
 
@@ -252,6 +264,7 @@ define do-copy =
 		cp -a --remove-destination "$1" "$2" ; \
 	)
 	@sha256sum "$(2:$(pwd)/%=%)"
+	@stat -c "%8s:%n" "$(2:$(pwd)/%=%)"
 endef
 
 
@@ -583,6 +596,7 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 		rm "$@.tmp" ; \
 	fi
 	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
 
 #
 # At the moment PowerPC can only load initrd bundled with the kernel.
