@@ -66,12 +66,20 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 	kexeccmd="$kexeccmd -d"
 fi
 
+cut_first_rest() {
+	# The space after $1 in "$1 " avoids a special-case in cut that passes
+	# lines with no delimiters unmodified.  We want those lines to act as
+	# one field, firstval is the single field and restval is empty.
+	firstval="$(echo "$1 " | cut -d\  -f1)"
+	restval="$(echo "$1 " | cut -d\  -f2-)"
+}
+
 module_number="1"
 while read line
 do
-	key=`echo $line | cut -d\  -f1`
-	firstval=`echo $line | cut -d\  -f2`
-	restval=`echo $line | cut -d\  -f3-`
+	cut_first_rest "$line"
+	key="$firstval"
+	cut_first_rest "$restval"
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
 		if [ "$kexectype" = "xen" ]; then
@@ -112,15 +120,32 @@ do
 		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then
-		fix_file_path
+		initrdpath=
+		if [ -n "$override_initrd" ]; then
+			initrdpath="$override_initrd"
+		else
+			while [ -n "$firstval" ]; do
+				fix_file_path
+				if [ -z "$initrdpath" ]; then
+					# First initrd, load directly from /boot
+					initrdpath="$filepath"
+				else
+					# Nix with encrypted rootfs has more than one initrd.
+					# Copy the first initrd to /tmp and append the rest.
+					if [ "$initrdpath" != /tmp/kexec-boot-initrd ]; then
+						cp "$initrdpath" /tmp/kexec-boot-initrd
+						initrdpath=/tmp/kexec-boot-initrd
+					fi
+					cat "$filepath" >>"$initrdpath"
+				fi
+				cut_first_rest "$restval"
+			done
+		fi
 		if [ "$printinitrd" = "y" ]; then
 			# output the current path to initrd
-			echo $filepath
+			echo $initrdpath
 		fi
-		if [ -n "$override_initrd" ]; then
-			filepath="$override_initrd"
-		fi
-		kexeccmd="$kexeccmd --initrd=$filepath"
+		kexeccmd="$kexeccmd --initrd=$initrdpath"
 	fi
 	if [ "$key" = "append" ]; then
 		cmdline="$firstval $restval"

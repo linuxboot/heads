@@ -64,12 +64,14 @@ echo_entry() {
 	case "$kexectype" in
 		elf)
 			if [ -n "$initrd" ]; then
+				local allinitrds=()
 				for init in $(echo $initrd | tr ',' ' '); do
 					fix_path $init
 					# The initrd must also exist
 					if ! check_path "$path"; then return; fi
-					entry="$entry|initrd $path"
+					allinitrds+=("$path")
 				done
+				[ -n "${allinitrds[*]}" ] && entry="$entry|initrd ${allinitrds[*]}"
 			fi
 			if [ -n "$append" ]; then
 				entry="$entry|append $append"
