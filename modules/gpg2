@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += gpg2
 
-gpg2_version := 2.2.21
+gpg2_version := 2.4.0
 gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2
 gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
-gpg2_hash := 61e83278fb5fa7336658a8b73ab26f379d41275bb1c7c6e694dd9f9a6e8e76ec
+gpg2_hash := 1d79158dd01d992431dd2e3facb89fdac97127f89784ea2cb610c600fb0c1483
 
 # For reproducibility reasons we have to override the exec_prefix
 # and datarootdir on the configure line so that the Makefiles will
@@ -41,6 +41,8 @@ gpg2_configure := \
 	--disable-wks-tools \
 	--disable-gnutls \
 	--disable-dirmngr \
+	--disable-ntbtls \
+	--disable-libdns \
 	--disable-zip \
 	--disable-sqlite \
 	--disable-gpgsm \
