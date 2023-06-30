@@ -393,7 +393,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ "$CONFIG_TPM" = "y" -a "$CONFIG_BASIC" != "y" ]; then
+	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"
