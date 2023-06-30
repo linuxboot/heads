@@ -162,6 +162,7 @@ heads_cc	:= $(CROSS)gcc \
 	-fdebug-prefix-map=$(pwd)=heads \
 	-gno-record-gcc-switches \
 	-D__MUSL__ \
+	--sysroot  $(INSTALL) \
 	-isystem $(INSTALL)/include \
 	-L$(INSTALL)/lib \
 
