@@ -335,8 +335,8 @@ while true; do
         if (whiptail --title 'Disable Restricted Boot Mode?' \
              --yesno "This will allow booting from unsigned devices,
                     \nand will re-enable failsafe boot mode.
-                    \n\nThis will also RESET the TPM and re-enable the recovery console.
-                    \n\nProceeding will automatically update the boot firmware, reset TPM and reboot!
+                    \n\nThis will also erase the TOTP/HOTP secret and re-enable the recovery console.
+                    \n\nProceeding will automatically update the boot firmware and reboot!
                     \n\nDo you want to proceed?" 0 80) then
 
           # Wipe the TPM TOTP/HOTP secret before flashing.  Otherwise, enabling
