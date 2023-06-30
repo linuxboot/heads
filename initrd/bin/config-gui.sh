@@ -94,7 +94,7 @@ while true; do
       exit 0
     ;;
     "b" )
-      CURRENT_OPTION=`grep 'CONFIG_BOOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION="$(load_config_value CONFIG_BOOT_DEV)"
       if ! fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt ; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: No bootable devices found' \
           --msgbox "    $ERROR\n\n" 16 60
@@ -112,7 +112,7 @@ while true; do
         fi
       done
       file_selector "/tmp/boot_device_list.txt" \
-          "Choose the default /boot device.\n\nCurrently set to $CURRENT_OPTION." \
+          "Choose the default /boot device.\n\n${CURRENT_OPTION:+\n\nCurrently set to }$CURRENT_OPTION." \
           "Boot Device Selection"
       if [ "$FILE" == "" ]; then
         return
@@ -132,7 +132,7 @@ while true; do
         exit 1
       fi
 
-      replace_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
+      set_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
       combine_configs
 
       whiptail --title 'Config change successful' \
@@ -187,7 +187,7 @@ while true; do
       fi
     ;;
     "R" )
-      CURRENT_OPTION=`grep 'CONFIG_ROOT_DEV=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
+      CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DEV)"
       fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt
       # filter out extraneous options
       > /tmp/root_device_list.txt
@@ -201,25 +201,30 @@ while true; do
         fi
       done
       file_selector "/tmp/root_device_list.txt" \
-          "Choose the default root device.\n\nCurrently set to $CURRENT_OPTION." \
+          "Choose the default root device.${CURRENT_OPTION:+\n\nCurrently set to }$CURRENT_OPTION." \
           "Root Device Selection"
       if [ "$FILE" == "" ]; then
-        return
+        break
       else
         SELECTED_FILE=$FILE
       fi
 
-      replace_config /etc/config.user "CONFIG_ROOT_DEV" "$SELECTED_FILE"
+      set_config /etc/config.user "CONFIG_ROOT_DEV" "$SELECTED_FILE"
       combine_configs
 
       whiptail --title 'Config change successful' \
         --msgbox "The root device was successfully changed to $SELECTED_FILE" 16 60
     ;;
     "D" )
-      CURRENT_OPTION=`grep 'CONFIG_ROOT_DIRLIST=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
-      
-      echo "The current list of directories to hash is $CURRENT_OPTION"
-      echo -e "\nEnter the new list of directories separated by spaces, without any beginning forward slashes:"
+      CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DIRLIST)"
+
+      # Separate from prior prompt history on the terminal with two blanks
+      echo -e "\n"
+
+      if [ -n "$CURRENT_OPTION" ]; then
+        echo -e "The current list of directories to hash is $CURRENT_OPTION"
+      fi
+      echo -e "Enter the new list of directories separated by spaces, without any beginning forward slashes:"
       echo -e "(Press enter with the list empty to cancel)"
       read -r NEW_CONFIG_ROOT_DIRLIST
 
@@ -227,28 +232,32 @@ while true; do
       NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
 
       #check if list empty
-      if [ -s $NEW_CONFIG_ROOT_DIRLIST ] ; then
+      if [ -z "$NEW_CONFIG_ROOT_DIRLIST" ] ; then
         whiptail --title 'Config change canceled' \
         --msgbox "Root device directory change canceled by user" 16 60
         break
       fi
 
-      replace_config /etc/config.user "CONFIG_ROOT_DIRLIST" "$NEW_CONFIG_ROOT_DIRLIST"
+      set_config /etc/config.user "CONFIG_ROOT_DIRLIST" "$NEW_CONFIG_ROOT_DIRLIST"
       combine_configs
 
       whiptail --title 'Config change successful' \
         --msgbox "The root directories to hash was successfully changed to:\n$NEW_CONFIG_ROOT_DIRLIST" 16 60
     ;;
     "B" )
-      CURRENT_OPTION=`grep 'CONFIG_ROOT_CHECK_AT_BOOT=' /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'`
-      if [ "$CURRENT_OPTION" = "n" ]; then
-        if (whiptail --title 'Enable Root Hash Check at Boot?' \
+      CURRENT_OPTION="$(load_config_value CONFIG_ROOT_CHECK_AT_BOOT)"
+      if [ "$CURRENT_OPTION" != "y" ]; then
+        # Root device and directories must be set to enable this
+        if [ -z "$(load_config_value CONFIG_ROOT_DEV)" ] || [ -z "$(load_config_value CONFIG_ROOT_DIRLIST)" ]; then
+          whiptail $BG_COLOR_ERROR --title 'Root Check Not Configured' \
+            --msgbox "Set the root device and directories to hash before enabling this feature." 16 60
+        elif (whiptail --title 'Enable Root Hash Check at Boot?' \
              --yesno "This will enable checking root hashes each time you boot.
                     \nDepending on the directories you are checking, this might add
                     \na minute or more to the boot time.
                     \n\nDo you want to proceed?" 0 80) then
 
-          replace_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "y"
+          set_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "y"
           combine_configs
 
           # check that root hash file exists
@@ -269,7 +278,7 @@ while true; do
              --yesno "This will disable checking root hashes each time you boot.
                     \n\nDo you want to proceed?" 0 80) then
 
-          replace_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "n"
+          set_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "n"
           combine_configs
 
           whiptail --title 'Config change successful' \
