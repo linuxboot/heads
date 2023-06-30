@@ -224,11 +224,11 @@ while true; do
       if [ -n "$CURRENT_OPTION" ]; then
         echo -e "The current list of directories to hash is $CURRENT_OPTION"
       fi
-      echo -e "Enter the new list of directories separated by spaces, without any beginning forward slashes:"
+      echo -e "Enter the new list of directories separated by spaces:"
       echo -e "(Press enter with the list empty to cancel)"
       read -r NEW_CONFIG_ROOT_DIRLIST
 
-      # strip any leading forward slashes in case the user ignored us
+      # strip any leading forward slashes
       NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
 
       #check if list empty
