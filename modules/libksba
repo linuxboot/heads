@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += libksba
 
-libksba_version := 1.6.3
+libksba_version := 1.6.4
 libksba_dir := libksba-$(libksba_version)
 libksba_tar := libksba-$(libksba_version).tar.bz2
 libksba_url := https://gnupg.org/ftp/gcrypt/libksba/$(libksba_tar)
-libksba_hash := 3f72c68db30971ebbf14367527719423f0a4d5f8103fc9f4a1c01a9fa440de5c
+libksba_hash := bbb43f032b9164d86c781ffe42213a83bf4f2fee91455edfa4654521b8b03b6b
 
 libksba_configure := \
 	$(CROSS_TOOLS) \
@@ -13,7 +13,7 @@ libksba_configure := \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-static \
-	--with-gpg-error-prefix="$(INSTALL)" \
+	--with-libgpg-error-prefix="$(INSTALL)" \
 
 libksba_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
