@@ -73,7 +73,7 @@ gpg_flash_rom() {
   fi
 
   whiptail --title 'Files in /boot Updated Successfully'\
-    --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 16 60
+    --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 0 80
   /bin/reboot
   
 }
@@ -99,7 +99,7 @@ gpg_post_gen_mgmt() {
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
-          --msgbox "Unable to read BIOS" 16 60
+          --msgbox "Unable to read BIOS" 0 80
         exit 1
       fi
       PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
@@ -125,7 +125,7 @@ gpg_add_key_reflash() {
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
-          --msgbox "Unable to read BIOS" 16 60
+          --msgbox "Unable to read BIOS" 0 80
         exit 1
       fi
 
@@ -216,10 +216,10 @@ while true; do
         cp "/tmp/public-key.asc" "/media/public-key.asc"
         if [ $? -eq 0 ]; then
           whiptail --title "The GPG Key Copied Successfully" \
-            --msgbox "public-key.asc copied successfully." 16 60
+            --msgbox "public-key.asc copied successfully." 0 80
         else
           whiptail $BG_COLOR_ERROR --title 'ERROR: Copy Failed' \
-            --msgbox "Unable to copy public-key.asc to /media" 16 60
+            --msgbox "Unable to copy public-key.asc to /media" 0 80
         fi
         umount /media
       fi
