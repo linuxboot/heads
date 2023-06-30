@@ -70,6 +70,10 @@ get_menu_option() {
 	fi
 
 	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
+
+	if [ -z "$option" ]; then
+		die "Failed to find menu option $option_index"
+	fi
 }
 
 # create ISO menu options
@@ -81,17 +85,17 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 		get_menu_option
 	done
 
-	if [ -n "$option" ]; then
-		MOUNTED_ISO=$option
-		ISO=${option:7} # remove /media/ to get device relative path
-		DO_WITH_DEBUG kexec-iso-init $MOUNTED_ISO $ISO $USB_BOOT_DEV
+	MOUNTED_ISO="$option"
+	ISO="${option:7}" # remove /media/ to get device relative path
+	DO_WITH_DEBUG kexec-iso-init "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV"
 
-		die "Something failed in iso init"
-	fi
+	die "Something failed in iso init"
 fi
 
+# No *.iso files on media, try ordinary bootable USB
+
 if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
-	die "ISO boot failed in Restricted Boot mode."
+	die "No ISO files found, bootable USB not allowed with Restricted Boot."
 fi
 
 echo "!!! Could not find any ISO, trying bootable USB"
