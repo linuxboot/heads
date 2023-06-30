@@ -94,7 +94,7 @@ verify_global_hashes()
       # root-hashes-gui.sh handles the GUI error menu, just die here
       if [ "$gui_menu" = "y" ]; then
         whiptail $BG_COLOR_ERROR --title 'ERROR: Root Hash Mismatch' \
-          --msgbox "The root hash check failed!\nExiting to a recovery shell" 16 60
+          --msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
       fi
       die "root hash mismatch, see /tmp/hash_output_mismatches for details"
     fi
@@ -250,7 +250,7 @@ default_select() {
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \
-				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
+				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80
 		fi
 		warn "!!! Boot entry has changed - please set a new default"
 		return
