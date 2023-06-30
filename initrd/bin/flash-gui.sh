@@ -9,7 +9,7 @@ TRACE "Under /bin/flash-gui.sh"
 
 if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
   whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
-    --msgbox "Disable Restricted Boot to flash new firmware." 16 60
+    --msgbox "Disable Restricted Boot to flash new firmware." 0 80
   exit 1
 fi
 

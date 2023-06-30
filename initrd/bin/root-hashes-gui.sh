@@ -15,7 +15,7 @@ export CONFIG_ROOT_DIRLIST_PRETTY=$(echo $CONFIG_ROOT_DIRLIST | sed -e 's/^/\//;
 update_root_checksums() {
   if ! detect_root_device; then
     whiptail $BG_COLOR_ERROR --title 'ERROR: No Valid Root Disk Found' \
-      --msgbox "No Valid Root Disk Found" 16 60
+      --msgbox "No Valid Root Disk Found" 0 80
     die "No Valid Root Disk Found"
   fi
 
@@ -24,7 +24,7 @@ update_root_checksums() {
     if ! mount -o rw /boot; then
        unmount_root_device
        whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
-         --msgbox "Unable to mount /boot" 16 60
+         --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi
   else
@@ -40,14 +40,14 @@ update_root_checksums() {
   update_checksums
 
   whiptail --title 'Root Hashes Updated and Signed' \
-    --msgbox "All files in:\n$CONFIG_ROOT_DIRLIST_PRETTY\nhave been hashed and signed successfully" 16 60
+    --msgbox "All files in:\n$CONFIG_ROOT_DIRLIST_PRETTY\nhave been hashed and signed successfully" 0 80
 
   unmount_root_device
 }
 check_root_checksums() {
   if ! detect_root_device; then
     whiptail $BG_COLOR_ERROR --title 'ERROR: No Valid Root Disk Found' \
-      --msgbox "No Valid Root Disk Found" 16 60
+      --msgbox "No Valid Root Disk Found" 0 80
     die "No Valid Root Disk Found"
   fi
 
@@ -56,7 +56,7 @@ check_root_checksums() {
     if ! mount -o ro /boot; then
        unmount_root_device
        whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
-         --msgbox "Unable to mount /boot" 16 60
+         --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi
   fi
@@ -80,7 +80,7 @@ check_root_checksums() {
   if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
     ERROR=`cat /tmp/hash_output`
     whiptail $BG_COLOR_ERROR --title 'ERROR: Signature Failure' \
-      --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 16 60
+      --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
     unmount_root_device
     die 'Invalid signature'
   fi
@@ -93,7 +93,7 @@ check_root_checksums() {
     mv /tmp/new_file_diff2 /tmp/new_file_diff
     CHANGED_FILES_COUNT=$(wc -l /tmp/new_file_diff | cut -f1 -d ' ')
     whiptail $BG_COLOR_ERROR --title 'ERROR: Files Added/Removed in Root ' \
-      --msgbox "${CHANGED_FILES_COUNT} files were added/removed in root!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 16 60
+      --msgbox "${CHANGED_FILES_COUNT} files were added/removed in root!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 0 80
 
     echo "Type \"q\" to exit the list and return to the menu." >> /tmp/new_file_diff
     less /tmp/new_file_diff
@@ -130,7 +130,7 @@ check_root_checksums() {
     CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':' | tee -a /tmp/hash_output_mismatches)
     CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
     whiptail $BG_COLOR_ERROR --title 'ERROR: Root Hash Mismatch' \
-      --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 16 60
+      --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 0 80
     unmount_root_device
 
     echo "Type \"q\" to exit the list and return to the menu." >> /tmp/hash_output_mismatches
@@ -255,7 +255,7 @@ while true; do
     if ! mount -o ro /boot; then
        unmount_root_device
        whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
-         --msgbox "Unable to mount /boot" 16 60
+         --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi
   fi
@@ -291,7 +291,7 @@ while true; do
       check_root_checksums
       if [ $? -eq 0 ]; then
         whiptail --title 'Verified Root Hashes' \
-          --msgbox "All files in $CONFIG_ROOT_DIRLIST_PRETTY passed the verification process" 16 60
+          --msgbox "All files in $CONFIG_ROOT_DIRLIST_PRETTY passed the verification process" 0 80
       fi
     ;;
     "u" )
