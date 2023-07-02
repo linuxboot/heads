@@ -32,6 +32,9 @@ tpm2-tools_configure := \
 	--prefix "/" \
 	--disable-fapi \
 	CFLAGS="-fdebug-prefix-map=$(INSTALL)=." \
+	--with-sysroot=$(INSTALL) \
+	TSS2_ESYS_3_0_CFLAGS="-I$(INSTALL)/include" \
+	TSS2_ESYS_3_0_LIBS="-ltss2-esys -L$(INSTALL)/lib" \
 
 tpm2-tools_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
