@@ -42,7 +42,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"
 else
 	# without a TPM, use the first 20 characters of the ROM SHA256sum 
-	secret_from_rom_hash > "$HOTP_SECRET"
+	secret_from_rom_hash > "$HOTP_SECRET" || die "Reading ROM failed"
 fi
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then

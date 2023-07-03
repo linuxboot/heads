@@ -119,10 +119,6 @@ flash_rom() {
   if [ "$READ" -eq 1 ]; then
     flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}" \
     || die "Backup to $ROM failed"
-  elif [ "$SHA" -eq 1 ]; then
-    flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}" 1&>2 >/dev/null \
-    || die "$ROM: Read failed"
-    sha256sum ${ROM} | cut -f1 -d ' '
   else
     cp "$ROM" /tmp/${CONFIG_BOARD}.rom
     sha256sum /tmp/${CONFIG_BOARD}.rom
@@ -154,24 +150,15 @@ flash_rom() {
 if [ "$1" == "-c" ]; then
   CLEAN=1
   READ=0
-  SHA=0
   ROM="$2"
 elif [ "$1" == "-r" ]; then
   CLEAN=0
   READ=1
-  SHA=0
-  ROM="$2"
-  touch $ROM
-elif [ "$1" == "-s" ]; then
-  CLEAN=0
-  READ=0
-  SHA=1
   ROM="$2"
   touch $ROM
 else
   CLEAN=0
   READ=0
-  SHA=0
   ROM="$1"
 fi
 
