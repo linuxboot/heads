@@ -354,12 +354,13 @@ secret_from_rom_hash() {
 	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
 
 	echo -e "\nTPM not detected; measuring ROM directly\n" 1>&2
-	# use a previously-copied image if it exists
-	if [ -f ${ROM_IMAGE} ]; then
-		sha256sum ${ROM_IMAGE} | cut -f1 -d ' ' | cut -c 1-20 | tr -d '\n'
-	else
-		flash.sh -s ${ROM_IMAGE} | cut -c 1-20 | tr -d '\n'
+
+	# Read the ROM if we haven't read it yet
+	if [ ! -f "${ROM_IMAGE}" ]; then
+		flash.sh -r "${ROM_IMAGE}" >/dev/null 2>&1 || return 1
 	fi
+
+	sha256sum ${ROM_IMAGE} | cut -f1 -d ' ' | cut -c 1-20 | tr -d '\n'
 }
 
 update_checksums()
