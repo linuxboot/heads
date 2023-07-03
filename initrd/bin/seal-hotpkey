@@ -39,7 +39,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 		|| fatal_error "Unable to unseal HOTP secret"
 else
 	# without a TPM, use the first 20 characters of the ROM SHA256sum 
-	secret_from_rom_hash > "$HOTP_SECRET"
+	secret_from_rom_hash > "$HOTP_SECRET" || die "Reading ROM failed"
 fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
