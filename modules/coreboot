@@ -44,7 +44,7 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.19"
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 	coreboot_version = git
 	coreboot_patch_version = talos_2
-	coreboot_commit_hash = 068ad520e4ae898d356add72ea7d2a13913b76ab
+	coreboot_commit_hash = c8aed443c631042ad2b0326c35cd0b774752b924
 	coreboot_repo := https://github.com/Dasharo/coreboot
 
 else
