@@ -37,7 +37,7 @@ WGET ?= wget
 # Timestamps should be in ISO format
 DATE=`date --rfc-3339=seconds`
 
-BOARD		?= qemu-coreboot
+BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"

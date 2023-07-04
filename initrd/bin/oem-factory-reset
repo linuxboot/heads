@@ -128,10 +128,10 @@ gpg_key_reset()
         echo ${ADMIN_PIN_DEF}
         echo ${USER_PIN_DEF}
         echo 0
-        echo y
         echo ${GPG_USER_NAME}
         echo ${GPG_USER_MAIL}
         echo ${GPG_USER_COMMENT}
+        echo ${USER_PIN_DEF}
     } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         > /tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
@@ -508,13 +508,8 @@ if [ "$prompt_output" == "y" \
 	echo -e "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
 	echo -e "Real Name (Comment) email@address.org"
 
-	echo -e "\nEnter your Real Name (At least 5 characters long):"
+	echo -e "\nEnter your Real Name (Optional):"
 	read -r GPG_USER_NAME
-	while [[ ${#GPG_USER_NAME} -lt 5 ]]; do
-	{
-		echo -e "\nEnter your Real Name (At least 5 characters long):"
-		read -r GPG_USER_NAME
-	};done
 
 	echo -e "\nEnter your email@adress.org:"
 	read -r GPG_USER_MAIL
