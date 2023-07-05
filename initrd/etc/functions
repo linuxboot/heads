@@ -349,7 +349,9 @@ load_config_value()
   fi
 }
 
-# Generate secret value using first 20 chars of ROM SHA256 hash
+# Generate a secret for TPM-less HOTP by reading the ROM.  Output is the
+# sha256sum of the ROM (binary, not printable), which can be truncated to the
+# supported secret length.
 secret_from_rom_hash() {
 	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
 
@@ -360,7 +362,7 @@ secret_from_rom_hash() {
 		flash.sh -r "${ROM_IMAGE}" >/dev/null 2>&1 || return 1
 	fi
 
-	sha256sum ${ROM_IMAGE} | cut -f1 -d ' ' | cut -c 1-20 | tr -d '\n'
+	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
 }
 
 update_checksums()
@@ -587,6 +589,32 @@ scan_boot_options()
 calc()
 { 
 	awk "BEGIN { print "$*" }"; 
+}
+
+# truncate a file to a size only if it is longer (busybox truncate lacks '<' and
+# always sets the file size)
+truncate_max_bytes() {
+	local bytes="$1"
+	local file="$2"
+	if [ "$(stat -c %s "$file")" -gt "$bytes" ]; then
+		truncate -s "$bytes" "$file"
+	fi
+}
+
+# Busybox xxd -p pads the last line with spaces to 60 columns, which not only
+# trips up many scripts, it's very difficult to diagnose by looking at the
+# output.  Delete line breaks and spaces to really get plain hex output.
+tohex_plain() {
+	xxd -p | tr -d '\n '
+}
+
+# Busybox xxd -p -r silently truncates lines longer than 60 hex chars.
+# Shorter lines are OK, spaces are OK, and even splitting a byte across lines is
+# allowed, so just fold the text to maximum 60 column lines.
+# Note that also unlike GNU xxd, non-hex chars in input corrupt the output (GNU
+# xxd ignores them).
+fromhex_plain() {
+	fold -w 60 | xxd -p -r
 }
 
 print_battery_health()
