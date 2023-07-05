@@ -16,7 +16,7 @@ Bootstrapping a working system
 ===
 
 1. Install QEMU and swtpm.  (Optionally, KVM.)
-   * Many distributions already package swtpm, but Debian Bullseye does not.  (Bookworm does.)  On Bullseye you will have to build and install libtpms and >
+   * Many distributions already package swtpm, but Debian Bullseye does not.  (Bookworm does.)  On Bullseye you will have to build and install libtpms and swtpm from source, see below for detailed instructions.
      * https://github.com/stefanberger/libtpms
      * https://github.com/stefanberger/swtpm
 2. Build Heads
@@ -25,7 +25,7 @@ Bootstrapping a working system
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp INSTALL_IMG=<path_to_installer.iso> run`
    * Lightweight desktops (XFCE, LXDE, etc.) are recommended, especially if KVM acceleration is not available (such nested in Qubes OS)
    * When running nested in a qube, disable memory ballooning for the qube, or performance will be very poor.
-   * Include `QEMU_MEMORY_SIZE=6G` to set the guest's memory (`6G`, `8G`, etc.).  The default is 4G to be conservative, but more may be needed depending on>
+   * Include `QEMU_MEMORY_SIZE=6G` to set the guest's memory (`6G`, `8G`, etc.).  The default is 4G to be conservative, but more may be needed depending on the guest OS.
    * Include `QEMU_DISK_SIZE=30G` to set the guest's disk size, the default is `20G`.
 4. Shut down and boot Heads with the USB token attached, proceed with OEM reset
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=<token> run`
@@ -62,10 +62,10 @@ To test across all qemu variants, one only has to change BOARD name and run the 
 swtpm on Debian Bullseye
 ===
 
-libtpms and swtpm must be built and installed from source on Debian Bullseye. Upstream provides tooling to build these as Debian packages, which allows thi>
+libtpms and swtpm must be built and installed from source on Debian Bullseye. Upstream provides tooling to build these as Debian packages, which allows things to work seamlessly with default AppArmor configs, etc.
 
 1. Install dependencies
-   * `sudo apt install automake autoconf libtool make gcc libc-dev libssl-dev dh-autoreconf libssl-dev libtasn1-6-dev pkg-config net-tools iproute2 libjson>
+   * `sudo apt install automake autoconf libtool make gcc libc-dev libssl-dev dh-autoreconf libssl-dev libtasn1-6-dev pkg-config net-tools iproute2 libjson-glib-dev libgnutls28-dev expect gawk socat gnutls-bin libseccomp-dev libfuse-dev python3-twisted selinux-policy-dev trousers devscripts equivs`
 2. Build libtpms
    * `git clone https://github.com/stefanberger/libtpms`
    * `cd libtpms; git checkout v0.9.4` (latest release as of this writing)
