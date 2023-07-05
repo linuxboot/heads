@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += libgpg-error
 
-libgpg-error_version := 1.37
+libgpg-error_version := 1.46
 libgpg-error_dir := libgpg-error-$(libgpg-error_version)
 libgpg-error_tar := libgpg-error-$(libgpg-error_version).tar.bz2
 libgpg-error_url := https://gnupg.org/ftp/gcrypt/libgpg-error/$(libgpg-error_tar)
-libgpg-error_hash := b32d6ff72a73cf79797f7f2d039e95e9c6f92f0c1450215410840ab62aea9763
+libgpg-error_hash := b7e11a64246bbe5ef37748de43b245abd72cfcd53c9ae5e7fc5ca59f1c81268d
 
 libgpg-error_configure := \
 	$(CROSS_TOOLS) \
@@ -17,6 +17,7 @@ libgpg-error_configure := \
 	--disable-languages \
 	--disable-doc \
 	--disable-tests \
+	--enable-install-gpg-error-config \
 
 libgpg-error_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
