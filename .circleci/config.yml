@@ -267,8 +267,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t420-hotp-maximized
-          target: UNTESTED_t420-hotp-maximized
+          name: t420-hotp-maximized
+          target: t420-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -281,8 +281,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t420-maximized
-          target: UNTESTED_t420-maximized
+          name: t420-maximized
+          target: t420-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
