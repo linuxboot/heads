@@ -194,6 +194,7 @@ jobs:
             - build/x86/coreboot-4.15
             - build/x86/coreboot-4.17
             - build/x86/coreboot-4.19
+            - build/x86/coreboot-git
             - build/ppc64/coreboot-git
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
