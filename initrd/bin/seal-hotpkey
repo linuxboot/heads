@@ -61,10 +61,12 @@ mount_boot
 counter_value=1
 
 enable_usb
-if ! hotp_verification info ; then
+# While making sure the key is inserted, capture the status so we can check how
+# many PIN attempts remain
+if ! hotp_token_info="$(hotp_verification info)" ; then
   echo -e "\nInsert your $HOTPKEY_BRANDING and press Enter to configure it"
   read
-  if ! hotp_verification info ; then
+  if ! hotp_token_info="$(hotp_verification info)" ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
     fatal_error "Unable to find $HOTPKEY_BRANDING"
@@ -83,10 +85,41 @@ fi
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
 
-# try using factory default admin PIN
+# Check when the signing key was created to consider trying the default PIN
+# (Note: we must avoid using gpg --card-status here as the Nitrokey firmware
+# locks up, https://github.com/Nitrokey/nitrokey-pro-firmware/issues/54)
+gpg_key_create_time="$(gpg --list-keys --with-colons | grep -m 1 '^pub:' | cut -d: -f6)"
+gpg_key_create_time="${gpg_key_create_time:-0}"
+DEBUG "Signature key was created at $(date -d "@$gpg_key_create_time")"
+now_date="$(date '+%s')"
+
+# Get the number of admin PIN retry attempts remaining
+awk_admin_counter_regex='/^\s*Card counters: Admin (\d),.*$/'
+awk_get_admin_counter="$awk_admin_counter_regex"' { print gensub('"$awk_admin_counter_regex"', "\\1", "") }'
+admin_pin_retries="$(echo "$hotp_token_info" | awk "$awk_get_admin_counter")"
+admin_pin_retries="${admin_pin_retries:-0}"
+DEBUG "Admin PIN retry counter is $admin_pin_retries"
+
+# Try using factory default admin PIN for 1 month following OEM reset to ease
+# initial setup.  But don't do it forever to encourage changing the PIN and
+# so PIN attempts are not consumed by the default attempt.
 admin_pin="12345678"
-hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
-if [ $? -ne 0 ]; then
+month_secs="$((30*24*60*60))"
+admin_pin_status=1
+if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
+	# Remind what the default PIN was in case it still hasn't been changed
+	echo "Not trying default PIN ($admin_pin)"
+# Never consume an attempt if there are less than 3 attempts left, otherwise
+# attempting the default PIN could cause an unexpected lockout before getting a
+# chance to enter the correct PIN
+elif [ "$admin_pin_retries" -lt 3 ]; then
+	echo "Not trying default PIN ($admin_pin), only $admin_pin_retries attempt(s) left"
+else
+	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
+	admin_pin_status="$?"
+fi
+
+if [ "$admin_pin_status" -ne 0 ]; then
   # prompt user for PIN and retry
   echo ""
   read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
