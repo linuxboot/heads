@@ -321,20 +321,15 @@ user_select() {
 
 do_boot()
 {
-	if [ "$CONFIG_BASIC" != "y" ]; then
-		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" \
-				|| die "!!! Failed to boot w/ options: $option"
-	fi
-
-	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
 		die "!!! Missing required rollback counter state"
 	fi
 
-	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 			|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
