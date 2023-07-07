@@ -68,6 +68,7 @@ if [ "$unseal_failed" = "y" ]; then
 	fi
 fi
 
+echo 
 echo '+++ Building initrd'
 # pad the initramfs (dracut doesn't pad the last gz blob)
 # without this the kernel init/initramfs.c fails to read
