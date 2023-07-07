@@ -83,8 +83,8 @@ index 14263b0..55291d6 100644
 +                dbgprintf("%s: Reusing video type %d\n",
 +                    __func__, real_mode->orig_video_isVGA);
  	} else {
-+                dbgprintf("%s: Unknown driver %s, can't provide framebuffer\n",
-+                    __func__, fix.id);
++                fprintf(stderr, "Unknown driver %s, can't provide framebuffer\n kexec'ed OS will take over console only if %s is provided\n",
++                    fix.id, fix.id);
  		real_mode->orig_video_isVGA = 0;
  		close(fd);
  		return 0;
@@ -95,7 +95,7 @@ index 14263b0..55291d6 100644
 +            dbgprintf("%s: Kernel did not provide framebuffer address\n",
 +                __func__);
 +            dbgprintf("%s: Try enabling CONFIG_DRM_FBDEV_LEAK_PHYS_SMEM and "
-+                "drm_kms_helper.drm_leak_fbdev_smem\n",
++                "drm_kms_helper.drm_leak_fbdev_smem in kernel command-line options\n",
 +                __func__);
 +        }
 +
