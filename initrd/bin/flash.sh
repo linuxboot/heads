@@ -14,7 +14,7 @@ TRACE "Under /bin/flash.sh"
 
 case "$CONFIG_FLASHROM_OPTIONS" in
   -* )
-    [ "$1" != "-s" ] && echo "Board $CONFIG_BOARD detected, continuing..."
+    echo "Board $CONFIG_BOARD detected, continuing..."
   ;;
   * )
     die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
@@ -170,7 +170,7 @@ else
 fi
 
 if [ ! -e "$ROM" ]; then
-    die "Usage: $0 [-c|-r|-s] <path/to/image.(rom|tgz)>"
+    die "Usage: $0 [-c|-r] <path/to/image.(rom|tgz)>"
 fi
 
 if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
