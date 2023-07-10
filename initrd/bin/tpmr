@@ -211,9 +211,21 @@ replay_pcr() {
 	# SHA-256 hashes are 64 chars
 	if [ "$alg" = "sha256" ] ; then alg_digits=64; fi
 	shift 2
-	extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
-	$(echo "$log" | awk -v alg=$alg -v pcr=$pcr -f <(echo $AWK_PROG)) \
-	$@ | hex2bin
+	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
+	$(echo "$log" | awk -v alg=$alg -v pcr=$pcr -f <(echo $AWK_PROG)) $@)
+	echo $replayed_pcr | hex2bin
+	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
+	# To manually introspect current PCR values:
+	# PCR-2:
+	#     tpmr calcfuturepcr 2 | xxd -p
+	# PCR-4, in case of recovery shell (bash used for process substitution):
+	#     bash -c "tpmr calcfuturepcr 4 <(echo -n recovery)" | xxd -p
+	# PCR-4, in case of normal boot passing through kexec-select-boot:
+	#     bash -c "tpmr calcfuturepcr 4 <(echo -n generic)" | xxd -p
+	# PCR-5, depending on which modules are loaded for given board:
+	#     tpmr calcfuturepcr 5 module0.ko module1.ko module2.ko | xxd -p
+	# PCR-6 and PCR-7: similar to 5, but with different files passed
+	#  (6: luks header, 7: user related cbfs files loaded from cbfs-init)
 }
 
 tpm2_extend() {
