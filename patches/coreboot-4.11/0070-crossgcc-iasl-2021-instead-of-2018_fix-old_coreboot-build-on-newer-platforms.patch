@@ -14,7 +14,7 @@
  BINUTILS_ARCHIVE="https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
  GDB_ARCHIVE="https://ftpmirror.gnu.org/gdb/gdb-${GDB_VERSION}.tar.xz"
 -IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix2-${IASL_VERSION}.tar.gz"
-+IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix-${IASL_VERSION}.tar.gz"
++IASL_ARCHIVE="https://distfiles.macports.org/acpica/acpica-unix-${IASL_VERSION}.tar.gz"
  PYTHON_ARCHIVE="https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz"
  EXPAT_ARCHIVE="https://downloads.sourceforge.net/sourceforge/expat/expat-${EXPAT_VERSION}.tar.bz2"
  # CLANG toolchain archive locations
