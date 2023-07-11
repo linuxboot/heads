@@ -318,12 +318,15 @@ while true; do
     "L" )
       if [ "$CONFIG_RESTRICTED_BOOT" != "y" ]; then
         if (whiptail --title 'Enable Restricted Boot Mode?' \
-             --yesno "This will disable booting from any unsigned files,
-                    \nincluding kernels that have not yet been signed,
-                    \n.isos without signatures, raw USB disks,
-                    \nand will disable failsafe boot mode.
-                    \n\nThis will also disable the recovery console.
-                    \n\nDo you want to proceed?" 0 80) then
+             --yesno "Restricted Boot allows booting:
+                    \n* Signed installed OS
+                    \n* Signed ISOs from USB
+                    \nAll other boot methods are blocked.  Recovery console and firmware updates
+                    \nwill be blocked.
+                    \nRestricted boot can be disabled at any time.  This resets TOTP/HOTP so it
+                    \nis evident that Restricted Boot was disabled.
+                    \n
+                    \nDo you want to proceed?" 0 80) then
 
           set_user_config "CONFIG_RESTRICTED_BOOT" "y"
 
@@ -333,11 +336,10 @@ while true; do
         fi
       else
         if (whiptail --title 'Disable Restricted Boot Mode?' \
-             --yesno "This will allow booting from unsigned devices,
-                    \nand will re-enable failsafe boot mode.
-                    \n\nThis will also erase the TOTP/HOTP secret and
-                    \nre-enable the recovery console.
-                    \n\nProceeding will automatically update the boot firmware and reboot!
+             --yesno "This will re-enable all boot methods, the recovery console, and firmware
+                    \nupdates.
+                    \nThis will also erase the TOTP/HOTP secret.
+                    \nProceeding will automatically update the boot firmware and reboot!
                     \n\nDo you want to proceed?" 0 80) then
 
           # Wipe the TPM TOTP/HOTP secret before flashing.  Otherwise, enabling
