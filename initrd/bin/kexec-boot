@@ -154,6 +154,17 @@ echo "$kexeccmd"
 eval "$kexeccmd" \
 || die "Failed to load the new kernel"
 
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+	#Repeat kexec command that will be executed since in debug
+	DEBUG "kexeccmd= $kexeccmd"
+
+	read -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
+	if [ "${debug_boot_confirm^^}" = N ]; then
+		# abort
+		die "Boot aborted"
+	fi
+fi
+
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr kexec_finalize
 fi
