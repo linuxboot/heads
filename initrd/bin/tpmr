@@ -86,45 +86,146 @@ tpm1_pcrread() {
 	DO_WITH_DEBUG tpm pcrread -ix "$index" | hex2bin >>"$file"
 }
 
-# usage: tpmr calcfuturepcr [-a] <input_file> <output_file>
-# Uses the scratch PCR to calculate a future PCR value (TPM2 23, TPM1 16). The
-# data in input file are hashed into a PCR, and the PCR value is placed in
-# output_file.
-# -a: Append to output_file.  Default is to overwrite
-tpm2_calcfuturepcr() {
-	TRACE "Under /bin/tpmr:tpm2_calcfuturepcr"
-	if [ "$1" = "-a" ]; then
-		APPEND=y
-		shift
-	fi
-
-	input_file="$1"
-	output_file="$2"
-
-	if [ -z "$APPEND" ]; then
-		true >"$output_file"
-	fi
-
-	tpm2 pcrreset -Q 23
-	DO_WITH_DEBUG tpmr extend -ix 23 -if "$input_file"
-	DO_WITH_DEBUG tpm2 pcrread -Q -o >(cat >>"$output_file") sha256:23
-	tpm2 pcrreset -Q 23
+# is_hash - Check if a value is a valid hash of a given type
+# usage: is_hash <alg> <value>
+is_hash() {
+	# Must only contain 0-9a-fA-F
+	if [ "$(echo -n "$2" | tr -d '0-9a-fA-F' | wc -c)" -ne 0 ]; then return 1; fi
+	# SHA-1 hashes are 40 chars
+	if [ "$1" = "sha1" ] && [ "${#2}" -eq 40 ]; then return 0; fi
+	# SHA-256 hashes are 64 chars
+	if [ "$1" = "sha256" ] && [ "${#2}" -eq 64 ]; then return 0; fi
+	return 1
 }
-tpm1_calcfuturepcr() {
-	TRACE "Under /bin/tpmr:tpm1_calcfuturepcr"
-	if [ "$1" = "-a" ]; then
-		APPEND=y
+
+# extend_pcr_state - extend a PCR state value with more hashes or raw data (which is hashed)
+# usage:
+# extend_pcr_state <alg> <initial_state> <files/hashes...>
+# alg - either 'sha1' or 'sha256' to specify algorithm
+# initial_state - a hash value setting the initial state
+# files/hashes... - any number of files or hashes, state is extended once for each item
+extend_pcr_state() {
+	local alg="$1"
+	local state="$2"
+	local next extend
+	shift 2
+
+	while [ "$#" -gt 0 ]; do
+		next="$1"
 		shift
+		if is_hash "$alg" "$next"; then
+			extend="$next"
+                else
+			extend="$("${alg}sum" <"$next" | cut -d' ' -f1)"
+		fi
+		state="$(echo "$state$extend" | hex2bin | "${alg}sum" | cut -d' ' -f1)"
+	done
+	echo "$state"
+}
+
+# There are 3 (and a half) possible formats of event log, each of them requires
+# different arguments for grep. Those formats are shown below as heredocs to
+# keep all the data, including whitespaces:
+# 1) TPM2 log, which can hold multiple hash algorithms at once:
+: << 'EOF'
+TPM2 log:
+	Specification: 2.00
+	Platform class: PC Client
+TPM2 log entry 1:
+	PCR: 2
+	Event type: Action
+	Digests:
+		 SHA256: de73053377e1ae5ba5d2b637a4f5bfaeb410137722f11ef135e7a1be524e3092
+		 SHA1: 27c4f1fa214480c8626397a15981ef3a9323717f
+	Event data: FMAP: FMAP
+EOF
+# 2) TPM1.2 log (aka TCPA), digest is always SHA1:
+: << 'EOF'
+TCPA log:
+	Specification: 1.21
+	Platform class: PC Client
+TCPA log entry 1:
+	PCR: 2
+	Event type: Action
+	Digest: 27c4f1fa214480c8626397a15981ef3a9323717f
+	Event data: FMAP: FMAP
+EOF
+# 3) coreboot-specific format:
+#   3.5) older versions printed 'coreboot TCPA log', even though it isn't TCPA
+: << 'EOF'
+coreboot TPM log:
+
+ PCR-2 27c4f1fa214480c8626397a15981ef3a9323717f SHA1 [FMAP: FMAP]
+EOF
+
+# awk script to handle all of the above. Note this gets squashed to one line so
+# semicolons are required.
+AWK_PROG='
+BEGIN {
+	getline;
+	hash_regex="([a-fA-F0-9]{40,})";
+	if ($0 == "TPM2 log:") {
+		RS="\n[^[:space:]]";
+		pcr="PCR: " pcr;
+		alg=toupper(alg) ": " hash_regex;
+	} else if ($0 == "TCPA log:") {
+		RS="\n[^[:space:]]";
+		pcr="PCR: " pcr;
+		alg="Digest: " hash_regex;
+	} else if ($0 ~ /^coreboot (TCPA|TPM) log:$/) {
+		pcr="PCR-" pcr;
+		alg=hash_regex " " toupper(alg) " ";
+	} else {
+		print "Unknown TPM event log format:", $0 > "/dev/stderr";
+		exit -1;
+	}
+}
+$0 ~ pcr {
+	match($0, alg);
+	print gensub(alg, "\\1", "g", substr($0, RSTART, RLENGTH));
+}
+'
+
+# usage: replay_pcr <alg> <pcr_num> [ <input_file>|<input_hash> ... ]
+# Replays PCR value from CBMEM event log. Note that this contains only the
+# measurements performed by firmware, without those performed by Heads (USB
+# modules, LUKS header etc). First argument is PCR number, followed by optional
+# hashes and/or files extended to given PCR after firmware. Resulting PCR value
+# is returned in binary form.
+replay_pcr() {
+	TRACE "Under /bin/tpmr:replay_pcr"
+	if [ -z "$2" ] ; then
+		>&2 echo "No PCR number passed"
+		return
 	fi
-
-	input_file="$1"
-	output_file="$2"
-
-	if [ -z "$APPEND" ]; then
-		true >"$output_file"
+	if [ "$2" -ge 8 ] ; then
+		>&2 echo "Illegal PCR number ($2)"
+		return
 	fi
-
-	DO_WITH_DEBUG tpm calcfuturepcr -ix 16 -if "$input_file" | hex2bin >>"$output_file"
+	local log=`cbmem -L`
+	local alg="$1"
+	local pcr="$2"
+	local alg_digits=0
+	# SHA-1 hashes are 40 chars
+	if [ "$alg" = "sha1" ] ; then alg_digits=40; fi
+	# SHA-256 hashes are 64 chars
+	if [ "$alg" = "sha256" ] ; then alg_digits=64; fi
+	shift 2
+	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
+	$(echo "$log" | awk -v alg=$alg -v pcr=$pcr -f <(echo $AWK_PROG)) $@)
+	echo $replayed_pcr | hex2bin
+	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
+	# To manually introspect current PCR values:
+	# PCR-2:
+	#     tpmr calcfuturepcr 2 | xxd -p
+	# PCR-4, in case of recovery shell (bash used for process substitution):
+	#     bash -c "tpmr calcfuturepcr 4 <(echo -n recovery)" | xxd -p
+	# PCR-4, in case of normal boot passing through kexec-select-boot:
+	#     bash -c "tpmr calcfuturepcr 4 <(echo -n generic)" | xxd -p
+	# PCR-5, depending on which modules are loaded for given board:
+	#     tpmr calcfuturepcr 5 module0.ko module1.ko module2.ko | xxd -p
+	# PCR-6 and PCR-7: similar to 5, but with different files passed
+	#  (6: luks header, 7: user related cbfs files loaded from cbfs-init)
 }
 
 tpm2_extend() {
@@ -601,7 +702,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		pcrsize)
 			echo "$PCR_SIZE";;
 		calcfuturepcr)
-			shift; tpm1_calcfuturepcr "$@";;
+			shift; replay_pcr "sha1" "$@";;
 		destroy)
 			shift; tpm1_destroy "$@";;
 		seal)
@@ -634,7 +735,7 @@ case "$subcmd" in
 	pcrsize)
 		echo "$PCR_SIZE";;
 	calcfuturepcr)
-		tpm2_calcfuturepcr "$@";;
+		replay_pcr "sha256" "$@";;
 	extend)
 		tpm2_extend "$@";;
 	counter_read)

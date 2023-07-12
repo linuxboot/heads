@@ -30,17 +30,17 @@ dd \
 
 secret="`base32 < $TOTP_SECRET`"
 pcrf="/tmp/secret/pcrf.bin"
-DEBUG "Sealing TOTP with actual state of PCR0-4)"
+DEBUG "Sealing TOTP with actual state of PCR0-3"
 tpmr pcrread 0 "$pcrf"
 tpmr pcrread -a 1 "$pcrf"
 tpmr pcrread -a 2 "$pcrf"
 tpmr pcrread -a 3 "$pcrf"
-DEBUG "Sealing TOTP with actual state of PCR4 (Going to recovery shell extends PCR4)"
+DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR4)"
 # pcr 4 is expected to either: 
 #  zero on bare coreboot+linuxboot on x86 (boot mode: init)
 #  already extended on ppc64 per BOOTKERNEL (skiboot) which boots heads.
-#We expect the PCR4 to be in the right state at unattended unseal operation
-tpmr pcrread -a 4 "$pcrf"
+# Read from event log to catch both cases, even when called from recovery shell.
+tpmr calcfuturepcr 4 >> "$pcrf"
 # pcr 5 (kernel modules loaded) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modules are not firmware integrity attestation related)"
 # pcr 6 (drive luks header) is not measured at sealing/unsealing of totp
