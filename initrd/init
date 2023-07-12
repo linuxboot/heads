@@ -59,7 +59,6 @@ TRACE "Under init"
 if [ ! -e /dev/tpm0 ]; then
 	CONFIG_TPM='n'
 	CONFIG_TPM2_TOOLS='n'
-	warn 'No TPM found...'
 fi
 
 #Specify whiptail background colors cues under FBWhiptail only
@@ -88,6 +87,28 @@ export GPG_TTY=/dev/console
 
 [ -x /bin/bash ] && /bin/key-init
 
+# Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
+if lspci -n | grep -q "8086:2723"; then
+  if ! cat /etc/config.user 2>/dev/null | grep -q "USE_BLOB_JAIL"; then
+    echo "CONFIG_USE_BLOB_JAIL=y" >> /etc/config.user
+  fi
+fi
+
+# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
+# determined above.
+#
+# Values in user config have higher priority during combining thus effectively
+# changing the value for the rest of the scripts which source /tmp/config.
+echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
+echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
+
+# CONFIG_BASIC was previously CONFIG_PUREBOOT_BASIC in the PureBoot distribution.
+# Substitute it in config.user if present for backward compatibility.
+sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.user
+
+combine_configs
+. /tmp/config
+
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
@@ -114,23 +135,12 @@ if [ "$boot_option" = "r" ]; then
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
-	if [ "$CONFIG_TPM" = "y" ]; then
-		tpmr extend -ix 4 -ic recovery
-	fi
-	exec /bin/sh
 	exit
 fi
 
-# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
-# determined above.
-#
-# Values in user config have higher priority during combining thus effectively
-# changing the value for the rest of the scripts which source /tmp/config.
-echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
-echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
-
-combine_configs
-. /tmp/config
+if [ "$CONFIG_BASIC" = "y" ]; then
+	echo -e "***** BASIC mode: tamper detection disabled\n" > /dev/tty0
+fi
 
 # export firmware version
 export FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
@@ -141,6 +151,16 @@ FW_VER=${FW_VER::-10}
 # in the configuration file.
 if [ ! -z "$CONFIG_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+fi
+
+if [ "$CONFIG_BASIC" = "y" ]; then
+	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
+	export CONFIG_HOTPKEY=n
+fi
+
+# Perform board-specific init if present
+if [ -x /bin/board-init.sh ]; then
+	/bin/board-init.sh
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
@@ -163,17 +183,11 @@ else
 		fi
 
 		exec "$CONFIG_BOOTSCRIPT"
-
-		# We should never reach here, but just in case...
-		recovery 'Boot script failure?  Entering recovery shell'
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'
 	fi
 fi
 
-# belts and suspenders, just in case...
-if [ "$CONFIG_TPM" = "y" ]; then
-	tpmr extend -ix 4 -ic recovery
-fi
-exec /bin/sh
+# We should never reach here, but just in case...
+recovery 'Boot script failure?  Entering recovery shell'

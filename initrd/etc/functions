@@ -81,6 +81,24 @@ confirm_totp()
 	echo
 }
 
+# Enable USB storage (if not already enabled), and wait for storage devices to
+# be detected.  If USB storage was already enabled, no wait occurs, this would
+# have happened already when USB storage was enabled.
+enable_usb_storage()
+{
+	if ! lsmod | grep -q usb_storage; then
+		timeout=0
+		echo "Scanning for USB storage devices..."
+		insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
+		|| die "usb_storage: module load failed"
+		while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do 
+			[[ $timeout -ge 8 ]] && break
+			sleep 1
+			timeout=$(($timeout+1))
+		done
+	fi
+}
+
 list_usb_storage()
 {
 	TRACE "Under /etc/functions:list_usb_storage"
@@ -248,7 +266,7 @@ check_config() {
 		|| die 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig ]; then
+	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
 		return
 	fi
 
@@ -267,6 +285,18 @@ check_config() {
 	|| die "Failed to copy kexec boot params to tmp"
 }
 
+# Replace a file in a ROM (add it if the file does not exist)
+replace_rom_file() {
+	ROM="$1"
+	ROM_FILE="$2"
+	NEW_FILE="$3"
+	
+	if (cbfs.sh -o "$ROM" -l | grep -q "$ROM_FILE") then
+		cbfs.sh -o "$ROM" -d "$ROM_FILE"
+	fi
+	cbfs.sh -o "$ROM" -a "$ROM_FILE" -f "$NEW_FILE"
+}
+
 replace_config() {
 	TRACE "Under /etc/functions:replace_config"
 	CONFIG_FILE=$1
@@ -282,6 +312,57 @@ replace_config() {
 	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >> ${CONFIG_FILE}.tmp || true
   sort ${CONFIG_FILE}.tmp | uniq > ${CONFIG_FILE}
 	rm -f ${CONFIG_FILE}.tmp
+}
+
+# Set a config variable in a specific file to a given value - replace it if it
+# exists, or add it.  If added, the variable will be exported.
+set_config() {
+	CONFIG_FILE="$1"
+	CONFIG_OPTION="$2"
+	NEW_SETTING="$3"
+	
+	if grep -q "$CONFIG_OPTION" "$CONFIG_FILE"; then
+		replace_config "$CONFIG_FILE" "$CONFIG_OPTION" "$NEW_SETTING"
+	else
+		echo "export $CONFIG_OPTION=\"$NEW_SETTING\"" >>"$CONFIG_FILE"
+	fi
+}
+
+# Set a value in config.user, re-combine configs, and update configs in the
+# environment.
+set_user_config() {
+	CONFIG_OPTION="$1"
+	NEW_SETTING="$2"
+
+	set_config /etc/config.user "$CONFIG_OPTION" "$NEW_SETTING"
+	combine_configs
+	. /tmp/config
+}
+
+# Load a config value to a variable, defaulting to empty.  Does not fail if the
+# config is not set (since it would expand to empty by default).
+load_config_value()
+{
+  local config_name="$1"
+  if grep -q "$config_name=" /tmp/config; then
+    grep "$config_name=" /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'
+  fi
+}
+
+# Generate a secret for TPM-less HOTP by reading the ROM.  Output is the
+# sha256sum of the ROM (binary, not printable), which can be truncated to the
+# supported secret length.
+secret_from_rom_hash() {
+	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
+
+	echo -e "\nTPM not detected; measuring ROM directly\n" 1>&2
+
+	# Read the ROM if we haven't read it yet
+	if [ ! -f "${ROM_IMAGE}" ]; then
+		flash.sh -r "${ROM_IMAGE}" >/dev/null 2>&1 || return 1
+	fi
+
+	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
 }
 
 update_checksums()
@@ -484,9 +565,56 @@ detect_boot_device()
 	return 1
 }
 
+scan_boot_options()
+{
+	local bootdir config option_file
+	bootdir="$1"
+	config="$2"
+	option_file="$3"
+
+	if [ -r $option_file ]; then rm $option_file; fi
+	for i in `find $bootdir -name "$config"`; do
+		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >> $option_file
+	done
+	# FC29/30+ may use BLS format grub config files
+	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+	# only parse these if $option_file is still empty
+	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
+		for i in `find $bootdir -name "$config"`; do
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
+		done
+	fi
+}
+
 calc()
 { 
 	awk "BEGIN { print "$*" }"; 
+}
+
+# truncate a file to a size only if it is longer (busybox truncate lacks '<' and
+# always sets the file size)
+truncate_max_bytes() {
+	local bytes="$1"
+	local file="$2"
+	if [ "$(stat -c %s "$file")" -gt "$bytes" ]; then
+		truncate -s "$bytes" "$file"
+	fi
+}
+
+# Busybox xxd -p pads the last line with spaces to 60 columns, which not only
+# trips up many scripts, it's very difficult to diagnose by looking at the
+# output.  Delete line breaks and spaces to really get plain hex output.
+tohex_plain() {
+	xxd -p | tr -d '\n '
+}
+
+# Busybox xxd -p -r silently truncates lines longer than 60 hex chars.
+# Shorter lines are OK, spaces are OK, and even splitting a byte across lines is
+# allowed, so just fold the text to maximum 60 column lines.
+# Note that also unlike GNU xxd, non-hex chars in input corrupt the output (GNU
+# xxd ignores them).
+fromhex_plain() {
+	fold -w 60 | xxd -p -r
 }
 
 print_battery_health()

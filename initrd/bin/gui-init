@@ -2,10 +2,11 @@
 # Boot from a local disk installation
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
-MAIN_MENU_TITLE="${BOARD_NAME} | Heads Boot Menu"
+MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Boot Menu"
 export BG_COLOR_MAIN_MENU=""
 
 . /etc/functions
+. /etc/gui_functions
 . /etc/luks-functions
 . /tmp/config
 
@@ -93,7 +94,7 @@ verify_global_hashes()
     # if files changed before package manager started, show stern warning
     if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
       PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
-      TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files Heads has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
+      TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
 
     # if files changed after package manager started, probably caused by package manager
     elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then 
@@ -110,7 +111,7 @@ verify_global_hashes()
       if [ $CHANGED_FILES_COUNT -gt 10 ]; then
         # drop to console to show full file list
         whiptail $ERROR_BG_COLOR --title 'ERROR: Boot Hash Mismatch' \
-          --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 16 60
+          --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 0 80
 
         echo "Type \"q\" to exit the list and return." >> /tmp/hash_output_mismatches
         less /tmp/hash_output_mismatches
@@ -152,15 +153,22 @@ generate_totp_hotp()
 {
   tpm_password="$1"	# May be empty, will prompt if needed and empty
   TRACE "Under /bin/gui-init:generate_totp_hotp"
-  echo "Scan the QR code to add the new TOTP secret"
-  if /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
+  if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
+    echo "Generating new HOTP secret"
+    /bin/seal-hotpkey
+  elif echo -e "Generating new TOTP secret...\n\n" && /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
+    echo
     if [ -x /bin/hotp_verification ]; then
-      echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
-      read
+      if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
+        echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
+        read
+      fi
       /bin/seal-hotpkey
     else
-      echo "Once you have scanned the QR code, hit Enter to continue"
-      read
+      if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
+        echo "Once you have scanned the QR code, hit Enter to continue"
+        read
+      fi
     fi
     # clear screen
     printf "\033c"
@@ -202,7 +210,7 @@ update_totp()
       DEBUG "$(pcrs)"
 
       whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
-        --menu "    ERROR: Heads couldn't generate the TOTP code.\n
+        --menu "    ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
   your BIOS, you should generate a new HOTP/TOTP secret.\n
   If this is the first time the system has booted, you should
@@ -275,6 +283,31 @@ update_hotp()
   else
     HOTP='N/A'
   fi
+
+  if [[ "$CONFIG_TPM" = n && "$HOTP" = "Invalid code" ]]; then
+    whiptail $BG_COLOR_ERROR --title "ERROR: HOTP Validation Failed!" \
+      --menu "ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+      'g' ' Generate new TOTP/HOTP secret' \
+      'i' ' Ignore error and continue to main menu' \
+      'x' ' Exit to recovery shell' \
+      2>/tmp/whiptail || recovery "GUI menu failed"
+
+    option=$(cat /tmp/whiptail)
+    case "$option" in 
+      g )
+        if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
+            --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
+          generate_totp_hotp && BG_COLOR_MAIN_MENU=""
+        fi
+        ;;
+      i )
+        return 1
+        ;;
+      x )
+        recovery "User requested recovery shell"
+        ;;
+    esac
+  fi
 }
 
 clean_boot_check()
@@ -316,7 +349,7 @@ check_gpg_key()
       return 1  # Already asked to skip to menu from a prior error
     fi
     whiptail $BG_COLOR_ERROR --title "ERROR: GPG keyring empty!" \
-      --menu "ERROR: Heads couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+      --menu "ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Add a GPG key to the running BIOS' \
       'F' ' OEM Factory Reset / Re-Ownership' \
       'i' ' Ignore error and continue to main menu' \
@@ -346,18 +379,11 @@ check_gpg_key()
 prompt_auto_default_boot()
 {
   TRACE "Under /bin/gui-init:prompt_auto_default_boot"
-  # save IFS before changing, restore after read
-  IFS_DEF=$IFS
-  IFS=''
-  first_pass=false
   echo -e "\nHOTP verification success\n\n"
-  read -t $CONFIG_AUTO_BOOT_TIMEOUT -s -n 1 -p "Automatic boot in $CONFIG_AUTO_BOOT_TIMEOUT seconds unless interrupted by keypress... "
-  if [[ $? -ne 0 ]]; then
-    IFS=$IFS_DEF
+  if pause_automatic_boot; then
     echo -e "\n\nAttempting default boot...\n\n"
     attempt_default_boot
   fi
-  IFS=$IFS_DEF
 }
 
 show_main_menu()
@@ -396,7 +422,7 @@ show_main_menu()
 show_options_menu()
 {
   TRACE "Under /bin/gui-init:show_options_menu"
-  whiptail $BG_COLOR_MAIN_MENU --title "HEADS Options" \
+  whiptail $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
@@ -405,8 +431,9 @@ show_options_menu()
     'f' ' Flash/Update the BIOS -->' \
     'g' ' GPG Options -->' \
     'F' ' OEM Factory Reset / Re-Ownership -->' \
-    'R' ' Reencrypt LUKS container -->' \
-    'C' ' Change LUKS Disk Recovery Key passphrase ->' \
+    'C' ' Reencrypt LUKS container -->' \
+    'P' ' Change LUKS Disk Recovery Key passphrase ->' \
+    'R' ' Check/Update file hashes on root disk -->' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -434,13 +461,16 @@ show_options_menu()
     F )
       oem-factory-reset
       ;;
-    R )
+    C )
       luks_reencrypt
       luks_secrets_cleanup
       ;;
-    C )
+    P )
       luks_change_passphrase
       luks_secrets_cleanup
+      ;;
+    R )
+      root-hashes-gui.sh
       ;;
     x )
       recovery "User requested recovery shell"
@@ -565,24 +595,6 @@ reset_tpm()
   fi
 }
 
-show_system_info()
-{
-  TRACE "Under /bin/gui-init:show_system_info"
-  battery_charge="$(print_battery_charge)"
-  battery_health="$(print_battery_health)"
-  if [ -n $battery_charge -a -n $battery_health ];then
-	  battery_status="\nBattery charge: $battery_charge%\nBattery health: $battery_health%\n"
-  fi
-
-  memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
-  memtotal=$((${memtotal} / 1024 / 1024 + 1))
-  cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
-  kernel=$(uname -s -r)
-  
-  whiptail $BG_COLOR_MAIN_MENU --title 'System Info' \
-    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 16 60
-}
-
 select_os_boot_option()
 {
   TRACE "Under /bin/gui-init:select_os_boot_option"
@@ -613,6 +625,10 @@ attempt_default_boot()
 force_unsafe_boot()
 {
   TRACE "Under /bin/gui-init:force_unsafe_boot"
+  if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
+      whiptail $BG_COLOR_ERROR --title 'ERROR: Restricted Boot Enabled' --msgbox "Restricted Boot is Enabled, forced boot not allowed.\n\nPress OK to return to the Main Menu" 0 80
+      return
+  fi
   # Run the menu selection in "force" mode, bypassing hash checks
   if (whiptail $BG_COLOR_WARNING --title 'Unsafe Forced Boot Selected!' \
       --yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 0 80) then
