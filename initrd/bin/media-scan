@@ -42,8 +42,10 @@ get_menu_option() {
 			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
 		done < /tmp/iso_menu.txt
 
+		MENU_OPTIONS="$MENU_OPTIONS a Abort"
+
 		whiptail $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
-			--menu "Choose the ISO boot option [1-$n, s for standard boot, a to abort]:" 0 80 8 \
+			--menu "Choose the ISO boot option [1-$n]:" 0 80 8 \
 			-- $MENU_OPTIONS \
 			2>/tmp/whiptail || die "Aborting boot attempt"
 
@@ -58,20 +60,20 @@ get_menu_option() {
 		done < /tmp/iso_menu.txt
 
 		read \
-			-p "Choose the ISO boot option [1-$n, s for standard boot, a to abort]: " \
+			-p "Choose the ISO boot option [1-$n, a to abort]: " \
 			option_index
 	fi
 
-	if [ "$option_index" = "a" ]; then
+	# Empty occurs when aborting fbwhiptail with esc-esc
+	if [ -z "$option_index" ] || [ "$option_index" = "a" ]; then
 		die "Aborting boot attempt"
 	fi
 
-	if [ "$option_index" = "s" ]; then
-			option=""
-			return
-	fi
-
 	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
+
+	if [ -z "$option" ]; then
+		die "Failed to find menu option $option_index"
+	fi
 }
 
 # create ISO menu options
@@ -83,13 +85,17 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 		get_menu_option
 	done
 
-	if [ -n "$option" ]; then
-		MOUNTED_ISO=$option
-		ISO=${option:7} # remove /media/ to get device relative path
-		DO_WITH_DEBUG kexec-iso-init $MOUNTED_ISO $ISO $USB_BOOT_DEV
+	MOUNTED_ISO="$option"
+	ISO="${option:7}" # remove /media/ to get device relative path
+	DO_WITH_DEBUG kexec-iso-init "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV"
 
-		die "Something failed in iso init"
-	fi
+	die "Something failed in iso init"
+fi
+
+# No *.iso files on media, try ordinary bootable USB
+
+if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
+	die "No ISO files found, bootable USB not allowed with Restricted Boot."
 fi
 
 echo "!!! Could not find any ISO, trying bootable USB"

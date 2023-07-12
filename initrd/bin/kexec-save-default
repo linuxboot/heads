@@ -48,7 +48,7 @@ fi
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
-if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ]; then
+if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ "$CONFIG_BASIC" != y ]; then
 	if [ ! -r "$KEY_DEVICES" ]; then
 		read \
 			-n 1 \
@@ -194,8 +194,9 @@ if [ "$CONFIG_TPM" = "y" ];then
 		extparam=-r
 	fi
 fi
-kexec-sign-config -p $paramsdir $extparam \
-|| die "Failed to sign default config"
-
+if [ "$CONFIG_BASIC" != "y" ]; then
+	kexec-sign-config -p $paramsdir $extparam \
+		|| die "Failed to sign default config"
+fi
 # switch back to ro mode
 mount -o ro,remount $paramsdev

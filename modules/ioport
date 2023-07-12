@@ -1,0 +1,22 @@
+modules-$(CONFIG_IOPORT) += ioport
+
+ioport_version := 1.2
+ioport_dir := ioport-$(ioport_version)
+ioport_tar := ioport-$(ioport_version).tar.gz
+ioport_url := https://people.redhat.com/rjones/ioport/files/$(ioport_tar)
+ioport_hash := 7fac1c4b61eb9411275de0e1e7d7a8c3f34166f64f16413f50741e8fce2b8dc0
+
+ioport_configure := CFLAGS=-Os ./configure \
+	$(CROSS_TOOLS) \
+	--prefix "/" \
+	--host i386-elf-linux
+
+ioport_target := \
+	$(MAKE_JOBS) $(CROSS_TOOLS) inb && \
+	$(MAKE) -C "$(build)/$(ioport_dir)" all-local
+
+ioport_output := \
+	inb \
+	outb
+
+ioport_depends := $(musl_dep)

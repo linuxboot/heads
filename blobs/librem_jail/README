@@ -1,0 +1,1 @@
+This directory contains firmware/microcode needed for the Intel AX200 WiFi module, its Bluetooth counterparts, and the Bluetooth component (ar3k) of Ath9k WiFi modules. It is synchronized via the main system firmware (Pureboot) at each boot, and should not be modified.

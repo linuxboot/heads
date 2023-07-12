@@ -9,7 +9,10 @@ GIT_STATUS	:= $(shell \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 
-CB_OUTPUT_BASENAME	:= heads-$(BOARD)-$(HEADS_GIT_VERSION)
+# Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
+BRAND_NAME	?= Heads
+
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
 CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
 CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
@@ -180,6 +183,7 @@ FORCE:
 define install_config =
 	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
 	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
+	    -e 's!@BRAND_NAME@!$(BRAND_NAME)!g' \
 	    "$1" > "$2"
 endef
 
@@ -513,6 +517,8 @@ bin_modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
 bin_modules-$(CONFIG_BASH) += bash
 bin_modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
 bin_modules-$(CONFIG_IO386) += io386
+bin_modules-$(CONFIG_IOPORT) += ioport
+bin_modules-$(CONFIG_ZSTD) += zstd
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -568,6 +574,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 initrd-y += $(pwd)/blobs/dev.cpio
 initrd-y += $(build)/$(initrd_dir)/modules.cpio
 initrd-y += $(build)/$(initrd_dir)/tools.cpio
+initrd-y += $(build)/$(initrd_dir)/board.cpio
 initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
 #$(build)/$(initrd_dir)/.build: $(build)/$(initrd_dir)/initrd.cpio.xz
@@ -596,6 +603,17 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 #
 bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
 all: $(bundle-y)
+
+# The board.cpio is built from the board's initrd/ directory.  It contains
+# board-specific support scripts.
+
+ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
+$(build)/$(initrd_dir)/board.cpio:
+	cpio -H newc -o </dev/null >"$@"
+else
+$(build)/$(initrd_dir)/board.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
+endif
 
 #
 # The heads.cpio is built from the initrd directory in the
@@ -632,6 +650,8 @@ $(initrd_tmp_dir)/etc/config: FORCE
 		echo export GIT_STATUS=$(GIT_STATUS) \
 		>> $@ ; \
 		echo export CONFIG_BOARD=$(BOARD) \
+		>> $@ ; \
+		echo export CONFIG_BRAND_NAME=$(BRAND_NAME) \
 		>> $@ ; \
 	)
 

@@ -40,7 +40,13 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"
+else
+	# without a TPM, generate a secret based on the SHA-256 of the ROM
+	secret_from_rom_hash > "$HOTP_SECRET" || die "Reading ROM failed"
 fi
+
+# Truncate the secret if it is longer than the maximum HOTP secret
+truncate_max_bytes 20 "$HOTP_SECRET"
 
 if ! hotp $counter_value < "$HOTP_SECRET"; then
 	shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null

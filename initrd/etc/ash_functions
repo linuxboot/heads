@@ -63,6 +63,11 @@ recovery() {
 		tpmr extend -ix 4 -ic recovery
 	fi
 
+	if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
+		echo >&2 "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
+		sleep 5
+		/bin/reboot
+	fi
 	while [ true ]
 	do
 		echo >&2 "!!!!! Starting recovery shell"

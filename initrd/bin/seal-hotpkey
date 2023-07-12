@@ -19,6 +19,13 @@ mount_boot()
 
 TRACE "Under /bin/seal-hotpkey"
 
+fatal_error()
+{
+  echo -e "\nERROR: ${1}; press Enter to continue."
+  read
+  die "$1"
+}
+
 # Use stored HOTP key branding (this might be useful after OEM reset)
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
@@ -29,7 +36,10 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" \
-		|| die "Unable to unseal HOTP secret"
+		|| fatal_error "Unable to unseal HOTP secret"
+else
+	# without a TPM, generate a secret based on the SHA-256 of the ROM
+	secret_from_rom_hash > "$HOTP_SECRET" || die "Reading ROM failed"
 fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
@@ -51,13 +61,15 @@ mount_boot
 counter_value=1
 
 enable_usb
-if ! hotp_verification info ; then
-  echo "Insert your $HOTPKEY_BRANDING and press Enter to configure it"
+# While making sure the key is inserted, capture the status so we can check how
+# many PIN attempts remain
+if ! hotp_token_info="$(hotp_verification info)" ; then
+  echo -e "\nInsert your $HOTPKEY_BRANDING and press Enter to configure it"
   read
-  if ! hotp_verification info ; then
+  if ! hotp_token_info="$(hotp_verification info)" ; then
     # don't leak key on failure
     shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-    die "Unable to find $HOTPKEY_BRANDING"
+    fatal_error "Unable to find $HOTPKEY_BRANDING"
   fi
 fi
 
@@ -70,20 +82,63 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security Dongle"
 fi
 
-echo -e ""
-read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
-echo -e "\n"
+# Truncate the secret if it is longer than the maximum HOTP secret
+truncate_max_bytes 20 "$HOTP_SECRET"
 
-hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
-if [ $? -ne 0 ]; then
+# Check when the signing key was created to consider trying the default PIN
+# (Note: we must avoid using gpg --card-status here as the Nitrokey firmware
+# locks up, https://github.com/Nitrokey/nitrokey-pro-firmware/issues/54)
+gpg_key_create_time="$(gpg --list-keys --with-colons | grep -m 1 '^pub:' | cut -d: -f6)"
+gpg_key_create_time="${gpg_key_create_time:-0}"
+DEBUG "Signature key was created at $(date -d "@$gpg_key_create_time")"
+now_date="$(date '+%s')"
+
+# Get the number of admin PIN retry attempts remaining
+awk_admin_counter_regex='/^\s*Card counters: Admin (\d),.*$/'
+awk_get_admin_counter="$awk_admin_counter_regex"' { print gensub('"$awk_admin_counter_regex"', "\\1", "") }'
+admin_pin_retries="$(echo "$hotp_token_info" | awk "$awk_get_admin_counter")"
+admin_pin_retries="${admin_pin_retries:-0}"
+DEBUG "Admin PIN retry counter is $admin_pin_retries"
+
+# Try using factory default admin PIN for 1 month following OEM reset to ease
+# initial setup.  But don't do it forever to encourage changing the PIN and
+# so PIN attempts are not consumed by the default attempt.
+admin_pin="12345678"
+month_secs="$((30*24*60*60))"
+admin_pin_status=1
+if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
+	# Remind what the default PIN was in case it still hasn't been changed
+	echo "Not trying default PIN ($admin_pin)"
+# Never consume an attempt if there are less than 3 attempts left, otherwise
+# attempting the default PIN could cause an unexpected lockout before getting a
+# chance to enter the correct PIN
+elif [ "$admin_pin_retries" -lt 3 ]; then
+	echo "Not trying default PIN ($admin_pin), only $admin_pin_retries attempt(s) left"
+else
+	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
+	admin_pin_status="$?"
+fi
+
+if [ "$admin_pin_status" -ne 0 ]; then
+  # prompt user for PIN and retry
+  echo ""
+  read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
   echo -e "\n"
-  read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
-  echo -e "\n"
-  if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
-    # don't leak key on failure
-    shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-    die "Setting HOTP secret failed"
+  
+  hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
+  if [ $? -ne 0 ]; then
+    echo -e "\n"
+    read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
+    echo -e "\n"
+    if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
+      # don't leak key on failure
+      shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
+      fatal_error "Setting HOTP secret failed"
+    fi
   fi
+else 
+  # remind user to change admin password
+  echo -e "\nWARNING: default GPG admin PIN detected: please change this as soon as possible."
 fi
 
 # HOTP key no longer needed
@@ -99,7 +154,7 @@ mount -o remount,rw /boot
 
 counter_value=`expr $counter_value + 1`
 echo $counter_value > $HOTP_COUNTER \
-|| die "Unable to create hotp counter file"
+|| fatal_error "Unable to create hotp counter file"
 
 # Store/overwrite HOTP USB Security Dongle branding found out beforehand
 echo $HOTPKEY_BRANDING > $HOTP_KEY \
