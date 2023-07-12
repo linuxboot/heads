@@ -182,10 +182,22 @@ update_totp()
   TRACE "Under /bin/gui-init:update_totp"
   # update the TOTP code
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
+  tries=0
   if [ "$CONFIG_TPM" != "y" ]; then
     TOTP="NO TPM"
   else
     TOTP=`unseal-totp`
+    # On platforms using CONFIG_BOOT_EXTRA_TTYS multiple processes may try to
+    # access TPM at the same time, failing with EBUSY. The order of execution
+    # is unpredictable, so the error may appear on main console, secondary one,
+    # or neither of them if the calls are sufficiently staggered. Try up to
+    # three times (including previous one) with small delays in case of error,
+    # instead of immediately scaring users with "you've been pwned" message.
+    while [ $? -ne 0 ] && [ $tries -lt 2 ]; do
+      sleep 0.5
+      ((tries++))
+      TOTP=`unseal-totp`
+    done
     if [ $? -ne 0 ]; then
       BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
       if [ "$skip_to_menu" = "true" ]; then

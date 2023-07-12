@@ -93,8 +93,8 @@ tpmr pcrread 0 "$pcrf"
 tpmr pcrread -a 1 "$pcrf"
 tpmr pcrread -a 2 "$pcrf"
 tpmr pcrread -a 3 "$pcrf"
-# Note that PCR 4 needs to be set with the "normal-boot" path value, which is 0.
-dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 status=none >> "$pcrf"
+# Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
+tpmr calcfuturepcr 4 >> "$pcrf"
 if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
 	DEBUG "Sealing TPM disk unlock key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
@@ -102,11 +102,11 @@ if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_v
 else
 	DEBUG "Sealing TPM disk unlock key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
 	#no kernel modules are expected to be measured+loaded
-	dd if=/dev/zero bs="$(tpmr pcrsize)" count=1 status=none >> "$pcrf"
+	tpmr calcfuturepcr 5 >> "$pcrf"
 fi
 # Precompute the value for pcr 6
 DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of TPM disk unlock key..."
-tpmr calcfuturepcr -a "/tmp/luksDump.txt" "$pcrf"
+tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >> "$pcrf"
 # We take into consideration user files in cbfs
 tpmr pcrread -a 7 "$pcrf"
 
