@@ -5,18 +5,7 @@
 TRACE "Under /bin/mount-usb"
 
 enable_usb
-
-if ! lsmod | grep -q usb_storage; then
-  timeout=0
-  echo "Scanning for USB storage devices..."
-  insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 \
-  || die "usb_storage: module load failed"
-  while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do 
-    [[ $timeout -ge 8 ]] && break
-    sleep 1
-    timeout=$(($timeout+1))
-  done
-fi
+enable_usb_storage
 
 if [ ! -d /media ]; then
   mkdir /media
@@ -26,7 +15,7 @@ list_usb_storage > /tmp/usb_block_devices
 if [ -z "$(cat /tmp/usb_block_devices)" ]; then
   if [ -x /bin/whiptail ]; then
     whiptail $BG_COLOR --title 'USB Drive Missing' \
-      --msgbox "Insert your USB drive and press Enter to continue." 16 60
+      --msgbox "Insert your USB drive and press Enter to continue." 0 80
   else
     echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
     read
@@ -36,7 +25,7 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
   if [ -z "$(cat /tmp/usb_block_devices)" ]; then
     if [ -x /bin/whiptail ]; then
       whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
-        --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 16 60
+        --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 0 80
     else
       echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."
     fi

@@ -82,6 +82,23 @@ verify_global_hashes()
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
 	fi
+  # If user enables it, check root hashes before boot as well
+  if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
+    if root-hashes-gui.sh -c; then
+      echo "+++ Verified root hashes, continuing boot "
+      # if user re-signs, it wipes out saved options, so scan the boot directory and generate
+      if [ ! -r "$TMP_MENU_FILE" ]; then
+        scan_options
+      fi
+    else
+      # root-hashes-gui.sh handles the GUI error menu, just die here
+      if [ "$gui_menu" = "y" ]; then
+        whiptail $BG_COLOR_ERROR --title 'ERROR: Root Hash Mismatch' \
+          --msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
+      fi
+      die "root hash mismatch, see /tmp/hash_output_mismatches for details"
+    fi
+  fi
 }
 
 verify_rollback_counter()
@@ -180,18 +197,7 @@ parse_option() {
 scan_options() {
 	echo "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
-	if [ -r $option_file ]; then rm $option_file; fi
-	for i in `find $bootdir -name "$config"`; do
-		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >> $option_file
-	done
-	# FC29/30+ may use BLS format grub config files
-	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
-	# only parse these if $option_file is still empty
-	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in `find $bootdir -name "$config"`; do
-			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >> $option_file
-		done
-	fi
+	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
 		die "Failed to parse any boot options"
 	fi
@@ -244,26 +250,27 @@ default_select() {
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
 			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \
-				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 16 60
+				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80
 		fi
 		warn "!!! Boot entry has changed - please set a new default"
 		return
 	fi
 	parse_option
 
-	# Enforce that default option hashes are valid
-	echo "+++ Checking verified default boot hash file "
-	# Check the hashes of all the files
-	if ( cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" > /tmp/hash_output ); then
-		echo "+++ Verified default boot hashes "
-		valid_hash='y'
-	else
-		if [ "$gui_menu" = "y" ]; then
-			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
-				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
+	if [ "$CONFIG_BASIC" != "y" ]; then
+		# Enforce that default option hashes are valid
+		echo "+++ Checking verified default boot hash file "
+		# Check the hashes of all the files
+		if ( cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" > /tmp/hash_output ); then
+			echo "+++ Verified default boot hashes "
+			valid_hash='y'
+		else
+			if [ "$gui_menu" = "y" ]; then
+				CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
+				whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
+					--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
+			fi
 		fi
-		die "!!! $TMP_DEFAULT_HASH_FILE: default boot hash mismatch"
 	fi
 
 	echo "+++ Executing default boot for $name:"
@@ -314,15 +321,15 @@ user_select() {
 
 do_boot()
 {
-	if [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" -a "$valid_rollback" = "n" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
 		die "!!! Missing required rollback counter state"
 	fi
 
-	if [ "$CONFIG_BOOT_REQ_HASH" = "y" -a "$valid_hash" = "n" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
 		die "!!! Missing required boot hashes"
 	fi
 
-	if [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
 		INITRD=`kexec-boot -b "$bootdir" -e "$option" -i` \
 			|| die "!!! Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
@@ -342,7 +349,7 @@ do_boot()
 }
 
 while true; do
-	if [ "$force_boot" = "y" ]; then
+	if [ "$force_boot" = "y" -o "$CONFIG_BASIC" = "y" ]; then
 	  check_config $paramsdir force
 	else
 	  check_config $paramsdir
@@ -360,9 +367,11 @@ while true; do
 # even if hashes don't match
 	if [ "$force_boot" = "y" ]; then
 		scan_options
-		# Remove boot splash and make background red in the event of a forced boot
-		add="$add vt.default_red=0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff"
-		remove="$remove splash quiet"
+		if [ "$CONFIG_BASIC" != "y" ]; then
+			# Remove boot splash and make background red in the event of a forced boot
+			add="$add vt.default_red=0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff"
+			remove="$remove splash quiet"
+		fi
 		user_select
 	fi
 
@@ -379,7 +388,7 @@ while true; do
 		scan_options
 	fi
 
-	if [ "$CONFIG_TPM" = "y" ]; then
+	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Optionally enforce device file hashes
 		if [ -r "$TMP_HASH_FILE" ]; then
 			valid_global_hash="n"
