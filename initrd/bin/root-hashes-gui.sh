@@ -171,7 +171,7 @@ detect_root_device()
   # check $CONFIG_ROOT_DEV if set/valid
   if [ -e "$CONFIG_ROOT_DEV" ]; then
     if cryptsetup isLuks $CONFIG_ROOT_DEV >/dev/null 2>&1; then
-      if cryptsetup luksOpen $CONFIG_ROOT_DEV rootdisk; then
+      if cryptsetup open $CONFIG_ROOT_DEV rootdisk; then
         if mount -o ro /dev/mapper/rootdisk $ROOT_MOUNT >/dev/null 2>&1; then
           if cd $ROOT_MOUNT && ls -d $CONFIG_ROOT_DIRLIST >/dev/null 2>&1; then # CONFIG_ROOT_DEV is valid device and contains an installed OS
             return 0
@@ -199,7 +199,7 @@ detect_root_device()
   # iterate thru possible options and check for LUKS
   for i in `cat /tmp_root_device_list`; do
     if cryptsetup isLuks $i >/dev/null 2>&1; then
-      if cryptsetup luksOpen $i rootdisk; then
+      if cryptsetup open $i rootdisk; then
         if mount -o ro /dev/mapper/rootdisk $ROOT_MOUNT >/dev/null 2>&1; then
           if cd $ROOT_MOUNT && ls -d $CONFIG_ROOT_DIRLIST >/dev/null 2>&1; then
             # CONFIG_ROOT_DEV is valid device and contains an installed OS
@@ -220,7 +220,7 @@ unmount_root_device()
 {
   cd /
   umount $ROOT_MOUNT 2>/dev/null
-  cryptsetup luksClose rootdisk
+  cryptsetup close rootdisk
 }
 
 checkonly="n"
