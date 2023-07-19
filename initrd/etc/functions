@@ -102,6 +102,15 @@ enable_usb_storage()
 list_usb_storage()
 {
 	TRACE "Under /etc/functions:list_usb_storage"
+	# List all USB storage devices, including partitions unless we received argument stating we want drives only
+	# The output is a list of device names, one per line.
+
+	if [ "$1" = "disks" ]; then
+		DEBUG "Listing USB storage devices (disks only) since list_usb_storage was called with 'disks' argument"
+	else
+		DEBUG "Listing USB storage devices (including partitions)"
+	fi
+
 	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
 		cut -f1 -d ' ' |
 		sed "s/[']//g" |
@@ -109,6 +118,7 @@ list_usb_storage()
 			# Ignore devices of size 0, such as empty SD card
 			# readers on laptops attached via USB.
 			if [ "$(cat "$b/size")" -gt 0 ]; then
+				DEBUG "USB storage device of size greater then 0: $b"
 				echo "$b"
 			fi
 		done |
@@ -131,9 +141,17 @@ list_usb_storage()
 			DISK_DATA=$(fdisk -l "$b")
 			if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || [ $(echo "$DISK_DATA" | wc -l) -eq 5 ]; then
 				# No partition table, include this device
+				DEBUG "USB storage device without partition table: $b"
+				echo "$b"
+			#Bypass the check for partitions if we want only disks
+			elif [ "$1" = "disks" ]; then
+				# disks only were requested, so we don't list partitions
+				DEBUG "USB storage device with partition table: $b"
+				DEBUG "We asked for disks only, so we don't want to list partitions"
 				echo "$b"
 			else
 				# Has a partition table, include partitions
+				DEBUG "USB storage device with partition table: $b"
 				ls -1 "$b"* | awk 'NR!=1 {print $0}'
 			fi
 		done
