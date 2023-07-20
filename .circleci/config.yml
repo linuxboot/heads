@@ -231,6 +231,14 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      # Coreboot Nitropads
+      - build_and_persist:
+          name: nitropad-nv41
+          target: nitropad-nv41
+          subcommand: ""
+          requires:
+            - librem_14
+
       # Coreboot for Talos (PPC)
       - build_and_persist:
           name: talos-2
@@ -245,8 +253,8 @@ workflows:
           requires:
             - librem_14
             - talos-2
+            - nitropad-nv41
 
-#
 #
 # Those onboarding new boards should add their entries below.
 #
@@ -540,6 +548,13 @@ workflows:
           subcommand: ""
           requires:
             - librem_14
+
+      - build:
+          name: nitropad-ns50
+          target: nitropad-ns50
+          subcommand: ""
+          requires:
+            - nitropad-nv41
 
 #      - build:
 #          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
