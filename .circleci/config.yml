@@ -471,6 +471,20 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: z220-cmt-maximized
+          target: z220-cmt-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: z220-cmt-hotp-maximized
+          target: z220-cmt-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: UNTESTED_p8z77-m_pro-tpm1-maximized
           target: UNTESTED_p8z77-m_pro-tpm1-maximized
           subcommand: ""
