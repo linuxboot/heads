@@ -302,7 +302,9 @@ define define_module =
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) && \
+		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
+		git -C "$(build)/$($1_base_dir)" remote set-url origin $($1_repo) && \
+		git -C "$(build)/$($1_base_dir)" checkout origin > /dev/null 2>&1 && \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \

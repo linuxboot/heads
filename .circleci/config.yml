@@ -215,7 +215,7 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Coreboot 4.19
+      # coreboot 4.19
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
@@ -223,7 +223,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.17
+      # coreboot-git librems
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -231,7 +231,7 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-      # Coreboot Nitropads
+      # coreboot-git Nitropads on top of coreboot-git librems
       - build_and_persist:
           name: nitropad-nv41
           target: nitropad-nv41
@@ -239,7 +239,7 @@ workflows:
           requires:
             - librem_14
 
-      # Coreboot for Talos (PPC)
+      # coreboot-git Talos II (PPC)
       - build_and_persist:
           name: talos-2
           arch: ppc64
@@ -251,7 +251,6 @@ workflows:
       #Cache one workspace per architecture. Make sure workspace caches are chainloaded and the last in chain for an arch is saved.
       - save_cache:
           requires:
-            - librem_14
             - talos-2
             - nitropad-nv41
 
@@ -506,7 +505,7 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-#Coreboot 4.17 boards
+#coreboot-git librem boards
       - build:
           name: librem_13v2
           target: librem_13v2
@@ -549,6 +548,7 @@ workflows:
           requires:
             - librem_14
 
+#coreboot-git Nitrokey NV
       - build:
           name: nitropad-ns50
           target: nitropad-ns50
