@@ -48,8 +48,9 @@ else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
 	coreboot_repo := https://github.com/Dasharo/coreboot
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "nitrokey"
 	coreboot_version = git
-	coreboot_commit_hash = 6328eebb101fd0ded7168e1377da6a1a82a8e2da
-	coreboot_repo := https://github.com/Nitrokey/coreboot
+	coreboot_patch_version = clevo_release
+	coreboot_commit_hash = ae10b20f5c6abc9c23f709b65c46be6525da8c13
+	coreboot_repo := https://github.com/dasharo/coreboot
 	coreboot_depends := $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "purism"
 	coreboot_version := git

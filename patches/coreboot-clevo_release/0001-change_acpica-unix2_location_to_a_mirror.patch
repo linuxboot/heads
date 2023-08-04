@@ -1,0 +1,23 @@
+From 6328eebb101fd0ded7168e1377da6a1a82a8e2da Mon Sep 17 00:00:00 2001
+From: Markus Meissner <coder@safemailbox.de>
+Date: Wed, 19 Jul 2023 20:36:57 +0200
+Subject: [PATCH] change acpica-unix2 location to a mirror
+
+---
+ util/crossgcc/buildgcc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/util/crossgcc/buildgcc b/util/crossgcc/buildgcc
+index 03c24da1be9..8880c89ea66 100755
+--- a/util/crossgcc/buildgcc
++++ b/util/crossgcc/buildgcc
+@@ -52,7 +52,7 @@ MPFR_ARCHIVE="https://ftpmirror.gnu.org/mpfr/mpfr-${MPFR_VERSION}.tar.xz"
+ MPC_ARCHIVE="https://ftpmirror.gnu.org/mpc/mpc-${MPC_VERSION}.tar.gz"
+ GCC_ARCHIVE="https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz"
+ BINUTILS_ARCHIVE="https://ftpmirror.gnu.org/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
+-IASL_ARCHIVE="https://acpica.org/sites/acpica/files/acpica-unix2-${IASL_VERSION}.tar.gz"
++IASL_ARCHIVE="https://gsdview.appspot.com/chromeos-localmirror/distfiles/acpica-unix2-${IASL_VERSION}.tar.gz"
+ # CLANG toolchain archive locations
+ LLVM_ARCHIVE="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/llvm-${CLANG_VERSION}.src.tar.xz"
+ CLANG_ARCHIVE="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang-${CLANG_VERSION}.src.tar.xz"
+
