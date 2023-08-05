@@ -303,12 +303,16 @@ define define_module =
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		git -C "$(build)/$($1_base_dir)" remote set-url origin $($1_repo) && \
-		git -C "$(build)/$($1_base_dir)" checkout origin > /dev/null 2>&1 && \
+		echo "git fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no" && \
+		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
+		echo "git reset --hard $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "git clean" && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
+		echo "git submodule sync" && \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
+		echo "git submodule update" && \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
