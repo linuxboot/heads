@@ -302,13 +302,22 @@ define define_module =
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		git -C "$(build)/$($1_base_dir)" remote set-url origin $($1_repo) && \
-		git -C "$(build)/$($1_base_dir)" checkout origin > /dev/null 2>&1 && \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "######## git clean" && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
+		echo "######## git submodule foreach clean" && \
+		git -C "$(build)/$($1_base_dir)" submodule foreach --recursive git clean -df && \
+		echo "######## git reset --hard HEAD^" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
+		echo "######## git submodule foreach reset --hard HEAD^" && \
+		git -C "$(build)/$($1_base_dir)" submodule foreach --recursive git reset --hard HEAD^ && \
+		echo "######## git fetch" && \
+		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
+		echo "######## git reset --hard $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "######## git submodule sync" && \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
+		echo "######## git submodule update" && \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
