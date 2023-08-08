@@ -83,13 +83,13 @@ jobs:
           keys:
             #Restore existing cache for matching modules digest, validated to be exactly the same as in github current commit.
             #This cache was made on top of below caches, if previously existing. If no module definition changed, we reuse this one. Otherwise...
-            - heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nitrokey-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             #If precedent cache not found, restore cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
             #Otehrwise....
-            - heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nitrokey-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             #If precedent cache not found. Restore cache for musl-cross-make module digest (rarely modified).
             #Otherwise, we build cleanly.
-            - heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nitrokey-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
@@ -173,7 +173,7 @@ jobs:
       - save_cache:
           #Generate cache for the same musl-cross module definition if hash is not previously existing
           #CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nitrokey-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
             - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
@@ -182,7 +182,7 @@ jobs:
       - save_cache:
           #Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
           #CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nitrokey-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
             - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
@@ -198,7 +198,7 @@ jobs:
             - build/ppc64/coreboot-git
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
-          key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nitrokey-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - crossgcc
             - build
@@ -215,23 +215,15 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # coreboot 4.19
-      - build_and_persist:
-          name: x230-hotp-maximized
-          target: x230-hotp-maximized
-          subcommand: ""
-          requires:
-            - prep_env
-
-      # coreboot-git librems
+      # Coreboot-git librems
       - build_and_persist:
           name: librem_14
           target: librem_14
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - prep_env
 
-      # coreboot-git Nitropads on top of coreboot-git librems
+      # Coreboot-git Nitropads on top of coreboot-git librems
       - build_and_persist:
           name: nitropad-nv41
           target: nitropad-nv41
@@ -239,377 +231,7 @@ workflows:
           requires:
             - librem_14
 
-      # coreboot-git Talos II (PPC)
-      - build_and_persist:
-          name: talos-2
-          arch: ppc64
-          target: talos-2
-          subcommand: ""
-          requires:
-            - prep_env
-
       #Cache one workspace per architecture. Make sure workspace caches are chainloaded and the last in chain for an arch is saved.
       - save_cache:
           requires:
-            - talos-2
             - nitropad-nv41
-
-#
-# Those onboarding new boards should add their entries below.
-#
-#
-
-#Coreboot 4.19 boards
-      - build:
-          name: x220-hotp-maximized
-          target: x220-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x220-maximized
-          target: x220-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t420-hotp-maximized
-          target: t420-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t520-hotp-maximized
-          target: UNTESTED_t520-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t420-maximized
-          target: t420-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t520-maximized
-          target: UNTESTED_t520-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-legacy-flash
-          target: x230-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t430-legacy-flash
-          target: t430-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t430-legacy
-          target: t430-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t430-hotp-legacy
-          target: t430-hotp-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-legacy
-          target: x230-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-hotp-legacy
-          target: x230-hotp-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-hotp-maximized_usb-kb
-          target: x230-hotp-maximized_usb-kb
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t430-hotp-maximized
-          target: t430-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-maximized
-          target: x230-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-maximized-fhd_edp
-          target: x230-maximized-fhd_edp
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-hotp-maximized-fhd_edp
-          target: x230-hotp-maximized-fhd_edp
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t530-hotp-maximized
-          target: t530-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t530-dgpu-hotp-maximized
-          target: UNTESTED_t530-dgpu-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-hotp-maximized
-          target: UNTESTED_w530-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-dgpu-K1000m-hotp-maximized
-          target: UNTESTED_w530-dgpu-K1000m-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized  
-
-      - build:
-          name: UNTESTED_w530-dgpu-K2000m-hotp-maximized
-          target: UNTESTED_w530-dgpu-K2000m-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized  
-            
-      - build:
-          name: t430-maximized
-          target: t430-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t530-maximized
-          target: t530-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t530-dgpu-maximized
-          target: UNTESTED_t530-dgpu-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-maximized
-          target: UNTESTED_w530-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-dgpu-K1000m-maximized
-          target: UNTESTED_w530-dgpu-K1000m-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-dgpu-K2000m-maximized
-          target: UNTESTED_w530-dgpu-K2000m-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: t440p-maximized
-          target: t440p-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized 
-
-      - build:
-          name: t440p-hotp-maximized
-          target: t440p-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: qemu-coreboot-fbwhiptail-tpm2-hotp
-          target: qemu-coreboot-fbwhiptail-tpm2-hotp
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: z220-cmt-maximized
-          target: z220-cmt-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: z220-cmt-hotp-maximized
-          target: z220-cmt-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_p8z77-m_pro-tpm1-maximized
-          target: UNTESTED_p8z77-m_pro-tpm1-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
-          target: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-#coreboot-git librem boards
-      - build:
-          name: librem_13v2
-          target: librem_13v2
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_15v3
-          target: librem_15v3
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_13v4
-          target: librem_13v4
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_15v4
-          target: librem_15v4
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_mini
-          target: librem_mini
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_mini_v2
-          target: librem_mini_v2
-          subcommand: ""
-          requires:
-            - librem_14
-
-#coreboot-git Nitrokey NV
-      - build:
-          name: nitropad-ns50
-          target: nitropad-ns50
-          subcommand: ""
-          requires:
-            - nitropad-nv41
-
-#      - build:
-#          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
-#          target: UNTESTED_kgpe-d16_workstation-usb_keyboard
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
-
-#      - build:
-#          name: UNTESTED_kgpe-d16_server
-#          target: UNTESTED_kgpe-d16_server
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
-
-#      - build:
-#          name: UNTESTED_kgpe-d16_server-whiptail
-#          target: UNTESTED_kgpe-d16_server-whiptail
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
-
-#      - build:
-#          name: librem_l1um
-#          target: librem_l1um
-#          subcommand: ""
-#          requires:
-#            - librem_14
-
-########################
-########################
-###    OLD STUFF     ###
-########################
-########################
-# linuxboot steps need something to pass in the kernel header path
-# skipping for now
-#      - run:
-#          name: UNTESTED_qemu-linuxboot-edk2
-#          command: |
-#            ./build/make-4.2.1/make \
-#                CROSS=/cross/bin/x86_64-linux-musl- \
-#                BOARD=UNTESTED_qemu-linuxboot \
-#                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
-#                # Run first to avoid too many processes
-#
-#      - run:
-#          name: UNTESTED_qemu-linuxboot
-#          command: |
-#            ./build/make-4.2.1/make \
-#                CROSS=/cross/bin/x86_64-linux-musl- \
-#                CPUS=16 \
-#                V=1 \
-#                BOARD=UNTESTED_qemu-linuxboot \
-#
-#      - store-artifacts:
-#          path: build/UNTESTED_qemu-linuxboot/linuxboot.rom
-#      - store-artifacts:
-#          path: build/UNTESTED_qemu-linuxboot/hashes.txt
