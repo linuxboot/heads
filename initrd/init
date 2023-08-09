@@ -153,6 +153,9 @@ if [ ! -z "$CONFIG_BOOT_DEV" ]; then
 	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
 fi
 
+# Set the console font if needed
+[ -x /bin/bash ] && setconsolefont.sh
+
 if [ "$CONFIG_BASIC" = "y" ]; then
 	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
 	export CONFIG_HOTPKEY=n
