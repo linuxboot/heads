@@ -8,9 +8,13 @@ CONFIG_COREBOOT_BOOTBLOCK	?=
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 	COREBOOT_TARGET := i386
 	LINUX_IMAGE_FILE := bzImage
+	COREBOOT_TARGET_CROSS :=
 else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 	COREBOOT_TARGET := ppc64
 	LINUX_IMAGE_FILE := zImage
+	# skiboot payload needs this to find the cross compiler, it can't find
+	# it from XGCCPATH.  This uses the Heads toolchain for skiboot
+	COREBOOT_TARGET_CROSS := CROSS=$(CROSS)
 else
 	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
 endif
@@ -65,26 +69,12 @@ coreboot_configure := \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
-COREBOOT_IASL="$(build)/$(coreboot_base_dir)/util/crossgcc/xgcc/bin/iasl"
-
-# coreboot for x86 is built with the 32-bit compiler; ideally we could use the
-# same x86_64-linux-musl -m32 to build it, but this causes some link errors that
-# need to be tracked down.
-#	CROSS="$(CROSS)" \
-
-ifeq "$(CONFIG_TARGET_ARCH)" "x86"
-COREBOOT_CROSS := $(dir $(CROSS))i386-linux-musl-
-else
-COREBOOT_CROSS := $(CROSS)
-endif
-
 coreboot_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
-	CROSS="$(COREBOOT_CROSS)" \
-	IASL="$(COREBOOT_IASL)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	xcompile="$(build)/$(coreboot_base_dir)/.xcompile" \
+	$(COREBOOT_TARGET_CROSS) \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
