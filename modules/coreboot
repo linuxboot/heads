@@ -133,14 +133,12 @@ $(coreboot_module)_configure := \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
-# Cache the cross compilation config with this toolchain.  The first build
-# generates this, then it's reused later.
-COREBOOT_TOOLCHAIN=$(build)/$(coreboot_base_dir)/.xcompile
-# Build the toolchain if the .xcompile cache doesn't exist yet.  This doesn't
-# actually generate .xcompile, but it at least orders the toolchain build
-# correctly.
+# Create a dependency from coreboot to the toolchain.  Use .heads-toolchain to
+# mark that the toolchain was built.
+COREBOOT_TOOLCHAIN=$(build)/$($(coreboot_toolchain_module)_base_dir)/.heads-toolchain
 $(COREBOOT_TOOLCHAIN): $(build)/$($(coreboot_toolchain_module)_base_dir)/.canary
 	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
+	touch "$@"
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN)
 
@@ -151,7 +149,6 @@ $(coreboot_module)_target := \
 	obj="$(build)/$(coreboot_dir)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 	XGCCPATH="$(build)/$($(coreboot_toolchain_module)_base_dir)/util/crossgcc/xgcc/bin/" \
-	xcompile="$(build)/$(coreboot_base_dir)/.xcompile" \
 	$(COREBOOT_TARGET_CROSS) \
 	BUILD_TIMELESS=1 \
 	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
