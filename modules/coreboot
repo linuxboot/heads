@@ -105,6 +105,21 @@ $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
 EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-address-of-packed-member
 
+# Select the coreboot version to use for the toolchain
+ifeq "$($(coreboot_module)_toolchain)" ""
+	# Use the same module
+	coreboot_toolchain_module := $(coreboot_module)
+else
+	# Use a different module
+	coreboot_toolchain_module := coreboot-$($(coreboot_module)_toolchain)
+	modules-y += $(coreboot_toolchain_module)
+	# The toolchain module won't build anything for this board, we just need
+	# the module prepped so we can hook up the toolchain target
+	$(coreboot_toolchain_module)_output := .nobuild
+	$(coreboot-toolchain_module)_configure := echo -e 'all:\n\ttouch .nobuild' > Makefile.nobuild
+	$(coreboot-toolchain_module)_target := -f Makefile.nobuild
+endif
+
 $(coreboot_module)_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
 	&& $(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config) \
@@ -118,10 +133,24 @@ $(coreboot_module)_configure := \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
+# Cache the cross compilation config with this toolchain.  The first build
+# generates this, then it's reused later.
+COREBOOT_TOOLCHAIN=$(build)/$(coreboot_base_dir)/.xcompile
+# Build the toolchain if the .xcompile cache doesn't exist yet.  This doesn't
+# actually generate .xcompile, but it at least orders the toolchain build
+# correctly.
+$(COREBOOT_TOOLCHAIN): $(build)/$($(coreboot_toolchain_module)_base_dir)/.canary
+	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
+
+$(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN)
+
+# Build with the cross toolchain from the toolchain module (which might be the
+# same coreboot module or a different one).
 $(coreboot_module)_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+	XGCCPATH="$(build)/$($(coreboot_toolchain_module)_base_dir)/util/crossgcc/xgcc/bin/" \
 	xcompile="$(build)/$(coreboot_base_dir)/.xcompile" \
 	$(COREBOOT_TARGET_CROSS) \
 	BUILD_TIMELESS=1 \
@@ -132,12 +161,6 @@ $(coreboot_module)_target := \
 $(coreboot_module)_output := $(CONFIG_COREBOOT_ROM)
 $(coreboot_module)_output += $(CONFIG_COREBOOT_BOOTBLOCK)
 $(coreboot_module)_depend += linux initrd $(musl_dep)
-
-COREBOOT_TOOLCHAIN=$(build)/$(coreboot_base_dir)/.xcompile
-$(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
-	$(MAKE) -C "$(build)/$(coreboot_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
-
-$(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN)
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
