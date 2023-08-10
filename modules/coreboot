@@ -15,49 +15,29 @@ else
 	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
 endif
 
-ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
-	coreboot_version := 4.8.1
-	coreboot_hash := f0ddf4db0628c1fe1e8348c40084d9cbeb5771400c963fd419cda3995b69ad23
-	coreboot-blobs_hash := 18aa509ae3af005a05d7b1e0b0246dc640249c14fc828f5144b6fd20bb10e295
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.11"
+ifeq "$(CONFIG_COREBOOT_VERSION)" "4.11"
 	coreboot_version := 4.11
 	coreboot_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
 	coreboot-blobs_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
-	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.13"
-	coreboot_version := 4.13
-	coreboot_hash := 4779da645a25ddebc78f1bd2bd0b740fb1e6479572648d4650042a2b9502856a
-	coreboot-blobs_hash := 060656b46a7859d038ddeec3f7e086e85f146a50b280c4babec23c1188264dc8
-	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.17"
-	coreboot_version := 4.17
-	coreboot_hash := 95da11d1c6a450385101a68799258a398ce965f4e46cce6fe8d5ebd74e50c125
-	coreboot-blobs_hash := a2277fe7a2b2aab5da0aa335158460e00b852382f6736f2179992805702eb607
-	coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.19"
         coreboot_version := 4.19
         coreboot_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
         coreboot-blobs_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
-        coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-        EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
-	coreboot_version = git
-	coreboot_patch_version = talos_2
+	coreboot_version = talos_2
 	coreboot_commit_hash = c8aed443c631042ad2b0326c35cd0b774752b924
 	coreboot_repo := https://github.com/Dasharo/coreboot
-
 else ifeq "$(CONFIG_COREBOOT_VERSION)" "purism"
-	coreboot_version := git
+	coreboot_version := purism
 	coreboot_repo := https://source.puri.sm/coreboot/coreboot
 	coreboot_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
-	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member
 else
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 endif 
 
-#coreboot_version := git
-#coreboot_repo := https://github.com/osresearch/coreboot
+coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+coreboot_depends := $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
+
 coreboot_base_dir := coreboot-$(coreboot_version)
 coreboot_dir := $(coreboot_base_dir)/$(BOARD)
 coreboot_tar := coreboot-$(coreboot_version).tar.xz
@@ -70,7 +50,7 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
-EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned
+EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-address-of-packed-member
 
 coreboot_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
@@ -189,7 +169,7 @@ coreboot.modify_and_save_oldconfig_in_place:
 
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree
-ifneq "$(coreboot_version)" "git"
+ifeq "$(coreboot_repo)" ""
 
 coreboot_depends += coreboot-blobs
 modules-y += coreboot-blobs
