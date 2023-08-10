@@ -1,5 +1,3 @@
-modules-$(CONFIG_COREBOOT) += coreboot
-
 ifeq "$(CONFIG_COREBOOT)" "y"
 
 CONFIG_COREBOOT_ROM			?= coreboot.rom
@@ -19,33 +17,84 @@ else
 	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
 endif
 
-ifeq "$(CONFIG_COREBOOT_VERSION)" "4.11"
-	coreboot_version := 4.11
-	coreboot_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
-	coreboot-blobs_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "4.19"
-        coreboot_version := 4.19
-        coreboot_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
-        coreboot-blobs_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "talos_2"
-	coreboot_version = talos_2
-	coreboot_commit_hash = c8aed443c631042ad2b0326c35cd0b774752b924
-	coreboot_repo := https://github.com/Dasharo/coreboot
-else ifeq "$(CONFIG_COREBOOT_VERSION)" "purism"
-	coreboot_version := purism
-	coreboot_repo := https://source.puri.sm/coreboot/coreboot
-	coreboot_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
-else
+# Each coreboot version is defined as a separate module, but only the needed
+# modules become dependencies of the current board.  One coreboot version is
+# selected for the toolchain build and firmware build.  These can be the same
+# (when using a coreboot release) or different (when using a fork that reuses a
+# release's toolchain).
+
+# Define a coreboot module.  Parameters:
+# $1 - module version
+# $2 - toolchain coreboot version - if nonempty, uses the toolchain from this
+#      version (use for forks to avoid building extra copies of the same
+#      toolchain)
+#
+# For a coreboot release:
+# - the version is the coreboot release version
+# - set coreboot-<version>_hash to the tarball hash
+# - set coreboot-blobs-<version>_hash to the blobs tarball hash
+#
+# For a git fork:
+# - the version is the name of the fork (just controls the build directory used)
+# - set coreboot-<version>_repo to the git repo address
+# - set coreboot-<version>_commit_hash to the git commit
+define coreboot_module =
+	coreboot-$(1)_version := $(1)
+	coreboot-$(1)_module_file := coreboot
+	coreboot-$(1)_base_dir := coreboot-$(1)
+	coreboot-$(1)_dir := coreboot-$(1)/$(BOARD)
+	coreboot-$(1)_toolchain := $(2)
+	# These are ignored if this version is a git fork
+	coreboot-$(1)_tar := coreboot-$(1).tar.xz
+	coreboot-$(1)_url := https://www.coreboot.org/releases/coreboot-$(1).tar.xz
+	# These are only used for releases, git forks don't use upstream blobs
+	coreboot-blobs-$(1)_version := $(1)
+	coreboot-blobs-$(1)_module_file := coreboot
+	coreboot-blobs-$(1)_dir := coreboot-$(1)/3rdparty
+	coreboot-blobs-$(1)_tar := coreboot-blobs-$(1).tar.xz
+	coreboot-blobs-$(1)_url := https://www.coreboot.org/releases/coreboot-blobs-$(1).tar.xz
+	coreboot-blobs-$(1)_tar_opt := --strip 2
+endef
+
+# coreboot releases
+
+coreboot-4.11_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
+coreboot-blobs-4.11_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
+$(eval $(call coreboot_module,4.11,))
+
+coreboot-4.19_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
+coreboot-blobs-4.19_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
+$(eval $(call coreboot_module,4.19,))
+
+coreboot-4.20.1_hash := b41539a8c2eab2fec752157eb4acbd0e2a637a7203530c12e66b43a5c3c3a931
+coreboot-blobs-4.20.1_hash := 30f9d8618e78d483d0903976982485e70825ca3469efd17902c9246aaefd7c4a
+$(eval $(call coreboot_module,4.20.1,))
+
+# coreboot git forks
+
+coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
+coreboot-talos_2_commit_hash := c8aed443c631042ad2b0326c35cd0b774752b924
+$(eval $(call coreboot_module,talos_2,4.20.1))
+
+coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
+coreboot-purism_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
+$(eval $(call coreboot_module,purism,4.20.1))
+
+# Check that the board configured the coreboot version correctly
+ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
+else ifeq "$(coreboot-$(CONFIG_COREBOOT_VERSION)_dir)" ""
+	$(error "$(BOARD): coreboot version $(CONFIG_COREBOOT_VERSION) not known"
 endif 
 
-coreboot_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-coreboot_depends := $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
+coreboot_module := coreboot-$(CONFIG_COREBOOT_VERSION)
+modules-y += $(coreboot_module)
+# Don't make everyone type $($(coreboot_module)_dir)
+coreboot_dir := $($(coreboot_module)_dir)
+coreboot_base_dir := $($(coreboot_module)_base_dir)
 
-coreboot_base_dir := coreboot-$(coreboot_version)
-coreboot_dir := $(coreboot_base_dir)/$(BOARD)
-coreboot_tar := coreboot-$(coreboot_version).tar.xz
-coreboot_url := https://www.coreboot.org/releases/$(coreboot_tar)
+$(coreboot_module)_depends := $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+$(coreboot_module)_depends := $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -56,7 +105,7 @@ $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
 EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-address-of-packed-member
 
-coreboot_configure := \
+$(coreboot_module)_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)" \
 	&& $(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config) \
 	&& echo 'CONFIG_LOCALVERSION="$(BRAND_NAME)-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
@@ -69,7 +118,7 @@ coreboot_configure := \
 		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
 		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
-coreboot_target := \
+$(coreboot_module)_target := \
 	-C "$(build)/$(coreboot_base_dir)" \
 	obj="$(build)/$(coreboot_dir)" \
 	DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
@@ -80,9 +129,9 @@ coreboot_target := \
 	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	$(MAKE_JOBS)
 
-coreboot_output := $(CONFIG_COREBOOT_ROM)
-coreboot_output += $(CONFIG_COREBOOT_BOOTBLOCK)
-coreboot_depend += linux initrd $(musl_dep)
+$(coreboot_module)_output := $(CONFIG_COREBOOT_ROM)
+$(coreboot_module)_output += $(CONFIG_COREBOOT_BOOTBLOCK)
+$(coreboot_module)_depend += linux initrd $(musl_dep)
 
 COREBOOT_TOOLCHAIN=$(build)/$(coreboot_base_dir)/.xcompile
 $(COREBOOT_TOOLCHAIN): $(build)/$(coreboot_base_dir)/.canary
@@ -159,27 +208,17 @@ coreboot.modify_and_save_oldconfig_in_place:
 
 # if we are not building from a git checkout,
 # we must also download the coreboot-blobs tree
-ifeq "$(coreboot_repo)" ""
+ifeq "$($(coreboot_module)_repo)" ""
 
-coreboot_depends += coreboot-blobs
-modules-y += coreboot-blobs
+coreboot-blobs_module := coreboot-blobs-$(CONFIG_COREBOOT_VERSION)
 
-coreboot-blobs_version := $(coreboot_version)
-coreboot-blobs_tar := coreboot-blobs-$(coreboot-blobs_version).tar.xz
-coreboot-blobs_url := https://www.coreboot.org/releases/$(coreboot-blobs_tar)
-
-ifeq "$(CONFIG_COREBOOT_VERSION)" "4.8.1"
-	coreboot-blobs_tar_opt := --strip 3
-	coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty/blobs
-else
-	coreboot-blobs_tar_opt := --strip 2
-	coreboot-blobs_dir := coreboot-$(coreboot-blobs_version)/3rdparty
-endif
+$(coreboot_module)_depends += $(coreboot-blobs_module)
+modules-y += $(coreboot-blobs_module)
 
 ## there is nothing to build for the blobs, this should be
 ## made easier to make happen
-coreboot-blobs_output := .built
-coreboot-blobs_configure := echo -e 'all:\n\ttouch .built' > Makefile
+$(coreboot-blobs_module)_output := .built
+$(coreboot-blobs_module)_configure := echo -e 'all:\n\ttouch .built' > Makefile
 
 endif
 endif
