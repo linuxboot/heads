@@ -10,8 +10,8 @@ ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 	COREBOOT_TARGET := ppc64
 	LINUX_IMAGE_FILE := zImage
-	# skiboot payload needs this to find the cross compiler, it can't find
-	# it from XGCCPATH.  This uses the Heads toolchain for skiboot
+	# skiboot payload needs the Heads toolchain as it is little-endian (like
+	# Linux), but coreboot is big-endian on PPC64.
 	COREBOOT_TARGET_CROSS := CROSS=$(CROSS)
 else
 	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
@@ -72,7 +72,7 @@ $(eval $(call coreboot_module,4.20.1,))
 
 # coreboot git forks
 
-# talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 board, so
+# talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 fork, so
 # there is no point preparing another coreboot module that won't be shared with
 # anything.
 coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
