@@ -19,7 +19,14 @@ fi
 
 CONSOLE_HEIGHT="$(cut -d, -f2 /sys/class/graphics/fb0/virtual_size)"
 
-if [ "$CONSOLE_HEIGHT" -ge 1600 ]; then
+# Deciding scale based on resolution is inherently heuristic, as the scale
+# really depends on resolution, physical size, how close the display is to the
+# user, and personal preference.
+#
+# fbwhiptail starts using 1.5x scale at 1350 lines, but we can only choose 1x
+# or 2x (without shipping more fonts).  Err toward making the console too large
+# rather than too small and go to 2x at 1350 lines.
+if [ "$CONSOLE_HEIGHT" -ge 1350 ]; then
 	DEBUG "Double console font size due to framebuffer height $CONSOLE_HEIGHT"
 	# Double the default font size by reading it out, then applying it again
 	# with setfont's -d option (double font size)
