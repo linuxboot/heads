@@ -160,7 +160,6 @@ $(coreboot_module)_target := \
 
 $(coreboot_module)_output := $(CONFIG_COREBOOT_ROM)
 $(coreboot_module)_output += $(CONFIG_COREBOOT_BOOTBLOCK)
-$(coreboot_module)_depend += linux initrd $(musl_dep)
 
 # Force a rebuild if the inputs have changed
 $(build)/$(coreboot_dir)/.build: \
