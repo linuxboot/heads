@@ -79,9 +79,11 @@ coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := c8aed443c631042ad2b0326c35cd0b774752b924
 $(eval $(call coreboot_module,talos_2,))
 
+# Similarly, purism is based on 4.20.1, but nothing builds against 4.20.1 itself
+# or any other fork - no benefit to sharing the toolchain yet.
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
-$(eval $(call coreboot_module,purism,4.20.1))
+$(eval $(call coreboot_module,purism,))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
