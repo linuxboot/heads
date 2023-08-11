@@ -72,9 +72,12 @@ $(eval $(call coreboot_module,4.20.1,))
 
 # coreboot git forks
 
+# talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 board, so
+# there is no point preparing another coreboot module that won't be shared with
+# anything.
 coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := c8aed443c631042ad2b0326c35cd0b774752b924
-$(eval $(call coreboot_module,talos_2,4.20.1))
+$(eval $(call coreboot_module,talos_2,))
 
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
