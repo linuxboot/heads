@@ -330,8 +330,11 @@ define define_module =
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
-    $(eval $1_patch_version ?= $($1_version))
-    $(eval $1_patch_name = $1-$($1_patch_version))
+    # Versioned modules (each version a separate module) don't need to include
+    # the version a second time.  (The '-' separator is also omitted then.)
+    # $1_patch_version can still be defined manually.
+    $(eval $1_patch_version ?= $(if $(filter %-$($1_version),$1),,$($1_version)))
+    $(eval $1_patch_name = $1$(if $($1_patch_version),-,)$($1_patch_version))
     # Fetch and verify the source tar file
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
