@@ -2,11 +2,11 @@ modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 
 fbwhiptail_depends := cairo $(musl_dep)
 
-fbwhiptail_version := 99fe815fb35d7650873aa413a3024ef1496fe4a3
+fbwhiptail_version := 1b3ee5ca1e297a977d9ebab49df942c51d619ecd
 fbwhiptail_dir := fbwhiptail-$(fbwhiptail_version)
 fbwhiptail_tar := fbwhiptail-$(fbwhiptail_version).tar.gz
 fbwhiptail_url := https://source.puri.sm/firmware/fbwhiptail/-/archive/$(fbwhiptail_version)/fbwhiptail-$(fbwhiptail_version).tar.gz
-fbwhiptail_hash := bd210b52b0916eb081219a312a6fa1b3acd8582ca6198a196e232f8aa55bbce9
+fbwhiptail_hash := f7691a82dac3aca6592ca85cbd7ec116bd7c2eae5b834f95c76967532c9aec79
 
 fbwhiptail_target := \
 	$(MAKE_JOBS) \
