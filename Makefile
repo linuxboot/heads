@@ -278,6 +278,8 @@ define define_module =
   # if they have not defined a separate base dir, define it
   # as the same as their build dir.
   $(eval $1_base_dir = $(or $($1_base_dir),$($1_dir)))
+  # Dynamically defined modules must tell us what module file defined them
+  $(eval $1_module_file = $(or $($1_module_file),$1))
 
   ifneq ("$($1_repo)","")
     $(eval $1_patch_name = $1$(if $($1_patch_version),-$($1_patch_version),))
@@ -328,8 +330,11 @@ define define_module =
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
-    $(eval $1_patch_version ?= $($1_version))
-    $(eval $1_patch_name = $1-$($1_patch_version))
+    # Versioned modules (each version a separate module) don't need to include
+    # the version a second time.  (The '-' separator is also omitted then.)
+    # $1_patch_version can still be defined manually.
+    $(eval $1_patch_version ?= $(if $(filter %-$($1_version),$1),,$($1_version)))
+    $(eval $1_patch_name = $1$(if $($1_patch_version),-,)$($1_patch_version))
     # Fetch and verify the source tar file
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
@@ -394,7 +399,7 @@ define define_module =
 		$(build)/$($1_base_dir)/.canary \
 		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
 		$($1_config_file_path) \
-		modules/$1
+		modules/$($1_module_file)
 	@echo "$(DATE) CONFIG $1"
 	@( \
 		cd "$(build)/$($1_dir)" ; \
