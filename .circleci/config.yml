@@ -223,7 +223,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.17
+      # Coreboot for librems, reusing submodules built cache from x230-hotp-maximized
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -231,7 +231,15 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-      # Coreboot for Talos (PPC)
+      # Coreboot fork for UNTESTED_kgpe-d16, reusing submodules built cache from x230-hotp-maximized
+      - build_and_persist:
+          name: UNTESTED_kgpe-d16_workstation
+          target: UNTESTED_kgpe-d16_workstation
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      # Coreboot fork for Talos (PPC)
       - build_and_persist:
           name: talos-2
           arch: ppc64
@@ -498,7 +506,7 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-#Coreboot 4.17 boards
+#Coreboot librems coreboot fork boards
       - build:
           name: librem_13v2
           target: librem_13v2
@@ -541,26 +549,26 @@ workflows:
           requires:
             - librem_14
 
-#      - build:
-#          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
-#          target: UNTESTED_kgpe-d16_workstation-usb_keyboard
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
+      - build:
+          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
+          target: UNTESTED_kgpe-d16_workstation-usb_keyboard
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation
 
-#      - build:
-#          name: UNTESTED_kgpe-d16_server
-#          target: UNTESTED_kgpe-d16_server
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
+      - build:
+          name: UNTESTED_kgpe-d16_server
+          target: UNTESTED_kgpe-d16_server
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation
 
-#      - build:
-#          name: UNTESTED_kgpe-d16_server-whiptail
-#          target: UNTESTED_kgpe-d16_server-whiptail
-#          subcommand: ""
-#          requires:
-#            - UNTESTED_kgpe-d16_workstation
+      - build:
+          name: UNTESTED_kgpe-d16_server-whiptail
+          target: UNTESTED_kgpe-d16_server-whiptail
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation
 
 #      - build:
 #          name: librem_l1um
