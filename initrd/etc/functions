@@ -81,6 +81,36 @@ confirm_totp()
 	echo
 }
 
+reseal_tpm_disk_decryption_key()
+{
+	TRACE "Under /etc/functions:reseal_tpm_disk_decryption_key"
+	#Can be called only on resealing, not on tpm reset:
+	#otherise primary handle and rollback would change.
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+		|| recovery "Unable to mount /boot"
+	fi
+
+	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+		warn "A TPM disk decryption key previoulsy sealed is now invalid since firmware measurements cannot be unsealed" 
+		warn "Renewing LUKS Disk Unlock Key to be unsealed by TPM Disk Unlock Key passphrase"
+		while ! kexec-seal-key /boot; do
+			warn "Recovery disk encryption key passphrase invalid. Try again!"
+		done
+		warn "LUKS header hash changed under of /boot/kexec_luks_hdr_hash.txt" 
+		warn "Updating checksums and signing all files under /boot/kexec.sig"
+		while ! update_checksums; do
+		warn "Checksums were not signed. Bad GPG PIN provided?" 
+		warn "Please update checksums and provide a valid GPG PIN"
+		done
+		warn "Rebooting in 3 seconds to enable booting default boot option"
+		sleep 3
+		reboot
+	else
+		DEBUG "No TPM disk decryption key to reseal"
+	fi
+}
+
 # Enable USB storage (if not already enabled), and wait for storage devices to
 # be detected.  If USB storage was already enabled, no wait occurs, this would
 # have happened already when USB storage was enabled.
