@@ -246,7 +246,6 @@ select_luks_container()
 				mount -o remount,ro /boot
 			fi
 		else
-		
 			warn "No encrypted device found."
 			return 1
 		fi

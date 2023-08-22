@@ -1,5 +1,9 @@
 #!/bin/bash
 # Generate a TPM key used to unlock LUKS disks
+
+. /etc/functions
+
+TRACE "kexec-save-key: start"
 set -e -o pipefail
 . /etc/functions
 
@@ -13,8 +17,13 @@ while getopts "sp:d:l:" arg; do
 		l) lvm_volume_group="$OPTARG" ;;
 	esac
 done
+
+DEBUG "kexec-save-key prior of parsing: paramsdir: $paramsdir, paramsdev: $paramsdev, lvm_volume_group: $lvm_volume_group"
+
 shift `expr $OPTIND - 1`
 key_devices="$@"
+
+DEBUG "kexec-save-key: key_devices: $key_devices"
 
 if [ -z "$paramsdir" ]; then
 	die "Usage: $0 [-s] -p /boot [-l qubes_dom0] [/dev/sda2 /dev/sda5 ...] "
@@ -22,10 +31,13 @@ fi
 
 if [ -z "$paramsdev" ]; then
 	paramsdev="$paramsdir"
+	DEBUG "kexec-save-key: paramsdev modified to : $paramsdev"
 fi
 
 paramsdev="${paramsdev%%/}"
 paramsdir="${paramsdir%%/}"
+
+DEBUG "kexec-save-key prior of last override: paramsdir: $paramsdir, paramsdev: $paramsdev, lvm_volume_group: $lvm_volume_group"
 
 if [ -n "$lvm_volume_group" ]; then
 	lvm vgchange -a y $lvm_volume_group \
@@ -45,14 +57,17 @@ mount -o rw,remount $paramsdev
 
 rm -f $paramsdir/kexec_key_lvm.txt || true
 if [ -n "$lvm_volume_group" ]; then
+	DEBUG "kexec-save-key saving under $paramsdir/kexec_key_lvm.txt : lvm_volume_group: $lvm_volume_group"
 	echo "$lvm_volume_group" > $paramsdir/kexec_key_lvm.txt \
 	|| die "Failed to write lvm group to key config "
 fi
 
 rm -f $paramsdir/kexec_key_devices.txt || true
 for dev in $key_devices; do
+	DEBUG "gettinmg uuid for $dev"
 	uuid=`cryptsetup luksUUID "$dev" 2>/dev/null` \
 	|| die "Failed to get UUID for device $dev"
+	DEBUG "saving under $paramsdir/kexec_key_devices.txt : dev: $dev, uuid: $uuid"
 	echo "$dev $uuid" >> $paramsdir/kexec_key_devices.txt \
 	|| die "Failed to add $dev:$uuid to key devices config"
 done
