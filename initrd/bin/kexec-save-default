@@ -8,10 +8,10 @@ TRACE "Under /bin/kexec-save-default"
 
 while getopts "b:d:p:i:" arg; do
 	case $arg in
-		b) bootdir="$OPTARG" ;;
-		d) paramsdev="$OPTARG" ;;
-		p) paramsdir="$OPTARG" ;;
-		i) index="$OPTARG" ;;
+	b) bootdir="$OPTARG" ;;
+	d) paramsdev="$OPTARG" ;;
+	p) paramsdir="$OPTARG" ;;
+	i) index="$OPTARG" ;;
 	esac
 done
 
@@ -35,21 +35,53 @@ TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
 HASH_FILE="$paramsdir/kexec_default_hashes.txt"
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
+KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
+KEY_LVM="$paramsdir/kexec_key_lvm.txt"
+
+
+lvm_suggest=$(lvm vgscan | awk -F '"' {'print $1'} | tail -n +2)
+num_lvm=$(echo "$lvm_suggest" | wc -l)
+if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
+	lvm_volume_group="$lvm_suggest"
+elif [ -z "$lvm_suggest" ]; then
+	num_lvm=0
+fi
+DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
+
+# get all LUKS container devices
+devices_suggest=$(blkid | cut -d ':' -f 1 | while read device; do
+	cryptsetup isLuks "$device"
+	if [ $(echo $?) == 0 ]; then echo "$device"; fi
+done | sort)
+num_devices=$(echo "$devices_suggest" | wc -l)
+
+if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
+	key_devices=$devices_suggest
+else
+	devices_suggest=$(echo $devices_suggest)
+fi
+DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
+
+if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
+	#No encrypted partition found.
+	no_encrypted_partition=1
+fi
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
 fi
 
-entry=`head -n $index $TMP_MENU_FILE | tail -1`
+entry=$(head -n $index $TMP_MENU_FILE | tail -1)
 if [ -z "$entry" ]; then
 	die "Invalid menu index $index"
 fi
 
-KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
-KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 save_key="n"
 if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ "$CONFIG_BASIC" != y ]; then
+	DEBUG "TPM is enabled and TPM_NO_LUKS_DISK_UNLOCK is not set"
+	DEBUG "Checking if a a TPM Disk Unlock Key was previously setuped from $KEY_DEVICES"
 	if [ ! -r "$KEY_DEVICES" ]; then
+		DEBUG "No previous TPM Disk Unlock Key was setuped for LUKS devices, confirming to add a disk encryption to the TPM"
 		read \
 			-n 1 \
 			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
@@ -58,11 +90,11 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 
 		if [ "$add_key_confirm" = "y" \
 			-o "$add_key_confirm" = "Y" ]; then
-			lvm_suggest="e.g. qubes_dom0 or blank"
-			devices_suggest="e.g. /dev/sda2 or blank"
+			DEBUG "User confirmed to add a disk encryption to the TPM"
 			save_key="y"
 		fi
 	else
+		DEBUG "Previous TPM Disk Unlock Key was setuped for LUKS devices"
 		read \
 			-n 1 \
 			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
@@ -73,36 +105,85 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			-o "$change_key_confirm" = "Y" ]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
-				old_lvm_volume_group=`cat $KEY_LVM` || true
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 \
-				| grep -v "$old_lvm_volume_group" \
-				| xargs` || true
+				old_lvm_volume_group=$(cat $KEY_LVM) || true
+				old_key_devices=$(cat $KEY_DEVICES |
+					cut -d\  -f1 |
+					grep -v "$old_lvm_volume_group" |
+					xargs) || true
 			else
-				old_key_devices=`cat $KEY_DEVICES \
-				| cut -d\  -f1 | xargs` || true
+				old_key_devices=$(cat $KEY_DEVICES |
+					cut -d\  -f1 | xargs) || true
 			fi
 
-			lvm_suggest="was '$old_lvm_volume_group'"
-			devices_suggest="was '$old_key_devices'"
+			lvm_suggest="$old_lvm_volume_group"
+			devices_suggest="$old_key_devices"
 			save_key="y"
 		fi
 	fi
 
 	if [ "$save_key" = "y" ]; then
-		echo "+++ LVM volume groups (lvm vgscan): "
-		lvm vgscan || true
+		if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
+			DEBUG "Previous TPM Disk Unlock Key was setuped for LUKS devices $old_key_devices $old_lvm_volume_group"
+			read \
+				-n 1 \
+				-p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
+				reuse_past_devices
+			echo
+			if [ "$reuse_past_devices" = "y" ] || [ "$reuse_past_devices" = "Y" ] || [ -z "$reuse_past_devices" ]; then
+				if [ -z "$key_devices" ] && [ -n "$old_key_devices" ]; then
+					key_devices="$old_key_devices"
+				fi
+				if [ -z "$lvm_volume_group" ] && [ -n "$old_lvm_volume_group" ]; then
+					lvm_volume_group="$old_lvm_volume_group"
+				fi
+			fi
+		else
+			DEBUG "No previous TPM Disk Unlock Key was setuped for LUKS devices, setting up new ones"
+			if [ "$num_lvm" -gt 1 ]; then
+				DEBUG "Multiple LVM groups found"
+				//untested
+				selected_lvmdev_not_existing=1
+				while [ $selected_lvmdev_not_existing -ne 0 ]; do
+					{
+						read \
+							-p "Encrypted LVM group? choose between: '$lvm_suggest': " \
+							lvm_volume_group
 
-		read \
-			-p "LVM group containing Encrypted LVs (retype to keep)? ($lvm_suggest): " \
-			lvm_volume_group
+						result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
+						if [ $? == 0 ]; then
+							selected_lvmdev_not_existing=0
+						fi
+					}
+				done
+			elif [ "$num_lvm" -eq 1 ] && [ -s $lvm_suggest ]; then
+				echo "Single Encrypted LVM group found at $lvm_suggest."
+				lvm_volume_group=$lvm_suggest
+			else
+				echo "No encrypted LVM Group found."
+			fi
 
-		echo "+++ Block devices (blkid): "
-		blkid || true
+			if [ "$num_devices" -gt 1 ]; then
+				DEBUG "Multiple LUKS devices found"
+				selected_luksdev_not_existing=1
+				while [ $selected_luksdev_not_existing -ne 0 ]; do
+					{
+						read \
+							-p "Encrypted devices? (choose between: '$devices_suggest'): " \
+							key_devices
 
-		read \
-			-p "Encrypted devices (retype to keep)? ($devices_suggest): " \
-			key_devices
+						result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
+						if [ $? == 0 ]; then
+							selected_luksdev_not_existing=0
+						fi
+					}
+				done
+			elif [ "$num_devices" -eq 1 ]; then
+				echo "Single Encrypted Disk found at $devices_suggest."
+				key_devices=$devices_suggest
+			else
+				echo "No encrypted devices found."
+			fi
+		fi
 
 		save_key_params="-s -p $paramsdev"
 		if [ -n "$lvm_volume_group" ]; then
@@ -110,9 +191,8 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 		else
 			save_key_params="$save_key_params $key_devices"
 		fi
-		echo "Running kexec-save-key with params: $save_key_params"
-		kexec-save-key $save_key_params \
-			|| die "Failed to save the disk key"
+		kexec-save-key $save_key_params ||
+			die "Failed to save the disk key"
 	fi
 fi
 
@@ -120,19 +200,20 @@ fi
 mount -o rw,remount $paramsdev
 
 if [ ! -d $paramsdir ]; then
-	mkdir -p $paramsdir \
-	|| die "Failed to create params directory"
+	mkdir -p $paramsdir ||
+		die "Failed to create params directory"
 fi
 
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	sha256sum /tmp/primary.handle > "$PRIMHASH_FILE" \
-		|| die "ERROR: Failed to Hash TPM2 primary key handle!"
+	sha256sum /tmp/primary.handle >"$PRIMHASH_FILE" ||
+		die "ERROR: Failed to Hash TPM2 primary key handle!"
 fi
 
 rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
-echo "$entry" > $ENTRY_FILE
-( cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f| \
-	xargs sha256sum > $HASH_FILE \
+echo "$entry" >$ENTRY_FILE
+(
+	cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f |
+		xargs sha256sum >$HASH_FILE
 ) || die "Failed to create hashes of boot files"
 if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
 	die "Failed to write default config"
@@ -144,19 +225,19 @@ if [ "$save_key" = "y" ]; then
 	cd /tmp/initrd_extract
 	# Get initrd filename selected to be default initrd that OS could be using to configure LUKS on boot by deploying crypttab files
 	current_default_initrd=$(cat /boot/kexec_default_hashes.txt | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
-	
+
 	# Get crypttab files paths from initrd
 	echo "+++ Checking current selected default boot's $current_default_initrd for existing crypttab files..."
 	# First either decompress or use the original if it's not compressed
 	initrd_decompressed="/tmp/initrd_extract/initrd_decompressed.cpio"
-	zcat < "$current_default_initrd" > "$initrd_decompressed" 2> /dev/null || initrd_decompressed="$current_default_initrd"
-	crypttab_files=$(cpio --list --quiet < "$initrd_decompressed" | grep crypttab 2> /dev/null) || true
-	
+	zcat <"$current_default_initrd" >"$initrd_decompressed" 2>/dev/null || initrd_decompressed="$current_default_initrd"
+	crypttab_files=$(cpio --list --quiet <"$initrd_decompressed" | grep crypttab 2>/dev/null) || true
+
 	if [ ! -z "$crypttab_files" ]; then
 		echo "+++ Extracting current selected default boot's $current_default_initrd for found crypttab files analysis..."
-		cpio -id --quiet < $initrd_decompressed $crypttab_files 2> /dev/null
+		cpio -id --quiet $crypttab_files <$initrd_decompressed 2>/dev/null
 		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
-		
+
 		#Parsing each crypttab file found
 		echo "$crypttab_files" | while read filepath; do
 			# Keep only non-commented lines
@@ -165,7 +246,7 @@ if [ "$save_key" = "y" ]; then
 			modified_filepath_entries=$(echo "$current_filepath_entries" | sed 's/none/\/secret.key/g')
 			echo "$modified_filepath_entries" | while read single_modified_filepath_entry; do
 				# Append each found filepath:entry into additional kexec_ file that will be part of detached signed digest
-				echo "$filepath:$single_modified_filepath_entry" >> $bootdir/kexec_initrd_crypttab_overrides.txt
+				echo "$filepath:$single_modified_filepath_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
 			done
 		done
 
@@ -189,14 +270,14 @@ fi
 
 # sign and auto-roll config counter
 extparam=
-if [ "$CONFIG_TPM" = "y" ];then
+if [ "$CONFIG_TPM" = "y" ]; then
 	if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 		extparam=-r
 	fi
 fi
 if [ "$CONFIG_BASIC" != "y" ]; then
-	kexec-sign-config -p $paramsdir $extparam \
-		|| die "Failed to sign default config"
+	kexec-sign-config -p $paramsdir $extparam ||
+		die "Failed to sign default config"
 fi
 # switch back to ro mode
 mount -o ro,remount $paramsdev
