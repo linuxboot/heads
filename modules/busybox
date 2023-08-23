@@ -12,6 +12,7 @@ busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
+	CFLAGS="-Os"  \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
 
