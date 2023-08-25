@@ -65,6 +65,11 @@ while true; do
         'N' " $(get_config_display_action "$CONFIG_AUTOMATIC_POWERON") automatic power-on"
     )
 
+    # Debugging option always available
+    dynamic_config_options+=(
+        'Z' " $(get_config_display_action "$CONFIG_DEBUG_OUTPUT") $CONFIG_BRAND_NAME debug and function tracing output"
+    )
+
     [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ] && dynamic_config_options+=(
         't' ' Deactivate Platform Locking to permit OS write access to firmware'
     )
@@ -473,6 +478,30 @@ while true; do
         fi
       fi
     ;;
+    "Z" )
+      if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
+        if (whiptail --title 'Enable Debugging and Tracing output?' \
+             --yesno "This will enable DEBUG and TRACE output from scripts.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_user_config "CONFIG_DEBUG_OUTPUT" "y"
+          set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "y"
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Debugging and Tracing output enabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      else
+        if (whiptail --title 'Disable Enable Debugging and Tracing output?' \
+             --yesno "This will disable DEBUG and TRACE output from scripts.
+                    \n\nDo you want to proceed?" 0 80) then
+          
+          set_user_config "CONFIG_DEBUG_OUTPUT" "n"
+          set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
+
+          whiptail --title 'Config change successful' \
+            --msgbox "Debugging and Tracing output disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
   esac
 
 done
