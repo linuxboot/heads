@@ -1,0 +1,34 @@
+#Module is included unless defined in board to "n"
+CONFIG_E2FSPROGS ?= y
+modules-$(CONFIG_E2FSPROGS) += e2fsprogs
+
+e2fsprogs_version := 1.47.0
+e2fsprogs_dir := e2fsprogs-$(e2fsprogs_version)
+e2fsprogs_tar := e2fsprogs-$(e2fsprogs_version).tar.xz
+e2fsprogs_url := https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v$(e2fsprogs_version)/$(e2fsprogs_tar)
+e2fsprogs_hash := 144af53f2bbd921cef6f8bea88bb9faddca865da3fbc657cc9b4d2001097d5db
+
+# For reproducibility reasons we have to override the exec_prefix
+# and datarootdir on the configure line so that the Makefiles will
+# be generated with the correct paths, but then re-write them when
+# we use the install target so that they will be copied to the correct
+# location.
+e2fsprogs_configure := \
+	$(CROSS_TOOLS) \
+	CFLAGS="-Os"  \
+	./configure \
+	--host $(MUSL_ARCH)-linux-musl \
+	--prefix "" \
+	--libexecdir "/bin" \
+
+# Run one build to generate the executables with the pre-defined
+# exec_prefix and datarootdir, then a second make to install the binaries
+# into our actual target location
+e2fsprogs_target := $(MAKE_JOBS) \
+	&& $(MAKE) -C $(build)/$(e2fsprogs_dir) \
+		DESTDIR="$(INSTALL)" \
+		install
+
+e2fsprogs_output := misc/mke2fs
+
+e2fsprogs_depends := $(musl_dep)

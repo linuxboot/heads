@@ -525,6 +525,8 @@ bin_modules-$(CONFIG_IO386) += io386
 bin_modules-$(CONFIG_IOPORT) += ioport
 bin_modules-$(CONFIG_KBD) += kbd
 bin_modules-$(CONFIG_ZSTD) += zstd
+bin_modules-$(CONFIG_E2FSPROGS) += e2fsprogs
+bin_modules-$(CONFIG_EXFATPROGS) += exfatprogs
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
