@@ -1,19 +1,240 @@
 #!/bin/bash
-# Reencrypt LUKS container and change Disk Recovery Key associated passphrase (Slot 0: main slot)
+# LUKS related functions
 
 . /etc/functions
 . /etc/gui_functions
 . /tmp/config
 
+#List all LUKS devices on the system
+list_luks_devices()
+{
+	#generate a list of devices to choose from that contain a LUKS header
+	lvm vgscan||true
+	blkid | cut -d ':' -f 1 | while read device
+		do cryptsetup isLuks $device
+			if [ $? -eq 0 ]; then 
+				echo "$device"
+			fi 
+		done | sort
+}
+
+
+#Whiptail prompt asking user to select ratio of device to use for LUKS container between: 10, 25, 50, 75
+select_luks_container_size_percent()
+{
+	TRACE "Under /etc/luks-functions:select_luks_container_size_percent()"
+	if [ -x /bin/whiptail ]; then
+		#whiptail prompt asking user to select ratio of device to use for LUKS container between: 10, 25, 50, 75
+		#whiptail returns the percentage of the device to use for LUKS container
+		whiptail --title "Select LUKS container size percentage of device" --menu \
+			"Select LUKS container size percentage of device:" 0 80 10 \
+			"10" "10%" \
+			"25" "25%" \
+			"50" "50%" \
+			"75" "75%" \
+			2> /tmp/luks_container_size_percent \
+			|| die "Error selecting LUKS container size percentage of device"
+	else
+		#console prompt asking user to select ratio of device to use for LUKS container between: 10, 25, 50, 75
+		#console prompt returns the percentage of the device to use for LUKS container
+		echo "Select LUKS container size percentage of device:"
+		echo "1. 10%"
+		echo "2. 25%"
+		echo "3. 50%"
+		echo "4. 75%"
+		read -p "Choose your LUKS container size percentage of device [1-3]: " option_index
+		if [ "$option_index" = "1" ]; then
+			echo "10" > /tmp/luks_container_size_percent
+		elif [ "$option_index" = "2" ]; then
+			echo "25" > /tmp/luks_container_size_percent
+		elif [ "$option_index" = "3" ]; then
+			echo "50" > /tmp/luks_container_size_percent
+		elif [ "$option_index" = "4" ]; then
+			echo "75" > /tmp/luks_container_size_percent
+		else
+			die "Error selecting LUKS container size percentage of device"
+		fi
+	fi
+}
+
+#Partition a device with two partitions: a first one being a LUKS container containing private ext4 partition and second public exfat partition 
+# Size provisioning is done by percentage of the device
+prepare_thumb_drive()
+{
+	TRACE "Under /etc/luks-functions:prepare_thumb_drive()"
+	#Refactoring: only one parameter needed to be prompted for: the passphrase for LUKS container if not coming from oem-provisioning
+	#If no passphrase was provided, ask user to select passphrase for LUKS container
+	# if no device provided as parameter, we will ask user to select device to partition
+	# if no percentage provided as parameter, we will default to 10% of device to use for LUKS container
+	# we will validate parameters and not make them positional and print a usage function first
+	
+	#Set defaults
+	DEVICE="" #Will list all usb storage devices if not provided as parameter
+	PERCENTAGE="10" #default to 10% of device to use for LUKS container (requires a LUKS partition bigger then 32mb!)
+	PASSPHRASE="" #Will prompt user for passphrase if not provided as parameter
+	
+	#Parse parameters
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--device)
+				DEVICE=$2
+				shift 2
+				;;
+			--percentage)
+				PERCENTAGE=$2
+				shift 2
+				;;
+			--passphrase)
+				PASSPHRASE=$2
+				shift 2
+				;;
+			*)
+				echo "usage: prepare_thumb_drive [--device device] [--percentage percentage] [--passphrase passphrase]"
+				;;
+		esac
+	done
+
+	DEBUG "DEVICE to partition: $DEVICE"
+	DEBUG "PERCENTAGE of device that will be used for LUKS container: $PERCENTAGE"
+	#Output provided if passphrase is provided as parameter
+	DEBUG "PASSPHRASE for LUKS container: ${PASSPHRASE:+provided}"
+
+	#Prompt for passphrase if not provided as parameter
+	if [ -z "$PASSPHRASE" ]; then
+		#If no passphrase was provided, ask user to select passphrase for LUKS container
+		#console based no whiptail
+		while [[ ${#PASSPHRASE} -lt 8 ]]; do
+		{
+			echo -e "\nEnter passphrase for LUKS container (At least 8 characters long):"
+			#hide passphrase input from read command
+			read -r -s PASSPHRASE
+			#skip confirmation if passphrase is less then 8 characters long (continue)
+			if [[ ${#PASSPHRASE} -lt 8 ]]; then
+				echo -e "\nPassphrase must be at least 8 characters long. Please try again."
+				unset PASSPHRASE
+				continue
+			fi
+			#validate passphrase and ask user to re-enter if not at least 8 characters long
+			#confirm passphrase
+			echo -e "\nConfirm passphrase for LUKS container:"
+			#hide passphrase input from read command
+			read -r -s PASSPHRASE_CONFIRM
+			#compare passphrase and passphrase confirmation
+			if [ "$PASSPHRASE" != "$PASSPHRASE_CONFIRM" ]; then
+				echo -e "\nPassphrases do not match. Please try again."
+				unset PASSPHRASE
+				unset PASSPHRASE_CONFIRM
+			fi
+
+		};done
+	fi
+
+	#If no device was provided, ask user to select device to partition
+	if [ -z "$DEVICE" ]; then
+		#warn user to disconnect all external drives
+		if [ -x /bin/whiptail ]; then
+			whiptail $BG_COLOR_WARNING --title "WARNING: Disconnect all external drives" --msgbox \
+				"WARNING: Please disconnect all external drives before proceeding.\n\nHit Enter to continue." 0 80 \
+				|| die "User cancelled wiping and repartitioning of $DEVICE"
+		else
+			echo -e -n "Warning: Please disconnect all external drives before proceeding.\n\nHit Enter to continue?"
+			read -r -p " [Y/n] " response
+			#transform response to uppercase with bash parameter expansion
+			response=${response^^}
+			#continue if response different then uppercase N
+			if [[ $response =~ ^(N)$ ]]; then
+				die "User cancelled wiping and repartitioning of $DEVICE"
+			fi
+		fi
+
+		#enable usb
+		enable_usb
+		#enable usb storage
+		enable_usb_storage
+
+		#list all usb storage devices
+		list_usb_storage disks > /tmp/devices.txt
+		if [ $(cat /tmp/devices.txt | wc -l) -gt 0 ]; then
+			file_selector "/tmp/devices.txt" "Select device to partition"
+			if [ "$FILE" == "" ]; then
+				die "Error: No device selected"
+			else
+				DEVICE=$FILE
+			fi
+		else
+			die "Error: No device found"
+		fi
+	fi
+
+	#Check if device is a block device
+	if [ ! -b $DEVICE ]; then
+		die "Error: $DEVICE is not a block device"
+	fi
+
+	if [ -z "$PERCENTAGE" ]; then
+		#If no percentage was provided, ask user to select percentage of device to use for LUKS container
+		select_luks_container_size_percent
+		PERCENTAGE=$(cat /tmp/luks_container_size_percent)
+	fi
+
+
+	#Get disk size in bytes from fdisk
+	DISK_SIZE_BYTES="$(blockdev --getsize64 "$DEVICE")"
+	#Convert disk size to MB
+	DISK_SIZE_MB=$((DISK_SIZE_BYTES/1024/1024))
+	#Get size in bytes from percentage and apply percentage to DISK_SIZE_MB
+	PERCENTAGE_MB="$((DISK_SIZE_MB*PERCENTAGE/100))"
+	
+	#Console and whiptail $BG_COLOR_WARNING prompt (Y/n) validate one last time wiping and repartitioning of $device of total size $DISK_SIZE_MB with $PERCENTAGE_MB assigned to LUKS encrypted private partition
+	if [ -x /bin/whiptail ]; then
+		whiptail $BG_COLOR_WARNING --title "WARNING: Wiping and repartitioning $DEVICE of $DISK_SIZE_MB MB" --yesno \
+			"WARNING: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB assigned to private LUKS contained private ext4 partition, rest assigned to extfat public partition.\n\nAre you sure you want to continue?" 0 80 \
+			|| die "User cancelled wiping and repartitioning of $DEVICE"
+	else
+		echo -e -n "Warning: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB assigned to private LUKS contained private ext4 partition, rest assigned to extfat public partition.\n\nAre you sure you want to continue?"
+		read -r -p " [Y/n] " response
+		#transform response to uppercase with bash parameter expansion
+		response=${response^^}
+		#continue if response different then uppercase N
+		if [[ $response =~ ^(N)$ ]]; then
+			die "User cancelled wiping and repartitioning of $DEVICE"
+		fi
+	fi
+
+	echo -e "Preparing $DEVICE with $PERCENTAGE_MB MB for private LUKS container and rest of disk with exfat\
+	\n for public partition (This may take a while)..." | fold -s
+	DEBUG "Creating empty DOS partition table on device through fdisk to start clean"
+	echo -e "o\nw\n" | fdisk $DEVICE > /dev/null 2>&1 || die "Error creating partition table"
+	DEBUG "partition device with two partitions: first one being the percent applied and rest for second partition through fdisk"
+  	echo -e "n\np\n1\n\n+"$PERCENTAGE_MB"M\nn\np\n2\n\n\nw\n" | fdisk $DEVICE > /dev/null 2>&1 || die "Error partitioning device"
+	DEBUG "cryptsetup luksFormat first partition with LUKS container aes-xts-plain64 cipher with sha256 hash and 512 bit key"
+	DEBUG "Creating ${PERCENTAGE_MB}MB LUKS container on ${DEVICE}1..."
+	DO_WITH_DEBUG cryptsetup --batch-mode -c aes-xts-plain64 -h sha256 -s 512 -y luksFormat ${DEVICE}1 \
+		--key-file <(echo -n "${PASSPHRASE}") > /dev/null 2>&1 \
+		|| die "Error formatting LUKS container"
+	DEBUG "Opening LUKS device and mapping under /dev/mapper/private..."
+	DO_WITH_DEBUG cryptsetup open ${DEVICE}1 private --key-file <(echo -n "${PASSPHRASE}") > /dev/null 2>&1 \
+		|| die "Error opening LUKS container"
+	DEBUG "Formatting LUKS container mapped under /dev/mapper/private as an ext4 partition..."
+	mke2fs -t ext4 -L private /dev/mapper/private > /dev/null 2>&1 || die "Error formatting LUKS container's ext4 filesystem"
+	DEBUG "Closing LUKS device /dev/mapper/private..."
+	cryptsetup close private > /dev/null 2>&1 || die "Error closing LUKS container"
+	DEBUG "Formatting second partition ${DEVICE}2 with exfat filesystem..."
+	mkfs.exfat -L public ${DEVICE}2 > /dev/null 2>&1 || die "Error formatting second partition with exfat filesystem"
+	echo "Done."
+}
+
 select_luks_container()
 {
+	TRACE "Under /etc/luks-functions:select_luks_container()"
 	if [ -s /boot/kexec_key_devices.txt ]; then
+		DEBUG "Reusing known good LUKS container device from /boot/kexec_key_devices.txt"
+		DEBUG "LUKS container device: $(cut -d ' ' -f1 /boot/kexec_key_devices.txt)"
 		LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
 	else
-		#generate a list of devices to choose from that contain a LUKS header
-		lvm vgscan||true
-		blkid | cut -d ':' -f 1 | while read device;do cryptsetup isLuks $device;if [ $(echo $?) == 0 ]; then echo $device;fi; done | sort > /tmp/luks_devices.txt
-		if [ $(cat /tmp/luks_devices.txt | wc -l) -gt 0 ]; then
+		list_luks_devices > /tmp/luks_devices.txt
+		#if /tmp/luks_devices.txt exists and is not empty
+		if [ -s /tmp/luks_devices.txt ]; then
 			file_selector "/tmp/luks_devices.txt" "Select LUKS container device"
 			if [ "$FILE" == "" ]; then
 				return 1
@@ -25,6 +246,7 @@ select_luks_container()
 				mount -o remount,ro /boot
 			fi
 		else
+		
 			warn "No encrypted device found."
 			return 1
 		fi
@@ -33,6 +255,7 @@ select_luks_container()
 
 test_luks_current_disk_recovery_key_passphrase()
 {
+	TRACE "Under /etc/luks-functions:test_luks_current_disk_recovery_key_passphrase()"
 	while : ; do
 		select_luks_container || return 1
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
@@ -41,14 +264,14 @@ test_luks_current_disk_recovery_key_passphrase()
 			read -r luks_current_Disk_Recovery_Key_passphrase
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
 			warn "Test opening "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
-			cryptsetup luksOpen $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+			cryptsetup open $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		else
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
 			warn "Test opening "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
-			cryptsetup luksOpen $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+			cryptsetup open $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		fi
 		#Validate past cryptsetup-reencrypt attempts
-		if [ $(echo $?) -ne 0 ]; then
+		if [ $? -eq 0 ]; then
 			whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
 				"If you previously changed it and do not remember it, you will have to\n reinstall OS from a an external drive.\n\nTo do so, place ISO file and its signature file on root of external drive,\n and select Options-> Boot from USB \n\nHit Enter to retry." 30 60
 			shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2> /dev/null
@@ -65,7 +288,7 @@ test_luks_current_disk_recovery_key_passphrase()
 			#Exporting successfully used passphrase possibly reused by oem-factory-reset
 			
 			#We close the volume
-			cryptsetup luksClose test
+			cryptsetup close test
 			export luks_current_Disk_Recovery_Key_passphrase
 			break;
 		fi
@@ -73,6 +296,7 @@ test_luks_current_disk_recovery_key_passphrase()
 }
 
 luks_reencrypt(){
+TRACE "Under /etc/luks-functions:luks_reencrypt()"
 while : ; do
 	select_luks_container || return 1
 	if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
@@ -113,6 +337,7 @@ done
 
 luks_change_passphrase()
 {
+	TRACE "Under /etc/luks-functions:luks_change_passphrase()"
 while : ; do
 	select_luks_container || return 1
 	#if actual or new Disk Recovery Key is not provisioned by oem-provisioning file

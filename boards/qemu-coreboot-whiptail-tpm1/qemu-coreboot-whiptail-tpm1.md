@@ -1,1 +1,1 @@
-boards/qemu-coreboot-fbwhiptail-tpm1-hotp/qemu-coreboot-fbwhiptail-tpm1-hotp.md
+../qemu-coreboot-fbwhiptail-tpm2/qemu-coreboot-fbwhiptail-tpm2.md
