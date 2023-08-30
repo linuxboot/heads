@@ -47,13 +47,13 @@ DEBUG "$(pcrs)"
 # LUKS Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed OS,
 # key slot 1 is the one that we've generated.
-read -s -p "Enter disk recovery key/passphrase: " disk_password
+read -s -p "Enter Disk Recovery Key/passphrase: " disk_password
 echo -n "$disk_password" >"$RECOVERY_KEY"
 echo
 
 read -s -p "New TPM Disk Unlock Key passphrase for booting: " key_password
 echo
-read -s -p "Repeat TPM Disk Unlock key passphrase: " key_password2
+read -s -p "Repeat TPM Disk Unlock key passphrase for booting: " key_password2
 echo
 
 if [ "$key_password" != "$key_password2" ]; then
@@ -84,7 +84,8 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 			die "Slot 1 should not be the only one existing on $dev. Fix your custom setup"
 		fi
 	else
-		DEBUG "Slot 1 is not the only one existing on $dev. It is safe to use it to store TPM sealed LUKS Disk Unlock Key"
+		DEBUG "Slot 1 is not the only one existing on $dev"
+		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that will be sealed into TPM next"
 	fi
 done
 

@@ -580,7 +580,6 @@ reset_tpm()
       warn "Removing rollback and primary handle hash under /boot"
       rm -f /boot/kexec_rollback.txt
       rm -f /boot/kexec_primhdl_hash.txt
-      #TODO: When primhdl_hash is gone but not recreated and signed: fail at TPM Disk Unlock Key for TPM2....
 
       # create Heads TPM counter before any others
       check_tpm_counter /boot/kexec_rollback.txt "" "$key_password" \
