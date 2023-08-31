@@ -53,7 +53,7 @@ echo
 
 read -s -p "New TPM Disk Unlock Key passphrase for booting: " key_password
 echo
-read -s -p "Repeat TPM Disk Unlock key passphrase for booting: " key_password2
+read -s -p "Repeat TPM Disk Unlock Key passphrase for booting: " key_password2
 echo
 
 if [ "$key_password" != "$key_password2" ]; then

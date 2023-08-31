@@ -56,12 +56,12 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		sha256sum -c "$PRIMHASH_FILE" \
 			|| {
 			echo "FATAL: Hash of TPM2 primary key handle mismatch!";
-			echo "If you have not intentionally regenerated TPM2 primary key,";
+			warn "If you have not intentionally regenerated TPM2 primary key,";
 			warn "your system may have been compromised";
 		}
 	else
-		echo "WARNING: Hash of TPM2 primary key handle does not exist!"
-		echo "Please rebuild the boot hash tree."
+		warn "Hash of TPM2 primary key handle does not exist"
+		warn "Please rebuild the boot hash tree"
 		default_failed="y"
 	fi
 fi

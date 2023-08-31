@@ -38,7 +38,6 @@ PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
-
 lvm_suggest=$(lvm vgscan | awk -F '"' {'print $1'} | tail -n +2)
 num_lvm=$(echo "$lvm_suggest" | wc -l)
 if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
@@ -50,8 +49,7 @@ DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
 
 # get all LUKS container devices
 devices_suggest=$(blkid | cut -d ':' -f 1 | while read device; do
-	cryptsetup isLuks "$device"
-	if [ $(echo $?) == 0 ]; then echo "$device"; fi
+	if cryptsetup isLuks "$device"; then echo "$device"; fi
 done | sort)
 num_devices=$(echo "$devices_suggest" | wc -l)
 
@@ -79,9 +77,9 @@ fi
 save_key="n"
 if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ "$CONFIG_BASIC" != y ]; then
 	DEBUG "TPM is enabled and TPM_NO_LUKS_DISK_UNLOCK is not set"
-	DEBUG "Checking if a a TPM Disk Unlock Key was previously setuped from $KEY_DEVICES"
+	DEBUG "Checking if a a TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 	if [ ! -r "$KEY_DEVICES" ]; then
-		DEBUG "No previous TPM Disk Unlock Key was setuped for LUKS devices, confirming to add a disk encryption to the TPM"
+		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a disk encryption to the TPM"
 		read \
 			-n 1 \
 			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
@@ -94,7 +92,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key="y"
 		fi
 	else
-		DEBUG "Previous TPM Disk Unlock Key was setuped for LUKS devices"
+		DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices"
 		read \
 			-n 1 \
 			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
@@ -123,7 +121,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 
 	if [ "$save_key" = "y" ]; then
 		if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
-			DEBUG "Previous TPM Disk Unlock Key was setuped for LUKS devices $old_key_devices $old_lvm_volume_group"
+			DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices $old_key_devices $old_lvm_volume_group"
 			read \
 				-n 1 \
 				-p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
@@ -138,10 +136,10 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 				fi
 			fi
 		else
-			DEBUG "No previous TPM Disk Unlock Key was setuped for LUKS devices, setting up new ones"
+			DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, setting up new ones"
 			if [ "$num_lvm" -gt 1 ]; then
 				DEBUG "Multiple LVM groups found"
-				//untested
+				# TODO: untested codepath. What uses lvm+LUKS on top nowadays?!?
 				selected_lvmdev_not_existing=1
 				while [ $selected_lvmdev_not_existing -ne 0 ]; do
 					{
@@ -172,7 +170,8 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 							key_devices
 
 						result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
-						if [ $? == 0 ]; then
+						#if result is not empty, then the device exists
+						if [ -n "$result" ]; then
 							selected_luksdev_not_existing=0
 						fi
 					}
