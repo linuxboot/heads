@@ -174,7 +174,7 @@ generate_totp_hotp()
     printf "\033c"
   else
     warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed"
-    warn "Try "Generate new HOTP/TOTP secret" option if you updated firmware content"
+    warn 'Try "Generate new HOTP/TOTP secret" option if you updated firmware content'
   fi
 }
 
