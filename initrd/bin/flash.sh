@@ -22,12 +22,13 @@ case "$CONFIG_FLASHROM_OPTIONS" in
 esac
 
 flashrom_progress() {
-    # The ichspi programmer now spews register status lines constantly that are brutally slow
-    # to feed through the parser in flashrom_progress_tokenize.  Exclude them.
-    # flashrom_progress_tokenize operates on individual tokens (not lines), so it splits by
-    # spaces in 'read'.  But we also need to separate the last word on a line from the next
-    # line, so replace newlines.
-    grep -v -e '^HSFS:' -e '^HSFC:' | tr '\n' ' ' | flashrom_progress_tokenize "$1"
+    # The ichspi programmer now spews register status lines constantly that are
+    # brutally slow to feed through the parser in flashrom_progress_tokenize.
+    # Filter the input with grep for only lines containing at least one token
+    # that we care about.
+    grep -E -e 'contents\.\.\.' -e 'done\.' -e '0x[0-9a-f]+-(0x[0-9a-f]+):' \
+        -e 'identical' -e 'VERIFIED\.' -e 'FAILED' | \
+        tr ' ' '\n' | flashrom_progress_tokenize "$1"
 }
 
 print_flashing_progress() {
@@ -57,7 +58,7 @@ flashrom_progress_tokenize() {
     while true ; do
         prev_prev_word=$prev_word
         prev_word=$IN
-        read -r -d" " -t 0.2 IN
+        IFS= read -r -t 0.2 IN
         spin_idx=$(( (spin_idx+1) %4 ))
         if [ "$status" == "init" ]; then
             if [ "$IN" == "contents..." ]; then
