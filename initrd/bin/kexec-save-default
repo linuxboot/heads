@@ -313,13 +313,21 @@ if [ "$save_key" = "y" ]; then
 		echo "$crypttab_files" | while read filepath; do
 			# Keep only non-commented lines
 			current_filepath_entries=$(cat "$filepath" | grep -v "^#")
+			DEBUG "Found crypttab entries in $filepath: $current_filepath_entries"
 			# Modify each retained crypttab line to contain to be injected /secret.key at next default boots
 			modified_filepath_entries=$(echo "$current_filepath_entries" | sed 's/none/\/secret.key/g')
+			DEBUG "Modified crypttab entries in $filepath: $modified_filepath_entries"
+			# Mofify paths to remove path of where files were extracted to be those files need to be put in initramfs
+			modified_filepath_entries=$(echo "$modified_filepath_entries" | awk -v var="$initrd_decompressed" '{gsub(var,"")}1')
+			DEBUG "Modified crypttab filepath entries in $filepath: $modified_filepath_entries"
+			# Get the relative path of the filepath
+			modified_filepath=$(echo "$filepath" | cut -d'/' -f2-)
 			echo "$modified_filepath_entries" | while read single_modified_filepath_entry; do
 				# Append each found filepath:entry into additional kexec_ file that will be part of detached signed digest
-				echo "$filepath:$single_modified_filepath_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
+				echo "$modified_filepath:$single_modified_filepath_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
 			done
 		done
+
 
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
 		echo "+++ The following OS crypttab file:entry were modified from default boot's initrd:"
