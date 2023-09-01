@@ -45,6 +45,8 @@ if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
 elif [ -z "$lvm_suggest" ]; then
 	num_lvm=0
 fi
+# $lvm_suggest is a multiline string, we need to convert it to a space separated string
+lvm_suggest=$(echo "$lvm_suggest" | xargs)
 DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
 
 # get all LUKS container devices
@@ -55,15 +57,124 @@ num_devices=$(echo "$devices_suggest" | wc -l)
 
 if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
 	key_devices=$devices_suggest
-else
-	devices_suggest=$(echo $devices_suggest)
+elif [ -z "$devices_suggest" ]; then
+	num_devices=0
 fi
+# $devices_suggest is a multiline string, we need to convert it to a space separated string
+devices_suggest=$(echo "$devices_suggest" | xargs)
 DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
 
 if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
 	#No encrypted partition found.
 	no_encrypted_partition=1
 fi
+
+#Reusable function when user wants to define new TPM DUK for lvms/disks
+prompt_for_existing_encrypted_lvms_or_disks() {
+	TRACE "Under kexec-save-default:prompt_for_existing_encrypted_lvms_or_disks"
+	DEBUG "num_lvm: $num_lvm, lvm_suggest: $lvm_suggest, num_devices: $num_devices, devices_suggest: $devices_suggest"
+
+	# Create an associative array to store the suggested LVMs and their paths
+	declare -A lvms_array
+	# Loop through the suggested LVMs and add them to the array
+	for lvm in $lvm_suggest; do
+		lvms_array[$lvm]=$lvm
+	done
+
+	# Get the number of suggested LVMs
+	num_lvms=${#lvms_array[@]}
+
+	if [ "$num_lvms" -gt 1 ]; then
+		DEBUG "Multiple LVMs found: $lvm_suggest"
+		selected_lvms_not_existing=1
+		# Create an array to store the selected LVMs
+		declare -a key_lvms_array
+
+		while [ $selected_lvms_not_existing -ne 0 ]; do
+			{
+				# Read the user input and store it in a variable
+				read \
+					-p "Encrypted LVMs? (choose between/all: $lvm_suggest): " \
+					key_lvms
+
+				# Split the user input by spaces and add each element to the array
+				IFS=' ' read -r -a key_lvms_array <<<"$key_lvms"
+
+				# Loop through the array and check if each element is in the lvms_array
+				valid=1
+				for lvm in "${key_lvms_array[@]}"; do
+					if [[ ! ${lvms_array[$lvm]+_} ]]; then
+						# If not found, set the flag to indicate invalid input
+						valid=0
+						break
+					fi
+				done
+
+				# If valid, set the flag to indicate valid input
+				if [[ $valid -eq 1 ]]; then
+					selected_lvms_not_existing=0
+				fi
+			}
+		done
+	elif [ "$num_lvms" -eq 1 ]; then
+		echo "Single Encrypted LVM found at $lvm_suggest."
+		key_lvms=$lvm_suggest
+	else
+		echo "No encrypted LVMs found."
+	fi
+
+	# Create an associative array to store the suggested devices and their paths
+	declare -A devices_array
+	# Loop through the suggested devices and add them to the array
+	for device in $devices_suggest; do
+		devices_array[$device]=$device
+	done
+
+	# Get the number of suggested devices
+	num_devices=${#devices_array[@]}
+
+	if [ "$num_devices" -gt 1 ]; then
+		DEBUG "Multiple LUKS devices found: $devices_suggest"
+		selected_luksdevs_not_existing=1
+		# Create an array to store the selected devices
+		declare -a key_devices_array
+
+		while [ $selected_luksdevs_not_existing -ne 0 ]; do
+			{
+				# Read the user input and store it in a variable
+				read \
+					-p "Encrypted devices? (choose between/all: $devices_suggest): " \
+					key_devices
+
+				# Split the user input by spaces and add each element to the array
+				IFS=' ' read -r -a key_devices_array <<<"$key_devices"
+
+				# Loop through the array and check if each element is in the devices_array
+				valid=1
+				for device in "${key_devices_array[@]}"; do
+					if [[ ! ${devices_array[$device]+_} ]]; then
+						# If not found, set the flag to indicate invalid input
+						valid=0
+						break
+					fi
+				done
+
+				# If valid, set the flag to indicate valid input
+				if [[ $valid -eq 1 ]]; then
+					selected_luksdevs_not_existing=0
+				fi
+			}
+		done
+	elif [ "$num_devices" -eq 1 ]; then
+		echo "Single Encrypted Disk found at $devices_suggest."
+		key_devices=$devices_suggest
+	else
+		echo "No encrypted devices found."
+	fi
+
+	DEBUG "Multiple LUKS devices selected: $key_devices"
+
+}
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
@@ -75,24 +186,13 @@ if [ -z "$entry" ]; then
 fi
 
 save_key="n"
+
 if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ "$CONFIG_BASIC" != y ]; then
 	DEBUG "TPM is enabled and TPM_NO_LUKS_DISK_UNLOCK is not set"
 	DEBUG "Checking if a a TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
-	if [ ! -r "$KEY_DEVICES" ]; then
-		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a disk encryption to the TPM"
-		read \
-			-n 1 \
-			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
-			add_key_confirm
-		echo
-
-		if [ "$add_key_confirm" = "y" \
-			-o "$add_key_confirm" = "Y" ]; then
-			DEBUG "User confirmed to add a disk encryption to the TPM"
-			save_key="y"
-		fi
-	else
-		DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices"
+	#check if $KEY_DEVICES file exists and is not empty
+	if [ -r "$KEY_DEVICES" ] && [ -s "$KEY_DEVICES" ]; then
+		DEBUG "TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 		read \
 			-n 1 \
 			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
@@ -117,6 +217,19 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			devices_suggest="$old_key_devices"
 			save_key="y"
 		fi
+	else
+		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a disk encryption to the TPM"
+		read \
+			-n 1 \
+			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
+			add_key_confirm
+		echo
+
+		if [ "$add_key_confirm" = "y" \
+			-o "$add_key_confirm" = "Y" ]; then
+			DEBUG "User confirmed to add a disk encryption to the TPM"
+			save_key="y"
+		fi
 	fi
 
 	if [ "$save_key" = "y" ]; then
@@ -134,54 +247,13 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 				if [ -z "$lvm_volume_group" ] && [ -n "$old_lvm_volume_group" ]; then
 					lvm_volume_group="$old_lvm_volume_group"
 				fi
+			#User doesn't want to reuse past devices, so we need to prompt him from devices_suggest and lvm_suggest
+			else
+				prompt_for_existing_encrypted_lvms_or_disks
 			fi
 		else
 			DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, setting up new ones"
-			if [ "$num_lvm" -gt 1 ]; then
-				DEBUG "Multiple LVM groups found"
-				# TODO: untested codepath. What uses lvm+LUKS on top nowadays?!?
-				selected_lvmdev_not_existing=1
-				while [ $selected_lvmdev_not_existing -ne 0 ]; do
-					{
-						read \
-							-p "Encrypted LVM group? choose between: '$lvm_suggest': " \
-							lvm_volume_group
-
-						result=$(echo "$lvm_suggest" | grep -q "$lvm_volume_group") || selected_lvmdev_not_existing=1
-						if [ $? == 0 ]; then
-							selected_lvmdev_not_existing=0
-						fi
-					}
-				done
-			elif [ "$num_lvm" -eq 1 ] && [ -s $lvm_suggest ]; then
-				echo "Single Encrypted LVM group found at $lvm_suggest."
-				lvm_volume_group=$lvm_suggest
-			else
-				echo "No encrypted LVM Group found."
-			fi
-
-			if [ "$num_devices" -gt 1 ]; then
-				DEBUG "Multiple LUKS devices found"
-				selected_luksdev_not_existing=1
-				while [ $selected_luksdev_not_existing -ne 0 ]; do
-					{
-						read \
-							-p "Encrypted devices? (choose between: '$devices_suggest'): " \
-							key_devices
-
-						result=$(echo "$devices_suggest" | grep -q "$key_devices") || selected_luksdev_not_existing=1
-						#if result is not empty, then the device exists
-						if [ -n "$result" ]; then
-							selected_luksdev_not_existing=0
-						fi
-					}
-				done
-			elif [ "$num_devices" -eq 1 ]; then
-				echo "Single Encrypted Disk found at $devices_suggest."
-				key_devices=$devices_suggest
-			else
-				echo "No encrypted devices found."
-			fi
+			prompt_for_existing_encrypted_lvms_or_disks
 		fi
 
 		save_key_params="-s -p $paramsdev"

@@ -1,21 +1,24 @@
 #!/bin/bash
-# Measure all of the luks disk encryption headers into
+# Measure all of the LUKS Disk Encryption headers into
 # a PCR so that we can detect disk swap attacks.
 . /etc/functions
 
 TRACE "Under /bin/qubes-measure-luks"
+DEBUG "Arguments passed to qubes-measure-luks: $@"
 
-die() { echo >&2 "$@"; exit 1; }
-
-# Measure the luks headers into PCR 6
+# Measure the LUKS headers into PCR 6
 for dev in "$@"; do
+	DEBUG "Storing LUKS header for $dev into /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g')"
 	cryptsetup luksHeaderBackup $dev \
-		   --header-backup-file /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g') \
-		|| die "$dev: Unable to read luks header"
+		--header-backup-file /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g') ||
+		die "$dev: Unable to read LUKS header"
 done
 
-sha256sum /tmp/lukshdr-* > /tmp/luksDump.txt || die "Unable to hash luks headers"
+DEBUG "Hashing luks headers into /tmp/luksDump.txt"
+sha256sum /tmp/lukshdr-* >/tmp/luksDump.txt || die "Unable to hash luks headers"
+DEBUG "Removing /tmp/lukshdr-*"
 rm /tmp/lukshdr-*
 
-tpmr extend -ix 6 -if /tmp/luksDump.txt \
-|| die "Unable to extend PCR"
+DEBUG "Extending PCR 6 with /tmp/luksDump.txt"
+tpmr extend -ix 6 -if /tmp/luksDump.txt ||
+	die "Unable to extend PCR"
