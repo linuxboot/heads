@@ -11,16 +11,16 @@ lvm_volume_group=""
 skip_sign="n"
 while getopts "sp:d:l:" arg; do
 	case $arg in
-		s) skip_sign="y" ;;
-		p) paramsdir="$OPTARG" ;;
-		d) paramsdev="$OPTARG" ;;
-		l) lvm_volume_group="$OPTARG" ;;
+	s) skip_sign="y" ;;
+	p) paramsdir="$OPTARG" ;;
+	d) paramsdev="$OPTARG" ;;
+	l) lvm_volume_group="$OPTARG" ;;
 	esac
 done
 
 DEBUG "kexec-save-key prior of parsing: paramsdir: $paramsdir, paramsdev: $paramsdev, lvm_volume_group: $lvm_volume_group"
 
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 key_devices="$@"
 
 DEBUG "kexec-save-key: key_devices: $key_devices"
@@ -40,9 +40,9 @@ paramsdir="${paramsdir%%/}"
 DEBUG "kexec-save-key prior of last override: paramsdir: $paramsdir, paramsdev: $paramsdev, lvm_volume_group: $lvm_volume_group"
 
 if [ -n "$lvm_volume_group" ]; then
-	lvm vgchange -a y $lvm_volume_group \
-	|| die "Failed to activate the LVM group"
-
+	lvm vgchange -a y $lvm_volume_group ||
+		die "Failed to activate the LVM group"
+	#TODO: why reuse key_devices for lvm devices?
 	for dev in /dev/$lvm_volume_group/*; do
 		key_devices="$key_devices $dev"
 	done
@@ -58,22 +58,22 @@ mount -o rw,remount $paramsdev
 rm -f $paramsdir/kexec_key_lvm.txt || true
 if [ -n "$lvm_volume_group" ]; then
 	DEBUG "kexec-save-key saving under $paramsdir/kexec_key_lvm.txt : lvm_volume_group: $lvm_volume_group"
-	echo "$lvm_volume_group" > $paramsdir/kexec_key_lvm.txt \
-	|| die "Failed to write lvm group to key config "
+	echo "$lvm_volume_group" >$paramsdir/kexec_key_lvm.txt ||
+		die "Failed to write lvm group to key config "
 fi
 
 rm -f $paramsdir/kexec_key_devices.txt || true
 for dev in $key_devices; do
-	DEBUG "gettinmg uuid for $dev"
-	uuid=`cryptsetup luksUUID "$dev" 2>/dev/null` \
-	|| die "Failed to get UUID for device $dev"
-	DEBUG "saving under $paramsdir/kexec_key_devices.txt : dev: $dev, uuid: $uuid"
-	echo "$dev $uuid" >> $paramsdir/kexec_key_devices.txt \
-	|| die "Failed to add $dev:$uuid to key devices config"
+	DEBUG "Getting UUID for $dev"
+	uuid=$(cryptsetup luksUUID "$dev" 2>/dev/null) ||
+		die "Failed to get UUID for device $dev"
+	DEBUG "Saving under $paramsdir/kexec_key_devices.txt : dev: $dev, uuid: $uuid"
+	echo "$dev $uuid" >>$paramsdir/kexec_key_devices.txt ||
+		die "Failed to add $dev:$uuid to key devices config"
 done
 
-kexec-seal-key $paramsdir \
-|| die "Failed to save and generate key in TPM"
+kexec-seal-key $paramsdir ||
+	die "Failed to save and generate key in TPM"
 
 if [ "$skip_sign" != "y" ]; then
 	extparam=
@@ -81,8 +81,8 @@ if [ "$skip_sign" != "y" ]; then
 		extparam=-r
 	fi
 	# sign and auto-roll config counter
-	kexec-sign-config -p $paramsdir $extparam \
-	|| die "Failed to sign updated config"
+	kexec-sign-config -p $paramsdir $extparam ||
+		die "Failed to sign updated config"
 fi
 
 # switch back to ro mode
