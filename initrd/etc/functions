@@ -83,7 +83,7 @@ confirm_totp() {
 reseal_tpm_disk_decryption_key() {
 	TRACE "Under /etc/functions:reseal_tpm_disk_decryption_key"
 	#For robustness, exit early if TPM Disk Unlock Key is prohibited in board configs
-	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" != "y" ]; then
+	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
 		DEBUG "TPM Disk Unlock Key is prohibited in board configs"
 		return
 	else

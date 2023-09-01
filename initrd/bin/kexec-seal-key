@@ -27,7 +27,7 @@ KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 if [ ! -r "$KEY_DEVICES" ]; then
 	die "No devices defined for disk encryption"
 else
-	DEBUG "Devices defined for disk encryption: $(cat "$KEY_DEVICES" | cut -d\  -f1)"
+	DEBUG "Devices defined for disk encryption: $(cat "$KEY_DEVICES" | cut -d\  -f1 | tr '\n' ' ')"
 fi
 
 if [ -r "$KEY_LVM" ]; then
