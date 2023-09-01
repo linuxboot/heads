@@ -300,13 +300,13 @@ if [ "$save_key" = "y" ]; then
 	# Get crypttab files paths from initrd
 	echo "+++ Checking current selected default boot's $current_default_initrd for existing crypttab files..."
 	# First either decompress or use the original if it's not compressed
-	initrd_decompressed="/tmp/initrd_extract/initrd_decompressed.cpio"
-	zcat <"$current_default_initrd" >"$initrd_decompressed" 2>/dev/null || initrd_decompressed="$current_default_initrd"
-	crypttab_files=$(cpio --list --quiet <"$initrd_decompressed" | grep crypttab 2>/dev/null) || true
+	initrd_decompressed="/tmp/initrd_extract"
+	echo "+++ Extracting current selected default boot's $current_default_initrd to find crypttab files..."
+	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed" >/dev/null 2>&1 || true
+	crypttab_files=$(find "$initrd_decompressed" | grep crypttab 2>/dev/null) || true
 
 	if [ ! -z "$crypttab_files" ]; then
-		echo "+++ Extracting current selected default boot's $current_default_initrd for found crypttab files analysis..."
-		cpio -id --quiet $crypttab_files <$initrd_decompressed 2>/dev/null
+		DEBUG "Found crypttab files in $current_default_initrd"
 		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
 
 		#Parsing each crypttab file found
