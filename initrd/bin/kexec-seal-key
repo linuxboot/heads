@@ -61,7 +61,7 @@ if [ "$key_password" != "$key_password2" ]; then
 fi
 
 # Generate key file
-echo "++++++ Generating new randomized 128 bytes key file that will be unsealed by TPM Disk Unlock Key passphrase"
+echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by TPM Disk Unlock Key passphrase"
 dd \
 	if=/dev/urandom \
 	of="$KEY_FILE" \
@@ -85,7 +85,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		fi
 	else
 		DEBUG "Slot 1 is not the only existing slot on $dev"
-		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that will be sealed into TPM next"
+		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that TPM will seal/unseal with TPM Disk Unlock Key passphrase"
 	fi
 done
 
