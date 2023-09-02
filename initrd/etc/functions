@@ -96,7 +96,7 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-		warn "A TPM Disk Unlock Key previously sealed is now invalid since firmware measurements cannot be unsealed"
+		warn "A TPM Disk Unlock Key previously sealed is now invalid since firmware measurements could not unseal TOTP"
 		echo "Renewing LUKS Disk Unlock Key to be unsealed by TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
 			warn "Recovery Disk Encryption key passphrase invalid. Try again!"
