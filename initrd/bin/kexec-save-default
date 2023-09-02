@@ -46,7 +46,7 @@ elif [ -z "$lvm_suggest" ]; then
 	num_lvm=0
 fi
 # $lvm_suggest is a multiline string, we need to convert it to a space separated string
-lvm_suggest=$(echo "$lvm_suggest" | xargs)
+lvm_suggest=$(echo $lvm_suggest | tr '\n' ' ')
 DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
 
 # get all LUKS container devices
@@ -61,7 +61,7 @@ elif [ -z "$devices_suggest" ]; then
 	num_devices=0
 fi
 # $devices_suggest is a multiline string, we need to convert it to a space separated string
-devices_suggest=$(echo "$devices_suggest" | xargs)
+devices_suggest=$(echo $devices_suggest | tr '\n' ' ')
 DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
 
 if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
@@ -218,7 +218,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key="y"
 		fi
 	else
-		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a disk encryption to the TPM"
+		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a Disk Encryption Key to the TPM"
 		read \
 			-n 1 \
 			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
@@ -227,7 +227,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 
 		if [ "$add_key_confirm" = "y" \
 			-o "$add_key_confirm" = "Y" ]; then
-			DEBUG "User confirmed to add a disk encryption to the TPM"
+			DEBUG "User confirmed desire to add a Disk Encryption Key to the TPM"
 			save_key="y"
 		fi
 	fi
@@ -252,7 +252,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 				prompt_for_existing_encrypted_lvms_or_disks
 			fi
 		else
-			DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, setting up new ones"
+			DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, setting up new one"
 			prompt_for_existing_encrypted_lvms_or_disks
 		fi
 
