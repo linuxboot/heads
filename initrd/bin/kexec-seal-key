@@ -81,10 +81,10 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		# Check if slot 1 is the only one existing
 		if cryptsetup luksDump $dev | grep -q "Slot 1: ENABLED"; then
 			warn "Slot 1 is the only one existing on $dev. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
-			die "Slot 1 should not be the only one existing on $dev. Fix your custom setup"
+			die "Slot 1 should not be the only slot existing on $dev. Fix your custom setup"
 		fi
 	else
-		DEBUG "Slot 1 is not the only one existing on $dev"
+		DEBUG "Slot 1 is not the only existing slot on $dev"
 		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that will be sealed into TPM next"
 	fi
 done
