@@ -4,10 +4,9 @@
 # The default PCR to be extended is 5, but can be
 # overridden with the MODULE_PCR environment variable
 
-die() {
-        echo >&2 "$@"
-        exit 1
-}
+. /etc/functions
+
+TRACE "Under insmod.sh"
 
 MODULE="$1"; shift
 
@@ -31,18 +30,22 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
+	DEBUG "Extending PCR $MODULE_PCR with $MODULE"
 	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 	|| die "$MODULE: tpm extend failed"
 fi
 
 if [ ! -z "$*" -a -z "$tpm_missing" ]; then
+	DEBUG "Extending PCR $MODULE_PCR with $*"
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
+	DEBUG "Extending PCR $MODULE_PCR with $TMPFILE"
 	tpmr extend -ix "$MODULE_PCR" -if $TMPFILE \
 	|| die "$MODULE: tpm extend on arguments failed"
 fi
 
 # Since we have replaced the real insmod, we must invoke
 # the busybox insmod via the original executable
+DEBUG "Loading $MODULE with busybox insmod"
 busybox insmod "$MODULE" "$@" \
 || die "$MODULE: insmod failed"
