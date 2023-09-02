@@ -263,7 +263,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key_params="$save_key_params $key_devices"
 		fi
 		kexec-save-key $save_key_params ||
-			die "Failed to save the disk key"
+			die "Failed to save the TPM Disk Unlock Key"
 	fi
 fi
 
@@ -292,17 +292,13 @@ fi
 
 if [ "$save_key" = "y" ]; then
 	# logic to parse OS initrd to extract crypttab, its filepaths and its OS defined options
-	mkdir -p /tmp/initrd_extract
-	cd /tmp/initrd_extract
+	initrd_decompressed="/tmp/initrd_extract"
+	mkdir -p "$initrd_decompressed"
 	# Get initrd filename selected to be default initrd that OS could be using to configure LUKS on boot by deploying crypttab files
 	current_default_initrd=$(cat /boot/kexec_default_hashes.txt | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
 
-	# Get crypttab files paths from initrd
-	echo "+++ Checking current selected default boot's $current_default_initrd for existing crypttab files..."
-	# First either decompress or use the original if it's not compressed
-	initrd_decompressed="/tmp/initrd_extract"
 	echo "+++ Extracting current selected default boot's $current_default_initrd to find crypttab files..."
-	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed" >/dev/null 2>&1 || true
+	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed"
 	crypttab_files=$(find "$initrd_decompressed" | grep crypttab 2>/dev/null) || true
 
 	if [ ! -z "$crypttab_files" ]; then
@@ -310,19 +306,18 @@ if [ "$save_key" = "y" ]; then
 		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
 
 		#Parsing each crypttab file found
-		echo "$crypttab_files" | while read filepath; do
-			# Keep only non-commented lines
-			current_filepath_entries=$(cat "$filepath" | grep -v "^#")
-			DEBUG "Found crypttab entries in $filepath: $current_filepath_entries"
-			# Modify each retained crypttab line to contain to be injected /secret.key at next default boots
-			modified_filepath_entries=$(echo "$current_filepath_entries" | sed 's/none/\/secret.key/g')
-			DEBUG "Modified crypttab entries in $filepath: $modified_filepath_entries"
-			# Get the relative path of the filepath which will correspond to local path of the crypttab file in initrd
-			initrd_filepath_entries=$(echo "$modified_filepath_entries" | cut -d'/' -f3-)
-			DEBUG "Modified crypttab initrd local path entries in $filepath: $initrd_filepath_entries"
-			echo "$initrd_filepath_entries" | while read initrd_filepath_entry; do
-				# Append each found filepath:entry into additional kexec_ file that will be part of detached signed digest
-				echo "$modified_filepath_entries:$initrd_filepath_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
+		echo "$crypttab_files" | while read crypttab_file; do
+			# Change crypttab file path to be relative to initrd for string manipulation
+			final_initrd_filepath=${crypttab_file#/tmp/initrd_extract}
+			DEBUG "Final initramfs crypttab path:$final_initrd_filepath"
+			# Keep only non-commented lines for crypttab entries
+			current_crypttab_entries=$(cat "$crypttab_file" | grep -v "^#")
+			DEBUG "Found initrd crypttab entries $final_initrd_filepath:$current_crypttab_entries"
+			# Modify each retained crypttab line for /secret.key under intramfs to be considered as a keyfile
+			modified_crypttab_entries=$(echo "$current_crypttab_entries" | sed 's/none/\/secret.key/g')
+			DEBUG "Modified crypttab entries $final_initrd_filepath:$modified_crypttab_entries"
+			echo "$modified_crypttab_entries" | while read modified_crypttab_entry; do
+				echo "$final_initrd_filepath:$modified_crypttab_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
 			done
 		done
 
