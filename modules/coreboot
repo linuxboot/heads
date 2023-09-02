@@ -85,6 +85,15 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
 $(eval $(call coreboot_module,purism,))
 
+#Similar for dasharo's KGPE-D16 coreboot fork
+#Doesn't share any other build target (~4.16+)
+coreboot-dasharo-kgpe-d16_repo := https://github.com/Dasharo/coreboot
+coreboot-dasharo-kgpe-d16_commit_hash := 6edf2d06df3d5c28f1ddfb1705e076a0694df5a5
+ifeq "$(CONFIG_COREBOOT_VERSION)" "dasharo-kgpe-d16"
+	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member -Wno-error=null-dereference
+endif
+$(eval $(call coreboot_module,dasharo-kgpe-d16,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
