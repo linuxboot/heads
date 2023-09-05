@@ -495,13 +495,13 @@ tpm1_seal() {
 		# The permissions are 0 since there is nothing special
 		# about the sealed file
 		tpm physicalpresence -s \
-			|| warn "Warning: Unable to assert physical presence"
+			|| warn "Unable to assert physical presence"
 
 		prompt_tpm_password
 
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
 			-pwdo "$tpm_password" -per 0 \
-			|| warn "Warning: Unable to define NVRAM space; trying anyway"
+			|| warn "Unable to define NVRAM space; trying anyway"
 
 
 		tpm nv_writevalue -in "$index" -if "$sealed_file" \
@@ -595,7 +595,7 @@ tpm2_reset() {
 	TRACE "Under /bin/tpmr:tpm2_reset"
 	key_password="$1"
 	mkdir -p "$SECRET_DIR"
-	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy!"
+	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy"
 	tpm2 changeauth -c owner "$(tpm2_password_hex "$key_password")"
 	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$key_password")"
 	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
@@ -673,7 +673,7 @@ tpm2_kexec_finalize() {
 	echo "Locking TPM2 platform hierarchy..."
 	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none | xxd -p)
 	tpm2 changeauth -c platform "$randpass" \
-		|| warn "Failed to lock platform hierarchy of TPM2!"
+		|| warn "Failed to lock platform hierarchy of TPM2"
 }
 
 tpm2_shutdown() {

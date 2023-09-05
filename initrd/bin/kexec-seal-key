@@ -26,16 +26,20 @@ KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
 if [ ! -r "$KEY_DEVICES" ]; then
 	die "No devices defined for disk encryption"
+else
+	DEBUG "Devices defined for disk encryption: $(cat "$KEY_DEVICES" | cut -d\  -f1 | tr '\n' ' ')"
 fi
 
 if [ -r "$KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=`cat $KEY_LVM`
+	VOLUME_GROUP=$(cat $KEY_LVM)
 	if [ -z "$VOLUME_GROUP" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP \
-		|| die "$VOLUME_GROUP: unable to activate volume group"
+	lvm vgchange -a y $VOLUME_GROUP ||
+		die "$VOLUME_GROUP: unable to activate volume group"
+else
+	DEBUG "No LVM volume group defined for activation"
 fi
 
 DEBUG "$(pcrs)"
@@ -43,50 +47,70 @@ DEBUG "$(pcrs)"
 # LUKS Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed OS,
 # key slot 1 is the one that we've generated.
-read -s -p "Enter disk recovery key: " disk_password
-echo -n "$disk_password" > "$RECOVERY_KEY"
+read -s -p "Enter Disk Recovery Key/passphrase: " disk_password
+echo -n "$disk_password" >"$RECOVERY_KEY"
 echo
 
-read -s -p "New disk unlock password for booting: " key_password
+read -s -p "New TPM Disk Unlock Key passphrase for booting: " key_password
 echo
-read -s -p "Repeat unlock code: " key_password2
+read -s -p "Repeat TPM Disk Unlock Key passphrase for booting: " key_password2
 echo
 
 if [ "$key_password" != "$key_password2" ]; then
-	die "Key passwords do not match"
+	die "Key passphrases do not match"
 fi
 
 # Generate key file
+echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by TPM Disk Unlock Key passphrase"
 dd \
 	if=/dev/urandom \
 	of="$KEY_FILE" \
 	bs=1 \
 	count=128 \
-	2>/dev/null \
-|| die "Unable to generate 128 random bytes"
+	2>/dev/null ||
+	die "Unable to generate 128 random bytes"
+
+# Count the number of slots used on each device
+for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
+	DEBUG "Checking number of slots used on $dev"
+	#check if the device is a LUKS device with luks[1,2]
+	slots_used=$(cryptsetup luksDump $dev | grep -c 'luks[0-9]*' || die "Unable to get number of slots used on $dev")
+	DEBUG "Number of slots used on $dev: $slots_used"
+	# If slot1 is the only one used, warn and die with proper messages
+	if [ $slots_used -eq 1 ]; then
+		# Check if slot 1 is the only one existing
+		if cryptsetup luksDump $dev | grep -q "Slot 1: ENABLED"; then
+			warn "Slot 1 is the only one existing on $dev. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
+			die "Slot 1 should not be the only slot existing on $dev. Fix your custom setup"
+		fi
+	else
+		DEBUG "Slot 1 is not the only existing slot on $dev"
+		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that TPM will seal/unseal with TPM Disk Unlock Key passphrase"
+	fi
+done
 
 # Remove all the old keys from slot 1
-for dev in `cat "$KEY_DEVICES" | cut -d\  -f1`; do
-	echo "++++++ $dev: Removing old key slot"
+for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
+	echo "++++++ $dev: Removing old key slot 1"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
-		$dev 1 \
-	|| warn "$dev: ignoring problem"
+		$dev 1 ||
+		warn "$dev: removal of key in slot 1 failed: might not exist. Continuing"
 
-	echo "++++++ $dev: Adding key"
+	echo "++++++ $dev: Adding key to slot 1"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
-		$dev "$KEY_FILE" \
-	|| die "$dev: Unable to add key"
+		$dev "$KEY_FILE" ||
+		die "$dev: Unable to add key to slot 1"
 done
 
 # Now that we have setup the new keys, measure the PCRs
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
-	|| die "Unable to measure the LUKS headers"
+cat "$KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks ||
+	die "Unable to measure the LUKS headers"
 
 pcrf="/tmp/secret/pcrf.bin"
 tpmr pcrread 0 "$pcrf"
@@ -94,19 +118,19 @@ tpmr pcrread -a 1 "$pcrf"
 tpmr pcrread -a 2 "$pcrf"
 tpmr pcrread -a 3 "$pcrf"
 # Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
-tpmr calcfuturepcr 4 >> "$pcrf"
+tpmr calcfuturepcr 4 >>"$pcrf"
 if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
-	DEBUG "Sealing TPM disk unlock key with PCR5 involvement (additional kernel modules are loaded per board config)..."
+	DEBUG "Sealing TPM Disk Unlock key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 	tpmr pcrread -a 5 "$pcrf"
 else
-	DEBUG "Sealing TPM disk unlock key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
+	DEBUG "Sealing TPM Disk Unlock Key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
 	#no kernel modules are expected to be measured+loaded
-	tpmr calcfuturepcr 5 >> "$pcrf"
+	tpmr calcfuturepcr 5 >>"$pcrf"
 fi
 # Precompute the value for pcr 6
-DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of TPM disk unlock key..."
-tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >> "$pcrf"
+DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of TPM Disk Unlock Key..."
+tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr pcrread -a 7 "$pcrf"
 
@@ -115,9 +139,12 @@ DO_WITH_DEBUG --mask-position 7 \
 	"$TPM_SIZE" "$key_password"
 
 # should be okay if this fails
-shred -n 10 -z -u "$pcrf".* 2> /dev/null || true
-shred -n 10 -z -u "$KEY_FILE" 2> /dev/null \
-|| warn "Failed to delete key file - continuing"
+shred -n 10 -z -u "$pcrf" 2>/dev/null ||
+	warn "Failed to delete pcrf file - continuing"
+shred -n 10 -z -u "$KEY_FILE" 2>/dev/null ||
+	warn "Failed to delete key file - continuing"
 
-cp /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" \
-|| warn "Failed to have hashes of LUKS header - continuing"
+mount -o rw,remount $paramsdir || die "Failed to remount $paramsdir in RW - continuing"
+cp -f /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" ||
+	die "Failed to copy LUKS header hashes to /boot - continuing"
+mount -o ro,remount $paramsdir || die "Failed to remount $paramsdir in RO - continuing"

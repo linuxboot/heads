@@ -173,7 +173,8 @@ generate_totp_hotp()
     # clear screen
     printf "\033c"
   else
-    warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed. Try "Generate new HOTP/TOTP secret" option if you updated firmware content."
+    warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed"
+    warn 'Try "Generate new HOTP/TOTP secret" option if you updated firmware content'
   fi
 }
 
@@ -229,6 +230,7 @@ update_totp()
           if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
             generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU=""
+            reseal_tpm_disk_decryption_key
           fi
           ;;
         i )
@@ -237,6 +239,7 @@ update_totp()
           ;;
         p )
           reset_tpm && update_totp && BG_COLOR_MAIN_MENU=""
+          reseal_tpm_disk_decryption_key
           ;;
         x )
           recovery "User requested recovery shell"
@@ -298,6 +301,7 @@ update_hotp()
         if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
             --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
           generate_totp_hotp && BG_COLOR_MAIN_MENU=""
+          reseal_tpm_disk_decryption_key
         fi
         ;;
       i )
@@ -523,9 +527,11 @@ show_tpm_totp_hotp_options_menu()
   case "$option" in 
     g )
       generate_totp_hotp
+      reseal_tpm_disk_decryption_key
       ;;
     r )
       reset_tpm
+      reseal_tpm_disk_decryption_key
       ;;
     t )
       prompt_totp_mismatch
@@ -571,6 +577,7 @@ reset_tpm()
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
       mount -o rw,remount /boot
+      warn "Removing rollback and primary handle hash under /boot"
       rm -f /boot/kexec_rollback.txt
       rm -f /boot/kexec_primhdl_hash.txt
 
