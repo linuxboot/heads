@@ -3,6 +3,7 @@ set -e -o pipefail
 
 . /etc/functions
 
+TRACE "Under unpack_initramfs.sh"
 # Unpack a Linux initramfs archive.
 #
 # In general, the initramfs archive is one or more cpio archives, optionally
@@ -30,6 +31,7 @@ CPIO_ARGS=("$@")
 
 # Consume zero bytes, the first nonzero byte read (if any) is repeated on stdout
 consume_zeros() {
+    TRACE "Under unpack_initramfs.sh:consume_zeros"
     next_byte='00'
     while [ "$next_byte" = "00" ]; do
         # if we reach EOF, next_byte becomes empty (dd does not fail)
@@ -42,11 +44,13 @@ consume_zeros() {
 }
 
 unpack_cpio() {
+    TRACE "Under unpack_initramfs.sh:unpack_cpio"
     (cd "$dest_dir"; cpio -i "${CPIO_ARGS[@]}" 2>/dev/null)
 }
 
 # unpack the first segment of an archive, then write the rest to another file
 unpack_first_segment() {
+    TRACE "Under unpack_initramfs.sh:unpack_first_segment"
     unpack_archive="$1"
     dest_dir="$2"
     rest_archive="$3"
@@ -62,18 +66,21 @@ unpack_first_segment() {
         # lib/decompress.c (gzip)
         case "$magic" in
             00*)
+                DEBUG "archive segment $magic: uncompressed cpio"
                 # Skip zero bytes and copy the first nonzero byte
                 consume_zeros
                 # Copy the remaining data
                 cat
                 ;;
             303730373031*|303730373032*)    # plain cpio
+                DEBUG "archive segment $magic: plain cpio"
                 # Unpack the plain cpio, this stops reading after the trailer
                 unpack_cpio
                 # Copy the remaining data
                 cat
                 ;;
             1f8b*|1f9e*)    # gzip
+                DEBUG "archive segment $magic: gzip"
                 # gunzip won't stop when reaching the end of the gzipped member,
                 # so we can't read another segment after this.  We can't
                 # reasonably determine the member length either, this requires
@@ -81,6 +88,7 @@ unpack_first_segment() {
                 gunzip | unpack_cpio
                 ;;
             28b5*)  # zstd
+                DEBUG "archive segment $magic: zstd"
                 # Like gunzip, this will not stop when reaching the end of the
                 # frame, and determining the frame length requires walking all
                 # of its blocks.

@@ -20,17 +20,17 @@ fi
 
 if [ -r "$TMP_KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=`cat $TMP_KEY_LVM`
+	VOLUME_GROUP=$(cat $TMP_KEY_LVM)
 	if [ -z "$TMP_KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP \
-		|| die "$VOLUME_GROUP: unable to activate volume group"
+	lvm vgchange -a y $VOLUME_GROUP ||
+		die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
 # Measure the LUKS headers before we unseal the disk key
-cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks \
-	|| die "LUKS measure failed"
+cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks ||
+	die "LUKS measure failed"
 
 # Unpack the initrd and fixup the crypttab
 # this is a hack to split it into two parts since
@@ -43,14 +43,14 @@ mkdir -p "$INITRD_DIR/etc"
 # Attempt to unseal the disk key from the TPM
 # should we give this some number of tries?
 unseal_failed="n"
-if ! kexec-unseal-key "$INITRD_DIR/secret.key" ; then
+if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
 	unseal_failed="y"
 	echo "!!! Failed to unseal the TPM LUKS disk key"
 fi
 
 # Override PCR 4 so that user can't read the key
-tpmr extend -ix 4 -ic generic \
-	|| die 'Unable to scramble PCR'
+tpmr extend -ix 4 -ic generic ||
+	die 'Unable to scramble PCR'
 
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
@@ -63,21 +63,21 @@ if [ "$unseal_failed" = "y" ]; then
 	if [ "$confirm_boot" != 'y' \
 		-a "$confirm_boot" != 'Y' \
 		-a -n "$confirm_boot" ] \
-	; then
+		; then
 		die "!!! Aborting boot due to failure to unseal TPM disk key"
 	fi
 fi
 
-echo 
+echo
 echo '+++ Building initrd'
 # pad the initramfs (dracut doesn't pad the last gz blob)
 # without this the kernel init/initramfs.c fails to read
 # the subsequent uncompressed/compressed cpio
-dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync \
-|| die "Failed to copy initrd to /tmp"
+dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync ||
+	die "Failed to copy initrd to /tmp"
 
 if [ "$unseal_failed" = "n" ]; then
-	# kexec-save-default might have created crypttab overrides to be injected in initramfs through additional cpio 
+	# kexec-save-default might have created crypttab overrides to be injected in initramfs through additional cpio
 	if [ -r "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
 		echo "+++ $bootdir/kexec_initrd_crypttab_overrides.txt found..."
 		echo "+++ Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
@@ -87,19 +87,26 @@ if [ "$unseal_failed" = "n" ]; then
 			crypttab_entry=$(echo "$line" | awk -F ':' {'print $NF'})
 			# Replace each initrd crypttab file with modified entry containing /secret.key path
 			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
-			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" > /dev/null
+			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" >/dev/null
 			echo "+++ initramfs's $crypttab_file will be overriden with: $crypttab_entry"
 		done
 	else
 		# No crypttab files were found under selected default boot option's initrd file
-		crypttab_file="etc/crypttab"
-		mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
-		# overwrite crypttab to mirror behavior of seal-key
-		echo "+++ The following /etc/crypttab lines will be passed through cpio into kexec call for default boot option:"
-		for uuid in `cat "$TMP_KEY_DEVICES" | cut -d\  -f2`; do
-			# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
-			echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"
+		# TODO: cpio -t is unfit here :( it just extracts early cpio header and not the whole file. Replace with something else
+		#  Meanwhile, force crypttab to be created from scratch on both possible locations: /etc/crypttab and /cryptroot/crypttab
+		crypttab_files="etc/crypttab cryptroot/crypttab"
+		for crypttab_file in $crypttab_files; do
+			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
+			# overwrite crypttab to mirror behavior of seal-key
+			echo "+++ The following $crypttab_file overrides will be passed through concatenated secret/initrd.cpio at kexec call:"
+			for uuid in $(cat "$TMP_KEY_DEVICES" | cut -d\  -f2); do
+				# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
+				echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"
+			done
 		done
 	fi
-	( cd "$INITRD_DIR" ; find . -type f | cpio -H newc -o ) >> "$SECRET_CPIO"
+	(
+		cd "$INITRD_DIR"
+		find . -type f | cpio -H newc -o
+	) >>"$SECRET_CPIO"
 fi
