@@ -37,6 +37,7 @@ CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
 RSA_KEY_LENGTH=3072
 
+GPG_ALGO="rsa"
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=`date +%Y%m%d%H%M%S`
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
@@ -101,24 +102,47 @@ gpg_key_reset()
             whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
         fi
     fi
-    # Set RSA key length
-    {
-        echo admin
-        echo key-attr
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-        echo 1 # RSA
-        echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
-        echo ${ADMIN_PIN_DEF}
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-        > /tmp/gpg_card_edit_output 2>&1
-    if [ $? -ne 0 ]; then
-        ERROR=`cat /tmp/gpg_card_edit_output`
-        whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
+    # use p256 for key generation if requested
+    if [ "$GPG_ALGO" = "p256" ];then
+      {
+          echo admin
+          echo key-attr
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+          echo 2 # ECC
+          echo 3 # P-256
+          echo ${ADMIN_PIN_DEF}
+      } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit --expert \
+          > /tmp/gpg_card_edit_output 2>&1
+      if [ $? -ne 0 ]; then
+          ERROR=`cat /tmp/gpg_card_edit_output`
+          whiptail_error_die "Setting key to NIST-P256 in USB security dongle failed."
+      fi
+    # fallback to RSA key generation by default
+    else
+      # Set RSA key length
+      {
+          echo admin
+          echo key-attr
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+          echo 1 # RSA
+          echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
+          echo ${ADMIN_PIN_DEF}
+      } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+          > /tmp/gpg_card_edit_output 2>&1
+      if [ $? -ne 0 ]; then
+          ERROR=`cat /tmp/gpg_card_edit_output`
+          whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
+      fi
     fi
     # Generate OEM GPG keys
     {
@@ -354,6 +378,22 @@ report_integrity_measurements()
     fi
 }
 
+usb_security_token_capabilities_check()
+{
+    TRACE "Under /bin/oem-factory-reset:usb_security_token_capabilities_check"
+
+    enable_usb
+    # ... first set board config preference
+    if [ -n "$CONFIG_GPG_ALGO" ]; then
+        GPG_ALGO=$CONFIG_GPG_ALGO
+        DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
+    fi
+    # ... overwrite with usb-token capability
+    if lsusb | grep -q "20a0:42b2"; then
+        GPG_ALGO="p256"
+        DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
+    fi
+}
 
 ## main script start
 
@@ -391,6 +431,9 @@ fi
 
 # We show current integrity measurements status and time
 report_integrity_measurements
+
+# Determine gpg algorithm to be used, based on available usb-token
+usb_security_token_capabilities_check
 
 use_defaults=n
 if [ "$CONFIG_OEMRESET_OFFER_DEFAULTS" = y ]; then
