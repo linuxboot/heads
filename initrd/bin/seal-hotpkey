@@ -9,7 +9,7 @@ HOTP_KEY="/boot/kexec_hotp_key"
 
 mount_boot()
 {
-  TRACE "Under /bin/seal-htopkey:mount_boot"
+  TRACE "Under /bin/seal-hotpkey:mount_boot"
   # Mount local disk if it is not already mounted
   if ! grep -q /boot /proc/mounts ; then
     mount -o ro /boot \
