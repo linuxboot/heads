@@ -36,7 +36,7 @@ while true; do
           find /media ! -path '*/\.*' -type f \( -name '*.rom' -o -name '*.tgz' \) | sort > /tmp/filelist.txt
           file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
           if [ "$FILE" == "" ]; then
-            return
+            exit 1
           else
             ROM=$FILE
           fi
