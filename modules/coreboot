@@ -85,6 +85,14 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := a899f08d2789db1dd9b02cff34179c4d38e6d0e3
 $(eval $(call coreboot_module,purism,))
 
+#Nitrokey nv41/ns50 are based on Dasharo coreboot port,
+# with patches staging under coreboot-clevo_release
+coreboot-nitrokey_repo := https://github.com/dasharo/coreboot
+coreboot-nitrokey_commit_hash := ae10b20f5c6abc9c23f709b65c46be6525da8c13
+coreboot-nitrokey_patch_version := clevo_release
+#We use clevo_release's crossgcc for now, unshared but between nitropad nv41/ns50
+$(eval $(call coreboot_module,nitrokey,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
@@ -99,6 +107,7 @@ coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+$(coreboot_module)_depends += $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory

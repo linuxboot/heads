@@ -1,0 +1,12 @@
+modules-$(CONFIG_NITROKEY_BLOBS) += nitrokey-blobs
+
+nitrokey-blobs_base_dir := nitrokey-blobs
+nitrokey-blobs_version := c9e2a556508518d54cd57f8c7a440cb370f69de1
+nitrokey-blobs_tar := nitrokey-blobs-${nitrokey-blobs_version}.tar.gz
+nitrokey-blobs_tar_opt := --strip 1
+nitrokey-blobs_url := https://github.com/Nitrokey/firmware-blobs/archive/${nitrokey-blobs_version}.tar.gz
+nitrokey-blobs_hash := 1458798fa774e43ab2e6cf5cff875f4b3628c5dc1926bf9ec65051964b1a4854
+
+## there is nothing to be built
+nitrokey-blobs_output := .built
+nitrokey-blobs_configure := echo -e 'all:\n\ttouch .built' > Makefile

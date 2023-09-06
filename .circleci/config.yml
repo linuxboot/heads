@@ -215,7 +215,7 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # Coreboot 4.19
+      # coreboot 4.19
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
@@ -223,7 +223,7 @@ workflows:
           requires:
             - prep_env
 
-      # Coreboot 4.17
+      # coreboot-git librems
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -231,7 +231,19 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-      # Coreboot for Talos (PPC)
+      # coreboot-git Nitropads depending on x230-hotp-maximized cache
+      # since kernel is 6.x and coreboot is git is unshared
+      # We use nitropad's coreboot's fork crossgcc
+      # No need to wait further for other board's cache.
+      # We reuse built modules from x230-hotp-maximized cache only
+      - build_and_persist:
+          name: nitropad-nv41
+          target: nitropad-nv41
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      # coreboot-git Talos II (PPC)
       - build_and_persist:
           name: talos-2
           arch: ppc64
@@ -243,10 +255,9 @@ workflows:
       #Cache one workspace per architecture. Make sure workspace caches are chainloaded and the last in chain for an arch is saved.
       - save_cache:
           requires:
-            - librem_14
             - talos-2
+            - nitropad-nv41
 
-#
 #
 # Those onboarding new boards should add their entries below.
 #
@@ -498,7 +509,7 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-#Coreboot 4.17 boards
+#coreboot-git librem boards
       - build:
           name: librem_13v2
           target: librem_13v2
@@ -540,6 +551,14 @@ workflows:
           subcommand: ""
           requires:
             - librem_14
+
+#coreboot-git dasharo clevo_release + staging IASL patch
+      - build:
+          name: nitropad-ns50
+          target: nitropad-ns50
+          subcommand: ""
+          requires:
+            - nitropad-nv41
 
 #      - build:
 #          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
