@@ -1,0 +1,22 @@
+modules-$(CONFIG_IOTOOLS) += iotools
+
+iotools_depends := pciutils $(musl_dep)
+
+iotools_version := 18949fdc4dedb1da3f51ee83a582b112fb9f2c71
+iotools_dir := iotools-$(iotools_version)
+iotools_tar := $(iotools_dir).tar.gz
+iotools_url := https://github.com/adurbin/iotools/archive/$(iotools_version).tar.gz
+iotools_hash := 8df266f55cd8e79328faa0e274edc082de3f6c240617a28ace93abdace324ec2
+
+iotools_cfg := \
+
+iotools_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+
+iotools_output := \
+	iotools
+
+iotools_libraries := \
+
+iotools_configure := 
