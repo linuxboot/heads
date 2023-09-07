@@ -589,7 +589,7 @@ if [ "$prompt_output" == "y" \
     # mount USB over /media only if not already mounted
     if ! grep -q /media /proc/mounts ; then
       # mount USB in rw
-      if ! mount-usb -mode rw 2>/tmp/error; then
+      if ! mount-usb --mode rw 2>/tmp/error; then
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
       fi
