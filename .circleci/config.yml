@@ -509,6 +509,20 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      - build:
+          name: w541-maximized
+          target: w541-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized 
+
+      - build:
+          name: w541-hotp-maximized
+          target: w541-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+            
 #coreboot-git librem boards
       - build:
           name: librem_13v2
