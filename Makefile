@@ -183,6 +183,7 @@ FORCE:
 define install_config =
 	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
 	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
+	    -e 's!@BRAND_DIR@!$(pwd)/branding/$(BRAND_NAME)!g' \
 	    -e 's!@BRAND_NAME@!$(BRAND_NAME)!g' \
 	    "$1" > "$2"
 endef
