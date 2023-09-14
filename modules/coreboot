@@ -82,7 +82,7 @@ $(eval $(call coreboot_module,talos_2,))
 # Similarly, purism is based on 4.21, but nothing builds against 4.21 itself
 # or any other fork - no benefit to sharing the toolchain yet.
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
-coreboot-purism_commit_hash := 24e2f7e46c933b0764b245f7f0b4c54554881950
+coreboot-purism_commit_hash := 0d57cff58fba2f3a4d3a714a4eae65753e58c6ff
 $(eval $(call coreboot_module,purism,))
 
 #Nitrokey nv41/ns50 are based on Dasharo coreboot port,
