@@ -10,3 +10,8 @@ Librem Mini v2 ships with an Atheros Wi-Fi/Bluetooth card, which does not requir
 
 Device firmware is provided in a preconfigured variant buidl for librem_mini_v2, the basic_usb_autoboot_blob_jail build.
 
+## Librem 11
+
+Librem 11 includes an Intel AX201 Wi-Fi/Bluetooth card, which requires firmware.  All builds for librem_11 include the device firmware.
+
+Display microcontroller firmware is also provided to enable power management.
