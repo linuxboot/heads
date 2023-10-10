@@ -53,6 +53,15 @@ hwclock -l -s
 . /etc/ash_functions
 . /etc/config
 
+# Board config had CONFIG_DEBUG_OUTPUT=y defined.
+# Note that boards's coreboot config kernel command line "debug" option only will have all kernel messages output on console prior of this point
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+	#Maximize printk messages to output all to console (8=debug)
+	#DEBUG and TRACE calls will output to /dev/kmsg, outputting both on dmesg and on console
+	dmesg -n 8 || true
+	DEBUG "Debug output enabled from board CONFIG_DEBUG_OUTPUT=y option (/etc/config)"
+fi
+
 TRACE "Under init"
 
 # set CONFIG_TPM dynamically before init
@@ -85,6 +94,7 @@ fi
 # Set GPG_TTY before calling gpg in key-init
 export GPG_TTY=/dev/console
 
+# Initialize gpnupg with distro/user keys and setup the keyrings
 [ -x /bin/bash ] && /bin/key-init
 
 # Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
@@ -108,6 +118,20 @@ sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.
 
 combine_configs
 . /tmp/config
+
+# Enable maximum debug info from here if config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+        #Output all kernel messages to console (8=debug)
+        #DEBUG and TRACE calls will be in dmesg and on console
+        if ! grep -q 'CONFIG_DEBUG_OUTPUT="y"' /etc/config;then
+		# Board config did't have CONFIG_DEBUG_OUTPUT=y defined
+		# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
+		dmesg -n 8
+		DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
+		TRACE "Under init:after combine_configs"
+	fi
+fi
+
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
@@ -184,8 +208,9 @@ else
 				setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
 			done
 		fi
-
-		exec "$CONFIG_BOOTSCRIPT"
+		
+		#Setup a control tty so that all terminals outputs correct tty when tty is called
+		exec cttyhack "$CONFIG_BOOTSCRIPT"
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'

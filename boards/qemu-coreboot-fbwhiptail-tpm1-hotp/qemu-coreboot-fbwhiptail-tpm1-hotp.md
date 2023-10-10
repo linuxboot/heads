@@ -32,6 +32,7 @@ Bootstrapping a working system
    * For `<token>`, use one of:
      * `NitrokeyPro` - a Nitrokey Pro by VID/PID
      * `NitrokeyStorage` - a Nitrokey Storage by VID/PID
+     * `Nitrokey3NFC` - a Nitrokey 3 by VID:PID
      * `LibremKey` - a Librem Key by VID/PID
      * `hostbus=#,hostport=#` - indicate a host bus and port (see qemu usb-host)
      * `vendorid=#,productid=#` - indicate a device by VID/PID (decimal, see qemu usb-host)
@@ -40,7 +41,7 @@ Bootstrapping a working system
    * Then Heads will indicate that there is no TOTP code yet, at this point shut down (Continue to main menu -> Power off)
 5. Get the public key that was saved to the virtual USB flash drive
    * `sudo mkdir /media/fd_heads_gpg`
-   * `sudo mount ./build/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw /media/fd_heads_gpg`
+   * `sudo mount ./build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw /media/fd_heads_gpg`
    * Look in `/media/fd_heads_gpg` and copy the most recent public key
    * `sudo umount /media/fd_heads_gpg`
 6. Inject the GPG key into the Heads image and run again
