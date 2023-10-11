@@ -91,7 +91,7 @@ done
 
 # Remove all the old keys from slot 1
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	echo "++++++ $dev: Removing old key slot 1"
+	echo "++++++ $dev: Removing $dev LUKS' old key slot 1 with provided passphrase"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
 		$dev 1 ||
@@ -102,7 +102,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
 		$dev "$KEY_FILE" ||
-		die "$dev: Unable to add key to slot 1"
+		die "$dev: Unable to add key to $dev LUKS's slot 1 with provided passphrase"
 done
 
 # Now that we have setup the new keys, measure the PCRs

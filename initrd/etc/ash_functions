@@ -4,49 +4,51 @@
 # busybox ash on legacy-flash boards, and with bash on all other boards.
 
 die() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
-		echo >&2 "!!! ERROR: $* !!!";
+		echo >&2 "!!! ERROR: $* !!!"
 	fi
-	sleep 2;
-	exit 1;
+	sleep 2
+	exit 1
 }
 
 warn() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
-		echo >&2 " *** WARNING: $* ***";
+		echo >&2 " *** WARNING: $* ***"
 	fi
-	sleep 1;
+	sleep 1
 }
 
 DEBUG() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo "DEBUG: $*" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo "DEBUG: $*" | while read line; do
+			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		done
 	fi
 }
 
 TRACE() {
-	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
-		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ]; then
+		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	fi
 }
 
 preserve_rom() {
 	TRACE "Under /etc/ash_functions:preserve_rom"
 	new_rom="$1"
-	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
 
-	for old_file in `echo $old_files`; do
-		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
+	for old_file in $(echo $old_files); do
+		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $1"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
-			|| die "Failed to read cbfs file from ROM"
-			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
-			|| die "Failed to write cbfs file to new ROM file"
+			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
+				die "Failed to read cbfs file from ROM"
+			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
+				die "Failed to write cbfs file to new ROM file"
 		fi
 	done
 }
@@ -59,7 +61,7 @@ recovery() {
 	# but recreate the directory so that new tools can use it.
 
 	#safe to always be true. Otherwise "set -e" would make it exit here
-	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
+	shred -n 10 -z -u /tmp/secret/* 2>/dev/null || true
 	rm -rf /tmp/secret
 	mkdir -p /tmp/secret
 
@@ -76,8 +78,7 @@ recovery() {
 		sleep 5
 		/bin/reboot
 	fi
-	while [ true ]
-	do
+	while [ true ]; do
 		echo >&2 "!!!!! Starting recovery shell"
 		sleep 1
 
@@ -97,49 +98,48 @@ pause_recovery() {
 
 combine_configs() {
 	TRACE "Under /etc/ash_functions:combine_configs"
-	cat /etc/config* > /tmp/config
+	cat /etc/config* >/tmp/config
 }
 
-enable_usb()
-{
+enable_usb() {
 	TRACE "Under /etc/ash_functions:enable_usb"
-	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning 
+	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
 	if ! lsmod | grep -q ehci_hcd; then
-		insmod /lib/modules/ehci-hcd.ko \
-			|| die "ehci_hcd: module load failed"
+		insmod /lib/modules/ehci-hcd.ko ||
+			die "ehci_hcd: module load failed"
 	fi
 	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
 		if ! lsmod | grep -q uhci_hcd; then
-			insmod /lib/modules/uhci-hcd.ko \
-			|| die "uhci_hcd: module load failed"
+			insmod /lib/modules/uhci-hcd.ko ||
+				die "uhci_hcd: module load failed"
 		fi
 		if ! lsmod | grep -q ohci_hcd; then
-			insmod /lib/modules/ohci-hcd.ko \
-			|| die "ohci_hcd: module load failed"
+			insmod /lib/modules/ohci-hcd.ko ||
+				die "ohci_hcd: module load failed"
 		fi
 		if ! lsmod | grep -q ohci_pci; then
-			insmod /lib/modules/ohci-pci.ko \
-			|| die "ohci_pci: module load failed"
+			insmod /lib/modules/ohci-pci.ko ||
+				die "ohci_pci: module load failed"
 		fi
 	fi
 	if ! lsmod | grep -q ehci_pci; then
-		insmod /lib/modules/ehci-pci.ko \
-		|| die "ehci_pci: module load failed"
+		insmod /lib/modules/ehci-pci.ko ||
+			die "ehci_pci: module load failed"
 	fi
 	if ! lsmod | grep -q xhci_hcd; then
-		insmod /lib/modules/xhci-hcd.ko \
-		|| die "xhci_hcd: module load failed"
+		insmod /lib/modules/xhci-hcd.ko ||
+			die "xhci_hcd: module load failed"
 	fi
 	if ! lsmod | grep -q xhci_pci; then
-		insmod /lib/modules/xhci-pci.ko \
-		|| die "xhci_pci: module load failed"
+		insmod /lib/modules/xhci-pci.ko ||
+			die "xhci_pci: module load failed"
 		sleep 2
 	fi
 
 	if [ "$CONFIG_USB_KEYBOARD" = y ]; then
 		if ! lsmod | grep -q usbhid; then
-			insmod /lib/modules/usbhid.ko \
-			|| die "usbhid: module load failed"
+			insmod /lib/modules/usbhid.ko ||
+				die "usbhid: module load failed"
 		fi
 	fi
 }
