@@ -191,17 +191,71 @@ list_usb_storage() {
 
 confirm_gpg_card() {
 	TRACE "Under /etc/functions:confirm_gpg_card"
+	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
+	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
+	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
+		return
+	fi
+
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
+		message="Please confirm that your GPG card is inserted(Y/n) or your GPG key material (b)backup thumbdrive is inserted [Y/n/b]: "
+	else
+		# Generic message if no known key material backup
+		message+="Please confirm that your GPG card is inserted [Y/n]: "
+	fi
+
 	read \
 		-n 1 \
-		-p "Please confirm that your GPG card is inserted [Y/n]: " \
+		-p "$message" \
 		card_confirm
 	echo
 
 	if [ "$card_confirm" != "y" \
 		-a "$card_confirm" != "Y" \
+		-a "$card_confirm" != "b" \
 		-a -n "$card_confirm" ] \
 		; then
 		die "gpg card not confirmed"
+	fi
+
+	# If user has known GPG key material Thumb drive backup and asked to use it
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
+		#Only mount and import GPG key material thumb drive backup once
+		if [ ! "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]; then
+			CR_NONCE="/tmp/secret/cr_nonce"
+			CR_SIG="$CR_NONCE.sig"
+
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+
+			#Prompt user for provisioned GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
+			echo
+			read -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+			#prompt user to select the proper encrypted partition, which should the first one on next prompt
+			echo -e "Please select encrypted LUKS container partition (not the public one)\n"
+			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with GPG Admin PIN"
+			warn "Testing detach-sign operation and verifiying against fused public key in ROM..."
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
+				die "Unable to import GPG private subkeys"
+			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
+			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+				die "Unable to create dummy file to sign"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
+				die "Unable to sign dummy file with GPG private signing subkey"
+			#verify detached signature against public key in rom
+			gpg --verify "$CR_SIG" "$CR_NONCE" || die "Unable to verify dummy file with GPG public key in ROM: public key mismatch"
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
+			set_user_config CONFIG_GPG_KEY_BACKUP_IN_USE y
+			umount /media || die "Unable to unmount USB"
+			return
+		fi
+		#Else if user has known GPG key material Thumb drive backup and already asked to use it
+		if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
+			return
+		fi
 	fi
 
 	# setup the USB so we can reach the GPG card
