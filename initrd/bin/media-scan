@@ -7,6 +7,9 @@ set -e -o pipefail
 
 TRACE "Under /bin/media-scan"
 
+#Booting from external media should be authenticated if supported
+gpg_auth
+
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then
 	umount /boot \
