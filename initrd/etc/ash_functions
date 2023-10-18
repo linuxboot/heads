@@ -53,6 +53,51 @@ preserve_rom() {
 	done
 }
 
+gpg_auth() {
+	TRACE "Under /etc/ash_functions:gpg_auth"
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" = "y" ]; then
+		# If we have a GPG key backup, we can use it to authenticate even if the card is lost
+		echo >&2 "!!!!! Please authenticate with OpenPGP card/backup media to prove you are the owner of this machine !!!!!"
+
+		# Wipe any existing nonce and signature
+		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+		confirm_gpg_card
+
+		# Perform a signing-based challenge-response,
+		# to authencate that the card plugged in holding
+		# the key to sign the list of boot files.
+	
+		CR_NONCE="/tmp/secret/cr_nonce"
+		CR_SIG="$CR_NONCE.sig"
+
+		# Generate a random nonce
+		dd \
+			if=/dev/urandom \
+			of="$CR_NONCE" \
+			count=1 \
+			bs=20 \
+			2>/dev/null \
+			|| die "Unable to generate 20 random bytes"
+	
+		# Sign the nonce
+		for tries in 1 2 3; do
+			if gpg --digest-algo SHA256 \
+				--detach-sign \
+				-o "$CR_SIG" \
+				"$CR_NONCE" \
+				&& gpgv "$CR_SIG" "$CR_NONCE" \
+			; then
+				shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+				return 0
+			else
+				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
+				continue
+			fi
+		done
+		return 1		
+	fi
+}
+
 recovery() {
 	TRACE "Under /etc/ash_functions:recovery"
 	echo >&2 "!!!!! $*"
@@ -82,6 +127,9 @@ recovery() {
 	do
 		echo >&2 "!!!!! Starting recovery shell"
 		sleep 1
+		
+		#Going to recovery shell should be authenticated if supported
+		gpg_auth
 
 		if [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/sh
