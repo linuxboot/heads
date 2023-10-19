@@ -196,7 +196,8 @@ prepare_thumb_drive()
 		fi
 	fi
 
-	echo -e "Preparing $DEVICE with $PERCENTAGE_MB MB for private LUKS container and rest of disk with exfat for public partition (This may take a while)..." | fold -s
+	echo -e "Preparing $DEVICE with $PERCENTAGE_MB MB for private LUKS container while rest of device will be assigned to extfat public partition...\n"
+	echo "Please wait..."
 	DEBUG "Creating empty DOS partition table on device through fdisk to start clean"
 	echo -e "o\nw\n" | fdisk $DEVICE >/dev/null 2>&1 || die "Error creating partition table"
 	DEBUG "partition device with two partitions: first one being the percent applied and rest for second partition through fdisk"
@@ -240,7 +241,7 @@ select_luks_container()
 				mount -o remount,ro /boot
 			fi
 		else
-			warn "No encrypted device found."
+			warn "No encrypted device found"
 			return 1
 		fi
 	fi
