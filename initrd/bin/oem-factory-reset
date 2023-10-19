@@ -940,6 +940,14 @@ assert_signable
 
 # Action time...
 
+#TODO: Should we replace text from "Add a new GPG key" to "Replace current GPG key"? Should we wipe current keyring?
+#Current logic is for factory reset, where re-ownership adds key to the keyring which is then copied over cbfs.
+# In the all case, we should wipe the keyring since otherwise, USB security dongle is wiped but not the keyring which exposes past public keys
+#  this seems wrong
+# clear local keyring
+rm /.gnupg/* | true
+
+
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
 if ! detect_boot_device; then
@@ -989,7 +997,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     #TODO seperate wiping and thumb drive functions with proper validation
     wipe_thumb_drive_and_copy_gpg_key_material
     #TODO seperate setting config
-    set_user_config CONFIG_HAVE_GPG_KEY_BACKUP Y
+    set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
     gpg_key_factory_reset
     keytocard_subkeys_to_smartcard
 else
@@ -1000,9 +1008,20 @@ else
     generate_OEM_gpg_keys
 fi
 
-# parse name of generated key
-GPG_GEN_KEY=$(grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p')
+# Obtain GPG key ID
+GPG_GEN_KEY=$(gpg --list-keys --with-colons | grep "^fpr" | cut -d: -f10 | head -n1)
+#Where to export the public key
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
+
+DEBUG "GPG_GEN_KEY: $GPG_GEN_KEY"
+DEBUG "PUBKEY: $PUBKEY"
+
+# export pubkey to file
+if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
+    ERROR=$(tail -n 1 /tmp/error | fold -s)
+    whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
+fi
+
 
 #Applying custom GPG PINs if keys were not generated in memory
 if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
@@ -1011,12 +1030,6 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
         gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$ADMIN_PIN"
         echo -e "\nChanging default GPG User PIN\n"
         gpg_key_change_pin "1" "$USER_PIN_DEF" "$USER_PIN"
-    fi
-
-    # export pubkey to file
-    if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
-        ERROR=$(tail -n 1 /tmp/error | fold -s)
-        whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
     fi
 
     ## export pubkey to USB
@@ -1055,11 +1068,13 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
+
 # clear any existing heads/gpg files from current firmware
 for i in $(cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
     cbfs.sh -o /tmp/oem-setup.rom -d "$i"
 done
 # add heads/gpg files to current firmware
+
 if [ -e /.gnupg/pubring.kbx ]; then
     cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
     if [ -e /.gnupg/pubring.gpg ]; then
@@ -1071,13 +1086,15 @@ fi
 if [ -e /.gnupg/trustdb.gpg ]; then
     cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
 fi
+
 # persist user config changes (boot device)
 if [ -e /etc/config.user ]; then
     cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 fi
+
 # flash updated firmware image
 echo -e "\nAdding generated key to current firmware and re-flashing...\n"
-if ! /bin/flash.sh /tmp/oem-setup.rom >/dev/null 2>/tmp/error; then
+if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 fi
