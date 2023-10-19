@@ -62,81 +62,6 @@ mount_boot()
   done
 }
 
-verify_global_hashes()
-{
-  TRACE "Under /bin/gui-init:verify_global_hashes"
-  # Check the hashes of all the files, ignoring signatures for now
-  check_config /boot force
-  TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
-  TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
-  TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
-  TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
-
-  if verify_checksums /boot ; then
-    return 0
-  elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]] ; then
-    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Missing File!' \
-        --yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an\nolder version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to create the missing files now?" 0 80) then
-      if update_checksums ; then
-        BG_COLOR_MAIN_MENU=""
-        return 0;
-      else
-        whiptail $BG_COLOR_ERROR --title 'ERROR' \
-          --msgbox "Failed to update checksums / sign default config" 0 80
-      fi
-    fi
-    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
-    return 1
-  else
-    CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':' | tee -a /tmp/hash_output_mismatches)
-    CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
-
-    # if files changed before package manager started, show stern warning
-    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
-      PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
-      TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
-
-    # if files changed after package manager started, probably caused by package manager
-    elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then 
-      LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" $TMP_PACKAGE_TRIGGER_POST)
-      UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
-
-      if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
-        TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
-      else
-        TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis might be due to the following package updates:\n$LAST_PACKAGE_LIST.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
-      fi
-
-    else
-      if [ $CHANGED_FILES_COUNT -gt 10 ]; then
-        # drop to console to show full file list
-        whiptail $ERROR_BG_COLOR --title 'ERROR: Boot Hash Mismatch' \
-          --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 0 80
-
-        echo "Type \"q\" to exit the list and return." >> /tmp/hash_output_mismatches
-        less /tmp/hash_output_mismatches
-        #move outdated hash mismatch list
-        mv /tmp/hash_output_mismatches /tmp/hash_output_mismatch_old
-        TEXT="Would you like to update your checksums now?"
-      else
-        TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
-      fi
-    fi
-
-    if (whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80) then
-      if update_checksums ; then
-        BG_COLOR_MAIN_MENU=""
-        return 0;
-      else
-        whiptail $BG_COLOR_ERROR --title 'ERROR' \
-          --msgbox "Failed to update checksums / sign default config" 0 80
-      fi
-    fi
-    BG_COLOR_MAIN_MENU=$BG_COLOR_ERROR
-    return 1
-  fi
-}
-
 prompt_update_checksums()
 {
   TRACE "Under /bin/gui-init:prompt_update_checksums"
@@ -210,6 +135,10 @@ update_totp()
       DEBUG "Show PCRs"
       DEBUG "$(pcrs)"
 
+      #In all cases where TPM is involved in TOTP/HOTP secret unsealing errors
+      # Show global integrity report first to show also /boot integrity reports
+      report_integrity_measurements
+
       whiptail $BG_COLOR_ERROR --title "ERROR: TOTP Generation Failed!" \
         --menu "    ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.\n
   If you have just completed a Factory Reset, or just reflashed
@@ -225,7 +154,7 @@ update_totp()
         2>/tmp/whiptail || recovery "GUI menu failed"
 
       option=$(cat /tmp/whiptail)
-      case "$option" in 
+      case "$option" in	
         g )
           if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
@@ -431,6 +360,7 @@ show_options_menu()
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
     'u' ' Update checksums and sign all files in /boot' \
+    'v' ' Verify checksums and signed /boot files' \
     'c' ' Change configuration settings -->' \
     'f' ' Flash/Update the BIOS -->' \
     'g' ' GPG Options -->' \
@@ -452,6 +382,9 @@ show_options_menu()
       ;;
     u )
       prompt_update_checksums
+      ;;
+    v )
+      verify_global_hashes update
       ;;
     c )
       config-gui.sh
@@ -606,7 +539,7 @@ select_os_boot_option()
 {
   TRACE "Under /bin/gui-init:select_os_boot_option"
   mount_boot
-  if verify_global_hashes ; then
+  if verify_global_hashes update ; then
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
   fi
 }
@@ -616,7 +549,7 @@ attempt_default_boot()
   TRACE "Under /bin/gui-init:attempt_default_boot"
   mount_boot
     
-  if ! verify_global_hashes; then
+  if ! verify_global_hashes update; then
     return
   fi
   DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
