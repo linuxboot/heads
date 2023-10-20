@@ -96,20 +96,24 @@ confirm_gpg_card() {
 
 			#Prompt user for provisioned GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
 			echo
-			read -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+			#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
+			read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+			echo
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
-			echo -e "Please select encrypted LUKS container partition (not the public one)\n"
+			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
 			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with GPG Admin PIN"
-			warn "Testing detach-sign operation and verifiying against fused public key in ROM"
+			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
 			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
 				die "Unable to import GPG private subkeys"
 			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
 			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
-				die "Unable to create $CR_NONCE to be signed with GPG private signing subkey"
+				die "Unable to create $CR_NONCE to be detach-signed with GPG private signing subkey"
 			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
-				die "Unable to sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
+				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
 			#verify detached signature against public key in rom
-			gpg --verify "$CR_SIG" "$CR_NONCE" || die "Unable to verify $CR_SIG detached signature against public key in ROM"
+			gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 && \
+                                echo "++++ Imported private subkeys match public key fused in rom and can be used under Heads"  || \
+			 	die "Unable to verify $CR_SIG detached signature against public key in ROM"
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
@@ -177,8 +181,8 @@ gpg_auth() {
 			if gpg --digest-algo SHA256 \
 				--detach-sign \
 				-o "$CR_SIG" \
-				"$CR_NONCE" \
-				&& gpgv "$CR_SIG" "$CR_NONCE" \
+				"$CR_NONCE" > /dev/null 2>&1 \
+				&& gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 \
 			; then
 				shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
 				DEBUG "Under /etc/ash_functions:gpg_auth: success"
