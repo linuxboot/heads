@@ -103,7 +103,7 @@ confirm_gpg_card() {
 			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
 			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with GPG Admin PIN"
 			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
-			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec ||
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
 				die "Unable to import GPG private subkeys"
 			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
 			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
