@@ -72,20 +72,21 @@ dd \
 
 # Count the number of slots used on each device
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	DEBUG "Checking number of slots used on $dev"
+	DEBUG "Checking number of slots used on $dev LUKS header"
 	#check if the device is a LUKS device with luks[1,2]
 	slots_used=$(cryptsetup luksDump $dev | grep -c 'luks[0-9]*' || die "Unable to get number of slots used on $dev")
-	DEBUG "Number of slots used on $dev: $slots_used"
+	DEBUG "Number of slots used on $dev LUKS header: $slots_used"
 	# If slot1 is the only one used, warn and die with proper messages
 	if [ $slots_used -eq 1 ]; then
 		# Check if slot 1 is the only one existing
 		if cryptsetup luksDump $dev | grep -q "Slot 1: ENABLED"; then
-			warn "Slot 1 is the only one existing on $dev. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
-			die "Slot 1 should not be the only slot existing on $dev. Fix your custom setup"
+			warn "Slot 1 is the only one existing on $dev LUKS header. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
+			warn "Slot 1 should not be the only slot existing on $dev LUKS header. Slot 0 should be used to store Disk Recovery Key/passphrase"
+			die "You can safely fix this before continuing through Heads recovery shell: cryptsetup luksAddKey $dev"
 		fi
 	else
-		DEBUG "Slot 1 is not the only existing slot on $dev"
-		DEBUG "$dev Slot 1 will be used to store LUKS Disk Unlock Key that TPM will seal/unseal with TPM Disk Unlock Key passphrase"
+		DEBUG "Slot 1 is not the only existing slot on $dev LUKS header."
+		DEBUG "$dev LUKS header's slot 1 will store LUKS Disk Unlock Key that TPM will seal/unseal with TPM Disk Unlock Key passphrase"
 	fi
 done
 
