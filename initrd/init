@@ -60,6 +60,14 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#DEBUG and TRACE calls will output to /dev/kmsg, outputting both on dmesg and on console
 	dmesg -n 8 || true
 	DEBUG "Debug output enabled from board CONFIG_DEBUG_OUTPUT=y option (/etc/config)"
+else
+	# Board config did't have CONFIG_DEBUG_OUTPUT=y defined
+	# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
+	# Output only print messages with a priority of 4 (warnings) or lower (errors and critical) kernel messages to console
+	# This way, "debug" kernel command line option will have all kernel messages output on console prior of this point
+	# This is useful to debug boot issues but permits qemu board to boot without flooding console with kernel messages by disabling CONFIG_DEBUG_OUTPUT=y in qemu board config
+	dmesg -n 4 || true
+	DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
 fi
 
 TRACE "Under init"
