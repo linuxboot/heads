@@ -24,7 +24,9 @@ warn() {
 
 DEBUG() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo "DEBUG: $*" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+		echo "DEBUG: $*" | while read line; do
+			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		done
 	fi
 }
 
