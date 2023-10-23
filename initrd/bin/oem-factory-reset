@@ -780,7 +780,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     fi
     if [ "$CONFIG_TPM" = "y" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
-TPM Ownership password"
+TPM Owner Password"
     fi
     CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
 GPG Admin PIN
@@ -821,7 +821,7 @@ GPG User PIN"
             echo
             if [ "$CONFIG_TPM" = "y" ]; then
                 while [[ ${#TPM_PASS} -lt 8 ]]; do
-                    echo -e -n "Enter desired TPM Ownership password: "
+                    echo -e -n "Enter desired TPM Owner Password: "
                     read TPM_PASS
                 done
             fi
