@@ -118,6 +118,7 @@ reseal_tpm_disk_decryption_key() {
 # be detected.  If USB storage was already enabled, no wait occurs, this would
 # have happened already when USB storage was enabled.
 enable_usb_storage() {
+	TRACE "Under /etc/functions:enable_usb_storage"
 	if ! lsmod | grep -q usb_storage; then
 		timeout=0
 		echo "Scanning for USB storage devices..."
@@ -192,6 +193,7 @@ list_usb_storage() {
 # tpm_password.  Tools should optionally accept a TPM password on the command
 # line, since some flows need it multiple times and only one prompt is ideal.
 prompt_tpm_password() {
+	TRACE "Under /etc/functions:prompt_tpm_password"
 	if [ -n "$tpm_password" ]; then
 		return 0
 	fi
@@ -204,6 +206,7 @@ prompt_tpm_password() {
 # key_password.  The password must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
 prompt_new_owner_password() {
+	TRACE "Under /etc/functions:prompt_new_owner_password"
 	local key_password2
 	key_password=1
 	key_password2=2
@@ -531,6 +534,7 @@ detect_boot_device() {
 }
 
 scan_boot_options() {
+	TRACE "Under /etc/functions:scan_boot_options"
 	local bootdir config option_file
 	bootdir="$1"
 	config="$2"
