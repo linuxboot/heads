@@ -225,7 +225,7 @@ replay_pcr() {
 	# PCR-5, depending on which modules are loaded for given board:
 	#     tpmr calcfuturepcr 5 module0.ko module1.ko module2.ko | xxd -p
 	# PCR-6 and PCR-7: similar to 5, but with different files passed
-	#  (6: luks header, 7: user related cbfs files loaded from cbfs-init)
+	#  (6: LUKS header, 7: user related cbfs files loaded from cbfs-init)
 }
 
 tpm2_extend() {
