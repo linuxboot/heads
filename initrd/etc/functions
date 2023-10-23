@@ -197,14 +197,17 @@ prompt_tpm_password() {
 	#Caller might already have cached the password in tpm_password. If not, prompt for it and cache it externally
 	if [ -n "$tpm_password" ]; then
 		DEBUG "tpm_password variable already set by caller. Reusing"
+		DEBUG "TODO REMOVE THIS! tpm_password is $tpm_password here."
 		return 0
 	elif [ -s /tmp/secret/tpm_password ]; then
 		DEBUG "/tmp/secret/tpm_password already cached in file. Reusing"
 		tpm_password=$(cat /tmp/secret/tpm_password)
+		DEBUG "TODO REMOVE THIS! tpm_password is $tpm_password here."
 		return 0
 	fi
 
 	read -s -p "TPM Owner Password: " tpm_password
+	#TODO: This function is called for both owner and TPM sealing calls. We should probably have a different prompt for each
 	echo # new line after password prompt
 
 	# Cache the password externally to be reused by who needs it
