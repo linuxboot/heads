@@ -271,7 +271,7 @@ test_luks_current_disk_recovery_key_passphrase()
 			shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null
 			#unsetting luks_current_Disk_Recovery_Key_passphrase so we prompt for it again Disk Recovery Key passphrase prompt on next round
 			unset luks_current_Disk_Recovery_Key_passphrase
-			#remove "known good" selected luks container so that next pass asks again user to select luks container.
+			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
 			#maybe the container was not the right one
 			detect_boot_device
 			mount -o remount,rw /boot
@@ -314,7 +314,7 @@ luks_reencrypt() {
 			shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null
 			#unsetting luks_current_Disk_Recovery_Key_passphrase so we prompt for it again Disk Recovery Key passphrase prompt on next round
 			unset luks_current_Disk_Recovery_Key_passphrase
-			#remove "known good" selected luks container so that next pass asks again user to select luks container.
+			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
 			#maybe the container was not the right one
 			detect_boot_device
 			mount -o remount,rw /boot
@@ -370,7 +370,7 @@ luks_change_passphrase()
 				"The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall OS from a USB drive.\nTo do so, put OS ISO file and it's signature file on root of USB drive,\n And select Boot from USB\n\nHit Enter to continue." 30 60
 			unset luks_current_Disk_Recovery_Key_passphrase
 			unset luks_new_Disk_Recovery_Key_passphrase
-			#remove "known good" selected luks container so that next pass asks again user to select LUKS container.
+			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
 			#maybe the container was not the right one
 			detect_boot_device
 			mount -o remount,rw /boot

@@ -43,7 +43,7 @@ DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR
 tpmr calcfuturepcr 4 >> "$pcrf"
 # pcr 5 (kernel modules loaded) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modules are not firmware integrity attestation related)"
-# pcr 6 (drive luks header) is not measured at sealing/unsealing of totp
+# pcr 6 (drive LUKS header) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not firmware integrity attestation related)"
 # pcr 7 is containing measurements of user injected stuff in cbfs
 tpmr pcrread -a 7 "$pcrf"
