@@ -8,14 +8,14 @@ TOTP_SECRET="/tmp/secret/totp.key"
 TRACE "Under /bin/unseal-totp"
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" \
-		|| die "Unable to unseal totp secret"
-fi
+	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
+		die "Unable to unseal TOTP secret"
+		fi
 
-if ! totp -q < "$TOTP_SECRET"; then
-	shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
+if ! totp -q <"$TOTP_SECRET"; then
+	shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null
 	die 'Unable to compute TOTP hash?'
 fi
 
-shred -n 10 -z -u "$TOTP_SECRET" 2> /dev/null
+shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null
 exit 0
