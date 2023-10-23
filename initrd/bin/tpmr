@@ -391,7 +391,7 @@ tpm2_seal() {
 	sealed_size="$5"	# Not used for TPM2
 	pass="$6"	# May be empty to seal with no password
 	tpm_password="$7"	# Owner password - will prompt if needed and not empty
-	# Owner password is always needed for TPM2.
+	# TPM Owner Password is always needed for TPM2.
 
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
@@ -489,7 +489,7 @@ tpm1_seal() {
 
 	# try it without the owner password first
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
-		# to create an nvram space we need the TPM owner password
+		# to create an nvram space we need the TPM Owner Password
 		# and the TPM physical presence must be asserted.
 		#
 		# The permissions are 0 since there is nothing special
@@ -595,6 +595,9 @@ tpm2_reset() {
 	TRACE "Under /bin/tpmr:tpm2_reset"
 	key_password="$1"
 	mkdir -p "$SECRET_DIR"
+	# output TPM Owner Password key_password to a file to be reused in this boot session until recovery shell/reboot
+	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_password"
+	echo "$key_password" > "$SECRET_DIR/tpm_password"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy"
 	tpm2 changeauth -c owner "$(tpm2_password_hex "$key_password")"
 	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$key_password")"
@@ -640,7 +643,10 @@ tpm2_reset() {
 tpm1_reset() {
 	TRACE "Under /bin/tpmr:tpm1_reset"
 	key_password="$1"
-
+	mkdir -p "$SECRET_DIR"
+	# output key_password to a file to be reused in this boot session until recovery shell/reboot
+	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_password"
+	echo "$key_password" > "$SECRET_DIR/tpm_password"
 	# Make sure the TPM is ready to be reset
 	tpm physicalpresence -s
 	tpm physicalenable
