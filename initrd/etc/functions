@@ -99,7 +99,7 @@ reseal_tpm_disk_decryption_key() {
 		warn "TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
 		echo "Resealing TPM LUKS Disk Unlock Key to be unsealed by TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
-			warn "Recovery Disk Encryption key passphrase invalid. Try again!"
+			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
 		done
 		warn "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
@@ -206,6 +206,11 @@ prompt_tpm_password() {
 
 	read -s -p "TPM Owner Password: " tpm_password
 	echo # new line after password prompt
+
+	# Cache the password externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_password"
+	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
+	echo "$key_password" >/tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
 }
 
 # Prompt for a new owner password when resetting the TPM.  Returned in
@@ -232,7 +237,7 @@ prompt_new_owner_password() {
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_password"
 	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo "$key_password" > /tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
+	echo "$key_password" >/tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
 }
 
 check_tpm_counter() {

@@ -533,6 +533,7 @@ tpm2_unseal() {
 	# can't do anything without a primary handle.
 	if [ ! -f "/tmp/$PRIMARY_HANDLE_FILE" ]; then
 		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
+		warn "No TPM primary handle. You must reset TPM to seal secret"
 		exit 1
 	fi
 
