@@ -229,8 +229,7 @@ update_totp()
         g )
           if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
-            generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU=""
-            reseal_tpm_disk_decryption_key
+            generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="" && reseal_tpm_disk_decryption_key
           fi
           ;;
         i )
@@ -238,8 +237,7 @@ update_totp()
           return 1
           ;;
         p )
-          reset_tpm && update_totp && BG_COLOR_MAIN_MENU=""
-          reseal_tpm_disk_decryption_key
+          reset_tpm && update_totp && BG_COLOR_MAIN_MENU="" && reseal_tpm_disk_decryption_key
           ;;
         x )
           recovery "User requested recovery shell"
@@ -300,8 +298,7 @@ update_hotp()
       g )
         if (whiptail $BG_COLOR_WARNING --title 'Generate new TOTP/HOTP secret' \
             --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
-          generate_totp_hotp && BG_COLOR_MAIN_MENU=""
-          reseal_tpm_disk_decryption_key
+          generate_totp_hotp && BG_COLOR_MAIN_MENU="" && reseal_tpm_disk_decryption_key
         fi
         ;;
       i )
@@ -526,12 +523,10 @@ show_tpm_totp_hotp_options_menu()
   option=$(cat /tmp/whiptail)
   case "$option" in 
     g )
-      generate_totp_hotp
-      reseal_tpm_disk_decryption_key
+      generate_totp_hotp && reseal_tpm_disk_decryption_key
       ;;
     r )
-      reset_tpm
-      reseal_tpm_disk_decryption_key
+      reset_tpm && reseal_tpm_disk_decryption_key
       ;;
     t )
       prompt_totp_mismatch
