@@ -194,11 +194,17 @@ list_usb_storage() {
 # line, since some flows need it multiple times and only one prompt is ideal.
 prompt_tpm_password() {
 	TRACE "Under /etc/functions:prompt_tpm_password"
+	#Caller might already have cached the password in tpm_password. If not, prompt for it and cache it externally
 	if [ -n "$tpm_password" ]; then
+		DEBUG "tpm_password variable already set by caller. Reusing"
+		return 0
+	elif [ -s /tmp/secret/tpm_password ]; then
+		DEBUG "/tmp/secret/tpm_password already cached in file. Reusing"
+		tpm_password=$(cat /tmp/secret/tpm_password)
 		return 0
 	fi
 
-	read -s -p "TPM Owner password: " tpm_password
+	read -s -p "TPM Owner Password: " tpm_password
 	echo # new line after password prompt
 }
 
@@ -211,10 +217,10 @@ prompt_new_owner_password() {
 	key_password=1
 	key_password2=2
 	while [ "$key_password" != "$key_password2" ] || [ "${#key_password}" -gt 32 ] || [ -z "$key_password" ]; do
-		read -s -p "New TPM owner passphrase (2 words suggested, 1-32 characters max): " key_password
+		read -s -p "New TPM Owner Password (2 words suggested, 1-32 characters max): " key_password
 		echo
 
-		read -s -p "Repeat chosen TPM owner passphrase: " key_password2
+		read -s -p "Repeat chosen TPM Owner Password: " key_password2
 		echo
 
 		if [ "$key_password" != "$key_password2" ]; then
@@ -222,6 +228,11 @@ prompt_new_owner_password() {
 			echo
 		fi
 	done
+
+	# Cache the password externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_password"
+	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
+	echo "$key_password" > /tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
 }
 
 check_tpm_counter() {
