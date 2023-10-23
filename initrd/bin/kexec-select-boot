@@ -50,21 +50,24 @@ bootdir="${bootdir%%/}"
 paramsdev="${paramsdev%%/}"
 paramsdir="${paramsdir%%/}"
 
-PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ -r "$PRIMHASH_FILE" ]; then
-		sha256sum -c "$PRIMHASH_FILE" \
-			|| {
-			echo "FATAL: Hash of TPM2 primary key handle mismatch!";
-			warn "If you have not intentionally regenerated TPM2 primary key,";
-			warn "your system may have been compromised";
-		}
-	else
-		warn "Hash of TPM2 primary key handle does not exist"
-		warn "Please rebuild the boot hash tree"
-		default_failed="y"
-	fi
-fi
+
+#PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
+#if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+#	if [ -r "$PRIMHASH_FILE" ]; then
+#		sha256sum -c "$PRIMHASH_FILE" \
+#			|| {
+#			echo "FATAL: Hash of TPM2 primary key handle mismatch!";
+#			warn "If you have not intentionally regenerated TPM2 primary key,";
+#			warn "your system may have been compromised";
+#		}
+#	else
+#		warn "Hash of TPM2 primary key handle does not exist"
+#		warn "Please rebuild the boot hash tree"
+#		default_failed="y"
+#	fi
+#fi
+#TODO: Readd when this can work successfully by simply resealing TOTP/HOTP without having to reset TPM2, this is a major pain point for users
+#And acutally don't work as intended, even more with TPM DUK
 
 verify_global_hashes()
 {
