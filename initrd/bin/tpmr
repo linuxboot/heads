@@ -393,6 +393,7 @@ tpm2_seal() {
 	tpm_password="$7"	# Owner password - will prompt if needed and not empty
 	# TPM Owner Password is always needed for TPM2.
 
+	DEBUG "TODO REMOVE THIS. tpm2_seal: pass=$pass tpm_password=$tpm_password"
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
 
@@ -442,12 +443,12 @@ tpm2_seal() {
 	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
 		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
 		-c "$SECRET_DIR/$bname.seal.ctx"
-	prompt_tpm_password
+	prompt_tpm_owner_password
 	# remove possible data occupying this handle
-	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
+	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
 		-c "$handle" 2>/dev/null || true
 	DO_WITH_DEBUG --mask-position 6 \
-		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_password")" \
+		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
 		-c "$SECRET_DIR/$bname.seal.ctx" "$handle"
 }
 tpm1_seal() {
@@ -497,7 +498,7 @@ tpm1_seal() {
 		tpm physicalpresence -s \
 			|| warn "Unable to assert physical presence"
 
-		prompt_tpm_password
+		prompt_tpm_owner_password
 
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
 			-pwdo "$tpm_password" -per 0 \
@@ -554,6 +555,8 @@ tpm2_unseal() {
 		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
 	fi
 
+	DEBUG "TODO REMOVE THIS. tpm2_unseal: pass=$pass UNSEAL_PASS_SUFFIX=$UNSEAL_PASS_SUFFIX"
+
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
 		-S "/tmp/$ENC_SESSION_FILE" > "$file"
 }
@@ -594,18 +597,18 @@ tpm1_unseal() {
 
 tpm2_reset() {
 	TRACE "Under /bin/tpmr:tpm2_reset"
-	key_password="$1"
+	tpm_owner_password="$1"
 	mkdir -p "$SECRET_DIR"
 	# output TPM Owner Password key_password to a file to be reused in this boot session until recovery shell/reboot
-	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_password"
-	echo "$key_password" > "$SECRET_DIR/tpm_password"
+	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
+	echo -n "$tpm_owner_password" > "$SECRET_DIR/tpm_owner_password"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy"
-	tpm2 changeauth -c owner "$(tpm2_password_hex "$key_password")"
-	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$key_password")"
+	tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")"
+	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")"
 	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
-		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$key_password")"
+		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$tpm_owner_password")"
 	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
-		-P "$(tpm2_password_hex "$key_password")"
+		-P "$(tpm2_password_hex "$tpm_owner_password")"
 	shred -u "$SECRET_DIR/primary.ctx"
 	tpm2_startsession
 
@@ -643,18 +646,18 @@ tpm2_reset() {
 }
 tpm1_reset() {
 	TRACE "Under /bin/tpmr:tpm1_reset"
-	key_password="$1"
+	tpm_owner_password="$1"
 	mkdir -p "$SECRET_DIR"
-	# output key_password to a file to be reused in this boot session until recovery shell/reboot
-	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_password"
-	echo "$key_password" > "$SECRET_DIR/tpm_password"
+	# output tpm_owner_password to a file to be reused in this boot session until recovery shell/reboot
+	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
+	echo -n "$tpm_owner_password" > "$SECRET_DIR/tpm_owner_password"
 	# Make sure the TPM is ready to be reset
 	tpm physicalpresence -s
 	tpm physicalenable
 	tpm physicalsetdeactivated -c
 	tpm forceclear
 	tpm physicalenable
-	tpm takeown -pwdo "$key_password"
+	tpm takeown -pwdo "$tpm_owner_password"
 
 	# And now turn it all back on
 	tpm physicalpresence -s
