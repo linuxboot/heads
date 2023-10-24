@@ -1114,16 +1114,16 @@ else
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
-    tpm_password_changed="
+    tpm_owner_password_changed="
     TPM Owner Password: $TPM_PASS\n"
 else
-    tpm_password_changed=""
+    tpm_owner_password_changed=""
 fi
 
 ## Show to user current provisioned secrets prior of rebooting
 whiptail --msgbox "
     $luks_passphrase_changed
-    $tpm_password_changed
+    $tpm_owner_password_changed
     GPG Admin PIN: $ADMIN_PIN\n
     GPG User PIN: $USER_PIN\n\n" \
     $HEIGHT $WIDTH --title "Provisioned secrets"
@@ -1139,6 +1139,6 @@ whiptail --msgbox "
 # Clean LUKS secrets
 luks_secrets_cleanup
 unset luks_passphrase_changed
-unset tpm_password_changed
+unset tpm_owner_password_changed
 
 reboot
