@@ -151,12 +151,12 @@ prompt_update_checksums()
 
 generate_totp_hotp()
 {
-  tpm_password="$1"	# May be empty, will prompt if needed and empty
-  TRACE "Under /bin/gui-init:generate_totp_hotp"
+  TRACE "Under /bin/gui-init:generate_totp_hotp"  
+  tpm_owner_password="$1"	# May be empty, will prompt if needed and empty
   if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
     echo "Generating new HOTP secret"
     /bin/seal-hotpkey
-  elif echo -e "Generating new TOTP secret...\n\n" && /bin/seal-totp "$BOARD_NAME" "$tpm_password"; then
+  elif echo -e "Generating new TOTP secret...\n\n" && /bin/seal-totp "$BOARD_NAME" "$tpm_owner_password"; then
     echo
     if [ -x /bin/hotp_verification ]; then
       if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
@@ -567,7 +567,7 @@ reset_tpm()
         return 1
       fi
 
-      tpmr reset "$key_password"
+      tpmr reset "$tpm_owner_password"
 
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
@@ -577,7 +577,7 @@ reset_tpm()
       rm -f /boot/kexec_primhdl_hash.txt
 
       # create Heads TPM counter before any others
-      check_tpm_counter /boot/kexec_rollback.txt "" "$key_password" \
+      check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_password" \
       || die "Unable to find/create tpm counter"
       counter="$TPM_COUNTER"
 
@@ -588,7 +588,7 @@ reset_tpm()
       || die "Unable to create rollback file"
       mount -o ro,remount /boot
 
-      generate_totp_hotp "$key_password"
+      generate_totp_hotp "$tpm_owner_password"
     else
       echo "Returning to the main menu"
     fi

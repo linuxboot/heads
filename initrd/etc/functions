@@ -192,28 +192,28 @@ list_usb_storage() {
 # Prompt for an owner password if it is not already set in tpm_password.  Sets
 # tpm_password.  Tools should optionally accept a TPM password on the command
 # line, since some flows need it multiple times and only one prompt is ideal.
-prompt_tpm_password() {
-	TRACE "Under /etc/functions:prompt_tpm_password"
+prompt_tpm_owner_password() {
+	TRACE "Under /etc/functions:prompt_tpm_owner_password"
 	#Caller might already have cached the password in tpm_password. If not, prompt for it and cache it externally
-	if [ -n "$tpm_password" ]; then
-		DEBUG "tpm_password variable already set by caller. Reusing"
-		DEBUG "TODO REMOVE THIS! tpm_password is $tpm_password here."
+	if [ -n "$tpm_owner_password" ]; then
+		DEBUG "tpm_owner_password variable already set by caller. Reusing"
+		DEBUG "TODO REMOVE THIS! tpm_owner_password is $tpm_owner_password here."
 		return 0
-	elif [ -s /tmp/secret/tpm_password ]; then
-		DEBUG "/tmp/secret/tpm_password already cached in file. Reusing"
-		tpm_password=$(cat /tmp/secret/tpm_password)
-		DEBUG "TODO REMOVE THIS! tpm_password is $tpm_password here."
+	elif [ -s /tmp/secret/tpm_owner_password ]; then
+		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
+		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
+		DEBUG "TODO REMOVE THIS! tpm_owner_password is $tpm_owner_password here."
 		return 0
 	fi
 
-	read -s -p "TPM Owner Password: " tpm_password
+	read -s -p "TPM Owner Password: " tpm_owner_password
 	#TODO: This function is called for both owner and TPM sealing calls. We should probably have a different prompt for each
 	echo # new line after password prompt
 
 	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_password"
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo "$key_password" >/tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
 }
 
 # Prompt for a new owner password when resetting the TPM.  Returned in
@@ -221,26 +221,26 @@ prompt_tpm_password() {
 # the script will loop until this is met.
 prompt_new_owner_password() {
 	TRACE "Under /etc/functions:prompt_new_owner_password"
-	local key_password2
-	key_password=1
-	key_password2=2
-	while [ "$key_password" != "$key_password2" ] || [ "${#key_password}" -gt 32 ] || [ -z "$key_password" ]; do
-		read -s -p "New TPM Owner Password (2 words suggested, 1-32 characters max): " key_password
+	local tpm_owner_password2
+	tpm_owner_password=1
+	tpm_owner_password2=2
+	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
+		read -s -p "New TPM Owner Password (2 words suggested, 1-32 characters max): " tpm_owner_password
 		echo
 
-		read -s -p "Repeat chosen TPM Owner Password: " key_password2
+		read -s -p "Repeat chosen TPM Owner Password: " tpm_owner_password2
 		echo
 
-		if [ "$key_password" != "$key_password2" ]; then
+		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
 			echo "Passphrases entered do not match. Try again!"
 			echo
 		fi
 	done
 
 	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_password"
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo "$key_password" >/tmp/secret/tpm_password || die "Unable to cache TPM password under /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret"
 }
 
 check_tpm_counter() {
@@ -253,7 +253,7 @@ check_tpm_counter() {
 		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		prompt_tpm_password
+		prompt_tpm_owner_password
 		tpmr counter_create \
 			-pwdo "$tpm_password" \
 			-pwdc '' \
