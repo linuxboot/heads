@@ -3,12 +3,12 @@
 
 TRACE "Under /bin/reboot"
 
-if [ “$CONFIG_DEBUG_OUTPUT” = “y” ]; then 
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then 
 	#Generalize user prompt to continue reboot or go to recovery shell 
-	read -r -p -n1 "Press any key to continue reboot or ‘r’ to go to recovery shell: " REPLY 
+	read -r -n 1 -s -p "Press any key to continue reboot or 'r' to go to recovery shell: " REPLY 
 	echo 
-	if [ “$REPLY” = “r” ] || [ “$REPLY” = “R” ]; then 
-		recovery “Reboot call bypassed to go into recovery shell to debug” 
+	if [ "$REPLY" = "r" ] || [ "$REPLY" = "R" ]; then 
+		recovery "Reboot call bypassed to go into recovery shell to debug"
 	fi 
 fi
 
