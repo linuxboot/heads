@@ -35,6 +35,8 @@ MAX_HOTP_GPG_PIN_LENGTH=25
 # What are the Security components affected by custom passwords
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
+# Default GPG Algorithm is RSA
+GPG_ALGO="RSA"
 # Default RSA key length
 #TODO change it back to 3076. Canokey cannot be tested easily and Nitrokey prov1 I have doesn't key-attr to 3076
 RSA_KEY_LENGTH=2048
@@ -70,7 +72,7 @@ whiptail_error_die() {
     die
 }
 
-#Generate a gpg master key: passwordless, no expiration date, RSA 4096 bits
+#Generate a gpg master key: no expiration date, RSA 4096 bits
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key will be stored on the disk, and the subkeys on the smartcard
 generate_inmemory_RSA_master_and_subkeys() {
@@ -166,6 +168,63 @@ generate_inmemory_RSA_master_and_subkeys() {
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key setting public key to ultimate trust failed!\n\n$ERROR"
+    fi
+}
+
+#Generate a gpg master key: no expiration date, p256 key (ECC)
+#This key will be used to sign 3 subkeys: encryption, authentication and signing
+#The master key will be stored on the disk, and the subkeys on the smartcard
+generate_inmemory_p256_master_and_subkeys() {
+    DEBUG "Generating GPG key material in memory:"
+    gpg --expert --batch --pinentry-mode=loopback --passphrase ${ADMIN_PIN} --quick-generate-key "${GPG_USER_NAME} (${GPG_USER_COMMENT}) <${GPG_USER_MAIL}>" nistp256 cert 0
+
+    DEBUG "Getting master key fingerprint..."
+    MASTER_KEY_FP=$(gpg --list-secret-keys --with-colons | grep fpr | cut -d: -f10)
+
+    DEBUG "MASTER_KEY_FP=${MASTER_KEY_FP}"
+
+    DEBUG "Adding GPG nistp256 signing subkey to master key..."
+    {
+        echo addkey
+        echo 11   # ECC own set capability
+        echo Q    # sign already present
+        echo 3    # P-256
+        echo 0    # no expiration
+        echo save # save the key
+    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    if [ $? -ne 0 ]; then
+        ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
+        whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
+    fi
+
+    DEBUG "Adding GPG nistp256 encryption subkey to master key..."
+    {
+        echo addkey
+        echo 12# ECC encrypt only
+        echo E    # encrypt already present
+        echo 3    # P-256
+        echo 0    # no expiration
+        echo save # save the key
+    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    if [ $? -ne 0 ]; then
+        ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
+        whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
+    fi
+
+    DEBUG "Adding GPG nistp256 authentication subkey to master key..."
+    {
+        echo addkey
+        echo 11   # ECC own set capability
+        echo S    # deactivate sign
+        echo A    # activate auth
+        echo Q    # Quit
+        echo 3    # P-256
+        echo 0    # no expiration
+        echo save # save the key
+    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    if [ $? -ne 0 ]; then
+        ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
+        whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
     fi
 }
 
@@ -435,23 +494,27 @@ gpg_key_factory_reset() {
 generate_OEM_gpg_keys() {
     # Generate OEM GPG keys
     TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
-    DEBUG "Generating GPG keys to RSA ${RSA_KEY_LENGTH} bits in smartcard..."
-    {
-        echo admin
-        echo generate
-        echo n
-        echo ${ADMIN_PIN_DEF}
-        echo ${USER_PIN_DEF}
-        echo 0
-        echo ${GPG_USER_NAME}
-        echo ${GPG_USER_MAIL}
-        echo ${GPG_USER_COMMENT}
-        echo ${USER_PIN_DEF}
-    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-        >/tmp/gpg_card_edit_output 2>&1
-    if [ $? -ne 0 ]; then
-        ERROR=$(cat /tmp/gpg_card_edit_output)
-        whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
+
+    #TODO: finish refactoring to adapt to GPG_ALGO != RSA
+    if [ "$GPG_ALGO" = "RSA" ]; then
+        DEBUG "Generating GPG keys to RSA ${RSA_KEY_LENGTH} bits in smartcard..."
+        {
+            echo admin
+            echo generate
+            echo n
+            echo ${ADMIN_PIN_DEF}
+            echo ${USER_PIN_DEF}
+            echo 0
+            echo ${GPG_USER_NAME}
+            echo ${GPG_USER_MAIL}
+            echo ${GPG_USER_COMMENT}
+            echo ${USER_PIN_DEF}
+        } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
+            >/tmp/gpg_card_edit_output 2>&1
+        if [ $? -ne 0 ]; then
+            ERROR=$(cat /tmp/gpg_card_edit_output)
+            whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
+        fi
     fi
 }
 
@@ -680,11 +743,10 @@ usb_security_token_capabilities_check() {
         DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
     fi
     # ... overwrite with usb-token capability
-    #TODO: revert. Testing test firmware for Nitrokey 3 which is supposed to support RSA 3076 now
-    #if lsusb | grep -q "20a0:42b2"; then
-    #    GPG_ALGO="p256"
-    #    DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
-    #fi
+    if lsusb | grep -q "20a0:42b2"; then
+        GPG_ALGO="p256"
+        DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
+    fi
 }
 
 ## main script start
@@ -722,7 +784,8 @@ $TPM_STR
 fi
 
 # We show current integrity measurements status and time
-report_integrity_measurements
+#TODO: Reactivate this prior of PR review
+#report_integrity_measurements
 
 # Determine gpg algorithm to be used, based on available usb-token
 usb_security_token_capabilities_check
@@ -947,7 +1010,6 @@ assert_signable
 # clear local keyring
 rm /.gnupg/* | true
 
-
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
 if ! detect_boot_device; then
@@ -961,7 +1023,6 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
     replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
     combine_configs
 fi
-
 
 if [ -n "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     #Reencryption of disk, disk recovery key and Disk Recovery Key passphrase change is requested
@@ -992,14 +1053,27 @@ gpg --list-keys >/dev/null 2>&1
 
 #Generate key in memory and copy to smartcard
 if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
-    # Generate GPG master key
-    generate_inmemory_RSA_master_and_subkeys
-    #TODO seperate wiping and thumb drive functions with proper validation
-    wipe_thumb_drive_and_copy_gpg_key_material
-    #TODO seperate setting config
-    set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
-    gpg_key_factory_reset
-    keytocard_subkeys_to_smartcard
+    # TODO: Refactoring in progress for RSA and p256 support. Now just GPG_ALGO RSA
+    if [ "$GPG_ALGO" == "RSA" ]; then
+        # Generate GPG master key
+        generate_inmemory_RSA_master_and_subkeys
+        #TODO seperate wiping and thumb drive functions with proper validation
+        wipe_thumb_drive_and_copy_gpg_key_material
+        #TODO seperate setting config
+        set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
+        gpg_key_factory_reset #TODO: do we currently double reset? I think so
+        keytocard_subkeys_to_smartcard
+    elif [ "$GPG_ALGO" == "p256" ]; then
+        generate_inmemory_p256_master_and_subkeys
+        #TODO seperate wiping and thumb drive functions with proper validation
+        wipe_thumb_drive_and_copy_gpg_key_material
+        #TODO seperate setting config
+        set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
+        gpg_key_factory_reset #TODO: do we currently double reset? I think so
+        keytocard_subkeys_to_smartcard
+    else
+        die "Unsupported GPG_ALGO: $GPG_ALGO"
+    fi
 else
     #Generate GPG key and subkeys on smartcard
     ## reset the GPG Key
@@ -1021,7 +1095,6 @@ if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
-
 
 #Applying custom GPG PINs if keys were not generated in memory
 if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then

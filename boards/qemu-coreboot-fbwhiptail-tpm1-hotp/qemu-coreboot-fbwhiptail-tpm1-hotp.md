@@ -45,6 +45,7 @@ Bootstrapping a working system
    * `sudo mount /dev/loop0p2 /media/fd_heads_gpg` to mount the second partition (public) or if only one partition, /dev/loop0p1
    * Look in `/media/fd_heads_gpg` and copy the most recent public key
    * `sudo umount /media/fd_heads_gpg`
+   * `sudo losetup --detach /dev/loop0`
 6. Inject the GPG key into the Heads image and run again
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=<path_to_key.asc> inject_gpg`
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
