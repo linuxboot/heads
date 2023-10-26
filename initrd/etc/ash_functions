@@ -189,8 +189,12 @@ gpg_auth() {
 				return 0
 			else
 				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
-				echo >&2 "!!!!! GPG authentication failed, please try again !!!!!"
-				continue
+				if [ "$tries" -lt 3 ]; then
+					echo >&2 "!!!!! GPG authentication failed, please try again !!!!!"
+					continue
+				else
+					die "GPG authentication failed, please reboot and try again"
+				fi
 			fi
 		done
 		return 1		
@@ -214,6 +218,7 @@ recovery() {
 	. /tmp/config
 
 	if [ "$CONFIG_TPM" = "y" ]; then
+		echo " !!!!! Extending TPM PCR 4 for recovery shell access !!!!!"
 		tpmr extend -ix 4 -ic recovery
 	fi
 
