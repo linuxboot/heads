@@ -30,7 +30,8 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
-	DEBUG "Extending PCR $MODULE_PCR with $MODULE"
+	echo
+	echo " !!!!! Extending TPM PCR $MODULE_PCR with $MODULE prior of usage !!!!!"
 	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 	|| die "$MODULE: tpm extend failed"
 fi
@@ -39,7 +40,8 @@ if [ ! -z "$*" -a -z "$tpm_missing" ]; then
 	DEBUG "Extending PCR $MODULE_PCR with $*"
 	TMPFILE=/tmp/insmod.$$
 	echo "$@" > $TMPFILE
-	DEBUG "Extending PCR $MODULE_PCR with $TMPFILE"
+	echo
+	echo " !!!!! Extending TPM PCR $MODULE_PCR with $MODULE prior of usage !!!!!"
 	tpmr extend -ix "$MODULE_PCR" -if $TMPFILE \
 	|| die "$MODULE: tpm extend on arguments failed"
 fi
