@@ -38,8 +38,7 @@ CUSTOM_PASS_AFFECTED_COMPONENTS=""
 # Default GPG Algorithm is RSA
 GPG_ALGO="RSA"
 # Default RSA key length
-#TODO change it back to 3076. Canokey cannot be tested easily and Nitrokey prov1 I have doesn't key-attr to 3076
-RSA_KEY_LENGTH=2048
+RSA_KEY_LENGTH=3072
 
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
@@ -74,7 +73,7 @@ whiptail_error_die() {
 
 #Generate a gpg master key: no expiration date, RSA 4096 bits
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
-#The master key will be stored on the disk, and the subkeys on the smartcard
+#The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_RSA_master_and_subkeys() {
     TRACE "Under oem-factory-reset:generate_inmemory_RSA_master_and_subkeys"
     echo "Generating GPG key material in memory:"
@@ -91,8 +90,7 @@ generate_inmemory_RSA_master_and_subkeys() {
         echo "Expire-Date: 0"
         echo "Passphrase: ${ADMIN_PIN}"
         echo "%commit"
-    } | gpg --batch --gen-key \
-        >/tmp/gpg_card_edit_output 2>&1
+    } | gpg --command-fd=0 --status-fd=1 --batch --gen-key >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key generation failed!\n\n$ERROR"
@@ -173,55 +171,66 @@ generate_inmemory_RSA_master_and_subkeys() {
 
 #Generate a gpg master key: no expiration date, p256 key (ECC)
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
-#The master key will be stored on the disk, and the subkeys on the smartcard
+#The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_p256_master_and_subkeys() {
-    DEBUG "Generating GPG key material in memory:"
-    gpg --expert --batch --pinentry-mode=loopback --passphrase ${ADMIN_PIN} --quick-generate-key "${GPG_USER_NAME} (${GPG_USER_COMMENT}) <${GPG_USER_MAIL}>" nistp256 cert 0
+    TRACE "Under oem-factory-reset:generate_inmemory_p256_master_and_subkeys"
 
-    DEBUG "Getting master key fingerprint..."
+    echo "Generating GPG p256 bits master key..."
+    {
+        echo "Key-Type: ECDSA"
+        echo "Key-Curve: nistp256"
+        echo "Key-Usage: cert"
+        echo "Name-Real: ${GPG_USER_NAME}"
+        echo "Name-Comment: ${GPG_USER_COMMENT}"
+        echo "Name-Email: ${GPG_USER_MAIL}"
+        echo "Expire-Date: 0"
+        echo "%commit"
+    } | gpg --expert --batch --pinentry-mode=loopback --passphrase=<(echo -n "${ADMIN_PIN}") --generate-key \
+        >/tmp/gpg_card_edit_output 2>&1
+    if [ $? -ne 0 ]; then
+        ERROR=$(cat /tmp/gpg_card_edit_output)
+        whiptail_error_die "GPG p256 Key generation failed!\n\n$ERROR"
+    fi
+
+    #Keep Master key fingerprint for add key calls
     MASTER_KEY_FP=$(gpg --list-secret-keys --with-colons | grep fpr | cut -d: -f10)
 
-    DEBUG "MASTER_KEY_FP=${MASTER_KEY_FP}"
-
-    DEBUG "Adding GPG nistp256 signing subkey to master key..."
+    echo "Generating GPG nistp256 signing subkey..."
     {
         echo addkey
-        echo 11   # ECC own set capability
-        echo Q    # sign already present
-        echo 3    # P-256
-        echo 0    # no expiration
-        echo save # save the key
-    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+        echo 11 # ECC own set capability
+        echo Q  # sign already present
+        echo 3  # P-256
+        echo 0  # no expiration
+    } | gpg --expert --command-fd=0 --status-fd=1 --passphrase=<(echo -n "${ADMIN_PIN}") --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
     fi
 
-    DEBUG "Adding GPG nistp256 encryption subkey to master key..."
+    echo "Generating GPG nistp256 encryption subkey..."
     {
         echo addkey
         echo 12# ECC encrypt only
-        echo E    # encrypt already present
-        echo 3    # P-256
-        echo 0    # no expiration
-        echo save # save the key
-    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+        echo E # encrypt already present
+        echo 3 # P-256
+        echo 0 # no expiration
+    } | gpg --expert --command-fd=0 --status-fd=1 --passphrase=<(echo -n "${ADMIN_PIN}") --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
     fi
 
-    DEBUG "Adding GPG nistp256 authentication subkey to master key..."
+    echo "Generating GPG nistp256 authentication subkey..."
     {
         echo addkey
-        echo 11   # ECC own set capability
-        echo S    # deactivate sign
-        echo A    # activate auth
-        echo Q    # Quit
-        echo 3    # P-256
-        echo 0    # no expiration
-        echo save # save the key
-    } | gpg --command-fd=0 --passphrase ${ADMIN_PIN} --pinentry-mode=loopback --expert --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+        echo 11 # ECC own set capability
+        echo S  # deactivate sign
+        echo A  # activate auth
+        echo Q  # Quit
+        echo 3  # P-256
+        echo 0  # no expiration
+    } | gpg --expert --command-fd=0 --status-fd=1 --passphrase=<(echo -n "${ADMIN_PIN}") --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
@@ -242,31 +251,29 @@ keytocard_subkeys_to_smartcard() {
     enable_usb_storage
     gpg --card-status >/dev/null 2>&1 || die "Error getting GPG card status"
 
-    DEBUG "Factory resetting the smartcard..."
+    echo "Factory resetting the smartcard..."
     gpg_key_factory_reset
 
-    DEBUG "Moving subkeys to smartcard..."
-
-    #keytocard all subkeys
+    echo "Moving subkeys to smartcard..."
     {
         echo "key 1" #Select Signature key
         echo "keytocard"
-        echo "1"          # Signature key
-        echo "$ADMIN_PIN" #Smartcard admin pin
-        echo "$ADMIN_PIN" #Subkey PIN
-        echo "0"          #No expiration date
+        echo "1"            # Signature key
+        echo "${ADMIN_PIN}" #Smartcard admin pin
+        echo "${ADMIN_PIN}" #Subkey PIN
+        echo "0"            #No expiration date
         echo "key 1"
         echo "key 2"
         echo "keytocard"
         echo "2" # Encryption key
-        echo "$ADMIN_PIN"
-        echo "$ADMIN_PIN"
+        echo "${ADMIN_PIN}"
+        echo "${ADMIN_PIN}"
         echo "key 2"
         echo "key 3"
         echo "keytocard"
         echo "3" # Authentication key
-        echo "$ADMIN_PIN"
-        echo "$ADMIN_PIN"
+        echo "${ADMIN_PIN}"
+        echo "${ADMIN_PIN}"
         echo "key 3"
         echo "save"
     } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --expert --edit-key "${GPG_USER_MAIL}" \
@@ -275,7 +282,7 @@ keytocard_subkeys_to_smartcard() {
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
     fi
-    DEBUG "Moving subkeys to smartcard done."
+    echo "Moving subkeys to smartcard done."
 }
 
 #Whiptail prompt to disconnect any external USB storage device
@@ -326,7 +333,7 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
             shift
             ;;
         --pass)
-            pass="$2"
+            pass="${2}"
             shift
             shift
             ;;
@@ -340,14 +347,17 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 
     #Export master key and subkeys to thumb drive
     DEBUG "Exporting master key and subkeys to private LUKS container's partition..."
-    gpg --export-secret-key --armor --pinentry-mode loopback --passphrase-file <(echo -n "${pass}") "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
+    DEBUG "TODO DELETE THIS pass= ${pass} here"
+
+    gpg --export-secret-key --armor --pinentry-mode loopback --passphrase=<(echo -n "${pass}") "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
         die "Error exporting master key to private LUKS container's partition"
-    gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase-file <(echo -n "${pass}") "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec ||
+    gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase=<(echo -n "${pass}") "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec ||
         die "Error exporting subkeys to private LUKS container's partition"
     #copy whole keyring to thumb drive, including revocation key and trust database
     cp -af ~/.gnupg "$mountpoint"/.gnupg || die "Error copying whole keyring to private LUKS container's partition"
     #Unmount private LUKS container's mount point
     umount "$mountpoint" || die "Error unmounting private LUKS container's mount point"
+    TRACE "Under oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container done"
 }
 
 #Export public key to thumb drive's public partition
@@ -402,9 +412,9 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
     fi
     select_luks_container_size_percent
     #Wipe thumb drive with a LUKS container of size $(cat /tmp/luks_container_size_percent)
-    prepare_thumb_drive --device "$thumb_drive" --percentage "$(cat /tmp/luks_container_size_percent)" --pass "$ADMIN_PIN"
+    prepare_thumb_drive --device "$thumb_drive" --percentage "$(cat /tmp/luks_container_size_percent)" --pass "${ADMIN_PIN}"
     #Export master key and subkeys to thumb drive first partition
-    export_master_key_subkeys_and_revocation_key_to_private_LUKS_container --mode rw --device "$thumb_drive"1 --mountpoint /media --pass "$ADMIN_PIN"
+    export_master_key_subkeys_and_revocation_key_to_private_LUKS_container --mode rw --device "$thumb_drive"1 --mountpoint /media --pass "${ADMIN_PIN}"
     #Export public key to thumb drive's public partition
     export_public_key_to_thumbdrive_public_partition --mode rw --device "$thumb_drive"2 --mountpoint /media
 }
@@ -416,7 +426,7 @@ gpg_key_factory_reset() {
     enable_usb
 
     # Factory reset GPG card
-    DEBUG "GPG factory reset..."
+    echo "GPG factory reset of smartcard..."
     {
         echo admin
         echo factory-reset
@@ -467,7 +477,7 @@ gpg_key_factory_reset() {
             whiptail_error_die "Setting key to NIST-P256 in USB security dongle failed."
         fi
     # fallback to RSA key generation by default
-    else
+    elif [ "$GPG_ALGO" = "rsa" ]; then
         DEBUG "GPG setting RSA key length to ${RSA_KEY_LENGTH} bits..."
         # Set RSA key length
         {
@@ -488,33 +498,33 @@ gpg_key_factory_reset() {
             ERROR=$(cat /tmp/gpg_card_edit_output)
             whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB security dongle failed."
         fi
+    else
+        #Unknown GPG_ALGO
+        whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
     fi
 }
 
 generate_OEM_gpg_keys() {
-    # Generate OEM GPG keys
     TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
 
-    #TODO: finish refactoring to adapt to GPG_ALGO != RSA
-    if [ "$GPG_ALGO" = "RSA" ]; then
-        DEBUG "Generating GPG keys to RSA ${RSA_KEY_LENGTH} bits in smartcard..."
-        {
-            echo admin
-            echo generate
-            echo n
-            echo ${ADMIN_PIN_DEF}
-            echo ${USER_PIN_DEF}
-            echo 0
-            echo ${GPG_USER_NAME}
-            echo ${GPG_USER_MAIL}
-            echo ${GPG_USER_COMMENT}
-            echo ${USER_PIN_DEF}
-        } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-            >/tmp/gpg_card_edit_output 2>&1
-        if [ $? -ne 0 ]; then
-            ERROR=$(cat /tmp/gpg_card_edit_output)
-            whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
-        fi
+    #This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
+    echo "Generating GPG keys in smartcard..."
+    {
+        echo admin
+        echo generate
+        echo n
+        echo ${ADMIN_PIN_DEF}
+        echo ${USER_PIN_DEF}
+        echo 0
+        echo ${GPG_USER_NAME}
+        echo ${GPG_USER_MAIL}
+        echo ${GPG_USER_COMMENT}
+        echo ${USER_PIN_DEF}
+    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
+        >/tmp/gpg_card_edit_output 2>&1
+    if [ $? -ne 0 ]; then
+        ERROR=$(cat /tmp/gpg_card_edit_output)
+        whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
     fi
 }
 
@@ -606,7 +616,7 @@ generate_checksums() {
     # sign kexec boot files
     if sha256sum $param_files 2>/dev/null | gpg \
         --pinentry-mode loopback \
-        --passphrase "$USER_PIN" \
+        --passphrase "${USER_PIN}" \
         --digest-algo SHA256 \
         --detach-sign \
         -a \
@@ -784,7 +794,7 @@ $TPM_STR
 fi
 
 # We show current integrity measurements status and time
-#TODO: Reactivate this prior of PR review
+#TODO: readd prior of PR review request. Also make sure that check_config is called to check kexec.sig (detached signature validation)
 #report_integrity_measurements
 
 # Determine gpg algorithm to be used, based on available usb-token
@@ -798,6 +808,7 @@ fi
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     #Give general guidance to user on how to answer prompts
+    echo
     echo "The following questionnaire will help you to configure the security components of your system."
     echo "You will be prompted for each option to answer a single letter at prompts (Y/n/m)."
     echo "If you don't know what to answer, just press Enter to use default value which is shown between [] brackets as the uppercase letter."
@@ -830,8 +841,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         -o "$prompt_output" == "M" ] \
         ; then
         GPG_GEN_KEY_IN_MEMORY=1
-        #TODO: present steps clearer for user
-        echo "Master key and subkeys will be generated in memory, backuped to dedicated LUKS container and then subkeys imported to factory resetted smartcard."
+        echo "Master key and subkeys will be generated in memory, backuped to dedicated LUKS container and then subkeys copied to smartcard."
     else
         GPG_GEN_KEY_IN_MEMORY=0
     fi
@@ -866,13 +876,13 @@ GPG User PIN"
             read CUSTOM_SINGLE_PASS
         done
         echo
-        TPM_PASS=$CUSTOM_SINGLE_PASS
-        USER_PIN=$CUSTOM_SINGLE_PASS
-        ADMIN_PIN=$CUSTOM_SINGLE_PASS
+        TPM_PASS=${CUSTOM_SINGLE_PASS}
+        USER_PIN=${CUSTOM_SINGLE_PASS}
+        ADMIN_PIN=${CUSTOM_SINGLE_PASS}
 
         # Only set if user said desired. Matches rest of logic
         if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
-            luks_new_Disk_Recovery_Key_passphrase=$CUSTOM_SINGLE_PASS
+            luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
         fi
     else
         echo -e -n "Would you like to set distinct PINs/passwords to be provisioned to previously stated security components? [y/N]: "
@@ -950,9 +960,9 @@ GPG User PIN"
 fi
 
 # If nothing is stored in custom variables, we set them to their defaults
-if [ "$TPM_PASS" == "" ]; then TPM_PASS=$TPM_PASS_DEF; fi
-if [ "$USER_PIN" == "" ]; then USER_PIN=$USER_PIN_DEF; fi
-if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=$ADMIN_PIN_DEF; fi
+if [ "$TPM_PASS" == "" ]; then TPM_PASS=${TPM_PASS_DEF}; fi
+if [ "$USER_PIN" == "" ]; then USER_PIN=${USER_PIN_DEF}; fi
+if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=${ADMIN_PIN_DEF}; fi
 
 ## sanity check the USB, GPG key, and boot device before proceeding further
 
@@ -1003,12 +1013,10 @@ assert_signable
 
 # Action time...
 
-#TODO: Should we replace text from "Add a new GPG key" to "Replace current GPG key"? Should we wipe current keyring?
-#Current logic is for factory reset, where re-ownership adds key to the keyring which is then copied over cbfs.
-# In the all case, we should wipe the keyring since otherwise, USB security dongle is wiped but not the keyring which exposes past public keys
-#  this seems wrong
 # clear local keyring
-rm /.gnupg/* | true
+rm -rf /.gnupg/* >/dev/null 2>&1 || true
+# clear gpg-agent cache so that next gpg calls doesn't have past keyring in memory
+killall gpg-agent >/dev/null 2>&1 || true
 
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
@@ -1051,9 +1059,8 @@ rm /.gnupg/*.gpg 2>/dev/null
 rm /.gnupg/*.kbx 2>/dev/null
 gpg --list-keys >/dev/null 2>&1
 
-#Generate key in memory and copy to smartcard
+#Generate keys in memory and copy to smartcard
 if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
-    # TODO: Refactoring in progress for RSA and p256 support. Now just GPG_ALGO RSA
     if [ "$GPG_ALGO" == "RSA" ]; then
         # Generate GPG master key
         generate_inmemory_RSA_master_and_subkeys
@@ -1061,7 +1068,6 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
         wipe_thumb_drive_and_copy_gpg_key_material
         #TODO seperate setting config
         set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
-        gpg_key_factory_reset #TODO: do we currently double reset? I think so
         keytocard_subkeys_to_smartcard
     elif [ "$GPG_ALGO" == "p256" ]; then
         generate_inmemory_p256_master_and_subkeys
@@ -1069,14 +1075,12 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
         wipe_thumb_drive_and_copy_gpg_key_material
         #TODO seperate setting config
         set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
-        gpg_key_factory_reset #TODO: do we currently double reset? I think so
         keytocard_subkeys_to_smartcard
     else
         die "Unsupported GPG_ALGO: $GPG_ALGO"
     fi
 else
-    #Generate GPG key and subkeys on smartcard
-    ## reset the GPG Key
+    #Generate GPG key and subkeys on smartcard only
     echo -e "\nResetting GPG Key...\n(this will take around 3 minutes...)\n"
     gpg_key_factory_reset
     generate_OEM_gpg_keys
@@ -1087,37 +1091,34 @@ GPG_GEN_KEY=$(gpg --list-keys --with-colons | grep "^fpr" | cut -d: -f10 | head 
 #Where to export the public key
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 
-DEBUG "GPG_GEN_KEY: $GPG_GEN_KEY"
-DEBUG "PUBKEY: $PUBKEY"
-
 # export pubkey to file
 if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "GPG Key gpg export to file failed!\n\n$ERROR"
 fi
 
-#Applying custom GPG PINs if keys were not generated in memory
-if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
-    if [ "$USER_PIN" != "" -o "$ADMIN_PIN" != "" ]; then
-        echo -e "\nChanging default GPG Admin PIN\n"
-        gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$ADMIN_PIN"
-        echo -e "\nChanging default GPG User PIN\n"
-        gpg_key_change_pin "1" "$USER_PIN_DEF" "$USER_PIN"
-    fi
+#Applying custom GPG PINs to the smartcard if they were provided
+if [ "$USER_PIN" != "" -o "$ADMIN_PIN" != "" ]; then
+    echo -e "\nChanging default GPG Admin PIN\n"
+    gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$ADMIN_PIN"
+    echo -e "\nChanging default GPG User PIN\n"
+    gpg_key_change_pin "1" "$USER_PIN_DEF" "$USER_PIN"
+fi
 
-    ## export pubkey to USB
-    if [ $GPG_EXPORT -ne 0 ]; then
-        echo -e "\nExporting generated key to USB...\n"
-        # copy to USB
-        if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
-            ERROR=$(tail -n 1 /tmp/error | fold -s)
-            whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
-        fi
-        mount -o remount,ro /media 2>/dev/null
+## export pubkey to USB
+if [ $GPG_EXPORT -ne 0 ]; then
+    echo -e "\nExporting generated key to USB...\n"
+    # copy to USB
+    if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
     fi
+    mount -o remount,ro /media 2>/dev/null
+fi
 fi
 
 ## flash generated key to ROM
+# TODO: would be nice if we warned users that qemu boards will fail here and tell them what to do
 echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
 /bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
 if [ ! -s /tmp/oem-setup.rom ]; then
@@ -1142,34 +1143,34 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error; then
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
 
-# clear any existing heads/gpg files from current firmware
-for i in $(cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
-    cbfs.sh -o /tmp/oem-setup.rom -d "$i"
-done
-# add heads/gpg files to current firmware
+	# clear any existing heads/gpg files from current firmware
+	for i in $(cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
+	    cbfs.sh -o /tmp/oem-setup.rom -d "$i"
+	done
+	# add heads/gpg files to current firmware
 
-if [ -e /.gnupg/pubring.kbx ]; then
-    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
-    if [ -e /.gnupg/pubring.gpg ]; then
-        rm /.gnupg/pubring.gpg
-    fi
-elif [ -e /.gnupg/pubring.gpg ]; then
-    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
-fi
-if [ -e /.gnupg/trustdb.gpg ]; then
-    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
-fi
+	if [ -e /.gnupg/pubring.kbx ]; then
+	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+	    if [ -e /.gnupg/pubring.gpg ]; then
+	        rm /.gnupg/pubring.gpg
+	    fi
+	elif [ -e /.gnupg/pubring.gpg ]; then
+	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+	fi
+	if [ -e /.gnupg/trustdb.gpg ]; then
+	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+	fi
 
-# persist user config changes (boot device)
-if [ -e /etc/config.user ]; then
-    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
-fi
+	# persist user config changes (boot device)
+	if [ -e /etc/config.user ]; then
+	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+	fi
 
-# flash updated firmware image
-echo -e "\nAdding generated key to current firmware and re-flashing...\n"
-if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
-    ERROR=$(tail -n 1 /tmp/error | fold -s)
-    whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
+	# flash updated firmware image
+	echo -e "\nAdding generated key to current firmware and re-flashing...\n"
+	if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
+	    ERROR=$(tail -n 1 /tmp/error | fold -s)
+	    whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 fi
 
 ## sign files in /boot and generate checksums
@@ -1188,7 +1189,7 @@ fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
     tpm_owner_password_changed="
-    TPM Owner Password: $TPM_PASS\n"
+    TPM Owner Password: ${TPM_PASS}\n"
 else
     tpm_owner_password_changed=""
 fi
@@ -1197,8 +1198,8 @@ fi
 whiptail --msgbox "
     $luks_passphrase_changed
     $tpm_owner_password_changed
-    GPG Admin PIN: $ADMIN_PIN\n
-    GPG User PIN: $USER_PIN\n\n" \
+    GPG Admin PIN: ${ADMIN_PIN}\n
+    GPG User PIN: ${USER_PIN}\n\n" \
     $HEIGHT $WIDTH --title "Provisioned secrets"
 
 ## all done -- reboot
