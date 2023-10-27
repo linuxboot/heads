@@ -251,7 +251,6 @@ keytocard_subkeys_to_smartcard() {
     enable_usb_storage
     gpg --card-status >/dev/null 2>&1 || die "Error getting GPG card status"
 
-    echo "Factory resetting the smartcard..."
     gpg_key_factory_reset
 
     echo "Moving subkeys to smartcard..."
@@ -282,7 +281,8 @@ keytocard_subkeys_to_smartcard() {
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
     fi
-    echo "Moving subkeys to smartcard done."
+
+    TRACE "oem-factory-reset:keytocard_subkeys_to_smartcard done"
 }
 
 #Whiptail prompt to disconnect any external USB storage device
@@ -357,7 +357,8 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
     cp -af ~/.gnupg "$mountpoint"/.gnupg || die "Error copying whole keyring to private LUKS container's partition"
     #Unmount private LUKS container's mount point
     umount "$mountpoint" || die "Error unmounting private LUKS container's mount point"
-    TRACE "Under oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container done"
+
+    TRACE "oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container done"
 }
 
 #Export public key to thumb drive's public partition
@@ -390,10 +391,10 @@ export_public_key_to_thumbdrive_public_partition() {
 
     #pass non-empty arguments to --pass, --mountpoint, --device, --mode
     mount-usb --device "$device" --mode "$mode" --mountpoint "$mountpoint" || die "Error mounting thumb drive's public partition"
-
     gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || die "Error exporting public key to thumb drive's public partition"
-
     umount "$mountpoint" || die "Error unmounting thumb drive's public partition"
+
+    TRACE "oem-factory-reset:export_public_key_to_thumbdrive_public_partition done"
 }
 
 #Wipe a thumb drive and export master key and subkeys to it
@@ -417,6 +418,8 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
     export_master_key_subkeys_and_revocation_key_to_private_LUKS_container --mode rw --device "$thumb_drive"1 --mountpoint /media --pass "${ADMIN_PIN}"
     #Export public key to thumb drive's public partition
     export_public_key_to_thumbdrive_public_partition --mode rw --device "$thumb_drive"2 --mountpoint /media
+
+    TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material done"
 }
 
 gpg_key_factory_reset() {
@@ -426,7 +429,7 @@ gpg_key_factory_reset() {
     enable_usb
 
     # Factory reset GPG card
-    echo "GPG factory reset of smartcard..."
+    echo "GPG factory reset of USB Security Dongle's smartcard..."
     {
         echo admin
         echo factory-reset
@@ -502,13 +505,15 @@ gpg_key_factory_reset() {
         #Unknown GPG_ALGO
         whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
     fi
+
+    TRACE "oem-factory-reset:gpg_key_factory_reset done"
 }
 
 generate_OEM_gpg_keys() {
     TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
 
     #This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
-    echo "Generating GPG keys in smartcard..."
+    echo "Generating GPG keys in USB Security dongle's smartcard..."
     {
         echo admin
         echo generate
@@ -526,15 +531,17 @@ generate_OEM_gpg_keys() {
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
     fi
+
+    TRACE "oem-factory-reset:generate_OEM_gpg_keys done"
 }
 
 gpg_key_change_pin() {
     TRACE "Under oem-factory-reset:gpg_key_change_pin"
-    DEBUG "Changing GPG key PINs..."
+    DEBUG "Changing GPG key PIN"
     # 1 = user PIN, 3 = admin PIN
     PIN_TYPE=$1
-    PIN_ORIG=$2
-    PIN_NEW=$3
+    PIN_ORIG=${2}
+    PIN_NEW=${3}
     # Change PIN
     {
         echo admin
@@ -551,10 +558,13 @@ gpg_key_change_pin() {
         ERROR=$(cat /tmp/gpg_card_edit_output | fold -s)
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
+
+    TRACE "oem-factory-reset:gpg_key_change_pin done"
 }
 
 generate_checksums() {
     TRACE "Under oem-factory-reset:generate_checksums"
+
     # ensure /boot mounted
     if ! grep -q /boot /proc/mounts; then
         mount -o rw /boot || whiptail_error_die "Unable to mount /boot"
@@ -640,10 +650,13 @@ generate_checksums() {
         ERROR=$(tail -n 1 /tmp/error | fold -s)
         whiptail_error_die "Error signing kexec boot files:\n\n$ERROR"
     fi
+
+    TRACE "oem-factory-reset:generate_checksums done"
 }
 
 set_default_boot_option() {
     TRACE "Under oem-factory-reset:set_default_boot_option"
+
     option_file="/tmp/kexec_options.txt"
     tmp_menu_file="/tmp/kexec/kexec_menu.txt"
     hash_file="/boot/kexec_default_hashes.txt"
@@ -684,10 +697,13 @@ set_default_boot_option() {
     (cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f |
         xargs sha256sum >$hash_file 2>/dev/null) ||
         whiptail_error_die "Failed to create hashes of boot files"
+
+    TRACE "oem-factory-reset:set_default_boot_option done"
 }
 
 report_integrity_measurements() {
     TRACE "Under oem-factory-reset:report_integrity_measurements"
+
     #check for GPG key in keyring
     GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
     if [ "$GPG_KEY_COUNT" -ne 0 ]; then
@@ -741,6 +757,8 @@ report_integrity_measurements() {
         #Show results
         whiptail $MAIN_MENU_BG_COLOR --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
     fi
+    
+    TRACE "oem-factory-reset:report_integrity_measurements done"
 }
 
 usb_security_token_capabilities_check() {
@@ -1067,14 +1085,14 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
         #TODO seperate wiping and thumb drive functions with proper validation
         wipe_thumb_drive_and_copy_gpg_key_material
         #TODO seperate setting config
-        set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
+        set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
         keytocard_subkeys_to_smartcard
     elif [ "$GPG_ALGO" == "p256" ]; then
         generate_inmemory_p256_master_and_subkeys
         #TODO seperate wiping and thumb drive functions with proper validation
         wipe_thumb_drive_and_copy_gpg_key_material
         #TODO seperate setting config
-        set_user_config CONFIG_HAVE_GPG_KEY_BACKUP y
+
         keytocard_subkeys_to_smartcard
     else
         die "Unsupported GPG_ALGO: $GPG_ALGO"
@@ -1098,15 +1116,15 @@ if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
 fi
 
 #Applying custom GPG PINs to the smartcard if they were provided
-if [ "$USER_PIN" != "" -o "$ADMIN_PIN" != "" ]; then
+if [ "${USER_PIN}" != "" -o "${ADMIN_PIN}" != "" ]; then
     echo -e "\nChanging default GPG Admin PIN\n"
-    gpg_key_change_pin "3" "$ADMIN_PIN_DEF" "$ADMIN_PIN"
+    gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
     echo -e "\nChanging default GPG User PIN\n"
-    gpg_key_change_pin "1" "$USER_PIN_DEF" "$USER_PIN"
+    gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
 fi
 
 ## export pubkey to USB
-if [ $GPG_EXPORT -ne 0 ]; then
+if [ "$GPG_EXPORT" != "0" ]; then
     echo -e "\nExporting generated key to USB...\n"
     # copy to USB
     if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
@@ -1114,16 +1132,6 @@ if [ $GPG_EXPORT -ne 0 ]; then
         whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
     fi
     mount -o remount,ro /media 2>/dev/null
-fi
-fi
-
-## flash generated key to ROM
-# TODO: would be nice if we warned users that qemu boards will fail here and tell them what to do
-echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
-/bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
-if [ ! -s /tmp/oem-setup.rom ]; then
-    ERROR=$(tail -n 1 /tmp/error | fold -s)
-    whiptail_error_die "Error reading current firmware:\n\n$ERROR"
 fi
 
 # ensure key imported locally
@@ -1143,34 +1151,52 @@ if ! gpg --update-trust >/dev/null 2>/tmp/error; then
     whiptail_error_die "Error updating GPG ownertrust:\n\n$ERROR"
 fi
 
-	# clear any existing heads/gpg files from current firmware
-	for i in $(cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
-	    cbfs.sh -o /tmp/oem-setup.rom -d "$i"
-	done
-	# add heads/gpg files to current firmware
+# Do not attempt to flash the key to ROM if we are running in QEMU based on CONFIG_BOARD_NAME matching glob pattern containing qemu-*
+# We check for qemu-* instead of ^qemu- because CONFIG_BOARD_NAME could be renamed to UNTESTED-qemu-* in a probable future
+if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
+	warn "Skipping flash of GPG key to ROM because we are running in QEMU"
+	warn "Please review documentation md file under board directory on your building machine, and review board config options in .config file to enable configuration options you want to test in QEMU until internal flashing support is integrated."
+else
+    #We are not running in QEMU, so flash the key to ROM
 
-	if [ -e /.gnupg/pubring.kbx ]; then
-	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
-	    if [ -e /.gnupg/pubring.gpg ]; then
-	        rm /.gnupg/pubring.gpg
-	    fi
-	elif [ -e /.gnupg/pubring.gpg ]; then
-	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
-	fi
-	if [ -e /.gnupg/trustdb.gpg ]; then
-	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
-	fi
+    ## flash generated key to ROM
+    # TODO: would be nice if we warned users that qemu boards will fail here and tell them what to do
+    echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
+    /bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
+    if [ ! -s /tmp/oem-setup.rom ]; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Error reading current firmware:\n\n$ERROR"
+    fi
 
-	# persist user config changes (boot device)
-	if [ -e /etc/config.user ]; then
-	    cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
-	fi
+    # clear any existing heads/gpg files from current firmware
+    for i in $(cbfs.sh -o /tmp/oem-setup.rom -l | grep -e "heads/"); do
+        cbfs.sh -o /tmp/oem-setup.rom -d "$i"
+    done
+    # add heads/gpg files to current firmware
 
-	# flash updated firmware image
-	echo -e "\nAdding generated key to current firmware and re-flashing...\n"
-	if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
-	    ERROR=$(tail -n 1 /tmp/error | fold -s)
-	    whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
+    if [ -e /.gnupg/pubring.kbx ]; then
+        cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.kbx" -f /.gnupg/pubring.kbx
+        if [ -e /.gnupg/pubring.gpg ]; then
+            rm /.gnupg/pubring.gpg
+        fi
+    elif [ -e /.gnupg/pubring.gpg ]; then
+        cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/pubring.gpg" -f /.gnupg/pubring.gpg
+    fi
+    if [ -e /.gnupg/trustdb.gpg ]; then
+        cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/.gnupg/trustdb.gpg" -f /.gnupg/trustdb.gpg
+    fi
+
+    # persist user config changes (boot device)
+    if [ -e /etc/config.user ]; then
+        cbfs.sh -o /tmp/oem-setup.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
+    fi
+
+    # flash updated firmware image
+    echo -e "\nAdding generated key to current firmware and re-flashing...\n"
+    if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
+        ERROR=$(tail -n 1 /tmp/error | fold -s)
+        whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
+    fi
 fi
 
 ## sign files in /boot and generate checksums
