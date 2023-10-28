@@ -1,0 +1,139 @@
+diff --git a/cbfs.c b/cbfs.c
+index 6252488..b53d89b 100644
+--- a/cbfs.c
++++ b/cbfs.c
+@@ -39,6 +39,7 @@ static const struct option long_options[] = {
+ 	{ "read",		1, NULL, 'r' },
+ 	{ "add",		1, NULL, 'a' },
+ 	{ "file",		1, NULL, 'f' },
++	{ "replace",	1, NULL, 'p' },
+ 	{ "rom",		1, NULL, 'o' },
+ 	{ "list",		0, NULL, 'l' },
+ 	{ "type",		1, NULL, 't' },
+@@ -57,6 +58,7 @@ static const char usage[] =
+ "    -r | --read name                   Export a CBFS file to stdout\n"
+ "    -a | --add name -f | --file path   Add a CBFS file\n"
+ "    -d | --delete name                 Delete a CBFS file\n"
++"    -p | --replace name -f path        Replace a CBFS file with same-size content\n"
+ "    -t | --type 50                     Filter/set to CBFS file type (hex)\n"
+ "\n";
+ 
+@@ -424,6 +426,7 @@ int main(int argc, char** argv) {
+ 	int use_file = 0;
+ 	int do_delete = 0;
+ 	int do_add = 0;
++	int do_replace = 0;
+ 	int do_read = 0;
+ 	int do_list = 0;
+ 	int do_type = 0;
+@@ -431,7 +434,7 @@ int main(int argc, char** argv) {
+ 	const char * romname = NULL;
+ 	const char * cbfsname = NULL;
+ 	const char * filename = NULL;
+-	while ((opt = getopt_long(argc, argv, "h?vld:a:f:o:r:t:",
++	while ((opt = getopt_long(argc, argv, "h?vld:a:f:o:r:t:p:",
+ 		long_options, NULL)) != -1)
+ 	{
+ 		switch(opt)
+@@ -465,6 +468,10 @@ int main(int argc, char** argv) {
+ 			do_type = 1;
+ 			cbfs_file_type = strtoul(optarg, NULL, 16);
+ 			break;
++		case 'p':
++			do_replace = 1;
++			cbfsname = optarg;
++			break;
+ 		case '?': case 'h':
+ 			fprintf(stderr, "%s", usage);
+ 			return EXIT_SUCCESS;
+@@ -474,13 +481,13 @@ int main(int argc, char** argv) {
+ 		}
+ 	}
+ 
+-	if (!do_list && !do_read && !do_add && !do_delete) {
++	if (!do_list && !do_read && !do_add && !do_delete && !do_replace) {
+ 		fprintf(stderr, "%s", usage);
+ 		return EXIT_FAILURE;
+ 	}
+ 
+-	if (do_add && do_delete) {
+-		fprintf(stderr, "Unsupported option: add and delete at the same time");
++	if (do_add + do_delete + do_replace > 1) {
++		fprintf(stderr, "Unsupported option: add/delete/replace at the same time");
+ 		return EXIT_FAILURE;
+ 	}
+ 
+@@ -500,7 +507,7 @@ int main(int argc, char** argv) {
+ 	void *cb_map;
+ 
+ 	if (use_file) {
+-		int readonly = do_add || do_delete ? 0 : 1;
++		int readonly = do_add || do_delete || do_replace ? 0 : 1;
+ 		rom = map_file(romname, &size, readonly);
+ 		if (rom == NULL) {
+ 			fprintf(stderr, "Failed to map ROM file: %s '%s'\n", romname,
+@@ -617,6 +624,31 @@ int main(int argc, char** argv) {
+ 		}
+ 	}
+ 
++	// The purpose of the 'replace' action is to replace identically-sized data
++	// in a CBFS file without altering any other part of the ROM.  This is used
++	// for digest verification - we must be able to set and clear the digest
++	// without altering any other data, which would affect the digest.
++	//
++	// Currently replace only works with identically-sized content.  This could
++	// be extended to also allow resizing the file (potentially moving it if a
++	// large allocation is needed) but the guarantee for identically-sized data
++	// must be preserved.
++	//
++	// cbfs does not support CBFS extended attributes, a hash extended attribute
++	// is not checked or updated.
++
++	// Replacement file content position, length
++	void *replace_data = NULL;
++	uint64_t replace_len = 0;
++	if (do_replace) {
++		replace_data = map_file(filename, &replace_len, 1);
++		if (replace_data == NULL && errno > 0) {
++			fprintf(stderr, "Failed to map replacement file: %s '%s'\n", filename,
++				strerror(errno));
++			return EXIT_FAILURE;
++		}
++	}
++
+ 	// loop through files
+ 	off = rom + ((uint64_t) header.offset);
+ 	while (off < rom + size) {
+@@ -731,6 +763,23 @@ int main(int argc, char** argv) {
+ 			}
+ 		}
+ 
++		if (do_replace) {
++			if (strncmp(name, cbfsname, name_size) == 0) {
++				if (file.len != replace_len) {
++					fprintf(stderr, "Cannot replace content of size %" PRIu64
++						" with file of size %" PRIu32 "\n", replace_len,
++						file.len);
++					return EXIT_FAILURE;
++				}
++
++				void *replace_write = off + file.offset;
++				memcpy(replace_write, replace_data, replace_len);
++
++				++do_replace;
++				break;
++			}
++		}
++
+ 		off += inc;
+ 	}
+ 
+@@ -791,7 +840,7 @@ int main(int argc, char** argv) {
+ 			(delete_empty_end - delete_empty_start - empty_offset));
+ 	}
+ 
+-	if (do_read == 1) {
++	if (do_read == 1 || do_replace == 1) {
+ 		fprintf(stderr, "Failed to find CBFS file named '%s'\n", cbfsname);
+ 		return EXIT_FAILURE;
+ 	}
