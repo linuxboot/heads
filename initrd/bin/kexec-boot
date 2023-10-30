@@ -35,7 +35,7 @@ cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
 
 if [ "$(load_config_value CONFIG_USE_BLOB_JAIL)" = "y" ]; then
-	cmdadd="$cmdadd firmware_class.path=/run/firmware/"
+	cmdadd="$cmdadd firmware_class.path=/firmware/"
 fi
 
 fix_file_path() {
