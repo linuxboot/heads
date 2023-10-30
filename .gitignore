@@ -16,12 +16,10 @@ config/*.old
 *~
 crossgcc
 clean
-*.map
 *.sec
 *.dep
 *.ffs
 *.vol
 *.lz
 *.fv
-*.bin
 *.bad

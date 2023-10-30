@@ -1,1 +1,17 @@
-This directory contains firmware/microcode needed for the Intel AX200 WiFi module, its Bluetooth counterparts, and the Bluetooth component (ar3k) of Ath9k WiFi modules. It is synchronized via the main system firmware (Pureboot) at each boot, and should not be modified.
+# Librem Blob Jail
+
+This directory contains firmware/microcode needed for peripherals in some Librem boards, for OSes that do not provide device firmware.
+
+When the blob jail feature is enabled, PureBoot provides device firmware to the OS by adding it to the initrd, then copying it to /run/firmware (see initrd/bin/inject_firmware.sh).
+
+## Librem Mini v2
+
+Librem Mini v2 ships with an Atheros Wi-Fi/Bluetooth card, which does not require firmware for Wi-Fi (but it does for Bluetooth).  However, some whitelabel variants ship with Intel AX200, which requires firmware for both Wi-Fi and Bluetooth.
+
+Device firmware is provided in a preconfigured variant build for librem_mini_v2, the basic_usb_autoboot_blob_jail build.
+
+## Librem 11
+
+Librem 11 includes an Intel AX201 Wi-Fi/Bluetooth card, which requires firmware.  All builds for librem_11 include the device firmware.
+
+Display microcontroller firmware is also provided to enable power management.

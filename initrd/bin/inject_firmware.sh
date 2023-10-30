@@ -55,26 +55,36 @@ if ! grep -E -q '^exec run-init .*\$\{rootmnt\}' "$INITRD_ROOT/init"; then
 	exit 0
 fi
 
-# The initrd's /init has to copy the firmware to /run/firmware, so it will be
-# present when the real root is moved to /.
-# * Wi-Fi/BT firmware loading doesn't happen during the initrd - these modules
-#   aren't in the initrd anyway, typically.
-# * /run is a tmpfs mount, so this works even if the root filesystem is
-#   read-only, and it doesn't persist anything.
+# In general, firmware files must be available _both_ during the initrd _and_
+# once root is moved to /.  Firmware loading may happen in either phase (e.g.
+# i915 GUC firmware is usually loaded in the initrd because i915 is used there,
+# but Wi-Fi/BT modules typically are not in the initrd, they're loaded later).
 #
-# kexec-boot will add a kernel parameter for the kernel to look for firmware in
-# /run/firmware.
+# We want to place the firmware after boot in /run, since this is a tmpfs mount
+# - it works even if the root filesystem is read-only and does not persist
+# anything.  But we cannot place it there for the initrd, since the initrd also
+# mounts a tmpfs on /run.  We can only specify one custom firmware path, but we
+# can change it at runtime.
+#
+# So during the initrd, the firmware is in /firmware, and we provide that path
+# on the kernel command line.  Just before invoking the real init (after root is
+# mounted), we copy it to /run/firmware and also change the firmware path.
 #
 # Debian's init script ends with an "exec run-init ..." (followed by a few lines
 # to print a message in case it fails).  At that point, root is mounted, and
-# run-init will move it to / and then exec init.  We can copy the firmware just
-# before that, so we don't have to know anything about how root was mounted.
+# run-init will move it to / and then exec init.  We can insert the firmware
+# actions just before that, so we don't have to know anything about how root was
+# mounted.
 #
 # The root path is in ${rootmnt}, which should appear in the run-init command.
 # If it doesn't, then we don't understand the init script.
 AWK_INSERT_CP='
 BEGIN{inserted=0}
-/^exec run-init .*\$\{rootmnt\}/ && inserted==0 {print "cp -r /firmware ${rootmnt}/run/firmware"; inserted=1}
+/^exec run-init .*\$\{rootmnt\}/ && inserted==0 {
+	print "cp -r /firmware ${rootmnt}/run/firmware"
+	print "echo -n /run/firmware >${rootmnt}/sys/module/firmware_class/parameters/path"
+	inserted=1
+}
 {print $0}'
 
 awk -e "$AWK_INSERT_CP" "$INITRD_ROOT/init" >"$INITRD_ROOT/init_fw"
