@@ -1,3 +1,11 @@
+# kbd: Linux keyboard tools
+#
+# Provides:
+# - setfont - set the Linux console font
+# - loadkeys - load a key map for the Linux console (CONFIG_KBD_LOADKEYS)
+#
+# To also provide showkey and dumpkeys (normally only needed for development),
+# set CONFIG_KBD_DEVTOOLS=y.
 modules-$(CONFIG_KBD) += kbd
 
 kbd_version := 2.6.1
@@ -20,5 +28,13 @@ kbd_target := \
 
 kbd_output := \
 	src/setfont
+
+ifeq "$(CONFIG_KBD_LOADKEYS)" "y"
+	kbd_output += src/loadkeys
+endif
+
+ifeq "$(CONFIG_KBD_EXTRATOOLS)" "y"
+	kbd_output += src/showkey src/dumpkeys
+endif
 
 kbd_depends := $(musl_dep)
