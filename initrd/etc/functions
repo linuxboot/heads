@@ -205,7 +205,6 @@ prompt_tpm_owner_password() {
 	fi
 
 	read -s -p "TPM Owner Password: " tpm_owner_password
-	#TODO: This function is called for both owner and TPM sealing calls. We should probably have a different prompt for each
 	echo # new line after password prompt
 
 	# Cache the password externally to be reused by who needs it

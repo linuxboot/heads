@@ -92,7 +92,6 @@ if [ "$unseal_failed" = "n" ]; then
 		done
 	else
 		# No crypttab files were found under selected default boot option's initrd file
-		# TODO: cpio -t is unfit here :( it just extracts early cpio header and not the whole file. Replace with something else
 		#  Meanwhile, force crypttab to be created from scratch on both possible locations: /etc/crypttab and /cryptroot/crypttab
 		crypttab_files="etc/crypttab cryptroot/crypttab"
 		for crypttab_file in $crypttab_files; do
