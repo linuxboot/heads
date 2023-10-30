@@ -211,8 +211,6 @@ generate_inmemory_p256_master_and_subkeys() {
         whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
     fi
 
-    DEBUG "TODO REMOVE THIS: output of signing subkey generation /tmp/gpg_card_edit_output $(cat /tmp/gpg_card_edit_output)"
-
     echo "Generating GPG nistp256 encryption subkey..."
     {
         echo addkey
@@ -227,8 +225,6 @@ generate_inmemory_p256_master_and_subkeys() {
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
     fi
-
-    DEBUG "TODO REMOVE THIS: output of encryption subkey generation /tmp/gpg_card_edit_output $(cat /tmp/gpg_card_edit_output)"
 
     echo "Generating GPG nistp256 authentication subkey..."
     {
@@ -247,8 +243,7 @@ generate_inmemory_p256_master_and_subkeys() {
         whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
     fi
 
-    DEBUG "TODO REMOVE THIS: output of authentication subkey generation /tmp/gpg_card_edit_output $(cat /tmp/gpg_card_edit_output)"
-}
+    }
 
 #Function to move current gpg keyring subkeys to card (keytocard)
 # This is aimed to be used after having generated master key and subkeys in memory and having backuped them to a LUKS container
@@ -265,8 +260,6 @@ keytocard_subkeys_to_smartcard() {
     gpg --card-status >/dev/null 2>&1 || die "Error getting GPG card status"
 
     gpg_key_factory_reset
-
-    DEBUG "TODO REMOVE THIS: ADMIN_PIN_DEF=${ADMIN_PIN_DEF} ADMIN_PIN=${ADMIN_PIN}"
 
     echo "Moving subkeys to smartcard..."
     {
@@ -296,9 +289,6 @@ keytocard_subkeys_to_smartcard() {
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
     fi
-    #TODO: Clarify in code that since reset gpg is done, passwd is default and then cange_pass is done
-
-    DEBUG "TODO REMOVE THIS. Ouput of /tmp/gpg_card_edit_output: $(cat /tmp/gpg_card_edit_output)"
 
     TRACE "oem-factory-reset:keytocard_subkeys_to_smartcard done"
 }
@@ -1101,16 +1091,13 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     if [ "$GPG_ALGO" == "RSA" ]; then
         # Generate GPG master key
         generate_inmemory_RSA_master_and_subkeys
-        #TODO seperate wiping and thumb drive functions with proper validation
         wipe_thumb_drive_and_copy_gpg_key_material
-        #TODO seperate setting config
+        #TODO seperate setting config. Recovery shell under qemu without reboot doesn't prompt for PIN
         set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
         keytocard_subkeys_to_smartcard
     elif [ "$GPG_ALGO" == "p256" ]; then
         generate_inmemory_p256_master_and_subkeys
-        #TODO seperate wiping and thumb drive functions with proper validation
         wipe_thumb_drive_and_copy_gpg_key_material
-        #TODO seperate setting config
         keytocard_subkeys_to_smartcard
     else
         die "Unsupported GPG_ALGO: $GPG_ALGO"
@@ -1172,13 +1159,11 @@ fi
 # Do not attempt to flash the key to ROM if we are running in QEMU based on CONFIG_BOARD_NAME matching glob pattern containing qemu-*
 # We check for qemu-* instead of ^qemu- because CONFIG_BOARD_NAME could be renamed to UNTESTED-qemu-* in a probable future
 if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
-    warn "Skipping flash of GPG key to ROM because we are running in QEMU"
-    warn "Please review documentation md file under board directory on your building machine, and review board config options in .config file to enable configuration options you want to test in QEMU until internal flashing support is integrated."
+    warn "Skipping flash of GPG key to ROM because we are running in QEMU without internal flashing support."
 else
     #We are not running in QEMU, so flash the key to ROM
 
     ## flash generated key to ROM
-    # TODO: would be nice if we warned users that qemu boards will fail here and tell them what to do
     echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
     /bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
     if [ ! -s /tmp/oem-setup.rom ]; then

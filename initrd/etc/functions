@@ -197,12 +197,10 @@ prompt_tpm_owner_password() {
 	#Caller might already have cached the password in tpm_password. If not, prompt for it and cache it externally
 	if [ -n "$tpm_owner_password" ]; then
 		DEBUG "tpm_owner_password variable already set by caller. Reusing"
-		DEBUG "TODO REMOVE THIS! tpm_owner_password is $tpm_owner_password here."
 		return 0
 	elif [ -s /tmp/secret/tpm_owner_password ]; then
 		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
 		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
-		DEBUG "TODO REMOVE THIS! tpm_owner_password is $tpm_owner_password here."
 		return 0
 	fi
 

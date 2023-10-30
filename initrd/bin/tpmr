@@ -393,7 +393,6 @@ tpm2_seal() {
 	tpm_password="$7"	# Owner password - will prompt if needed and not empty
 	# TPM Owner Password is always needed for TPM2.
 
-	DEBUG "TODO REMOVE THIS. tpm2_seal: pass=$pass tpm_password=$tpm_password"
 	mkdir -p "$SECRET_DIR"
 	bname="`basename $file`"
 
@@ -554,8 +553,6 @@ tpm2_unseal() {
 		# When unsealing, include the password with the auth session
 		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
 	fi
-
-	DEBUG "TODO REMOVE THIS. tpm2_unseal: pass=$pass UNSEAL_PASS_SUFFIX=$UNSEAL_PASS_SUFFIX"
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
 		-S "/tmp/$ENC_SESSION_FILE" > "$file"
