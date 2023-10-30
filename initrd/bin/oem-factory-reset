@@ -38,7 +38,8 @@ CUSTOM_PASS_AFFECTED_COMPONENTS=""
 # Default GPG Algorithm is RSA
 GPG_ALGO="RSA"
 # Default RSA key length
-RSA_KEY_LENGTH=3072
+RSA_KEY_LENGTH=2048
+#TODO: put back to 3076
 
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
@@ -356,7 +357,7 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
     #Export master key and subkeys to thumb drive
     DEBUG "Exporting master key and subkeys to private LUKS container's partition..."
 
-    "gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
+    gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
         die "Error exporting master key to private LUKS container's partition"
     gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec ||
         die "Error exporting subkeys to private LUKS container's partition"
@@ -487,7 +488,7 @@ gpg_key_factory_reset() {
             whiptail_error_die "Setting key to NIST-P256 in USB Security Dongle failed."
         fi
     # fallback to RSA key generation by default
-    elif [ "$GPG_ALGO" = "rsa" ]; then
+    elif [ "$GPG_ALGO" = "RSA" ]; then
         DEBUG "GPG setting RSA key length to ${RSA_KEY_LENGTH} bits..."
         # Set RSA key length
         {
@@ -778,10 +779,11 @@ usb_security_token_capabilities_check() {
         DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
     fi
     # ... overwrite with usb-token capability
-    if lsusb | grep -q "20a0:42b2"; then
-        GPG_ALGO="p256"
-        DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
-    fi
+    #if lsusb | grep -q "20a0:42b2"; then
+    #   GPG_ALGO="p256"
+    #   DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
+    #TODO put back detection prior of PR review, as well as RSA=3076
+    #fi
 }
 
 ## main script start
