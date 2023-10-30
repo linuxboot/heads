@@ -355,7 +355,6 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 
     #Export master key and subkeys to thumb drive
     DEBUG "Exporting master key and subkeys to private LUKS container's partition..."
-    DEBUG "TODO DELETE THIS pass= ${pass} here"
 
     "gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
         die "Error exporting master key to private LUKS container's partition"
@@ -872,18 +871,21 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         GPG_GEN_KEY_IN_MEMORY=0
     fi
 
+    CUSTOM_PASS_AFFECTED_COMPONENTS=""
     # TODO: add LUKS container passphrase = ADMIN_PIN in security components provisioned
     # Adapt message to be given to user in terms of security components that will be applied.
     if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
-        CUSTOM_PASS_AFFECTED_COMPONENTS="LUKS Disk Recovery Key passphrase"
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="LUKS Disk Recovery Key passphrase\n"
     fi
     if [ "$CONFIG_TPM" = "y" ]; then
-        CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
-TPM Owner Password"
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
     fi
-    CUSTOM_PASS_AFFECTED_COMPONENTS="$CUSTOM_PASS_AFFECTED_COMPONENTS
-GPG Admin PIN
-GPG User PIN"
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" ]; then
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key Material backup Thumb drive encrypted partition\n"
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup subkeys\n"
+    fi
+    CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
+    CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG User PIN\n"
 
     # Inform user of security components affected for the following prompts
     echo -e "The following security components will be provisioned with defaults or chosen PINs/passwords:
@@ -1208,27 +1210,30 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
     generate_checksums
 fi
 
+# passphrases set to be empty first
+passphrases="\n"
+
 # Prepare whiptail output of provisioned secrets
-if [ -z "$luks_new_Disk_Recovery_Key_passphrase" -o -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
-    luks_passphrase_changed=""
-else
-    luks_passphrase_changed="LUKS Disk Recovery Key passphrase:\n
-     $luks_new_Disk_Recovery_Key_passphrase"
+if [ -n "$luks_new_Disk_Recovery_Key_passphrase" -o -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
+    passphrases+="LUKS Disk Recovery Key passphrase: ${luks_new_Disk_Recovery_Key_passphrase}\n"
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
-    tpm_owner_password_changed="
-    TPM Owner Password: ${TPM_PASS}\n"
-else
-    tpm_owner_password_changed=""
+    passphrases+="TPM Owner Password: ${TPM_PASS}\n"
+fi
+
+#GPG PINs are in output inconditionally
+passphrases+="GPG Admin PIN: ${ADMIN_PIN}\n"
+passphrases+="GPG User PIN: ${USER_PIN}\n"
+
+#If user decided to generate keys in memory, we add the thumb drive passphrase
+if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
+    passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
 
 ## Show to user current provisioned secrets prior of rebooting
 whiptail --msgbox "
-    $luks_passphrase_changed
-    $tpm_owner_password_changed
-    GPG Admin PIN: ${ADMIN_PIN}\n
-    GPG User PIN: ${USER_PIN}\n\n" \
+    $passphrases" \
     $HEIGHT $WIDTH --title "Provisioned secrets"
 
 ## all done -- reboot
