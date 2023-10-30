@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0") path_to_original_rom path_to_output_directory
+Extract Intel firmware from the original ROM.
+"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        if [[ -z "${COREBOOT_DIR}" ]]; then
+            echo "ERROR: No COREBOOT_DIR variable defined."
+            exit 1
+        fi
+
+        original_rom="$(realpath "$1")"
+        output_dir="$(realpath "${2:-./}")"
+
+        # Neutralize Intel ME and resize the Intel Flash Descriptor (IFD)
+        # layout.
+        # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+        pushd "${COREBOOT_DIR}/util/me_cleaner"
+
+        python me_cleaner.py -S -r -t -d -O out.bin -D ifd_shrinked.bin -M me_shrinked.bin "${original_rom}"
+
+        mv ifd_shrinked.bin "${output_dir}/ifd.bin"
+        mv me_shrinked.bin "${output_dir}/me.bin"
+        rm ./*.bin
+
+        popd
+
+        # Extract the Intel Gigabit Ethernet (GbE) firmware.
+        pushd "${COREBOOT_DIR}/util/ifdtool"
+
+        make
+        ./ifdtool -x "${original_rom}"
+
+        mv flashregion_3_gbe.bin "${output_dir}/gbe.bin"
+        rm ./*.bin
+
+        popd
+    fi
+fi
