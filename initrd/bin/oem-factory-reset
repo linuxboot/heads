@@ -819,8 +819,7 @@ $TPM_STR
 fi
 
 # We show current integrity measurements status and time
-#TODO: readd prior of PR review request. Also make sure that check_config is called to check kexec.sig (detached signature validation)
-#report_integrity_measurements
+report_integrity_measurements
 
 # Determine gpg algorithm to be used, based on available usb-token
 usb_security_token_capabilities_check
@@ -872,7 +871,6 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     fi
 
     CUSTOM_PASS_AFFECTED_COMPONENTS="\n"
-    # TODO: add LUKS container passphrase = ADMIN_PIN in security components provisioned
     # Adapt message to be given to user in terms of security components that will be applied.
     if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="LUKS Disk Recovery Key passphrase\n"
