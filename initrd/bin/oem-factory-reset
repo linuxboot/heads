@@ -38,8 +38,7 @@ CUSTOM_PASS_AFFECTED_COMPONENTS=""
 # Default GPG Algorithm is RSA
 GPG_ALGO="RSA"
 # Default RSA key length
-RSA_KEY_LENGTH=2048
-#TODO: put back to 3076
+RSA_KEY_LENGTH=3076
 
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
@@ -437,7 +436,7 @@ gpg_key_factory_reset() {
     enable_usb
 
     # Factory reset GPG card
-    echo "GPG factory reset of USB Security Dongle's smartcard..."
+    echo "GPG factory reset of USB Security Dongle' smartcard..."
     {
         echo admin         # admin menu
         echo factory-reset # factory reset smartcard
@@ -521,7 +520,7 @@ generate_OEM_gpg_keys() {
     TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
 
     #This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
-    echo "Generating GPG keys in USB Security Dongle's smartcard..."
+    echo "Generating GPG keys in USB Security Dongle' smartcard..."
     {
         echo admin               # admin menu
         echo generate            # generate keys
@@ -779,11 +778,10 @@ usb_security_token_capabilities_check() {
         DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
     fi
     # ... overwrite with usb-token capability
-    #if lsusb | grep -q "20a0:42b2"; then
-    #   GPG_ALGO="p256"
-    #   DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
-    #TODO put back detection prior of PR review, as well as RSA=3076
-    #fi
+    if lsusb | grep -q "20a0:42b2"; then
+       GPG_ALGO="p256"
+       DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
+    fi
 }
 
 ## main script start
@@ -883,8 +881,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
     fi
     if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" ]; then
-        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key Material backup Thumb drive encrypted partition\n"
-        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup subkeys\n"
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase\n"
     fi
     CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
     CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG User PIN\n"
@@ -1108,7 +1105,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     fi
 else
     #Generate GPG key and subkeys on smartcard only
-    echo -e "\nResetting GPG Key...\n(this will take around 3 minutes...)\n"
+    echo -e "\nResetting USB Security Dongle's GPG smartcard...\n(this will take around 3 minutes...)\n"
     gpg_key_factory_reset
     generate_OEM_gpg_keys
 fi
