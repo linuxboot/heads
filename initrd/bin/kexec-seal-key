@@ -135,10 +135,6 @@ tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr pcrread -a 7 "$pcrf"
 
-DEBUG "TODO: REMOVE THIS: key_password=$key_password here"
-DEBUG "TODO: REMOVE THIS: content of /tmp/secret/tpm_owner_password: $(cat /tmp/secret/tpm_owner_password) here"
-
-
 DO_WITH_DEBUG --mask-position 7 \
 	tpmr seal "$KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
 	"$TPM_SIZE" "$key_password" || {
