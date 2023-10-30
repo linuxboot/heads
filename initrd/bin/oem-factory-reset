@@ -833,10 +833,10 @@ fi
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     #Give general guidance to user on how to answer prompts
-    echo
-    echo "The following questionnaire will help you to configure the security components of your system."
-    echo "You will be prompted for each option to answer a single letter at prompts (Y/n/m)."
-    echo "If you don't know what to answer, just press Enter to use default value which is shown between [] brackets as the uppercase letter."
+    echo -e "\n **** Factory Reset / Re-Ownership Questionnaire ****\n\n"
+    echo -e "The following questionnaire will help you configure the security components of your system.\n"
+    echo -e "Each prompt requires a single letter answer: eg. (Y/n/m).\n"
+    echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
 
     # Re-ownership of encrypted disk key, content and passphrase
     echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past provisioned passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backuped header could be restored to access encrypted content with old passphrase) [y/N]: "
@@ -871,7 +871,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         GPG_GEN_KEY_IN_MEMORY=0
     fi
 
-    CUSTOM_PASS_AFFECTED_COMPONENTS=""
+    CUSTOM_PASS_AFFECTED_COMPONENTS="\n"
     # TODO: add LUKS container passphrase = ADMIN_PIN in security components provisioned
     # Adapt message to be given to user in terms of security components that will be applied.
     if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -o -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
