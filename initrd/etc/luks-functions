@@ -10,8 +10,7 @@ list_luks_devices() {
 	#generate a list of devices to choose from that contain a LUKS header
 	lvm vgscan || true
 	blkid | cut -d ':' -f 1 | while read device; do
-		cryptsetup isLuks $device
-		if [ $(echo $?) == 0 ]; then echo $device; fi
+		if cryptsetup isLuks $device; then echo $device; fi
 	done | sort
 }
 
