@@ -243,7 +243,7 @@ generate_inmemory_p256_master_and_subkeys() {
         whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
     fi
 
-    }
+}
 
 #Function to move current gpg keyring subkeys to card (keytocard)
 # This is aimed to be used after having generated master key and subkeys in memory and having backed up them to a LUKS container
@@ -616,7 +616,7 @@ generate_checksums() {
         set_default_boot_option
     fi
 
-    # generate hashes
+    DEBUG "Generating hashes"
     (
         set -e -o pipefail
         cd /boot
@@ -630,7 +630,14 @@ generate_checksums() {
     [ -z "$param_files" ] &&
         whiptail_error_die "No kexec parameter files to sign"
 
-    # sign kexec boot files
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" -a "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "0" ]; then
+        #The local keyring is still valid since no key has been moved to smartcard
+        #Local keyring passwd is ADMIN_PIN. We need to set USER_PIN to ADMIN_PIN
+        DEBUG "Setting GPG User PIN to GPG Admin PIN so local keyring can be used to detach-sign kexec files next"
+        USER_PIN=$ADMIN_PIN
+    fi
+
+    DEBUG "Detach-signing boot files under kexec.sig: $param_files"
     if sha256sum $param_files 2>/dev/null | gpg \
         --pinentry-mode loopback \
         --passphrase "${USER_PIN}" \
@@ -779,8 +786,8 @@ usb_security_token_capabilities_check() {
     fi
     # ... overwrite with usb-token capability
     if lsusb | grep -q "20a0:42b2"; then
-       GPG_ALGO="p256"
-       DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
+        GPG_ALGO="p256"
+        DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
     fi
 }
 
@@ -834,7 +841,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     #Give general guidance to user on how to answer prompts
     echo -e "\n **** Factory Reset / Re-Ownership Questionnaire ****\n\n"
     echo -e "The following questionnaire will help you configure the security components of your system.\n"
-    echo -e "Each prompt requires a single letter answer: eg. (Y/n/m).\n"
+    echo -e "Each prompt requires a single letter answer: eg. (Y/n).\n"
     echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
 
     # Re-ownership of encrypted disk key, content and passphrase
@@ -858,14 +865,23 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     fi
 
     #Prompt to ask if user wants to generate GPG key material in memory or on smartcard
-    echo -e -n "Would you like to generate GPG key material in (m)emory or (S)olely on the security element of the USB Security Dongle? [m/S]: "
+    echo -e -n "Would you like to format an encrypted USB Thumb drive to store GPG key material generated in memory?\n (Required to enable GPG authentication) [y/N]: "
     read -n 1 prompt_output
     echo
-    if [ "$prompt_output" == "m" \
-        -o "$prompt_output" == "M" ] \
+    if [ "$prompt_output" == "y" \
+        -o "$prompt_output" == "Y" ] \
         ; then
         GPG_GEN_KEY_IN_MEMORY=1
-        echo "Master key and subkeys will be generated in memory, backed up to dedicated LUKS container and then subkeys copied to smartcard."
+        echo "Master key and subkeys will be generated in memory, backed up to dedicated LUKS container and then subkeys"
+        echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security Dongle' smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
+        read -n 1 prompt_output
+        echo
+        if [ "$prompt_output" == "n" \
+            -o "$prompt_output" == "N" ]; then
+            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
+        else
+            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
+        fi
     else
         GPG_GEN_KEY_IN_MEMORY=0
     fi
@@ -1090,16 +1106,15 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     if [ "$GPG_ALGO" == "RSA" ]; then
         # Generate GPG master key
         generate_inmemory_RSA_master_and_subkeys
-        wipe_thumb_drive_and_copy_gpg_key_material
-        #TODO seperate setting config. Recovery shell under qemu without reboot doesn't prompt for PIN
-        set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
-        keytocard_subkeys_to_smartcard
     elif [ "$GPG_ALGO" == "p256" ]; then
         generate_inmemory_p256_master_and_subkeys
-        wipe_thumb_drive_and_copy_gpg_key_material
-        keytocard_subkeys_to_smartcard
     else
         die "Unsupported GPG_ALGO: $GPG_ALGO"
+    fi
+    wipe_thumb_drive_and_copy_gpg_key_material
+    set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
+    if [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" == "1" ]; then
+        keytocard_subkeys_to_smartcard
     fi
 else
     #Generate GPG key and subkeys on smartcard only
@@ -1120,11 +1135,14 @@ if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
 fi
 
 #Applying custom GPG PINs to the smartcard if they were provided
-if [ "${USER_PIN}" != "" -o "${ADMIN_PIN}" != "" ]; then
-    echo -e "\nChanging default GPG Admin PIN\n"
-    gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
-    echo -e "\nChanging default GPG User PIN\n"
-    gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
+if [ -z "GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+    #Only apply smartcard PIN change if smartcard only or if keytocard op is expected
+    if [ "${USER_PIN}" != "" -o "${ADMIN_PIN}" != "" ]; then
+        echo -e "\nChanging default GPG Admin PIN\n"
+        gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
+        echo -e "\nChanging default GPG User PIN\n"
+        gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
+    fi
 fi
 
 ## export pubkey to USB
