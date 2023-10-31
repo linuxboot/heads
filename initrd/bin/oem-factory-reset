@@ -246,11 +246,11 @@ generate_inmemory_p256_master_and_subkeys() {
     }
 
 #Function to move current gpg keyring subkeys to card (keytocard)
-# This is aimed to be used after having generated master key and subkeys in memory and having backuped them to a LUKS container
+# This is aimed to be used after having generated master key and subkeys in memory and having backed up them to a LUKS container
 # This function will keytocard the subkeys from the master key in the keyring
 # The master key will be kept in the keyring
 # The master key was already used to sign the subkeys, so it is not needed anymore
-# Delete the master key from the keyring once key to card is done (already backuped on LUKS private partition)
+# Delete the master key from the keyring once key to card is done (already backed up on LUKS private partition)
 keytocard_subkeys_to_smartcard() {
     TRACE "Under oem-factory-reset:keytocard_subkeys_to_smartcard"
 
@@ -838,7 +838,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
 
     # Re-ownership of encrypted disk key, content and passphrase
-    echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past provisioned passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backuped header could be restored to access encrypted content with old passphrase) [y/N]: "
+    echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past provisioned passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backed up header could be restored to access encrypted content with old passphrase) [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
@@ -847,7 +847,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         echo -e "\n"
     fi
 
-    echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new Disk Recovery key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backuped header to be restored to access encrypted data) [y/N]: "
+    echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new Disk Recovery key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backed up header to be restored to access encrypted data) [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
@@ -865,7 +865,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         -o "$prompt_output" == "M" ] \
         ; then
         GPG_GEN_KEY_IN_MEMORY=1
-        echo "Master key and subkeys will be generated in memory, backuped to dedicated LUKS container and then subkeys copied to smartcard."
+        echo "Master key and subkeys will be generated in memory, backed up to dedicated LUKS container and then subkeys copied to smartcard."
     else
         GPG_GEN_KEY_IN_MEMORY=0
     fi
