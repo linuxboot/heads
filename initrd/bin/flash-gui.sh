@@ -43,9 +43,11 @@ while true; do
 
         # is a .npf provided?
         if [ -z "${ROM##*.npf}" ]; then
+          #preventive cleanup
+          rm -rf /tmp/verified_rom >/dev/null 2>&1 || true
           # unzip to /tmp/verified_rom
-          mkdir /tmp/verified_rom
-          unzip $ROM -d /tmp/verified_rom
+          mkdir -p /tmp/verified_rom >/dev/null 2>&1 || true
+          unzip $ROM -d /tmp/verified_rom || die "Failed to unzip ROM file"
           # check file integrity
           if (cd /tmp/verified_rom/ && sha256sum -cs /tmp/verified_rom/sha256sum.txt); then
             ROM="$(head -n1 /tmp/verified_rom/sha256sum.txt | cut -d ' ' -f 3)"
