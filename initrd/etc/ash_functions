@@ -101,7 +101,7 @@ confirm_gpg_card() {
 			echo
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
 			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
-			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with GPG Admin PIN"
+			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with provided GPG Admin PIN"
 			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
 			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
 				die "Unable to import GPG private subkeys"
@@ -112,7 +112,7 @@ confirm_gpg_card() {
 				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
 			#verify detached signature against public key in rom
 			gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 && \
-                                echo "++++ Imported private subkeys match public key fused in rom and can be used under Heads"  || \
+        echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++"  || \
 			 	die "Unable to verify $CR_SIG detached signature against public key in ROM"
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
@@ -123,7 +123,7 @@ confirm_gpg_card() {
 		fi
 	fi
 
-	# setup the USB so we can reach the GPG card
+	# setup the USB so we can reach the USB Security Dongle' smartcard
 	enable_usb
 
 	echo -e "\nVerifying presence of GPG card...\n"
@@ -158,7 +158,13 @@ gpg_auth() {
 
 		# Wipe any existing nonce and signature
 		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
-		confirm_gpg_card
+		
+		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
+		false
+		while [ $? -ne 0 ]; do
+			# Call confirm_gpg_card in subshell to ensure GPG key material presence
+			( confirm_gpg_card )
+		done
 
 		# Perform a signing-based challenge-response,
 		# to authencate that the card plugged in holding
