@@ -59,7 +59,7 @@ $(build)/$(linux_dir)/.configured: $(linux_kconfig)
 linux_configure := \
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& $(call install_config,$(pwd)/$(linux_kconfig),$(build)/$(linux_dir)/.config) \
-	&& $(MAKE) -C .. \
+	&& $CFLAGS="-Os" $(MAKE) -C .. \
 		ARCH="$(LINUX_ARCH)" \
 		CROSS_COMPILE="$(CROSS)" \
 		O="$(build)/$(linux_dir)" \
