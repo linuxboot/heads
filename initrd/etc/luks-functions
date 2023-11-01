@@ -182,7 +182,7 @@ prepare_thumb_drive()
 	#Console and whiptail $BG_COLOR_WARNING prompt (Y/n) validate one last time wiping and repartitioning of $device of total size $DISK_SIZE_MB with $PERCENTAGE_MB assigned to LUKS encrypted private partition
 	if [ -x /bin/whiptail ]; then
 		whiptail $BG_COLOR_WARNING --title "WARNING: Wiping and repartitioning $DEVICE of $DISK_SIZE_MB MB" --yesno \
-			"WARNING: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB assigned to private LUKS contained private ext4 partition, rest assigned to extfat public partition.\n\nAre you sure you want to continue?" 0 80 \
+			"WARNING: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB\n assigned to private LUKS contained private ext4 partition,\n rest assigned to extfat public partition.\n\nAre you sure you want to continue?" 0 80 \
 			|| die "User cancelled wiping and repartitioning of $DEVICE"
 	else
 		echo -e -n "Warning: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB assigned to private LUKS contained private ext4 partition, rest assigned to extfat public partition.\n\nAre you sure you want to continue?"
