@@ -865,7 +865,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     fi
 
     #Prompt to ask if user wants to generate GPG key material in memory or on smartcard
-    echo -e -n "Would you like to format an encrypted USB Thumb drive to store GPG key material generated in memory?\n (Required to enable GPG authentication) [y/N]: "
+    echo -e -n "Would you like to format an encrypted USB Thumb drive to store GPG key material?\n (Required to enable GPG authentication) [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
