@@ -436,7 +436,7 @@ gpg_key_factory_reset() {
     enable_usb
 
     # Factory reset GPG card
-    echo "GPG factory reset of USB Security Dongle' smartcard..."
+    echo "GPG factory reset of USB Security Dongle's smartcard..."
     {
         echo admin         # admin menu
         echo factory-reset # factory reset smartcard
@@ -520,7 +520,7 @@ generate_OEM_gpg_keys() {
     TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
 
     #This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
-    echo "Generating GPG keys in USB Security Dongle' smartcard..."
+    echo "Generating GPG keys in USB Security Dongle's smartcard..."
     {
         echo admin               # admin menu
         echo generate            # generate keys
@@ -873,21 +873,21 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         ; then
         GPG_GEN_KEY_IN_MEMORY=1
         echo " ++++ Master key and subkeys will be generated in memory, backed up to dedicated LUKS container +++"
-        echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security Dongle' smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
+        echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security Dongle's smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
         read -n 1 prompt_output
         echo
         if [ "$prompt_output" == "n" \
             -o "$prompt_output" == "N" ]; then
-            warn "Subkeys will NOT be copied to USB Security Dongle' smartcard."
+            warn "Subkeys will NOT be copied to USB Security Dongle's smartcard."
             warn "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environements"
             GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
         else
-            echo "++++ Subkeys will be copied to USB Security Dongle' smartcard ++++"
+            echo "++++ Subkeys will be copied to USB Security Dongle's smartcard ++++"
             warn "Please keep your GPG key material backup thumb drive safe"
             GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
         fi
     else
-        warn "GPG key material will be generated on USB Security Dongle' smartcard without backup"
+        warn "GPG key material will be generated on USB Security Dongle's smartcard without backup"
         GPG_GEN_KEY_IN_MEMORY=0
     fi
 
