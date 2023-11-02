@@ -194,11 +194,8 @@ list_usb_storage() {
 # line, since some flows need it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE "Under /etc/functions:prompt_tpm_owner_password"
-	#Caller might already have cached the password in tpm_password. If not, prompt for it and cache it externally
-	if [ -n "$tpm_owner_password" ]; then
-		DEBUG "tpm_owner_password variable already set by caller. Reusing"
-		return 0
-	elif [ -s /tmp/secret/tpm_owner_password ]; then
+	
+	if [ -s /tmp/secret/tpm_owner_password ]; then
 		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
 		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
 		return 0
