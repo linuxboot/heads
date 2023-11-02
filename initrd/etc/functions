@@ -272,7 +272,7 @@ increment_tpm_counter() {
 	TRACE "Under /etc/functions:increment_tpm_counter"
 	tpmr counter_increment -ix "$1" -pwdc '' |
 		tee /tmp/counter-$1 ||
-		die "TPM counter increment failed for rollback prevention. Please reflash firmware and choose TPM Reset reset option"
+		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
 }
 
 check_config() {
