@@ -5,9 +5,9 @@
 
 SECRET_DIR="/tmp/secret"
 PRIMARY_HANDLE="0x81000000"
-ENC_SESSION_FILE="enc.ctx"
-DEC_SESSION_FILE="dec.ctx"
-PRIMARY_HANDLE_FILE="primary.handle"
+ENC_SESSION_FILE="$SECRET_DIR/enc.ctx"
+DEC_SESSION_FILE="$SECRET_DIR/dec.ctx"
+PRIMARY_HANDLE_FILE="$SECRET_DIR/primary.handle"
 
 # PCR size in bytes.  Set when we determine what TPM version is in use.
 # TPM1 PCRs are always 20 bytes.  TPM2 is allowed to provide multiple PCR banks
@@ -321,10 +321,10 @@ tpm2_startsession() {
 	tpm2 flushcontext -Q \
 		--saved-session \
 		|| die "tpm2_flushcontext: unable to flush saved session"
-	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "/tmp/$PRIMARY_HANDLE_FILE"
-	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$ENC_SESSION_FILE"
-	tpm2 startauthsession -Q -c "/tmp/$PRIMARY_HANDLE_FILE" --hmac-session -S "/tmp/$DEC_SESSION_FILE"
-	tpm2 sessionconfig -Q --disable-encrypt "/tmp/$DEC_SESSION_FILE"
+	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "$PRIMARY_HANDLE_FILE"
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE"
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$DEC_SESSION_FILE"
+	tpm2 sessionconfig -Q --disable-encrypt "$DEC_SESSION_FILE"
 }
 
 # Use cleanup_session() with at_exit to release a TPM2 session and delete the
@@ -403,8 +403,8 @@ tpm2_seal() {
 
 	# Create a policy requiring both PCRs and the object's authentication
 	# value using a trial session.
-	TRIAL_SESSION=/tmp/sealfile_trial.session
-	AUTH_POLICY=/tmp/sealfile_auth.policy
+	TRIAL_SESSION="$SECRET_DIR/sealfile_trial.session"
+	AUTH_POLICY="$SECRET_DIR/sealfile_auth.policy"
 	rm -f "$TRIAL_SESSION" "$AUTH_POLICY"
 	tpm2 startauthsession -g sha256 -S "$TRIAL_SESSION"
 	# We have to clean up the session
@@ -430,16 +430,16 @@ tpm2_seal() {
 	# (The default is to allow either policy auth _or_ password auth.  In
 	# this case the policy includes the password, and we don't want to allow
 	# the password on its own.)
-	tpm2 create -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+	tpm2 create -Q -C "$PRIMARY_HANDLE_FILE" \
 		-i "$file" \
 		-u "$SECRET_DIR/$bname.priv" \
 		-r "$SECRET_DIR/$bname.pub" \
 		-L "$AUTH_POLICY" \
-		-S "/tmp/$DEC_SESSION_FILE" \
+		-S "$DEC_SESSION_FILE" \
 		-a "fixedtpm|fixedparent|adminwithpolicy" \
 		"${CREATE_PASS_ARGS[@]}"
 
-	tpm2 load -Q -C "/tmp/$PRIMARY_HANDLE_FILE" \
+	tpm2 load -Q -C "$PRIMARY_HANDLE_FILE" \
 		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
 		-c "$SECRET_DIR/$bname.seal.ctx"
 	prompt_tpm_owner_password
@@ -531,13 +531,13 @@ tpm2_unseal() {
 	# If we don't have the primary handle (TPM hasn't been reset), tpm2 will
 	# print nonsense error messages about an unexpected handle value.  We
 	# can't do anything without a primary handle.
-	if [ ! -f "/tmp/$PRIMARY_HANDLE_FILE" ]; then
+	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
 		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
 		warn "No TPM primary handle. You must reset TPM to seal secret"
 		exit 1
 	fi
 
-	POLICY_SESSION=/tmp/unsealfile_policy.session
+	POLICY_SESSION="$SECRET_DIR/unsealfile_policy.session"
 	rm -f "$POLICY_SESSION"
 	tpm2 startauthsession -Q -g sha256 -S "$POLICY_SESSION" --policy-session
 	at_exit cleanup_session "$POLICY_SESSION"
@@ -555,7 +555,7 @@ tpm2_unseal() {
 	fi
 
 	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-		-S "/tmp/$ENC_SESSION_FILE" > "$file"
+		-S "$ENC_SESSION_FILE" > "$file"
 }
 tpm1_unseal() {
 	TRACE "Under /bin/tpmr:tpm1_unseal"
@@ -596,7 +596,7 @@ tpm2_reset() {
 	TRACE "Under /bin/tpmr:tpm2_reset"
 	tpm_owner_password="$1"
 	mkdir -p "$SECRET_DIR"
-	# output TPM Owner Password key_password to a file to be reused in this boot session until recovery shell/reboot
+	# output TPM Owner Password to a file to be reused in this boot session until recovery shell/reboot
 	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
 	echo -n "$tpm_owner_password" > "$SECRET_DIR/tpm_owner_password"
 	tpm2 clear -c platform || warn "Unable to clear TPM on platform hierarchy"
@@ -630,7 +630,7 @@ tpm2_reset() {
 		--max-tries=10 \
 		--recovery-time=3600 \
 		--lockout-recovery-time=0 \
-		--auth="session:/tmp/$ENC_SESSION_FILE"
+		--auth="session:$ENC_SESSION_FILE"
 
 	# Set a random DA lockout password, so the DA lockout can't be cleared
 	# with a password.  Heads doesn't offer dictionary attach reset, instead
