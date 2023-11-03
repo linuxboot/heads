@@ -168,6 +168,11 @@ if [ "$boot_option" = "r" ]; then
 	recovery 'User requested recovery shell'
 	# just in case...
 	exit
+elif [ "$boot_option" = "o" ]; then
+	# Launch OEM Factory Reset/Re-Ownership
+	oem-factory-reset
+	# just in case...
+	exit
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
