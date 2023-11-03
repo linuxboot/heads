@@ -321,7 +321,6 @@ tpm2_counter_cre() {
 		{
 			DEBUG "Failed to create counter from tpm2_counter_cre. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
-			:
 			die "Unable to create counter from tpm2_counter_cre"
 		}
 	echo "$rand_index: (valid after an increment)"
@@ -472,7 +471,6 @@ tpm2_seal() {
 		{
 			DEBUG "Failed to write sealed secret to NVRAM from tpm2_seal. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
-			:
 			die "Unable to write sealed secret to TPM NVRAM"
 		}
 }
@@ -513,7 +511,7 @@ tpm1_seal() {
 		-hk 40000000 \
 		"${POLICY_ARGS[@]}"
 
-	# try it without the owner password first
+	# try it without the TPM Owner Password first
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
 		# to create an nvram space we need the TPM Owner Password
 		# and the TPM physical presence must be asserted.
@@ -527,13 +525,12 @@ tpm1_seal() {
 
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
 			-pwdo "$tpm_password" -per 0 ||
-			warn "Unable to define NVRAM space; trying anyway"
+			warn "Unable to define TPM NVRAM space; trying anyway"
 
 		tpm nv_writevalue -in "$index" -if "$sealed_file" ||
 			{
 				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_password"
 				shred -n 10 -z -u /tmp/secret/tpm_owner_password
-				:
 				die "Unable to write sealed secret to TPM NVRAM"
 			}
 	fi
@@ -644,7 +641,7 @@ tpm2_reset() {
 	# * --max-tries=10: Allow 10 failures before lockout.  This allows the
 	#   user to quickly "burst" 10 failures without significantly impacting
 	#   the rate allowed for a dictionary attacker.
-	#   Most TPM2 flows ask for the owner password 2-4 times, so this allows
+	#   Most TPM2 flows ask for the TPM Owner Password 2-4 times, so this allows
 	#   a handful of mistypes and some headroom for an expected unseal
 	#   failure if firmware is updated.
 	#   Remember that an auth failure is also counted any time an unclean

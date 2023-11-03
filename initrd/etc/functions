@@ -189,9 +189,10 @@ list_usb_storage() {
 		done
 }
 
-# Prompt for an owner password if it is not already set in tpm_password.  Sets
-# tpm_password.  Tools should optionally accept a TPM password on the command
-# line, since some flows need it multiple times and only one prompt is ideal.
+# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.  
+# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed. 
+# Tools should optionally accept a TPM password on the command line, since some flows need 
+# it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE "Under /etc/functions:prompt_tpm_owner_password"
 
@@ -210,8 +211,9 @@ prompt_tpm_owner_password() {
 	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
 }
 
-# Prompt for a new owner password when resetting the TPM.  Returned in
-# key_password.  The password must be 1-32 characters and must be entered twice,
+# Prompt for a new TPM Owner Password when resetting the TPM.  
+# Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
+# The password must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
 prompt_new_owner_password() {
 	TRACE "Under /etc/functions:prompt_new_owner_password"
@@ -253,8 +255,12 @@ check_tpm_counter() {
 			-pwdo "$tpm_password" \
 			-pwdc '' \
 			-la $LABEL |
-			tee /tmp/counter || die "Unable to create TPM counter under check_tpm_counter"
-
+			tee /tmp/counter ||
+			{
+				DEBUG "Failed to create TPM counter. Shredding TPM Owner Password"
+				shred -n 10 -z -u /tmp/secret/tpm_owner_password
+				die "Unable to create TPM counter"
+			}
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
 
