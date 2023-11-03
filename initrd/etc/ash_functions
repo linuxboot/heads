@@ -94,7 +94,7 @@ confirm_gpg_card() {
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 
-			#Prompt user for provisioned GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
+			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
 			echo
 			#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
 			read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
