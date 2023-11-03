@@ -831,21 +831,27 @@ report_integrity_measurements
 # Determine gpg algorithm to be used, based on available usb-token
 usb_security_token_capabilities_check
 
-use_defaults=n
-if [ "$CONFIG_OEMRESET_OFFER_DEFAULTS" = y ]; then
+# Clear the screen
+clear
+
+use_defaults=y
+if [ "$CONFIG_OEMRESET_OFFER_DEFAULTS" = y -o "$use_defaults" = y ]; then
     echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
     read -n 1 use_defaults
 fi
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     #Give general guidance to user on how to answer prompts
-    echo -e "\n **** Factory Reset / Re-Ownership Questionnaire ****\n\n"
-    echo -e "The following questionnaire will help you configure the security components of your system.\n"
-    echo -e "Each prompt requires a single letter answer: eg. (Y/n).\n"
+    echo
+    echo "****************************************************"
+    echo "**** Factory Reset / Re-Ownership Questionnaire ****"
+    echo "****************************************************"
+    echo "The following questionnaire will help you configure the security components of your system."
+    echo "Each prompt requires a single letter answer: eg. (Y/n)."
     echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
 
     # Re-ownership of encrypted disk key, content and passphrase
-    echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past provisioned passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backed up header could be restored to access encrypted content with old passphrase) [y/N]: "
+    echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past configured passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backed up header could be restored to access encrypted content with old passphrase) [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
@@ -878,7 +884,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         echo
         if [ "$prompt_output" == "n" \
             -o "$prompt_output" == "N" ]; then
-            warn "Subkeys will NOT be copied to USB Security Dongle's smartcard."
+            warn "Subkeys will NOT be copied to USB Security Dongle's smartcard"
             warn "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environements"
             GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
         else
@@ -913,11 +919,12 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 
 
     # Inform user of security components affected for the following prompts
-    echo -e "The following security components will be provisioned with defaults or chosen PINs/passwords:
+    echo
+    echo -e "The following Security Components will be configured with defaults or further chosen PINs/passwords:
 	$CUSTOM_PASS_AFFECTED_COMPONENTS\n"
 
     # Prompt to change default passwords
-    echo -e -n "Would you like to set a single custom password that will be provisioned to previously stated security components? [y/N]: "
+    echo -e -n "Would you like to set a single custom password to all previously stated security components? [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
@@ -938,7 +945,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
         fi
     else
-        echo -e -n "Would you like to set distinct PINs/passwords to be provisioned to previously stated security components? [y/N]: "
+        echo -e -n "Would you like to set distinct PINs/passwords to configure previously stated security components? [y/N]: "
         read -n 1 prompt_output
         echo
         if [ "$prompt_output" == "y" \
@@ -1195,7 +1202,7 @@ fi
 if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
     warn "Skipping flash of GPG key to ROM because we are running in QEMU without internal flashing support."
     warn "Please review boards/qemu*/qemu*.md documentation to extract public key from raw disk and inject at build time"
-    warn "Also review boards/qemu*/qemu*.config to tweak CONFIG_* options you might want to turn on/off manually at build time"
+    warn "Also review boards/qemu*/qemu*.config to tweak CONFIG_* options you might need to turn on/off manually at build time"
 else
     #We are not running in QEMU, so flash the key to ROM
 
@@ -1247,7 +1254,7 @@ fi
 # passphrases set to be empty first
 passphrases="\n"
 
-# Prepare whiptail output of provisioned secrets
+# Prepare whiptail output of configured secrets
 if [ -n "$luks_new_Disk_Recovery_Key_passphrase" -o -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     passphrases+="LUKS Disk Recovery Key passphrase: ${luks_new_Disk_Recovery_Key_passphrase}\n"
 fi
@@ -1268,10 +1275,10 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
 
-## Show to user current provisioned secrets prior of rebooting
+## Show to user current configured secrets prior of rebooting
 whiptail --msgbox "
     $passphrases" \
-    $HEIGHT $WIDTH --title "Provisioned secrets"
+    $HEIGHT $WIDTH --title "Configured secrets"
 
 ## all done -- reboot
 whiptail --msgbox "
