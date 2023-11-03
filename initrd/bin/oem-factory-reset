@@ -71,6 +71,18 @@ whiptail_error_die() {
     die
 }
 
+mount_boot() {
+    TRACE "Under oem-factory-reset:mount_boot"
+    # Mount local disk if it is not already mounted.
+    # Added so that 'o' can be typed early at boot to enter directly into OEM Factory Reset
+    if ! grep -q /boot /proc/mounts; then
+        # try to mount if CONFIG_BOOT_DEV exists
+        if [ -e "$CONFIG_BOOT_DEV" ]; then
+            mount -o ro $CONFIG_BOOT_DEV /boot || die "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
+        fi
+    fi
+}
+
 #Generate a gpg master key: no expiration date, RSA 4096 bits
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
@@ -825,6 +837,8 @@ $TPM_STR
     exit 1
 fi
 
+#Make sure /boot is mounted if board config defines default
+mount_boot
 # We show current integrity measurements status and time
 report_integrity_measurements
 
@@ -897,7 +911,6 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         GPG_GEN_KEY_IN_MEMORY=0
     fi
 
-
     # Dynamic messages to be given to user in terms of security components that will be applied
     #  based on previous answers
     CUSTOM_PASS_AFFECTED_COMPONENTS="\n"
@@ -912,11 +925,10 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same a GPG Admin PIN)\n"
     fi
     CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
-    # Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY=0 or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
-    if [ "$GPG_GEN_KEY_IN_MEMORY" = "0" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+    # Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY variable is empty/not existing or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is set to 1
+    if [ -z "$GPG_GEN_KEY_IN_MEMORY" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG User PIN\n"
     fi
-
 
     # Inform user of security components affected for the following prompts
     echo
@@ -964,7 +976,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
                 read ADMIN_PIN
             done
             #USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY=1 while GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
-            # That is, if keys were NOT generated in memory (on smartcard only) or 
+            # That is, if keys were NOT generated in memory (on smartcard only) or
             #  if keys were generated in memory but are to be moved from local keyring to smartcard
             if [ "$GPG_GEN_KEY_IN_MEMORY" = "0" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
                 while [[ ${#USER_PIN} -lt 8 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
@@ -1265,8 +1277,8 @@ fi
 
 #GPG PINs output
 passphrases+="GPG Admin PIN: ${ADMIN_PIN}\n"
-#USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY=1 while GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
-if [ "$GPG_GEN_KEY_IN_MEMORY" = "0" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+#USER PIN was configured if GPG_GEN_KEY_IN_MEMORY is not defined or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
+if [ -z "$GPG_GEN_KEY_IN_MEMORY" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
     passphrases+="GPG User PIN: ${USER_PIN}\n"
 fi
 
