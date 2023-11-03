@@ -10,7 +10,7 @@ TRACE "Under /bin/unseal-totp"
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
 		die "Unable to unseal TOTP secret"
-		fi
+fi
 
 if ! totp -q <"$TOTP_SECRET"; then
 	shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null
