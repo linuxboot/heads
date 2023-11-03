@@ -313,7 +313,7 @@ update_hotp()
 
 clean_boot_check()
 {
-  TRACE "Under /bin/gui-init:mount_boot"
+  TRACE "Under /bin/gui-init:clean_boot_check"
   # assume /boot mounted
   if ! grep -q /boot /proc/mounts ; then
     return
