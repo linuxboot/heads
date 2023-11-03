@@ -317,7 +317,13 @@ tpm2_counter_cre() {
 	done
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 | xxd -pc3)"
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" >/dev/console
+		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" >/dev/console ||
+		{
+			DEBUG "Failed to create counter from tpm2_counter_cre with current tpm owner password. Wiping tpm_owner_password"
+			shred -n 10 -z -u /tmp/secret/tpm_owner_password
+			:
+			die "Unable to create counter from tpm2_counter_cre"
+		}
 	echo "$rand_index: (valid after an increment)"
 }
 
@@ -463,7 +469,12 @@ tpm2_seal() {
 	DO_WITH_DEBUG --mask-position 6 \
 		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
 		-c "$SECRET_DIR/$bname.seal.ctx" "$handle" ||
-		die "Unable to write sealed secret to NVRAM from tpm2_seal"
+		{
+			DEBUG "Failed to write sealed secret to NVRAM from tpm2_seal with current tpm owner password. Wiping tpm_owner_password"
+			shred -n 10 -z -u /tmp/secret/tpm_owner_password
+			:
+			die "Unable to write sealed secret to NVRAM from tpm2_seal"
+		}
 }
 tpm1_seal() {
 	TRACE "Under /bin/tpmr:tpm1_seal"
@@ -519,7 +530,12 @@ tpm1_seal() {
 			warn "Unable to define NVRAM space; trying anyway"
 
 		tpm nv_writevalue -in "$index" -if "$sealed_file" ||
-			die "Unable to write sealed secret to NVRAM from tpm1_seal"
+			{
+				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal with current tpm owner password. Wiping tpm_owner_password"
+				shred -n 10 -z -u /tmp/secret/tpm_owner_password
+				:
+				die "Unable to write sealed secret to NVRAM from tpm1_seal"
+			}
 	fi
 }
 
