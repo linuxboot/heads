@@ -49,11 +49,7 @@ DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not fir
 tpmr pcrread -a 7 "$pcrf"
 #Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
 tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
-	{
-		shred -n 10 -z -u /tmp/secret/tpm_owner_password 2>/dev/null
-		:
-		die "Unable to write sealed secret to NVRAM from seal-totp"
-	}
+	die "Unable to write sealed secret to NVRAM from seal-totp"
 #Make sure we clear TPM TOTP sealed if we succeed to seal TOTP
 shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 

@@ -239,6 +239,7 @@ prompt_new_owner_password() {
 
 check_tpm_counter() {
 	TRACE "Under /etc/functions:check_tpm_counter"
+	
 	LABEL=${2:-3135106223}
 	tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
@@ -252,16 +253,8 @@ check_tpm_counter() {
 			-pwdo "$tpm_password" \
 			-pwdc '' \
 			-la $LABEL |
-			tee /tmp/counter ||
-			{
-				DEBUG "Failed to create TPM counter. Shredding TPM owner password"
-				#TODO: refactor tpmr to wipe tpm_owner_password when invalid
-				# As of today, the callers are responsible to wipe it
-				# prompt_tpm_owner_password caches the password until externally invalidated
-				shred -n 10 -z -u /tmp/secret/tpm_owner_password
-				:
-				die "Unable to create TPM counter" 2>/dev/null
-			}
+			tee /tmp/counter || die "Unable to create TPM counter under check_tpm_counter"
+
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
 
