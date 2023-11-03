@@ -319,7 +319,7 @@ tpm2_counter_cre() {
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
 		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" >/dev/console ||
 		{
-			DEBUG "Failed to create counter from tpm2_counter_cre with current tpm owner password. Wiping tpm_owner_password"
+			DEBUG "Failed to create counter from tpm2_counter_cre. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
 			:
 			die "Unable to create counter from tpm2_counter_cre"
@@ -382,7 +382,7 @@ tpm2_destroy() {
 
 	# remove possible data occupying this handle
 	tpm2 evictcontrol -Q -C p -c "$handle" 2>/dev/null ||
-		die "Unable to evict secret"
+		die "Unable to evict secret from TPM NVRAM"
 }
 
 # tpm1_destroy: Destroy a sealed file in the TPM.  The mechanism differs by
@@ -394,7 +394,7 @@ tpm1_destroy() {
 
 	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero
 	tpm nv_writevalue -in "$index" -if /tmp/wipe-totp-zero ||
-		die "Unable to wipe sealed secret"
+		die "Unable to wipe sealed secret from TPM NVRAM"
 }
 
 # tpm2_seal: Seal a file against PCR values and, optionally, a password.
@@ -470,10 +470,10 @@ tpm2_seal() {
 		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
 		-c "$SECRET_DIR/$bname.seal.ctx" "$handle" ||
 		{
-			DEBUG "Failed to write sealed secret to NVRAM from tpm2_seal with current tpm owner password. Wiping tpm_owner_password"
+			DEBUG "Failed to write sealed secret to NVRAM from tpm2_seal. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
 			:
-			die "Unable to write sealed secret to NVRAM from tpm2_seal"
+			die "Unable to write sealed secret to TPM NVRAM"
 		}
 }
 tpm1_seal() {
@@ -531,10 +531,10 @@ tpm1_seal() {
 
 		tpm nv_writevalue -in "$index" -if "$sealed_file" ||
 			{
-				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal with current tpm owner password. Wiping tpm_owner_password"
+				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_password"
 				shred -n 10 -z -u /tmp/secret/tpm_owner_password
 				:
-				die "Unable to write sealed secret to NVRAM from tpm1_seal"
+				die "Unable to write sealed secret to TPM NVRAM"
 			}
 	fi
 }
@@ -563,7 +563,7 @@ tpm2_unseal() {
 	# can't do anything without a primary handle.
 	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
 		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
-		warn "No TPM primary handle. You must reset TPM to seal secret"
+		warn "No TPM primary handle. You must reset TPM to seal secret to TPM NVRAM"
 		exit 1
 	fi
 
