@@ -194,7 +194,7 @@ list_usb_storage() {
 # line, since some flows need it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE "Under /etc/functions:prompt_tpm_owner_password"
-	
+
 	if [ -s /tmp/secret/tpm_owner_password ]; then
 		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
 		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
@@ -253,7 +253,15 @@ check_tpm_counter() {
 			-pwdc '' \
 			-la $LABEL |
 			tee /tmp/counter ||
-			die "Unable to create TPM counter"
+			{
+				DEBUG "Failed to create TPM counter. Shredding TPM owner password"
+				#TODO: refactor tpmr to wipe tpm_owner_password when invalid
+				# As of today, the callers are responsible to wipe it
+				# prompt_tpm_owner_password caches the password until externally invalidated
+				shred -n 10 -z -u /tmp/secret/tpm_owner_password
+				:
+				die "Unable to create TPM counter" 2>/dev/null
+			}
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
 
