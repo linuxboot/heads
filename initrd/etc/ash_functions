@@ -227,7 +227,7 @@ recovery() {
 	. /tmp/config
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		echo " !!!!! Extending TPM PCR 4 for recovery shell access !!!!!"
+		DEBUG "Extending TPM PCR 4 for recovery shell access"
 		tpmr extend -ix 4 -ic recovery
 	fi
 
