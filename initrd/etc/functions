@@ -250,22 +250,11 @@ check_tpm_counter() {
 		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
 		warn "$1 does not exist; creating new TPM counter"
-		prompt_tpm_owner_password
 		tpmr counter_create \
-			-pwdo "$tpm_password" \
 			-pwdc '' \
 			-la $LABEL |
 			tee /tmp/counter ||
-			{
-				DEBUG "Failed to create TPM counter. Shredding TPM Owner Password"
-				#tpm2 counter_cre wipes the cached tpm owner password if invalid.
-				#tpm1 calls counter_create directly and does not wipe the cached password.
-				# This is a workaround to make the two calls behave the same in case we need to create a new counter.
-				# I am not able to get here in my tests: the cached password should be able to create a counter at this point.
-				#TODO: unify the two calls further and delete the next shred call.
-				shred -n 10 -z -u /tmp/secret/tpm_owner_password
 				die "Unable to create TPM counter"
-			}
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
 

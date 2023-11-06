@@ -603,7 +603,6 @@ generate_checksums() {
     if [ "$CONFIG_TPM" = "y" ]; then
         if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
             tpmr counter_create \
-                -pwdo "$TPM_PASS" \
                 -pwdc '' \
                 -la -3135106223 |
                 tee /tmp/counter ||

@@ -290,18 +290,23 @@ tpm2_counter_inc() {
 	echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
 }
 
-tpm2_counter_cre() {
-	TRACE "Under /bin/tpmr:tpm2_counter_cre"
+tpm1_counter_create() {
+	TRACE "Under /bin/tpmr:tpm1_counter_create"
+	# tpmr handles the TPM owner password (from cache or prompt), but all
+	# other parameters for TPM1 are passed directly, and TPM2 mimics the
+	# TPM1 interface.
+	prompt_tpm_owner_password
+	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@"; then
+		DEBUG "Failed to create counter from tpm1_counter_create. Wiping /tmp/secret/tpm_owner_password"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_password
+		die "Unable to create counter from tpm1_counter_create"
+	fi
+}
+
+tpm2_counter_create() {
+	TRACE "Under /bin/tpmr:tpm2_counter_create"
 	while true; do
 		case "$1" in
-		-pwdo)
-			pwdo="$2"
-			shift 2
-			;;
-		-pwdof)
-			pwdo="file:$2"
-			shift 2
-			;;
 		-pwdc)
 			pwd="$2"
 			shift 2
@@ -315,13 +320,14 @@ tpm2_counter_cre() {
 			;;
 		esac
 	done
+	prompt_tpm_owner_password
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 | xxd -pc3)"
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$pwdo")" "0x$rand_index" >/dev/console ||
+		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/console ||
 		{
-			DEBUG "Failed to create counter from tpm2_counter_cre. Wiping /tmp/secret/tpm_owner_password"
+			DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
-			die "Unable to create counter from tpm2_counter_cre"
+			die "Unable to create counter from tpm2_counter_create"
 		}
 	echo "$rand_index: (valid after an increment)"
 }
@@ -742,6 +748,10 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		replay_pcr "sha1" "$@"
 		;;
+	counter_create)
+		shift
+		tpm1_counter_create "$@"
+		;;
 	destroy)
 		shift
 		tpm1_destroy "$@"
@@ -793,7 +803,7 @@ counter_increment)
 	tpm2_counter_inc "$@"
 	;;
 counter_create)
-	tpm2_counter_cre "$@"
+	tpm2_counter_create "$@"
 	;;
 destroy)
 	tpm2_destroy "$@"
