@@ -137,10 +137,7 @@ tpmr pcrread -a 7 "$pcrf"
 
 DO_WITH_DEBUG --mask-position 7 \
 	tpmr seal "$KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
-	"$TPM_SIZE" "$key_password" || {
-	shred -n 10 -z -u /tmp/secret/tpm_owner_password 2>/dev/null
-	die "Unable to write TPM Disk Unlock Key to NVRAM"
-}
+	"$TPM_SIZE" "$key_password" || die "Unable to write TPM Disk Unlock Key to NVRAM"
 
 # should be okay if this fails
 shred -n 10 -z -u "$pcrf" 2>/dev/null ||
