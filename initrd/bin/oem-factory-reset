@@ -848,11 +848,9 @@ usb_security_token_capabilities_check
 # Clear the screen
 clear
 
-use_defaults=y
-if [ "$CONFIG_OEMRESET_OFFER_DEFAULTS" = y -o "$use_defaults" = y ]; then
-    echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
-    read -n 1 use_defaults
-fi
+#Prompt user for use of default configuration options
+echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
+read -n 1 use_defaults
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     #Give general guidance to user on how to answer prompts
