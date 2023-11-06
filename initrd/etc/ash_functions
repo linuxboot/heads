@@ -96,9 +96,12 @@ confirm_gpg_card() {
 
 			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
 			echo
-			#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
-			read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
-			echo
+			gpg_admin_pin=""
+			while [ -z "$gpg_admin_pin" ]; do
+				#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
+				read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+				echo
+			done
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
 			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
 			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with provided GPG Admin PIN"
@@ -154,7 +157,7 @@ gpg_auth() {
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]]; then
 		TRACE "Under /etc/ash_functions:gpg_auth"
 		# If we have a GPG key backup, we can use it to authenticate even if the card is lost
-		echo >&2 "!!!!! Please authenticate with OpenPGP card/backup media to prove you are the owner of this machine !!!!!"
+		echo >&2 "!!!!! Please authenticate with OpenPGP smartcard/backup media to prove you are the owner of this machine !!!!!"
 
 		# Wipe any existing nonce and signature
 		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
