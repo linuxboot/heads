@@ -919,7 +919,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
     fi
     if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" ]; then
-        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same a GPG Admin PIN)\n"
+        CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
     fi
     CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
     # Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY variable is empty/not existing or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is set to 1
