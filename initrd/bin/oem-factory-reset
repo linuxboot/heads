@@ -28,6 +28,8 @@ TPM_PASS_DEF=12345678
 USER_PIN=""
 ADMIN_PIN=""
 TPM_PASS=""
+GPG_GEN_KEY_IN_MEMORY="n"
+GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 
 #Circumvent Librem Key/Nitrokey HOTP firmware bug https://github.com/osresearch/heads/issues/1167
 MAX_HOTP_GPG_PIN_LENGTH=25
@@ -641,14 +643,14 @@ generate_checksums() {
     [ -z "$param_files" ] &&
         whiptail_error_die "No kexec parameter files to sign"
 
-    if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" -a "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "0" ]; then
-        #The local keyring is still valid since no key has been moved to smartcard
-        #Local keyring passwd is ADMIN_PIN. We need to set USER_PIN to ADMIN_PIN
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" -a "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "n" ]; then
+        #The local keyring used to generate in memory subkeys is still valid since no key has been moved to smartcard
+        #Local keyring passwd is ADMIN_PIN. We need to set USER_PIN to ADMIN_PIN to be able to sign next in this boot session
         DEBUG "Setting GPG User PIN to GPG Admin PIN so local keyring can be used to detach-sign kexec files next"
         USER_PIN=$ADMIN_PIN
     fi
 
-    DEBUG "Detach-signing boot files under kexec.sig: $param_files"
+    DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
     if sha256sum $param_files 2>/dev/null | gpg \
         --pinentry-mode loopback \
         --passphrase "${USER_PIN}" \
@@ -841,9 +843,6 @@ mount_boot
 # We show current integrity measurements status and time
 report_integrity_measurements
 
-# Determine gpg algorithm to be used, based on available usb-token
-usb_security_token_capabilities_check
-
 # Clear the screen
 clear
 
@@ -888,7 +887,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     if [ "$prompt_output" == "y" \
         -o "$prompt_output" == "Y" ] \
         ; then
-        GPG_GEN_KEY_IN_MEMORY=1
+        GPG_GEN_KEY_IN_MEMORY="y"
         echo " ++++ Master key and subkeys will be generated in memory, backed up to dedicated LUKS container +++"
         echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security Dongle's smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
         read -n 1 prompt_output
@@ -897,15 +896,16 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             -o "$prompt_output" == "N" ]; then
             warn "Subkeys will NOT be copied to USB Security Dongle's smartcard"
             warn "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environements"
-            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
+            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
         else
             echo "++++ Subkeys will be copied to USB Security Dongle's smartcard ++++"
             warn "Please keep your GPG key material backup thumb drive safe"
-            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
+            GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="y"
         fi
     else
         echo "GPG key material will be generated on USB Security Dongle's smartcard without backup"
-        GPG_GEN_KEY_IN_MEMORY=0
+        GPG_GEN_KEY_IN_MEMORY="n"
+        GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
     fi
 
     # Dynamic messages to be given to user in terms of security components that will be applied
@@ -918,12 +918,12 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     if [ "$CONFIG_TPM" = "y" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
     fi
-    if [ "$GPG_GEN_KEY_IN_MEMORY" = "1" ]; then
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
     fi
     CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
-    # Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY variable is empty/not existing or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is set to 1
-    if [ -z "$GPG_GEN_KEY_IN_MEMORY" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+    # Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY not requested or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
         CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG User PIN\n"
     fi
 
@@ -972,10 +972,10 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
                 echo -e -n "Enter desired GPG Admin PIN: "
                 read ADMIN_PIN
             done
-            #USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY=1 while GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=0
+            #USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY not requested of if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
             # That is, if keys were NOT generated in memory (on smartcard only) or
             #  if keys were generated in memory but are to be moved from local keyring to smartcard
-            if [ "$GPG_GEN_KEY_IN_MEMORY" = "0" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+            if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
                 while [[ ${#USER_PIN} -lt 8 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
                     echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
                     echo -e -n "Enter desired GPG User PIN: "
@@ -1040,7 +1040,7 @@ if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=${ADMIN_PIN_DEF}; fi
 
 ## sanity check the USB, GPG key, and boot device before proceeding further
 
-if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
     # Prompt to insert USB drive if desired
     echo -e -n "\nWould you like to export your public key to an USB drive? [y/N]: "
     read -n 1 prompt_output
@@ -1070,8 +1070,8 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
     fi
 fi
 
-# ensure USB Security Dongle connected if GPG_GEN_KEY_IN_MEMORY=0
-if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
+# ensure USB Security Dongle connected if GPG_GEN_KEY_IN_MEMORY=n or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=y
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
     echo -e "\nChecking for USB Security Dongle...\n"
     enable_usb
     if ! gpg --card-status >/dev/null 2>&1; then
@@ -1081,6 +1081,9 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "0" ]; then
             whiptail_error_die "Unable to detect USB Security Dongle:\n\n${ERROR}"
         fi
     fi
+
+    #Now that USB Security Dongle is detected, we can check its capabilities and limitations
+    usb_security_token_capabilities_check
 fi
 
 assert_signable
@@ -1135,7 +1138,7 @@ rm /.gnupg/*.kbx 2>/dev/null
 gpg --list-keys >/dev/null 2>&1
 
 #Generate keys in memory and copy to smartcard
-if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
     if [ "$GPG_ALGO" == "RSA" ]; then
         # Generate GPG master key
         generate_inmemory_RSA_master_and_subkeys
@@ -1146,7 +1149,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
     fi
     wipe_thumb_drive_and_copy_gpg_key_material
     set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
-    if [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" == "1" ]; then
+    if [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
         keytocard_subkeys_to_smartcard
     fi
 else
@@ -1168,7 +1171,7 @@ if ! gpg --export --armor "$GPG_GEN_KEY" >"${PUBKEY}" 2>/tmp/error; then
 fi
 
 #Applying custom GPG PINs to the smartcard if they were provided
-if [ -z "GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
     #Only apply smartcard PIN change if smartcard only or if keytocard op is expected next
     if [ "${USER_PIN}" != "" -o "${ADMIN_PIN}" != "" ]; then
         echo -e "\nChanging default GPG Admin PIN\n"
@@ -1274,13 +1277,13 @@ fi
 
 #GPG PINs output
 passphrases+="GPG Admin PIN: ${ADMIN_PIN}\n"
-#USER PIN was configured if GPG_GEN_KEY_IN_MEMORY is not defined or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=1
-if [ -z "$GPG_GEN_KEY_IN_MEMORY" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "1" ]; then
+#USER PIN was configured if GPG_GEN_KEY_IN_MEMORY is not active or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is active
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
     passphrases+="GPG User PIN: ${USER_PIN}\n"
 fi
 
 #If user decided to generate keys in memory, we add the thumb drive passphrase
-if [ "$GPG_GEN_KEY_IN_MEMORY" == "1" ]; then
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
     passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
 
