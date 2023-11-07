@@ -115,7 +115,7 @@ confirm_gpg_card() {
 				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
 			#verify detached signature against public key in rom
 			gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 && \
-        echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++"  || \
+        			echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++"  || \
 			 	die "Unable to verify $CR_SIG detached signature against public key in ROM"
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
