@@ -326,12 +326,6 @@ prompt_insert_to_be_wiped_thumb_drive() {
         die "Error displaying warning about having only desired to be wiped thumb drive inserted"
 }
 
-#list blkid devices (removing partition numbers)
-list_blkid_devices() {
-    TRACE "Under oem-factory-reset:list_blkid_devices"
-    blkid | cut -d: -f1 | sed 's/[0-9]$//'
-}
-
 #export master key and subkeys to thumbdrive's private LUKS contained partition
 export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
     TRACE "Under oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container"
@@ -422,16 +416,59 @@ export_public_key_to_thumbdrive_public_partition() {
 wipe_thumb_drive_and_copy_gpg_key_material() {
     TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material"
     prompt_disconnect_external_USB_storage_device
-    actual_devices=$(list_blkid_devices)
     #enable usb storage
     enable_usb
     enable_usb_storage
-    prompt_insert_to_be_wiped_thumb_drive
-    new_devices=$(list_blkid_devices)
-    thumb_drive=$(echo "$new_devices" | grep -v "$actual_devices" | uniq)
-    if [ -z "$thumb_drive" ]; then
-        whiptail_error_die "No new thumb drive detected! Aborting."
-    fi
+
+    #loop until user chooses a disk
+    thumb_drive=""
+    while [ -z "$thumb_drive" ]; do
+        prompt_insert_to_be_wiped_thumb_drive
+        #list usb storage devices
+        list_usb_storage disks >/tmp/usb_disk_list
+        if [ $(cat /tmp/usb_disk_list | wc -l) -gt 0 ]; then
+            file_selector "/tmp/usb_disk_list" "Select USB device to partition"
+            if [ "$FILE" == "" ]; then
+                #No USB storage device selected
+                warn "No USB storage device selected!"
+            else
+                # Obtain size of thumb drive to be wiped with fdisk
+                disk_size_bytes="$(blockdev --getsize64 "$FILE")"
+                #Convert disk size to GB
+                thumb_drive_size_mb=$((disk_size_bytes / 1024 / 1024))
+                thumb_drive_size_gb=$((thumb_drive_size_mb / 1024 ))
+                
+                #if thumb_drive_size_gb is 0, then disk size is less than 1GB
+                thumb_drive_size_message=""
+                if [ "$thumb_drive_size_gb" -eq 0 ]; then
+                    thumb_drive_size_message="$thumb_drive_size_mb MB"
+                    if [ "$thumb_drive_size_mb" -lt 128 ]; then
+                        warn "Thumb drive size is less than 128MB!"
+                        warn "LUKS container needs to be at least 8mb!"
+                        warn "If the next operation fails, try with a bigger thumb drive"
+                    fi
+                else
+                    thumb_drive_size_message="$thumb_drive_size_gb GB"
+                fi
+                
+                # confirm with user size of thumb drive to be wiped
+                whiptail --title "Confirm thumb drive to be wiped" --yesno "Are you sure you want to wipe the following thumb drive?\n\n$FILE\n\nSize: $thumb_drive_size_message" 0 0
+                if [ $? -ne 0 ]; then
+                    warn "Thumb drive wipe aborted by user!"
+                    continue
+                fi
+
+                #User chose and confirmed a thumb drive and its size to be wiped
+                thumb_drive=$FILE
+            fi
+        else
+            #No USB storage device detected
+            warn "No USB storage device detected! Aborting OEM Factory Reset / Re-Ownership"
+            sleep 3
+            die "No USB storage device detected! User decided to not wipe any thumb drive"
+        fi
+    done
+
     select_luks_container_size_percent
     #Wipe thumb drive with a LUKS container of size $(cat /tmp/luks_container_size_percent)
     prepare_thumb_drive --device "$thumb_drive" --percentage "$(cat /tmp/luks_container_size_percent)" --pass "${ADMIN_PIN}"
