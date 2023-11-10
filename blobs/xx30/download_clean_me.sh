@@ -4,53 +4,49 @@ function printusage {
   echo "Usage: $0 -m <me_cleaner>(optional)"
 }
 
-BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ME_BIN_HASH="c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4"
 
-if [ "$#" -eq 0 ]; then printusage; fi
-
-while getopts ":m:" opt; do
-  case $opt in
-    m)
-      if [ -x "$OPTARG" ]; then
-        MECLEAN="$OPTARG"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        if [[ -z "${COREBOOT_DIR}" ]]; then
+            echo "ERROR: No COREBOOT_DIR variable defined."
+            exit 1
       fi
-      ;;
-  esac
-done
 
-FINAL_ME_BIN_SHA256SUM="c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  $BLOBDIR/me.bin"
-ME_EXE_SHA256SUM="f60e1990e2da2b7efa58a645502d22d50afd97b53a092781beee9b0322b61153  g1rg24ww.exe"
-ME8_5M_PRODUCTION_SHA256SUM="821c6fa16e62e15bc902ce2e958ffb61f63349a471685bed0dc78ce721a01bfa  app/ME8_5M_Production.bin"
+        output_dir="$(realpath "${1:-./}")"
 
+        if [[ ! -f "${output_dir}/me.bin" ]]; then
+            # Unpack Lenovo's Windows installer into a temporary directory and
+            # extract the Intel ME blob.
+            pushd "$(mktemp -d)"
 
-if [ -z "$MECLEAN" ]; then
-  MECLEAN=`command -v $BLOBDIR/../../build/x86/coreboot-*/util/me_cleaner/me_cleaner.py 2>&1|head -n1`
-  if [ -z "$MECLEAN" ]; then
-    echo "me_cleaner.py required but not found or specified with -m. Aborting."
-    exit 1;
-  fi
+            curl -O https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe
+            innoextract g1rg24ww.exe
+
+            mv app/ME8_5M_Production.bin "${COREBOOT_DIR}/util/me_cleaner"
+
+            popd
+
+            # Neutralize and shrink Intel ME. Note that this doesn't include
+            # --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
+            # High Assurance Program) bits, as they are defined within the Flash
+            # Descriptor.
+            # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+            pushd "${COREBOOT_DIR}/util/me_cleaner"
+
+            python me_cleaner.py -r -t -O me_shrinked.bin ME8_5M_Production.bin
+
+            mv me_shrinked.bin "${output_dir}/me.bin"
+            #rm ./*.bin
+
+            popd
+        fi
+
+        if ! echo "${ME_BIN_HASH} ${output_dir}/me.bin" | sha256sum --check; then
+            echo "ERROR: SHA256 checksum for me.bin doesn't match."
+            exit 1
+        fi
+    fi
 fi
-
-echo "### Creating temp dir"
-extractdir=$(mktemp -d)
-cd "$extractdir"
-
-echo "### Downloading https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe..."
-wget  https://download.lenovo.com/pccbbs/mobiles/g1rg24ww.exe || { echo "ERROR: wget not found" && exit 1; }
-echo "### Verifying expected hash of g1rg24ww.exe"
-echo "$ME_EXE_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on downloaded binary..." && exit 1; }
-
-echo "### Extracting g1rg24ww.exe..."
-innoextract ./g1rg24ww.exe || { echo "Failed calling innoextract. Tool installed on host?" && exit 1;}
-echo "### Verifying expected hash of app/ME8_5M_Production.bin"
-echo "$ME8_5M_PRODUCTION_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on extracted binary..." && exit 1; }
-
-echo "###Applying me_cleaner to neuter+deactivate+maximize reduction of ME on $bioscopy, outputting minimized ME under $BLOBDIR/me.bin... "
-$MECLEAN -r -t -O "$BLOBDIR/me.bin" app/ME8_5M_Production.bin
-echo "### Verifying expected hash of me.bin"
-echo "$FINAL_ME_BIN_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on final binary..." && exit 1; }
-
-
-echo "###Cleaning up..."
-cd - 
-rm -r "$extractdir"
