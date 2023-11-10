@@ -93,6 +93,14 @@ coreboot-nitrokey_patch_version := clevo_release
 #We use clevo_release's crossgcc for now, unshared but between nitropad nv41/ns50
 $(eval $(call coreboot_module,nitrokey,))
 
+#x230 fhd based on main to be 4.22
+# with patches under x230fhd
+coreboot-pre422_repo := https://github.com/coreboot/coreboot
+coreboot-pre422_commit_hash := 42f1fef5a620e98e7ece6a60744992265cc409d7
+coreboot-pre422_patch_version := x230fhd
+#We use clevo_release's crossgcc for now, unshared but between nitropad nv41/ns50
+$(eval $(call coreboot_module,pre422,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
