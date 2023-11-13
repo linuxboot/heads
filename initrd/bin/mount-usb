@@ -184,7 +184,7 @@ if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
     || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
   fi
 
-  warn "Note that you cannot boot from a mounted encrypted device."
+  warn "Note that you cannot boot from a mounted encrypted device"
   DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
   USB_MOUNT_DEVICE="/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
 else

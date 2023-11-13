@@ -49,6 +49,7 @@ if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
 fi
 
 # Override PCR 4 so that user can't read the key
+DEBUG "Extending TPM PCR 4 to prevent further secret unsealing"
 tpmr extend -ix 4 -ic generic ||
 	die 'Unable to scramble PCR'
 
@@ -92,7 +93,6 @@ if [ "$unseal_failed" = "n" ]; then
 		done
 	else
 		# No crypttab files were found under selected default boot option's initrd file
-		# TODO: cpio -t is unfit here :( it just extracts early cpio header and not the whole file. Replace with something else
 		#  Meanwhile, force crypttab to be created from scratch on both possible locations: /etc/crypttab and /cryptroot/crypttab
 		crypttab_files="etc/crypttab cryptroot/crypttab"
 		for crypttab_file in $crypttab_files; do

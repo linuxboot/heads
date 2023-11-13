@@ -25,10 +25,10 @@ dd \
 	of="$TOTP_SECRET" \
 	count=1 \
 	bs=20 \
-	2>/dev/null \
-|| die "Unable to generate 20 random bytes"
+	2>/dev/null ||
+	die "Unable to generate 20 random bytes"
 
-secret="`base32 < $TOTP_SECRET`"
+secret="$(base32 <$TOTP_SECRET)"
 pcrf="/tmp/secret/pcrf.bin"
 DEBUG "Sealing TOTP with actual state of PCR0-3"
 tpmr pcrread 0 "$pcrf"
@@ -36,20 +36,22 @@ tpmr pcrread -a 1 "$pcrf"
 tpmr pcrread -a 2 "$pcrf"
 tpmr pcrread -a 3 "$pcrf"
 DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR4)"
-# pcr 4 is expected to either: 
+# pcr 4 is expected to either:
 #  zero on bare coreboot+linuxboot on x86 (boot mode: init)
 #  already extended on ppc64 per BOOTKERNEL (skiboot) which boots heads.
 # Read from event log to catch both cases, even when called from recovery shell.
-tpmr calcfuturepcr 4 >> "$pcrf"
+tpmr calcfuturepcr 4 >>"$pcrf"
 # pcr 5 (kernel modules loaded) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modules are not firmware integrity attestation related)"
-# pcr 6 (drive luks header) is not measured at sealing/unsealing of totp
+# pcr 6 (drive LUKS header) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not firmware integrity attestation related)"
 # pcr 7 is containing measurements of user injected stuff in cbfs
 tpmr pcrread -a 7 "$pcrf"
-tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" \
-	|| die "Unable to write sealed secret to NVRAM"
-shred -n 10 -z -u "$TOTP_SEALED" 2> /dev/null
+#Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
+tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
+	die "Unable to write sealed secret to NVRAM from seal-totp"
+#Make sure we clear TPM TOTP sealed if we succeed to seal TOTP
+shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 
 url="otpauth://totp/$HOST?secret=$secret"
 secret=""
