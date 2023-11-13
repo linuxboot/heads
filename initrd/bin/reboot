@@ -3,14 +3,23 @@
 
 TRACE "Under /bin/reboot"
 
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then 
+	#Generalize user prompt to continue reboot or go to recovery shell 
+	read -r -n 1 -s -p "Press any key to continue reboot or 'r' to go to recovery shell: " REPLY 
+	echo 
+	if [ "$REPLY" = "r" ] || [ "$REPLY" = "R" ]; then 
+		recovery "Reboot call bypassed to go into recovery shell to debug"
+	fi 
+fi
+
 # Shut down TPM
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr shutdown
 fi
 
 # Run special EC-based poweroff for Nitropad-Nxx
-if [ "${CONFIG_BOARD%_*}" = nitropad-nv41 || "${CONFIG_BOARD%_*}" = nitropad-ns51 ]; then
-	/bin/nitropad-shutdown.sh
+if [ "${CONFIG_BOARD%_*}" = nitropad-nv41 ] || [ "${CONFIG_BOARD%_*}" = nitropad-ns51 ]; then
+    /bin/nitropad-shutdown.sh
 fi
 
 # Sync all mounted filesystems

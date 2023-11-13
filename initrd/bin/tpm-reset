@@ -7,4 +7,4 @@ echo '*****'
 
 prompt_new_owner_password
 
-tpmr reset "$key_password"
+tpmr reset "$tpm_owner_password"
