@@ -434,11 +434,10 @@ select_thumb_drive_for_key_material() {
                 warn "If the next operation fails, try with a bigger thumb drive"
             fi
 
-            thumb_drive_size_message="$(display_size "$disk_size_bytes")"
-            # confirm with user size of thumb drive to be wiped
-            whiptail --title "Confirm thumb drive to be wiped" --yesno \
-                "Are you sure you want to wipe the following thumb drive?\n\n$FILE\n\nSize: $thumb_drive_size_message" 0 0
-            if [ $? -ne 0 ]; then
+            select_luks_container_size_percent
+            thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
+
+            if ! confirm_thumb_drive_format "$FILE" "$thumb_drive_luks_percent"; then
                 warn "Thumb drive wipe aborted by user!"
                 continue
             fi
@@ -452,8 +451,6 @@ select_thumb_drive_for_key_material() {
             die "No USB storage device detected! User decided to not wipe any thumb drive"
         fi
     done
-
-    select_luks_container_size_percent
     thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
 }
 
@@ -468,7 +465,7 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
     thumb_drive_luks_percent="$2"
 
     #Wipe thumb drive with a LUKS container of size $(cat /tmp/luks_container_size_percent)
-    prepare_thumb_drive --device "$thumb_drive" --percentage "$thumb_drive_luks_percent" --pass "${ADMIN_PIN}"
+    prepare_thumb_drive "$thumb_drive" "$thumb_drive_luks_percent" "${ADMIN_PIN}"
     #Export master key and subkeys to thumb drive first partition
     export_master_key_subkeys_and_revocation_key_to_private_LUKS_container --mode rw --device "$thumb_drive"1 --mountpoint /media --pass "${ADMIN_PIN}"
     #Export public key to thumb drive's public partition
