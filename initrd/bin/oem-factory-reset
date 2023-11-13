@@ -307,22 +307,12 @@ keytocard_subkeys_to_smartcard() {
     TRACE "oem-factory-reset:keytocard_subkeys_to_smartcard done"
 }
 
-#Whiptail prompt to disconnect any external USB storage device
-prompt_disconnect_external_USB_storage_device() {
-    TRACE "Under oem-factory-reset:disconnect_external_USB_storage_device"
-    #Whiptail $BG_COLOR_WARNING warning about removing any external USB storage device currently connected
-    whiptail $BG_COLOR_WARNING --title 'WARNING: Please disconnect any external USB storage device' \
-        --msgbox "An external USB storage device will be WIPED next.\n\nPlease disconnect all external USB storage devices." 0 80 ||
-        die "Error displaying warning about removing any external USB storage device currently connected"
-
-}
-
 #Whiptail prompt to insert to be wiped thumb drive
 prompt_insert_to_be_wiped_thumb_drive() {
     TRACE "Under oem-factory-reset:prompt_insert_to_be_wiped_thumb_drive"
     #Whiptail warning about having only desired to be wiped thumb drive inserted
     whiptail $BG_COLOR_WARNING --title 'WARNING: Please insert the thumb drive to be wiped' \
-        --msgbox "The thumb drive will be WIPED next.\n\nPlease have connected only the thumb drive to be wiped." 0 80 ||
+        --msgbox "The thumb drive will be WIPED next.\n\nPlease connect only the thumb drive to be wiped and disconnect others." 0 80 ||
         die "Error displaying warning about having only desired to be wiped thumb drive inserted"
 }
 
@@ -412,10 +402,13 @@ export_public_key_to_thumbdrive_public_partition() {
     TRACE "oem-factory-reset:export_public_key_to_thumbdrive_public_partition done"
 }
 
-#Wipe a thumb drive and export master key and subkeys to it
-wipe_thumb_drive_and_copy_gpg_key_material() {
+# Select thumb drive and LUKS container size for GPG key export
+# Sets variables containing selections:
+# - thumb_drive
+# - thumb_drive_luks_percent
+select_thumb_drive_for_key_material() {
     TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material"
-    prompt_disconnect_external_USB_storage_device
+
     #enable usb storage
     enable_usb
     enable_usb_storage
@@ -426,41 +419,32 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
         prompt_insert_to_be_wiped_thumb_drive
         #list usb storage devices
         list_usb_storage disks >/tmp/usb_disk_list
-        if [ $(cat /tmp/usb_disk_list | wc -l) -gt 0 ]; then
-            file_selector "/tmp/usb_disk_list" "Select USB device to partition"
-            if [ "$FILE" == "" ]; then
-                #No USB storage device selected
-                warn "No USB storage device selected!"
-            else
-                # Obtain size of thumb drive to be wiped with fdisk
-                disk_size_bytes="$(blockdev --getsize64 "$FILE")"
-                #Convert disk size to GB
-                thumb_drive_size_mb=$((disk_size_bytes / 1024 / 1024))
-                thumb_drive_size_gb=$((thumb_drive_size_mb / 1024 ))
-                
-                #if thumb_drive_size_gb is 0, then disk size is less than 1GB
-                thumb_drive_size_message=""
-                if [ "$thumb_drive_size_gb" -eq 0 ]; then
-                    thumb_drive_size_message="$thumb_drive_size_mb MB"
-                    if [ "$thumb_drive_size_mb" -lt 128 ]; then
-                        warn "Thumb drive size is less than 128MB!"
-                        warn "LUKS container needs to be at least 8mb!"
-                        warn "If the next operation fails, try with a bigger thumb drive"
-                    fi
-                else
-                    thumb_drive_size_message="$thumb_drive_size_gb GB"
-                fi
-                
-                # confirm with user size of thumb drive to be wiped
-                whiptail --title "Confirm thumb drive to be wiped" --yesno "Are you sure you want to wipe the following thumb drive?\n\n$FILE\n\nSize: $thumb_drive_size_message" 0 0
-                if [ $? -ne 0 ]; then
-                    warn "Thumb drive wipe aborted by user!"
-                    continue
-                fi
-
-                #User chose and confirmed a thumb drive and its size to be wiped
-                thumb_drive=$FILE
+        # Abort if:
+        # - no disks found (prevent file_selector's nonsense prompt)
+        # - file_selector fails for any reason
+        # - user aborts (file_selector succeeds but FILE is empty)
+        if [ $(cat /tmp/usb_disk_list | wc -l) -gt 0 ] &&
+            file_selector --show-size "/tmp/usb_disk_list" "Select USB device to partition" &&
+            [ -n "$FILE" ]; then
+            # Obtain size of thumb drive to be wiped with fdisk
+            disk_size_bytes="$(blockdev --getsize64 "$FILE")"
+            if [ "$disk_size_bytes" -lt "$((128*1024*1024))" ]; then
+                warn "Thumb drive size is less than 128MB!"
+                warn "LUKS container needs to be at least 8MB!"
+                warn "If the next operation fails, try with a bigger thumb drive"
             fi
+
+            thumb_drive_size_message="$(display_size "$disk_size_bytes")"
+            # confirm with user size of thumb drive to be wiped
+            whiptail --title "Confirm thumb drive to be wiped" --yesno \
+                "Are you sure you want to wipe the following thumb drive?\n\n$FILE\n\nSize: $thumb_drive_size_message" 0 0
+            if [ $? -ne 0 ]; then
+                warn "Thumb drive wipe aborted by user!"
+                continue
+            fi
+
+            #User chose and confirmed a thumb drive and its size to be wiped
+            thumb_drive=$FILE
         else
             #No USB storage device detected
             warn "No USB storage device detected! Aborting OEM Factory Reset / Re-Ownership"
@@ -470,8 +454,21 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
     done
 
     select_luks_container_size_percent
+    thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
+}
+
+#Wipe a thumb drive and export master key and subkeys to it
+# $1 - thumb drive block device
+# $2 - LUKS container percentage [1-99]
+wipe_thumb_drive_and_copy_gpg_key_material() {
+    TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material"
+
+    local thumb_drive thumb_drive_luks_percent
+    thumb_drive="$1"
+    thumb_drive_luks_percent="$2"
+
     #Wipe thumb drive with a LUKS container of size $(cat /tmp/luks_container_size_percent)
-    prepare_thumb_drive --device "$thumb_drive" --percentage "$(cat /tmp/luks_container_size_percent)" --pass "${ADMIN_PIN}"
+    prepare_thumb_drive --device "$thumb_drive" --percentage "$thumb_drive_luks_percent" --pass "${ADMIN_PIN}"
     #Export master key and subkeys to thumb drive first partition
     export_master_key_subkeys_and_revocation_key_to_private_LUKS_container --mode rw --device "$thumb_drive"1 --mountpoint /media --pass "${ADMIN_PIN}"
     #Export public key to thumb drive's public partition
@@ -1068,6 +1065,10 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             }
         done
     fi
+
+    if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
+        select_thumb_drive_for_key_material
+    fi
 fi
 
 # If nothing is stored in custom variables, we set them to their defaults
@@ -1184,7 +1185,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
     else
         die "Unsupported GPG_ALGO: $GPG_ALGO"
     fi
-    wipe_thumb_drive_and_copy_gpg_key_material
+    wipe_thumb_drive_and_copy_gpg_key_material "$thumb_drive" "$thumb_drive_luks_percent"
     set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
     if [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
         keytocard_subkeys_to_smartcard
