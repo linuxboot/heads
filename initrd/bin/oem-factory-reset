@@ -413,10 +413,11 @@ select_thumb_drive_for_key_material() {
     enable_usb
     enable_usb_storage
 
+    prompt_insert_to_be_wiped_thumb_drive
+
     #loop until user chooses a disk
     thumb_drive=""
     while [ -z "$thumb_drive" ]; do
-        prompt_insert_to_be_wiped_thumb_drive
         #list usb storage devices
         list_usb_storage disks >/tmp/usb_disk_list
         # Abort if:
