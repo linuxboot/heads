@@ -51,11 +51,12 @@ select_luks_container_size_percent() {
 	fi
 }
 
-#Partition a device with two partitions: a first one being a LUKS container containing private ext4 partition and second public exfat partition
+# Partition a device interactively with two partitions: a LUKS container
+# containing private ext4 partition and second public exFAT partition
 # Size provisioning is done by percentage of the device
-prepare_thumb_drive()
+interactive_prepare_thumb_drive()
 {
-	TRACE "Under /etc/luks-functions:prepare_thumb_drive()"
+	TRACE "Under /etc/luks-functions:interactive_prepare_thumb_drive()"
 	#Refactoring: only one parameter needed to be prompted for: the passphrase for LUKS container if not coming from oem-provisioning
 	#If no passphrase was provided, ask user to select passphrase for LUKS container
 	# if no device provided as parameter, we will ask user to select device to partition
@@ -84,6 +85,7 @@ prepare_thumb_drive()
 				;;
 			*)
 				echo "usage: prepare_thumb_drive [--device device] [--percentage percentage] [--pass passphrase]"
+				return 1
 				;;
 		esac
 	done
@@ -171,31 +173,76 @@ prepare_thumb_drive()
 		PERCENTAGE=$(cat /tmp/luks_container_size_percent)
 	fi
 
+	confirm_thumb_drive_format "$DEVICE" "$PERCENTAGE" ||
+		die "User cancelled wiping and repartitioning of $DEVICE"
 
-	#Get disk size in bytes from fdisk
+	prepare_thumb_drive "$DEVICE" "$PERCENTAGE" "$PASSPHRASE"
+}
+
+# Show a prompt to confirm formatting a flash drive with a percentage allocated
+# to LUKS.  interactive_prepare_thumb_drive() uses this; during OEM reset it is
+# used separately before performing any reset actions
+#
+# parameters:
+# $1 - block device of flash drive
+# $2 - percent of device allocated to LUKS [1-99]
+confirm_thumb_drive_format()
+{
+	TRACE "Under /etc/luks-functions:confirm_thumb_drive_format()"
+	local DEVICE LUKS_PERCENTAGE DISK_SIZE_BYTES DISK_SIZE_DISPLAY LUKS_PERCENTAGE LUKS_SIZE_MB MSG
+
+	DEVICE="$1"
+	LUKS_PERCENTAGE="$2"
+
+	LUKS_SIZE_MB=
+
+	#Get disk size in bytes
 	DISK_SIZE_BYTES="$(blockdev --getsize64 "$DEVICE")"
+	DISK_SIZE_DISPLAY="$(display_size "$DISK_SIZE_BYTES")"
 	#Convert disk size to MB
 	DISK_SIZE_MB=$((DISK_SIZE_BYTES/1024/1024))
-	#Get size in bytes from percentage and apply percentage to DISK_SIZE_MB
-	PERCENTAGE_MB="$((DISK_SIZE_MB*PERCENTAGE/100))"
+	#Calculate percentage of device in MB
+	LUKS_SIZE_MB="$((DISK_SIZE_BYTES*LUKS_PERCENTAGE/100/1024/1024))"
 
-	#Console and whiptail $BG_COLOR_WARNING prompt (Y/n) validate one last time wiping and repartitioning of $device of total size $DISK_SIZE_MB with $PERCENTAGE_MB assigned to LUKS encrypted private partition
+	MSG="WARNING: Wiping and repartitioning $DEVICE ($DISK_SIZE_DISPLAY) with $LUKS_SIZE_MB MB\n assigned to private LUKS ext4 partition,\n rest assigned to exFAT public partition.\n\nAre you sure you want to continue?"
 	if [ -x /bin/whiptail ]; then
-		whiptail $BG_COLOR_WARNING --title "WARNING: Wiping and repartitioning $DEVICE of $DISK_SIZE_MB MB" --yesno \
-			"WARNING: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB\n assigned to private LUKS contained private ext4 partition,\n rest assigned to extfat public partition.\n\nAre you sure you want to continue?" 0 80 \
-			|| die "User cancelled wiping and repartitioning of $DEVICE"
+		whiptail $BG_COLOR_WARNING --title "WARNING: Wiping and repartitioning $DEVICE ($DISK_SIZE_DISPLAY)" --yesno \
+			"$MSG" 0 80
 	else
-		echo -e -n "Warning: Wiping and repartitioning $DEVICE with $PERCENTAGE_MB MB assigned to private LUKS contained private ext4 partition, rest assigned to extfat public partition.\n\nAre you sure you want to continue?"
+		echo -e -n "$MSG"
 		read -r -p " [Y/n] " response
 		#transform response to uppercase with bash parameter expansion
 		response=${response^^}
-		#continue if response different then uppercase N
-		if [[ $response =~ ^(N)$ ]]; then
-			die "User cancelled wiping and repartitioning of $DEVICE"
+		#continue if response is Y, y, or empty, abort for anything else
+		if [ -n "$response" ] && [ "${response^^}" != Y ]; then
+			return 1
 		fi
 	fi
+}
 
-	echo -e "Preparing $DEVICE with $PERCENTAGE_MB MB for private LUKS container while rest of device will be assigned to extfat public partition...\n"
+# Prepare a flash drive with a private LUKS-encrypted ext4 partition and a
+# public exFAT partition.  This is not interactive - during OEM reset, any
+# selections/confirmations must occur before OEM reset starts resetting the
+# system.
+#
+# $1 - block device of flash drive
+# $2 - percentage of flash drive to allocate to LUKS [1-99]
+# $3 - passphrase for LUKS container
+prepare_thumb_drive()
+{
+	TRACE "Under /etc/luks-functions:prepare_thumb_drive()"
+
+	local DEVICE PERCENTAGE PASSPHRASE DISK_SIZE_BYTES PERCENTAGE_MB
+	DEVICE="$1"
+	PERCENTAGE="$2"
+	PASSPHRASE="$3"
+
+	#Get disk size in bytes
+	DISK_SIZE_BYTES="$(blockdev --getsize64 "$DEVICE")"
+	#Calculate percentage of device in MB
+	PERCENTAGE_MB="$((DISK_SIZE_BYTES*PERCENTAGE/100/1024/1024))"
+
+	echo -e "Preparing $DEVICE with $PERCENTAGE_MB MB for private LUKS container while rest of device will be assigned to exFAT public partition...\n"
 	echo "Please wait..."
 	DEBUG "Creating empty DOS partition table on device through fdisk to start clean"
 	echo -e "o\nw\n" | fdisk $DEVICE >/dev/null 2>&1 || die "Error creating partition table"
