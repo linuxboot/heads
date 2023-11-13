@@ -34,54 +34,100 @@ mount_usb()
   fi
 }
 
+# Create display text for a size in bytes in either MB or GB, unit selected
+# automatically, rounded to nearest
+display_size() {
+	local size_bytes unit_divisor unit_symbol
+	size_bytes="$1"
+
+	# If it's less than 1 GB, display MB
+	if [ "$((size_bytes))" -lt "$((1024*1024*1024))" ]; then
+		unit_divisor=$((1024*1024))
+		unit_symbol="MB"
+	else
+		unit_divisor=$((1024*1024*1024))
+		unit_symbol="GB"
+	fi
+
+	# Divide by the unit divisor and round to nearest
+	echo "$(( (size_bytes + unit_divisor/2) / unit_divisor )) $unit_symbol"
+}
+
+# Create display text for the size of a block device using MB or GB, rounded to
+# nearest
+display_block_device_size() {
+	local block_dev disk_size_bytes
+	block_dev="$1"
+
+	# Obtain size of thumb drive to be wiped with fdisk
+	if ! disk_size_bytes="$(blockdev --getsize64 "$block_dev")"; then
+		exit 1
+	fi
+
+	display_size "$disk_size_bytes"
+}
+
+# Display a menu to select a file from a list.  Pass the name of a file
+# containing the list.
+# --show-size: Append sizes of files listed.  Currently only supports block
+#   devices.
+# $1: Name of file listing files that can be chosen (one per line)
+# $2: Optional prompt message
+# $3: Optional prompt title
+#
+# Success: Sets FILE with the selected file
+# User aborted: Exits successfully with FILE empty
+# No entries in list: Displays error and exits unsuccessfully
 file_selector()
 {
-  TRACE "under gui_functions:file_selector"
-  FILE=""
-  FILE_LIST=$1
-  MENU_MSG=${2:-"Choose the file"}
-  MENU_TITLE=${3:-"Select your File"}
+	TRACE "under gui_functions:file_selector"
 
-  # create file menu options
-  if [ `cat "$FILE_LIST" | wc -l` -gt 0 ]; then
-    option=""
-    while [ -z "$option" ]
-    do
-      MENU_OPTIONS=""
-      n=0
-      while read option
-      do
-        n=`expr $n + 1`
-        option=$(echo $option | tr " " "_")
-        MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
-      done < $FILE_LIST
+	local FILE_LIST MENU_MSG MENU_TITLE CHOICE_ARGS SHOW_SIZE OPTION_SIZE option_index
 
-      MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail --title "${MENU_TITLE}" \
-        --menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
-        -- $MENU_OPTIONS \
-        2>/tmp/whiptail || die "Aborting"
+	FILE=""
 
-      option_index=$(cat /tmp/whiptail)
+	if [ "$1" = "--show-size" ]; then
+		SHOW_SIZE=y
+		shift
+	fi
 
-      if [ "$option_index" = "a" ]; then
-        option="a"
-        return
-      fi
+	FILE_LIST=$1
+	MENU_MSG=${2:-"Choose the file"}
+	MENU_TITLE=${3:-"Select your File"}
 
-      option=`head -n $option_index $FILE_LIST | tail -1`
-      if [ "$option" == "a" ]; then
-        return
-      fi
-    done
-    if [ -n "$option" ]; then
-      FILE=$option
-    fi
-  else
-    whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
-      --msgbox "No Files found matching the pattern. Aborting." 0 80
-    exit 1
-  fi
+	CHOICE_ARGS=()
+	n=0
+	while read option; do
+		n="$((++n))"
+
+		if [ "$SHOW_SIZE" = "y" ] && OPTION_SIZE="$(display_block_device_size "$option")"; then
+			option="$option - $OPTION_SIZE"
+		fi
+		CHOICE_ARGS+=("$n" "$option")
+	done < "$FILE_LIST"
+
+	if [ "${#CHOICE_ARGS[@]}" -eq 0 ]; then
+		whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
+			--msgbox "No Files found matching the pattern. Aborting." 0 80
+		exit 1
+	fi
+
+	CHOICE_ARGS+=(a Abort)
+
+	# create file menu options
+	option_index=""
+	while [ -z "$option_index" ]; do
+		whiptail --title "${MENU_TITLE}" \
+			--menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+			-- "${CHOICE_ARGS[@]}" \
+			2>/tmp/whiptail || die "Aborting"
+
+		option_index=$(cat /tmp/whiptail)
+
+		if [ "$option_index" != "a" ]; then
+			FILE="$(head -n "$option_index" "$FILE_LIST" | tail -1)"
+		fi
+	done
 }
 
 show_system_info()
