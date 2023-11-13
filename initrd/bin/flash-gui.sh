@@ -13,6 +13,26 @@ if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
   exit 1
 fi
 
+# A brand can override the extension used for update packages if desired
+UPDATE_PKG_EXT="${CONFIG_BRAND_UPDATE_PKG_EXT:-zip}"
+
+# Check that a glob matches exactly one thing.  If so, echoes the single value.
+# Otherwise, fails.  As always, do not quote the glob.
+#
+# E.g, locate a ROM with unknown version when only one should be present:
+# if ROM_FILE="$(single_glob /media/heads-*.rom)"; then
+#     echo "ROM is $ROM_FILE"
+# else
+#     echo "Failed to find a ROM" >&2
+# fi
+single_glob() {
+  if [ "$#" -eq 1 ] && [ -f "$1" ]; then
+    echo "$1"
+  else
+    return 1
+  fi
+}
+
 while true; do
   unset menu_choice
   whiptail $BG_COLOR_MAIN_MENU --title "Firmware Management Menu" \
@@ -30,38 +50,61 @@ while true; do
     ;;
   f | c)
     if (whiptail $BG_COLOR_WARNING --title 'Flash the BIOS with a new ROM' \
-      --yesno "You will need to insert a USB drive containing your BIOS image (*.rom, *.npf or *.tgz).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
+      --yesno "You will need to insert a USB drive containing your BIOS image (*.$UPDATE_PKG_EXT, *.rom, or *.tgz).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
       mount_usb
       if grep -q /media /proc/mounts; then
-        find /media ! -path '*/\.*' -type f \( -name '*.rom' -o -name '*.tgz' -o -type f -name '*.npf' \) | sort >/tmp/filelist.txt
+        find /media ! -path '*/\.*' -type f \( -name '*.rom' -o -name '*.tgz' -o -type f -name "*.$UPDATE_PKG_EXT" \) | sort >/tmp/filelist.txt
         file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
         if [ "$FILE" == "" ]; then
           exit 1
         else
-          ROM=$FILE
+          PKG_FILE=$FILE
         fi
 
-        # is a .npf provided?
-        if [ -z "${ROM##*.npf}" ]; then
-          #preventive cleanup
-          rm -rf /tmp/verified_rom >/dev/null 2>&1 || true
-          # unzip to /tmp/verified_rom
-          mkdir -p /tmp/verified_rom >/dev/null 2>&1 || true
-          unzip $ROM -d /tmp/verified_rom || die "Failed to unzip ROM file"
+        # is an update package provided?
+        if [ -z "${PKG_FILE##*.$UPDATE_PKG_EXT}" ]; then
+          # Unzip the package
+          PKG_EXTRACT="/tmp/flash_gui/update_package"
+          rm -rf "$PKG_EXTRACT"
+          mkdir -p "$PKG_EXTRACT"
+          # If extraction fails, delete everything and fall through to the
+          # integrity failure prompt.  This is the most likely path if the ROM
+          # was actually corrupted in transit.  Corrupting the ZIP in a way that
+          # still extracts is possible (the sha256sum detects this) but less
+          # likely.
+          unzip "$PKG_FILE" -d "$PKG_EXTRACT" || rm -rf "$PKG_EXTRACT"
+          # Older packages had /tmp/verified_rom hard-coded in the sha256sum.txt
+          # Remove that so it's a relative path to the ROM in the package.
+          # Ignore failure, if there is no sha256sum.txt the sha256sum will fail
+          sed -i -e 's| /tmp/verified_rom/\+| |g' "$PKG_EXTRACT/sha256sum.txt" || true
           # check file integrity
-          if (cd /tmp/verified_rom/ && sha256sum -cs /tmp/verified_rom/sha256sum.txt); then
-            ROM="$(head -n1 /tmp/verified_rom/sha256sum.txt | cut -d ' ' -f 3)"
-          else
+          if ! (cd "$PKG_EXTRACT" && sha256sum -cs sha256sum.txt); then
             whiptail --title 'ROM Integrity Check Failed! ' \
-              --msgbox "$ROM integrity check failed. Did not flash.\n\nPlease check your file (e.g. re-download).\n" 16 60
-            exit
+              --msgbox "Integrity check failed in\n$PKG_FILE.\nDid not flash.\n\nPlease check your file (e.g. re-download).\n" 16 60
+            exit 1
           fi
+
+          # The package must contain exactly one *.rom file, flash that.
+          if ! PACKAGE_ROM="$(single_glob "$PKG_EXTRACT/"*.rom)"; then
+            whiptail --title 'BIOS Image Not Found! ' \
+              --msgbox "A BIOS image was not found in\n$PKG_FILE.\n\nPlease check your file (e.g. re-download).\n" 16 60
+            exit 1
+          fi
+
+          if ! whiptail $BG_COLOR_WARNING --title 'Flash ROM?' \
+            --yesno "This will replace your current ROM with:\n\n${PKG_FILE#"/media/"}\n\nDo you want to proceed?" 0 80; then
+            exit 1
+          fi
+
+          # Continue on using the verified ROM
+          ROM="$PACKAGE_ROM"
         else
           # a rom file was provided. exit if we shall not proceed
+          ROM="$PKG_FILE"
           ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}') || die "Failed to hash ROM file"
           if ! (whiptail $CONFIG_ERROR_BG_COLOR --title 'Flash ROM without integrity check?' \
-            --yesno "You have provided a *.rom file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.npf file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
-            exit
+            --yesno "You have provided a *.rom file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.$UPDATE_PKG_EXT file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
+            exit 1
           fi
         fi
 
@@ -79,7 +122,7 @@ while true; do
           /bin/flash.sh "$ROM"
         fi
         whiptail --title 'ROM Flashed Successfully' \
-          --msgbox "${ROM#"/media/"}\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 80
+          --msgbox "${PKG_FILE#"/media/"}\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 80
         umount /media
         /bin/reboot
       fi

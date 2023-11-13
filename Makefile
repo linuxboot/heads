@@ -52,6 +52,11 @@ CONFIG_TARGET_ARCH := x86
 
 include $(CONFIG)
 
+# Default update package extension is 'zip' unless a brand wants a branded
+# extension
+CONFIG_BRAND_UPDATE_PKG_EXT ?= zip
+CB_UPDATE_PKG_FILE := $(CB_OUTPUT_BASENAME).$(CONFIG_BRAND_UPDATE_PKG_EXT)
+
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
@@ -159,7 +164,18 @@ payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 
 ifeq ($(CONFIG_COREBOOT), y)
 
-all: $(board_build)/$(CB_OUTPUT_FILE)
+# Coreboot targets create an update package that can be applied with integrity
+# verification before flashing (see flash-gui.sh).  The ZIP package format
+# allows other metadata that might be needed to added in the future without
+# breaking backward compatibility.
+$(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
+	rm -rf "$(board_build)/update_pkg"
+	mkdir -p "$(board_build)/update_pkg"
+	cp "$<" "$(board_build)/update_pkg/"
+	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
+	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt
+
+all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
 all: $(board_build)/$(CB_BOOTBLOCK_FILE)
 endif
