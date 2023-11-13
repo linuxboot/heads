@@ -41,9 +41,11 @@ Bootstrapping a working system
    * Then Heads will indicate that there is no TOTP code yet, at this point shut down (Continue to main menu -> Power off)
 5. Get the public key that was saved to the virtual USB flash drive
    * `sudo mkdir /media/fd_heads_gpg`
-   * `sudo mount ./build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw /media/fd_heads_gpg`
+   * `sudo losetup --find --partscan ./build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw`
+   * `sudo mount /dev/loop0p2 /media/fd_heads_gpg` to mount the second partition (public) or if only one partition, /dev/loop0p1
    * Look in `/media/fd_heads_gpg` and copy the most recent public key
    * `sudo umount /media/fd_heads_gpg`
+   * `sudo losetup --detach /dev/loop0`
 6. Inject the GPG key into the Heads image and run again
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=<path_to_key.asc> inject_gpg`
    * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
