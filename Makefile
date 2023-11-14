@@ -183,9 +183,10 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	cp "$<" "$(board_build)/update_pkg/"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
 	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt
-endif
 
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
+endif
+
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
 all: $(board_build)/$(CB_BOOTBLOCK_FILE)
 endif
