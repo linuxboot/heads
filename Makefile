@@ -50,6 +50,12 @@ endif
 # By default, we are building for x86, up to a board to change this variable
 CONFIG_TARGET_ARCH := x86
 
+# Legacy flash boards have to be handled specifically for some functionality
+# (e.g. they don't generate upgrade packages, lack bash, etc.)  Use this to
+# guard behavior that is specific to legacy flash boards only.  Don't use it for
+# behavior that might be needed for other boards, use specific configs instead.
+CONFIG_LEGACY_FLASH := n
+
 include $(CONFIG)
 
 # Default update package extension is 'zip' unless a brand wants a branded
@@ -164,6 +170,9 @@ payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 
 ifeq ($(CONFIG_COREBOOT), y)
 
+# Legacy flash boards don't generate an update package, the only purpose of
+# those boards is to be flashed over vendor firmware via an exploit.
+ifneq ($(CONFIG_LEGACY_FLASH), y)
 # Coreboot targets create an update package that can be applied with integrity
 # verification before flashing (see flash-gui.sh).  The ZIP package format
 # allows other metadata that might be needed to added in the future without
@@ -174,6 +183,7 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	cp "$<" "$(board_build)/update_pkg/"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
 	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt
+endif
 
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
