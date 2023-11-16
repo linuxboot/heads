@@ -76,7 +76,7 @@ $(eval $(call coreboot_module,4.20.1,))
 # there is no point preparing another coreboot module that won't be shared with
 # anything.
 coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
-coreboot-talos_2_commit_hash := c8aed443c631042ad2b0326c35cd0b774752b924
+coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
 
 # Similarly, purism is based on 4.21, but nothing builds against 4.21 itself
