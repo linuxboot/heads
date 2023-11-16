@@ -13,9 +13,6 @@ if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
   exit 1
 fi
 
-# A brand can override the extension used for update packages if desired
-UPDATE_PKG_EXT="${CONFIG_BRAND_UPDATE_PKG_EXT:-zip}"
-
 # Most boards use a .rom file as a "plain" update, contents of the BIOS flash
 UPDATE_PLAIN_EXT=rom
 # talos-2 uses a .tgz file for its "plain" update, contains other parts as well
@@ -60,13 +57,13 @@ while true; do
     ;;
   f | c)
     if (whiptail $BG_COLOR_WARNING --title 'Flash the BIOS with a new ROM' \
-      --yesno "You will need to insert a USB drive containing your BIOS image (*.$UPDATE_PKG_EXT or\n*.$UPDATE_PLAIN_EXT).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
+      --yesno "You will need to insert a USB drive containing your BIOS image (*.zip or\n*.$UPDATE_PLAIN_EXT).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
       mount_usb
       if grep -q /media /proc/mounts; then
         if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
           find /media ! -path '*/\.*' -type f -name "*.$UPDATE_PLAIN_EXT" | sort >/tmp/filelist.txt
         else
-          find /media ! -path '*/\.*' -type f \( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.$UPDATE_PKG_EXT" \) | sort >/tmp/filelist.txt
+          find /media ! -path '*/\.*' -type f \( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.zip" \) | sort >/tmp/filelist.txt
         fi
         file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
         if [ "$FILE" == "" ]; then
@@ -76,7 +73,7 @@ while true; do
         fi
 
         # is an update package provided?
-        if [ -z "${PKG_FILE##*.$UPDATE_PKG_EXT}" ]; then
+        if [ -z "${PKG_FILE##*.zip}" ]; then
           # Unzip the package
           PKG_EXTRACT="/tmp/flash_gui/update_package"
           rm -rf "$PKG_EXTRACT"
@@ -120,7 +117,7 @@ while true; do
           ROM="$PKG_FILE"
           ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}') || die "Failed to hash ROM file"
           if ! (whiptail $CONFIG_ERROR_BG_COLOR --title 'Flash ROM without integrity check?' \
-            --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.$UPDATE_PKG_EXT file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
+            --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
             exit 1
             fi
           else
