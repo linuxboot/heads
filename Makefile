@@ -16,6 +16,7 @@ CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
 CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
 CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
+CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
 LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
 
 all:
@@ -57,11 +58,6 @@ CONFIG_TARGET_ARCH := x86
 CONFIG_LEGACY_FLASH := n
 
 include $(CONFIG)
-
-# Default update package extension is 'zip' unless a brand wants a branded
-# extension
-CONFIG_BRAND_UPDATE_PKG_EXT ?= zip
-CB_UPDATE_PKG_FILE := $(CB_OUTPUT_BASENAME).$(CONFIG_BRAND_UPDATE_PKG_EXT)
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
