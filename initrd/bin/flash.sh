@@ -180,7 +180,7 @@ if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
         mkdir /tmp/verified_rom
 
         tar -C /tmp/verified_rom -xf $ROM || die "Rom archive $ROM could not be extracted"
-        if ! (cd /tmp/verified_rom/ && sha256sum -cs hashes.txt); then
+    if ! (cd /tmp/verified_rom/ && sha256sum -cs sha256sum.txt); then
             die "Provided tgz image did not pass hash verification"
         fi
 
