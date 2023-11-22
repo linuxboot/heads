@@ -497,6 +497,7 @@ gpg_key_factory_reset() {
     # If Nitrokey Storage is inserted, reset AES keys as well
     if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
         /bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
+        killall -9 scdaemon
     fi
     # Toggle forced sig (good security practice, forcing PIN request for each signature request)
     if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
