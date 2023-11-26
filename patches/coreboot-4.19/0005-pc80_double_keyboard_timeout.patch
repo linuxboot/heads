@@ -1,0 +1,27 @@
+--- ./src/drivers/pc80/pc/keyboard.c.orig	2023-11-17 13:52:14.983000000 -0500
++++ ./src/drivers/pc80/pc/keyboard.c	2023-11-17 14:58:11.160000000 -0500
+@@ -46,7 +46,7 @@
+ #define KBD_REPLY_RESEND	0xFE	// Command NACK, send command again
+ 
+ /* Wait 400ms for keyboard controller answers */
+-#define KBC_TIMEOUT_IN_MS 400
++#define KBC_TIMEOUT_IN_MS 1000
+ 
+ static int kbc_input_buffer_empty(void)
+ {
+@@ -273,7 +273,6 @@
+ 
+ 	if (regval != KBD_REPLY_ACK) {
+ 		printk(BIOS_ERR, "Keyboard reset failed ACK: 0x%x\n", regval);
+-		return 0;
+ 	}
+ 
+ 	/* the reset command takes some time, so wait a little longer */
+@@ -289,7 +288,6 @@
+ 	if (regval != 0xAA) {
+ 		printk(BIOS_ERR, "Keyboard reset selftest failed: 0x%x\n",
+ 		       regval);
+-		return 0;
+ 	}
+ 
+ 	/*
