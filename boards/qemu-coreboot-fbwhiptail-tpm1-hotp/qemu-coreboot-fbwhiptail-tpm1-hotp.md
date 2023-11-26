@@ -83,3 +83,7 @@ libtpms and swtpm must be built and installed from source on Debian Bullseye. Up
    * `debuild -us -uc`
    * `sudo apt install ../swtpm*.deb`
 
+swtpm on Debian bookworm
+===
+1. Install dependencies
+   * `sudo apt install swtpm swtpm-tools`
