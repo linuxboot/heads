@@ -132,15 +132,19 @@ enable_usb_storage() {
 	fi
 }
 
+# Output, one per line, paths to all detected USB block device partitions. If a
+# block device does not contain any valid partitions and/or has had a filesystem
+# directly written to it, the device itself will be included in the list.
+# Alternatively, the "devices" argument may be passed to list only the USB block
+# devices themselves, ignoring any partitions they may contain.
 list_usb_storage() {
 	TRACE "Under /etc/functions:list_usb_storage"
-	# List all USB storage devices, including partitions unless we received argument stating we want drives only
-	# The output is a list of device names, one per line.
 
-	if [ "$1" = "disks" ]; then
-		DEBUG "Listing USB storage devices (disks only) since list_usb_storage was called with 'disks' argument"
-	else
-		DEBUG "Listing USB storage devices (including partitions)"
+	if [ "${1-}" = 'devices' ]
+	then # "devices" argument passed; list block devices, ignoring partitions
+		DEBUG 'Listing USB block devices (excluding partitions, due to "devices" argument)'
+	else # "devices" argument missing; list only block device partitions, if found
+		DEBUG "Listing valid USB block device partitions (and devices with a filesystem or no paritions)"
 	fi
 
 	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
@@ -175,9 +179,9 @@ list_usb_storage() {
 				# No partition table, include this device
 				DEBUG "USB storage device without partition table: $b"
 				echo "$b"
-			#Bypass the check for partitions if we want only disks
-			elif [ "$1" = "disks" ]; then
-				# disks only were requested, so we don't list partitions
+			# Bypass the check for partitions if we want only devices
+			elif [ "${1-}" = 'devices' ]
+			then # Devices only were requested, so we don't list partitions
 				DEBUG "USB storage device with partition table: $b"
 				DEBUG "We asked for disks only, so we don't want to list partitions"
 				echo "$b"

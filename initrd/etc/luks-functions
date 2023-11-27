@@ -148,8 +148,8 @@ interactive_prepare_thumb_drive()
 		#enable usb storage
 		enable_usb_storage
 
-		#list all usb storage devices
-		list_usb_storage disks > /tmp/devices.txt
+		# List all USB block devices (excluding partitions):
+		list_usb_storage 'devices' > /tmp/devices.txt
 		if [ $(cat /tmp/devices.txt | wc -l) -gt 0 ]; then
 			file_selector "/tmp/devices.txt" "Select device to partition"
 			if [ "$FILE" == "" ]; then
