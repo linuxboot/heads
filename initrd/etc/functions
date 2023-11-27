@@ -132,11 +132,11 @@ enable_usb_storage() {
 	fi
 }
 
-# Output, one per line, paths to all detected USB block device partitions. If a
-# block device does not contain any valid partitions and/or has had a filesystem
-# directly written to it, the device itself will be included in the list.
-# Alternatively, the "devices" argument may be passed to list only the USB block
-# devices themselves, ignoring any partitions they may contain.
+# Output, one per line, paths to all detected USB block storage device
+# partitions. If a block device does not contain any valid partitions and/or has
+# had a filesystem directly written to it, the device itself will be included in
+# the list. Alternatively, the "devices" argument may be passed to list only the
+# USB block devices themselves, ignoring any partitions they may contain.
 list_usb_storage() {
 	TRACE "Under /etc/functions:list_usb_storage"
 
@@ -144,58 +144,73 @@ list_usb_storage() {
 	then # "devices" argument passed; list block devices, ignoring partitions
 		DEBUG 'Listing USB block devices (excluding partitions, due to "devices" argument)'
 	else # "devices" argument missing; list only block device partitions, if found
-		DEBUG "Listing valid USB block device partitions (and devices with a filesystem or no paritions)"
+		DEBUG 'Listing valid USB block device partitions (and devices with a filesystem or no paritions)'
 	fi
 
-	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
-		cut -f1 -d ' ' |
-		sed "s/[']//g" |
-		while read b; do
-			# Ignore devices of size 0, such as empty SD card
-			# readers on laptops attached via USB.
-			if [ "$(cat "$b/size")" -gt 0 ]; then
-				DEBUG "USB storage device of size greater then 0: $b"
-				echo "$b"
+	stat -c '%N' /sys/block/sd* 2>/dev/null | # Dereference symbolic links for storage block devices
+		grep -i '^.*->.*/usb[^/]*/' | # Filter-out non-USB devices (indicated by the dereferenced paths)
+		cut -d ' ' -f 1 | # Keep only (quoted) symbolic link containing simple device name
+		tr -d "'" | # Remove single quotes around symbolic link
+		while read blkdev_dir
+		do # Iterate over each detected block device to apply filters:
+			blkdev="/dev/$(basename "$blkdev_dir")" # Get block device path from directory basename
+			if [ ! -b "$blkdev" ]
+			then # Ignore this block device directory: cannot identify associated block device
+				DEBUG "Ignoring \"${blkdev_dir}\": could not identify associated block device"
+				continue
+			elif [ ! -f "${blkdev_dir}/size" ] || [ "$(cat "${blkdev_dir}/size")" -le '0' ]
+			then # Ignore this device with a size of '0' (may be an empty USB SD card reader, for example)
+				DEBUG "Ignoring USB block device \"${blkdev}\" with a size of 0"
+				continue
 			fi
-		done |
-		sed "s|/sys/block|/dev|" |
-		while read b; do
-			# If the device has a partition table, ignore it and
-			# include the partitions instead - even if the kernel
-			# hasn't detected the partitions yet.  Such a device is
-			# never usable directly, and this allows the "wait for
-			# disks" loop in mount-usb to correctly wait for the
-			# partitions.
-			# This check: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
-			# covers the case of a device without partition table but
-			# formatted as fat32, which contains a sortof partition table.
-			# this causes fdisk to not print the invalid partition table
-			# message and instead it'll print an empty table with header.
-			# In both cases the output is 5 lines: 3 about device info,
-			# 1 empty line and the 5th will be the table header or the
-			# unvalid message.
-			DISK_DATA=$(fdisk -l "$b")
-			if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || [ $(echo "$DISK_DATA" | wc -l) -eq 5 ]; then
-				# No partition table, include this device
-				DEBUG "USB storage device without partition table: $b"
-				echo "$b"
-			# Bypass the check for partitions if we want only devices
-			elif [ "${1-}" = 'devices' ]
-			then # Devices only were requested, so we don't list partitions
-				DEBUG "USB storage device with partition table: $b"
-				DEBUG "We asked for disks only, so we don't want to list partitions"
-				echo "$b"
-			else
-				# Has a partition table, include partitions
-				DEBUG "USB storage device with partition table: $b"
-				ls -1 "$b"* | awk 'NR!=1 {print $0}'
+
+			if [ "${1-}" = 'devices' ]
+			then # Include block device, skipping over additional (partition) checks:
+				DEBUG "Including USB block device \"${blkdev}\" due to \"devices\" argument"
+				echo "$blkdev"
+				continue
+			fi
+
+			# Check if the USB block device has had a filesystem written directly
+			# to it, and include the device in the outputted list if so. Although
+			# this will not apply to the majority of block devices, it covers
+			# important edge cases, such as when bootable media has had an ISO
+			# created using the "isohybrid" utility, written to it.
+			test_mntpt='/tmp/direct-mount-test'
+			mkdir -p "$test_mntpt"
+			blkdev_included='false'
+			if mount -r "$blkdev" "$test_mntpt" >/dev/null 2>/dev/null
+			then # Block device successfully mounted; include in outputted list:
+				DEBUG "Including USB block device \"${blkdev}\" with a mountable filesystem"
+				blkdev_included='true'
+				echo "$blkdev"
+				# Unmount mounted block device:
+				umount "$test_mntpt" >/dev/null 2>/dev/null
+			fi
+			if mount 2>/dev/null | grep -q -F "$test_mntpt"
+			then # Device still mounted; force unmount:
+				DEBUG "Forcing unmount of USB block device \"${blkdev}\""
+				umount -f "$test_mntpt" >/dev/null 2>/dev/null ||
+					die "list_usb_storage: failed to unmount \"${blkdev}\""
+			fi
+			rm -rf "$test_mntpt" # Remove temporary mounting test directory
+
+			# Output any detected partitions on the USB block device:
+			if fdisk -l "$blkdev" | grep -q "^${blkdev}[0-9]\+"
+			then # Valid partitions detected for device; output them:
+				DEBUG "Including partitions from USB block device \"${blkdev}\""
+				fdisk -l "$blkdev" | grep "^${blkdev}[0-9]\+" | cut -d ' ' -f 1
+			elif [ "$blkdev_included" = 'false' ]
+			then # No partitions detected and block device not yet included
+				DEBUG "Including USB block device \"${blkdev}\" with no detected partitions"
+				echo "$blkdev" # Output block device
 			fi
 		done
 }
 
-# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.  
-# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed. 
-# Tools should optionally accept a TPM password on the command line, since some flows need 
+# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
+# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed.
+# Tools should optionally accept a TPM password on the command line, since some flows need
 # it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE "Under /etc/functions:prompt_tpm_owner_password"
@@ -215,7 +230,7 @@ prompt_tpm_owner_password() {
 	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
 }
 
-# Prompt for a new TPM Owner Password when resetting the TPM.  
+# Prompt for a new TPM Owner Password when resetting the TPM.
 # Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
 # The password must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
@@ -245,7 +260,7 @@ prompt_new_owner_password() {
 
 check_tpm_counter() {
 	TRACE "Under /etc/functions:check_tpm_counter"
-	
+
 	LABEL=${2:-3135106223}
 	tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
