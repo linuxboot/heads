@@ -43,6 +43,7 @@ mkdir -p /tmp/secret
 
 # Now it is safe to print a banner
 if [ -r /etc/motd ]; then
+	echo "QUICK! Type 'r' to enter Recovery shell or 'o' to enter OEM Factory Reset/Re-Ownership wizard! Missed? Ctrl+Alt+Delete and try again!" /dev/tty0
 	cat /etc/motd > /dev/tty0
 fi
 
