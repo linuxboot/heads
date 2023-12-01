@@ -1327,7 +1327,7 @@ fi
 ## Show to user current configured secrets prior of rebooting
 whiptail --msgbox "
     $passphrases" \
-    $HEIGHT $WIDTH --title "Configured secrets"
+    $HEIGHT $(($WIDTH*2)) --title "Configured secrets"
 
 ## all done -- reboot
 whiptail --msgbox "
