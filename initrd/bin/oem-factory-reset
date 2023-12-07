@@ -1148,8 +1148,8 @@ fi
 
 if [ -n "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     #Reencryption of disk, disk recovery key and Disk Recovery Key passphrase change is requested
-    luks_reencrypt
     luks_change_passphrase
+    luks_reencrypt
 elif [ -n "$luks_new_Disk_Recovery_Key_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     #Reencryption of disk was requested but not passphrase change
     luks_reencrypt
