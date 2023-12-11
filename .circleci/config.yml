@@ -279,8 +279,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t420-hotp-maximized
-          target: t420-hotp-maximized
+          name: UNTESTED_t420-hotp-maximized
+          target: UNTESTED_t420-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -293,8 +293,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t420-maximized
-          target: t420-maximized
+          name: UNTESTED_t420-maximized
+          target: UNTESTED_t420-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -384,8 +384,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t530-hotp-maximized
-          target: t530-hotp-maximized
+          name: UNTESTED_t530-hotp-maximized
+          target: UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -426,8 +426,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t530-maximized
-          target: t530-maximized
+          name: UNTESTED_t530-maximized
+          target: UNTESTED_t530-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -510,15 +510,15 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: p8z77-m_pro-tpm1-maximized
-          target: p8z77-m_pro-tpm1-maximized
+          name: UNTESTED_p8z77-m_pro-tpm1-maximized
+          target: UNTESTED_p8z77-m_pro-tpm1-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: p8z77-m_pro-tpm1-hotp-maximized
-          target: p8z77-m_pro-tpm1-hotp-maximized
+          name: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
+          target: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
