@@ -1,0 +1,150 @@
+From 4fafe82b67dfe6919fe7be93459083549aac9f25 Mon Sep 17 00:00:00 2001
+From: Nico Huber <nico.h@gmx.de>
+Date: Fri, 14 Jul 2023 00:09:00 +0200
+Subject: [PATCH] Center bootsplash on bigger framebuffers
+
+In the JPEG decoder, use `bytes_per_line` instead of `width` for
+address calculations, to allow for bigger framebuffers. When
+calling jpeg_decode(), add an offset to the framebuffer address
+so the picture gets centered.
+
+Change-Id: I0174bdccfaad425e708a5fa50bcb28a1b98a23f7
+Signed-off-by: Nico Huber <nico.h@gmx.de>
+---
+
+diff --git a/src/include/bootsplash.h b/src/include/bootsplash.h
+index 10da5aa..9d1bae3 100644
+--- a/src/include/bootsplash.h
++++ b/src/include/bootsplash.h
+@@ -12,7 +12,8 @@
+  * and >0 on jpeg errors.
+  */
+ void set_bootsplash(unsigned char *framebuffer, unsigned int x_resolution,
+-		    unsigned int y_resolution, unsigned int fb_resolution);
++		    unsigned int y_resolution, unsigned int bytes_per_line,
++		    unsigned int fb_resolution);
+ 
+ 
+ void bmp_load_logo(uint32_t *logo_ptr, uint32_t *logo_size);
+diff --git a/src/lib/bootsplash.c b/src/lib/bootsplash.c
+index 0eb94dc..3ab11ac 100644
+--- a/src/lib/bootsplash.c
++++ b/src/lib/bootsplash.c
+@@ -11,7 +11,8 @@
+ 
+ 
+ void set_bootsplash(unsigned char *framebuffer, unsigned int x_resolution,
+-		    unsigned int y_resolution, unsigned int fb_resolution)
++		    unsigned int y_resolution, unsigned int bytes_per_line,
++		    unsigned int fb_resolution)
+ {
+ 	printk(BIOS_INFO, "Setting up bootsplash in %dx%d@%d\n", x_resolution, y_resolution,
+ 	       fb_resolution);
+@@ -27,9 +28,20 @@
+ 
+ 	printk(BIOS_DEBUG, "Bootsplash image resolution: %dx%d\n", image_width, image_height);
+ 
++	if (image_width > x_resolution || image_height > y_resolution) {
++		printk(BIOS_NOTICE, "Bootsplash image can't fit framebuffer.\n");
++		cbfs_unmap(jpeg);
++		return;
++	}
++
++	/* center image: */
++	framebuffer += (y_resolution - image_height) / 2 * bytes_per_line +
++			(x_resolution - image_width) / 2 * (fb_resolution / 8);
++
+ 	decdata = malloc(sizeof(*decdata));
+-	int ret = jpeg_decode(jpeg, framebuffer, x_resolution, y_resolution, fb_resolution,
+-			      decdata);
++	int ret = jpeg_decode(jpeg, framebuffer, image_width, image_height,
++			      bytes_per_line, fb_resolution, decdata);
++	free(decdata);
+ 	cbfs_unmap(jpeg);
+ 	if (ret != 0) {
+ 		printk(BIOS_ERR, "Bootsplash could not be decoded. jpeg_decode returned %d.\n",
+diff --git a/src/lib/coreboot_table.c b/src/lib/coreboot_table.c
+index bee389d..800d2d4 100644
+--- a/src/lib/coreboot_table.c
++++ b/src/lib/coreboot_table.c
+@@ -155,8 +155,9 @@
+ 		uint8_t *fb_ptr = (uint8_t *)(uintptr_t)framebuffer->physical_address;
+ 		unsigned int width = framebuffer->x_resolution;
+ 		unsigned int height = framebuffer->y_resolution;
++		unsigned int bytes_per_line = framebuffer->bytes_per_line;
+ 		unsigned int depth = framebuffer->bits_per_pixel;
+-		set_bootsplash(fb_ptr, width, height, depth);
++		set_bootsplash(fb_ptr, width, height, bytes_per_line, depth);
+ 	}
+ }
+ 
+diff --git a/src/lib/jpeg.c b/src/lib/jpeg.c
+index b3d4c89..ed4377f 100644
+--- a/src/lib/jpeg.c
++++ b/src/lib/jpeg.c
+@@ -267,7 +267,8 @@
+ }
+ 
+ int jpeg_decode(unsigned char *buf, unsigned char *pic,
+-		int width, int height, int depth, struct jpeg_decdata *decdata)
++		int width, int height, int bytes_per_line, int depth,
++		struct jpeg_decdata *decdata)
+ {
+ 	int i, j, m, tac, tdc;
+ 	int mcusx, mcusy, mx, my;
+@@ -382,19 +383,19 @@
+ 
+ 			switch (depth) {
+ 			case 32:
+-				col221111_32(decdata->out, pic
+-					+ (my * 16 * mcusx + mx) * 16 * 4,
+-					mcusx * 16 * 4);
++				col221111_32(decdata->out,
++					pic + my * 16 * bytes_per_line + mx * 16 * 4,
++					bytes_per_line);
+ 				break;
+ 			case 24:
+-				col221111(decdata->out, pic
+-					+ (my * 16 * mcusx + mx) * 16 * 3,
+-					mcusx * 16 * 3);
++				col221111(decdata->out,
++					pic + my * 16 * bytes_per_line + mx * 16 * 3,
++					bytes_per_line);
+ 				break;
+ 			case 16:
+-				col221111_16(decdata->out, pic
+-					+ (my * 16 * mcusx + mx) * (16 * 2),
+-					mcusx * (16 * 2));
++				col221111_16(decdata->out,
++					pic + my * 16 * bytes_per_line + mx * 16 * 2,
++					bytes_per_line);
+ 				break;
+ 			default:
+ 				return ERR_DEPTH_MISMATCH;
+diff --git a/src/lib/jpeg.h b/src/lib/jpeg.h
+index 237da9f..fdb2def 100644
+--- a/src/lib/jpeg.h
++++ b/src/lib/jpeg.h
+@@ -31,8 +31,7 @@
+ 	int dquant[3][64];
+ };
+ 
+-int jpeg_decode(unsigned char *, unsigned char *, int, int, int,
+-	struct jpeg_decdata *);
++int jpeg_decode(unsigned char *, unsigned char *, int, int, int, int, struct jpeg_decdata *);
+ void jpeg_fetch_size(unsigned char *buf, int *width, int *height);
+ int jpeg_check_size(unsigned char *, int, int);
+ 
+diff --git a/util/fuzz-tests/jpeg-test.c b/util/fuzz-tests/jpeg-test.c
+index 69e6c8d..da21824 100644
+--- a/util/fuzz-tests/jpeg-test.c
++++ b/util/fuzz-tests/jpeg-test.c
+@@ -30,7 +30,7 @@
+ 	jpeg_fetch_size(buf, &width, &height);
+ 	//printf("width: %d, height: %d\n", width, height);
+ 	char *pic = malloc(depth / 8 * width * height);
+-	int ret = jpeg_decode(buf, pic, width, height, depth, decdata);
++	int ret = jpeg_decode(buf, pic, width, height, width * depth / 8, depth, decdata);
+ 	//printf("ret: %x\n", ret);
+ 	return ret;
+ }
