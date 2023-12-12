@@ -1,0 +1,12 @@
+diff -u --recursive coreboot-git.org/src/mainboard/clevo/adl-p/ramstage.c coreboot-git/src/mainboard/clevo/adl-p/ramstage.c
+--- coreboot-git.org/src/mainboard/clevo/adl-p/ramstage.c	2023-09-25 13:59:42.737397657 +0200
++++ coreboot-git/src/mainboard/clevo/adl-p/ramstage.c	2023-09-25 14:00:19.384660682 +0200
+@@ -50,7 +50,7 @@
+ #define SLEEP_TYPE_OPTION_S0IX	0
+ #define SLEEP_TYPE_OPTION_S3	1
+ 
+-#define SLEEP_TYPE_OPTION_DEFAULT SLEEP_TYPE_OPTION_S0IX
++#define SLEEP_TYPE_OPTION_DEFAULT SLEEP_TYPE_OPTION_S3
+ 
+ const char *smbios_system_sku(void)
+ {
