@@ -1,3 +1,4 @@
+BRAND_NAME=Heads
 qemu-coreboot-(fb)whiptail-tpm[1,2](-hotp) boards
 ===
 
