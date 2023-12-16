@@ -1,3 +1,4 @@
+BRAND_NAME=Heads
 keymaps 0-2,4-5,8,12
 # Use volume and power keys on tablet to navigate menus
 keycode 114 = Up
