@@ -464,10 +464,12 @@ show_options_menu()
       ;;
     C )
       luks_reencrypt
+      [[ -n "$luks_current_Disk_Recovery_Key_passphrase" ]] && whiptail --title 'Reencryption successful!' --msgbox "Your LUKS volume was successfully reencrypted!\n\nNote that before booting the next time you should update your checksums.\nIf you are using a TPM Disk Unlock Key you also need to reseal that key." 0 80
       luks_secrets_cleanup
       ;;
     P )
       luks_change_passphrase
+      [[ -n "$luks_new_Disk_Recovery_Key_passphrase" ]] && whiptail --title 'Passphrase change successful!' --msgbox "Your LUKS volume passphrase was successfully changed!\n\nNote that before booting the next time you should update your checksums.\nIf you are using a TPM Disk Unlock Key you also need to reseal that key." 0 80
       luks_secrets_cleanup
       ;;
     R )
