@@ -465,12 +465,10 @@ show_options_menu()
     C )
       luks_reencrypt
       luks_secrets_cleanup
-      prompt_update_checksums
       ;;
     P )
       luks_change_passphrase
       luks_secrets_cleanup
-      prompt_update_checksums
       ;;
     R )
       root-hashes-gui.sh
