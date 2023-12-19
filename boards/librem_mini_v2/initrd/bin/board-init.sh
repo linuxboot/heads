@@ -1,4 +1,3 @@
-BRAND_NAME=Heads
 #!/bin/bash
 set -o pipefail
 
