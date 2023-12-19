@@ -1,4 +1,3 @@
-BRAND_NAME=Heads
 #!/bin/bash
 
 # Set the EC BRAM setting for automatic power-on.
