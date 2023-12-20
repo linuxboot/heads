@@ -1,1 +1,0 @@
-../qemu-coreboot-fbwhiptail-tpm2/qemu-coreboot-fbwhiptail-tpm2.md
