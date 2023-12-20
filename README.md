@@ -81,7 +81,7 @@ QEMU:
 
 OS booting can be tested in QEMU using a software TPM.  HOTP can be tested by forwarding a USB token from the host to the guest.
 
-For more information and setup instructions, refer to the [qemu-coreboot-fbwhiptail-tpm1-hotp documentation](boards/qemu-coreboot-fbwhiptail-tpm1-hotp/qemu-coreboot-fbwhiptail-tpm1-hotp.md).
+For more information and setup instructions, refer to the [qemu documentation](targets/qemu.md).
 
 coreboot console messages
 ---
