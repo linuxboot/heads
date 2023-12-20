@@ -12,13 +12,6 @@ HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 # Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
 BRAND_NAME	?= Heads
 
-CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
-CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
-CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
-CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
-CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
-LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
-
 all:
 -include .config
 
@@ -59,6 +52,20 @@ CONFIG_LEGACY_FLASH := n
 
 include $(CONFIG)
 
+# Include site-local/config only if it exists, downstreams can set configs for
+# all boards, including overriding values specified by boards.  site-local is
+# not a part of the upstream distribution but is for downstreams to insert
+# customizations at well-defined points, like in coreboot:
+# https://doc.coreboot.org/tutorial/managing_local_additions.html
+-include $(pwd)/site-local/config
+
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
+CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
+CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
+CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
+CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
+LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
@@ -72,6 +79,10 @@ else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 MUSL_ARCH := powerpc64le
 else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
+endif
+
+ifneq "$(BOARD_TARGETS)" ""
+include targets/$(BOARD_TARGETS).mk
 endif
 
 # Create directories if they don't already exist
