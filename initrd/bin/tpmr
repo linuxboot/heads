@@ -488,12 +488,15 @@ tpm1_seal() {
 	pcrf="$4"
 	sealed_size="$5"
 	pass="$6"         # May be empty to seal with no password
-	tpm_password="$7" # Owner password - will prompt if needed and not empty
+	tpm_owner_password="$7" # Owner password - will prompt if needed and not empty
 
 	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
 	at_exit cleanup_shred "$sealed_file"
 
 	POLICY_ARGS=()
+
+	DEBUG "tpm1_seal arguments: file=$file index=$index pcrl=$pcrl pcrf=$pcrf sealed_size=$sealed_size pass=$(mask_param "$pass") tpm_password=$(mask_param "$tpm_password")"
+
 
 	# If a password was given, add it to the policy arguments
 	if [ "$pass" ]; then
@@ -516,7 +519,7 @@ tpm1_seal() {
 		-of "$sealed_file" \
 		-hk 40000000 \
 		"${POLICY_ARGS[@]}"
-
+	
 	# try it without the TPM Owner Password first
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
 		# to create an nvram space we need the TPM Owner Password
@@ -530,7 +533,7 @@ tpm1_seal() {
 		prompt_tpm_owner_password
 
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
-			-pwdo "$tpm_password" -per 0 ||
+			-pwdo "$tpm_owner_password" -per 0 ||
 			warn "Unable to define TPM NVRAM space; trying anyway"
 
 		tpm nv_writevalue -in "$index" -if "$sealed_file" ||
