@@ -228,6 +228,49 @@ replay_pcr() {
 	#  (6: LUKS header, 7: user related cbfs files loaded from cbfs-init)
 }
 
+# usage: calc_pcr <alg> <pcr_num> [ <input_file>|<input_hash> ... ]
+# Calculate PCR value to compare with CBMEM event log. 
+# First argument is PCR number, followed by optional
+# hashes and/or files. 
+# Resulting PCR value is returned in binary form.
+calc_pcr() {
+	TRACE "Under /bin/tpmr:calc_pcr"
+	if [ -z "$2" ]; then
+		echo >&2 "No PCR number passed"
+		return
+	fi
+	if [ "$2" -ge 8 ]; then
+		echo >&2 "Illegal PCR number ($2)"
+		return
+	fi
+	local alg="$1"
+	local pcr="$2"
+	local alg_digits=0
+	# SHA-1 hashes are 40 chars
+	if [ "$alg" = "sha1" ]; then alg_digits=40; fi
+	# SHA-256 hashes are 64 chars
+	if [ "$alg" = "sha256" ]; then alg_digits=64; fi
+	shift 2
+	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) $@)
+	echo $replayed_pcr | hex2bin
+	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
+	# To manually introspect calculated to PCR values:
+	# TODO: fix the following examples with WORKING examples
+	# PCR-2:
+	#     bash tpmr calc_pcr 2 <(cbmem -r 464d4150) <(cbfs --read bootblock) \
+	#       <(cbfs --read fallback/romstage) <(cbfs --read fallback/postcar) \
+	#       <(cbfs --read fallback/ramstage) <(cbfs --read bootsplash.jpg) \
+	#       <(cbfs --read fallback/payload) | xxd -p
+	# PCR-4, in case of recovery shell (bash used for process substitution):
+	#     bash -c "tpmr calc_pcr 4 <(echo -n recovery)" | xxd -p
+	# PCR-4, in case of normal boot passing through kexec-select-boot:
+	#     bash -c "tpmr calc_pcr 4 <(echo -n generic)" | xxd -p
+	# PCR-5, depending on which modules are loaded for given board:
+	#     tpmr calc_pcr 5 module0.ko module1.ko module2.ko | xxd -p
+	# PCR-6 and PCR-7: similar to 5, but with different files passed
+	#  (6: LUKS header, 7: user related cbfs files loaded from cbfs-init)
+}
+
 tpm2_extend() {
 	TRACE "Under /bin/tpmr:tpm2_extend"
 	while true; do
@@ -519,7 +562,7 @@ tpm1_seal() {
 		-of "$sealed_file" \
 		-hk 40000000 \
 		"${POLICY_ARGS[@]}"
-	
+
 	# try it without the TPM Owner Password first
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
 		# to create an nvram space we need the TPM Owner Password
@@ -751,6 +794,10 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		replay_pcr "sha1" "$@"
 		;;
+	calc_pcr)
+		shift
+		calc_pcr "sha1" "$@"
+		;;
 	counter_create)
 		shift
 		tpm1_counter_create "$@"
@@ -795,6 +842,9 @@ pcrsize)
 	;;
 calcfuturepcr)
 	replay_pcr "sha256" "$@"
+	;;
+calc_pcr)
+	calc_pcr "sha256" "$@"
 	;;
 extend)
 	tpm2_extend "$@"
