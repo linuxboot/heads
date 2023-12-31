@@ -139,6 +139,7 @@ $(coreboot_module)_configure := \
 	&& echo 'CONFIG_LOCALVERSION="$(BRAND_NAME)-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
 	&& echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(BOARD)"' >> $(build)/$(coreboot_dir)/.config \
 	&& cp -TRf --remove-destination $(build)/$(coreboot_base_dir)/util/ifdtool $(build)/$(coreboot_base_dir)/util/ifdtool_cross \
+	&& cp -TRf --remove-destination $(build)/$(coreboot_base_dir)/util/cbfstool $(build)/$(coreboot_base_dir)/util/cbfstool_cross \
 	&& $(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
