@@ -90,10 +90,6 @@ jobs:
             #If precedent cache not found. Restore cache for musl-cross-make module digest (rarely modified).
             #Otherwise, we build cleanly.
             - heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-      - run:
-          name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
-          command: |
-            ./blobs/xx20/download_parse_me.sh
 
       - persist_to_workspace:
           root: ~/
