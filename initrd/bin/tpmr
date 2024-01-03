@@ -114,7 +114,6 @@ extend_pcr_state() {
 	local argument=1
 
 	while [ "$#" -gt 0 ]; do
-		DEBUG "Extending PCR state with argument #$argument: $1"
 		next="$1"
 		shift
 		if is_hash "$alg" "$next"; then
@@ -239,29 +238,46 @@ replay_pcr() {
 }
 
 
-# Read the FMAP from cbmem and pad it to the next multiple of 512 bytes to match cbfsutil/measured boot FMAP
+# Function: read_and_pad_FMAP_from_cbmem
+# Description: This function reads the FMAP (Firmware Map) from the cbmem (coreboot memory) and pads it to the next multiple of 512 bytes. 
+#  It then calculates the checksum of the padded FMAP using the specified checksum algorithm (sha1 or sha256) and returns the checksum value.
+# Parameters:
+#   - $1: The checksum algorithm to use (sha1 or sha256)
+# Returns:
+#   - The checksum value of the padded FMAP
+#   - Returns 1 if an unknown checksum algorithm is provided
 read_and_pad_FMAP_from_cbmem() {
+	TRACE "Under /bin/tpmr:read_and_pad_FMAP_from_cbmem"
+	# Check if the checksum algorithm is supported and set the appropriate program
+	if [ "$1" == "sha1" ]; then
+		checksum_prog="sha1sum"
+	elif [ "$1" == "sha256" ]; then
+		checksum_prog="sha256sum"
+	else
+		echo >&2 "Unknown checksum algorithm: $1"
+		return 1
+	fi
+
 	# Create the directory for temporary files
 	mkdir -p /tmp/secret/
 	# Fetch the address of the FMAP in memory and write the raw FMAP data to a file
-	cbmem --rawdump $(cbmem -l | grep FMAP | awk -F " " {'print $3'}) >/tmp/secret/fmap.raw
+	cbmem --rawdump "$(cbmem -l | grep FMAP | awk -F " " '{print $3}')" >/tmp/secret/fmap.raw
 	# Fetch the size of the FMAP from the raw data (4 bytes at offset 8) and store it as a hexadecimal string
 	fmap_size_hex=$(hexdump -v -e '/1 "%02x"' -s 8 -n 4 /tmp/secret/fmap.raw)
 	# Rearrange the bytes in the size to little-endian format
-	fmap_size_le=${fmap_size_hex:6:2}${fmap_size_hex:4:2}${fmap_size_hex:2:2}${fmap_size_hex:0:2}
+	fmap_size_le="${fmap_size_hex:6:2}${fmap_size_hex:4:2}${fmap_size_hex:2:2}${fmap_size_hex:0:2}"
 	# Convert the size from hexadecimal to decimal
-	fmap_size=$((16#$fmap_size_le))
+	fmap_size=$((16#"$fmap_size_le"))
 	# Calculate the next multiple of 512 that is greater than or equal to the size of the FMAP
-	next_multiple=$((($fmap_size + 511) / 512 * 512))
+	next_multiple=$(( (fmap_size + 511) / 512 * 512 ))
 	# Calculate the number of bytes needed to fill the fmap.raw file to the next multiple of 512
-	#fill_size=$(( $next_multiple - $fmap_size ))
-	fill_size=$(($next_multiple - $(stat -c%s /tmp/secret/fmap.raw)))
+	fill_size=$(( next_multiple - $(stat -c%s /tmp/secret/fmap.raw) ))
 	# Create a file named fill.ff filled with 'ff' of the required size
-	dd if=/dev/zero bs=1 count=$fill_size 2>/dev/null | tr '\0' '\377' >/tmp/secret/fill.ff
+	dd if=/dev/zero bs=1 count="$fill_size" 2>/dev/null | tr '\0' '\377' >/tmp/secret/fill.ff
 	# Append the fill.ff file to the fmap.raw file, resulting in a file named fmap_filled.raw
 	cat /tmp/secret/fmap.raw /tmp/secret/fill.ff >/tmp/secret/fmap_filled.raw
 	# Caller is expected to use hash format that matches the algorithm used for the PCR
-	sha1sum /tmp/secret/fmap_filled.raw | awk -F " " {'print $1'}
+	"$checksum_prog" /tmp/secret/fmap_filled.raw | awk -F " " '{print $1}'
 	# Removal of the tempory files in tmpfs is left to when going to recovery shell or rebooting
 }
 
@@ -326,16 +342,28 @@ recalculate_firmware_pcr_from_cbfs()
 	TRACE "Under /bin/tpmr:recalculate_firmware_pcr_from_cbfs"
 	# We pass hashes of the files that are measured by coreboot, simulating the measurement process
 	# As of now, Heads uses coreboot custom TPM Event log format, which measures everything in PCR-2
-	DO_WITH_DEBUG calc_pcr "$1" 2 \
-		$(read_and_pad_FMAP_from_cbmem) \
-		$(cbfs --read bootblock | sha1sum | awk -F " " {'print $1'}) \
-		$(cbfs --read fallback/romstage | sha1sum | awk -F " " {'print $1'}) \
-		$(cbfs --read fallback/postcar | sha1sum | awk -F " " {'print $1'}) \
-		$(cbfs --read fallback/ramstage | sha1sum | awk -F " " {'print $1'}) \
-		$(cbfs --read bootsplash.jpg | sha1sum | awk -F " " {'print $1'}) \
-		$(cbfs --read fallback/payload | sha1sum | awk -F " " {'print $1'})
 
-		DEBUG "Actual TPM $(pcrs | grep PCR-02)"
+	if [ "$1" == "sha1" ]; then
+		checksum_prog="sha1sum"
+		PCR_STRING="PCR-2"
+	elif [ "$1" == "sha256" ]; then
+		checksum_prog="sha256sum"
+		PCR_STRING="2 :"
+	else
+		echo >&2 "Unknown checksum algorithm: $1"
+		return 1
+	fi
+
+	DO_WITH_DEBUG calc_pcr "$1" 2 \
+		"$(read_and_pad_FMAP_from_cbmem "$1")" \
+		"$(cbfs --read bootblock | $checksum_prog | awk -F ' ' '{print $1}')" \
+		"$(cbfs --read fallback/romstage | $checksum_prog | awk -F ' ' '{print $1}')" \
+		"$(cbfs --read fallback/postcar | $checksum_prog | awk -F ' ' '{print $1}')" \
+		"$(cbfs --read fallback/ramstage | $checksum_prog | awk -F ' ' '{print $1}')" \
+		"$(cbfs --read bootsplash.jpg | $checksum_prog | awk -F ' ' '{print $1}')" \
+		"$(cbfs --read fallback/payload | $checksum_prog | awk -F ' ' '{print $1}')"
+
+		DEBUG "Actual TPM $(pcrs | grep "$PCR_STRING")"
 		DEBUG "TPM event log reported by cbmem -L: $(cbmem -L)"
 }
 
