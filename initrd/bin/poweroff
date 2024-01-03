@@ -9,7 +9,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 fi
 
 # Run special EC-based poweroff for Nitropad-Nxx
-if [ "${CONFIG_BOARD%_*}" = nitropad-nv41 || "${CONFIG_BOARD%_*}" = nitropad-ns51 ]; then
+if [ "$CONFIG_BOARD" = "nitropad-nv41" ] || [ "$CONFIG_BOARD" = "nitropad-ns50" ]; then
 	/bin/nitropad-shutdown.sh
 fi
 
