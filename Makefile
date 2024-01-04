@@ -82,7 +82,7 @@ $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
 endif
 
 ifneq "$(BOARD_TARGETS)" ""
-include targets/$(BOARD_TARGETS).mk
+include $(foreach TARGET,$(BOARD_TARGETS),targets/$(TARGET).mk)
 endif
 
 # Create directories if they don't already exist
