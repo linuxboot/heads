@@ -88,7 +88,7 @@ run: $(TPMDIR)/.manufacture $(ROOT_DISK_IMG) $(MEMORY_SIZE_FILE) $(USB_FD_IMG)
 	-qemu-system-x86_64 -drive file="$(ROOT_DISK_IMG)",if=virtio \
 		--machine q35,accel=kvm:tcg \
 		-rtc base=utc \
-		-smp "$$(nproc)" \
+		-smp 1 \
 		-vga std \
 		-m "$$(cat "$(MEMORY_SIZE_FILE)")" \
 		-serial stdio \

@@ -354,17 +354,35 @@ recalculate_firmware_pcr_from_cbfs()
 		return 1
 	fi
 
-	DO_WITH_DEBUG calc_pcr "$1" 2 \
+	calculated_pcr=$(calc_pcr "$1" 2 \
 		"$(read_and_pad_FMAP_from_cbmem "$1")" \
 		"$(cbfs --read bootblock | $checksum_prog | awk -F ' ' '{print $1}')" \
 		"$(cbfs --read fallback/romstage | $checksum_prog | awk -F ' ' '{print $1}')" \
 		"$(cbfs --read fallback/postcar | $checksum_prog | awk -F ' ' '{print $1}')" \
 		"$(cbfs --read fallback/ramstage | $checksum_prog | awk -F ' ' '{print $1}')" \
 		"$(cbfs --read bootsplash.jpg | $checksum_prog | awk -F ' ' '{print $1}')" \
-		"$(cbfs --read fallback/payload | $checksum_prog | awk -F ' ' '{print $1}')"
+		"$(cbfs --read fallback/payload | $checksum_prog | awk -F ' ' '{print $1}')")
 
-		DEBUG "Actual TPM $(pcrs | grep "$PCR_STRING")"
+		DEBUG "Original TPM PCR2 value: $(pcrs | grep "$PCR_STRING")"
 		DEBUG "TPM event log reported by cbmem -L: $(cbmem -L)"
+		DEBUG "Calculated TPM PCR2 value from files: $calculated_pcr"
+		echo "$calculated_pcr"
+}
+
+verify_coreboot_measured_boot_tpm_event_log_vs_content_measured()
+{
+	measured_boot=$(tpmr calcfuturepcr 2  | xxd -p)
+	content_measured=$(tpmr recalculate_firmware_pcr_from_cbfs)
+
+	DEBUG "Measured boot from TPM event log: $measured_boot"
+	DEBUG "Measured boot from content measured by coreboot: $content_measured"
+
+	if [ "$measured_boot" == "$content_measured" ]; then
+		echo "Verified: TPM event log matches content measured by coreboot"
+	else
+		echo "Failed: TPM event log does not match content measured by coreboot"
+		die "TPM event log does not match content measured by coreboot"
+	fi
 }
 
 tpm2_extend() {
@@ -897,6 +915,10 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		recalculate_firmware_pcr_from_cbfs "sha1"
 		;;
+	verify_coreboot_measured_boot_tpm_event_log_vs_content_measured)
+		shift
+		verify_coreboot_measured_boot_tpm_event_log_vs_content_measured
+		;;
 	counter_create)
 		shift
 		tpm1_counter_create "$@"
@@ -947,6 +969,9 @@ calc_pcr)
 	;;
 recalculate_firmware_pcr_from_cbfs)
 	recalculate_firmware_pcr_from_cbfs "sha256"
+	;;
+verify_coreboot_measured_boot_tpm_event_log_vs_content_measured)
+	verify_coreboot_measured_boot_tpm_event_log_vs_content_measured
 	;;
 extend)
 	tpm2_extend "$@"
