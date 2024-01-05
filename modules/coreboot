@@ -61,6 +61,9 @@ endef
 coreboot-4.11_hash := 97fd859b4c39a25534fe33c30eb86e54a233952e08a024c55858d11598a8ad87
 coreboot-blobs-4.11_hash := aa7855c5bd385b3360dadc043ea6bc93f564e6e4840d9b3ee5b9e696bbd055db
 $(eval $(call coreboot_module,4.11,))
+# The coreboot 4.11 toolchain disables the Ada compiler.  None of the 4.11 boards need
+# libgfxinit, and the old Ada compiler no longer compiles with the Debian 12 host toolchain.
+coreboot-4.11_toolchain_build_args := BUILD_LANGUAGES=c
 
 coreboot-4.19_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
 coreboot-blobs-4.19_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
@@ -150,7 +153,8 @@ $(coreboot_module)_configure := \
 # mark that the toolchain was built.
 COREBOOT_TOOLCHAIN_DIR=$(build)/$($(coreboot_toolchain_module)_base_dir)
 $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.canary
-	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
+	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)" \
+		$($(coreboot_toolchain_module)_toolchain_build_args)
 	touch "$@"
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
