@@ -54,9 +54,14 @@ while true; do
         'J' " $(get_config_display_action "$CONFIG_USE_BLOB_JAIL") Firmware Blob Jail"
     )
 
+    # Automatic boot
+    dynamic_config_options+=(
+      'M' " Configure automatic boot"
+    )
+
     # Basic-only options for automatic boot
     [ "$CONFIG_BASIC" = "y" ] && dynamic_config_options+=(
-        'A' " $(get_inverted_config_display_action "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot"
+        'A' " $(get_inverted_config_display_action "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT") automatic default boot option"
         'U' " $(get_config_display_action "$CONFIG_BASIC_USB_AUTOBOOT") USB automatic boot"
     )
 
@@ -401,6 +406,37 @@ while true; do
         fi
       fi
     ;;
+    "M" )
+      if [ -z "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+        current_msg="Automatic boot is currently disabled."
+      elif [ "$CONFIG_AUTO_BOOT_TIMEOUT" = 1 ]; then
+        current_msg="Currently boots automatically after 1 second."
+      else
+        current_msg="Currently boots automatically after $CONFIG_AUTO_BOOT_TIMEOUT seconds."
+      fi
+      whiptail --title "Automatic Boot" \
+        --menu "$CONFIG_BRAND_NAME can boot automatically.  Select the amount of time to wait\nbefore booting.\n\n$current_msg" 0 80 10 \
+        "0" "Don't boot automatically" \
+        "1" "1 second" \
+        "5" "5 seconds" \
+        "10" "10 seconds" \
+        "C" "Cancel" \
+        2>/tmp/whiptail
+      new_setting="$(cat /tmp/whiptail)"
+      if ! [ "$new_setting" = "C" ]; then
+        if [ "$new_setting" = "0" ]; then
+          new_setting=  # Empty disables automatic boot
+          current_msg="$CONFIG_BRAND_NAME will not boot automatically."
+        elif [ "$new_setting" = "1" ]; then
+          current_msg="$CONFIG_BRAND_NAME will boot automatically after 1 second."
+        else
+          current_msg="$CONFIG_BRAND_NAME will boot automatically after $new_setting seconds."
+        fi
+        set_user_config "CONFIG_AUTO_BOOT_TIMEOUT" "$new_setting"
+        whiptail --title 'Config change successful' \
+          --msgbox "$current_msg\nSave the config change and reboot for it to go into effect." 0 80
+      fi
+      ;;
     "A" )
       if [ "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" != "y" ]; then
         if (whiptail --title 'Disable automatic default boot?' \
