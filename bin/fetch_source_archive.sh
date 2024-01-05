@@ -56,7 +56,11 @@ download "$URL" && exit 0
 # Shuffle the mirrors so we try each equally
 readarray -t BACKUP_MIRRORS < <(shuf -e "${BACKUP_MIRRORS[@]}")
 
-archive="$(basename "$URL")"
+# The mirrors use our archive names, which may differ from the primary source
+# (e.g. musl-cross-make archives are just <hash>.tar.gz, makes more sense to use
+# musl-cross-<hash>.tar.gz).  This also means mirrors can be seeded directly
+# from the packages/<arch>/ directories.
+archive="$(basename "$FILE")"
 echo "Try mirrors for $archive" >&2
 
 for mirror in "${BACKUP_MIRRORS[@]}"; do
