@@ -113,12 +113,12 @@ while true; do
           # talos-2 uses a .tgz file for its "plain" update, contains other parts as well, validated against hashes under flash.sh
           # Skip prompt for hash validation for talos-2. Only method is through tgz or through bmc with individual parts
           if [ "${CONFIG_BOARD%_*}" != talos-2 ]; then
-          # a rom file was provided. exit if we shall not proceed
-          ROM="$PKG_FILE"
-          ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}') || die "Failed to hash ROM file"
-          if ! (whiptail $CONFIG_ERROR_BG_COLOR --title 'Flash ROM without integrity check?' \
-            --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
-            exit 1
+            # a rom file was provided. exit if we shall not proceed
+            ROM="$PKG_FILE"
+            ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}') || die "Failed to hash ROM file"
+            if ! (whiptail $CONFIG_ERROR_BG_COLOR --title 'Flash ROM without integrity check?' \
+              --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $ROM\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
+              exit 1
             fi
           else
             #We are on talos-2, so we have a tgz file. We will pass it directly to flash.sh which will take care of it
