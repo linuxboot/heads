@@ -14,7 +14,7 @@ else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 	# Linux), but coreboot is big-endian on PPC64.
 	COREBOOT_TARGET_CROSS := CROSS=$(CROSS)
 else
-	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
+	$(error "$(CONFIG_TARGET_ARCH) target is not supported by this module")
 endif
 
 # Each coreboot version is defined as a separate module, but only the needed
@@ -97,7 +97,7 @@ $(eval $(call coreboot_module,nitrokey,))
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 else ifeq "$(coreboot-$(CONFIG_COREBOOT_VERSION)_dir)" ""
-	$(error "$(BOARD): coreboot version $(CONFIG_COREBOOT_VERSION) not known"
+	$(error "$(BOARD): coreboot version $(CONFIG_COREBOOT_VERSION) not known")
 endif 
 
 coreboot_module := coreboot-$(CONFIG_COREBOOT_VERSION)
@@ -148,12 +148,49 @@ $(coreboot_module)_configure := \
 
 # Create a dependency from coreboot to the toolchain.  Use .heads-toolchain to
 # mark that the toolchain was built.
-COREBOOT_TOOLCHAIN=$(build)/$($(coreboot_toolchain_module)_base_dir)/.heads-toolchain
-$(COREBOOT_TOOLCHAIN): $(build)/$($(coreboot_toolchain_module)_base_dir)/.canary
+COREBOOT_TOOLCHAIN_DIR=$(build)/$($(coreboot_toolchain_module)_base_dir)
+$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.canary
 	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)"
 	touch "$@"
 
-$(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN)
+$(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
+
+## Toolchain packages ##
+# coreboot likes to download its own toolchain packages, but these sources can
+# go down or move also.  Download them ahead of the toolchain build with
+# fetch_source_archive.sh to leverage our mirrors.
+#
+# Create a task for each package.
+# $1 - package name (binutils/gcc/gmp/etc. - check coreboot/util/crossgcc/sum/)
+define coreboot-toolchain-pkg =
+# The package versions and digests aren't duplicated here, we get them
+# from the coreboot source.  This means downloading all packages
+# requires unpacking the coreboot source, but that's preferred over
+# maintaining a duplicate list here for each coreboot version.
+
+# Rule to download the source archive for $1 and place it in the
+# cooreboot directory.  Although there is a specific file produced here
+# (the package), we can't use it as the rule target because we don't
+# know the filename until coreboot is unpacked.
+$(COREBOOT_TOOLCHAIN_DIR)/.heads-crossgcc-pkg-$(1) : $(COREBOOT_TOOLCHAIN_DIR)/.canary
+	WGET="$(WGET)" bin/fetch_coreboot_crossgcc_archive.sh \
+		"$(COREBOOT_TOOLCHAIN_DIR)" "$(1)" "$(packages)"
+	touch "$$@"
+
+# The toolchain build requires this package
+$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.heads-crossgcc-pkg-$(1)
+# The "packages" target depends on this target, so 'make packages' will
+# include these packages for seeding a mirror.
+packages: $(COREBOOT_TOOLCHAIN_DIR)/.heads-crossgcc-pkg-$(1)
+endef
+
+$(eval $(call coreboot-toolchain-pkg,gmp))
+$(eval $(call coreboot-toolchain-pkg,mpfr))
+$(eval $(call coreboot-toolchain-pkg,mpc))
+$(eval $(call coreboot-toolchain-pkg,binutils))
+$(eval $(call coreboot-toolchain-pkg,gcc))
+$(eval $(call coreboot-toolchain-pkg,nasm))
+$(eval $(call coreboot-toolchain-pkg,iasl))
 
 # Build with the cross toolchain from the toolchain module (which might be the
 # same coreboot module or a different one).
