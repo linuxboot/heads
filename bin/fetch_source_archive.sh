@@ -10,11 +10,12 @@ usage()
 {
 	cat <<USAGE_END
 usage:
-	$0 <url> <file> <sha256sum>
+	$0 <url> <file> <digest>
 	$0 --help
 
 	Downloads <url> to <file>, falling back to package mirrors if the
-	primary source is not available or does match the expected sha256sum.
+	primary source is not available or does match the expected digest.  The
+	digest can be a SHA-256 (preferred) or SHA-1 digest.
 
 	Uses wget, export WGET to override the path to wget.
 USAGE_END
@@ -27,20 +28,32 @@ fi
 
 URL="$1"
 FILE="$2"
-SHA256SUM="$3"
+DIGEST="$3"
 
 TMP_FILE="$2.tmp"
 
 WGET="${WGET:-wget}"
 
-rm -f "$FILE" "$TMP_FILE"
+case "$(echo -n "$DIGEST" | wc -c)" in
+	64)
+		SHASUM=sha256sum
+		;;
+	40)
+		# coreboot crossgcc archives have SHA-1 digests from coreboot
+		SHASUM=sha1sum
+		;;
+	*)
+		echo "Unknown digest for $FILE: $DIGEST" >&2
+		exit 1
+		;;
+esac
 
 download() {
 	local download_url
 	download_url="$1"
 	if ! "$WGET" -O "$TMP_FILE" "$download_url"; then
 		echo "Failed to download $download_url" >&2
-	elif ! echo "$SHA256SUM $TMP_FILE" | sha256sum --check -; then
+	elif ! echo "$DIGEST $TMP_FILE" | "$SHASUM" --check -; then
 		echo "File from $download_url does not match expected digest" >&2
 	else
 		mv "$TMP_FILE" "$FILE"	# Matches, keep this file
@@ -49,6 +62,14 @@ download() {
 	rm -f "$TMP_FILE"	# Wasn't downloaded or failed check
 	return 1
 }
+
+# If the file exists already and the digest is correct, use the cached copy.
+if [ -f "$FILE" ] && (echo "$DIGEST $FILE" | "$SHASUM" --check -); then
+	echo "File $FILE is already cached" >&2
+	exit 0
+fi
+
+rm -f "$FILE" "$TMP_FILE"
 
 # Try the primary source
 download "$URL" && exit 0
