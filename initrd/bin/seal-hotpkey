@@ -11,9 +11,12 @@ mount_boot()
 {
   TRACE "Under /bin/seal-hotpkey:mount_boot"
   # Mount local disk if it is not already mounted
-  if ! grep -q /boot /proc/mounts ; then
-    mount -o ro /boot \
-      || recovery "Unable to mount /boot"
+  if ! grep -q /boot /proc/mounts; then
+    if ! mount -o ro /boot; then
+      whiptail $BG_COLOR_ERROR --title 'ERROR' \
+        --msgbox "Couldn't mount /boot.\n\nCheck the /boot device in configuration settings, or perform an OEM reset." 0 80
+      return 1
+    fi
   fi
 }
 
@@ -45,7 +48,7 @@ fi
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots
 # get current value of HOTP counter in TPM, create if absent
-mount_boot
+mount_boot || exit 1
 
 #check_tpm_counter $HOTP_COUNTER hotp \
 #|| die "Unable to find/create TPM counter"
