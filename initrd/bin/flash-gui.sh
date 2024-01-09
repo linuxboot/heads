@@ -60,10 +60,19 @@ while true; do
       --yesno "You will need to insert a USB drive containing your BIOS image (*.zip or\n*.$UPDATE_PLAIN_EXT).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
       mount_usb
       if grep -q /media /proc/mounts; then
+        # 'find' parameters to match desired ROM extensions
+        FIND_ROM_EXTS=(\( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.zip" \))
         if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
-          find /media ! -path '*/\.*' -type f -name "*.$UPDATE_PLAIN_EXT" | sort >/tmp/filelist.txt
-        else
-          find /media ! -path '*/\.*' -type f \( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.zip" \) | sort >/tmp/filelist.txt
+          # Show only *.tgz on talos-2 (lacks ZIP update package support)
+          FIND_ROM_EXTS=(-name "*.$UPDATE_PLAIN_EXT")
+        fi
+        # Media errors can cause this to fail (flash drive pulled, filesystem
+        # corruption, etc.)
+        if ! find /media ! -path '*/\.*' -type f "${FIND_ROM_EXTS[@]}" | sort >/tmp/filelist.txt; then
+          whiptail --title 'Unable to read USB drive' \
+            --msgbox "The USB drive is not readable.  Check the drive, reformat, or try a
+                    \ndifferent drive." 16 60
+          exit 1
         fi
         file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
         if [ "$FILE" == "" ]; then
