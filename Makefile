@@ -384,18 +384,15 @@ define define_module =
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
 	$(call do,WGET,$($1_url),\
-		if ! $(WGET) -O "$$@.tmp" $($1_url) ; then \
-			exit 1 ; \
-		fi ; \
-		mv "$$@.tmp" "$$@" \
+		WGET="$(WGET)" bin/fetch_source_archive.sh "$($1_url)" "$$@" "$($1_hash)"
 	)
-    $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
-	echo "$($1_hash)  $$^" | sha256sum --check -
-	@touch "$$@"
+
+    # Target to fetch all packages, for seeding mirrors
+    packages: $(packages)/$($1_tar)
 
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
-    $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
+    $(build)/$($1_base_dir)/.canary: $(packages)/$($1_tar)
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
