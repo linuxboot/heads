@@ -25,7 +25,7 @@ fi
 
 COREBOOT_DIR="$1"
 PKG_NAME="$2"
-PKGS_DIR="$3"
+PKGS_DIR="$(realpath "$3")" # Make sure it's an absolute path
 
 # Get the result of a glob that should match a single thing, or die if it
 # doesn't match exactly one thing.
@@ -126,5 +126,7 @@ BIN_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # Copy to the tarballs directory so coreboot's toolchain build will use this
 # archive
 mkdir -p "$COREBOOT_DIR/util/crossgcc/tarballs"
-cp "$PKGS_DIR/coreboot-crossgcc-$PKG_BASENAME" \
-	"$COREBOOT_DIR/util/crossgcc/tarballs/$PKG_BASENAME"
+(
+	cd "$COREBOOT_DIR/util/crossgcc/tarballs"
+	ln -s "$PKGS_DIR/coreboot-crossgcc-$PKG_BASENAME" "$PKG_BASENAME"
+)
