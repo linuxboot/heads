@@ -128,5 +128,6 @@ BIN_DIR="$(dirname "${BASH_SOURCE[0]}")"
 mkdir -p "$COREBOOT_DIR/util/crossgcc/tarballs"
 (
 	cd "$COREBOOT_DIR/util/crossgcc/tarballs"
+	rm -f "$PKG_BASENAME"
 	ln -s "$PKGS_DIR/coreboot-crossgcc-$PKG_BASENAME" "$PKG_BASENAME"
 )
