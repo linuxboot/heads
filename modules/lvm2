@@ -33,6 +33,7 @@ lvm2_configure := \
 	--disable-cache_check_needs_check \
 	--disable-thin_check_needs_check \
 	--with-cluster=none \
+	--with-thin-check= \
 
 # not sure why LIB_SUFFIX is not defined in the cross build
 lvm2_target := \
