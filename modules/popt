@@ -1,15 +1,16 @@
 modules-$(CONFIG_POPT) += popt
 
-popt_version := 1.16
+popt_version := 1.19
 popt_dir := popt-$(popt_version)
 popt_tar := popt-$(popt_version).tar.gz
-popt_url := https://launchpad.net/popt/head/$(popt_version)/+download/$(popt_tar)
-popt_hash := e728ed296fe9f069a0e005003c3d6b2dde3d9cad453422a10d6558616d304cc8
+popt_url := https://fossies.org/linux/misc/$(popt_tar)
+popt_hash := c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9
 
 popt_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--prefix "/" \
 	--host $(MUSL_ARCH)-elf-linux \
+
 
 popt_target := \
 	$(MAKE_JOBS) \
@@ -20,6 +21,6 @@ popt_target := \
 		DESTDIR="$(INSTALL)" \
 		install
 
-popt_libraries := .libs/libpopt.so.0
+popt_libraries := src/.libs/libpopt.so.0
 
 popt_depends := $(musl_dep)
