@@ -3,7 +3,6 @@
 # This is a bit of a hack to set it up.
 
 modules-$(CONFIG_GPG) += libusb-compat
-modules-$(CONFIG_GPG2) += libusb-compat
 
 libusb-compat_version := 0.1.5
 libusb-compat_dir := libusb-compat-$(libusb-compat_version)
