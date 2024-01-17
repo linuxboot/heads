@@ -1,7 +1,9 @@
 #!/bin/bash
 # Save these options to be the persistent default
 set -e -o pipefail
+# shellcheck disable=SC1091
 . /tmp/config
+# shellcheck disable=SC1091
 . /etc/functions
 
 TRACE "Under /bin/kexec-save-default"
@@ -12,6 +14,7 @@ while getopts "b:d:p:i:" arg; do
 	d) paramsdev="$OPTARG" ;;
 	p) paramsdir="$OPTARG" ;;
 	i) index="$OPTARG" ;;
+	*) echo "Invalid flag: -$OPTARG" >&2 ;;
 	esac
 done
 
@@ -38,46 +41,15 @@ PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
-lvm_suggest=$(lvm vgscan | awk -F '"' {'print $1'} | tail -n +2)
-num_lvm=$(echo "$lvm_suggest" | wc -l)
-if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
-	lvm_volume_group="$lvm_suggest"
-elif [ -z "$lvm_suggest" ]; then
-	num_lvm=0
-fi
-# $lvm_suggest is a multiline string, we need to convert it to a space separated string
-lvm_suggest=$(echo $lvm_suggest | tr '\n' ' ')
-DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
-
-# get all LUKS container devices
-devices_suggest=$(blkid | cut -d ':' -f 1 | while read device; do
-	if cryptsetup isLuks "$device"; then echo "$device"; fi
-done | sort)
-num_devices=$(echo "$devices_suggest" | wc -l)
-
-if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
-	key_devices=$devices_suggest
-elif [ -z "$devices_suggest" ]; then
-	num_devices=0
-fi
-# $devices_suggest is a multiline string, we need to convert it to a space separated string
-devices_suggest=$(echo $devices_suggest | tr '\n' ' ')
-DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
-
-if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
-	#No encrypted partition found.
-	no_encrypted_partition=1
-fi
-
 #Reusable function when user wants to define new TPM DUK for lvms/disks
 prompt_for_existing_encrypted_lvms_or_disks() {
 	TRACE "Under kexec-save-default:prompt_for_existing_encrypted_lvms_or_disks"
-	DEBUG "num_lvm: $num_lvm, lvm_suggest: $lvm_suggest, num_devices: $num_devices, devices_suggest: $devices_suggest"
+	DEBUG "num_lvm: $num_lvm, lvm_suggest: ${lvm_suggest[*]}, num_devices: $num_devices, devices_suggest: ${devices_suggest[*]}"
 
 	# Create an associative array to store the suggested LVMs and their paths
 	declare -A lvms_array
 	# Loop through the suggested LVMs and add them to the array
-	for lvm in $lvm_suggest; do
+	for lvm in ${lvm_suggest[@]}; do
 		lvms_array["$lvm"]=$lvm
 	done
 
@@ -85,7 +57,7 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 	num_lvms=${#lvms_array[@]}
 
 	if [ "$num_lvms" -gt 1 ]; then
-		DEBUG "Multiple LVMs found: $lvm_suggest"
+		DEBUG "Multiple LVMs found: ${lvm_suggest[*]}"
 		selected_lvms_not_existing=1
 		# Create an array to store the selected LVMs
 		declare -a key_lvms_array
@@ -94,7 +66,7 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 			{
 				# Read the user input and store it in a variable
 				read \
-					-p "Encrypted LVMs? (choose between/all: $lvm_suggest): " \
+					-p "Encrypted LVMs? (choose between/all: ${lvm_suggest[*]}): " \
 					key_lvms
 
 				# Split the user input by spaces and add each element to the array
@@ -117,8 +89,8 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 			}
 		done
 	elif [ "$num_lvms" -eq 1 ]; then
-		echo "Single Encrypted LVM found at $lvm_suggest."
-		key_lvms=$lvm_suggest
+		echo "Single Encrypted LVM found at ${lvm_suggest[*]}."
+		key_lvms=("${lvm_suggest[@]}")
 	else
 		echo "No encrypted LVMs found."
 	fi
@@ -126,16 +98,16 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 	# Create an associative array to store the suggested devices and their paths
 	declare -A devices_array
 	# Loop through the suggested devices and add them to the array
-	for device in $devices_suggest; do
+	for device in ${devices_suggest[@]}; do
 		devices_array["$device"]=$device
 	done
 
-	DEBUG "LUKS num_devices before array: $num_devices, devices_array: ${devices_array[@]}"
+	DEBUG "LUKS num_devices before array: $num_devices, devices_array: ${devices_array[*]}"
 	num_devices=${#devices_array[@]}
-	DEBUG "LUKS num_devices after array: $num_devices, devices_array: ${devices_array[@]}"
+	DEBUG "LUKS num_devices after array: $num_devices, devices_array: ${devices_array[*]}"
 
 	if [ "$num_devices" -gt 1 ]; then
-		DEBUG "Multiple LUKS devices found: $devices_suggest"
+		DEBUG "Multiple LUKS devices found: ${devices_suggest[*]}"
 		selected_luksdevs_not_existing=1
 		# Create an array to store the selected devices
 		declare -a key_devices_array
@@ -144,7 +116,7 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 			{
 				# Read the user input and store it in a variable
 				read \
-					-p "Encrypted devices? (choose between/all: $devices_suggest): " \
+					-p "Encrypted devices? (choose between/all: ${devices_suggest[*]}): " \
 					key_devices
 
 				# Split the user input by spaces and add each element to the array
@@ -166,15 +138,53 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 				fi
 			}
 		done
-		DEBUG "devices_suggest: $devices_suggest, key_devices: $key_devices, key_devices_array: ${key_devices_array[@]}"
+		DEBUG "devices_suggest: ${devices_suggest[*]}, key_devices: $key_devices, key_devices_array: ${key_devices_array[*]}"
 		DEBUG "Multiple LUKS devices selected: $key_devices"
 	elif [ "$num_devices" -eq 1 ]; then
-		echo "Single Encrypted Disk found at $devices_suggest."
-		key_devices=$devices_suggest
+		echo "Single Encrypted Disk found at ${devices_suggest[*]}."
+		key_devices=("${devices_suggest[@]}")
 	else
 		echo "No encrypted devices found."
 	fi
 }
+
+# get all LVM volume groups
+lvm_suggest=($(lvm vgscan | awk -F '"' '{print $1}' | tail -n +2))
+num_lvm=${#lvm_suggest[@]}
+if [ "$num_lvm" -eq 1 ] && [ -n "${lvm_suggest[*]}" ]; then
+	lvm_volume_group=("${lvm_suggest[@]}")
+elif [ -z "${lvm_suggest[*]}" ]; then
+	num_lvm=0
+fi
+DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: ${lvm_suggest[*]}"
+
+# get all LUKS container devices
+devices_suggest=($(blkid | cut -d ':' -f 1 | while read device; do
+	if cryptsetup isLuks "$device"; then echo "$device"; fi
+done | sort))
+num_devices=${#devices_suggest[@]}
+
+if [ "$num_devices" -eq 1 ] && [ -s "${devices_suggest[*]}" ]; then
+	key_devices=("${devices_suggest[@]}")
+elif [ -z "${devices_suggest[*]}" ]; then
+	num_devices=0
+fi
+
+# Create an array to store the suggested devices and their paths
+declare -A devices_array
+# Loop through the suggested devices and add them to the array
+for device in "${devices_suggest[@]}"; do
+	devices_array["$device"]=$device
+done
+
+# $devices_suggest is a multiline string, we need to convert it to a space separated string
+devices_suggest=$(echo "${devices_suggest[*]}" | tr '\n' ' ')
+DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
+
+if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
+	#No encrypted partition found.
+	no_encrypted_partition=1
+fi
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
 	die "No menu options available, please run kexec-select-boot"
@@ -203,18 +213,18 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			-o "$change_key_confirm" = "Y" ]; then
 			old_lvm_volume_group=""
 			if [ -r "$KEY_LVM" ]; then
-				old_lvm_volume_group=$(cat $KEY_LVM) || true
-				old_key_devices=$(cat $KEY_DEVICES |
+				old_lvm_volume_group=$(cat "$KEY_LVM") || true
+				old_key_devices=$(cat "$KEY_DEVICES" |
 					cut -d\  -f1 |
 					grep -v "$old_lvm_volume_group" |
 					xargs) || true
 			else
-				old_key_devices=$(cat $KEY_DEVICES |
+				old_key_devices=$(cat "$KEY_DEVICES" |
 					cut -d\  -f1 | xargs) || true
 			fi
 
-			lvm_suggest="$old_lvm_volume_group"
-			devices_suggest="$old_key_devices"
+			lvm_suggest=("$old_lvm_volume_group")
+			devices_suggest=("$old_key_devices")
 			save_key="y"
 		fi
 	else
@@ -234,18 +244,18 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 
 	if [ "$save_key" = "y" ]; then
 		if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
-			DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices $old_key_devices $old_lvm_volume_group"
+			DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices ${old_key_devices[*]} ${old_lvm_volume_group[*]}"
 			read \
 				-n 1 \
 				-p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
 				reuse_past_devices
 			echo
 			if [ "$reuse_past_devices" = "y" ] || [ "$reuse_past_devices" = "Y" ] || [ -z "$reuse_past_devices" ]; then
-				if [ -z "$key_devices" ] && [ -n "$old_key_devices" ]; then
-					key_devices="$old_key_devices"
+				if [ -z "${key_devices[*]}" ] && [ -n "$old_key_devices" ]; then
+					key_devices=("${old_key_devices[*]}")
 				fi
-				if [ -z "$lvm_volume_group" ] && [ -n "$old_lvm_volume_group" ]; then
-					lvm_volume_group="$old_lvm_volume_group"
+				if [ -z "${lvm_volume_group[*]}" ] && [ -n "$old_lvm_volume_group" ]; then
+					lvm_volume_group=("${old_lvm_volume_group[*]}")
 				fi
 			#User doesn't want to reuse past devices, so we need to prompt him from devices_suggest and lvm_suggest
 			else
@@ -256,22 +266,29 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			prompt_for_existing_encrypted_lvms_or_disks
 		fi
 
-		save_key_params="-s -p $paramsdev"
-		if [ -n "$lvm_volume_group" ]; then
-			save_key_params="$save_key_params -l $lvm_volume_group $key_devices"
+		save_key_params=("-s" "-p" "$paramsdev")
+		if [ -n "${lvm_volume_group[*]}" ]; then
+			save_key_params+=("-l" "${lvm_volume_group[*]}" "${key_devices[*]}")
 		else
-			save_key_params="$save_key_params $key_devices"
+			save_key_params+=("${key_devices[*]}")
 		fi
-		kexec-save-key $save_key_params ||
+
+		#TODO REMOVE THIS TROUBLESHOOTING HACK
+		DEBUG "Outputting logs to USB drive. Please wait..."
+		mount-usb --mode rw
+		dmesg >/media/dmesg.txt
+		DEBUG "Done. You can CTRL-Alt-Delete now to reboot, files will be synced to USB drive before rebooting"
+
+		kexec-save-key "${save_key_params[@]}" ||
 			die "Failed to save the TPM Disk Unlock Key"
 	fi
 fi
 
 # try to switch to rw mode
-mount -o rw,remount $paramsdev
+mount -o rw,remount "$paramsdev"
 
-if [ ! -d $paramsdir ]; then
-	mkdir -p $paramsdir ||
+if [ ! -d "$paramsdir" ]; then
+	mkdir -p "$paramsdir" ||
 		die "Failed to create params directory"
 fi
 
@@ -281,13 +298,13 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
 fi
 
-rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
-echo "$entry" >$ENTRY_FILE
+rm "$paramsdir/kexec_default."*.txt 2>/dev/null || true
+echo "$entry" >"$ENTRY_FILE"
 (
-	cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f |
-		xargs sha256sum >$HASH_FILE
+	cd "$bootdir" && kexec-boot -b "$bootdir" -e "$entry" -f |
+		xargs sha256sum >"$HASH_FILE"
 ) || die "Failed to create hashes of boot files"
-if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
+if [ ! -r "$ENTRY_FILE" -o ! -r "$HASH_FILE" ]; then
 	die "Failed to write default config"
 fi
 
@@ -304,10 +321,10 @@ if [ "$save_key" = "y" ]; then
 
 	if [ ! -z "$crypttab_files" ]; then
 		DEBUG "Found crypttab files in $current_default_initrd"
-		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
+		rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt" || true
 
 		#Parsing each crypttab file found
-		echo "$crypttab_files" | while read crypttab_file; do
+		echo "$crypttab_files" | while read -r crypttab_file; do
 			# Change crypttab file path to be relative to initrd for string manipulation
 			final_initrd_filepath=${crypttab_file#/tmp/initrd_extract}
 			DEBUG "Final initramfs crypttab path:$final_initrd_filepath"
@@ -317,14 +334,14 @@ if [ "$save_key" = "y" ]; then
 			# Modify each retained crypttab line for /secret.key under intramfs to be considered as a keyfile
 			modified_crypttab_entries=$(echo "$current_crypttab_entries" | sed 's/none/\/secret.key/g')
 			DEBUG "Modified crypttab entries $final_initrd_filepath:$modified_crypttab_entries"
-			echo "$modified_crypttab_entries" | while read modified_crypttab_entry; do
-				echo "$final_initrd_filepath:$modified_crypttab_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
+			echo "$modified_crypttab_entries" | while read -r modified_crypttab_entry; do
+				echo "$final_initrd_filepath:$modified_crypttab_entry" >>"$bootdir/kexec_initrd_crypttab_overrides.txt"
 			done
 		done
 
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
 		echo "+++ The following OS crypttab file:entry were modified from default boot's initrd:"
-		cat $bootdir/kexec_initrd_crypttab_overrides.txt
+		cat "$bootdir/kexec_initrd_crypttab_overrides.txt"
 		echo "+++ Heads added /secret.key in those entries and saved them under $bootdir/kexec_initrd_crypttab_overrides.txt"
 		echo "+++ Those overrides will be part of detached signed digests and used to prepare cpio injected at kexec of selected default boot entry."
 	else
@@ -348,8 +365,8 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	fi
 fi
 if [ "$CONFIG_BASIC" != "y" ]; then
-	kexec-sign-config -p $paramsdir $extparam ||
+	kexec-sign-config -p "$paramsdir" $extparam ||
 		die "Failed to sign default config"
 fi
 # switch back to ro mode
-mount -o ro,remount $paramsdev
+mount -o ro,remount "$paramsdev"
