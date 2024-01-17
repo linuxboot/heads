@@ -167,7 +167,7 @@ find_lvm_vg_name() {
 
   mkdir -p /tmp/root-hashes-gui
   if ! lvm pvs "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
-    DEBUG "Did not detect an LVM2 PV: $DEVICE"
+    # It's not an LVM PV
     return 1
   fi
 
