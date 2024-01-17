@@ -50,12 +50,9 @@ lvm_suggest=$(echo $lvm_suggest | tr '\n' ' ')
 DEBUG "LVM num_lvm: $num_lvm, lvm_suggest: $lvm_suggest"
 
 # get all LUKS container devices
-# Here: devices suggest has many devices. /dev/sda is BRTFS QubesOS install and /dev/sdb is internal backup
-#  BRTFS: /dev/sda2 /dev/sda3 /dev/sdc2
-# read -r: doesn't escape on backslash
-devices_suggest=$(blkid | cut -d ':' -f 1 | while read -r device; do
+devices_suggest=$(blkid | cut -d ':' -f 1 | while read device; do
 	if cryptsetup isLuks "$device"; then echo "$device"; fi
-done | tr '\n' ' ' | sort)
+done | sort)
 num_devices=$(echo "$devices_suggest" | wc -l)
 
 if [ "$num_devices" -eq 1 ] && [ -s "$devices_suggest" ]; then
@@ -64,7 +61,7 @@ elif [ -z "$devices_suggest" ]; then
 	num_devices=0
 fi
 # $devices_suggest is a multiline string, we need to convert it to a space separated string
-#devices_suggest=$(echo $devices_suggest | tr '\n' ' ')
+devices_suggest=$(echo $devices_suggest | tr '\n' ' ')
 DEBUG "LUKS num_devices: $num_devices, devices_suggest: $devices_suggest"
 
 if [ "$num_lvm" -eq 0 ] && [ "$num_devices" -eq 0 ]; then
@@ -119,9 +116,6 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 				fi
 			}
 		done
-		# Update lvm_suggest with the selected LVMs
-		lvm_suggest="${key_lvms_array[@]}"
-
 	elif [ "$num_lvms" -eq 1 ]; then
 		echo "Single Encrypted LVM found at $lvm_suggest."
 		key_lvms=$lvm_suggest
@@ -172,8 +166,6 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 				fi
 			}
 		done
-		# Update devices_suggest with the selected devices
-		devices_suggest="${key_devices_array[@]}"
 		DEBUG "devices_suggest: $devices_suggest, key_devices: $key_devices, key_devices_array: ${key_devices_array[@]}"
 		DEBUG "Multiple LUKS devices selected: $key_devices"
 	elif [ "$num_devices" -eq 1 ]; then
