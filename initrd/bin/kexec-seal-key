@@ -74,7 +74,26 @@ dd \
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	DEBUG "Checking number of slots used on $dev LUKS header"
 	#check if the device is a LUKS device with luks[1,2]
-	slots_used=$(cryptsetup luksDump $dev | grep -c 'luks[0-9]*' || die "Unable to get number of slots used on $dev")
+	# Get the number of key slots used on the LUKS header.
+	# LUKS1 Format is : 
+	# Slot 0: ENABLED
+	# Slot 1: ENABLED
+	# Slot 2: DISABLED
+	# Slot 3: DISABLED
+	#...
+	# Slot 7: DISABLED
+	# Luks2 only reports on enabled slots.
+	# luks2 Format is :
+	# 0: luks2
+	# 1: luks2
+	#  Meaning that the number of slots used is the number of lines returned by a grep on the LUKS2 above format.
+	# We need to count the number of ENABLED slots for both LUKS1 and LUKS2
+	# create glob pattern for both LUKS1 and LUKS2
+	glob="Slot [0-9]*: ENABLED"
+	glob+="\|"
+	glob+="[0-9]*: luks2"
+	slot_used=$(cryptsetup luksDump $dev | grep -c "$glob" || die "Unable to get number of slots used on $dev")
+
 	DEBUG "Number of slots used on $dev LUKS header: $slots_used"
 	# If slot1 is the only one used, warn and die with proper messages
 	if [ $slots_used -eq 1 ]; then
