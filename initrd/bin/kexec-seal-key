@@ -111,18 +111,18 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 
 # Remove all the old keys from slot 1
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	echo "++++++ $dev: Removing old key slot 1"
+	echo "++++++ $dev: Removing old TPM Disk Unlock Key in LUKS slot 1"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
 		$dev 1 ||
-		warn "$dev: removal of key in slot 1 failed: might not exist. Continuing"
+		warn "$dev: removal of TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
 
-	echo "++++++ $dev: Adding key to slot 1"
+	echo "++++++ $dev: Adding TPM DISK Unlock Key to LUKS slot 1"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
 		$dev "$KEY_FILE" ||
-		die "$dev: Unable to add key to slot 1"
+		die "$dev: Unable to add TPM Disk Unlock Key to LUKS slot 1"
 done
 
 # Now that we have setup the new keys, measure the PCRs
