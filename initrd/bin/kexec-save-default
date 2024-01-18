@@ -280,12 +280,6 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key_params+=("${key_devices[*]}")
 		fi
 
-		#TODO REMOVE THIS TROUBLESHOOTING HACK
-		DEBUG "Outputting logs to USB drive. Please wait..."
-		mount-usb --mode rw
-		dmesg >/media/dmesg.txt
-		DEBUG "Done. You can CTRL-Alt-Delete now to reboot, files will be synced to USB drive before rebooting"
-
 		kexec-save-key "${save_key_params[@]}" ||
 			die "Failed to save the TPM Disk Unlock Key"
 	fi

@@ -117,7 +117,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		$dev 1 ||
 		warn "$dev: removal of TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
 
-	echo "++++++ $dev: Adding TPM DISK Unlock Key to LUKS slot 1"
+	echo "++++++ $dev: Adding TPM Disk Unlock Key to LUKS slot 1"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
