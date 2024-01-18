@@ -202,10 +202,17 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 	DEBUG "Checking if a a TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 	#check if $KEY_DEVICES file exists and is not empty
 	if [ -r "$KEY_DEVICES" ] && [ -s "$KEY_DEVICES" ]; then
-		DEBUG "TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
+		DEBUG "A TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
+		#TODO: nobody complains about encrypted lvms missing, we might want to deprecate encrypted lvm logic: not aware of anyone using that anymore
+		
+		#Extract key devices from $KEY_DEVICES file
+		key_devices=$(cat "$KEY_DEVICES" |
+			cut -d\  -f1 | xargs) || true
+		
+		warn "Reseal a TPM Disk Unlock Key only if a new key/passphrase is desired for $key_devices"
 		read \
 			-n 1 \
-			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
+			-p "Do you want to reseal a Disk Unlock Key for $key_devices to the TPM [y/N]: " \
 			change_key_confirm
 		echo
 
