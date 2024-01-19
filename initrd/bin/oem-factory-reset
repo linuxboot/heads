@@ -626,7 +626,7 @@ generate_checksums() {
         mount -o remount,rw /boot || whiptail_error_die "Unable to mount /boot"
     fi
 
-    #Check if previous TPM Disk unlock Key was set
+    #Check if previous LUKS TPM Disk Unlock Key was set
     if [ -e /boot/kexec_key_devices.txt ]; then
         TPM_DISK_ENCRYPTION_KEY_SET=1
     fi
@@ -657,7 +657,7 @@ generate_checksums() {
         fi
     fi
 
-    # set default boot option only if no TPM Disk Unlock Key previously set
+    # set default boot option only if no LUKS TPM Disk Unlock Key previously set
     if [ -z "$TPM_DISK_ENCRYPTION_KEY_SET" ]; then
         set_default_boot_option
     fi
@@ -903,7 +903,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         echo -e "\n"
     fi
 
-    echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new Disk Recovery key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backed up header to be restored to access encrypted data) [y/N]: "
+    echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new LUKS Disk Recovery Key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backed up header to be restored to access encrypted data) [y/N]: "
     read -n 1 prompt_output
     echo
     if [ "$prompt_output" == "y" \
@@ -1022,13 +1022,13 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
         # We catch here if changing LUKS Disk Recovery Key passphrase was desired
         #  but yet undone. This is if not being covered by the single password
-        echo -e "\nEnter desired replacement for current Disk Recovery Key passphrase (At least 8 characters long):"
+        echo -e "\nEnter desired replacement for current LUKS Disk Recovery Key passphrase (At least 8 characters long):"
         while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
             {
                 read -r luks_new_Disk_Recovery_Key_passphrase
             }
         done
-        #We test that current Disk Recovery Key passphrase is known prior of going further
+        #We test that current LUKS Disk Recovery Key passphrase is known prior of going further
         test_luks_current_disk_recovery_key_passphrase
         echo -e "\n"
     fi
@@ -1147,7 +1147,7 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
 fi
 
 if [ -n "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
-    #Reencryption of disk, disk recovery key and Disk Recovery Key passphrase change is requested
+    #Reencryption of disk, LUKS Disk Recovery Key and LUKS Disk Recovery Key passphrase change is requested
     luks_change_passphrase
     luks_reencrypt
 elif [ -n "$luks_new_Disk_Recovery_Key_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then

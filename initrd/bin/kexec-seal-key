@@ -47,13 +47,13 @@ DEBUG "$(pcrs)"
 # LUKS Key slot 0 is the manual recovery pass phrase
 # that they user entered when they installed OS,
 # key slot 1 is the one that we've generated.
-read -s -p "Enter Disk Recovery Key/passphrase: " disk_password
+read -s -p "Enter LUKS Disk Recovery Key/passphrase: " disk_password
 echo -n "$disk_password" >"$RECOVERY_KEY"
 echo
 
-read -s -p "New TPM Disk Unlock Key passphrase for booting: " key_password
+read -s -p "New LUKS TPM Disk Unlock Key passphrase for booting: " key_password
 echo
-read -s -p "Repeat TPM Disk Unlock Key passphrase for booting: " key_password2
+read -s -p "Repeat LUKS TPM Disk Unlock Key passphrase for booting: " key_password2
 echo
 
 if [ "$key_password" != "$key_password2" ]; then
@@ -61,7 +61,7 @@ if [ "$key_password" != "$key_password2" ]; then
 fi
 
 # Generate key file
-echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by TPM Disk Unlock Key passphrase"
+echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by LUKS TPM Disk Unlock Key passphrase"
 dd \
 	if=/dev/urandom \
 	of="$KEY_FILE" \
@@ -100,29 +100,29 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		# Check if slot 1 is the only one existing
 		if [ "$(cryptsetup luksDump "$dev" | grep -c "Slot 1: ENABLED")" -eq 1 ] || [ "$(cryptsetup luksDump "$dev" | grep -c "1: luks2")" -eq 1 ]; then
 			warn "Slot 1 is the only one existing on $dev LUKS header. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
-			warn "Slot 1 should not be the only slot existing on $dev LUKS header. Slot 0 should be used to store Disk Recovery Key/passphrase"
+			warn "Slot 1 should not be the only slot existing on $dev LUKS header. Slot 0 should be used to store LUKS Disk Recovery Key/passphrase"
 			die "You can safely fix this before continuing through Heads recovery shell: cryptsetup luksAddKey $dev"
 		fi
 	else
 		DEBUG "Slot 1 is not the only existing slot on $dev LUKS header."
-		DEBUG "$dev LUKS header's slot 1 will store LUKS Disk Unlock Key that TPM will seal/unseal with TPM Disk Unlock Key passphrase"
+		DEBUG "$dev LUKS header's slot 1 will store LUKS Disk Unlock Key that TPM will seal/unseal with LUKS TPM Disk Unlock Key passphrase"
 	fi
 done
 
 # Remove all the old keys from slot 1
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	echo "++++++ $dev: Removing old TPM Disk Unlock Key in LUKS slot 1"
+	echo "++++++ $dev: Removing old LUKS TPM Disk Unlock Key in LUKS slot 1"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
 		$dev 1 ||
-		warn "$dev: removal of TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
+		warn "$dev: removal of LUKS TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
 
-	echo "++++++ $dev: Adding TPM Disk Unlock Key to LUKS slot 1"
+	echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS slot 1"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
 		$dev "$KEY_FILE" ||
-		die "$dev: Unable to add TPM Disk Unlock Key to LUKS slot 1"
+		die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS slot 1"
 done
 
 # Now that we have setup the new keys, measure the PCRs
@@ -140,23 +140,23 @@ tpmr pcrread -a 3 "$pcrf"
 # Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
 tpmr calcfuturepcr 4 >>"$pcrf"
 if [ "$CONFIG_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
-	DEBUG "Sealing TPM Disk Unlock key with PCR5 involvement (additional kernel modules are loaded per board config)..."
+	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 	tpmr pcrread -a 5 "$pcrf"
 else
-	DEBUG "Sealing TPM Disk Unlock Key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
+	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5=0 (NO additional kernel modules are loaded per board config)..."
 	#no kernel modules are expected to be measured+loaded
 	tpmr calcfuturepcr 5 >>"$pcrf"
 fi
 # Precompute the value for pcr 6
-DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of TPM Disk Unlock Key..."
+DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of LUKS TPM Disk Unlock Key..."
 tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr pcrread -a 7 "$pcrf"
 
 DO_WITH_DEBUG --mask-position 7 \
 	tpmr seal "$KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
-	"$TPM_SIZE" "$key_password" || die "Unable to write TPM Disk Unlock Key to NVRAM"
+	"$TPM_SIZE" "$key_password" || die "Unable to write LUKS TPM Disk Unlock Key to NVRAM"
 
 # should be okay if this fails
 shred -n 10 -z -u "$pcrf" 2>/dev/null ||
