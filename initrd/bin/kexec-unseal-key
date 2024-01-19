@@ -25,8 +25,9 @@ DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
 DEBUG "Show PCRs"
 DEBUG "$(pcrs)"
 
+failed=0
 for tries in 1 2 3; do
-	read -s -p "Enter LUKS Disk Unlock Key passphrase (blank to abort): " tpm_password
+	read -s -p "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort): " tpm_password
 	echo
 	if [ -z "$tpm_password" ]; then
 		die "Aborting unseal disk encryption key"
@@ -34,14 +35,15 @@ for tries in 1 2 3; do
 
 	DO_WITH_DEBUG --mask-position 6 \
 		tpmr unseal "$TPM_INDEX" "0,1,2,3,4,5,6,7" "$TPM_SIZE" \
-		"$key_file" "$tpm_password"
+		"$key_file" "$tpm_password" || failed=1
 
-	if [ "$?" -eq 0 ]; then
+	if [ "$failed" -eq 0 ]; then
 		exit 0
 	fi
 
-	pcrs
-	warn "Unable to unseal disk encryption key"
+	DEBUG pcrs # Show PCRs final state only in debug mode. TCPA/TPM Event log should only be visible in debug mode/from authenticated Recovery console
+	warn "Unable to unseal TPM Disk Unlock Key with provided passphrase. retry count: $tries/3."
+	warn "Caps Lock mode on? (All letters typed might have been uppercased)"
 done
 
-die "Retry count exceeded..."
+die "Retry count exceeded: TPM might be in a locked state until machine is cold rebooted (Power off, wait 30 seconds, power on)"
