@@ -45,6 +45,7 @@ mkdir -p "$INITRD_DIR/etc"
 unseal_failed="n"
 if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
 	unseal_failed="y"
+	echo
 	echo "!!! Failed to unseal the TPM LUKS disk key"
 fi
 
