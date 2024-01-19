@@ -74,12 +74,31 @@ dd \
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	DEBUG "Checking number of slots used on $dev LUKS header"
 	#check if the device is a LUKS device with luks[1,2]
-	slots_used=$(cryptsetup luksDump $dev | grep -c 'luks[0-9]*' || die "Unable to get number of slots used on $dev")
+	# Get the number of key slots used on the LUKS header.
+	# LUKS1 Format is :
+	# Slot 0: ENABLED
+	# Slot 1: ENABLED
+	# Slot 2: DISABLED
+	# Slot 3: DISABLED
+	#...
+	# Slot 7: DISABLED
+	# Luks2 only reports on enabled slots.
+	# luks2 Format is :
+	# 0: luks2
+	# 1: luks2
+	#  Meaning that the number of slots used is the number of lines returned by a grep on the LUKS2 above format.
+	# We need to count the number of ENABLED slots for both LUKS1 and LUKS2
+	# create regex pattern for both LUKS1 and LUKS2
+	regex="Slot [0-9]*: ENABLED"
+	regex+="\|"
+	regex+="[0-9]*: luks2"
+	slots_used=$(cryptsetup luksDump "$dev" | grep -c "$regex" || die "Unable to get number of slots used on $dev")
+
 	DEBUG "Number of slots used on $dev LUKS header: $slots_used"
 	# If slot1 is the only one used, warn and die with proper messages
-	if [ $slots_used -eq 1 ]; then
+	if [ "$slots_used" -eq 1 ]; then
 		# Check if slot 1 is the only one existing
-		if cryptsetup luksDump $dev | grep -q "Slot 1: ENABLED"; then
+		if [ "$(cryptsetup luksDump "$dev" | grep -c "Slot 1: ENABLED")" -eq 1 ] || [ "$(cryptsetup luksDump "$dev" | grep -c "1: luks2")" -eq 1 ]; then
 			warn "Slot 1 is the only one existing on $dev LUKS header. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
 			warn "Slot 1 should not be the only slot existing on $dev LUKS header. Slot 0 should be used to store Disk Recovery Key/passphrase"
 			die "You can safely fix this before continuing through Heads recovery shell: cryptsetup luksAddKey $dev"
@@ -92,18 +111,18 @@ done
 
 # Remove all the old keys from slot 1
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	echo "++++++ $dev: Removing old key slot 1"
+	echo "++++++ $dev: Removing old TPM Disk Unlock Key in LUKS slot 1"
 	cryptsetup luksKillSlot \
 		--key-file "$RECOVERY_KEY" \
 		$dev 1 ||
-		warn "$dev: removal of key in slot 1 failed: might not exist. Continuing"
+		warn "$dev: removal of TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
 
-	echo "++++++ $dev: Adding key to slot 1"
+	echo "++++++ $dev: Adding TPM Disk Unlock Key to LUKS slot 1"
 	cryptsetup luksAddKey \
 		--key-file "$RECOVERY_KEY" \
 		--key-slot 1 \
 		$dev "$KEY_FILE" ||
-		die "$dev: Unable to add key to slot 1"
+		die "$dev: Unable to add TPM Disk Unlock Key to LUKS slot 1"
 done
 
 # Now that we have setup the new keys, measure the PCRs
