@@ -6,15 +6,15 @@ CONFIG_TPM_NO_LUKS_DISK_UNLOCK=y
 
 ifeq "x230-hotp-maximized" "$(BOARD)"
 
-CONFIG_BOARD_NAME="Nitropad x230 | v2.4"
+CONFIG_BOARD_NAME="Nitropad x230 | v2.4.1"
 
 else ifeq "t430-hotp-maximized" "$(BOARD)"
 
-CONFIG_BOARD_NAME="Nitropad t430 | v2.4"
+CONFIG_BOARD_NAME="Nitropad t430 | v2.4.1"
 
 else
 
-CONFIG_BOARD_NAME+=" | v2.4"
+CONFIG_BOARD_NAME+=" | v2.4.1"
 
 endif
 
