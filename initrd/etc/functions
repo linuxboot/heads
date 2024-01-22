@@ -82,12 +82,12 @@ confirm_totp() {
 
 reseal_tpm_disk_decryption_key() {
 	TRACE "Under /etc/functions:reseal_tpm_disk_decryption_key"
-	#For robustness, exit early if TPM Disk Unlock Key is prohibited in board configs
+	#For robustness, exit early if LUKS TPM Disk Unlock Key is prohibited in board configs
 	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
-		DEBUG "TPM Disk Unlock Key is prohibited in board configs"
+		DEBUG "LUKS TPM Disk Unlock Key is prohibited in board configs"
 		return
 	else
-		DEBUG "TPM Disk Unlock Key is allowed in board configs. Continuing"
+		DEBUG "LUKS TPM Disk Unlock Key is allowed in board configs. Continuing"
 	fi
 
 	if ! grep -q /boot /proc/mounts; then
@@ -96,8 +96,8 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-		warn "TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
-		echo "Resealing TPM LUKS Disk Unlock Key to be unsealed by TPM Disk Unlock Key passphrase"
+		warn "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
+		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
 			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
 		done
