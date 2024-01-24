@@ -32,7 +32,6 @@ gpg2_configure := \
 	--disable-nls \
 	--disable-ntbtls \
 	--disable-photo-viewers \
-	--disable-regex \
 	--disable-rpath \
 	--disable-sqlite \
 	--disable-tofu \
@@ -44,7 +43,6 @@ gpg2_configure := \
 	--with-ksba-prefix="$(INSTALL)" \
 	--with-libassuan-prefix="$(INSTALL)" \
 	--with-libgcrypt-prefix="$(INSTALL)" \
-	--with-libusb="$(INSTALL)" \
 	--with-npth-prefix="$(INSTALL)" \
 
 # Run one build to generate the executables with the pre-defined

@@ -15,7 +15,6 @@ libusb_configure := \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
-	--disable-tests \
 	--disable-udev \
 
 # Run one build to generate the executables with the pre-defined
