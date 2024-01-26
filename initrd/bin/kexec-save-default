@@ -189,10 +189,10 @@ save_key="n"
 
 if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ "$CONFIG_BASIC" != y ]; then
 	DEBUG "TPM is enabled and TPM_NO_LUKS_DISK_UNLOCK is not set"
-	DEBUG "Checking if a a TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
+	DEBUG "Checking if a a LUKS TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 	#check if $KEY_DEVICES file exists and is not empty
 	if [ -r "$KEY_DEVICES" ] && [ -s "$KEY_DEVICES" ]; then
-		DEBUG "TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
+		DEBUG "LUKS TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 		read \
 			-n 1 \
 			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
@@ -218,7 +218,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key="y"
 		fi
 	else
-		DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, confirming to add a Disk Encryption Key to the TPM"
+		DEBUG "No previous LUKS TPM Disk Unlock Key was set up, confirming to add a Disk Encryption Key to the TPM"
 		read \
 			-n 1 \
 			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
@@ -234,7 +234,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 
 	if [ "$save_key" = "y" ]; then
 		if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
-			DEBUG "Previous TPM Disk Unlock Key was set up for LUKS devices $old_key_devices $old_lvm_volume_group"
+			DEBUG "Previous LUKS TPM Disk Unlock Key was set up for $old_key_devices $old_lvm_volume_group"
 			read \
 				-n 1 \
 				-p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
@@ -252,7 +252,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 				prompt_for_existing_encrypted_lvms_or_disks
 			fi
 		else
-			DEBUG "No previous TPM Disk Unlock Key was set up for LUKS devices, setting up new one"
+			DEBUG "No previous LUKS TPM Disk Unlock Key was set up, setting up"
 			prompt_for_existing_encrypted_lvms_or_disks
 		fi
 
@@ -263,7 +263,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key_params="$save_key_params $key_devices"
 		fi
 		kexec-save-key $save_key_params ||
-			die "Failed to save the TPM Disk Unlock Key"
+			die "Failed to save the LUKS TPM Disk Unlock Key"
 	fi
 fi
 

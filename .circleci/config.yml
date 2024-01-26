@@ -99,7 +99,7 @@ jobs:
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           command: |
-            ./blobs/xx30/download_clean_me.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
 
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
@@ -384,8 +384,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t530-hotp-maximized
-          target: t530-hotp-maximized
+          name: UNTESTED_t530-hotp-maximized
+          target: UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -398,8 +398,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_w530-hotp-maximized
-          target: UNTESTED_w530-hotp-maximized
+          name: w530-hotp-maximized
+          target: w530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -426,8 +426,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: t530-maximized
-          target: t530-maximized
+          name: UNTESTED_t530-maximized
+          target: UNTESTED_t530-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -440,8 +440,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_w530-maximized
-          target: UNTESTED_w530-maximized
+          name: w530-maximized
+          target: w530-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -510,15 +510,15 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: p8z77-m_pro-tpm1-maximized
-          target: p8z77-m_pro-tpm1-maximized
+          name: UNTESTED_p8z77-m_pro-tpm1-maximized
+          target: UNTESTED_p8z77-m_pro-tpm1-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: p8z77-m_pro-tpm1-hotp-maximized
-          target: p8z77-m_pro-tpm1-hotp-maximized
+          name: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
+          target: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized

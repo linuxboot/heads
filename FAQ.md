@@ -110,7 +110,7 @@ to deceive you and steal your login password?  Maybe!  It wouldn't get
 your disk password, which is perhaps an improvement.
 
 
-Disk key in TPM (TPM Disk Unlock Key) or user passphrase?
+Disk key in TPM (LUKS TPM Disk Unlock Key) or user passphrase?
 ---
 Depends on your threat model.  With the disk key in the TPM an attacker
 would need to have the entire machine (or a backdoor in the TPM)

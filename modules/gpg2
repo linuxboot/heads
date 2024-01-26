@@ -5,6 +5,7 @@ gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2
 gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
 gpg2_hash := 1d79158dd01d992431dd2e3facb89fdac97127f89784ea2cb610c600fb0c1483
+gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 
 # For reproducibility reasons we have to override the exec_prefix
 # and datarootdir on the configure line so that the Makefiles will
@@ -29,8 +30,8 @@ gpg2_configure := \
 	--enable-ccid-driver \
 	--disable-tofu \
 	--disable-rpath \
-        --disable-regex \
-        --disable-doc \
+	--disable-regex \
+	--disable-doc \
 	--disable-bzip2 \
 	--disable-exec \
 	--disable-photo-viewers \
@@ -56,5 +57,3 @@ gpg2_target := $(MAKE_JOBS) \
 		install
 
 gpg2_output := g10/gpg agent/gpg-agent scd/scdaemon
-
-gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb-compat $(musl_dep)

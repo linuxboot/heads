@@ -12,13 +12,6 @@ HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 # Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
 BRAND_NAME	?= Heads
 
-CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
-CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
-CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
-CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
-CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
-LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
-
 all:
 -include .config
 
@@ -59,6 +52,20 @@ CONFIG_LEGACY_FLASH := n
 
 include $(CONFIG)
 
+# Include site-local/config only if it exists, downstreams can set configs for
+# all boards, including overriding values specified by boards.  site-local is
+# not a part of the upstream distribution but is for downstreams to insert
+# customizations at well-defined points, like in coreboot:
+# https://doc.coreboot.org/tutorial/managing_local_additions.html
+-include $(pwd)/site-local/config
+
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
+CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
+CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
+CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
+CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
+LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
 
@@ -72,6 +79,10 @@ else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 MUSL_ARCH := powerpc64le
 else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
+endif
+
+ifneq "$(BOARD_TARGETS)" ""
+include $(foreach TARGET,$(BOARD_TARGETS),targets/$(TARGET).mk)
 endif
 
 # Create directories if they don't already exist
@@ -373,18 +384,15 @@ define define_module =
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):
 	$(call do,WGET,$($1_url),\
-		if ! $(WGET) -O "$$@.tmp" $($1_url) ; then \
-			exit 1 ; \
-		fi ; \
-		mv "$$@.tmp" "$$@" \
+		WGET="$(WGET)" bin/fetch_source_archive.sh "$($1_url)" "$$@" "$($1_hash)"
 	)
-    $(packages)/.$1-$($1_version)_verify: $(packages)/$($1_tar)
-	echo "$($1_hash)  $$^" | sha256sum --check -
-	@touch "$$@"
+
+    # Target to fetch all packages, for seeding mirrors
+    packages: $(packages)/$($1_tar)
 
     # Unpack the tar file and touch the canary so that we know
     # that the files are all present
-    $(build)/$($1_base_dir)/.canary: $(packages)/.$1-$($1_version)_verify
+    $(build)/$($1_base_dir)/.canary: $(packages)/$($1_tar)
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
@@ -716,6 +724,28 @@ modules.clean:
 		$(MAKE) -C "build/${CONFIG_TARGET_ARCH}/$$dir" clean ; \
 		rm -f "build/${CONFIG_TARGET_ARCH}/$$dir/.configured" ; \
 	done
+
+board.move_untested_to_tested:
+	@echo "NEW_BOARD variable will remove UNTESTED_ prefix from $(BOARD)"
+	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
+	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
+	rm -rf boards/$$NEW_BOARD; \
+	mv boards/$$BOARD boards/$$NEW_BOARD; \
+	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
+	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+
+board.move_tested_to_untested:
+	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
+	@NEW_BOARD=UNTESTED_$(BOARD); \
+	rm -rf boards/$${NEW_BOARD}; \
+	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
+	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
+	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
 # Inject a GPG key into the image - this is most useful when testing in qemu,
 # since we can't reflash the firmware in qemu to update the keychain.  Instead,

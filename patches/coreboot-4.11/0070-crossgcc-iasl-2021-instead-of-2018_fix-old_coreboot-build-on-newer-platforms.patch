@@ -80,3 +80,8 @@ diff -ruN ./util/crossgcc/patches.orig/acpica-unix-20210105_iasl.patch ./util/cr
  }
  
  build_LLVM() {
+diff -ruN ./util/crossgcc/sum.orig/acpica-unix2-20190703.tar.gz.cksum ./util/crossgcc/sum/acpica-unix2-20190703.tar.gz.cksum
+--- ./util/crossgcc/sum.orig/acpica-unix2-20190703.tar.gz.cksum	2024-01-08 13:19:48.519641977 -0500
++++ ./util/crossgcc/sum/acpica-unix2-20190703.tar.gz.cksum	1969-12-31 19:00:00.000000000 -0500
+@@ -1 +0,0 @@
+-c5594944f933265a53695204a0672d0808e4a580  tarballs/acpica-unix2-20190703.tar.gz
