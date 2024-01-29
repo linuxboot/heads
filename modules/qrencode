@@ -12,9 +12,9 @@ qrencode_configure := \
 	CFLAGS="-Os" \
 	./configure \
 	$(CROSS_TOOLS) \
+	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--without-tools \
-	--host $(MUSL_ARCH)-elf-linux \
 
 qrencode_target := \
 	$(MAKE_JOBS) \

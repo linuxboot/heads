@@ -7,6 +7,9 @@ openssl_tar := openssl-$(openssl_version).tar.gz
 openssl_url := https://www.openssl.org/source/$(openssl_tar)
 openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 
+# hack to provide path to libgcc
+LIBGCC_DIR := $(dir $(shell $(heads_cc) -print-libgcc-file-name))
+
 # The only optional algorithm that's enabled is SM3.  tpm2-tss uses SHA, AES,
 # and SM3.
 openssl_configure := \
@@ -14,7 +17,6 @@ openssl_configure := \
 	CFLAGS="-Os" \
 	./Configure \
 		--prefix="/" \
-		no-tests \
 		linux-$(strip $(arch)) \
 		no-aria \
 		no-bf \
@@ -42,6 +44,7 @@ openssl_configure := \
 		no-siv \
 		no-sm2 \
 		no-sm4 \
+		no-tests \
 		no-whirlpool \
 
 openssl_target := $(MAKE_JOBS) \

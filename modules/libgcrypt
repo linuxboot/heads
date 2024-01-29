@@ -12,9 +12,9 @@ libgcrypt_configure := \
 	./configure \
 	--host=$(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
+	--disable-doc \
 	--disable-static \
 	--with-gpg-error-prefix="$(INSTALL)" \
-	--disable-doc \
 
 libgcrypt_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \

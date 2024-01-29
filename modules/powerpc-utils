@@ -13,8 +13,8 @@ powerpc-utils_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
+	--without-librtas \
 	--without-systemd \
-	--without-librtas
 
 powerpc-utils_target := \
 	$(MAKE_JOBS) \

@@ -18,35 +18,34 @@ gpg2_configure := \
 	./configure \
 	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
 	--host $(MUSL_ARCH)-linux-musl \
-	--with-libusb="$(INSTALL)" \
-	--with-gpg-error-prefix="$(INSTALL)" \
-	--with-libgcrypt-prefix="$(INSTALL)" \
-	--with-libassuan-prefix="$(INSTALL)" \
-	--with-ksba-prefix="$(INSTALL)" \
-	--with-npth-prefix="$(INSTALL)" \
 	--prefix "/" \
 	--libexecdir "/bin" \
-	--enable-scdaemon \
-	--enable-ccid-driver \
-	--disable-tofu \
-	--disable-rpath \
-	--disable-regex \
-	--disable-doc \
-	--disable-bzip2 \
-	--disable-exec \
-	--disable-photo-viewers \
-	--disable-ldap \
-	--disable-regex \
-	--disable-nls \
 	--disable-all-tests \
-	--disable-wks-tools \
-	--disable-gnutls \
+	--disable-bzip2 \
 	--disable-dirmngr \
-	--disable-ntbtls \
-	--disable-libdns \
-	--disable-zip \
-	--disable-sqlite \
+	--disable-doc \
+	--disable-exec \
+	--disable-gnutls \
 	--disable-gpgsm \
+	--disable-ldap \
+	--disable-libdns \
+	--disable-nls \
+	--disable-ntbtls \
+	--disable-photo-viewers \
+	--disable-regex \
+	--disable-rpath \
+	--disable-sqlite \
+	--disable-tofu \
+	--disable-wks-tools \
+	--disable-zip \
+	--enable-ccid-driver \
+	--enable-scdaemon \
+	--with-gpg-error-prefix="$(INSTALL)" \
+	--with-ksba-prefix="$(INSTALL)" \
+	--with-libassuan-prefix="$(INSTALL)" \
+	--with-libgcrypt-prefix="$(INSTALL)" \
+	--with-libusb="$(INSTALL)" \
+	--with-npth-prefix="$(INSTALL)" \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries
