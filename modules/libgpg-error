@@ -10,12 +10,12 @@ libgpg-error_configure := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-Os"  \
 	./configure \
-	--prefix "/" \
 	--host=$(MUSL_ARCH)-linux-musl \
-	--disable-static \
-	--disable-nls \
-	--disable-languages \
+	--prefix "/" \
 	--disable-doc \
+	--disable-languages \
+	--disable-nls \
+	--disable-static \
 	--disable-tests \
 	--enable-install-gpg-error-config \
 
