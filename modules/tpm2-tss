@@ -13,9 +13,9 @@ tpm2-tss_configure := aclocal && automake --add-missing && autoreconf -fi \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--disable-doxygen-doc \
+	--disable-doxygen-html \
 	--disable-doxygen-man \
 	--disable-doxygen-rtf \
-	--disable-doxygen-html \
 	--disable-fapi \
 
 # Run one build to generate the executables with the pre-defined

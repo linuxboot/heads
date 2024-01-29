@@ -12,10 +12,16 @@ cairo_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
-	--disable-xlib --disable-xcb --disable-pdf \
-	--disable-ps --disable-svg --disable-script \
-	--disable-ft --disable-fc --disable-pthread \
+	--disable-fc \
+	--disable-ft \
 	--disable-gobject \
+	--disable-pdf \
+	--disable-ps \
+	--disable-pthread \
+	--disable-script \
+	--disable-svg \
+	--disable-xcb \
+	--disable-xlib \
 	&& sed \
 		-e 's/^hardcode_libdir_flag_spec.*/hardcode_libdir_flag_spec=" -D__LIBTOOL_RPATH_DISABLE__ "/' \
 		< libtool \
