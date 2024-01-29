@@ -14,20 +14,20 @@ libnitrokey_hash := 4f3382b6193afe69c2001321038fce9490bc28803ed687152a397ccd8914
 
 cmake_cross := "-DCMAKE_AR=$(CROSS)ar" \
 	-DCMAKE_CXX_COMPILER="$(CROSS)g++" \
-	-DCMAKE_C_COMPILER="$(CROSS)gcc" \
-	-DCMAKE_CXX_FLAGS="-Os -fdata-sections -ffunction-sections -ffile-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
-	-DCMAKE_LINKER="$(CROSS)ld"
-	-DCMAKE_SHARED_LINKER_FLAGS="-gc-sections"
 	-DCMAKE_CXX_COMPILER_AR="$(CROSS)ar" \
+	-DCMAKE_CXX_FLAGS="-Os -fdata-sections -ffunction-sections -ffile-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
+	-DCMAKE_C_COMPILER="$(CROSS)gcc" \
+	-DCMAKE_LINKER="$(CROSS)ld"
 	-DCMAKE_NM="$(CROSS)nm" \
-	-DCMAKE_OBJDUMP="$(CROSS)objdump" \
 	-DCMAKE_OBCOPY="$(CROSS)obcopy" \
+	-DCMAKE_OBJDUMP="$(CROSS)objdump" \
+	-DCMAKE_SHARED_LINKER_FLAGS="-gc-sections"
 	-DCMAKE_STRIP="$(CROSS)strip" 
 
 libnitrokey_configure := \
 	mkdir build -p && \
 	cd build && \
-	$(CROSS_TOOLS) cmake .. -DNO_LOG=ON -DBUILD_SHARED_LIBS=OFF -DCOMPILE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=MinSizeRel $(cmake_cross) 
+	$(CROSS_TOOLS) cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=/ -DCOMPILE_TESTS=OFF -DNO_LOG=ON $(cmake_cross)
 
 # install "by-hand" as INSTALL_PREFIX is not working as expected
 libnitrokey_target := $(CROSS_TOOLS) $(MAKE_JOBS) -C build DESTDIR="$(INSTALL)" && \

@@ -12,8 +12,8 @@ libassuan_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
-	--disable-static \
 	--disable-doc \
+	--disable-static \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libassuan_target := $(MAKE_JOBS) \
