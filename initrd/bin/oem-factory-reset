@@ -418,14 +418,14 @@ select_thumb_drive_for_key_material() {
     #loop until user chooses a disk
     thumb_drive=""
     while [ -z "$thumb_drive" ]; do
-        #list usb storage devices
-        list_usb_storage disks >/tmp/usb_disk_list
+        # List all USB block devices (excluding partitions):
+        list_usb_storage 'devices' >/tmp/usb_blkdev_list
         # Abort if:
-        # - no disks found (prevent file_selector's nonsense prompt)
+        # - no devices found (prevent file_selector's nonsense prompt)
         # - file_selector fails for any reason
         # - user aborts (file_selector succeeds but FILE is empty)
-        if [ $(cat /tmp/usb_disk_list | wc -l) -gt 0 ] &&
-            file_selector --show-size "/tmp/usb_disk_list" "Select USB device to partition" &&
+        if [ $(cat /tmp/usb_blkdev_list | wc -l) -gt 0 ] &&
+            file_selector --show-size "/tmp/usb_blkdev_list" "Select USB device to partition" &&
             [ -n "$FILE" ]; then
             # Obtain size of thumb drive to be wiped with fdisk
             disk_size_bytes="$(blockdev --getsize64 "$FILE")"
