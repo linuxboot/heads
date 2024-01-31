@@ -1,11 +1,11 @@
 modules-$(CONFIG_NITROKEY_BLOBS) += nitrokey-blobs
 
 nitrokey-blobs_base_dir := nitrokey-blobs
-nitrokey-blobs_version := b629bad31046ff2f5f363656326646fe2081d033
+nitrokey-blobs_version := cba08e83d8bbd7d3470769afd7dbc8e61d6cd8b5
 nitrokey-blobs_tar := nitrokey-blobs-${nitrokey-blobs_version}.tar.gz
 nitrokey-blobs_tar_opt := --strip 1
 nitrokey-blobs_url := https://github.com/Nitrokey/firmware-blobs/archive/${nitrokey-blobs_version}.tar.gz
-nitrokey-blobs_hash := 73daf2180e3ffd070e9dc80c84ccd2573a24f636dc273e3d9fe81aefc7c5d425
+nitrokey-blobs_hash := ba7d15f7a13f3de511b6c4f8057bd5e484398a349faeea87cbf2a79113cda1fa
 
 ## there is nothing to be built
 nitrokey-blobs_output := .built
