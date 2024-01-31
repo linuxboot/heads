@@ -1,4 +1,8 @@
-include: 'https://raw.githubusercontent.com/Nitrokey/common-ci-jobs/master/common_jobs.yml'
+
+include:
+  - project: 'nitrokey/gitlab-ci'
+    file:
+      - 'common-jobs/common_jobs.yml'
 
 stages:
   - pull-github
