@@ -528,7 +528,7 @@ while true; do
       if [ "$CONFIG_USER_USB_KEYBOARD" != "y" ]; then
         if (whiptail --title 'Enable USB Keyboard?' \
              --yesno "USB keyboards will be usable in $CONFIG_BRAND_NAME.
-                    \n\nIgnoring USB keyboards prevents a compromised USB device from controlling
+                    \n\nEnabling USB keyboards could allow a compromised USB device to control
                     \n$CONFIG_BRAND_NAME.
                     \n\nDo you want to proceed?" 0 80) then
 
@@ -541,8 +541,6 @@ while true; do
       else
         if (whiptail --title 'Disable USB Keyboard?' \
              --yesno "Only the built-in keyboard will be usable in $CONFIG_BRAND_NAME.
-                    \n\nIgnoring USB keyboards prevents a compromised USB device from controlling
-                    \n$CONFIG_BRAND_NAME.
                     \n\nDo you want to proceed?" 0 80) then
 
           set_user_config "CONFIG_USER_USB_KEYBOARD" "n"
