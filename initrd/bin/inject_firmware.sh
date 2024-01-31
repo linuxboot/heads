@@ -51,7 +51,7 @@ done
 # awk will happily pass through a binary file, so look for the match we want
 # before modifying init to ensure it's a shell script and not an ELF, etc.
 if ! grep -E -q '^exec run-init .*\$\{rootmnt\}' "$INITRD_ROOT/init"; then
-	WARN "Can't apply firmware blob jail, unknown init script"
+	warn "Can't apply firmware blob jail, unknown init script"
 	exit 0
 fi
 

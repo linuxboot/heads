@@ -1,5 +1,5 @@
 # ZSTD is always included, unless explicitly turned off
-# Needed by initrd/bin/unpack_initramfs.sh under TPM Disk Unlock Key setup
+# Needed by initrd/bin/unpack_initramfs.sh under LUKS TPM Disk Unlock Key setup
 CONFIG_ZSTD ?= y
 modules-$(CONFIG_ZSTD) += zstd
 
