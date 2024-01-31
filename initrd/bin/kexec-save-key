@@ -72,7 +72,7 @@ for dev in $key_devices; do
 done
 
 kexec-seal-key $paramsdir ||
-	die "Failed to save and generate TPM Disk Unlock Key"
+	die "Failed to save and generate LUKS TPM Disk Unlock Key"
 
 if [ "$skip_sign" != "y" ]; then
 	extparam=
