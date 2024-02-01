@@ -9,7 +9,7 @@ export BG_COLOR_MAIN_MENU=""
 . /etc/luks-functions
 . /tmp/config
 
-TRACE "Under /bin/oem-system-info-xx30"
+TRACE_FUNC
 
   battery_charge="$(print_battery_charge)"
   battery_health="$(print_battery_health)"

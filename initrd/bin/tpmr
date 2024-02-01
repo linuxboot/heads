@@ -29,7 +29,7 @@ else
 	. /etc/config
 fi
 
-TRACE "Under /bin/tpmr"
+TRACE_FUNC
 
 # Busybox xxd lacks -r, and we get hex dumps from TPM1 commands.  This converts
 # a hex dump to binary data using sed and printf
@@ -50,7 +50,7 @@ tpm2_password_hex() {
 # Reads PCR binary data and writes to file.
 # -a: Append to file.  Default is to overwrite.
 tpm2_pcrread() {
-	TRACE "Under /bin/tpmr:tpm2_pcrread"
+	TRACE_FUNC
 	if [ "$1" = "-a" ]; then
 		APPEND=y
 		shift
@@ -68,7 +68,7 @@ tpm2_pcrread() {
 	DO_WITH_DEBUG tpm2 pcrread -Q -o >(cat >>"$file") "sha256:$index"
 }
 tpm1_pcrread() {
-	TRACE "Under /bin/tpmr:tpm1_pcrread"
+	TRACE_FUNC
 	if [ "$1" = "-a" ]; then
 		APPEND=y
 		shift
@@ -193,7 +193,7 @@ $0 ~ pcr {
 # hashes and/or files extended to given PCR after firmware. Resulting PCR value
 # is returned in binary form.
 replay_pcr() {
-	TRACE "Under /bin/tpmr:replay_pcr"
+	TRACE_FUNC
 	if [ -z "$2" ]; then
 		echo >&2 "No PCR number passed"
 		return
@@ -229,7 +229,7 @@ replay_pcr() {
 }
 
 tpm2_extend() {
-	TRACE "Under /bin/tpmr:tpm2_extend"
+	TRACE_FUNC
 	while true; do
 		case "$1" in
 		-ix)
@@ -254,7 +254,7 @@ tpm2_extend() {
 }
 
 tpm2_counter_read() {
-	TRACE "Under /bin/tpmr:tpm2_counter_read"
+	TRACE_FUNC
 	while true; do
 		case "$1" in
 		-ix)
@@ -270,7 +270,7 @@ tpm2_counter_read() {
 }
 
 tpm2_counter_inc() {
-	TRACE "Under /bin/tpmr:tpm2_counter_inc"
+	TRACE_FUNC
 	while true; do
 		case "$1" in
 		-ix)
@@ -291,7 +291,7 @@ tpm2_counter_inc() {
 }
 
 tpm1_counter_create() {
-	TRACE "Under /bin/tpmr:tpm1_counter_create"
+	TRACE_FUNC
 	# tpmr handles the TPM owner password (from cache or prompt), but all
 	# other parameters for TPM1 are passed directly, and TPM2 mimics the
 	# TPM1 interface.
@@ -304,7 +304,7 @@ tpm1_counter_create() {
 }
 
 tpm2_counter_create() {
-	TRACE "Under /bin/tpmr:tpm2_counter_create"
+	TRACE_FUNC
 	while true; do
 		case "$1" in
 		-pwdc)
@@ -333,7 +333,7 @@ tpm2_counter_create() {
 }
 
 tpm2_startsession() {
-	TRACE "Under /bin/tpmr:tpm2_startsession"
+	TRACE_FUNC
 	mkdir -p "$SECRET_DIR"
 	tpm2 flushcontext -Q \
 		--transient-object ||
@@ -356,7 +356,7 @@ tpm2_startsession() {
 # session file.  E.g.:
 #   at_exit cleanup_session "$SESSION_FILE"
 cleanup_session() {
-	TRACE "Under /bin/tpmr:cleanup_session"
+	TRACE_FUNC
 	session_file="$1"
 	if [ -f "$session_file" ]; then
 		DEBUG "Clean up session: $session_file"
@@ -372,7 +372,7 @@ cleanup_session() {
 # at_exit, e.g.:
 #   at_exit cleanup_shred "$FILE"
 cleanup_shred() {
-	TRACE "Under /bin/tpmr:cleanup_shred"
+	TRACE_FUNC
 	shred -n 10 -z -u "$1" 2>/dev/null || true
 }
 
@@ -408,7 +408,7 @@ tpm1_destroy() {
 # provided - TPM2 allows the TPM to fall back to current PCR values, but it is
 # not required to support this.
 tpm2_seal() {
-	TRACE "Under /bin/tpmr:tpm2_seal"
+	TRACE_FUNC
 	file="$1" #$KEY_FILE
 	index="$2"
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
@@ -481,7 +481,7 @@ tpm2_seal() {
 		}
 }
 tpm1_seal() {
-	TRACE "Under /bin/tpmr:tpm1_seal"
+	TRACE_FUNC
 	file="$1"
 	index="$2"
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
@@ -549,7 +549,7 @@ tpm1_seal() {
 # password must be provided if one was used to seal (and cannot be provided if
 # no password was used to seal).
 tpm2_unseal() {
-	TRACE "Under /bin/tpmr:tpm2_unseal"
+	TRACE_FUNC
 	index="$1"
 	pcrl="$2" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	sealed_size="$3"
@@ -594,7 +594,7 @@ tpm2_unseal() {
 		-S "$ENC_SESSION_FILE" >"$file"
 }
 tpm1_unseal() {
-	TRACE "Under /bin/tpmr:tpm1_unseal"
+	TRACE_FUNC
 	index="$1"
 	pcrl="$2"
 	sealed_size="$3"
@@ -629,7 +629,7 @@ tpm1_unseal() {
 }
 
 tpm2_reset() {
-	TRACE "Under /bin/tpmr:tpm2_reset"
+	TRACE_FUNC
 	tpm_owner_password="$1"
 	mkdir -p "$SECRET_DIR"
 	# output TPM Owner Password to a file to be reused in this boot session until recovery shell/reboot
@@ -678,7 +678,7 @@ tpm2_reset() {
 		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none | xxd -p | tr -d ' \n')"
 }
 tpm1_reset() {
-	TRACE "Under /bin/tpmr:tpm1_reset"
+	TRACE_FUNC
 	tpm_owner_password="$1"
 	mkdir -p "$SECRET_DIR"
 	# output tpm_owner_password to a file to be reused in this boot session until recovery shell/reboot
@@ -700,7 +700,7 @@ tpm1_reset() {
 
 # Perform final cleanup before boot and lock the platform heirarchy.
 tpm2_kexec_finalize() {
-	TRACE "Under /bin/tpmr:tpm2_kexec_finalize"
+	TRACE_FUNC
 
 	# Flush sessions and transient objects
 	tpm2 flushcontext -Q --transient-object ||
@@ -720,7 +720,7 @@ tpm2_kexec_finalize() {
 }
 
 tpm2_shutdown() {
-	TRACE "Under /bin/tpmr:tpm2_shutdown"
+	TRACE_FUNC
 
 	# Prepare for shutdown.
 	# This is a "clear" shutdown (do not preserve runtime state) since we
