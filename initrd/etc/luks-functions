@@ -16,7 +16,7 @@ list_luks_devices() {
 
 #Whiptail prompt asking user to select ratio of device to use for LUKS container between: 25, 50, 75
 select_luks_container_size_percent() {
-	TRACE "Under /etc/luks-functions:select_luks_container_size_percent()"
+	TRACE_FUNC
 	if [ -x /bin/whiptail ]; then
 		#whiptail prompt asking user to select ratio of device to use for LUKS container between: 25, 50, 75
 		#whiptail returns the percentage of the device to use for LUKS container
@@ -56,7 +56,7 @@ select_luks_container_size_percent() {
 # Size provisioning is done by percentage of the device
 interactive_prepare_thumb_drive()
 {
-	TRACE "Under /etc/luks-functions:interactive_prepare_thumb_drive()"
+	TRACE_FUNC
 	#Refactoring: only one parameter needed to be prompted for: the passphrase for LUKS container if not coming from oem-provisioning
 	#If no passphrase was provided, ask user to select passphrase for LUKS container
 	# if no device provided as parameter, we will ask user to select device to partition
@@ -188,7 +188,7 @@ interactive_prepare_thumb_drive()
 # $2 - percent of device allocated to LUKS [1-99]
 confirm_thumb_drive_format()
 {
-	TRACE "Under /etc/luks-functions:confirm_thumb_drive_format()"
+	TRACE_FUNC
 	local DEVICE LUKS_PERCENTAGE DISK_SIZE_BYTES DISK_SIZE_DISPLAY LUKS_PERCENTAGE LUKS_SIZE_MB MSG
 
 	DEVICE="$1"
@@ -230,7 +230,7 @@ confirm_thumb_drive_format()
 # $3 - passphrase for LUKS container
 prepare_thumb_drive()
 {
-	TRACE "Under /etc/luks-functions:prepare_thumb_drive()"
+	TRACE_FUNC
 
 	local DEVICE PERCENTAGE PASSPHRASE DISK_SIZE_BYTES PERCENTAGE_MB
 	DEVICE="$1"
@@ -267,7 +267,7 @@ prepare_thumb_drive()
 
 select_luks_container()
 {
-	TRACE "Under /etc/luks-functions:select_luks_container()"
+	TRACE_FUNC
 	if [ -s /boot/kexec_key_devices.txt ]; then
 		DEBUG "Reusing known good LUKS container device from /boot/kexec_key_devices.txt"
 		DEBUG "LUKS container device: $(cut -d ' ' -f1 /boot/kexec_key_devices.txt)"
@@ -295,7 +295,7 @@ select_luks_container()
 
 test_luks_current_disk_recovery_key_passphrase()
 {
-	TRACE "Under /etc/luks-functions:test_luks_current_disk_recovery_key_passphrase()"
+	TRACE_FUNC
 	while :; do
 		select_luks_container || return 1
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
@@ -336,7 +336,7 @@ test_luks_current_disk_recovery_key_passphrase()
 }
 
 luks_reencrypt() {
-	TRACE "Under /etc/luks-functions:luks_reencrypt()"
+	TRACE_FUNC
 	while :; do
 		select_luks_container || return 1
                 #If the user just set a new LUKS Disk Recovery Key passphrase
@@ -382,7 +382,7 @@ luks_reencrypt() {
 
 luks_change_passphrase()
 {
-	TRACE "Under /etc/luks-functions:luks_change_passphrase()"
+	TRACE_FUNC
 	while :; do
 		select_luks_container || return 1
 		#if actual or new LUKS Disk Recovery Key is not provisioned by oem-provisioning file

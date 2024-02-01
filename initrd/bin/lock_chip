@@ -15,7 +15,28 @@ if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ]; then
 fi
 
 if [ -n "$APM_CNT" -a -n "$FIN_CODE" ]; then
-	echo "Finalizing chipset"
+	# SMI PR0 lockdown is implemented by Intel as part of the SMM Supervisor feature.
+	# SMM Supervisor is a software component that runs in SMM and acts as a gatekeeper
+	# for SMM access.
+	#
+	# It uses the processor’s memory protection and paging mechanisms to restrict what
+	# SMM code can read and write. SMM Supervisor marks critical pages, such as its
+	# own code, data, and page tables, as supervisor pages, which are only accessible
+	# from the most privileged level (CPL0).
+	#
+	# It also marks the rest of the SMM memory as user pages, which are accessible
+	# from any privilege level.
+	#
+	# This way, SMM Supervisor can isolate itself from other SMM code and enforce a policy
+	# that states what resources the SMI handlers (the interrupt handlers that run in SMM)
+	# require access to.
+	#
+	# SMI PR0 lockdown is enabled by setting a lock bit (FLOCKDN) in the SPI controller,
+	# which prevents further changes to the SMM memory and configuration.
+	# Once SMI PR0 lockdown is enabled, it cannot be disabled until the next system reset.
+	# This ensures that malicious code cannot tamper with the SMM Supervisor or the SMI handlers
+	# after the system boots.
+	echo "Finalizing chipset Write Protection through SMI PR0 lockdown call"
 	io386 -o b -b x $APM_CNT $FIN_CODE
 else
 	echo "NOT Finalizing chipset"

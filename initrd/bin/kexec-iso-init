@@ -4,7 +4,7 @@ set -e -o pipefail
 . /etc/functions
 . /tmp/config
 
-TRACE "Under /bin/kexec-iso-init"
+TRACE_FUNC
 
 MOUNTED_ISO_PATH="$1"
 ISO_PATH="$2"
