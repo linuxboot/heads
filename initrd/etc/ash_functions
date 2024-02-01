@@ -350,7 +350,13 @@ enable_usb()
 		sleep 2
 	fi
 
-	if [ "$CONFIG_USB_KEYBOARD" = y ]; then
+	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
+	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
+	# Otherwise, if a user got CONFIG_USER_USB_KEYBOARD=n in their
+	# config.user by mistake (say, by copying config.user from a laptop to a
+	# desktop/server), they could lock themselves out, only recoverable by
+	# hardware flash.
+	if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = y ]; then
 		if ! lsmod | grep -q usbhid; then
 			insmod /lib/modules/usbhid.ko \
 			|| die "usbhid: module load failed"

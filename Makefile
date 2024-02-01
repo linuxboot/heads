@@ -72,6 +72,18 @@ CONFIG_HEADS	?= y
 # Unless otherwise specified, we are building bash to have non-interactive shell for scripts (arrays and bashisms)
 CONFIG_BASH	?= y
 
+# USB keyboards can be ignored, optionally supported, or required.
+#
+# To optionally support USB keyboards, export CONFIG_SUPPORT_USB_KEYBOARD=y.  To
+# default the setting to 'on', also export CONFIG_USER_USB_KEYBOARD=y.
+#
+# To require USB keyboard support (not user-configurable, for boards with no
+# built-in keyboard), export CONFIG_USB_KEYBOARD_REQUIRED=y.
+ifeq "$(CONFIG_USB_KEYBOARD_REQUIRED)" "y"
+# CONFIG_USB_KEYBOARD_REQUIRED implies CONFIG_SUPPORT_USB_KEYBOARD.
+export CONFIG_SUPPORT_USB_KEYBOARD=y
+endif
+
 # Determine arch part for a host triplet
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 MUSL_ARCH := x86_64
