@@ -3,7 +3,7 @@
 . /etc/functions
 . /etc/luks-functions
 
-TRACE "Under /bin/mount-usb"
+TRACE_FUNC
 
 function usage() {
   cat <<USAGE_END

@@ -2,7 +2,7 @@
 set -e -o pipefail
 . /etc/functions
 
-TRACE "Under /bin/cbfs-init"
+TRACE_FUNC
 
 # Update initrd with CBFS files
 if [ -z "$CONFIG_PCR" ]; then

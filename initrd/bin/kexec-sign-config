@@ -4,7 +4,7 @@ set -e -o pipefail
 . /tmp/config
 . /etc/functions
 
-TRACE "Under /bin/kexec-sign-config"
+TRACE_FUNC
 
 rollback="n"
 update="n"

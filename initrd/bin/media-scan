@@ -5,7 +5,7 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
-TRACE "Under /bin/media-scan"
+TRACE_FUNC
 
 #Booting from external media should be authenticated if supported
 gpg_auth || die "GPG authentication failed"
