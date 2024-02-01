@@ -3,7 +3,7 @@
 set -eo pipefail
 . /etc/functions
 
-TRACE "Under /bin/setconsolefont.sh"
+TRACE_FUNC
 
 # If the board ships setfont, and the console size is >=1600 lines tall,
 # increase the console font size.

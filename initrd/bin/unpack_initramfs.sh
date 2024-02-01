@@ -3,7 +3,7 @@ set -e -o pipefail
 
 . /etc/functions
 
-TRACE "Under unpack_initramfs.sh"
+TRACE_FUNC
 # Unpack a Linux initramfs archive.
 #
 # In general, the initramfs archive is one or more cpio archives, optionally
@@ -31,7 +31,7 @@ CPIO_ARGS=("$@")
 
 # Consume zero bytes, the first nonzero byte read (if any) is repeated on stdout
 consume_zeros() {
-    TRACE "Under unpack_initramfs.sh:consume_zeros"
+    TRACE_FUNC
     next_byte='00'
     while [ "$next_byte" = "00" ]; do
         # if we reach EOF, next_byte becomes empty (dd does not fail)
@@ -44,13 +44,13 @@ consume_zeros() {
 }
 
 unpack_cpio() {
-    TRACE "Under unpack_initramfs.sh:unpack_cpio"
+    TRACE_FUNC
     (cd "$dest_dir"; cpio -i "${CPIO_ARGS[@]}" 2>/dev/null)
 }
 
 # unpack the first segment of an archive, then write the rest to another file
 unpack_first_segment() {
-    TRACE "Under unpack_initramfs.sh:unpack_first_segment"
+    TRACE_FUNC
     unpack_archive="$1"
     dest_dir="$2"
     rest_archive="$3"

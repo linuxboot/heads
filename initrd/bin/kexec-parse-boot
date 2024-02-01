@@ -2,7 +2,7 @@
 set -e -o pipefail
 . /etc/functions
 
-TRACE "Under /bin/kexec-parse-boot"
+TRACE_FUNC
 
 bootdir="$1"
 file="$2"

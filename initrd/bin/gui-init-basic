@@ -17,7 +17,7 @@ skip_to_menu="false"
 
 mount_boot()
 {
-  TRACE "Under /bin/gui-init:mount_boot"
+  TRACE_FUNC
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
@@ -63,7 +63,7 @@ mount_boot()
 
 prompt_auto_default_boot()
 {
-  TRACE "Under /bin/gui-init:prompt_auto_default_boot"
+  TRACE_FUNC
   echo -e "\n\n"
   if pause_automatic_boot; then
     echo -e "\n\nAttempting default boot...\n\n"
@@ -73,7 +73,7 @@ prompt_auto_default_boot()
 
 show_main_menu()
 {
-  TRACE "Under /bin/gui-init:show_main_menu"
+  TRACE_FUNC
   date=`date "+%Y-%m-%d %H:%M:%S %Z"`
   whiptail $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
     --menu "$date" 0 80 10 \
@@ -102,7 +102,7 @@ show_main_menu()
 
 show_options_menu()
 {
-  TRACE "Under /bin/gui-init:show_options_menu"
+  TRACE_FUNC
   whiptail $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Basic Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
@@ -133,7 +133,7 @@ show_options_menu()
 
 show_boot_options_menu()
 {
-  TRACE "Under /bin/gui-init:show_boot_options_menu"
+  TRACE_FUNC
   whiptail $BG_COLOR_MAIN_MENU --title "Boot Options" \
     --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
@@ -157,14 +157,14 @@ show_boot_options_menu()
 
 select_os_boot_option()
 {
-  TRACE "Under /bin/gui-init:select_os_boot_option"
+  TRACE_FUNC
   mount_boot
   kexec-select-boot -m -b /boot -c "grub.cfg" -g -i
 }
 
 attempt_default_boot()
 {
-  TRACE "Under /bin/gui-init:attempt_default_boot"
+  TRACE_FUNC
   mount_boot
 
   DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
@@ -183,7 +183,7 @@ attempt_default_boot()
 }
 
 # gui-init-basic start
-TRACE "Under /bin/gui-init, start"
+TRACE_FUNC
 
 # USB automatic boot (if configured) occurs before mounting /boot, this should
 # work even if no OS is installed
@@ -204,7 +204,7 @@ if [ "$skip_to_menu" != "true" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
 fi
 
 while true; do
-  TRACE "Under gui-init:while true loop"
+  TRACE_FUNC
   skip_to_menu="false"
   show_main_menu
 done

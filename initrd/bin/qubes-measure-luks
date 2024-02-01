@@ -3,7 +3,7 @@
 # a PCR so that we can detect disk swap attacks.
 . /etc/functions
 
-TRACE "Under /bin/qubes-measure-luks"
+TRACE_FUNC
 DEBUG "Arguments passed to qubes-measure-luks: $@"
 
 # Measure the LUKS headers into PCR 6

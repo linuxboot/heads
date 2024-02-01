@@ -5,7 +5,7 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
-TRACE "Under /bin/flash-gui.sh"
+TRACE_FUNC
 
 if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
   whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
