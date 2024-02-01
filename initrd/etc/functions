@@ -33,6 +33,28 @@ DO_WITH_DEBUG() {
 	"$@"
 }
 
+# Trace the current script and function.
+TRACE_FUNC() {
+	# Index [1] for BASH_SOURCE and FUNCNAME give us the caller location.
+	# FUNCNAME is 'main' if called from a script outside any function.
+	# BASH_LINENO is offset by 1, it provides the line that the
+	# corresponding FUNCNAME was _called from_, so BASH_LINENO[0] is the
+	# location of the caller.
+	TRACE "${BASH_SOURCE[1]}(${BASH_LINENO[0]}): ${FUNCNAME[1]}"
+}
+
+# Show the entire current call stack in debug output - useful if a catastrophic
+# error or something very unexpected occurs, like totally invalid parameters.
+DEBUG_STACK() {
+	local FRAMES
+	FRAMES="${#FUNCNAME[@]}"
+	DEBUG "call stack: ($((FRAMES-1)) frames)"
+	# Don't print DEBUG_STACK itself, start from 1
+	for i in $(seq 1 "$((FRAMES-1))"); do
+		DEBUG "- $((i-1)) - ${BASH_SOURCE[$i]}(${BASH_LINENO[$((i-1))]}): ${FUNCNAME[$i]}"
+	done
+}
+
 pcrs() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		tpm2 pcrread sha256

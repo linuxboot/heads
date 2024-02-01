@@ -39,7 +39,7 @@ while true; do
         'r' ' Clear GPG key(s) and reset all user settings'
         'R' ' Change the root device for hashing'
         'D' ' Change the root directories to hash'
-        'B' ' Check root hashes at boot'
+        'B' " $(get_config_display_action "$CONFIG_ROOT_CHECK_AT_BOOT") root check at boot"
         'L' " $(get_config_display_action "$CONFIG_RESTRICTED_BOOT") Restricted Boot"
     )
 
@@ -265,10 +265,9 @@ while true; do
         --msgbox "The root directories to hash was successfully changed to:\n$NEW_CONFIG_ROOT_DIRLIST" 0 80
     ;;
     "B" )
-      CURRENT_OPTION="$(load_config_value CONFIG_ROOT_CHECK_AT_BOOT)"
-      if [ "$CURRENT_OPTION" != "y" ]; then
+      if [ "$CONFIG_ROOT_CHECK_AT_BOOT" != "y" ]; then
         # Root device and directories must be set to enable this
-        if [ -z "$(load_config_value CONFIG_ROOT_DEV)" ] || [ -z "$(load_config_value CONFIG_ROOT_DIRLIST)" ]; then
+        if [ -z "$CONFIG_ROOT_DEV" ] || [ -z "$CONFIG_ROOT_DIRLIST" ]; then
           whiptail $BG_COLOR_ERROR --title 'Root Check Not Configured' \
             --msgbox "Set the root device and directories to hash before enabling this feature." 0 80
         elif (whiptail --title 'Enable Root Hash Check at Boot?' \
@@ -277,8 +276,7 @@ while true; do
                     \na minute or more to the boot time.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "y"
-          combine_configs
+          set_user_config "CONFIG_ROOT_CHECK_AT_BOOT" "y"
 
           # check that root hash file exists
           if [ ! -f ${ROOT_HASH_FILE} ]; then
@@ -298,8 +296,7 @@ while true; do
              --yesno "This will disable checking root hashes each time you boot.
                     \n\nDo you want to proceed?" 0 80) then
 
-          set_config /etc/config.user "CONFIG_ROOT_CHECK_AT_BOOT" "n"
-          combine_configs
+          set_user_config "CONFIG_ROOT_CHECK_AT_BOOT" "n"
 
           whiptail --title 'Config change successful' \
             --msgbox "The root device will not be checked at each boot." 0 80
