@@ -150,7 +150,7 @@ if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 fi
 
 # load USB modules for boards using a USB keyboard
-if [ "$CONFIG_USB_KEYBOARD" = "y" ]; then
+if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
 	enable_usb
 fi
 

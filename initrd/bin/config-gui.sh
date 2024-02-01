@@ -70,6 +70,16 @@ while true; do
         'N' " $(get_config_display_action "$CONFIG_AUTOMATIC_POWERON") automatic power-on"
     )
 
+    # Boards with built-in keyboards can support optional USB keyboards as well.
+    # Export CONFIG_SUPPORT_USB_KEYBOARD=y to enable optional support.
+    # Boards that do not have a built-in keyboard export
+    # CONFIG_USB_KEYBOARD_REQUIRED=y; this hides the config option and ensures
+    # USB keyboard support always loads.
+    [ "$CONFIG_SUPPORT_USB_KEYBOARD" = y ] && [ "$CONFIG_USB_KEYBOARD_REQUIRED" != y ] \
+        && dynamic_config_options+=(
+            'K' " $(get_config_display_action "$CONFIG_USER_USB_KEYBOARD") USB keyboard"
+        )
+
     # Debugging option always available
     dynamic_config_options+=(
         'Z' " $(get_config_display_action "$CONFIG_DEBUG_OUTPUT") $CONFIG_BRAND_NAME debug and function tracing output"
@@ -511,6 +521,32 @@ while true; do
 
           whiptail --title 'Config change successful' \
             --msgbox "Automatic power-on disabled;\nsave the config change and reboot for it to go into effect." 0 80
+        fi
+      fi
+    ;;
+    "K" )
+      if [ "$CONFIG_USER_USB_KEYBOARD" != "y" ]; then
+        if (whiptail --title 'Enable USB Keyboard?' \
+             --yesno "USB keyboards will be usable in $CONFIG_BRAND_NAME.
+                    \n\nEnabling USB keyboards could allow a compromised USB device to control
+                    \n$CONFIG_BRAND_NAME.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_user_config "CONFIG_USER_USB_KEYBOARD" "y"
+
+          whiptail --title 'Config change successful' \
+            --msgbox "USB Keyboard support has been enabled;\nsave the config change and reboot for it to go into effect." 0 80
+
+        fi
+      else
+        if (whiptail --title 'Disable USB Keyboard?' \
+             --yesno "Only the built-in keyboard will be usable in $CONFIG_BRAND_NAME.
+                    \n\nDo you want to proceed?" 0 80) then
+
+          set_user_config "CONFIG_USER_USB_KEYBOARD" "n"
+
+          whiptail --title 'Config change successful' \
+            --msgbox "USB Keyboard support has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
       fi
     ;;
