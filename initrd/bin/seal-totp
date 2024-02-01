@@ -7,7 +7,7 @@
 
 . /etc/functions
 
-TRACE "Under /bin/seal-totp"
+TRACE_FUNC
 
 TPM_NVRAM_SPACE=4d47
 

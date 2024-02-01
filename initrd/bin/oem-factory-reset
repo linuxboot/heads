@@ -8,7 +8,7 @@ set -o pipefail
 . /etc/luks-functions
 . /tmp/config
 
-TRACE "Under /bin/oem-factory-reset"
+TRACE_FUNC
 
 # use TERM to exit on error
 trap "exit 1" TERM
@@ -74,7 +74,7 @@ whiptail_error_die() {
 }
 
 mount_boot() {
-    TRACE "Under oem-factory-reset:mount_boot"
+    TRACE_FUNC
     # Mount local disk if it is not already mounted.
     # Added so that 'o' can be typed early at boot to enter directly into OEM Factory Reset
     if ! grep -q /boot /proc/mounts; then
@@ -89,7 +89,7 @@ mount_boot() {
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_RSA_master_and_subkeys() {
-    TRACE "Under oem-factory-reset:generate_inmemory_RSA_master_and_subkeys"
+    TRACE_FUNC
     echo "Generating GPG key material in memory:"
 
     echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits master key..."
@@ -187,7 +187,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_p256_master_and_subkeys() {
-    TRACE "Under oem-factory-reset:generate_inmemory_p256_master_and_subkeys"
+    TRACE_FUNC
 
     echo "Generating GPG p256 bits master key..."
     {
@@ -266,7 +266,7 @@ generate_inmemory_p256_master_and_subkeys() {
 # The master key was already used to sign the subkeys, so it is not needed anymore
 # Delete the master key from the keyring once key to card is done (already backed up on LUKS private partition)
 keytocard_subkeys_to_smartcard() {
-    TRACE "Under oem-factory-reset:keytocard_subkeys_to_smartcard"
+    TRACE_FUNC
 
     #make sure usb ready and USB Security Dongle ready to communicate with
     enable_usb
@@ -304,12 +304,12 @@ keytocard_subkeys_to_smartcard() {
         whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
     fi
 
-    TRACE "oem-factory-reset:keytocard_subkeys_to_smartcard done"
+    TRACE_FUNC
 }
 
 #Whiptail prompt to insert to be wiped thumb drive
 prompt_insert_to_be_wiped_thumb_drive() {
-    TRACE "Under oem-factory-reset:prompt_insert_to_be_wiped_thumb_drive"
+    TRACE_FUNC
     #Whiptail warning about having only desired to be wiped thumb drive inserted
     whiptail $BG_COLOR_WARNING --title 'WARNING: Please insert the thumb drive to be wiped' \
         --msgbox "The thumb drive will be WIPED next.\n\nPlease connect only the thumb drive to be wiped and disconnect others." 0 80 ||
@@ -318,7 +318,7 @@ prompt_insert_to_be_wiped_thumb_drive() {
 
 #export master key and subkeys to thumbdrive's private LUKS contained partition
 export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
-    TRACE "Under oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container"
+    TRACE_FUNC
 
     #Sanity check on passed arguments
     while [ $# -gt 0 ]; do
@@ -363,12 +363,12 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
     #Unmount private LUKS container's mount point
     umount "$mountpoint" || die "Error unmounting private LUKS container's mount point"
 
-    TRACE "oem-factory-reset:export_master_key_subkeys_and_revocation_key_to_private_LUKS_container done"
+    TRACE_FUNC
 }
 
 #Export public key to thumb drive's public partition
 export_public_key_to_thumbdrive_public_partition() {
-    TRACE "Under oem-factory-reset:export_public_key_to_thumbdrive_public_partition"
+    TRACE_FUNC
 
     #Sanity check on passed arguments
     while [ $# -gt 0 ]; do
@@ -399,7 +399,7 @@ export_public_key_to_thumbdrive_public_partition() {
     gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || die "Error exporting public key to thumb drive's public partition"
     umount "$mountpoint" || die "Error unmounting thumb drive's public partition"
 
-    TRACE "oem-factory-reset:export_public_key_to_thumbdrive_public_partition done"
+    TRACE_FUNC
 }
 
 # Select thumb drive and LUKS container size for GPG key export
@@ -407,7 +407,7 @@ export_public_key_to_thumbdrive_public_partition() {
 # - thumb_drive
 # - thumb_drive_luks_percent
 select_thumb_drive_for_key_material() {
-    TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material"
+    TRACE_FUNC
 
     #enable usb storage
     enable_usb
@@ -459,7 +459,7 @@ select_thumb_drive_for_key_material() {
 # $1 - thumb drive block device
 # $2 - LUKS container percentage [1-99]
 wipe_thumb_drive_and_copy_gpg_key_material() {
-    TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material"
+    TRACE_FUNC
 
     local thumb_drive thumb_drive_luks_percent
     thumb_drive="$1"
@@ -472,11 +472,11 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
     #Export public key to thumb drive's public partition
     export_public_key_to_thumbdrive_public_partition --mode rw --device "$thumb_drive"2 --mountpoint /media
 
-    TRACE "Under oem-factory-reset:wipe_thumb_drive_and_copy_gpg_key_material done"
+    TRACE_FUNC
 }
 
 gpg_key_factory_reset() {
-    TRACE "Under oem-factory-reset:gpg_key_factory_reset"
+    TRACE_FUNC
 
     #enable usb storage
     enable_usb
@@ -560,11 +560,11 @@ gpg_key_factory_reset() {
         whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
     fi
 
-    TRACE "oem-factory-reset:gpg_key_factory_reset done"
+    TRACE_FUNC
 }
 
 generate_OEM_gpg_keys() {
-    TRACE "Under oem-factory-reset:generate_OEM_gpg_keys"
+    TRACE_FUNC
 
     #This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
     echo "Generating GPG keys in USB Security Dongle's smartcard..."
@@ -586,11 +586,11 @@ generate_OEM_gpg_keys() {
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
     fi
 
-    TRACE "oem-factory-reset:generate_OEM_gpg_keys done"
+    TRACE_FUNC
 }
 
 gpg_key_change_pin() {
-    TRACE "Under oem-factory-reset:gpg_key_change_pin"
+    TRACE_FUNC
     DEBUG "Changing GPG key PIN"
     # 1 = user PIN, 3 = admin PIN
     PIN_TYPE=$1
@@ -613,11 +613,11 @@ gpg_key_change_pin() {
         whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
     fi
 
-    TRACE "oem-factory-reset:gpg_key_change_pin done"
+    TRACE_FUNC
 }
 
 generate_checksums() {
-    TRACE "Under oem-factory-reset:generate_checksums"
+    TRACE_FUNC
 
     # ensure /boot mounted
     if ! grep -q /boot /proc/mounts; then
@@ -711,11 +711,11 @@ generate_checksums() {
         whiptail_error_die "Error signing kexec boot files:\n\n$ERROR"
     fi
 
-    TRACE "oem-factory-reset:generate_checksums done"
+    TRACE_FUNC
 }
 
 set_default_boot_option() {
-    TRACE "Under oem-factory-reset:set_default_boot_option"
+    TRACE_FUNC
 
     option_file="/tmp/kexec_options.txt"
     tmp_menu_file="/tmp/kexec/kexec_menu.txt"
@@ -758,11 +758,11 @@ set_default_boot_option() {
         xargs sha256sum >$hash_file 2>/dev/null) ||
         whiptail_error_die "Failed to create hashes of boot files"
 
-    TRACE "oem-factory-reset:set_default_boot_option done"
+    TRACE_FUNC
 }
 
 report_integrity_measurements() {
-    TRACE "Under oem-factory-reset:report_integrity_measurements"
+    TRACE_FUNC
 
     #check for GPG key in keyring
     GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
@@ -818,11 +818,11 @@ report_integrity_measurements() {
         whiptail $MAIN_MENU_BG_COLOR --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
     fi
 
-    TRACE "oem-factory-reset:report_integrity_measurements done"
+    TRACE_FUNC
 }
 
 usb_security_token_capabilities_check() {
-    TRACE "Under /bin/oem-factory-reset:usb_security_token_capabilities_check"
+    TRACE_FUNC
 
     enable_usb
     # ... first set board config preference

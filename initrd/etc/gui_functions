@@ -15,7 +15,7 @@ pause_automatic_boot()
 
 mount_usb()
 {
-  TRACE "under gui_functions:mount_usb"
+  TRACE_FUNC
   # Unmount any previous USB device
   if grep -q /media /proc/mounts ; then
     umount /media || die "Unable to unmount /media"
@@ -80,7 +80,7 @@ display_block_device_size() {
 # No entries in list: Displays error and exits unsuccessfully
 file_selector()
 {
-	TRACE "under gui_functions:file_selector"
+	TRACE_FUNC
 
 	local FILE_LIST MENU_MSG MENU_TITLE CHOICE_ARGS SHOW_SIZE OPTION_SIZE option_index
 
@@ -132,7 +132,7 @@ file_selector()
 
 show_system_info()
 {
-  TRACE "Under /bin/gui-init:show_system_info"
+  TRACE_FUNC
   battery_charge="$(print_battery_charge)"
   battery_health="$(print_battery_health)"
   if [ -n $battery_charge -a -n $battery_health ];then

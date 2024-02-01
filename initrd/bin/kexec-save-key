@@ -3,7 +3,7 @@
 
 . /etc/functions
 
-TRACE "kexec-save-key: start"
+TRACE_FUNC
 set -e -o pipefail
 . /etc/functions
 

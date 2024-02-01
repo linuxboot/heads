@@ -6,7 +6,7 @@
 
 . /etc/functions
 
-TRACE "Under insmod.sh"
+TRACE_FUNC
 
 MODULE="$1"; shift
 
