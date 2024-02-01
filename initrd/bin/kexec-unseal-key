@@ -10,7 +10,7 @@ TPM_SIZE=312
 
 . /etc/functions
 
-TRACE "Under kexec-unseal-key"
+TRACE_FUNC
 
 mkdir -p /tmp/secret
 

@@ -64,7 +64,7 @@ pcrs() {
 }
 
 confirm_totp() {
-	TRACE "Under /etc/functions:confirm_totp"
+	TRACE_FUNC
 	prompt="$1"
 	last_half=X
 	unset totp_confirm
@@ -103,7 +103,7 @@ confirm_totp() {
 }
 
 reseal_tpm_disk_decryption_key() {
-	TRACE "Under /etc/functions:reseal_tpm_disk_decryption_key"
+	TRACE_FUNC
 	#For robustness, exit early if LUKS TPM Disk Unlock Key is prohibited in board configs
 	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
 		DEBUG "LUKS TPM Disk Unlock Key is prohibited in board configs"
@@ -140,7 +140,7 @@ reseal_tpm_disk_decryption_key() {
 # be detected.  If USB storage was already enabled, no wait occurs, this would
 # have happened already when USB storage was enabled.
 enable_usb_storage() {
-	TRACE "Under /etc/functions:enable_usb_storage"
+	TRACE_FUNC
 	if ! lsmod | grep -q usb_storage; then
 		timeout=0
 		echo "Scanning for USB storage devices..."
@@ -155,7 +155,7 @@ enable_usb_storage() {
 }
 
 list_usb_storage() {
-	TRACE "Under /etc/functions:list_usb_storage"
+	TRACE_FUNC
 	# List all USB storage devices, including partitions unless we received argument stating we want drives only
 	# The output is a list of device names, one per line.
 
@@ -216,7 +216,7 @@ list_usb_storage() {
 # Tools should optionally accept a TPM password on the command line, since some flows need 
 # it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
-	TRACE "Under /etc/functions:prompt_tpm_owner_password"
+	TRACE_FUNC
 
 	if [ -s /tmp/secret/tpm_owner_password ]; then
 		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
@@ -238,7 +238,7 @@ prompt_tpm_owner_password() {
 # The password must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
 prompt_new_owner_password() {
-	TRACE "Under /etc/functions:prompt_new_owner_password"
+	TRACE_FUNC
 	local tpm_owner_password2
 	tpm_owner_password=1
 	tpm_owner_password2=2
@@ -262,7 +262,7 @@ prompt_new_owner_password() {
 }
 
 check_tpm_counter() {
-	TRACE "Under /etc/functions:check_tpm_counter"
+	TRACE_FUNC
 	
 	LABEL=${2:-3135106223}
 	tpm_password="$3"
@@ -286,20 +286,20 @@ check_tpm_counter() {
 }
 
 read_tpm_counter() {
-	TRACE "Under /etc/functions:read_tpm_counter"
+	TRACE_FUNC
 	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" ||
 		die "Counter read failed"
 }
 
 increment_tpm_counter() {
-	TRACE "Under /etc/functions:increment_tpm_counter"
+	TRACE_FUNC
 	tpmr counter_increment -ix "$1" -pwdc '' |
 		tee /tmp/counter-$1 ||
 		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
 }
 
 check_config() {
-	TRACE "Under /etc/functions:check_config"
+	TRACE_FUNC
 	if [ ! -d /tmp/kexec ]; then
 		mkdir /tmp/kexec ||
 			die 'Failed to make kexec tmp dir'
@@ -340,7 +340,7 @@ replace_rom_file() {
 }
 
 replace_config() {
-	TRACE "Under /etc/functions:replace_config"
+	TRACE_FUNC
 	CONFIG_FILE=$1
 	CONFIG_OPTION=$2
 	NEW_SETTING=$3
@@ -373,7 +373,7 @@ secret_from_rom_hash() {
 }
 
 update_checksums() {
-	TRACE "Under /etc/functions:update_checksums"
+	TRACE_FUNC
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts; then
 		mount -o ro /boot ||
@@ -403,7 +403,7 @@ update_checksums() {
 }
 
 print_tree() {
-	TRACE "Under /etc/functions:print_tree"
+	TRACE_FUNC
 	find ./ ! -path './kexec*' -print0 | sort -z
 }
 
@@ -471,7 +471,7 @@ escape_zero() {
 # due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
 # may be intepreted by `whiptail`, `less` et al (e.g. \n, \b, ...).
 assert_signable() {
-	TRACE "Under /etc/functions:assert_signable"
+	TRACE_FUNC
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts; then
 		mount -o ro /boot || die "Unable to mount /boot"
@@ -490,7 +490,7 @@ assert_signable() {
 }
 
 verify_checksums() {
-	TRACE "Under /etc/functions:verify_checksums"
+	TRACE_FUNC
 	local boot_dir="$1"
 	local gui="${2:-y}"
 
@@ -523,7 +523,7 @@ verify_checksums() {
 # detect and set /boot device
 # mount /boot if successful
 detect_boot_device() {
-	TRACE "Under /etc/functions:detect_boot_device"
+	TRACE_FUNC
 	# unmount /boot to be safe
 	cd / && umount /boot 2>/dev/null
 
@@ -570,7 +570,7 @@ detect_boot_device() {
 }
 
 scan_boot_options() {
-	TRACE "Under /etc/functions:scan_boot_options"
+	TRACE_FUNC
 	local bootdir config option_file
 	bootdir="$1"
 	config="$2"

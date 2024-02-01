@@ -8,7 +8,7 @@ HOTP_COUNTER="/boot/kexec_hotp_counter"
 
 mount_boot_or_die()
 {
-  TRACE "Under /bin/unseal-hotp:mount_boot_or_die"
+  TRACE_FUNC
   # Mount local disk if it is not already mounted
   if ! grep -q /boot /proc/mounts ; then
     mount -o ro /boot \
@@ -16,7 +16,7 @@ mount_boot_or_die()
   fi
 }
 
-TRACE "Under /bin/unseal-hotp"
+TRACE_FUNC
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
 # config TPM counter as TPM 1.2 can only increment one counter between reboots

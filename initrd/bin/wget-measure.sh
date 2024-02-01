@@ -3,7 +3,7 @@
 . /etc/functions
 
 die() {
-	TRACE "Under /bin/wget-measure.sh:die"
+	TRACE_FUNC
         echo >&2 "$@"
         exit 1
 }

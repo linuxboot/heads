@@ -5,7 +5,7 @@ set -e -o pipefail
 . /etc/gui_functions
 . /tmp/config
 
-TRACE "Under /bin/config-gui.sh"
+TRACE_FUNC
 
 ROOT_HASH_FILE="/boot/kexec_root_hashes.txt"
 

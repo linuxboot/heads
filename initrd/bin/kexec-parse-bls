@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 . /etc/functions
-TRACE "Under /bin/kexec-parse-bls"
+TRACE_FUNC
 
 bootdir="$1"
 file="$2"
