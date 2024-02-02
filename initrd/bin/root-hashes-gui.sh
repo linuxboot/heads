@@ -159,28 +159,6 @@ check_root_checksums() {
   fi
 }
 
-# Check if a device is an LVM2 PV, and if so print the VG name
-find_lvm_vg_name() {
-  TRACE_FUNC
-  local DEVICE VG
-  DEVICE="$1"
-
-  mkdir -p /tmp/root-hashes-gui
-  if ! lvm pvs "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
-    # It's not an LVM PV
-    return 1
-  fi
-
-  VG="$(tail -n +2 /tmp/root-hashes-gui/lvm_vg | awk '{print $2}')"
-  if [ -z "$VG" ]; then
-    DEBUG "Could not find LVM2 VG from lvm pvs output:"
-    DEBUG "$(cat /tmp/root-hashes-gui/lvm_vg)"
-    return 1
-  fi
-
-  echo "$VG"
-}
-
 # Open an LVM volume group, then continue looking for more layers in the 'root'
 # logical volume.
 open_block_device_lvm() {
