@@ -49,6 +49,12 @@ fi
 # Load the date from the hardware clock, setting it in local time
 hwclock -l -s
 
+# When mounting a filesystem, try exFAT last, since it logs errors if the
+# filesystem is not exFAT, and the errors go to the console.  Those errors are
+# spurious when the medium is iso9660.  By default in our config, the only
+# filesystem after exFAT is iso9660, move exFAT last.
+(grep -v '^\texfat$' /proc/filesystems && echo -e '\texfat') >/etc/filesystems
+
 # Read the system configuration parameters
 . /etc/ash_functions
 . /etc/config
