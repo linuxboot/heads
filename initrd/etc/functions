@@ -154,6 +154,28 @@ enable_usb_storage() {
 	fi
 }
 
+device_has_partitions() {
+	local DEVICE="$1"
+	# fdisk normally says "doesn't contain a valid partition table" for
+	# devices that lack a partition table - except for FAT32.
+	#
+	# FAT32 devices have a volume boot record that looks enough like an MBR
+	# to satisfy fdisk.  In that case, fdisk prints a partition table header
+	# but no partitions.
+	#
+	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
+	# In both cases the output is 5 lines: 3 about device info, 1 empty line
+	# and the 5th will be the table header or the invalid message.
+	local DISK_DATA=$(fdisk -l "$DEVICE")
+	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || \
+		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
+		# No partition table
+		return 1
+	fi
+	# There is a partition table
+	return 0
+}
+
 list_usb_storage() {
 	TRACE_FUNC
 	# List all USB storage devices, including partitions unless we received argument stating we want drives only
@@ -184,16 +206,7 @@ list_usb_storage() {
 			# never usable directly, and this allows the "wait for
 			# disks" loop in mount-usb to correctly wait for the
 			# partitions.
-			# This check: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
-			# covers the case of a device without partition table but
-			# formatted as fat32, which contains a sortof partition table.
-			# this causes fdisk to not print the invalid partition table
-			# message and instead it'll print an empty table with header.
-			# In both cases the output is 5 lines: 3 about device info,
-			# 1 empty line and the 5th will be the table header or the
-			# unvalid message.
-			DISK_DATA=$(fdisk -l "$b")
-			if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || [ $(echo "$DISK_DATA" | wc -l) -eq 5 ]; then
+			if ! device_has_partitions "$b"; then
 				# No partition table, include this device
 				DEBUG "USB storage device without partition table: $b"
 				echo "$b"
@@ -520,52 +533,143 @@ verify_checksums() {
 	return $?
 }
 
+# Check if a device is an LVM2 PV, and if so print the VG name
+find_lvm_vg_name() {
+	TRACE_FUNC
+	local DEVICE VG
+	DEVICE="$1"
+
+	mkdir -p /tmp/root-hashes-gui
+	if ! lvm pvs "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
+		# It's not an LVM PV
+		return 1
+	fi
+
+	VG="$(tail -n +2 /tmp/root-hashes-gui/lvm_vg | awk '{print $2}')"
+	if [ -z "$VG" ]; then
+		DEBUG "Could not find LVM2 VG from lvm pvs output:"
+		DEBUG "$(cat /tmp/root-hashes-gui/lvm_vg)"
+		return 1
+	fi
+
+	echo "$VG"
+}
+
+# If a block device is a partition, check if it is a bios-grub partition on a
+# GPT-partitioned disk.
+is_gpt_bios_grub() {
+	TRACE_FUNC
+
+	local PART_DEV="$1" DEVICE NUMBER
+
+	# Figure out the partitioned device containing this device (if there is
+	# one) from /sys/class/block.
+	local DEVICE_MATCHES=("/sys/class/block/"*"/$(basename "$PART_DEV")")
+
+	DEVICE="$(echo "${DEVICE_MATCHES[0]}" | cut -d/ -f5)"
+	if [ "${#DEVICE_MATCHES[@]}" -ne 1 ] || [ "$DEVICE" = "*" ]; then
+		return 0
+	fi
+
+	# Extract the partition number
+	if ! [[ $(basename "$PART_DEV") =~ ([0-9]+)$ ]]; then
+		return 0	# Can't figure out the partition number
+	fi
+
+	NUMBER="${BASH_REMATCH[1]}"
+
+	# Now we know the device and partition number, get the type.  This is
+	# specific to GPT disks, MBR disks are shown differently by fdisk.
+	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
+	if [ "$(fdisk -l "/dev/$DEVICE" | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
+		return 0
+	fi
+	return 1
+}
+
+# Test if a block device could be used as /boot - we can mount it and it
+# contains /boot/grub* files.  (Here, the block device could be a partition or
+# an unpartitioned device.)
+#
+# If the device is a partition, its type is also checked.  Some common types
+# that we definitely can't mount this way are excluded to silence spurious exFAT
+# errors.
+#
+# Any existing /boot is unmounted.  If the device is a reasonable boot device,
+# it's left mounted on /boot.
+mount_possible_boot_device() {
+	TRACE_FUNC
+
+	local BOOT_DEV="$1"
+	local PARTITION_TYPE
+
+	# Unmount anything on /boot.  Ignore failure since there might not be
+	# anything.  If there is something mounted and we cannot unmount it for
+	# some reason, mount will fail, which is handled.
+	umount /boot 2>/dev/null || true
+
+	# Skip bios-grub partitions on GPT disks, LUKS partitions, and LVM PVs,
+	# we can't mount these as /boot.
+	if is_gpt_bios_grub "$BOOT_DEV" || cryptsetup isLuks "$BOOT_DEV" ||
+		find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
+		TRACE "$BOOT_DEV is not a mountable partition for /boot"
+		return 1
+	fi
+
+	TRACE "Try mounting $BOOT_DEV as /boot"
+	if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
+		if ls -d /boot/grub* >/dev/null 2>&1; then
+			# This device is a reasonable boot device
+			return 0
+		fi
+		umount /boot || true
+	fi
+
+	return 1
+}
+
 # detect and set /boot device
 # mount /boot if successful
 detect_boot_device() {
 	TRACE_FUNC
+	local devname
 	# unmount /boot to be safe
 	cd / && umount /boot 2>/dev/null
 
 	# check $CONFIG_BOOT_DEV if set/valid
-	if [ -e "$CONFIG_BOOT_DEV" ]; then
-		if mount -o ro $CONFIG_BOOT_DEV /boot >/dev/null 2>&1; then
-			if ls -d /boot/grub* >/dev/null 2>&1; then
-				# CONFIG_BOOT_DEV is valid device and contains an installed OS
-				return 0
-			fi
-		fi
+	if [ -e "$CONFIG_BOOT_DEV" ] && mount_possible_boot_device "$CONFIG_BOOT_DEV"; then
+		# CONFIG_BOOT_DEV is valid device and contains an installed OS
+		return 0
 	fi
 
 	# generate list of possible boot devices
 	fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
 
-	# filter out extraneous options
-	>/tmp/boot_device_list
+	# Check each possible boot device
 	for i in $(cat /tmp/disklist); do
-		# remove block device from list if numeric partitions exist, since not bootable
-		DEV_NUM_PARTITIONS=$(($(ls -1 $i* | wc -l) - 1))
-		if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-			echo $i >>/tmp/boot_device_list
+		# If the device has partitions, check the partitions instead
+		if device_has_partitions "$i"; then
+			devname="$(basename "$i")"
+			partitions=("/sys/class/block/$devname/$devname"?*)
 		else
-			ls $i* | tail -${DEV_NUM_PARTITIONS} >>/tmp/boot_device_list
+			partitions=("$i")	# Use the device itself
 		fi
-	done
-
-	# iterate thru possible options and check for grub dir
-	for i in $(cat /tmp/boot_device_list); do
-		umount /boot 2>/dev/null
-		if mount -o ro $i /boot >/dev/null 2>&1; then
-			if ls -d /boot/grub* >/dev/null 2>&1; then
-				CONFIG_BOOT_DEV="$i"
+		for partition in "${partitions[@]}"; do
+			partition_dev=/dev/"$(basename "$partition")"
+			# No sense trying something we already tried above
+			if [ "$partition_dev" = "$CONFIG_BOOT_DEV" ]; then
+				continue
+			fi
+			# If this is a reasonable boot device, select it and finish
+			if mount_possible_boot_device "$partition_dev"; then
+				CONFIG_BOOT_DEV="$partition_dev"
 				return 0
 			fi
-		fi
+		done
 	done
 
 	# no valid boot device found
 	echo "Unable to locate /boot files on any mounted disk"
-	umount /boot 2>/dev/null
 	return 1
 }
 
