@@ -110,7 +110,6 @@ coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-$(coreboot_module)_depends += $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
