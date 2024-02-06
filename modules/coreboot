@@ -91,7 +91,7 @@ $(eval $(call coreboot_module,purism,))
 #Nitrokey nv41/ns50 are based on Dasharo coreboot port,
 # with patches staging under coreboot-clevo_release
 coreboot-nitrokey_repo := https://github.com/dasharo/coreboot
-coreboot-nitrokey_commit_hash := 1bcb338682b612cfcca8bba02846f78139b2e0c8
+coreboot-nitrokey_commit_hash := a1787afa6b3bf4d3b201cfdbe2ef69623072afa5
 coreboot-nitrokey_patch_version := clevo_release
 #We use clevo_release's crossgcc for now, unshared but between nitropad nv41/ns50
 $(eval $(call coreboot_module,nitrokey,))
