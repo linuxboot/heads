@@ -98,7 +98,7 @@ ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 else ifeq "$(coreboot-$(CONFIG_COREBOOT_VERSION)_dir)" ""
 	$(error "$(BOARD): coreboot version $(CONFIG_COREBOOT_VERSION) not known")
-endif 
+endif
 
 coreboot_module := coreboot-$(CONFIG_COREBOOT_VERSION)
 modules-y += $(coreboot_module)
@@ -113,6 +113,7 @@ $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 CONFIG_COREBOOT_LOCALVERSION ?= $(BRAND_NAME)-$(HEADS_GIT_VERSION)
 CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME ?= $(BOARD)
+CONFIG_COREBOOT_SMBIOS_MANUFACTURER ?= $(BRAND_NAME)
 
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
@@ -139,6 +140,7 @@ $(coreboot_module)_configure := \
 	&& $(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config) \
 	&& echo 'CONFIG_LOCALVERSION="$(CONFIG_COREBOOT_LOCALVERSION)"' >> $(build)/$(coreboot_dir)/.config \
 	&& echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME)"' >> $(build)/$(coreboot_dir)/.config \
+	&& echo 'CONFIG_MAINBOARD_SMBIOS_MANUFACTURER="$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)"' >> $(build)/$(coreboot_dir)/.config \
 	&& $(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
@@ -247,7 +249,7 @@ coreboot.save_in_defconfig_format_in_place:
  		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		savedefconfig && \
 	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
-	
+
 coreboot.save_in_oldconfig_format_in_place:
 	mkdir -p "$(build)/$(coreboot_dir)" && \
 	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
