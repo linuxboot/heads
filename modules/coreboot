@@ -88,10 +88,10 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := 0d57cff58fba2f3a4d3a714a4eae65753e58c6ff
 $(eval $(call coreboot_module,purism,))
 
-#Nitrokey nv41/ns50 are based on Dasharo coreboot port
-coreboot-nitrokey_repo := https://github.com/dasharo/coreboot
-coreboot-nitrokey_commit_hash := a1787afa6b3bf4d3b201cfdbe2ef69623072afa5
-$(eval $(call coreboot_module,nitrokey,))
+# MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
+coreboot-dasharo_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
+$(eval $(call coreboot_module,dasharo,))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
