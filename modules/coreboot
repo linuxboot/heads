@@ -111,7 +111,7 @@ $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
 CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
-CONFIG_COREBOOT_LOCALVERSION ?= $(BRAND_NAME)-$(HEADS_GIT_VERSION)
+CONFIG_COREBOOT_LOCALVERSION ?= "$(BRAND_NAME)-$(HEADS_GIT_VERSION)"
 CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME ?= $(BOARD)
 
 # Ensure that touching the config file will force a rebuild
@@ -138,7 +138,7 @@ $(coreboot_module)_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)"; \
 	$(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config); \
 	sed -i '/^CONFIG_LOCALVERSION/d' $(build)/$(coreboot_dir)/.config; \
-	echo 'CONFIG_LOCALVERSION="$(CONFIG_COREBOOT_LOCALVERSION)"' >> $(build)/$(coreboot_dir)/.config; \
+	echo 'CONFIG_LOCALVERSION=$(CONFIG_COREBOOT_LOCALVERSION)' >> $(build)/$(coreboot_dir)/.config; \
 	sed -i '/^CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME/d' $(build)/$(coreboot_dir)/.config; \
 	echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME)"' >> $(build)/$(coreboot_dir)/.config; \
 	if [ ! -z "$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)" ]; then \
