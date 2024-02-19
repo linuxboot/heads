@@ -118,8 +118,8 @@ index 1a014368795..e7290a12dd9 100644
 +	bool "ThinkPad X230 eDP Mod (2K/FHD)"
 diff --git a/src/mainboard/lenovo/x230/Makefile.mk b/src/mainboard/lenovo/x230/Makefile.mk
 index 8e801f145dd..6e6f9f90b9f 100644
---- a/src/mainboard/lenovo/x230/Makefile.mk
-+++ b/src/mainboard/lenovo/x230/Makefile.mk
+--- a/src/mainboard/lenovo/x230/Makefile.inc
++++ b/src/mainboard/lenovo/x230/Makefile.inc
 @@ -5,4 +5,9 @@ bootblock-y += variants/$(VARIANT_DIR)/gpio.c
  romstage-y += variants/$(VARIANT_DIR)/early_init.c
  romstage-y += variants/$(VARIANT_DIR)/gpio.c
