@@ -1,18 +1,19 @@
-From 7a427122a0a01ee396079ded782072081f130e54 Mon Sep 17 00:00:00 2001
+From a88dd4b6fbac8748a6f4580ad6363da47f5b3bc2 Mon Sep 17 00:00:00 2001
 From: Alexander Couzens <lynxis@fe80.eu>
 Date: Sat, 19 Mar 2022 13:42:33 +0000
-Subject: [PATCH] lenovo/x230: introduce FHD variant
+Subject: [PATCH] mb/lenovo/x230: introduce EDP variant
 
-There is a modification for the x230 which uses the 2nd DP from the dock
-as the integrated panel's connection, which allows using a custom eDP
-panel instead of the stock LVDS display.
+There is a modification for the x230 which uses the 2nd DP from the
+dock as the integrated panel's connection, which allows using a custom
+eDP panel instead of the stock LVDS display.
 
 There are several adapter boards present on the market and all of them
-uses the same method of enabling the custom eDP panel.
+use the same method of enabling the custom eDP panel.
 
 To make this work with coreboot, the internal LVDS connector should be
-disabled in libgfxinit. The VBT has been modified as well, which allows
-brightness controls to work out of the box.
+disabled in libgfxinit. Additionally, VBT has been modified to keep
+brightness controls functional on the adapter boards that use LVDS for
+the job.
 
 The modifications done to the VBT are:
 - Remove the LVDS port entry.
@@ -33,10 +34,14 @@ Other eDP panels not on this list should work as well.
 Change-Id: I0355d39a61956792e69bccd5274cfc2749d72bf0
 Signed-off-by: Alexander Couzens <lynxis@fe80.eu>
 Signed-off-by: Felix Singer <felixsinger@posteo.net>
+Signed-off-by: Alexei Sorokin <sor.alexei@meowr.ru>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/28950
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Felix Singer <service+coreboot-gerrit@felixsinger.de>
 ---
  src/mainboard/lenovo/x230/Kconfig             |  15 ++++++++-----
  src/mainboard/lenovo/x230/Kconfig.name        |   3 +++
- src/mainboard/lenovo/x230/Makefile.inc        |   5 +++++
+ src/mainboard/lenovo/x230/Makefile.mk         |   5 +++++
  .../lenovo/x230/variants/x230_edp/data.vbt    | Bin 0 -> 4281 bytes
  .../x230/variants/x230_edp/gma-mainboard.ads  |  21 ++++++++++++++++++
  5 files changed, 38 insertions(+), 6 deletions(-)
@@ -44,7 +49,7 @@ Signed-off-by: Felix Singer <felixsinger@posteo.net>
  create mode 100644 src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
 
 diff --git a/src/mainboard/lenovo/x230/Kconfig b/src/mainboard/lenovo/x230/Kconfig
-index 279095629b..acfd0ed561 100644
+index 279095629be..78b2373c2d8 100644
 --- a/src/mainboard/lenovo/x230/Kconfig
 +++ b/src/mainboard/lenovo/x230/Kconfig
 @@ -1,4 +1,4 @@
@@ -89,7 +94,7 @@ index 279095629b..acfd0ed561 100644
  	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
  
 +config INTEL_GMA_VBT_FILE
-+	default "variants/x230_edp/data.vbt" if BOARD_LENOVO_X230_EDP
++	default "src/mainboard/\$(MAINBOARDDIR)/variants/x230_edp/data.vbt" if BOARD_LENOVO_X230_EDP
 +
  config USBDEBUG_HCD_INDEX
  	int
@@ -101,7 +106,7 @@ index 279095629b..acfd0ed561 100644
 -endif # BOARD_LENOVO_X230 || BOARD_LENOVO_X230T ||  BOARD_LENOVO_X230S
 +endif # BOARD_LENOVO_X230 || BOARD_LENOVO_X230T ||  BOARD_LENOVO_X230S || BOARD_LENOVO_X230_EDP
 diff --git a/src/mainboard/lenovo/x230/Kconfig.name b/src/mainboard/lenovo/x230/Kconfig.name
-index 1a01436879..e7290a12dd 100644
+index 1a014368795..e7290a12dd9 100644
 --- a/src/mainboard/lenovo/x230/Kconfig.name
 +++ b/src/mainboard/lenovo/x230/Kconfig.name
 @@ -6,3 +6,6 @@ config BOARD_LENOVO_X230T
@@ -111,10 +116,10 @@ index 1a01436879..e7290a12dd 100644
 +
 +config BOARD_LENOVO_X230_EDP
 +	bool "ThinkPad X230 eDP Mod (2K/FHD)"
-diff --git a/src/mainboard/lenovo/x230/Makefile.inc b/src/mainboard/lenovo/x230/Makefile.inc
-index 8e801f145d..6e6f9f90b9 100644
---- a/src/mainboard/lenovo/x230/Makefile.inc
-+++ b/src/mainboard/lenovo/x230/Makefile.inc
+diff --git a/src/mainboard/lenovo/x230/Makefile.mk b/src/mainboard/lenovo/x230/Makefile.mk
+index 8e801f145dd..6e6f9f90b9f 100644
+--- a/src/mainboard/lenovo/x230/Makefile.mk
++++ b/src/mainboard/lenovo/x230/Makefile.mk
 @@ -5,4 +5,9 @@ bootblock-y += variants/$(VARIANT_DIR)/gpio.c
  romstage-y += variants/$(VARIANT_DIR)/early_init.c
  romstage-y += variants/$(VARIANT_DIR)/gpio.c
@@ -168,7 +173,7 @@ HcmV?d00001
 
 diff --git a/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads b/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
 new file mode 100644
-index 0000000000..f7cf0bc264
+index 00000000000..f7cf0bc2646
 --- /dev/null
 +++ b/src/mainboard/lenovo/x230/variants/x230_edp/gma-mainboard.ads
 @@ -0,0 +1,21 @@
