@@ -606,16 +606,14 @@ $(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/cbmem/cbmem))
 ifeq ($(CONFIG_NVMUTIL),y)
 #NVMUTIL(nvm) is applied on ifdtool extracted gbe.bin from a flashrom backup under Heads. 
 # We consequently need ifdtool packed under initrd with cross-compiler
-# coreboot module copied ifdtool into ifdtool_cross at configure step
-# so that coreboot builds its own and we ask one to be cross-build and packed here
-$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/ifdtool_cross/ifdtool)) 
+$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/ifdtool/ifdtool)) 
 endif
 endif
 
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-$(COREBOOT_UTIL_DIR)/ifdtool_cross/ifdtool \
+$(COREBOOT_UTIL_DIR)/ifdtool/ifdtool \
 : $(build)/$(coreboot_base_dir)/.canary musl-cross
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \

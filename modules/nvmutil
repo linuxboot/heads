@@ -8,13 +8,17 @@ nvmutil_tar := $(nvmutil_version).tar.gz
 nvmutil_url := https://codeberg.org/libreboot/lbmk/archive/$(nvmutil_tar)
 nvmutil_hash := 8708f38c0c41f05bf6637c32a64e2c04ca5cf6fc175ccdde4cbd518e498d55c9
 
+#Ugly hack. We pass two make -C here for nvmutil, only second one is taken into consideration
 nvmutil_target := \
-	$(CROSS_TOOLS) \
-	-C $(build)/$(nvmutil_dir)/util/nvmutil \
+	$(CROSS_TOOLS) -C $(build)/$(nvmutil_dir)/util/nvmutil \
+	&& $(CROSS_TOOLS) $(MAKE) -C $(build)/$(coreboot_base_dir)/util/ifdtool \
 
 nvmutil_output := \
 	util/nvmutil/nvm \
 
 nvmutil_libraries := \
 
-nvmutil_configure :=
+# We remove built ifdtool artifact here so that coreboot/nvmutil module rebuilds it
+nvmutil_configure := \
+	rm -rf $(build)/$(coreboot_base_dir)/util/ifdtool/ifdtool \
+
