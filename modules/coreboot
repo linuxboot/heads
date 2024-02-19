@@ -65,10 +65,6 @@ $(eval $(call coreboot_module,4.11,))
 # libgfxinit, and the old Ada compiler no longer compiles with the Debian 12 host toolchain.
 coreboot-4.11_toolchain_build_args := BUILD_LANGUAGES=c
 
-coreboot-4.19_hash := 65ccb2f46535b996e0066a1b76f81c8cf1ff3e27df84b3f97d8ad7b3e7cf0a43
-coreboot-blobs-4.19_hash := 30214caed07b25f11e47bec022ff6234841376e36689eb674de2330a3e980cbc
-$(eval $(call coreboot_module,4.19,))
-
 coreboot-4.20.1_hash := b41539a8c2eab2fec752157eb4acbd0e2a637a7203530c12e66b43a5c3c3a931
 coreboot-blobs-4.20.1_hash := 30f9d8618e78d483d0903976982485e70825ca3469efd17902c9246aaefd7c4a
 $(eval $(call coreboot_module,4.20.1,))
