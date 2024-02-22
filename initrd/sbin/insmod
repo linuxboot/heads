@@ -23,11 +23,12 @@ if [ ! -r "$MODULE" ]; then
 	die "$MODULE: not found?"
 fi
 
-# Check if module is already loaded while remove trailing .ko if present
-module=$(basename "$MODULE")
-module=${module%.ko}
-if lsmod | grep -q "^$module\\b"; then
-	DEBUG "$module: already loaded"
+# Check if module is already loaded 
+#  Transform module name changing _ for - and trailing .ko if present
+#  Unify lsmod output to use - instead of _ for comparison
+module_name=$(basename "$MODULE" | sed 's/_/-/g' | sed 's/\.ko$//')
+if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
+	DEBUG "$MODULE: already loaded"
 	exit 0
 fi
 
