@@ -23,6 +23,14 @@ if [ ! -r "$MODULE" ]; then
 	die "$MODULE: not found?"
 fi
 
+# Check if module is already loaded while remove trailing .ko if present
+module=$(basename "$MODULE")
+module=${module%.ko}
+if lsmod | grep -q "^$module\\b"; then
+	DEBUG "$module: already loaded"
+	exit 0
+fi
+
 if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
    if [ ! -c /dev/tpmrm0 -o ! -x /bin/tpm2 ]; then
 	   tpm_missing=1
@@ -48,4 +56,4 @@ fi
 # the busybox insmod via the original executable
 DEBUG "Loading $MODULE with busybox insmod"
 busybox insmod "$MODULE" "$@" \
-|| die "$MODULE: insmod failed"
+	|| die "$MODULE: insmod failed"
