@@ -125,6 +125,13 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 #USB modules when a USB keyboard is defined in board config
 linux_modules-$(CONFIG_SUPPORT_USB_KEYBOARD)	+= drivers/hid/usbhid/usbhid.ko
 
+#USB modules for Mobile USB Tethering (Most Android phones, Librem phone, etc)
+linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/mii.ko
+linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/usb/usbnet.ko
+linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/usb/cdc_ether.ko
+linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/usb/cdc_ncm.ko
+linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/usb/cdc_eem.ko
+
 # NVMe driver for winterfell and other servers
 linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme.ko
 linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
