@@ -324,11 +324,11 @@ enable_usb()
 		insmod /lib/modules/uhci-hcd.ko || die "uhci_hcd: module load failed"
 		insmod /lib/modules/ohci-hcd.ko || die "ohci_hcd: module load failed"
 		insmod /lib/modules/ohci-pci.ko || die "ohci_pci: module load failed"
-		insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
-		insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
-		insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
 		sleep 2
 	fi
+	insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
+	insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
+	insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
 
 	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
 	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
