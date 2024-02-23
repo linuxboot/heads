@@ -135,6 +135,11 @@ if [ -n "$dev" ]; then
 			mkdir /etc/dropbear
 		fi
 		echo "Starting dropbear ssh server..."
+		# Make sure dropbear is not already running
+		killall dropbear > /dev/null 2>&1 || true
+		# Start dropbear with root login and log to stderr
+		# -B background
+		# -R create host keys
 		dropbear -B -R
 	fi
 	echo ""
