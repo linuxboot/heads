@@ -37,16 +37,16 @@ mobile_tethering()
 			fi
 		done
 
-	if ! [ -e /sys/class/net/usb0 ]; then
-		echo ""
-		echo "No tethering network interface was found."
-		echo "* Make sure the phone supports CDC-NCM or CDC-EEM.  Many, but not all, Android and Linux phones support these."
-		echo "* Android phones requiring RNDIS and Apple phones are not supported."
-		echo "* Make sure the cable used works with data and that the phone has tethering enabled."
-		echo ""
-		read -p "Press Enter to continue..." -n 1 -r
+		if ! [ -e /sys/class/net/usb0 ]; then
+			echo ""
+			echo "No tethering network interface was found."
+			echo "* Make sure the phone supports CDC-NCM or CDC-EEM.  Many, but not all, Android and Linux phones support these."
+			echo "* Android phones requiring RNDIS and Apple phones are not supported."
+			echo "* Make sure the cable used works with data and that the phone has tethering enabled."
+			echo ""
+			read -p "Press Enter to continue..." -n 1 -r
+		fi
 	fi
-fi
 }
 
 ethernet_activation()
