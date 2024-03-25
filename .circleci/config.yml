@@ -257,7 +257,7 @@ workflows:
       - save_cache:
           requires:
             - talos-2
-            - nitropad-nv41
+            - librem_14
 
 #
 # Those onboarding new boards should add their entries below.
