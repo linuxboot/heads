@@ -259,7 +259,7 @@ workflows:
       - save_cache:
           requires:
             - talos-2
-            - librem_14
+            - nitropad-nv41
 
 #
 # Those onboarding new boards should add their entries below.
@@ -284,6 +284,13 @@ workflows:
       - build:
           name: t420-hotp-maximized
           target: t420-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t420-maximized
+          target: t420-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -508,4 +515,3 @@ workflows:
 #          path: build/UNMAINTAINED_qemu-linuxboot/linuxboot.rom
 #      - store-artifacts:
 #          path: build/UNMAINTAINED_qemu-linuxboot/hashes.txt
-
