@@ -57,6 +57,9 @@ tpmr extend -ix 4 -ic generic ||
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
+	if diff "$(dirname $INITRD)/kexec_lukshdr_hash.txt" /tmp/luksDump.txt > /dev/null 2>&1; then
+		echo "Headers of LUKS containers to be unlocked via TPM Disk Unlock Key passphrase did not change."
+	fi
 	read \
 		-n 1 \
 		-p "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n] " \
