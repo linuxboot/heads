@@ -40,6 +40,14 @@ for tries in 1 2 3; do
 
 	DEBUG $(pcrs)
 	warn "Unable to unseal disk encryption key"
+	if [ -e /boot/kexec_lukshdr_hash.txt -a -e /tmp/luksDump.txt ]; then
+		if ! diff /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt > /dev/null 2>&1; then
+			warn "Encrypted LUKS(es) container(s) headers changed since they were measured and sealed in TPM for Disk Unlock key. You might want to investigate."
+		fi
+	else
+		warn "No encrypted LUKS container(s) headers were found/comparable under /boot/kexec_lukshdr_hash.txt"
+		warn "You might need to setup a new boot default and Disk Unlock Key from Options->Boot Options->Show OS boot menu."
+	fi
 done
 
 die "Retry count exceeded..."
