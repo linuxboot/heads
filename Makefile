@@ -748,6 +748,18 @@ board.move_untested_to_tested:
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
 
+board.move_untested_to_unmaintained:
+	@echo "NEW_BOARD variable will move from UNTESTED_ to UNMAINTAINED_ from $(BOARD)"
+	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_/UNMAINTAINED_/g'); \
+	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mkdir -p unmaintained_boards; \
+	mv boards/$$BOARD/$$BOARD.config unmaintained_boards/$$BOARD/$$NEW_BOARD.config; \
+	echo "Renaming boards/$$BOARD to unmaintainted_boards/$$NEW_BOARD"; \
+	rm -rf boards/$$NEW_BOARD; \
+	mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
+	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml. Delete manually entries"; \
+	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+
 board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
 	@NEW_BOARD=UNTESTED_$(BOARD); \
