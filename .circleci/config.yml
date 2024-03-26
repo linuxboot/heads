@@ -193,9 +193,10 @@ jobs:
             - build/x86/coreboot-4.14
             - build/x86/coreboot-4.15
             - build/x86/coreboot-4.17
-            - build/x86/coreboot-4.19
-            - build/x86/coreboot-git
-            - build/ppc64/coreboot-git
+            - build/x86/coreboot-4.22.01
+            - build/x86/coreboot-purism
+            - build/x86/coreboot-nitrokey
+            - build/ppc64/coreboot-talos_2
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
           key: heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
@@ -215,7 +216,7 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
-      # coreboot 4.19
+      # coreboot 4.22.01
       - build_and_persist:
           name: x230-hotp-maximized
           target: x230-hotp-maximized
@@ -256,14 +257,14 @@ workflows:
       - save_cache:
           requires:
             - talos-2
-            - nitropad-nv41
+            - librem_14
 
 #
 # Those onboarding new boards should add their entries below.
 #
 #
 
-#Coreboot 4.19 boards
+#Coreboot 4.22.01 boards
       - build:
           name: x220-hotp-maximized
           target: x220-hotp-maximized
@@ -286,13 +287,6 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t520-hotp-maximized
-          target: UNTESTED_t520-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: t420-maximized
           target: t420-maximized
           subcommand: ""
@@ -300,36 +294,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t520-maximized
-          target: UNTESTED_t520-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: x230-legacy-flash
           target: x230-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t430-legacy-flash
-          target: UNTESTED_t430-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t430-legacy
-          target: UNTESTED_t430-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t430-hotp-legacy
-          target: UNTESTED_t430-hotp-legacy
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -384,40 +350,12 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t530-hotp-maximized
-          target: UNTESTED_t530-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t530-dgpu-hotp-maximized
-          target: UNTESTED_t530-dgpu-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: w530-hotp-maximized
           target: w530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
-      - build:
-          name: UNTESTED_w530-dgpu-K1000m-hotp-maximized
-          target: UNTESTED_w530-dgpu-K1000m-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized  
-
-      - build:
-          name: UNTESTED_w530-dgpu-K2000m-hotp-maximized
-          target: UNTESTED_w530-dgpu-K2000m-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized  
-            
       - build:
           name: t430-maximized
           target: t430-maximized
@@ -426,36 +364,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t530-maximized
-          target: UNTESTED_t530-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_t530-dgpu-maximized
-          target: UNTESTED_t530-dgpu-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: w530-maximized
           target: w530-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-dgpu-K1000m-maximized
-          target: UNTESTED_w530-dgpu-K1000m-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_w530-dgpu-K2000m-maximized
-          target: UNTESTED_w530-dgpu-K2000m-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -505,20 +415,6 @@ workflows:
       - build:
           name: z220-cmt-hotp-maximized
           target: z220-cmt-hotp-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_p8z77-m_pro-tpm1-maximized
-          target: UNTESTED_p8z77-m_pro-tpm1-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
-          target: UNTESTED_p8z77-m_pro-tpm1-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -575,25 +471,25 @@ workflows:
             - nitropad-nv41
 
 #      - build:
-#          name: UNTESTED_kgpe-d16_workstation-usb_keyboard
-#          target: UNTESTED_kgpe-d16_workstation-usb_keyboard
+#          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
+#          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
 #          subcommand: ""
 #          requires:
-#            - UNTESTED_kgpe-d16_workstation
+#            - UNMAINTAINED_kgpe-d16_workstation
 
 #      - build:
-#          name: UNTESTED_kgpe-d16_server
-#          target: UNTESTED_kgpe-d16_server
+#          name: UNMAINTAINED_kgpe-d16_server
+#          target: UNMAINTAINED_kgpe-d16_server
 #          subcommand: ""
 #          requires:
-#            - UNTESTED_kgpe-d16_workstation
+#            - UNMAINTAINED_kgpe-d16_workstation
 
 #      - build:
-#          name: UNTESTED_kgpe-d16_server-whiptail
-#          target: UNTESTED_kgpe-d16_server-whiptail
+#          name: UNMAINTAINED_kgpe-d16_server-whiptail
+#          target: UNMAINTAINED_kgpe-d16_server-whiptail
 #          subcommand: ""
 #          requires:
-#            - UNTESTED_kgpe-d16_workstation
+#            - UNMAINTAINED_kgpe-d16_workstation
 
 #      - build:
 #          name: librem_l1um
@@ -610,24 +506,24 @@ workflows:
 # linuxboot steps need something to pass in the kernel header path
 # skipping for now
 #      - run:
-#          name: UNTESTED_qemu-linuxboot-edk2
+#          name: UNMAINTAINED_qemu-linuxboot-edk2
 #          command: |
 #            ./build/make-4.2.1/make \
 #                CROSS=/cross/bin/x86_64-linux-musl- \
-#                BOARD=UNTESTED_qemu-linuxboot \
+#                BOARD=UNMAINTAINED_qemu-linuxboot \
 #                `/bin/pwd`/build/linuxboot-git/build/qemu/.configured \
 #                # Run first to avoid too many processes
 #
 #      - run:
-#          name: UNTESTED_qemu-linuxboot
+#          name: UNMAINTAINED_qemu-linuxboot
 #          command: |
 #            ./build/make-4.2.1/make \
 #                CROSS=/cross/bin/x86_64-linux-musl- \
 #                CPUS=16 \
 #                V=1 \
-#                BOARD=UNTESTED_qemu-linuxboot \
+#                BOARD=UNMAINTAINED_qemu-linuxboot \
 #
 #      - store-artifacts:
-#          path: build/UNTESTED_qemu-linuxboot/linuxboot.rom
+#          path: build/UNMAINTAINED_qemu-linuxboot/linuxboot.rom
 #      - store-artifacts:
-#          path: build/UNTESTED_qemu-linuxboot/hashes.txt
+#          path: build/UNMAINTAINED_qemu-linuxboot/hashes.txt
