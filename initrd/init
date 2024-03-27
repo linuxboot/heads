@@ -12,7 +12,7 @@ export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 # running out of the ram disk.  There are no fileysstems mounted.
 # It is important to have a way to invoke a recovery shell in case
 # the boot scripts are messed up, but also important to modify the
-# PCRs if this happens to prevent the TPM disk keys from being revealed.
+# PCRs if this happens to prevent the TPM Disk Unlock Keys from being revealed.
 
 # First thing it is vital to mount the /dev and other system directories
 mkdir /proc /sys /dev /tmp /boot /media 2>&- 1>&-
