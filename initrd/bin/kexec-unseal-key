@@ -38,15 +38,14 @@ for tries in 1 2 3; do
 		exit 0
 	fi
 
-	DEBUG $(pcrs)
-	warn "Unable to unseal disk encryption key"
-	if [ -e /boot/kexec_lukshdr_hash.txt -a -e /tmp/luksDump.txt ]; then
-		if ! diff /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt > /dev/null 2>&1; then
-			warn "Encrypted LUKS(es) container(s) headers changed since they were measured and sealed in TPM for Disk Unlock key. You might want to investigate."
+	warn "Unable to unseal LUKS Disk Unlock Key from TPM"
+	if [ -e /boot/kexec_lukshdr_hash.txt ] && [ -e /tmp/luksDump.txt ]; then
+		if ! cmp -s /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt > /dev/null 2>&1; then
+			warn "Encrypted disk keys(s) have changed since sealed in TPM Disk Unlock Key. You might want to investigate."
 		fi
 	else
-		warn "No encrypted LUKS container(s) headers were found/comparable under /boot/kexec_lukshdr_hash.txt"
-		warn "You might need to setup a new boot default and Disk Unlock Key from Options->Boot Options->Show OS boot menu."
+		warn "Could not check for tampering of Encrypted disk keys(s)"
+		warn "Re-seal the TPM Disk Unlock Key by re-selecting your default boot option to enable this check (Options -> Boot Options -> Show OS boot menu)."
 	fi
 done
 

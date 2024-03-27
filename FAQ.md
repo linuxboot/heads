@@ -112,8 +112,8 @@ your disk password, which is perhaps an improvement.
 
 Disk key in TPM (LUKS TPM Disk Unlock Key) or user passphrase?
 ---
-Depends on your threat model.  With the disk key in the TPM an attacker
-would need to have the entire machine (or a backdoor in the TPM)
+Depends on your threat model.  With the Disk Unlock Key in the TPM an
+attacker would need to have the entire machine (or a backdoor in the TPM)
 to get the key and their attempts to unlock it can be rate limited
 by the TPM hardware.
 

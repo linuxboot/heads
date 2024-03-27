@@ -195,7 +195,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 		DEBUG "LUKS TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
 		read \
 			-n 1 \
-			-p "Do you want to reseal a disk key to the TPM [y/N]: " \
+			-p "Do you want to reseal a Disk Unlock Key in the TPM [y/N]: " \
 			change_key_confirm
 		echo
 
