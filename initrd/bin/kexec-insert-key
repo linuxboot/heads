@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unseal a disk key from TPM and add to a new initramfs
+# Unseal a LUKS Disk Unlock Key from TPM and add to a new initramfs
 set -e -o pipefail
 . /etc/functions
 
@@ -28,7 +28,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 		die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
-# Measure the LUKS headers before we unseal the disk key
+# Measure the LUKS headers before we unseal the LUKS Disk Unlock Key from TPM
 cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks ||
 	die "LUKS measure failed"
 
@@ -40,13 +40,13 @@ SECRET_CPIO=/tmp/secret/initrd.cpio
 bootdir=$(dirname "$INITRD")
 mkdir -p "$INITRD_DIR/etc"
 
-# Attempt to unseal the disk key from the TPM
+# Attempt to unseal the Disk Unlok Key from the TPM
 # should we give this some number of tries?
 unseal_failed="n"
 if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
 	unseal_failed="y"
 	echo
-	echo "!!! Failed to unseal the TPM LUKS disk key"
+	echo "!!! Failed to unseal the TPM LUKS Disk Unlock Key"
 fi
 
 # Override PCR 4 so that user can't read the key
@@ -57,8 +57,8 @@ tpmr extend -ix 4 -ic generic ||
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
-	if diff "$(dirname $INITRD)/kexec_lukshdr_hash.txt" /tmp/luksDump.txt > /dev/null 2>&1; then
-		echo "Headers of LUKS containers to be unlocked via TPM Disk Unlock Key passphrase did not change."
+	if cmp -s "$bootdir/kexec_lukshdr_hash.txt" /tmp/luksDump.txt > /dev/null 2>&1; then
+		echo "Encrypted disk keys(s) have not been changed since sealed in TPM Disk Unlock Key"
 	fi
 	read \
 		-n 1 \
@@ -69,7 +69,7 @@ if [ "$unseal_failed" = "y" ]; then
 		-a "$confirm_boot" != 'Y' \
 		-a -n "$confirm_boot" ] \
 		; then
-		die "!!! Aborting boot due to failure to unseal TPM disk key"
+		die "!!! Aborting boot due to failure to unseal TPM Disk Unlock Key"
 	fi
 fi
 
