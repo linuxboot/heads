@@ -18,7 +18,17 @@ tpm2-tools_url := https://github.com/tpm2-software/tpm2-tools/releases/download/
 tpm2-tools_hash := c0b402f6a7b3456e8eb2445211e2d41c46c7e769e05fe4d8909ff64119f7a630
 
 # we have ESYS 3.0, but it doesn't figure that out on its own
-tpm2-tools_configure := ./bootstrap && ./configure \
+tpm2-tools_configure := \
+	./bootstrap \
+	&& sed -i 's/hardcode_direct=yes/hardcode_direct=no/g' configure \
+	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
+	&& sed -i 's/hardcode_minus_L=yes/hardcode_minus_L=no/g' configure \
+	&& sed -i 's/hardcode_automatic=yes/hardcode_automatic=no/g' configure \
+	&& sed -i 's/hardcode_runpath_var=yes/hardcode_runpath_var=no/g' configure \
+	&& sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure \
+	&& sed -i 's/hardcode_direct_absolute=yes/hardcode_direct_absolute=no/g' configure \
+	&& sed -i 's/inherit_rpath=yes/inherit_rpath=no/g' configure \
+	&& ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

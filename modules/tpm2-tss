@@ -8,6 +8,20 @@ tpm2-tss_url := https://github.com/tpm2-software/tpm2-tss/releases/download/$(tp
 tpm2-tss_hash := 48305e4144dcf6d10f3b25b7bccf0189fd2d1186feafd8cd68c6b17ecf0d7912
 
 tpm2-tss_configure := aclocal && automake --add-missing && autoreconf -fi \
+	&& sed -i 's/hardcode_direct=yes/hardcode_direct=no/g' configure \
+	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
+	&& sed -i 's/hardcode_minus_L=yes/hardcode_minus_L=no/g' configure \
+	&& sed -i 's/hardcode_direct_absolute=yes/hardcode_direct_absolute=no/g' configure \
+	&& sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure \
+	&& sed -i 's/hardcode_libdir_flag_spec_CXX=.*/hardcode_libdir_flag_spec_CXX=" "/' configure \
+	&& sed -i 's/hardcode_automatic=yes/hardcode_automatic=no/g' configure \
+	&& sed -i 's/hardcode_runpath_var=yes/hardcode_runpath_var=no/g' configure \
+	&& sed -i 's/hardcode_direct_CXX=yes/hardcode_direct_CXX=no/g' configure \
+	&& sed -i 's/hardcode_direct_absolute_CXX=yes/hardcode_direct_absolute_CXX=no/g' configure \
+	&& sed -i 's/hardcode_minus_L_CXX=yes/hardcode_minus_L_CXX=no/g' configure \
+	&& sed -i 's/hardcode_automatic_CXX=yes/hardcode_automatic_CXX=no/g' configure \
+	&& sed -i 's/inherit_rpath=yes/inherit_rpath=no/g' configure \
+	&& sed -i 's/inherit_rpath_CXX=yes/inherit_rpath_CXX=no/g' configure \
 	&& ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
