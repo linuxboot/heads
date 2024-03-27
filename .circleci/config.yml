@@ -89,13 +89,7 @@ commands:
           name: Output build failing logs
           command: |
             if [[ -f ./tmpDir/failed_build ]]; then
-            	find "./build/<<parameters.arch>>/" -name "*.log" -type f -mmin -1 |
-            		while read log; do
-            			echo ""
-            			echo '==>' "$log" '<=='
-            			echo ""
-            			cat "$log"
-            		done
+            	find "./build/<<parameters.arch>>/" -name "*.log" -type f -mmin -1 -exec tail -n +1 '{}' +
             	exit 1
             else
             	echo "Step hasn't failed. Continuing with next step..."
@@ -571,7 +565,6 @@ workflows:
           subcommand: ""
           requires:
             - nitropad-nv41
-
 #      - build:
 #          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
 #          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
