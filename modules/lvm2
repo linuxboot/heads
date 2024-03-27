@@ -18,20 +18,20 @@ lvm2_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
-	--enable-devmapper \
-	--disable-selinux \
-	--disable-udev-systemd-background-jobs \
-	--disable-realtime \
+	--disable-blkid_wiping \
+	--disable-cache_check_needs_check \
+	--disable-cmirrord \
 	--disable-dmeventd \
 	--disable-lvmetad \
 	--disable-lvmpolld \
-	--disable-use-lvmlockd \
-	--disable-use-lvmetad \
-	--disable-use-lvmpolld \
-	--disable-blkid_wiping \
-	--disable-cmirrord \
-	--disable-cache_check_needs_check \
+	--disable-realtime \
+	--disable-selinux \
 	--disable-thin_check_needs_check \
+	--disable-udev-systemd-background-jobs \
+	--disable-use-lvmetad \
+	--disable-use-lvmlockd \
+	--disable-use-lvmpolld \
+	--enable-devmapper \
 	--with-cluster=none \
 	--with-thin-check= \
 

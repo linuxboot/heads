@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROMPARSER="94a615302f89b94e70446270197e0f5138d678f3"

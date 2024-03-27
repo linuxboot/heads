@@ -13,16 +13,16 @@ util-linux_configure := \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--oldincludedir "$(INSTALL)/include" \
+	--disable-all-programs \
+	--disable-bash-completion \
+	--enable-agetty \
+	--enable-libblkid \
+	--enable-libuuid \
 	--without-ncurses \
 	--without-ncursesw \
+	--without-python \
 	--without-tinfo \
 	--without-udev \
-	--without-python \
-	--disable-bash-completion \
-	--disable-all-programs \
-	--enable-libuuid \
-	--enable-libblkid \
-	--enable-agetty \
 
 
 util-linux_target := \
