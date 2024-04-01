@@ -24,7 +24,7 @@ if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	mount /sys/firmware/efi/efivars
 fi
 
-# Setup the pty psudeo filesystem
+# Setup the pty pseudo filesystem
 mkdir /dev/pts
 mount /dev/pts 2>/dev/ttyprintk
 
@@ -77,6 +77,23 @@ else
 fi
 
 TRACE "Under init"
+
+# make sure we have sysctl requirements
+if [ ! -d /proc/sys ]; then
+	warn "BUG!!! The following requirements to apply runtime kernel tweaks are missing:"
+	warn "CONFIG_SYSCTL=y"
+	warn "CONFIG_PROC_SYSCTL=y"
+	warn "Please open an issue"
+fi
+
+if  [ ! -e /proc/sys/vm/panic_on_oom ]; then
+	warn "BUG!!! Requirements to setup Panic when under Out Of Memory situation through PROC_SYSCTL are missing (panic_on_oom was not enabled)" 
+	warn "Please open an issue"
+else
+	DEBUG "Applying panic_on_oom setting to sysctl"
+	echo 1 > /proc/sys/vm/panic_on_oom
+fi
+
 
 # set CONFIG_TPM dynamically before init
 if [ ! -e /dev/tpm0 ]; then
