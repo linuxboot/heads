@@ -793,3 +793,5 @@ real.clean:
 		fi; \
 	done
 	cd install && rm -rf -- *
+real.gitclean:
+	git clean -fxd
