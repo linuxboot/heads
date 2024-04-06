@@ -216,6 +216,14 @@ workflows:
 # version. The last board in the sequence is the dependency
 # for the parallel boards built at the end, and also save_cache.
 
+      - build_and_persist:
+          name: kgpe-d16_workstation
+          target: kgpe-d16_workstation
+          subcommand: ""
+          requires:
+            - prep_env
+
+
 #      # coreboot 4.22.01
 #      - build_and_persist:
 #          name: x230-hotp-maximized
