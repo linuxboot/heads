@@ -294,27 +294,6 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: x230-legacy-flash
-          target: x230-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-legacy
-          target: x230-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-hotp-legacy
-          target: x230-hotp-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
           name: x230-hotp-maximized_usb-kb
           target: x230-hotp-maximized_usb-kb
           subcommand: ""
