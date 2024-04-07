@@ -362,7 +362,11 @@ luks_reencrypt() {
 		echo -e "\nReencrypting "$LUKS" LUKS encrypted drive content with current Recovery Disk Key passphrase..."
 		warn "DO NOT POWER DOWN MACHINE, UNPLUG AC OR REMOVE BATTERY DURING REENCRYPTION PROCESS"
 		cryptsetup reencrypt --resilience=none --force-offline-reencrypt --disable-locks \
+			--perf-no_read_workqueue --perf-no_write_workqueue \
 			"$LUKS" --key-slot 0 --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+		#--perf-no_read_workqueue and/or --perf-no_write_workqueue improve encryption/reencrypton performance on kernel 5.10.9+
+		# bypassing dm-crypt queues.
+		#Ref https://github.com/cloudflare/linux/issues/1#issuecomment-729695518
 
 		#Validate past cryptsetup reencrypt attempts
 		if [ $? -ne 0 ]; then
