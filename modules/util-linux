@@ -1,10 +1,10 @@
 modules-$(CONFIG_UTIL_LINUX) += util-linux
 
-util-linux_version := 2.29.2
+util-linux_version := 2.39
 util-linux_dir := util-linux-$(util-linux_version)
 util-linux_tar := util-linux-$(util-linux_version).tar.xz
-util-linux_url := https://www.kernel.org/pub/linux/utils/util-linux/v2.29/$(util-linux_tar)
-util-linux_hash := accea4d678209f97f634f40a93b7e9fcad5915d1f4749f6c47bee6bf110fe8e3
+util-linux_url := https://www.kernel.org/pub/linux/utils/util-linux/v2.39/$(util-linux_tar)
+util-linux_hash := 32b30a336cda903182ed61feb3e9b908b762a5e66fe14e43efb88d37162075cb
 
 util-linux_configure := \
 	$(CROSS_TOOLS) \
