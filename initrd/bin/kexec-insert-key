@@ -40,7 +40,22 @@ SECRET_CPIO=/tmp/secret/initrd.cpio
 bootdir=$(dirname "$INITRD")
 mkdir -p "$INITRD_DIR/etc"
 
-# Attempt to unseal the Disk Unlok Key from the TPM
+if [ -e /boot/kexec_lukshdr_hash.txt ] && [ -e /tmp/luksDump.txt ]; then
+	if ! cmp -s /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt >/dev/null 2>&1; then
+		#LUKS header hash part of detached signed hash digest under boot doesn't match qubes-measure-luks tmp file
+		warn "Encrypted disk keys have changed since the TPM Disk Unlock Key was sealed. If you did not make this change, the disk may be compromised"
+		exit 1
+	else
+		#LUKS header hash part of detached signed hash digest matches
+		echo "+++ Encrypted disk keys have not been changed since sealed in TPM Disk Unlock Key"
+		#TODO: remove "+++" with boot info helper when added, same with "!!!" currently for info.
+	fi
+else
+	warn "Could not check for tampering of Encrypted disk keys"
+	warn "Re-seal the TPM Disk Unlock Key by re-selecting your default boot option to enable this check (Options -> Boot Options -> Show OS boot menu)."
+fi
+
+# Attempt to unseal the Disk Unlock Key from the TPM
 # should we give this some number of tries?
 unseal_failed="n"
 if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
@@ -57,9 +72,6 @@ tpmr extend -ix 4 -ic generic ||
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
-	if cmp -s "$bootdir/kexec_lukshdr_hash.txt" /tmp/luksDump.txt > /dev/null 2>&1; then
-		echo "Encrypted disk keys(s) have not been changed since sealed in TPM Disk Unlock Key"
-	fi
 	read \
 		-n 1 \
 		-p "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n] " \
