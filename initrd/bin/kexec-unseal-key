@@ -39,14 +39,6 @@ for tries in 1 2 3; do
 	fi
 
 	warn "Unable to unseal LUKS Disk Unlock Key from TPM"
-	if [ -e /boot/kexec_lukshdr_hash.txt ] && [ -e /tmp/luksDump.txt ]; then
-		if ! cmp -s /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt > /dev/null 2>&1; then
-			warn "Encrypted disk keys(s) have changed since sealed in TPM Disk Unlock Key. You might want to investigate."
-		fi
-	else
-		warn "Could not check for tampering of Encrypted disk keys(s)"
-		warn "Re-seal the TPM Disk Unlock Key by re-selecting your default boot option to enable this check (Options -> Boot Options -> Show OS boot menu)."
-	fi
 done
 
 die "Retry count exceeded..."
