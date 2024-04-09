@@ -9,8 +9,6 @@ ifeq "$(CONFIG_TPM2_TOOLS)" "y"
 endif
 
 tpm2-tools_version := 5.6
-#tpm2-tools_version := 78a7681
-#tpm2-tools_repo := https://github.com/tpm2-software/tpm2-tools.git
 
 tpm2-tools_dir := tpm2-tools-$(tpm2-tools_version)
 tpm2-tools_tar := tpm2-tools-$(tpm2-tools_version).tar.gz
@@ -22,10 +20,12 @@ tpm2-tools_hash := 52c8bcbaadca082abfe5eb7ee4967d2d632d84b1677675f2f071b6d2ec22c
 #tpm2-tools doesn't play nice with reproducible builds, hardcoding lib paths without providing a configure option to remove rpaths
 #  We make sure no hardcoding of libdir flags exist in configure script prior of calling the script with sed call
 #  We pass additional remapping of prefix-map from $INSTALL to local dir
+#
+# TODO: remove all patches and uniformize with similar sed calls.
 tpm2-tools_configure := \
 	echo "$(tpm2-tools_version)" > ./VERSION \
 	&& ./bootstrap \
-	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=/' configure \
+	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
 	&& ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
