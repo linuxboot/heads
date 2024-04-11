@@ -367,6 +367,24 @@ luks_reencrypt() {
 		#--perf-no_read_workqueue and/or --perf-no_write_workqueue improve encryption/reencrypton performance on kernel 5.10.9+
 		# bypassing dm-crypt queues.
 		#Ref https://github.com/cloudflare/linux/issues/1#issuecomment-729695518
+		#
+		#TODO: cryptsetup nows use specified --key-slot to test passphrase but moves keyslot to next available keyslot...
+		#  therefore, we cannot take for granted that DRK is under slot 0.
+		#    We could:
+		#     - not rely on keyslot anymore so that all keyslot are tested until DRK matches;
+		#     - Move DUK to slot 8?
+		#     This way
+		#      - luksChangeKey would change passphrase on same slot found
+		#      - reencrypt would rotate keyslot with next keyslot found
+		#      But then what to do with previous DUK.
+		#       We could: 
+		#         - If 2+ keyslot, iterate through slot numbers to test passphrase.
+		#          - When passphrase matching keyslot is found, keep trace of it (expected 0, might be 1)
+		#           - If DRK is 1, DUK must be 2 if we have 2 keyslots used
+		#            - We don't touch passphrase matched DRK slot
+		#             - We wipe the others
+		#              - We move DUK keyslot to 8.
+		#              Bad approach?
 
 		#Validate past cryptsetup reencrypt attempts
 		if [ $? -ne 0 ]; then
