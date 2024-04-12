@@ -70,59 +70,65 @@ dd \
 	2>/dev/null ||
 	die "Unable to generate 128 random bytes"
 
-# Count the number of slots used on each device
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	DEBUG "Checking number of slots used on $dev LUKS header"
-	#check if the device is a LUKS device with luks[1,2]
-	# Get the number of key slots used on the LUKS header.
-	# LUKS1 Format is :
-	# Slot 0: ENABLED
-	# Slot 1: ENABLED
-	# Slot 2: DISABLED
-	# Slot 3: DISABLED
-	#...
-	# Slot 7: DISABLED
-	# Luks2 only reports on enabled slots.
-	# luks2 Format is :
-	# 0: luks2
-	# 1: luks2
-	#  Meaning that the number of slots used is the number of lines returned by a grep on the LUKS2 above format.
-	# We need to count the number of ENABLED slots for both LUKS1 and LUKS2
-	# create regex pattern for both LUKS1 and LUKS2
-	regex="Slot [0-9]*: ENABLED"
-	regex+="\|"
-	regex+="[0-9]*: luks2"
-	slots_used=$(cryptsetup luksDump "$dev" | grep -c "$regex" || die "Unable to get number of slots used on $dev")
-
-	DEBUG "Number of slots used on $dev LUKS header: $slots_used"
-	# If slot1 is the only one used, warn and die with proper messages
-	if [ "$slots_used" -eq 1 ]; then
-		# Check if slot 1 is the only one existing
-		if [ "$(cryptsetup luksDump "$dev" | grep -c "Slot 1: ENABLED")" -eq 1 ] || [ "$(cryptsetup luksDump "$dev" | grep -c "1: luks2")" -eq 1 ]; then
-			warn "Slot 1 is the only one existing on $dev LUKS header. Heads cannot use it to store TPM sealed LUKS Disk Unlock Key"
-			warn "Slot 1 should not be the only slot existing on $dev LUKS header. Slot 0 should be used to store LUKS Disk Recovery Key/passphrase"
-			die "You can safely fix this before continuing through Heads recovery shell: cryptsetup luksAddKey $dev"
-		fi
-	else
-		DEBUG "Slot 1 is not the only existing slot on $dev LUKS header."
-		DEBUG "$dev LUKS header's slot 1 will store LUKS Disk Unlock Key that TPM will seal/unseal with LUKS TPM Disk Unlock Key passphrase"
+	DEBUG "Testing $RECOVERY_KEY keyfile created from provided passphrase against $dev"
+	if ! cryptsetup luksOpen --test-passphrase --key-file "$RECOVERY_KEY" $dev; then
+		die "$dev: Unable to unlock LUKS device with privided passphrase. Exiting..."
 	fi
-done
 
-# Remove all the old keys from slot 1
-for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-	echo "++++++ $dev: Removing old LUKS TPM Disk Unlock Key in LUKS slot 1"
-	cryptsetup luksKillSlot \
-		--key-file "$RECOVERY_KEY" \
-		$dev 1 ||
-		warn "$dev: removal of LUKS TPM Disk Unlock Key in LUKS slot 1 failed: might not exist. Continuing"
+	# We will use the following regex to find the slots that are enabled
+	regex="Slot ([0-9]+): ENABLED|\b([0-9]+): luks2"
 
-	echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS slot 1"
-	cryptsetup luksAddKey \
-		--key-file "$RECOVERY_KEY" \
-		--key-slot 1 \
-		$dev "$KEY_FILE" ||
-		die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS slot 1"
+	# good_slot will be the slot number where the passphrase was tested against as valid. We will keep that slot
+	good_slot=-1
+
+	# test each possible existing key slot of dev against keyfile $RECOVERY_KEY
+	for slot in $(cryptsetup luksDump "$dev" | grep -E "$regex" | sed -r 's/Slot ([0-9]+): ENABLED|\b([0-9]+): luks2/\1\2/'); do
+		if [ "$good_slot" -eq "-1" ]; then
+			if cryptsetup luksOpen --test-passphrase --key-file "$RECOVERY_KEY" $dev $slot; then
+				good_slot="$slot"
+				break;
+			fi
+		fi
+	done
+
+	# if we found a good slot, we wipe all the other slots on current $dev
+	for slot in $(cryptsetup luksDump "$dev" | grep -E "$regex" | sed -r 's/Slot ([0-9]+): ENABLED|\b([0-9]+): luks2/\1\2/'); do
+		if [ "$slot" -ne "$good_slot" ]; then
+			#set wipe_desired to no by default
+			wipe_desired="no"
+
+			if [ "$slot" -ne "1" ] && [ "$slot" -ne "8" ]; then
+				# Heads expects key-slot 1 or 8 to be used for TPM DUK setup. Ask user to confirm with big fat warning
+				read -p "WARNING: LUKS key-slot $slot is not typically used for TPM Disk Unlock Key setup. Are you sure you want to wipe it? [y/N] " -n 1 -r
+				# If user does not confirm, skip this slot
+				if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+					wipe_desired="yes"
+				fi
+			else
+				# If slot is 1 or 8, we wipe it without asking since not DRK's good keyslot
+				wipe_desired="yes"
+			fi
+			
+			if [ "$wipe_desired" == "yes" ]; then
+				echo "++++++ $dev: Wiping LUKS key-slot $slot"
+				cryptsetup luksKillSlot \
+					--key-file "$RECOVERY_KEY" \
+					$dev $slot ||
+					warn "$dev: removal of LUKS slot $slot failed: Continuing"
+			fi
+		fi
+	done
+
+	# We then add the new key to the luks key slot 8
+	for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
+		echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS key-slot 8"
+		cryptsetup luksAddKey \
+			--key-file "$RECOVERY_KEY" \
+			--new-key-slot 8 \
+			$dev "$KEY_FILE" > /dev/null 2>&1||
+			die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key-slot #8"
+	done
 done
 
 # Now that we have setup the new keys, measure the PCRs
