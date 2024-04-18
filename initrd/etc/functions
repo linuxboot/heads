@@ -19,18 +19,28 @@ mask_param() {
 # N=0 is the name of the command to be executed, N=1 is its first parameter,
 # etc.
 DO_WITH_DEBUG() {
-	if [ "$1" == "--mask-position" ]; then
-		mask_position="$2"
+	local exit_status
+	local cmd_output
+	DEBUG "PATH: $PATH"
+	local cmd=("$@")
+	if [[ "$1" == "--mask-position" ]]; then
+		local mask_position="$2"
 		shift
 		shift
-		DEBUG_ARGS=("$@")
-
-		DEBUG_ARGS[$mask_position]="$(mask_param "${DEBUG_ARGS[$mask_position]}")"
-		DEBUG "${DEBUG_ARGS[@]}"
-	else
-		DEBUG "$@"
+		cmd=("$@")
+		cmd[$mask_position]="$(mask_param "${cmd[$mask_position]}")"
 	fi
-	"$@"
+	if [[ ${#cmd[@]} -eq 1 ]]; then
+		# If there's only one argument, try to split it into multiple arguments
+		read -a cmd <<< "${cmd[0]}"
+	fi
+	DEBUG "Executing command with cmd: ${cmd[*]}"
+	# Sanitize the command output by removing special characters
+	cmd_output=$("${cmd[@]}" 2>&1 | sed 's/[&;|`$(){}<>]//g')
+	exit_status=$?
+	DEBUG "Command output: $cmd_output"
+	DEBUG "Command exited with status: $exit_status"
+	return $exit_status
 }
 
 # Trace the current script and function.
@@ -682,7 +692,7 @@ scan_boot_options() {
 
 	if [ -r $option_file ]; then rm $option_file; fi
 	for i in $(find $bootdir -name "$config"); do
-		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >>$option_file
+		kexec-parse-boot "$bootdir" "$i" >>$option_file
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault

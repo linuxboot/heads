@@ -23,8 +23,9 @@ warn() {
 }
 
 DEBUG() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo "DEBUG: $*" | while read line; do
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
+		echo "DEBUG: $*" | fold -s -w 960 | while read line; do
 			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 		done
 	fi
