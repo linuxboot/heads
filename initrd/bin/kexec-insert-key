@@ -61,7 +61,8 @@ if [ "$unseal_failed" = "y" ]; then
 		-n 1 \
 		-p "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n] " \
 		confirm_boot
-
+	echo
+	
 	if [ "$confirm_boot" != 'y' \
 		-a "$confirm_boot" != 'Y' \
 		-a -n "$confirm_boot" ] \
