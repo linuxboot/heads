@@ -203,9 +203,7 @@ if [ "$CONFIG_BASIC" = "y" ]; then
 fi
 
 # export firmware version
-export FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
-# chop off date, since will always be epoch w/timeless builds
-FW_VER=${FW_VER::-10}
+export FW_VER=$(fw_version)
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
