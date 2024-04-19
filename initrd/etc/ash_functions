@@ -37,6 +37,11 @@ TRACE() {
 	fi
 }
 
+# Write directly to the debug log (but not kmsg), never appears on console
+LOG() {
+	echo "LOG: $*" >>/tmp/debug.log
+}
+
 preserve_rom() {
 	TRACE "Under /etc/ash_functions:preserve_rom"
 	new_rom="$1"
