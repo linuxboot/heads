@@ -496,7 +496,9 @@ gpg_key_factory_reset() {
     fi
     # If Nitrokey Storage is inserted, reset AES keys as well
     if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
+        DEBUG "Nitrokey Storage detected, resetting AES keys..."
         /bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
+        DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
         killall -9 scdaemon
     fi
     # Toggle forced sig (good security practice, forcing PIN request for each signature request)
