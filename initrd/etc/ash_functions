@@ -42,6 +42,12 @@ LOG() {
 	echo "LOG: $*" >>/tmp/debug.log
 }
 
+fw_version() {
+	local FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+	# chop off date, since will always be epoch w/timeless builds
+	echo "${FW_VER::-10}"
+}
+
 preserve_rom() {
 	TRACE "Under /etc/ash_functions:preserve_rom"
 	new_rom="$1"
@@ -231,6 +237,8 @@ recovery() {
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
 	. /tmp/config
+
+	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
 		DEBUG "Extending TPM PCR 4 for recovery shell access"
