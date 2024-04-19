@@ -151,7 +151,7 @@ if [ "$dryrun" = "y" ]; then exit 0; fi
 
 echo "Loading the new kernel:"
 echo "$kexeccmd"
-DO_WITH_DEBUG "$kexeccmd" \
+DO_WITH_DEBUG eval "$kexeccmd" \
 || die "Failed to load the new kernel"
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
