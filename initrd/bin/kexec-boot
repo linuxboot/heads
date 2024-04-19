@@ -151,13 +151,12 @@ if [ "$dryrun" = "y" ]; then exit 0; fi
 
 echo "Loading the new kernel:"
 echo "$kexeccmd"
-eval "$kexeccmd" \
+# DO_WITH_DEBUG captures the debug output from stderr to the log, we don't need
+# it on the console as well
+DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null \
 || die "Failed to load the new kernel"
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-	#Repeat kexec command that will be executed since in debug
-	DEBUG "kexeccmd= $kexeccmd"
-
 	#Ask user if they want to continue booting without echoing back the input (-s)
 	read -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
 	echo
