@@ -23,8 +23,9 @@ warn() {
 }
 
 DEBUG() {
-	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo "DEBUG: $*" | while read line; do
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
+		echo "DEBUG: $*" | fold -s -w 960 | while read line; do
 			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 		done
 	fi
@@ -34,6 +35,17 @@ TRACE() {
 	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
 		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
 	fi
+}
+
+# Write directly to the debug log (but not kmsg), never appears on console
+LOG() {
+	echo "LOG: $*" >>/tmp/debug.log
+}
+
+fw_version() {
+	local FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+	# chop off date, since will always be epoch w/timeless builds
+	echo "${FW_VER::-10}"
 }
 
 preserve_rom() {
@@ -225,6 +237,8 @@ recovery() {
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
 	. /tmp/config
+
+	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
 		DEBUG "Extending TPM PCR 4 for recovery shell access"

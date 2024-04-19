@@ -12,25 +12,106 @@ mask_param() {
 	fi
 }
 
-# Trace a command with DEBUG, then execute it.
+# Pipe input to this to sink it to the debug log, with a name prefix.
+# If the input is empty, no output is produced, so actual output is
+# readily visible in logs.
+#
+# For example:
+# ls /boot/vmlinux* | SINK_LOG "/boot kernels"
+SINK_LOG() {
+	local name="$1"
+	local line haveblank
+	# If the input doesn't end with a line break, read won't give us the
+	# last (unterminated) line.  Add a line break with echo to ensure we
+	# don't lose any input.  Buffer up to one blank line so we can avoid
+	# emitting a final (or only) blank line.
+	(cat; echo) | while IFS= read -r line; do
+		[[ -n "$haveblank" ]] && DEBUG "$name: " # Emit buffered blank line
+		if [[ -z "$line" ]]; then
+			haveblank=y
+		else
+			haveblank=
+			LOG "$name: $line"
+		fi
+	done
+}
+
+# Trace a command with DEBUG, then execute it.  Trace failed exit status, stdout
+# and stderr, etc.
+#
+# DO_WITH_DEBUG is designed so it can be dropped in to most command invocations
+# without side effects - it adds visibility without actually affecting the
+# execution of the script.  Exit statuses, stdout, and stderr are traced, but
+# they are still returned/written to the caller.
+#
 # A password parameter can be masked by passing --mask-position N before the
 # command to execute, the debug trace will just indicate whether the password
 # was empty or nonempty (which is important when use of a password is optional).
 # N=0 is the name of the command to be executed, N=1 is its first parameter,
 # etc.
+#
+# DO_WITH_DEBUG() can be added in most places where a command is executed to
+# add visibility in the debug log.  For example:
+#
+# [DO_WITH_DEBUG] mount "$BLOCK" "$MOUNTPOINT"
+#   ^-- adding DO_WITH_DEBUG will show the block device, mountpoint, and whether
+#   the mount fails
+#
+# [DO_WITH_DEBUG --mask-position 7] tpmr seal "$KEY" "$IDX" "$pcrs" "$pcrf" "$size" "$PASSWORD"
+#   ^-- trace the resulting invocation, but mask the password in the log
+#
+# if ! [DO_WITH_DEBUG] umount "$MOUNTPOINT"; then [...]
+#   ^-- it can be used when the exit status is checked, like the condition of `if`
+#
+# hotp_token_info="$([DO_WITH_DEBUG] hotp_verification info)"
+#   ^-- output of hotp_verification info becomes visible in debug log while
+#   still being captured by script
+#
+# [DO_WITH_DEBUG] umount "$MOUNTPOINT" &>/dev/null || true
+#   ^-- if the command's stdout/stderr/failure are ignored, this still works the
+#   same way with DO_WITH_DEBUG
 DO_WITH_DEBUG() {
-	if [ "$1" == "--mask-position" ]; then
-		mask_position="$2"
+	local exit_status=0
+	local cmd_output
+	if [[ "$1" == "--mask-position" ]]; then
+		local mask_position="$2"
 		shift
 		shift
-		DEBUG_ARGS=("$@")
-
-		DEBUG_ARGS[$mask_position]="$(mask_param "${DEBUG_ARGS[$mask_position]}")"
-		DEBUG "${DEBUG_ARGS[@]}"
+		local show_args=("$@")
+		show_args[$mask_position]="$(mask_param "${show_args[$mask_position]}")"
+		DEBUG "${show_args[@]}"
 	else
 		DEBUG "$@"
 	fi
-	"$@"
+
+	# Execute the command and capture the exit status. Tee stdout/stderr to
+	# debug sinks, so they're visible but still can be used by the caller
+	#
+	# This is tricky when set -e / set -o pipefail may or may not be in
+	# effect.
+	# - Putting the command in an `if` ensures set -e won't terminate us,
+	#   and also does not overwrite $? (like `|| true` would).
+	# - We capture PIPESTATUS[0] whether the command succeeds or fails,
+	#   since we don't know whether the pipeline status will be that of the
+	#   command or 'tee' (depends on set -o pipefail).
+	if ! "$@" 2> >(tee /dev/stderr | SINK_LOG "$1 stderr") | tee >(SINK_LOG "$1 stdout"); then
+		exit_status="${PIPESTATUS[0]}"
+	else
+		exit_status="${PIPESTATUS[0]}"
+	fi
+	if [[ "$exit_status" -ne 0 ]]; then
+		# Trace unsuccessful exit status, but only at DEBUG because this
+		# may be expected.  Include the command name in case the command
+		# also invoked a DO_WITH_DEBUG (it could be a script).
+		DEBUG "$1: exited with status $exit_status"
+	fi
+	# If the command was (probably) not found, trace PATH in case it
+	# prevented the command from being found
+	if [[ "$exit_status" -eq 127 ]]; then
+		DEBUG "$1: PATH=$PATH"
+	fi
+
+	return "$exit_status"
 }
 
 # Trace the current script and function.
