@@ -94,7 +94,7 @@ DO_WITH_DEBUG() {
 	# - We capture PIPESTATUS[0] whether the command succeeds or fails,
 	#   since we don't know whether the pipeline status will be that of the
 	#   command or 'tee' (depends on set -o pipefail).
-	if ! "$@" 2> >(tee /dev/stderr | SINK_DEBUG "$1 err") | tee >(SINK_DEBUG "$1 out"); then
+	if ! "$@" 2> >(tee /dev/stderr | SINK_DEBUG "$1 stderr") | tee >(SINK_DEBUG "$1 stdout"); then
 		exit_status="${PIPESTATUS[0]}"
 	else
 		exit_status="${PIPESTATUS[0]}"
