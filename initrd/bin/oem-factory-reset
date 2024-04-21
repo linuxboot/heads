@@ -989,11 +989,11 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
         fi
     else
-        echo -e -n "Would you like to set distinct PINs/passwords to configure previously stated security components? [y/N]: "
+        echo -e -n "Would you like to set distinct PINs/passwords to configure previously stated security components? [Y/n]: "
         read -n 1 prompt_output
         echo
-        if [ "$prompt_output" == "y" \
-            -o "$prompt_output" == "Y" ]; then
+        if [ "$prompt_output" != "n" \
+            -a "$prompt_output" != "N" ]; then
             echo -e "\nThey must be each at least 8 characters in length.\n"
             echo
             if [ "$CONFIG_TPM" = "y" ]; then
@@ -1011,7 +1011,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             # That is, if keys were NOT generated in memory (on smartcard only) or
             #  if keys were generated in memory but are to be moved from local keyring to smartcard
             if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
-                while [[ ${#USER_PIN} -lt 8 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+                while [[ ${#USER_PIN} -lt 6 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
                     echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
                     echo -e -n "Enter desired GPG User PIN: "
                     read USER_PIN
