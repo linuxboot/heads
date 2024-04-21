@@ -994,7 +994,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
         echo
         if [ "$prompt_output" != "n" \
             -a "$prompt_output" != "N" ]; then
-            echo -e "\nThey must be each at least 8 characters in length.\n"
+            echo -e "\nThe TPM Owner Password and Admin PIN must be at least 8, the User PIN at least 6 characters in length.\n"
             echo
             if [ "$CONFIG_TPM" = "y" ]; then
                 while [[ ${#TPM_PASS} -lt 8 ]]; do
