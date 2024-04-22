@@ -783,12 +783,22 @@ report_integrity_measurements() {
 
         # Check and report on HOTP status
         if [ -x /bin/hotp_verification ]; then
-            HOTP=$(unseal-hotp) >/dev/null 2>&1
+            HOTP="Unverified"
             enable_usb
-            if ! hotp_verification info >/dev/null 2>&1; then
-                whiptail $CONFIG_WARNING_BG_COLOR --title 'WARNING: Please insert your HOTP enabled USB Security Dongle' --msgbox "Your HOTP enabled USB Security Dongle was not detected.\n\nPlease remove it and insert it again." 0 80
+            for attempt in 1 2 3; do
+                if ! hotp_verification info >/dev/null 2>&1; then
+                    whiptail $CONFIG_WARNING_BG_COLOR --title "WARNING: Please insert your HOTP enabled USB Security Dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security Dongle was not detected.\n\nPlease remove it and insert it again." 0 80
+                else
+                    break
+                fi
+            done
+
+            if [ $attempt -eq 3 ]; then
+                die "No HOTP enabled USB Security Dongle detected. Please disable 'CONFIG_HOTPKEY' in the board config and rebuild."
             fi
+
             # Don't output HOTP codes to screen, so as to make replay attacks harder
+            HOTP=$(unseal-hotp) >/dev/null 2>&1
             hotp_verification check $HOTP
             case "$?" in
             0)
