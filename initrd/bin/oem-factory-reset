@@ -1002,8 +1002,8 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
                     read TPM_PASS
                 done
             fi
-            while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-                echo -e -n "\nThis PIN should be between 6 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
+            while [[ ${#ADMIN_PIN} -lt 8 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+                echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
                 echo -e -n "Enter desired GPG Admin PIN: "
                 read ADMIN_PIN
             done
@@ -1011,8 +1011,8 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             # That is, if keys were NOT generated in memory (on smartcard only) or
             #  if keys were generated in memory but are to be moved from local keyring to smartcard
             if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
-                while [[ ${#USER_PIN} -lt 8 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-                    echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
+                while [[ ${#USER_PIN} -lt 6 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+                    echo -e -n "\nThis PIN should be between 6 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
                     echo -e -n "Enter desired GPG User PIN: "
                     read USER_PIN
                 done
