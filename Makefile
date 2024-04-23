@@ -833,6 +833,20 @@ real.clean:
 	done
 	cd install && rm -rf -- *
 real.gitclean:
+	#Use git ignore file as a base to wipe everything not in tree. Keeps coreboot forks downloaded since detected as git repos, wipes the rest.
 	git clean -fxd
 real.gitclean_keep_packages:
+	#Same as above but keep the packages downloaded to save bandwidth
 	git clean -fxd -e "packages"
+real.remove_canary_files-extract_patch_rebuild_what_changed:
+	#Another approach is to remove the "canary" files 
+	# This forces Heads to restart building a board config by checking packages integrity, extracting them, redoing patching on files and rebuilding what needs to be rebuilt
+	#  reinstalling what is needed under ./install as well which is what we normally want on a development cycle.
+	#Limitations: if for whatever reason, a patch creates a file in an extracted package dir, this approach will fail without further manual actions
+	# This is not so bad though: git patch apply tells you exactly which file couldn't be created as expected. Just delete those files and relaunch the build and it will succeed.
+	#This approach economizes a lot of time since most of the build artifacts do not need to be rebuilt since the dates of the files should be the same as when you originally built them.
+	# So only a minimal time is needed to rebuild, and this is also good for your SSD.
+	#**** USE THIS APPROACH FIRST ***
+	find ./build/ -type f -name ".canary" | xargs rm || echo "All .carnary files already deleted"
+	find ./install/*/* | xargs rm -rf || echo "All install/ARCH/* dirs and files already deleted"
+	echo "you can now call make BOARD=desired_board, and if any patch fails to apply because file exists; just rm that build/path_to_file and continue testing!"
