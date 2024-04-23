@@ -31,6 +31,9 @@ tpm2-tools_configure := \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--disable-fapi \
+	--with-sysroot=$(INSTALL) \
+	TSS2_ESYS_3_0_CFLAGS="-I$(INSTALL)/include" \
+	TSS2_ESYS_3_0_LIBS="-ltss2-esys -L$(INSTALL)/lib" \
 	CFLAGS="-fdebug-prefix-map=$(INSTALL)=." \
 
 tpm2-tools_target := $(MAKE_JOBS) \
