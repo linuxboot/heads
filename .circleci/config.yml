@@ -11,7 +11,7 @@ commands:
         type: string
     steps:
       - run:
-          name: Make Board (FULL ORDERED BUILD LOGS HERE UNTIL JOB FAILED)
+          name: Make Board (console logs not contiguous because multiple CPUS used to build under CircleCI, see logs in artifacts or Output build failing logs below in case of failed step)
           command: |
             rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/*
             nix --print-build-logs --verbose develop --ignore-environment --command make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
