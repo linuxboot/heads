@@ -796,3 +796,5 @@ real.clean:
 	cd install && rm -rf -- *
 real.gitclean:
 	git clean -fxd
+real.gitclean_keep_packages:
+	git clean -fxd -e "packages"
