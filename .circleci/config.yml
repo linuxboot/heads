@@ -241,7 +241,7 @@ workflows:
           target: nitropad-nv41
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - prep_env
 
       # coreboot talos_2
       - build_and_persist:
