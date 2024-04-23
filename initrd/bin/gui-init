@@ -250,8 +250,8 @@ update_totp()
 update_hotp()
 {
   TRACE_FUNC
+  HOTP="Unverified"
   if [ -x /bin/hotp_verification ]; then
-    HOTP=`unseal-hotp`
     if ! hotp_verification info ; then
       if [ "$skip_to_menu" = "true" ]; then
         return 1  # Already asked to skip to menu from a prior error
@@ -265,6 +265,7 @@ update_hotp()
         return
       fi
     fi
+    HOTP=`unseal-hotp`
     # Don't output HOTP codes to screen, so as to make replay attacks harder
     hotp_verification check "$HOTP"
     case "$?" in
