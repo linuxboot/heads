@@ -1,0 +1,60 @@
+Notes to repro on top of QubesOS debian-12-xfce template based qube
+
+- Clone a debian-12-xfce on top of Q4.2.1 to be specialized
+- Deploy QubesOS nix requirements in template: https://dataswamp.org/~solene/2023-05-15-qubes-os-install-nix.html
+- Deploy QubesOS requirements for docker: https://gist.github.com/tlaurion/9113983bbdead492735c8438cd14d6cd
+- Create a qube based on the cloned template above
+- Open qube
+- Clone whatever repo is most recent between https://github.com/mmlb/osresearch-heads/tree/wip-nix-for-build or https://github.com/tlaurion/heads/tree/wip-nix-for-build
+  - git clone Above_repo
+  - cd /home/user/heads           or    cd /home/user/osresearch-heads
+  - git checkout wip-nix-for-build
+  - git reset --hard
+
+
+
+Now, replication traces
+
+Install nix cleanly:
+sudo rm -rf /nix/* || echo "cannot delete /nix" &&  sh <(curl -L https://nixos.org/nix/install) --no-daemon
+
+Source nix prior of creating nix cache and jumping in it
+. /home/user/.nix-profile/etc/profile.d/nix.sh
+
+Configure nix for local builds until we have proper docker image instead:
+mkdir -p ~/.config/nix
+echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
+
+Build nix developer local env with flakes locks to specified versions and jump into it:
+nix --print-build-logs --verbose develop --ignore-environment
+
+Build a board:
+make BOARD=nitropad-nv41
+
+In case you need to rebuild from packages+ patches + a clean ./install (where libraries and headers are found):
+make real.remove_canary_files-extract_patch_rebuild_what_changed
+
+IF that doesn;t help you, look at the end of the global Helper for more helper. Iterate.
+
+
+
+build docker out of nix develop environement and jump into it:
+nix build .#dockerImage && docker load < result && docker run --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env
+
+From there, rebuild with 
+make real.remove_canary_files-extract_patch_rebuild_chat_changed
+make BOARD=nitropad-nv41
+
+Make changes until taht part works in both nix layer on top of OS and withing docker image.
+......
+
+SUCCESSSSS?!?!?!?! CELEBRATION!
+Tell @mmlb and @insurgo on matrix channel!!!!
+
+
+-------
+
+Some raw and incomplete notes on how to push that docker to dockerhub
+docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.0.3
+docker push tlaurion/heads-dev-env:v0.0.3
+(to be continued)
