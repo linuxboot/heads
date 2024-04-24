@@ -15,21 +15,19 @@ Notes to repro on top of QubesOS debian-12-xfce template based qube
 
 Now, replication traces
 
-Install nix cleanly:
+#Install nix cleanly:
 sudo rm -rf /nix/* || echo "cannot delete /nix" &&  sh <(curl -L https://nixos.org/nix/install) --no-daemon
-
-Source nix prior of creating nix cache and jumping in it
+#Source nix prior of creating nix cache and jumping in it
 . /home/user/.nix-profile/etc/profile.d/nix.sh
-
-Configure nix for local builds until we have proper docker image instead:
+#Configure nix for local builds until we have proper docker image instead:
 mkdir -p ~/.config/nix
 echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
-
-Build nix developer local env with flakes locks to specified versions and jump into it:
+#Build nix developer local env with flakes locks to specified versions and jump into it:
 nix --print-build-logs --verbose develop --ignore-environment
-
-Build a board:
+#Build a board
 make BOARD=nitropad-nv41
+
+
 
 In case you need to rebuild from packages+ patches + a clean ./install (where libraries and headers are found):
 make real.remove_canary_files-extract_patch_rebuild_what_changed
