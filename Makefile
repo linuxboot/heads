@@ -30,8 +30,8 @@ board_build	= $(build)/$(BOARD)
 MEM_PER_JOB_GB ?= 1
 
 # Controls how many parallel jobs are invoked in subshells
-CPUS            ?= $(shell getconf _NPROCESSORS_ONLN)
-AVAILABLE_MEM_GB   ?= $(shell awk '/MemAvailable/ {print int($$2 / 1024 / 1024)}' /proc/meminfo)
+CPUS            ?= $(shell nproc)
+AVAILABLE_MEM_GB   ?= $(shell cat /proc/meminfo | grep MemAvailable | awk '{print int($$2 / 1024)}')
 
 # Calculate the maximum number of jobs based on available memory
 MAX_JOBS_MEM := $(shell echo $$(( $(AVAILABLE_MEM_GB) / $(MEM_PER_JOB_GB) )))
@@ -44,12 +44,12 @@ CPUS            := $(shell echo $$(($(CPUS) < $(MAX_JOBS_MEM) ? $(CPUS) : $(MAX_
 LOADAVG         ?= $(shell echo $$(( ($(CPUS) * 3) / 2 )))
 
 # Construct MAKE_JOBS with dynamic CPU count and load average
-MAKE_JOBS       := -j$(CPUS) --load-average=$(LOADAVG) # Add other flags as needed
+MAKE_JOBS       := -j$(CPUS) --load-average=$(LOADAVG) # Add other flags as needed to be more adaptive to CIs
 
 # Print out the settings and compare system values with actual ones used
 $(info ----------------------------------------------------------------------)
 $(info !!!!!! BUILD SYSTEM INFO !!!!!!)
-$(info System CPUS: $(shell getconf _NPROCESSORS_ONLN))
+$(info System CPUS: $(shell nproc))
 $(info System Available Memory: $(AVAILABLE_MEM_GB) GB)
 $(info System Load Average: $(shell uptime | awk '{print $$10}'))
 $(info ----------------------------------------------------------------------)
@@ -66,7 +66,6 @@ $(info **AVAILABLE_MEM_GB** (default: memory available on the system in GB, e.g.
 $(info **MEM_PER_JOB_GB** (default: 1GB per job, e.g., 'make MEM_PER_JOB_GB=2'))
 $(info ----------------------------------------------------------------------)
 $(info !!!!!! Build starts !!!!!!)
-
 
 
 # Timestamps should be in ISO format
