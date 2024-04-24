@@ -112,6 +112,10 @@ case "$PKG_NAME" in
 		if [ "$PKG_BASENAME" = acpica-unix2-20220331.tar.gz ]; then
 			PKG_BASEURL="https://downloadmirror.intel.com/774879/"
 		fi
+
+		if [ "$PKG_BASENAME" = acpica-unix2-20210331.tar.gz ]; then
+			PKG_BASEURL="https://ftp.gnu.org/gnu/gnuboot/mirrors/acpica.org/"
+		fi
 		;;
 esac
 

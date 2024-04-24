@@ -88,6 +88,13 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := 0d57cff58fba2f3a4d3a714a4eae65753e58c6ff
 $(eval $(call coreboot_module,purism,))
 
+coreboot-dasharo-kgpe-d16_repo := https://github.com/Dasharo/coreboot
+coreboot-dasharo-kgpe-d16_commit_hash := 6edf2d06df3d5c28f1ddfb1705e076a0694df5a5
+ifeq "$(CONFIG_COREBOOT_VERSION)" "dasharo-kgpe-d16"
+	EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-error=address-of-packed-member -Wno-error=null-dereference
+endif
+$(eval $(call coreboot_module,dasharo-kgpe-d16,))
+
 #Nitrokey nv41/ns50 are based on Dasharo coreboot port,
 # with patches staging under coreboot-clevo_release
 coreboot-nitrokey_repo := https://github.com/dasharo/coreboot
