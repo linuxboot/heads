@@ -905,7 +905,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     echo "Each prompt requires a single letter answer: eg. (Y/n)."
     echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
 
-    # Re-ownership of encrypted disk key, content and passphrase
+    # Re-ownership of LUKS encrypted Disk: key, content and passphrase
     echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past configured passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backed up header could be restored to access encrypted content with old passphrase) [y/N]: "
     read -n 1 prompt_output
     echo
