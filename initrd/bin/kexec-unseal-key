@@ -38,8 +38,7 @@ for tries in 1 2 3; do
 		exit 0
 	fi
 
-	DEBUG $(pcrs)
-	warn "Unable to unseal disk encryption key"
+	warn "Unable to unseal LUKS Disk Unlock Key from TPM"
 done
 
 die "Retry count exceeded..."
