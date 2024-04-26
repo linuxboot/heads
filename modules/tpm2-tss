@@ -1,13 +1,22 @@
 # TPM2 TSS library
 modules-$(CONFIG_TPM2_TSS) += tpm2-tss
 
-tpm2-tss_version := 3.2.0
+tpm2-tss_version := 3.2.2
 tpm2-tss_dir := tpm2-tss-$(tpm2-tss_version)
 tpm2-tss_tar := tpm2-tss-$(tpm2-tss_version).tar.gz
 tpm2-tss_url := https://github.com/tpm2-software/tpm2-tss/releases/download/$(tpm2-tss_version)/$(tpm2-tss_tar)
-tpm2-tss_hash := 48305e4144dcf6d10f3b25b7bccf0189fd2d1186feafd8cd68c6b17ecf0d7912
+tpm2-tss_hash := ba9e52117f254f357ff502e7d60fce652b3bfb26327d236bbf5ab634235e40f1
 
+#Repro checks:
+# find build/x86/tpm2-tss-3.2.2/src/*/.libs/libtss2-*so* | while read file; do echo "library $file:"; strings $file|grep heads; done
+#  Should not return any result 
+
+#NEEDED otherwise output on previous command
+#sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure
+# needed otherwise library build/x86/tpm2-tss-3.2.2/src/tss2-tcti/.libs/libtss2-tcti-pcap.so.0.0.0:
+# contains: /home/user/heads/build/x86/tpm2-tss-3.2.2/src/tss2-tcti/.libs:/home/user/heads/build/x86/tpm2-tss-3.2.2/src/tss2-mu/.libs://lib
 tpm2-tss_configure := aclocal && automake --add-missing && autoreconf -fi \
+	&& sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure \
 	&& ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
@@ -17,6 +26,7 @@ tpm2-tss_configure := aclocal && automake --add-missing && autoreconf -fi \
 	--disable-doxygen-rtf \
 	--disable-doxygen-html \
 	--disable-fapi \
+	--disable-static \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries

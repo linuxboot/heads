@@ -1,0 +1,42 @@
+--- ./bootstrap.orig    2023-11-08 02:19:36.000000000 -0500
++++ ./bootstrap 2024-04-03 12:18:46.722995465 -0400
+@@ -5,7 +5,7 @@
+
+ # Generate a VERSION file that is included in the dist tarball to avoid needed git
+ # when calling autoreconf in a release tarball.
+-git describe --tags --always --dirty > VERSION
++#git describe --tags --always --dirty > VERSION
+
+ # generate list of source files for use in Makefile.am
+ # if you add new source files, you must run ./bootstrap again
+diff --git a/Makefile.am b/Makefile.am
+index 7132215..32e2193 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -93,7 +93,7 @@ tss2_tools = \
+ 
+ # Bundle all the tools into a single program similar to busybox
+ bin_PROGRAMS += tools/tpm2
+-tools_tpm2_LDADD = $(LDADD) $(CURL_LIBS)
++tools_tpm2_LDADD = $(LDADD)
+ tools_tpm2_CFLAGS = $(AM_CFLAGS) -DTPM2_TOOLS_MAX="$(words $(tpm2_tools))"
+ tools_tpm2_SOURCES = \
+ 	tools/tpm2_tool.c \
+@@ -127,7 +127,6 @@ tpm2_tools = \
+     tools/tpm2_encryptdecrypt.c \
+     tools/tpm2_evictcontrol.c \
+     tools/tpm2_flushcontext.c \
+-    tools/tpm2_getekcertificate.c \
+     tools/tpm2_getrandom.c \
+     tools/tpm2_gettime.c \
+     tools/tpm2_hash.c \
+--- ./configure.ac.orig	2023-11-08 02:19:36.000000000 -0500
++++ ./configure.ac	2024-04-02 12:05:00.270985575 -0400
+@@ -80,7 +80,6 @@
+ AC_CHECK_LIB(crypto, [EVP_sm4_cfb128], [
+         AC_DEFINE([HAVE_EVP_SM4_CFB], [1], [Support EVP_sm4_cfb in openssl])],
+         [])
+-PKG_CHECK_MODULES([CURL], [libcurl])
+ 
+ # pretty print of devicepath if efivar library is present
+ # auto detect if not specified via the --with-efivar option.
