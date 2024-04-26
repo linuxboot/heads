@@ -1,0 +1,35 @@
+--- ./util/mkbuildinf.pl.orig   2023-02-07 08:43:33.000000000 -0500
++++ ./util/mkbuildinf.pl	2024-03-27 14:36:49.974651246 -0400
+@@ -12,7 +12,7 @@
+ my ($cflags, $platform) = @ARGV;
+ $cflags = "compiler: $cflags";
+ 
+-my $date = gmtime($ENV{'SOURCE_DATE_EPOCH'} || time()) . " UTC";
++my $date = gmtime($ENV{'SOURCE_DATE_EPOCH'} || '0') . " UTC";
+ 
+ print <<"END_OUTPUT";
+ /*
+@@ -36,21 +36,7 @@
+  * literal
+  */
+ static const char compiler_flags[] = {
+-END_OUTPUT
+-
+-my $ctr = 0;
+-foreach my $c (split //, $cflags) {
+-    $c =~ s|([\\'])|\\$1|;
+-    # Max 16 characters per line
+-    if  (($ctr++ % 16) == 0) {
+-        if ($ctr != 1) {
+-            print "\n";
+-        }
+-        print "    ";
+-    }
+-    print "'$c',";
+-}
+-print <<"END_OUTPUT";
+-'\\0'
++    'r','e','p','r','o','d','u','c','i','b','l','e',' ','b','u','i',
++    'l','d','\\0'
+ };
+ END_OUTPUT

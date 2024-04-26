@@ -45,6 +45,7 @@ jobs:
     docker:
       - image: debian:11
     resource_class: large
+    working_directory: ~/heads
     steps:
       - run:
           name: Install dependencies
@@ -53,7 +54,6 @@ jobs:
             apt update
             apt install -y build-essential zlib1g-dev uuid-dev libdigest-sha-perl libelf-dev bc bzip2 bison flex git gnupg gawk iasl m4 nasm patch python python2 python3 wget gnat cpio ccache pkg-config cmake libusb-1.0-0-dev autoconf texinfo ncurses-dev doxygen graphviz udev libudev1 libudev-dev automake libtool rsync innoextract sudo imagemagick libncurses5-dev
       - checkout
-
       - run:
           name: git reset
           command: |
@@ -120,6 +120,7 @@ jobs:
     docker:
       - image: debian:11
     resource_class: large
+    working_directory: ~/heads
     parameters:
       arch:
         type: string
@@ -138,15 +139,16 @@ jobs:
       - persist_to_workspace:
           root: ~/
           paths:
-            - project/packages/<<parameters.arch>>
-            - project/build/<<parameters.arch>>
-            - project/crossgcc/<<parameters.arch>>
-            - project/install/<<parameters.arch>>
+            - heads/packages/<<parameters.arch>>
+            - heads/build/<<parameters.arch>>
+            - heads/crossgcc/<<parameters.arch>>
+            - heads/install/<<parameters.arch>>
 
   build:
     docker:
       - image: debian:11
     resource_class: large
+    working_directory: ~/heads
     parameters:
       arch:
         type: string
@@ -167,6 +169,7 @@ jobs:
     docker:
       - image: debian:11
     resource_class: large
+    working_directory: ~/heads
     steps:
       - attach_workspace:
           at: ~/
@@ -236,13 +239,12 @@ workflows:
       # since kernel is 6.x and coreboot is git is unshared
       # We use nitropad's coreboot's fork crossgcc
       # No need to wait further for other board's cache.
-      # We reuse built modules from x230-hotp-maximized cache only
       - build_and_persist:
           name: nitropad-nv41
           target: nitropad-nv41
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - prep_env
 
       # coreboot-git Talos II (PPC)
       - build_and_persist:
@@ -527,3 +529,4 @@ workflows:
 #          path: build/UNMAINTAINED_qemu-linuxboot/linuxboot.rom
 #      - store-artifacts:
 #          path: build/UNMAINTAINED_qemu-linuxboot/hashes.txt
+
