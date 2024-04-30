@@ -14,7 +14,7 @@ commands:
           name: Make Board (console logs not contiguous because multiple CPUS used to build under CircleCI, see logs in artifacts or Output build failing logs below in case of failed step)
           command: |
             rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/*
-            nix --print-build-logs --verbose develop --ignore-environment --command make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
+            make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -43,7 +43,7 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: nixos/nix:2.16.1
+      - image: tlaurion/heads-dev-env:v0.0.5
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -52,12 +52,6 @@ jobs:
           name: git reset
           command: |
             git reset --hard "$CIRCLE_SHA1"
-      - run:
-          name: Fetch nix dependencies
-          command: |
-            mkdir -p ~/.config/nix
-            echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
-            nix --print-build-logs --verbose develop --ignore-environment --command true
       - run:
           name: Make tmp dir
           command: |
@@ -80,42 +74,42 @@ jobs:
             # Cache for matching modules digest, validated to be exactly the same as in github current commit.
             # This cache was made on top of below caches, if previously existing.
             # If no module definition changed, we reuse this one
-            - nix-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
             # Cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
-            - nix-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
             # Cache for musl-cross-make module digest (rarely modified).
-            - nix-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx20/download_parse_me.sh
+            ./blobs/xx20/download_parse_me.sh
       - run:
           # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
             echo skipping for now
             exit 0
-            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/vbios_t530.sh
+            ./blobs/xx30/vbios_t530.sh
       - run:
           name: Download and extract w530 vbios roms for dgpu boards
           command: |
             echo skipping for now
             exit 0
-            nix --print-build-logs --verbose develop --ignore-environment --command  ./blobs/xx30/vbios_w530.sh
+            ./blobs/xx30/vbios_w530.sh
       - persist_to_workspace:
-          root: ~/
+          root: ~/heads
           paths:
             - .
 
   build_and_persist:
     docker:
-      - image: nixos/nix:2.16.1
+      - image: tlaurion/heads-dev-env:v0.0.5
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -128,22 +122,22 @@ jobs:
         type: string
     steps:
       - attach_workspace:
-          at: ~/
+          at: ~/heads
       - build_board:
           arch: <<parameters.arch>>
           target: <<parameters.target>>
           subcommand: <<parameters.subcommand>>
       - persist_to_workspace:
-          root: ~/
+          root: ~/heads
           paths:
-            - heads/packages/<<parameters.arch>>
-            - heads/build/<<parameters.arch>>
-            - heads/crossgcc/<<parameters.arch>>
-            - heads/install/<<parameters.arch>>
+            - packages/<<parameters.arch>>
+            - build/<<parameters.arch>>
+            - crossgcc/<<parameters.arch>>
+            - install/<<parameters.arch>>
 
   build:
     docker:
-      - image: nixos/nix:2.16.1
+      - image: tlaurion/heads-dev-env:v0.0.5
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -156,7 +150,7 @@ jobs:
         type: string
     steps:
       - attach_workspace:
-          at: ~/
+          at: ~/heads
       - build_board:
           arch: <<parameters.arch>>
           target: <<parameters.target>>
@@ -164,16 +158,16 @@ jobs:
 
   save_cache:
     docker:
-      - image: nixos/nix:2.16.1
+      - image: tlaurion/heads-dev-env:v0.0.5
     resource_class: large
     working_directory: ~/heads
     steps:
       - attach_workspace:
-          at: ~/
+          at: ~/heads
       - save_cache:
           # Generate cache for the same musl-cross module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
@@ -182,7 +176,7 @@ jobs:
       - save_cache:
           # Generate cache for the same coreboot mnd musl-cross-make modules definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - build/ppc64/coreboot-talos_2
             - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
@@ -199,7 +193,7 @@ jobs:
             - packages
       - save_cache:
           #Generate cache for the exact same modules definitions if hash is not previously existing
-          key: nix-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - build
             - crossgcc
