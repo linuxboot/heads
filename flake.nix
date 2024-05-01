@@ -61,7 +61,8 @@
           which
           xz
           zip
-          zlib-ng
+          zlib
+          zlib.dev
         ]
         ++ [
           # blobs/xx30/vbios_[tw]530.sh
