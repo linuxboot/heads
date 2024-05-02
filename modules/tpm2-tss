@@ -15,9 +15,7 @@ tpm2-tss_hash := ba9e52117f254f357ff502e7d60fce652b3bfb26327d236bbf5ab634235e40f
 #sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure
 # needed otherwise library build/x86/tpm2-tss-3.2.2/src/tss2-tcti/.libs/libtss2-tcti-pcap.so.0.0.0:
 # contains: /home/user/heads/build/x86/tpm2-tss-3.2.2/src/tss2-tcti/.libs:/home/user/heads/build/x86/tpm2-tss-3.2.2/src/tss2-mu/.libs://lib
-tpm2-tss_configure := \
-	sed -i '/LT_LIB_DLLOAD/d' configure.ac \
-	&& aclocal && automake --add-missing && autoreconf -fi \
+tpm2-tss_configure := aclocal && automake --add-missing && autoreconf -fi \
 	&& sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure \
 	&& ./configure \
 	$(CROSS_TOOLS) \
