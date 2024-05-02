@@ -56,3 +56,22 @@ Some raw and incomplete notes on how to push that docker to dockerhub
 docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.0.3
 docker push tlaurion/heads-dev-env:v0.0.3
 (to be continued)
+
+-------------------
+
+#To create the docker image, I was not able to set gcroot dynamically, so here are the manual steps so nix is not wiped per garbage collector
+mkdir -p /nix/var/nix/gcroots/per-user/$(whoami)
+ln -sfn $(readlink -f $HOME/.nix-profile) /nix/var/nix/gcroots/per-user/$(whoami)/profile
+
+#And then build derivates and cal garbarrge collection (not yet successfull since docker build fails now)
+nix build .#dockerImage && docker load < result && docker run --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env
+
+#Use it
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env -- make BOARD=qemu-coreboot-whiptail-tpm2
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env -- make BOARD=qemu-coreboot-whiptail-tpm2 run
+
+#push it
+docker login
+docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.0.9
+docker push tlaurion/heads-dev-env:v0.0.9
+
