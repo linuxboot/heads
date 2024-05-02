@@ -92,6 +92,7 @@
             -e NIX_CFLAGS_COMPILE_FOR_TARGET \
             -e NIX_LDFLAGS_FOR_TARGET \
             -e PKG_CONFIG_PATH_FOR_TARGET \
+            -e ACLOCAL_PATH \
             ${self.devShell.${system}} >$out
         '';
       packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
@@ -117,6 +118,7 @@
               -e NIX_LDFLAGS_FOR_TARGET \
               -e NIX_PKG_CONFIG_WRAPPER_TARGET \
               -e PKG_CONFIG_PATH_FOR_TARGET \
+              -e ACLOCAL_PATH \
               ${self.devShell.${system}} >/devenv.sh
 
             printf '[safe]\n\tdirectory = *\n' >/.gitconfig
