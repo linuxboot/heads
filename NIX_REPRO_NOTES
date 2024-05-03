@@ -61,6 +61,9 @@ docker push tlaurion/heads-dev-env:v0.0.3
 
 #To create the docker image, using garbage collector didn't help and made the size of the image grow bigger?! not using it reverting to what worked
 # produced image without garbage collector was 990 Mb image, with it (and stripping which is already done by nix builder...) its 1006Mb. Over my head
+# TODO: 
+#  - revisit later, should not block merge of pr
+#  - do doc under heads's README.md and then heads-wiki
 sh <(curl -L https://nixos.org/nix/install) --no-daemon
   . /home/user/.nix-profile/etc/profile.d/nix.sh
 
@@ -73,6 +76,10 @@ docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd
 
 #push it
 docker login
-docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.1.2
-docker push tlaurion/heads-dev-env:v0.1.2
+docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.1.1
+docker push tlaurion/heads-dev-env:v0.1.1
 
+
+# For end-users, CircleCI
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) laurion/heads-dev-env:v0.1.1 -- make BOARD=qemu-coreboot-whiptail-tpm2
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) laurion/heads-dev-env:v0.1.1 -- make BOARD=qemu-coreboot-whiptail-tpm2 run
