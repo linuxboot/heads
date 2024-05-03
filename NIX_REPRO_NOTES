@@ -59,11 +59,12 @@ docker push tlaurion/heads-dev-env:v0.0.3
 
 -------------------
 
-#To create the docker image, I was not able to set gcroot dynamically, so here are the manual steps so nix is not wiped per garbage collector
-mkdir -p /nix/var/nix/gcroots/per-user/$(whoami)
-ln -sfn $(readlink -f $HOME/.nix-profile) /nix/var/nix/gcroots/per-user/$(whoami)/profile
+#To create the docker image, using garbage collector didn't help and made the size of the image grow bigger?! not using it reverting to what worked
+# produced image without garbage collector was 990 Mb image, with it (and stripping which is already done by nix builder...) its 1006Mb. Over my head
+sh <(curl -L https://nixos.org/nix/install) --no-daemon
+  . /home/user/.nix-profile/etc/profile.d/nix.sh
 
-#And then build derivates and cal garbarrge collection (not yet successfull since docker build fails now)
+#And then build derivates 
 nix build .#dockerImage && docker load < result && docker run --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env
 
 #Use it
@@ -72,6 +73,6 @@ docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd
 
 #push it
 docker login
-docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.0.9
-docker push tlaurion/heads-dev-env:v0.0.9
+docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.1.2
+docker push tlaurion/heads-dev-env:v0.1.2
 

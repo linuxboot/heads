@@ -85,25 +85,10 @@
         sudo # ( °-° )
         upx
       ];
-
-      # Stripping binaries to reduce size, while ensuring functionality is not affected.
-      stripBinaries = map (pkg: if pkg?isDerivation then pkg.overrideAttrs (oldAttrs: {
-        postInstall = oldAttrs.postInstall or "" + ''
-          strip $out/bin/* || true
-        '';
-      }) else pkg) deps;
-
     in {
       # The development shell includes all the dependencies.
       devShell = pkgs.mkShellNoCC {
-        buildInputs = stripBinaries ++ [ pkgs.nix ]; # Include the Nix package to provide nix-collect-garbage.
-        shellHook = ''
-          # Create a garbage collection root for the Nix profile
-          mkdir -p /nix/var/nix/gcroots/per-user/$(whoami)
-          echo $(readlink -f $HOME/.nix-profile) > /nix/var/nix/gcroots/per-user/$(whoami)/profile
-          # Perform garbage collection to clean up any unnecessary files.
-          nix-collect-garbage -d
-        '';
+        buildInputs = deps;
       };
 
       # myDevShell outputs environment variables necessary for development.
@@ -123,20 +108,17 @@
 
       # Docker image configuration for the Heads project.
       packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
-        name = "linuxboot/heads"; # Image name.
-        tag = "dev-env"; # Image tag.
-        config.Entrypoint = ["bash" "-c" ''source /devenv.sh; if (( $# == 0 )); then exec bash; else exec "$0" "$@"; fi'']; # Entrypoint configuration.
-        
-        # Contents of the Docker image, including stripped binaries for size optimization.
-        contents = stripBinaries ++ [
+        name = "linuxboot/heads";
+        tag = "dev-env";
+        config.Entrypoint = ["bash" "-c" ''source /devenv.sh; if (( $# == 0 )); then exec bash; else exec "$0" "$@"; fi''];
+        contents =
+          deps
+          ++ [
           pkgs.dockerTools.binSh
           pkgs.dockerTools.caCertificates
           pkgs.dockerTools.usrBinEnv
         ];
-        
-        enableFakechroot = true; # Enable fakechroot for compatibility.
-        
-        # Fake root commands to set up the environment inside the Docker image.
+        enableFakechroot = true;
         fakeRootCommands =
           #bash
           ''
