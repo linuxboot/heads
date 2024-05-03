@@ -22,7 +22,7 @@
         bashInteractive
         coreutils
         bc
-        bison
+        bison # Generate flashmap descriptor parser
         bzip2
         cacert
         ccache
@@ -47,8 +47,8 @@
         innoextract # ROM extraction for dGPU.
         libtool
         m4
-        ncurses5
-        openssl
+        ncurses5 # make menuconfig and slang
+        openssl #needed for talos-2 kernel build
         parted
         patch
         perl
@@ -67,21 +67,22 @@
       ] ++ [
         # Packages for qemu support with Canokey integration.
         qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement (RTFM).
-        canokey-qemu # Canokey lib for qemu build-time compilation.
-        (qemu.override {
-          canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
-        })
+        #canokey doesn;t work still even if compiled in, so no reason to add 1Gb of stuff in the image
+        #canokey-qemu # Canokey lib for qemu build-time compilation.
+        #(qemu.override {
+        #  canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
+        #})
       ] ++ [
-        # Additional tools for editing and testing.
+        # Additional tools for debugging/editing/testing.
         vim # Mostly used amongst us, sorry if you'd like something else, open issue.
         swtpm # QEMU requirement to emulate tpm1/tpm2.
         dosfstools # QEMU requirement to produce valid fs to store exported public key to be fused through inject_key on qemu (so qemu flashrom emulated SPI support).
       ] ++ [
-        # Tools for handling binary blobs and compression.
+        # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
         bundler
         p7zip
         ruby
-        sudo
+        sudo # ( °-° )
         upx
       ];
 
@@ -124,7 +125,7 @@
       packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
         name = "linuxboot/heads"; # Image name.
         tag = "dev-env"; # Image tag.
-        config.Entrypoint = ["bash" "-c" ''source /devenv.sh; if (( $# == 0 )); then exec bash; else exec "$@"; fi'']; # Entrypoint configuration.
+        config.Entrypoint = ["bash" "-c" ''source /devenv.sh; if (( $# == 0 )); then exec bash; else exec "$0" "$@"; fi'']; # Entrypoint configuration.
         
         # Contents of the Docker image, including stripped binaries for size optimization.
         contents = stripBinaries ++ [
@@ -151,9 +152,9 @@
             -e ACLOCAL_PATH \
             ${self.devShell.${system}} >/devenv.sh
 
-            # Git configuration for safe directory access.
+          # Git configuration for safe directory access.
           printf '[safe]\n\tdirectory = *\n' >/.gitconfig
-            mkdir /tmp; # Temporary directory for various operations.
+          mkdir /tmp; # Temporary directory for various operations.
         '';
       };
     });
