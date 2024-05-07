@@ -29,12 +29,29 @@ Please refer to [Heads-wiki](https://osresearch.net) for your Heads' documentati
 Building heads
 ===
 
+Under QubesOS?
+====
+* Setup nix persistent layer under QubesOS (Thanks @rapenne-s !)
+  * https://dataswamp.org/~solene/2023-05-15-qubes-os-install-nix.html
+* Install docker under QubesOS (imperfect old article of mine. Better somewhere?)
+  * https://gist.github.com/tlaurion/9113983bbdead492735c8438cd14d6cd
+
 Build docker from nix develop layer locally
 ====
 
 ```
-sh <(curl -L https://nixos.org/nix/install) --no-daemon
-  . /home/user/.nix-profile/etc/profile.d/nix.sh
+# DANGER: remove /nix store and recreates a fresh one. Skip if you use Nix already:
+sudo rm -rf /nix/* || echo "cannot delete /nix" &&  sh <(curl -L https://nixos.org/nix/install) --no-daemon
+# Configure nix for local builds for nix-commands and flakes usage under nix which are considered experimental features
+mkdir -p ~/.config/nix
+echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
+# Source nix prior of anything else:
+. /home/user/.nix-profile/etc/profile.d/nix.sh
+# END OF DANGER SECTION TO BE REVIEWED
+# [...]
+# Build nix developer local env with flakes locks to specified versions and exits just running "true" command:
+nix --print-build-logs --verbose develop --ignore-environment -- true
+# Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:
 nix build .#dockerImage && docker load < result
 ```
 
