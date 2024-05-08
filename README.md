@@ -50,25 +50,42 @@ echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
 # END OF DANGER SECTION TO BE REVIEWED
 # [...]
 # Build nix developer local env with flakes locks to specified versions and exits just running "true" command:
-nix --print-build-logs --verbose develop --ignore-environment -- true
+nix --print-build-logs --verbose develop --ignore-environment --command true
 # Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:
 nix build .#dockerImage && docker load < result
 ```
 
-Jump into docker image
+
+Jump into nix develop created docker image for interactive workflow
 =====
 `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env`
 
-Build a board from docker image
-=====
+
+From there you can use the docker image interactively.
+
 `make BOARD=board_name` where board_name is the name of the board directory under `./boards` directory.
 
 
-Use prepared docker image from docker hub
+One such useful example is to build and test qemu board roms and test them through qemu/kvm/swtpm provided in the docker image. 
+Please refer to [qemu documentation](targets/qemu.md) for more information.
+
+Eg:
+```
+make BOARD=qemu-coreboot-fbwhiptail-tpm2 # Build rom, export public key to emulated usb storage from qemu runtime
+make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=~/pubkey.asc inject_gpg # Inject pubkey into rom image
+make BOARD=qemu-coreboot-fbwhiptail-tpm2 USB_TOKEN=Nitrokey3NFC PUBKEY_ASC=~/pubkey.asc ROOT_DISK_IMG=~/qemu-disks/debian-9.cow2 INSTALL_IMG=~/Downloads/debian-9.13.0-amd64-xfce-CD-1.iso run # Install
+```
+
+Alternatively, you can use locally built docker image to build a board ROM image in a single call.
+
+Eg:
+`docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env -- make BOARD=nitropad-nv41`
+
+Pull docker hub image to prepare reproducible ROMs as CircleCI in one call
 ====
 ```
-docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2
-docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2 run
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=x230-hotp-maximized
+docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=nitropad-nv41
 ```
 
 Maintenance notes on docker image
@@ -81,7 +98,7 @@ docker push tlaurion/heads-dev-env:latest
 ```
 
 Notes:
-- Local builds can use ":latest" 
+- Local builds can use ":latest" tag, which will use latest tested successful CircleCI run
 - To reproduce CirlceCI results, make sure to use the same versioned tag declared under .circleci/config.yml's "image:" 
 
 

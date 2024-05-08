@@ -6,9 +6,13 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable"; # Using the unstable channel for the latest packages, while flake.lock fixates the commit reused until changed.
     flake-utils.url = "github:numtide/flake-utils"; # Utilities for flake functionality.
   };
-
   # Outputs are the result of the flake, including the development environment and Docker image.
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = {
+    self,
+    flake-utils,
+    nixpkgs,
+    ...
+  }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system}; # Accessing the legacy package set.
       lib = pkgs.lib; # The standard Nix packages library.
@@ -66,8 +70,13 @@
         zlib.dev
       ] ++ [
         # Packages for qemu support with Canokey integration.
-        qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement (RTFM).
-        #canokey doesn;t work still even if compiled in, so no reason to add 1Gb of stuff in the image
+        #qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
+        qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
+        qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
+	#
+	# TODO: make work qemu-canokey not existing in caches:
+	# Below are overrides to make canokey-qemu library availabe to qemu built derivative through override)
+        #canokey doesn't work still even if compiled in, so no reason to add 1Gb of stuff in the image (qemu -device canokey not exposed even if configured in)
         #canokey-qemu # Canokey lib for qemu build-time compilation.
         #(qemu.override {
         #  canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
@@ -141,4 +150,3 @@
       };
     });
 }
-
