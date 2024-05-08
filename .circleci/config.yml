@@ -61,15 +61,15 @@ jobs:
       - run:
           name: Creating all modules and patches digest (All modules cache digest)
           command: |
-            find ./Makefile ./flake.lock ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
+            find .circleci/config.yml ./Makefile ./flake.lock ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross.sha256sums
+            find .circleci/config.yml ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
-            find ./Makefile ./flake.lock modules/musl-cross* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross.sha256sums
+            find .circleci/config.yml ./Makefile ./flake.lock modules/musl-cross* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross.sha256sums
       - restore_cache:
           # First matched/found key wins and following keys are not tried
           keys:
@@ -244,6 +244,14 @@ workflows:
           name: talos-2
           arch: ppc64
           target: talos-2
+          subcommand: ""
+          requires:
+            - prep_env
+
+      # coreboot 4.11
+      - build_and_persist:
+          name: UNMAINTAINED_kgpe-d16_workstation
+          target: UNMAINTAINED_kgpe-d16_workstation
           subcommand: ""
           requires:
             - prep_env
@@ -458,14 +466,38 @@ workflows:
           requires:
             - librem_14
 
-      # coreboot purism
-      # dasharo clevo_release + staging IASL patch
+      # dasharo release
       - build:
           name: nitropad-ns50
           target: nitropad-ns50
           subcommand: ""
           requires:
             - nitropad-nv41
+
+      # coreboot 4.11
+      - build:
+          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
+          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
+          subcommand: ""
+          requires:
+            - UNMAINTAINED_kgpe-d16_workstation
+      
+      # coreboot 4.11
+      - build:
+          name: UNMAINTAINED_kgpe-d16_server
+          target: UNMAINTAINED_kgpe-d16_server
+          subcommand: ""
+          requires:
+            - UNMAINTAINED_kgpe-d16_workstation
+
+      # coreboot 4.11
+      - build:
+          name: UNMAINTAINED_kgpe-d16_server-whiptail
+          target: UNMAINTAINED_kgpe-d16_server-whiptail
+          subcommand: ""
+          requires:
+            - UNMAINTAINED_kgpe-d16_workstation
+
 #      - build:
 #          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
 #          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
