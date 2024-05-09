@@ -307,7 +307,7 @@ test_luks_current_disk_recovery_key_passphrase()
 
 		#output test coming and do cryptsetup open call
 		echo -e "\nTesting opening "$LUKS" LUKS encrypted drive content with the current LUKS Disk Recovery Key passphrase..."
-		cryptsetup luksOpen --test-passphrase $LUKS --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+		DO_WITH_DEBUG cryptsetup open --test-passphrase $LUKS --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 
 		#Validate past cryptsetup reencrypt attempts
 		if [ $? -ne 0 ]; then
@@ -331,7 +331,7 @@ test_luks_current_disk_recovery_key_passphrase()
 			#Exporting successfully used passphrase possibly reused by oem-factory-reset
 			export luks_current_Disk_Recovery_Key_passphrase
 			
-			#We export the LUKS volume the was tested valid with passphrase test
+			#We export the LUKS volume that was validated via passphrase test
 			export LUKS
 			#TODO what about non-standard BRTFS multi LUKS containers?
 
@@ -363,7 +363,7 @@ luks_reencrypt() {
 		# fist obtain which luks1/luks2 key-slot can be unlocked with the key-file
 		DRK_KEYSLOT=-1
 		for i in $(seq 0 7); do
-			cryptsetup luksOpen --test-passphrase $LUKS --key-slot $i --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1
+			DO_WITH_DEBUG cryptsetup open --test-passphrase $LUKS --key-slot $i --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				DRK_KEYSLOT=$i
 				break
@@ -476,7 +476,7 @@ luks_change_passphrase()
 			#Cryptsetup was successful.
 			echo "Success."
 
-			#Cleanup should be called seperately.
+			#Cleanup should be called separately
 			#Exporting successfully used passphrase possibly reused by oem-factory-reset
 			luks_current_Disk_Recovery_Key_passphrase=$luks_new_Disk_Recovery_Key_passphrase
 			export luks_current_Disk_Recovery_Key_passphrase
@@ -498,7 +498,7 @@ luks_secrets_cleanup()
 	shred -n 10 -z -u /tmp/luks_new_Disk_Recovery_Key_passphrase 2>/dev/null || true
 	shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null || true
 
-	#Unset variables if launched in same boot
+	#Unset variables (when in same boot)
 	unset luks_current_Disk_Recovery_Key_passphrase
 	unset luks_new_Disk_Recovery_Key_passphrase
 	unset LUKS
