@@ -33,7 +33,6 @@ flashrom_target := \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
 	LDFLAGS="-L$(INSTALL)/lib" \
-	LIBS_BASE="$(INSTALL)" \
 	PREFIX="$(INSTALL)" \
 	$(CROSS_TOOLS) \
 	$(flashrom_cfg) \
