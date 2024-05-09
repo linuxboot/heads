@@ -268,12 +268,10 @@ all payload:
 FORCE:
 
 # Copies config while replacing predefined placeholders with actual values
+# This is used in a command like 'this && $(call install_config ...) && that'
+# so it needs to evaluate to a shell command.
 define install_config =
-	sed -e 's!@BOARD_BUILD_DIR@!$(board_build)!g' \
-	    -e 's!@BLOB_DIR@!$(pwd)/blobs!g' \
-	    -e 's!@BRAND_DIR@!$(pwd)/branding/$(BRAND_NAME)!g' \
-	    -e 's!@BRAND_NAME@!$(BRAND_NAME)!g' \
-	    "$1" > "$2"
+	$(pwd)/bin/prepare_module_config.sh "$1" "$2" "$(board_build)" "$(BRAND_NAME)"
 endef
 
 # Make helpers to operate on lists of things
