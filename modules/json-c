@@ -31,7 +31,7 @@ json-c_configure := \
 	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel
 
 json-c_target := \
-	$(CROSS_TOOLS) -C $(build)/$(json-c_dir)/build \
+	$(CROSS_TOOLS) $(MAKE_JOBS) -C $(build)/$(json-c_dir)/build \
 	all install
 
 json-c_libraries := build/libjson-c.so.5
