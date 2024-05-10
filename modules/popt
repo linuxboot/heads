@@ -8,9 +8,8 @@ popt_hash := c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9
 
 popt_configure := ./configure \
 	$(CROSS_TOOLS) \
-	--prefix "/" \
 	--host $(MUSL_ARCH)-elf-linux \
-
+	--prefix "/" \
 
 popt_target := \
 	$(MAKE_JOBS) \

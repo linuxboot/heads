@@ -1,4 +1,4 @@
-qemu-coreboot-(fb)whiptail-tpm[1,2](-hotp) boards
+qemu-coreboot-(fb)whiptail-tpmX(-hotp) boards
 ===
 
 The `qemu-coreboot-fbwhiptail-tpm1-hotp` configuration (and their variants) permits testing of most features of Heads.  
@@ -87,3 +87,14 @@ swtpm on Debian bookworm
 ===
 1. Install dependencies
    * `sudo apt install swtpm swtpm-tools`
+
+swtpm on nix docker image
+===
+Nothing to do. Everything needed is in the docker image.
+
+Just make sure to pass DISPLAY environement variable on your docker command line. eg:
+* Remotely downloaded docker image (doing make command only inside of docker example):
+  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2`
+  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2 run`
+* Locally created docker image from nix develop environment (jumping into docker image variation of the above, where developer does what he wants within):
+  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env`
