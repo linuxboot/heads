@@ -39,36 +39,21 @@ Under QubesOS?
 Build docker from nix develop layer locally
 ====
 
-If you do not use Nix on a daily basis:
-```
-# DANGER: remove /nix store and recreates a fresh one. Skip if you use Nix already:
-sudo rm -rf /nix/* || echo "cannot delete /nix" &&  sh <(curl -L https://nixos.org/nix/install) --no-daemon
-# Configure nix for local builds for nix-commands and flakes usage under nix which are considered experimental features
-mkdir -p ~/.config/nix
-echo 'experimental-features = nix-command flakes' >~/.config/nix/nix.conf
-# Source nix prior of anything else:
-. /home/user/.nix-profile/etc/profile.d/nix.sh
-```
+#### Set up Nix and flakes  
 
-If you use Nix on a daily basis:
-```
-# Make sure your nix setup supports both nix-command and flakes experimental features:
-mkdir -p ~/.config/nix
-echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
-# Review ~/.config/nix/nix.conf for inconsistencies in your favorite editor (vim, vi, gedit etc)
-# Build nix developer local env with flakes locks to specified versions and exits just running "true" command:
-nix --print-build-logs --verbose develop --ignore-environment --command true
-# Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:
-nix build .#dockerImage && docker load < result
-```
+* If you don't already have Nix, install it:  
+    * `[ -d /nix ] || sh <(curl -L https://nixos.org/nix/install) --no-daemon`  
+    * `. /home/user/.nix-profile/etc/profile.d/nix.sh`  
+* Enable flake support in nix  
+    * `mkdir -p ~/.config/nix`  
+    * `echo 'experimental-features = nix-command flakes' >>~/.config/nix/nix.conf`  
 
-Common steps to follow to build local doscker image from nix develop environment:
-```
-# Build nix developer local env with flakes locks to specified versions and exits just running "true" command:
-nix --print-build-logs --verbose develop --ignore-environment --command true
-# Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:
-nix build .#dockerImage && docker load < result
-```
+#### Build image
+
+* Build nix developer local environment with flakes locked to specified versions  
+    * `nix --print-build-logs --verbose develop --ignore-environment --command true`  
+* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:  
+    * `nix build .#dockerImage && docker load < result` 
 
 Done!
 
