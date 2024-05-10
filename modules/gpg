@@ -23,20 +23,20 @@ gpg_configure := \
 	./configure \
 	--build $(MUSL_ARCH)-elf-linux \
 	--host $(MUSL_ARCH)-linux-musl \
-	--with-libusb="$(INSTALL)" \
 	--prefix "/" \
-	--enable-card-support \
-	--disable-bzip2 \
 	--disable-asm \
+	--disable-bzip2 \
+	--disable-dns-cert \
+	--disable-dns-srv \
 	--disable-exec \
-	--disable-photo-viewers \
+	--disable-finger \
+	--disable-hkp \
 	--disable-keyserver-helpers \
 	--disable-ldap \
-	--disable-hkp \
-	--disable-finger \
-	--disable-dns-srv \
-	--disable-dns-cert \
+	--disable-photo-viewers \
 	--disable-regex \
+	--enable-card-support \
+	--with-libusb="$(INSTALL)" \
 
 # Run one build to generate the executables with the pre-defined
 # exec_prefix and datarootdir, then a second make to install the binaries

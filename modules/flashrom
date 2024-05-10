@@ -27,10 +27,13 @@ ifeq "$(CONFIG_FLASHROM_AST1100)" "y"
 flashrom_cfg += CONFIG_AST1100=yes
 endif
 
-
-
 flashrom_target := \
 	$(MAKE_JOBS) \
+	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	DESTDIR="$(INSTALL)" \
+	INSTALL="$(INSTALL)" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+	PREFIX="$(INSTALL)" \
 	$(CROSS_TOOLS) \
 	$(flashrom_cfg) \
 	flashrom

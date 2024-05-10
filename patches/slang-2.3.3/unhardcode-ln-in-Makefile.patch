@@ -1,0 +1,13 @@
+diff --git a/src/Makefile.in b/src/Makefile.in
+index 7fe4dc2..38fe174 100644
+--- a/src/Makefile.in
++++ b/src/Makefile.in
+@@ -75,7 +75,7 @@ RM 		= rm -f
+ RM_R		= rm -rf
+ AR_CR 		= ar cr
+ RMDIR 		= rmdir
+-LN 		= /bin/ln -sf
++LN 		= ln -sf
+ CP 		= cp
+ @SET_MAKE@
+ #---------------------------------------------------------------------------
