@@ -69,23 +69,21 @@
         zlib
         zlib.dev
       ] ++ [
-        # Packages for qemu support with Canokey integration.
+	# Below are overrides to make canokey-qemu library available to qemu built derivative through a qemu override, which qemu is used for other derivatives
+        canokey-qemu # Canokey lib for qemu build-time compilation.
+        (qemu.override {
+          canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
+        })
+        # Packages for qemu support with Canokey integration from previous override
         #qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
         qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
         qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
-	#
-	# TODO: make work qemu-canokey not existing in caches:
-	# Below are overrides to make canokey-qemu library availabe to qemu built derivative through override)
-        #canokey doesn't work still even if compiled in, so no reason to add 1Gb of stuff in the image (qemu -device canokey not exposed even if configured in)
-        #canokey-qemu # Canokey lib for qemu build-time compilation.
-        #(qemu.override {
-        #  canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
-        #})
       ] ++ [
         # Additional tools for debugging/editing/testing.
         vim # Mostly used amongst us, sorry if you'd like something else, open issue.
         swtpm # QEMU requirement to emulate tpm1/tpm2.
         dosfstools # QEMU requirement to produce valid fs to store exported public key to be fused through inject_key on qemu (so qemu flashrom emulated SPI support).
+        #diffoscope #should we include it? Massive:11 GB uncompressed. Wow?!?!
       ] ++ [
         # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
         bundler
