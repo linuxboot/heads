@@ -11,8 +11,8 @@ dropbear_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
-	--disable-syslog \
 	--disable-lastlog \
+	--disable-syslog \
 	--disable-utmp \
 	--disable-utmpx \
 	--disable-wtmp \

@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Clean all non-deterministric fields in a newc cpio file
 #
 # Items fixed:

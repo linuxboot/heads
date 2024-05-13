@@ -31,7 +31,7 @@ tpm2-tools_configure := \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
 	--disable-fapi \
-	CFLAGS="-fdebug-prefix-map=$(INSTALL)=." \
+	--with-sysroot=$(INSTALL) \
 
 tpm2-tools_target := $(MAKE_JOBS) \
 	DESTDIR="$(INSTALL)" \
