@@ -14,16 +14,16 @@ bash_configure := CFLAGS="-g0 -Os" LDFLAGS="-s" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(target) \
 	--prefix="/usr" \
-        --enable-largefile \
-        --infodir=/usr/share/info \
-        --mandir=/usr/share/man \
-        --without-bash-malloc \
+	--infodir=/usr/share/info \
+	--mandir=/usr/share/man \
 	--disable-coprocesses \
-	--enable-debugger \
 	--disable-net-redirections \
-	--enable-single-help-strings \
 	--disable-nls \
+	--enable-debugger \
+	--enable-largefile \
 	--enable-readline \
+	--enable-single-help-strings \
+	--without-bash-malloc
 
 bash_target := $(MAKE_JOBS) \
 	&& $(MAKE) -C $(build)/$(bash_dir) \

@@ -16,8 +16,8 @@ cryptsetup2_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
-	--disable-rpath \
 	--disable-gcrypt-pbkdf2 \
+	--disable-rpath \
 	--enable-cryptsetup-reencrypt \
 	--with-crypto_backend=kernel \
 	--with-tmpfilesdir=$(INSTALL)/lib/tmpfiles.d
