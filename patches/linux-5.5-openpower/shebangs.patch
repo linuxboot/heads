@@ -1,0 +1,190 @@
+diff --git a/scripts/bloat-o-meter b/scripts/bloat-o-meter
+index 8c965f6a9881..bcd66a014453 100755
+--- a/scripts/bloat-o-meter
++++ b/scripts/bloat-o-meter
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python
++#!/usr/bin/env python
+ #
+ # Copyright 2004 Matt Mackall <mpm@selenic.com>
+ #
+diff --git a/scripts/coccicheck b/scripts/coccicheck
+index e04d328210ac..851c3307ca74 100755
+--- a/scripts/coccicheck
++++ b/scripts/coccicheck
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ # Linux kernel coccicheck
+ #
+diff --git a/scripts/config b/scripts/config
+index e0e39826dae9..ba11e350e8af 100755
+--- a/scripts/config
++++ b/scripts/config
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ # Manipulate options in a .config file from the command line
+ 
+diff --git a/scripts/decode_stacktrace.sh b/scripts/decode_stacktrace.sh
+index 13e5fbafdf2f..8c22ac90123b 100755
+--- a/scripts/decode_stacktrace.sh
++++ b/scripts/decode_stacktrace.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ # (c) 2014, Sasha Levin <sasha.levin@oracle.com>
+ #set -x
+diff --git a/scripts/diffconfig b/scripts/diffconfig
+index 89abf777f197..627eba5849b5 100755
+--- a/scripts/diffconfig
++++ b/scripts/diffconfig
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python
++#!/usr/bin/env python
+ # SPDX-License-Identifier: GPL-2.0
+ #
+ # diffconfig - a tool to compare .config files.
+diff --git a/scripts/faddr2line b/scripts/faddr2line
+index 6c6439f69a72..5079957d4993 100755
+--- a/scripts/faddr2line
++++ b/scripts/faddr2line
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ #
+ # Translate stack dump function offsets.
+diff --git a/scripts/find-unused-docs.sh b/scripts/find-unused-docs.sh
+index 3f46f8977dc4..363e7ecab554 100755
+--- a/scripts/find-unused-docs.sh
++++ b/scripts/find-unused-docs.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # (c) 2017, Jonathan Corbet <corbet@lwn.net>
+ #           sayli karnik <karniksayli1995@gmail.com>
+ #
+diff --git a/scripts/get_abi.pl b/scripts/get_abi.pl
+index c738cb795514..ba87b230fe0a 100755
+--- a/scripts/get_abi.pl
++++ b/scripts/get_abi.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/perl
++#!/usr/bin/env perl
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ use strict;
+diff --git a/scripts/gfp-translate b/scripts/gfp-translate
+index b2ce416d944b..2fcea3e9afb3 100755
+--- a/scripts/gfp-translate
++++ b/scripts/gfp-translate
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0-only
+ # Translate the bits making up a GFP mask
+ # (c) 2009, Mel Gorman <mel@csn.ul.ie>
+diff --git a/scripts/ld-version.sh b/scripts/ld-version.sh
+index f2be0ff9a738..081efc679705 100755
+--- a/scripts/ld-version.sh
++++ b/scripts/ld-version.sh
+@@ -1,4 +1,4 @@
+-#!/usr/bin/awk -f
++#!/usr/bin/env -S awk -f
+ # SPDX-License-Identifier: GPL-2.0
+ # extract linker version number from stdin and turn into single number
+ 	{
+diff --git a/scripts/mkuboot.sh b/scripts/mkuboot.sh
+index 4b1fe09e9042..0b6df121a3b5 100755
+--- a/scripts/mkuboot.sh
++++ b/scripts/mkuboot.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ #
+diff --git a/scripts/objdiff b/scripts/objdiff
+index 72b0b63c3fe1..95f087300637 100755
+--- a/scripts/objdiff
++++ b/scripts/objdiff
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
+ # objdiff - a small script for validating that a commit or series of commits
+diff --git a/scripts/parse-maintainers.pl b/scripts/parse-maintainers.pl
+index 255cef1b098d..c2d11c87fdb4 100644
+--- a/scripts/parse-maintainers.pl
++++ b/scripts/parse-maintainers.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/perl -w
++#!/usr/bin/env -S perl -w
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ use strict;
+diff --git a/scripts/prune-kernel b/scripts/prune-kernel
+index e8aa940bc0a9..620230f677bc 100755
+--- a/scripts/prune-kernel
++++ b/scripts/prune-kernel
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ # because I use CONFIG_LOCALVERSION_AUTO, not the same version again and
+diff --git a/scripts/show_delta b/scripts/show_delta
+index 264399307c4f..28e67e178194 100755
+--- a/scripts/show_delta
++++ b/scripts/show_delta
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python
++#!/usr/bin/env python
+ # SPDX-License-Identifier: GPL-2.0-only
+ #
+ # show_deltas: Read list of printk messages instrumented with
+diff --git a/scripts/sphinx-pre-install b/scripts/sphinx-pre-install
+index 470ccfe678aa..214ed660c0d0 100755
+--- a/scripts/sphinx-pre-install
++++ b/scripts/sphinx-pre-install
+@@ -1,4 +1,4 @@
+-#!/usr/bin/perl
++#!/usr/bin/env perl
+ # SPDX-License-Identifier: GPL-2.0-or-later
+ use strict;
+ 
+diff --git a/scripts/split-man.pl b/scripts/split-man.pl
+index c3db607ee9ec..96bd99dc977a 100755
+--- a/scripts/split-man.pl
++++ b/scripts/split-man.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/perl
++#!/usr/bin/env perl
+ # SPDX-License-Identifier: GPL-2.0
+ #
+ # Author: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+diff --git a/scripts/tags.sh b/scripts/tags.sh
+index 4e18ae5282a6..02c08d460997 100755
+--- a/scripts/tags.sh
++++ b/scripts/tags.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/usr/bin/env bash
+ # SPDX-License-Identifier: GPL-2.0-only
+ # Generate tags or cscope files
+ # Usage tags.sh <mode>
+diff --git a/scripts/ver_linux b/scripts/ver_linux
+index 85005d6b7f10..34e4530fd5b6 100755
+--- a/scripts/ver_linux
++++ b/scripts/ver_linux
+@@ -1,4 +1,4 @@
+-#!/usr/bin/awk -f
++#!/usr/bin/env -S awk -f
+ # SPDX-License-Identifier: GPL-2.0
+ # Before running this script please ensure that your PATH is
+ # typical as you use for compilation/installation. I use
