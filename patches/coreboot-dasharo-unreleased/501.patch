@@ -1,4 +1,4 @@
-From b35dc4a4f25497acfbe159d6abd057d885661a02 Mon Sep 17 00:00:00 2001
+From 6cd77aa95a7ab46771874b72c7dba6b3600d9b29 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
 Date: Mon, 13 May 2024 09:31:27 +0200
 Subject: [PATCH] src/mainboard/clevo/adl-p/Kconfig: Add missing TPM PIRQ for
@@ -13,7 +13,7 @@ Signed-off-by: Michał Żygowski <michal.zygowski@3mdeb.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/mainboard/clevo/adl-p/Kconfig b/src/mainboard/clevo/adl-p/Kconfig
-index c091584ac7d..462cb7135b3 100644
+index 6e4b679d4d1..e9bcf53c7be 100644
 --- a/src/mainboard/clevo/adl-p/Kconfig
 +++ b/src/mainboard/clevo/adl-p/Kconfig
 @@ -115,7 +115,7 @@ config FMDFILE
