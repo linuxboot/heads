@@ -14,7 +14,7 @@ assignees: ''
 1. What board are you using? (Choose from the list of boards [here](https://github.com/eganonoa/heads/tree/master/boards))
 
 2. Does your computer have a dGPU or is it iGPU-only?
-    - [ ] dGPU (Distinct GPU other then internal gPU)
+    - [ ] dGPU (Distinct GPU other then internal GPU)
     - [ ] iGPU-only (Internal GPU, normally Intel GPU)
 
 3. Who installed Heads on this computer?
