@@ -75,14 +75,16 @@
           canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
         })
         # Packages for qemu support with Canokey integration from previous override
-        #qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
-        qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
-        qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
+        qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
+        #qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
+        #qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
       ] ++ [
         # Additional tools for debugging/editing/testing.
         vim # Mostly used amongst us, sorry if you'd like something else, open issue.
         swtpm # QEMU requirement to emulate tpm1/tpm2.
         dosfstools # QEMU requirement to produce valid fs to store exported public key to be fused through inject_key on qemu (so qemu flashrom emulated SPI support).
+        diffoscopeMinimal # Not sure exactly what is packed here, let's try.
+        gnupg #to inject public key inside of qemu create rom through inject_gpg target of targets/qemu.mk TODO: remove when pflash supported by flashrom
         #diffoscope #should we include it? Massive:11 GB uncompressed. Wow?!?!
       ] ++ [
         # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
