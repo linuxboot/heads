@@ -1,10 +1,10 @@
 modules-$(CONFIG_GPG2) += gpg2
 
-gpg2_version := 2.4.2
+gpg2_version := 2.4.0
 gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2
 gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
-gpg2_hash := 97eb47df8ae5a3ff744f868005a090da5ab45cb48ee9836dbf5ee739a4e5cf49
+gpg2_hash := 1d79158dd01d992431dd2e3facb89fdac97127f89784ea2cb610c600fb0c1483
 gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 
 # For reproducibility reasons we have to override the exec_prefix
