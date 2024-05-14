@@ -16,11 +16,7 @@ assignees: ''
 - [ ] Other (please specify)
 
 **3. What version of coreboot are you trying to build**
-- [ ] 4.13
-- [ ] 4.14
-- [ ] 4.15
-- [ ] 4.17
-- [ ] Other (please specify)
+{Please provide github commit ID, or once flashed, the information found under System Information for version}
 
 **4. In building the rom where did you get the blobs?**
 - [ ] No blobs required
