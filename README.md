@@ -97,6 +97,10 @@ Maintenance notes on docker image
 Redo the steps above in case the flake.nix or nix.lock changes. Then publish on docker hub:
 
 ```
+docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:vx.y.z
+docker push tlaurion/heads-dev-env:vx.y.z
+#test against CircleCI in PR. Merge.
+#make last version the latest
 docker tag tlaurion/heads-dev-env:vx.y.z tlaurion/heads-dev-env:latest
 docker push tlaurion/heads-dev-env:latest
 ```
