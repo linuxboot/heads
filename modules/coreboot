@@ -88,20 +88,18 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := 0d57cff58fba2f3a4d3a714a4eae65753e58c6ff
 $(eval $(call coreboot_module,purism,))
 
-#Nitrokey nv41/ns50 are based on Dasharo coreboot port,
-# with patches staging under coreboot-clevo_release
-coreboot-nitrokey_repo := https://github.com/dasharo/coreboot
-coreboot-nitrokey_commit_hash := 1bcb338682b612cfcca8bba02846f78139b2e0c8
-coreboot-nitrokey_patch_version := clevo_release
-#We use clevo_release's crossgcc for now, unshared but between nitropad nv41/ns50
-$(eval $(call coreboot_module,nitrokey,))
+# MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
+coreboot-dasharo_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
+coreboot-dasharo_patch_version := unreleased
+$(eval $(call coreboot_module,dasharo,))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
 else ifeq "$(coreboot-$(CONFIG_COREBOOT_VERSION)_dir)" ""
 	$(error "$(BOARD): coreboot version $(CONFIG_COREBOOT_VERSION) not known")
-endif 
+endif
 
 coreboot_module := coreboot-$(CONFIG_COREBOOT_VERSION)
 modules-y += $(coreboot_module)
@@ -110,11 +108,12 @@ coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
-$(coreboot_module)_depends += $(if $(CONFIG_NITROKEY_BLOBS), nitrokey-blobs)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
 CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
+CONFIG_COREBOOT_LOCALVERSION ?= "$(BRAND_NAME)-$(HEADS_GIT_VERSION)"
+CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME ?= $(BOARD)
 
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
@@ -137,11 +136,17 @@ else
 endif
 
 $(coreboot_module)_configure := \
-	mkdir -p "$(build)/$(coreboot_dir)" \
-	&& $(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config) \
-	&& echo 'CONFIG_LOCALVERSION="$(BRAND_NAME)-$(HEADS_GIT_VERSION)"' >> $(build)/$(coreboot_dir)/.config \
-	&& echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(BOARD)"' >> $(build)/$(coreboot_dir)/.config \
-	&& $(MAKE) olddefconfig \
+	mkdir -p "$(build)/$(coreboot_dir)"; \
+	$(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config); \
+	sed -i '/^CONFIG_LOCALVERSION/d' $(build)/$(coreboot_dir)/.config; \
+	echo 'CONFIG_LOCALVERSION=$(CONFIG_COREBOOT_LOCALVERSION)' >> $(build)/$(coreboot_dir)/.config; \
+	sed -i '/^CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME/d' $(build)/$(coreboot_dir)/.config; \
+	echo 'CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME="$(CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME)"' >> $(build)/$(coreboot_dir)/.config; \
+	if [ ! -z "$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)" ]; then \
+		sed -i '/^CONFIG_MAINBOARD_SMBIOS_MANUFACTURER/d' $(build)/$(coreboot_dir)/.config; \
+		echo 'CONFIG_MAINBOARD_SMBIOS_MANUFACTURER="$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)"' >> $(build)/$(coreboot_dir)/.config; \
+	fi; \
+	$(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
@@ -249,7 +254,7 @@ coreboot.save_in_defconfig_format_in_place:
  		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		savedefconfig && \
 	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
-	
+
 coreboot.save_in_oldconfig_format_in_place:
 	mkdir -p "$(build)/$(coreboot_dir)" && \
 	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
