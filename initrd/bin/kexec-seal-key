@@ -6,20 +6,20 @@ set -e -o pipefail
 . /etc/functions
 
 find_drk_key_slot() {
-    local temp_drk_key_slot=""
-    local keyslot
+	local temp_drk_key_slot=""
+	local keyslot
 
-    for keyslot in "${luks_used_keyslots[@]}"; do
-        if [ -z "$temp_drk_key_slot" ]; then
-            if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
-                temp_drk_key_slot="$keyslot"
-                DEBUG "DRK slot is $temp_drk_key_slot and key slot is $keyslot"
-                break
-            fi
-        fi
-    done
+	for keyslot in "${luks_used_keyslots[@]}"; do
+		if [ -z "$temp_drk_key_slot" ]; then
+			if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
+				temp_drk_key_slot="$keyslot"
+				DEBUG "DRK slot is $temp_drk_key_slot and key slot is $keyslot"
+				break
+			fi
+		fi
+	done
 
-    echo "$temp_drk_key_slot"
+	echo "$temp_drk_key_slot"
 }
 
 TPM_INDEX=3
@@ -131,17 +131,17 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	fi
 
 	if [ "$luks_version" == "2" ]; then
-		#keyslot is the last slot for LUKSv2 which is 31
+		# keyslot is the last slot for LUKSv2 which is 31
 		duk_keyslot=31
-		regex="([0-9]+): luks2"
-		sed_command="s/\([0-9]+\): luks2/\1/"
+		regex="^\s+([0-9]+):\s*luks2"
+		sed_command="s/^\s\+\([0-9]\+\):\s*luks2/\1/g"
 		previous_luks_header_version=2
 		DEBUG "LUKSv2 device detected for $dev"
 	elif [ "$luks_version" == "1" ]; then
-		#keyslot is the last slot for LUKSv1 which is 7
+		# keyslot is the last slot for LUKSv1 which is 7
 		duk_keyslot=7
 		regex="Key Slot ([0-9]+): ENABLED"
-		sed_command='s/Key Slot ([0-9]+): ENABLED/\1/'
+		sed_command='s/Key Slot \([0-9]\+\): ENABLED/\1/'
 		previous_luks_header_version=1
 		DEBUG "LUKSv1 device detected for $dev"
 	else
@@ -152,7 +152,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	drk_key_slot="-1"
 
 	TRACE_FUNC
-	luks_used_keyslots=( $(cryptsetup luksDump "$dev" | grep -E "$regex" | sed -r "$sed_command") )
+	luks_used_keyslots=($(cryptsetup luksDump "$dev" | grep -E "$regex" | sed "$sed_command"))
 	DEBUG "LUKS key slots for $dev: ${luks_used_keyslots[*]}"
 	TRACE_FUNC
 
@@ -190,7 +190,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 				wipe_desired="yes"
 			fi
 
-			if [ "$wipe_desired" == "yes" ]; then
+			if [ "$wipe_desired" == "yes" ] && [ "$keyslot" != "$drk_key_slot" ]; then
 				echo "++++++ $dev: Wiping LUKS key-slot $keyslot"
 				DO_WITH_DEBUG cryptsetup luksKillSlot \
 					--key-file "$DISK_RECOVERY_KEY_FILE" \
