@@ -23,6 +23,6 @@ newt_libraries := \
 newt_configure := \
 	./autogen.sh && CFLAGS="-Os" ./configure \
 	$(CROSS_TOOLS) \
-	--prefix "/" \
 	--host $(MUSL_ARCH)-elf-linux \
+	--prefix "/" \
 	--without-tcl

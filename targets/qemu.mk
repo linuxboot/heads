@@ -16,7 +16,7 @@ endif
 
 ifeq "$(CONFIG_TPM2_TSS)" "y"
 SWTPM_TPMVER := --tpm2
-SWTPM_PRESETUP := swtpm_setup --create-config-files skip-if-exist
+SWTPM_PRESETUP := swtpm_setup --create-config-files root skip-if-exist
 else
 # TPM1 is the default
 SWTPM_TPMVER :=
@@ -26,6 +26,7 @@ endif
 
 #borrowed from https://github.com/orangecms/webboot/blob/boot-via-qemu/run-webboot.sh
 TPMDIR=$(build)/$(BOARD)/vtpm
+CANOKEY_DIR=$(build)/$(BOARD)
 $(TPMDIR)/.manufacture:
 	mkdir -p "$(TPMDIR)"
 	$(SWTPM_PRESETUP)
@@ -74,6 +75,10 @@ else ifeq "$(USB_TOKEN)" "LibremKey"
 QEMU_USB_TOKEN_DEV := -device usb-host,vendorid=12653,productid=19531
 else ifneq "$(USB_TOKEN)" ""
 QEMU_USB_TOKEN_DEV := -device "usb-host,$(USB_TOKEN)"
+# If no USB token is specified, support canokey by default
+else
+# official instruction -usb -device canokey,file=$HOME/.canokey-file -device canokey
+QEMU_USB_TOKEN_DEV := -usb -device canokey,file=$(CANOKEY_DIR)/.canokey-file
 endif
 
 run: $(TPMDIR)/.manufacture $(ROOT_DISK_IMG) $(MEMORY_SIZE_FILE) $(USB_FD_IMG)

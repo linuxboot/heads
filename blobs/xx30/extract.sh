@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 function printusage {
   echo "Usage: $0 -f <romdump> -m <me_cleaner>(optional) -i <ifdtool>(optional)"
