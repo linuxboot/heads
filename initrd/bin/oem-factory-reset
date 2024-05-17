@@ -38,8 +38,9 @@ MAX_HOTP_GPG_PIN_LENGTH=25
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
 # Default GPG Algorithm is RSA
+# p256 also supported (TODO: nk3 supports RSA 4096 in secure element in firmare v1.7.1. Switch!?
 GPG_ALGO="RSA"
-# Default RSA key length
+# Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
 RSA_KEY_LENGTH=3072
 
 GPG_USER_NAME="OEM Key"
@@ -85,12 +86,11 @@ mount_boot() {
     fi
 }
 
-#Generate a gpg master key: no expiration date, RSA 4096 bits
+#Generate a gpg master key: no expiration date, ${RSA_KEY_LENGTH} bits
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_RSA_master_and_subkeys() {
     TRACE_FUNC
-    echo "Generating GPG key material in memory:"
 
     echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits master key..."
     # Generate GPG master key
@@ -104,7 +104,7 @@ generate_inmemory_RSA_master_and_subkeys() {
         echo "Expire-Date: 0"                    # No expiration date
         echo "Passphrase: ${ADMIN_PIN}"          # Admin PIN
         echo "%commit"                           # Commit changes
-    } | gpg --command-fd=0 --status-fd=1 --batch --gen-key >/tmp/gpg_card_edit_output 2>&1
+    } | DO_WITH_DEBUG gpg --expert --batch --command-fd=0 --status-fd=1 --pinentry-mode=loopback --generate-key >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key generation failed!\n\n$ERROR"
@@ -120,7 +120,7 @@ generate_inmemory_RSA_master_and_subkeys() {
         echo ${ADMIN_PIN}      # Local keyring admin pin
         echo y                 # confirm
         echo save              # save changes and commit to keyring
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -137,7 +137,7 @@ generate_inmemory_RSA_master_and_subkeys() {
         echo ${ADMIN_PIN}      # Local keyring admin pin
         echo y                 # confirm
         echo save              # save changes and commit to keyring
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -161,25 +161,11 @@ generate_inmemory_RSA_master_and_subkeys() {
         echo ${ADMIN_PIN}      # Local keyring admin pin
         echo y                 # confirm
         echo save              # save changes and commit to keyring
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --expert --edit-key "${GPG_USER_MAIL}" \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --expert --edit-key "${GPG_USER_MAIL}" \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key authentication subkey generation failed!\n\n$ERROR"
-    fi
-
-    DEBUG "Setting public key to ultimate trust..."
-    #Set the public key to the ultimate trust
-    {
-        echo trust # trust key in --edit-key mode
-        echo 5     # ultimate trust
-        echo y     # confirm
-        echo save  # save changes and commit to keyring
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
-        >/tmp/gpg_card_edit_output 2>&1
-    if [ $? -ne 0 ]; then
-        ERROR=$(cat /tmp/gpg_card_edit_output)
-        whiptail_error_die "GPG Key setting public key to ultimate trust failed!\n\n$ERROR"
     fi
 }
 
@@ -200,7 +186,7 @@ generate_inmemory_p256_master_and_subkeys() {
         echo "Passphrase: ${ADMIN_PIN}"          # Local keyring admin pin
         echo "Expire-Date: 0"                    # No expiration date
         echo "%commit"                           # Commit changes
-    } | gpg --expert --batch --command-fd=0 --status-fd=1 --pinentry-mode=loopback --generate-key \
+    } | DO_WITH_DEBUG gpg --expert --batch --command-fd=0 --status-fd=1 --pinentry-mode=loopback --generate-key \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -216,10 +202,10 @@ generate_inmemory_p256_master_and_subkeys() {
         echo 11           # ECC own set capability
         echo Q            # sign already present, do not modify
         echo 3            # P-256
-        echo 0            # no expiration
+        echo 0            # No validity/expiration date
         echo ${ADMIN_PIN} # Local keyring admin pin
         echo save         # save changes and commit to keyring
-    } | gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    } | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
@@ -231,10 +217,10 @@ generate_inmemory_p256_master_and_subkeys() {
         echo 12           # ECC own set capability
         echo Q            # Quit
         echo 3            # P-256
-        echo 0            # no expiration
+        echo 0            # No validity/expiration date
         echo ${ADMIN_PIN} # Local keyring admin pin
         echo save         # save changes and commit to keyring
-    } | gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    } | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
@@ -251,7 +237,7 @@ generate_inmemory_p256_master_and_subkeys() {
         echo 0            # no expiration
         echo ${ADMIN_PIN} # Local keyring admin pin
         echo save         # save changes and commit to keyring
-    } | gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+    } | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
@@ -297,7 +283,7 @@ keytocard_subkeys_to_smartcard() {
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "key 3"            #Toggle off Authentication key
         echo "save"             #Save changes and commit to keyring
-    } | gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
+    } | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -488,7 +474,7 @@ gpg_key_factory_reset() {
         echo factory-reset # factory reset smartcard
         echo y             # confirm
         echo yes           # confirm
-    } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -508,7 +494,7 @@ gpg_key_factory_reset() {
             echo admin            # admin menu
             echo forcesig         # toggle forcesig
             echo ${ADMIN_PIN_DEF} # local keyring PIN
-        } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+        } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
             >/tmp/gpg_card_edit_output 2>&1
         if [ $? -ne 0 ]; then
             ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -529,7 +515,7 @@ gpg_key_factory_reset() {
             echo 2                # ECC
             echo 3                # P-256
             echo ${ADMIN_PIN_DEF} # local keyring PIN
-        } | gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+        } | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
             >/tmp/gpg_card_edit_output 2>&1
         if [ $? -ne 0 ]; then
             ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -551,7 +537,7 @@ gpg_key_factory_reset() {
             echo 1                 # RSA
             echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
             echo ${ADMIN_PIN_DEF}  #Local keyring PIN
-        } | gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
+        } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
             >/tmp/gpg_card_edit_output 2>&1
         if [ $? -ne 0 ]; then
             ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -581,7 +567,7 @@ generate_OEM_gpg_keys() {
         echo ${GPG_USER_MAIL}    # User email
         echo ${GPG_USER_COMMENT} # User comment
         echo ${USER_PIN_DEF}     # Default user PIN since we just factory reset
-    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
@@ -608,7 +594,7 @@ gpg_key_change_pin() {
         echo ${PIN_NEW}  # confirm new PIN
         echo q           # quit
         echo q
-    } | gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
+    } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         >/tmp/gpg_card_edit_output 2>&1
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output | fold -s)
@@ -686,7 +672,7 @@ generate_checksums() {
     fi
 
     DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
-    if sha256sum $param_files 2>/dev/null | gpg \
+    if sha256sum $param_files 2>/dev/null | DO_WITH_DEBUG gpg \
         --pinentry-mode loopback \
         --passphrase "${USER_PIN}" \
         --digest-algo SHA256 \
@@ -1142,7 +1128,7 @@ assert_signable
 # clear gpg-agent cache so that next gpg calls doesn't have past keyring in memory
 killall gpg-agent >/dev/null 2>&1 || true
 # clear local keyring
-rm -rf /.gnupg/* >/dev/null 2>&1 || true
+rm -rf /.gnupg/*.kbx /.gnupg/*.gpg >/dev/null 2>&1 || true
 
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
@@ -1242,7 +1228,7 @@ if [ "$GPG_EXPORT" != "0" ]; then
 fi
 
 # ensure key imported locally
-if ! cat "$PUBKEY" | gpg --import >/dev/null 2>/tmp/error; then
+if ! cat "$PUBKEY" | DO_WITH_DEBUG gpg --import >/dev/null 2>/tmp/error; then
     ERROR=$(tail -n 1 /tmp/error | fold -s)
     whiptail_error_die "Error importing GPG key:\n\n$ERROR"
 fi
