@@ -133,8 +133,8 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	if [ "$luks_version" == "2" ]; then
 		#keyslot is the last slot for LUKSv2 which is 31
 		duk_keyslot=31
-		regex="^  ([0-9]+): luks2$"
-		sed_command="s/^  \([0-9]+\): luks2/\1/"
+		regex="([0-9]+): luks2"
+		sed_command="s/\([0-9]+\): luks2/\1/"
 		previous_luks_header_version=2
 		DEBUG "LUKSv2 device detected for $dev"
 	elif [ "$luks_version" == "1" ]; then
