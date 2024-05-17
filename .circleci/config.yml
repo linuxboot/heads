@@ -45,7 +45,7 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: tlaurion/heads-dev-env:v0.1.6
+      - image: tlaurion/heads-dev-env:v0.1.8
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -111,7 +111,7 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: tlaurion/heads-dev-env:v0.1.6
+      - image: tlaurion/heads-dev-env:v0.1.8
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -139,7 +139,7 @@ jobs:
 
   build:
     docker:
-      - image: tlaurion/heads-dev-env:v0.1.6
+      - image: tlaurion/heads-dev-env:v0.1.8
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -160,7 +160,7 @@ jobs:
 
   save_cache:
     docker:
-      - image: tlaurion/heads-dev-env:v0.1.6
+      - image: tlaurion/heads-dev-env:v0.1.8
     resource_class: large
     working_directory: ~/heads
     steps:
