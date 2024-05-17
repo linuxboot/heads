@@ -5,6 +5,23 @@
 set -e -o pipefail
 . /etc/functions
 
+find_drk_key_slot() {
+    local temp_drk_key_slot=""
+    local keyslot
+
+    for keyslot in "${luks_used_keyslots[@]}"; do
+        if [ -z "$temp_drk_key_slot" ]; then
+            if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
+                temp_drk_key_slot="$keyslot"
+                DEBUG "DRK slot is $temp_drk_key_slot and key slot is $keyslot"
+                break
+            fi
+        fi
+    done
+
+    echo "$temp_drk_key_slot"
+}
+
 TPM_INDEX=3
 TPM_SIZE=312
 DUK_KEY_FILE="/tmp/secret/secret.key"
@@ -44,7 +61,6 @@ fi
 
 DEBUG "$(pcrs)"
 
-
 for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	attempts=0
 	while [ $attempts -lt 3 ]; do
@@ -53,7 +69,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		echo
 
 		DEBUG "Testing $DISK_RECOVERY_KEY_FILE keyfile created from provided passphrase against $dev"
-		if cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE"; then
+		if cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
 			DEBUG "LUKS device $dev unlocked successfully with the provided passphrase"
 			break
 		else
@@ -100,7 +116,7 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	# Test the recovery key against the device before going any further
 	DEBUG "Testing $DISK_RECOVERY_KEY_FILE keyfile created from provided passphrase against $dev"
 	if ! cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE"; then
-		rm "$DISK_RECOVERY_KEY_FILE"		
+		rm "$DISK_RECOVERY_KEY_FILE"
 		die "$dev: Unable to unlock LUKS device $dev with the provided passphrase. Exiting..."
 	fi
 	DEBUG "LUKS device $dev unlocked successfully with the provided passphrase"
@@ -113,13 +129,12 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	if [ $luks_version -eq 1 ] && [ $previous_luks_header_version -eq 2 ]; then
 		die "$dev: LUKSv1 device detected but LUKSv2 device was detected previously. Exiting..."
 	fi
-	
+
 	if [ "$luks_version" == "2" ]; then
 		#keyslot is the last slot for LUKSv2 which is 31
 		duk_keyslot=31
 		regex="^  ([0-9]+): luks2$"
-		sed_command="s/^  \([0-9]+\): luks2$/\1/"
-
+		sed_command="s/^  \([0-9]+\): luks2/\1/"
 		previous_luks_header_version=2
 		DEBUG "LUKSv2 device detected for $dev"
 	elif [ "$luks_version" == "1" ]; then
@@ -134,52 +149,47 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 	fi
 
 	# drk_key_slot will be the slot number where the passphrase was tested against as valid. We will keep that slot
-	drk_key_slot=-1
+	drk_key_slot="-1"
 
 	TRACE_FUNC
-	luksDump=$(cryptsetup luksDump "$dev" | grep -E "$regex" | sed -r "$sed_command") 
-	DEBUG "LUKS key slots for $dev: $luksDump"
+	luks_used_keyslots=( $(cryptsetup luksDump "$dev" | grep -E "$regex" | sed -r "$sed_command") )
+	DEBUG "LUKS key slots for $dev: ${luks_used_keyslots[*]}"
 	TRACE_FUNC
 
-	# test each possible existing key slot of dev against keyfile $DISK_RECOVERY_KEY_FILE
-	for slot in $luksDump; do
-		if [ "$drk_key_slot" == "-1" ]; then
-			if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot $keyslot --key-file "$DISK_RECOVERY_KEY_FILE" $dev; then
-				drk_key_slot="$keyslot"
-				DEBUG "DRK slot is $drk_key_slot and key slot is $keyslot"
-				break;
-			fi
-		fi
-	done
+	# Assign the temporary variable to drk_key_slot after the loop
+	drk_key_slot=$(find_drk_key_slot)
 
-	# if we didn't find the DRK key slot, we can't continue
+	#if we didn't find the DRK key slot, we can't continue (we should not arrive here)
 	if [ "$drk_key_slot" == "-1" ]; then
 		die "$dev: Unable to find the key slot where the passphrase was tested against as valid. Exiting..."
 	fi
 
-
 	# if we found the DRK key slot, we wipe all the other slots on current $dev
-	for slot in $luksDump; do
+	for keyslot in "${luks_used_keyslots[@]}"; do
 		if [ "$keyslot" != "$drk_key_slot" ]; then
 			#set wipe_desired to no by default
 			wipe_desired="no"
-			DEBUG "wipe not desired for dev $dev's key slot $keyslot while DRK slot is $drk_key_slot"
 
-			if [ "$keyslot" -ne "1" ] && [ "$keyslot" != "$drk_key_slot" ]; then
-				# Heads expects key-slot LUKSv1:7 or LUKSv2:31 to be used for TPM DUK setup. 
+			if [ "$keyslot" != "$drk_key_slot" ] && [ "$keyslot" == "1" ]; then
+				# If keyslot is 1 (earlier DUK fixated behavior) or LUKsv1:7/LUKSv2:31
+				#  we wipe it without asking since not DRK's good keyslot.
+				wipe_desired="yes"
+				DEBUG "LUKS keyslot $keyslot not DRK. Will wipe this DUK keyslot silently"
+			elif [ "$keyslot" != "$drk_key_slot" ] && [ "$keyslot" != "$duk_keyslot" ]; then
+				# Heads expects key-slot LUKSv1:7 or LUKSv2:31 to be used for TPM DUK setup.
 				#Ask user to confirm with big fat warning otherwise
-				read -p "WARNING: LUKS key-slot $keyslot is not typically used for TPM Disk Unlock Key setup. Are you sure you want to wipe it? [y/N] " -n 1 -r
+				read -p "WARNING: LUKS key-slot $keyslot is not typical ($duk_keyslot expected) for TPM Disk Unlock Key setup. Are you sure you want to wipe it? [y/N] " -n 1 -r
 				echo
 				# If user does not confirm, skip this slot
 				if [[ $REPLY =~ ^[Yy]$ ]]; then
 					wipe_desired="yes"
 				fi
-			else
-				# If key slot is 1 (prior behavior) or LUKsv1:7 LUKSv2:31, we wipe it without asking since not DRK's good keyslot
+			elif [ "$keyslot" == "$duk_keyslot" ]; then
+				# If keyslot is the expected DUK keyslot, we wipe it silently
+				DEBUG "LUKS keyslot $keyslot is the expected DUK keyslot. Will wipe this DUK keyslot silently"
 				wipe_desired="yes"
-				DEBUG "wipe key desired for $keyslot"
 			fi
-			
+
 			if [ "$wipe_desired" == "yes" ]; then
 				echo "++++++ $dev: Wiping LUKS key-slot $keyslot"
 				DO_WITH_DEBUG cryptsetup luksKillSlot \
