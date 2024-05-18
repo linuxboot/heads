@@ -41,7 +41,7 @@ CUSTOM_PASS_AFFECTED_COMPONENTS=""
 # p256 also supported (TODO: nk3 supports RSA 4096 in secure element in firmare v1.7.1. Switch!?
 GPG_ALGO="RSA"
 # Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
-RSA_KEY_LENGTH=3072
+RSA_KEY_LENGTH=2048 #TODO REVERT
 
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
