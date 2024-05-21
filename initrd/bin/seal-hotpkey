@@ -138,12 +138,16 @@ if [ "$admin_pin_status" -ne 0 ]; then
     if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
       # don't leak key on failure
       shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
-      fatal_error "Setting HOTP secret failed"
+      if [ "$HOTPKEY_BRANDING" == "Nitrokey" ]; then
+	fatal_error "Setting HOTP secret failed, to reset nitrokey pin use: nitropy nk3 secrets reset or the Nitrokey App 2"
+      else
+	fatal_error "Setting HOTP secret failed"
+      fi
     fi
   fi
 else 
   # remind user to change admin password
-  echo -e "\nWARNING: default GPG admin PIN detected: please change this as soon as possible."
+  echo -e "\nWARNING: default admin PIN detected: please change this as soon as possible."
 fi
 
 # HOTP key no longer needed
