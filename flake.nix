@@ -70,12 +70,12 @@
         zlib.dev
       ] ++ [
 	# Below are overrides to make canokey-qemu library available to qemu built derivative through a qemu override, which qemu is used for other derivatives
-        canokey-qemu # Canokey lib for qemu build-time compilation.
-        (qemu.override {
-          canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
-        })
+        #canokey-qemu # Canokey lib for qemu build-time compilation.
+        #(qemu.override {
+        #  canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
+        #})
         # Packages for qemu support with Canokey integration from previous override
-        qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
+        qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development/testing cycles under docker
         #qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
         #qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
       ] ++ [
@@ -86,6 +86,7 @@
         diffoscopeMinimal # Not sure exactly what is packed here, let's try.
         gnupg #to inject public key inside of qemu create rom through inject_gpg target of targets/qemu.mk TODO: remove when pflash supported by flashrom
         #diffoscope #should we include it? Massive:11 GB uncompressed. Wow?!?!
+        less # so 'git log' is usable
       ] ++ [
         # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
         bundler
