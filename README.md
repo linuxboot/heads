@@ -94,15 +94,37 @@ docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd
 
 Maintenance notes on docker image
 ===
-Redo the steps above in case the flake.nix or nix.lock changes. Then publish on docker hub:
+Redo the steps above in case the flake.nix or nix.lock changes. Commit changes. Then publish on docker hub:
 
 ```
-docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:vx.y.z
-docker push tlaurion/heads-dev-env:vx.y.z
-#test against CircleCI in PR. Merge.
-#make last version the latest
-docker tag tlaurion/heads-dev-env:vx.y.z tlaurion/heads-dev-env:latest
-docker push tlaurion/heads-dev-env:latest
+#put relevant things in variables:
+docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env"
+#update pinned packages to latest available ones if needed, modify flake.nix derivatives if needed:
+nix flakes update
+#modify CircleCI image to use newly pushed docker image
+sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml
+# commit changes
+git commit --signoff -m "Bump nix develop based docker image to $docker_hub_repo:$docker_version"
+#use commited flake.nix and flake.lock in nix develop
+nix --print-build-logs --verbose develop --ignore-environment --command true
+#build new docker image from nix develop environement
+nix build .#dockerImage && docker load < result
+#tag produced docker image with new version
+docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version"
+#push newly created docker image to docker hub
+docker push "$docker_hub_repo:$docker_version"
+#test with CircleCI in PR. Merge.
+git push ...
+#make last tested docker image version the latest
+docker tag "$docker_hub_repo:$docker_version" "$docker_hub_repo:latest"
+docker push "$docker_hub_repo:latest"
+```
+
+This can be put in reproducible oneliners to ease maintainership.
+
+Test image in dirty mode:
+```
+docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env" && sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml && nix --print-build-logs --verbose develop --ignore-environment --command true && nix build .#dockerImage && docker load < result && docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version" && docker push "$docker_hub_repo:$docker_version"
 ```
 
 Notes:
