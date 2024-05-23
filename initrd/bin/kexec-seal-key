@@ -192,15 +192,13 @@ for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
 		fi
 	done
 
-	# We then add the new key to the luks key slot LUKSv1:7 or LUKSv2:31
-	for dev in $(cat "$KEY_DEVICES" | cut -d\  -f1); do
-		echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS key-slot $duk_keyslot"
-		DO_WITH_DEBUG cryptsetup luksAddKey \
-			--key-file "$DISK_RECOVERY_KEY_FILE" \
-			--new-key-slot $duk_keyslot \
-			$dev "$DUK_KEY_FILE" ||
-			die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key-slot $duk_keyslot"
-	done
+
+	echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS key-slot $duk_keyslot"
+	DO_WITH_DEBUG cryptsetup luksAddKey \
+		--key-file "$DISK_RECOVERY_KEY_FILE" \
+		--new-key-slot $duk_keyslot \
+		$dev "$DUK_KEY_FILE" ||
+		die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key-slot $duk_keyslot"
 done
 
 # Now that we have setup the new keys, measure the PCRs
