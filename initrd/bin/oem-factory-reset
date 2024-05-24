@@ -265,20 +265,20 @@ keytocard_subkeys_to_smartcard() {
     {
         echo "key 1"            #Toggle on Signature key in --edit-key mode on local keyring
         echo "keytocard"        #Move Signature key to smartcard
-        echo "1"                #Select Signature key keyslot on smartcard
+        echo "1"                #Select Signature key key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "0"                #No expiration date
         echo "key 1"            #Toggle off Signature key
         echo "key 2"            #Toggle on Encryption key
         echo "keytocard"        #Move Encryption key to smartcard
-        echo "2"                #Select Encryption key keyslot on smartcard
+        echo "2"                #Select Encryption key key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "key 2"            #Toggle off Encryption key
         echo "key 3"            #Toggle on Authentication key
         echo "keytocard"        #Move Authentication key to smartcard
-        echo "3"                #Select Authentication key keyslot on smartcard
+        echo "3"                #Select Authentication key key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "key 3"            #Toggle off Authentication key

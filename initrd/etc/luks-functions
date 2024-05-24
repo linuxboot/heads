@@ -370,7 +370,7 @@ luks_reencrypt() {
 			fi
 		done
 
-		#Validate if a key-slot was found
+		#Validate if a key slot was found
 		if [ $DRK_KEYSLOT -eq -1 ]; then
 			whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
 				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
@@ -387,7 +387,7 @@ luks_reencrypt() {
 			continue
 		fi
 
-		#now reencrypt the LUKS container with the same key-slot
+		#now reencrypt the LUKS container with the same key slot
 		cryptsetup reencrypt --key-slot $DRK_KEYSLOT \
 			--perf-no_read_workqueue --perf-no_write_workqueue \
 			--resilience=none --force-offline-reencrypt --disable-locks \
