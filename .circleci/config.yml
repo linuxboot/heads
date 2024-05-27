@@ -237,6 +237,14 @@ workflows:
           requires:
             - x86-musl-cross-make
 
+      # coreboot-git mrchromebox
+      - build:
+          name: omnigul
+          target: omnigul
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
       # coreboot purism
       - build_and_persist:
           name: librem_14
