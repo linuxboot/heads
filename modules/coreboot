@@ -91,6 +91,11 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,24.02.01))
 
+# MrChromebox is based on 4.22, but focusing on Chromebooks / Chromeboxes.
+coreboot-mrchromebox_repo := https://github.com/MrChromebox/coreboot.git
+coreboot-mrchromebox_commit_hash := 9071e69522e38bef841253dc5970ca6b806d2e55
+$(eval $(call coreboot_module,mrchromebox,))
+
 # MSI and NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
 # coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
