@@ -343,6 +343,7 @@ test_luks_current_disk_recovery_key_passphrase()
 
 luks_reencrypt() {
 	TRACE_FUNC
+	#TODO: REFACTOR This and luks passphrase change function needs to loop on same drive discovered luks containers so that reencrypt/passwd change is done on all luks containers of same drive 
 	while :; do
 		select_luks_container || return 1
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
