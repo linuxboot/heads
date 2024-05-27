@@ -88,6 +88,11 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := 0d57cff58fba2f3a4d3a714a4eae65753e58c6ff
 $(eval $(call coreboot_module,purism,))
 
+# MrChromebox is based on 4.22, but focusing on Chromebooks / Chromeboxes.
+coreboot-mrchromebox_repo := https://github.com/MrChromebox/coreboot.git
+coreboot-mrchromebox_commit_hash := 9071e69522e38bef841253dc5970ca6b806d2e55
+$(eval $(call coreboot_module,mrchromebox,))
+
 # MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
