@@ -467,6 +467,14 @@ workflows:
           requires:
             - librem_14
 
+      # coreboot-git mrchromebox
+      - build:
+          name: omnigul
+          target: omnigul
+          subcommand: ""
+          requires:
+            - prep_env
+
       # dasharo release
       - build:
           name: nitropad-ns50
