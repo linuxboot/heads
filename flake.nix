@@ -41,24 +41,24 @@
         flex
         gawk
         git
-        gnat
+        gnat # required for libgfxinit under coreboot, hacked around for kgpe-d16
         gnugrep
         gnumake
         gnused
         gnutar
         gzip
-        imagemagick # For bootsplash manipulation.
-        innoextract # ROM extraction for dGPU.
+        imagemagick # For bootsplash manipulation
+        innoextract # ROM extraction for dGPU
         libtool
         m4
         ncurses5 # make menuconfig and slang
-        openssl #needed for talos-2 kernel build
+        openssl # needed for talos-2 kernel build
         parted
         patch
         perl
         pkg-config
-        python3 # me_cleaner, coreboot.
-        rsync # coreboot.
+        python3 # me_cleaner, coreboot
+        rsync # coreboot
         sharutils
         texinfo
         unzip
@@ -69,23 +69,15 @@
         zlib
         zlib.dev
       ] ++ [
-	# Below are overrides to make canokey-qemu library available to qemu built derivative through a qemu override, which qemu is used for other derivatives
-        canokey-qemu # Canokey lib for qemu build-time compilation.
-        (qemu.override {
-          canokeySupport = true; # This override enables Canokey support in QEMU, resulting in -device canokey being available.
-        })
-        # Packages for qemu support with Canokey integration from previous override
-        qemu_full #Heavier but contains qemu-img, kvm and everything else needed to do development cycles under docker
-        #qemu # To test make BOARD=qemu-coreboot-* boards and then call make BOARD=qemu-coreboot-* with inject_gpg statement, and then run statement.
-        #qemu_kvm # kvm additional support for qemu without all the qemu-img and everything else under qemu_full
+        qemu_full #Heavier then qemu + qemu_kvm, but contains qemu-img + kvm and everything else needed to do development/testing cycles under docker
       ] ++ [
-        # Additional tools for debugging/editing/testing.
-        vim # Mostly used amongst us, sorry if you'd like something else, open issue.
-        swtpm # QEMU requirement to emulate tpm1/tpm2.
+        # Additional tools for debugging/editing/testing
+        vim # Mostly used amongst us, sorry if you'd like something else, open issue
+        swtpm # QEMU requirement to emulate tpm1/tpm2
         dosfstools # QEMU requirement to produce valid fs to store exported public key to be fused through inject_key on qemu (so qemu flashrom emulated SPI support).
-        diffoscopeMinimal # Not sure exactly what is packed here, let's try.
-        gnupg #to inject public key inside of qemu create rom through inject_gpg target of targets/qemu.mk TODO: remove when pflash supported by flashrom
-        #diffoscope #should we include it? Massive:11 GB uncompressed. Wow?!?!
+        diffoscopeMinimal # Not sure exactly what is packed here, let's try. Might need diffoscope if something is missing
+        gnupg #to inject public key inside of qemu create rom through inject_gpg target of targets/qemu.mk TODO: remove when pflash supported by flashrom + modify code
+        less # so 'git log' is usable
       ] ++ [
         # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
         bundler
