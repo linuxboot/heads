@@ -275,7 +275,7 @@ select_luks_container()
 		LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt) 
 		DEBUG "LUKS container device: $(echo $LUKS)"
 	# LUKS variable not exported yet, prompt for LUKS device
-	elif [ -z $LUKS ]; then
+	elif [ -z "$LUKS" ]; then
 		list_luks_devices > /tmp/luks_devices.txt
 		#if /tmp/luks_devices.txt exists and is not empty
 		if [ -s /tmp/luks_devices.txt ]; then
@@ -291,7 +291,7 @@ select_luks_container()
 				# and then export them to LUKS variable
 				# then reencrypt and passphrase change functions will loop on all of the LUKS containers
 				# and test passphrase on all of them
-				if [ grep -q $(echo $FILE | sed 's/[0-9]*$//') /tmp/luks_devices.txt ]; then
+				if grep -q "$(echo $FILE | sed 's/[0-9]*$//')" /tmp/luks_devices.txt; then
 					DEBUG "Multiple LUKS containers found on same block device, selecting them all"
 					LUKS=$(grep $(echo $FILE | sed 's/[0-9]*$//') /tmp/luks_devices.txt)
 				else
@@ -379,12 +379,13 @@ luks_reencrypt() {
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
 		fi
 
-		#$LUKS can contain multiple LUKS containers on diffent drives 
-		#Test early for DRK against all LUKS containers to fail early
-		#output test coming and do cryptsetup open call
-		for luks_container in $LUKS; do
+		# Split the $LUKS variable into an array of LUKS containers
+		luks_containers=($LUKS)
+
+		# Loop through each LUKS container
+		for luks_container in "${luks_containers[@]}"; do
 			DEBUG "$luks_container: Testing opening LUKS encrypted drive content with the current LUKS Disk Recovery Key passphrase"
-			DO_WITH_DEBUG cryptsetup open --test-passphrase $luks_container --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+			DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 			#Validate past cryptsetup reencrypt attempts
 			if [ $? -ne 0 ]; then
 				whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
@@ -403,14 +404,10 @@ luks_reencrypt() {
 			fi
 		done
 
-		for luks_container in 
-		#Warn and launch actual reencryption
-		echo -e "\nReencrypting $LUKS LUKS encrypted drive content with current Recovery Disk Key passphrase..."
-		warn "DO NOT POWER DOWN MACHINE, UNPLUG AC OR REMOVE BATTERY DURING REENCRYPTION PROCESS"
-		# fist obtain which luks1/luks2 key-slot can be unlocked with the key-file
+		# first obtain which luks1/luks2 key-slot can be unlocked with the key-file
 		DRK_KEYSLOT=-1
 		for i in $(seq 0 31); do
-			DO_WITH_DEBUG cryptsetup open --test-passphrase $LUKS --key-slot $i --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1
+			DO_WITH_DEBUG cryptsetup open --test-passphrase "$LUKS" --key-slot $i --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				DRK_KEYSLOT=$i
 				break
@@ -434,7 +431,12 @@ luks_reencrypt() {
 			continue
 		fi
 
+		#Warn and launch actual reencryption
+		echo -e "\nReencrypting $LUKS LUKS encrypted drive content with current Recovery Disk Key passphrase..."
+		warn "DO NOT POWER DOWN MACHINE, UNPLUG AC OR REMOVE BATTERY DURING REENCRYPTION PROCESS"
+
 		#now reencrypt the LUKS container with the same key slot
+		#TODO: loop in case of multiple LUKS containers on same block device
 		cryptsetup reencrypt --key-slot $DRK_KEYSLOT \
 			--perf-no_read_workqueue --perf-no_write_workqueue \
 			--resilience=none --force-offline-reencrypt --disable-locks \
