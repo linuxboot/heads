@@ -3,6 +3,7 @@
 set -e -o pipefail
 . /tmp/config
 . /etc/functions
+. /etc/gui_functions
 
 TRACE_FUNC
 
@@ -87,7 +88,7 @@ verify_global_hashes() {
 	else
 		if [ "$gui_menu" = "y" ]; then
 			CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Hash Mismatch' \
+			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 		fi
 		die "$TMP_HASH_FILE: boot hash mismatch"
@@ -103,7 +104,7 @@ verify_global_hashes() {
 		else
 			# root-hashes-gui.sh handles the GUI error menu, just die here
 			if [ "$gui_menu" = "y" ]; then
-				whiptail $BG_COLOR_ERROR --title 'ERROR: Root Hash Mismatch' \
+				whiptail_error --title 'ERROR: Root Hash Mismatch' \
 					--msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
 			fi
 			die "root hash mismatch, see /tmp/hash_output_mismatches for details"
@@ -178,7 +179,7 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
-		whiptail $BG_COLOR_WARNING --title "Confirm boot details" \
+		whiptail_warning --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || die "Aborting boot attempt"
@@ -256,7 +257,7 @@ default_select() {
 	option=$(head -n $default_index $TMP_MENU_FILE | tail -1)
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
-			whiptail $BG_COLOR_ERROR --title 'ERROR: Boot Entry Has Changed' \
+			whiptail_error --title 'ERROR: Boot Entry Has Changed' \
 				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80
 		fi
 		warn "Boot entry has changed - please set a new default"
@@ -274,7 +275,7 @@ default_select() {
 		else
 			if [ "$gui_menu" = "y" ]; then
 				CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-				whiptail $BG_COLOR_ERROR --title 'ERROR: Default Boot Hash Mismatch' \
+				whiptail_error --title 'ERROR: Default Boot Hash Mismatch' \
 					--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 			fi
 		fi

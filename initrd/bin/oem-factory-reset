@@ -5,6 +5,7 @@ set -o pipefail
 
 ## External files sourced
 . /etc/functions
+. /etc/gui_functions
 . /etc/luks-functions
 . /tmp/config
 
@@ -66,7 +67,7 @@ whiptail_error() {
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
-    whiptail $BG_COLOR_ERROR --msgbox "${msg}\n\n" $HEIGHT $WIDTH $BG_COLOR_ERROR --title "Error"
+    whiptail_error --msgbox "${msg}\n\n" $HEIGHT $WIDTH --title "Error"
 }
 
 whiptail_error_die() {
@@ -297,7 +298,7 @@ keytocard_subkeys_to_smartcard() {
 prompt_insert_to_be_wiped_thumb_drive() {
     TRACE_FUNC
     #Whiptail warning about having only desired to be wiped thumb drive inserted
-    whiptail $BG_COLOR_WARNING --title 'WARNING: Please insert the thumb drive to be wiped' \
+    whiptail_warning --title 'WARNING: Please insert the thumb drive to be wiped' \
         --msgbox "The thumb drive will be WIPED next.\n\nPlease connect only the thumb drive to be wiped and disconnect others." 0 80 ||
         die "Error displaying warning about having only desired to be wiped thumb drive inserted"
 }
@@ -773,7 +774,7 @@ report_integrity_measurements() {
             enable_usb
             for attempt in 1 2 3; do
                 if ! hotp_verification info >/dev/null 2>&1; then
-                    whiptail $CONFIG_WARNING_BG_COLOR --title "WARNING: Please insert your HOTP enabled USB Security Dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security Dongle was not detected.\n\nPlease remove it and insert it again." 0 80
+                    whiptail_warning --title "WARNING: Please insert your HOTP enabled USB Security Dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security Dongle was not detected.\n\nPlease remove it and insert it again." 0 80
                 else
                     break
                 fi
@@ -792,11 +793,11 @@ report_integrity_measurements() {
                 ;;
             4)
                 HOTP="Invalid code"
-                MAIN_MENU_BG_COLOR=$CONFIG_ERROR_BG_COLOR
+                BG_COLOR_MAIN_MENU="error"
                 ;;
             *)
                 HOTP="Error checking code, Insert USB Security Dongle and retry"
-                MAIN_MENU_BG_COLOR=$CONFIG_WARNING_BG_COLOR
+                BG_COLOR_MAIN_MENU="warning"
                 ;;
             esac
         else
@@ -813,7 +814,7 @@ report_integrity_measurements() {
         fi
 
         #Show results
-        whiptail $MAIN_MENU_BG_COLOR --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
+        whiptail_type $BG_COLOR_MAIN_MENU --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
     fi
 
     TRACE_FUNC
@@ -855,7 +856,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 else
     TPM_STR=""
 fi
-if ! whiptail --yesno "
+if ! whiptail_warning --yesno "
         This operation will automatically:\n
 $TPM_STR
           * ERASE any keys or passwords on the GPG smart card,\n
@@ -865,7 +866,7 @@ $TPM_STR
           * Sign all of the files in /boot with the new GPG key\n\n
         It requires that you already have an OS installed on a\n
         dedicated /boot partition. Do you wish to continue?" \
-    $HEIGHT $WIDTH $CONTINUE $CANCEL $CLEAR $bg_color --title "$title_text"; then
+    $HEIGHT $WIDTH $CONTINUE $CANCEL $CLEAR --title "$title_text"; then
     exit 1
 fi
 

@@ -129,7 +129,7 @@ interactive_prepare_thumb_drive()
 	if [ -z "$DEVICE" ]; then
 		#warn user to disconnect all external drives
 		if [ -x /bin/whiptail ]; then
-			whiptail $BG_COLOR_WARNING --title "WARNING: Disconnect all external drives" --msgbox \
+			whiptail_warning --title "WARNING: Disconnect all external drives" --msgbox \
 				"WARNING: Please disconnect all external drives before proceeding.\n\nHit Enter to continue." 0 80 \
 				|| die "User cancelled wiping and repartitioning of $DEVICE"
 		else
@@ -206,7 +206,7 @@ confirm_thumb_drive_format()
 
 	MSG="WARNING: Wiping and repartitioning $DEVICE ($DISK_SIZE_DISPLAY) with $LUKS_SIZE_MB MB\n assigned to private LUKS ext4 partition,\n rest assigned to exFAT public partition.\n\nAre you sure you want to continue?"
 	if [ -x /bin/whiptail ]; then
-		whiptail $BG_COLOR_WARNING --title "WARNING: Wiping and repartitioning $DEVICE ($DISK_SIZE_DISPLAY)" --yesno \
+		whiptail_warning --title "WARNING: Wiping and repartitioning $DEVICE ($DISK_SIZE_DISPLAY)" --yesno \
 			"$MSG" 0 80
 	else
 		echo -e -n "$MSG"
