@@ -15,7 +15,7 @@ param=$1
 read_rom() {
   /bin/flash.sh -r "$1"
   if [ ! -s "$1" ]; then
-    whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+    whiptail_error --title 'ERROR: BIOS Read Failed!' \
       --msgbox "Unable to read BIOS" 0 80
     exit 1
   fi
@@ -95,7 +95,7 @@ while true; do
     )
 
     unset menu_choice
-    whiptail $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
+    whiptail_type $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
     --menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
     "${dynamic_config_options[@]}" \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -116,7 +116,7 @@ while true; do
     "b" )
       CURRENT_OPTION="$(load_config_value CONFIG_BOOT_DEV)"
       if ! fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist.txt ; then
-        whiptail $BG_COLOR_ERROR --title 'ERROR: No bootable devices found' \
+        whiptail_error --title 'ERROR: No bootable devices found' \
           --msgbox "    $ERROR\n\n" 0 80
         exit 1
       fi
@@ -147,7 +147,7 @@ while true; do
       # mount newly selected /boot device
       if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error ; then
         ERROR=`cat /tmp/error`
-        whiptail $BG_COLOR_ERROR --title 'ERROR: unable to mount /boot' \
+        whiptail_error --title 'ERROR: unable to mount /boot' \
           --msgbox "    $ERROR\n\n" 0 80
         exit 1
       fi
@@ -175,7 +175,7 @@ while true; do
     ;;
     "r" )
       # prompt for confirmation
-      if (whiptail $BG_COLOR_WARNING --title 'Reset Configuration?' \
+      if (whiptail_warning --title 'Reset Configuration?' \
            --yesno "This will clear all GPG keys, clear boot signatures and checksums,
                   \nreset the /boot device, clear/reset the TPM (if present),
                   \nand reflash your BIOS with the cleaned configuration.
@@ -268,7 +268,7 @@ while true; do
       if [ "$CONFIG_ROOT_CHECK_AT_BOOT" != "y" ]; then
         # Root device and directories must be set to enable this
         if [ -z "$CONFIG_ROOT_DEV" ] || [ -z "$CONFIG_ROOT_DIRLIST" ]; then
-          whiptail $BG_COLOR_ERROR --title 'Root Check Not Configured' \
+          whiptail_error --title 'Root Check Not Configured' \
             --msgbox "Set the root device and directories to hash before enabling this feature." 0 80
         elif (whiptail --title 'Enable Root Hash Check at Boot?' \
              --yesno "This will enable checking root hashes each time you boot.
@@ -305,7 +305,7 @@ while true; do
     ;;
     "P" )
       if [ "$CONFIG_RESTRICTED_BOOT" = "y" ]; then
-          whiptail $BG_COLOR_ERROR --title 'Restricted Boot Active' \
+          whiptail_error --title 'Restricted Boot Active' \
             --msgbox "Disable Restricted Boot to enable Basic Mode." 0 80
       elif [ "$CONFIG_BASIC" != "y" ]; then
         if (whiptail --title "Enable $CONFIG_BRAND_NAME Basic Mode?" \
@@ -365,7 +365,7 @@ while true; do
           # disabled.
           if ! wipe-totp >/dev/null 2>/tmp/error; then
             ERROR=$(tail -n 1 /tmp/error | fold -s)
-            whiptail $BG_COLOR_ERROR --title 'ERROR: erasing TOTP secret' \
+            whiptail_error --title 'ERROR: erasing TOTP secret' \
               --msgbox "Erasing TOTP Secret Failed\n\n${ERROR}" 0 80
             exit 1
           fi
