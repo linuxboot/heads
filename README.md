@@ -48,12 +48,26 @@ Build docker from nix develop layer locally
     * `mkdir -p ~/.config/nix`  
     * `echo 'experimental-features = nix-command flakes' >>~/.config/nix/nix.conf`  
 
+
 #### Build image
 
 * Build nix developer local environment with flakes locked to specified versions  
     * `nix --print-build-logs --verbose develop --ignore-environment --command true`  
-* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:  
+* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image):  
     * `nix build .#dockerImage && docker load < result` 
+
+On some hardened OSes, you may encounter problems with ptrace.
+```
+       > proot error: ptrace(TRACEME): Operation not permitted
+```
+The most likely reason is that your [kernel.yama.ptrace_scope](https://www.kernel.org/doc/Documentation/security/Yama.txt) variable is too high and doesn't allow docker+nix to run properly.
+You'll need to set kernel.yama.ptrace_scope to 1 while you build the heads binary.
+
+```
+sudo sysctl kernel.yama.ptrace_scope #show you the actual value, probably 2 or 3
+sudo sysctl -w kernel.yama.ptrace_scope=1 #setup the value to let nix+docker run properly
+```
+(don't forget to put back the value you had after finishing build head)
 
 Done!
 
