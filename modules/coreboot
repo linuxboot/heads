@@ -82,10 +82,10 @@ coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
 
-# Similarly, purism is based on 4.22.01, but nothing builds against that release
+# Similarly, purism is based on 24.02.01, but nothing builds against that release
 # or any other fork - no benefit to sharing the toolchain yet.
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
-coreboot-purism_commit_hash := 0d12e16886ac41d63cb3d60687866060fa75deee
+coreboot-purism_commit_hash := 93435b9067d30ec84a6c45ca8649cc76913b1cb8
 $(eval $(call coreboot_module,purism,))
 
 # MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
@@ -118,21 +118,19 @@ CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME ?= $(BOARD)
 # Ensure that touching the config file will force a rebuild
 $(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
 
-EXTRA_FLAGS ?= -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -Wno-error=packed-not-aligned -Wno-address-of-packed-member
-
 # Select the coreboot version to use for the toolchain
 ifeq "$($(coreboot_module)_toolchain)" ""
-	# Use the same module
-	coreboot_toolchain_module := $(coreboot_module)
+# Use the same module
+coreboot_toolchain_module := $(coreboot_module)
 else
-	# Use a different module
-	coreboot_toolchain_module := coreboot-$($(coreboot_module)_toolchain)
-	modules-y += $(coreboot_toolchain_module)
-	# The toolchain module won't build anything for this board, we just need
-	# the module prepped so we can hook up the toolchain target
-	$(coreboot_toolchain_module)_output := .nobuild
-	$(coreboot-toolchain_module)_configure := echo -e 'all:\n\ttouch .nobuild' > Makefile.nobuild
-	$(coreboot-toolchain_module)_target := -f Makefile.nobuild
+# Use a different module
+coreboot_toolchain_module := coreboot-$($(coreboot_module)_toolchain)
+modules-y += $(coreboot_toolchain_module)
+# The toolchain module won't build anything for this board, we just need
+# the module prepped so we can hook up the toolchain target
+$(coreboot_toolchain_module)_output := .nobuild
+$(coreboot-toolchain_module)_configure := echo -e 'all:\n\ttouch .nobuild' > Makefile.nobuild
+$(coreboot-toolchain_module)_target := -f Makefile.nobuild
 endif
 
 $(coreboot_module)_configure := \
@@ -151,8 +149,6 @@ $(coreboot_module)_configure := \
 		obj="$(build)/$(coreboot_dir)" \
 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		BUILD_TIMELESS=1 \
-		CFLAGS_x86_32="$(EXTRA_FLAGS)" \
-		CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 
 # Create a dependency from coreboot to the toolchain.  Use .heads-toolchain to
 # mark that the toolchain was built.
@@ -210,8 +206,6 @@ $(coreboot_module)_target := \
 	XGCCPATH="$(build)/$($(coreboot_toolchain_module)_base_dir)/util/crossgcc/xgcc/bin/" \
 	$(COREBOOT_TARGET_CROSS) \
 	BUILD_TIMELESS=1 \
-	CFLAGS_x86_32="$(EXTRA_FLAGS)" \
-	CFLAGS_x86_64="$(EXTRA_FLAGS)" \
 	$(MAKE_JOBS)
 
 $(coreboot_module)_output := $(CONFIG_COREBOOT_ROM)
