@@ -250,8 +250,8 @@ workflows:
 
       # coreboot 4.11
       - build_and_persist:
-          name: UNMAINTAINED_kgpe-d16_workstation
-          target: UNMAINTAINED_kgpe-d16_workstation
+          name: librem_l1um
+          target: librem_l1um
           subcommand: ""
           requires:
             - prep_env
@@ -484,11 +484,19 @@ workflows:
 
       # coreboot 4.11
       - build:
+          name: UNMAINTAINED_kgpe-d16_workstation
+          target: UNMAINTAINED_kgpe-d16_workstation
+          subcommand: ""
+          requires:
+            - librem_l1um
+
+      # coreboot 4.11
+      - build:
           name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
           target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - librem_l1um
       
       # coreboot 4.11
       - build:
@@ -496,7 +504,7 @@ workflows:
           target: UNMAINTAINED_kgpe-d16_server
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - librem_l1um
 
       # coreboot 4.11
       - build:
@@ -504,7 +512,7 @@ workflows:
           target: UNMAINTAINED_kgpe-d16_server-whiptail
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - librem_l1um
 
 #      - build:
 #          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
