@@ -47,7 +47,7 @@ get_menu_option() {
 
 		MENU_OPTIONS="$MENU_OPTIONS a Abort"
 
-		whiptail $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
+		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
 			--menu "Choose the ISO boot option [1-$n]:" 0 80 8 \
 			-- $MENU_OPTIONS \
 			2>/tmp/whiptail || die "Aborting boot attempt"

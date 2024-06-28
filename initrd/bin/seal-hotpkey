@@ -2,6 +2,7 @@
 # Retrieve the sealed TOTP secret and initialize a USB Security Dongle with it
 
 . /etc/functions
+. /etc/gui_functions
 
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
@@ -13,7 +14,7 @@ mount_boot()
   # Mount local disk if it is not already mounted
   if ! grep -q /boot /proc/mounts; then
     if ! mount -o ro /boot; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR' \
+      whiptail_error --title 'ERROR' \
         --msgbox "Couldn't mount /boot.\n\nCheck the /boot device in configuration settings, or perform an OEM reset." 0 80
       return 1
     fi

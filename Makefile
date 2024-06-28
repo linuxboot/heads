@@ -175,11 +175,12 @@ endif
 # Create a temporary directory for the initrd
 initrd_dir	:= $(BOARD)
 initrd_tmp_dir	:= $(shell mktemp -d)
+initrd_data_dir	:= $(initrd_tmp_dir)/etc/terminfo/l
 initrd_lib_dir	:= $(initrd_tmp_dir)/lib
 initrd_bin_dir	:= $(initrd_tmp_dir)/bin
 modules-y += initrd
 
-$(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
+$(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
 
 # We are running our own version of make,
 # proceed with the build.
@@ -291,6 +292,9 @@ include modules/*
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
 endef
+define data =
+$(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_data)))
+endef
 define libs =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_libraries)))
 endef
@@ -298,6 +302,7 @@ endef
 define outputs =
 $(foreach m,$1,\
 	$(call bins,$m)\
+	$(call data,$m)\
 	$(call libs,$m)\
 )
 endef
@@ -577,6 +582,11 @@ $(initrd_bin_dir)/$(notdir $1): $1
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
+define initrd_data_add =
+$(initrd_data_dir)/$(notdir $1): $1
+	$(call do,INSTALL-DATA,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
+initrd_data += $(initrd_data_dir)/$(notdir $1)
+endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
@@ -622,6 +632,10 @@ $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
 )
 
+# Install the data for every module that we have built
+$(foreach m, $(modules-y), \
+	$(call map,initrd_data_add,$(call data,$m)) \
+)
 # Install the libraries for every module that we have built
 $(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
@@ -727,9 +741,11 @@ $(build)/$(initrd_dir)/heads.cpio: FORCE
 #
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
+	$(initrd_data) \
 	$(initrd_libs) \
 	$(initrd_tmp_dir)/etc/config \
 
+	$(info Used **BINS**: $(initrd_bins))
 	$(call do-cpio,$@,$(initrd_tmp_dir))
 	@$(RM) -rf "$(initrd_tmp_dir)"
 
