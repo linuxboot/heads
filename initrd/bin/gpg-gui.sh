@@ -65,7 +65,7 @@ gpg_flash_rom() {
   if (whiptail --title 'BIOS Flashed Successfully' \
       --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80) then
     if ! update_checksums ; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR' \
+      whiptail_error --title 'ERROR' \
         --msgbox "Failed to update checksums / sign default config" 0 80
     fi
   else
@@ -89,7 +89,7 @@ gpg_post_gen_mgmt() {
       whiptail --title "The GPG Key Copied Successfully" \
         --msgbox "${GPG_GEN_KEY}.asc copied successfully." 0 80
     else
-      whiptail $BG_COLOR_ERROR --title 'ERROR: Copy Failed' \
+      whiptail_error --title 'ERROR: Copy Failed' \
         --msgbox "Unable to copy ${GPG_GEN_KEY}.asc to /media" 0 80
     fi
     umount /media
@@ -98,7 +98,7 @@ gpg_post_gen_mgmt() {
       --yesno "Would you like to add the GPG public key you generated to the BIOS?\n\nThis makes it a trusted key used to sign files in /boot\n\n" 0 80) then
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
-        whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+        whiptail_error --title 'ERROR: BIOS Read Failed!' \
           --msgbox "Unable to read BIOS" 0 80
         exit 1
       fi
@@ -124,7 +124,7 @@ gpg_add_key_reflash() {
 
       /bin/flash.sh -r /tmp/gpg-gui.rom
       if [ ! -s /tmp/gpg-gui.rom ]; then
-        whiptail $BG_COLOR_ERROR --title 'ERROR: BIOS Read Failed!' \
+        whiptail_error --title 'ERROR: BIOS Read Failed!' \
           --msgbox "Unable to read BIOS" 0 80
         exit 1
       fi
@@ -141,7 +141,7 @@ gpg_add_key_reflash() {
 
 while true; do
   unset menu_choice
-  whiptail $BG_COLOR_MAIN_MENU --title "GPG Management Menu" \
+  whiptail_type $BG_COLOR_MAIN_MENU --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 0 80 10 \
     'r' ' Add GPG key to running BIOS and reflash' \
     'a' ' Add GPG key to standalone BIOS image and flash' \
@@ -181,7 +181,7 @@ while true; do
           fi
           cp "$ROM" /tmp/gpg-gui.rom
 
-          if (whiptail $BG_COLOR_WARNING --title 'Flash ROM?' \
+          if (whiptail_warning --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 0 80) then
             gpg_flash_rom
           else
@@ -218,7 +218,7 @@ while true; do
           whiptail --title "The GPG Key Copied Successfully" \
             --msgbox "public-key.asc copied successfully." 0 80
         else
-          whiptail $BG_COLOR_ERROR --title 'ERROR: Copy Failed' \
+          whiptail_error --title 'ERROR: Copy Failed' \
             --msgbox "Unable to copy public-key.asc to /media" 0 80
         fi
         umount /media

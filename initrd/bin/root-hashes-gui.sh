@@ -14,7 +14,7 @@ export CONFIG_ROOT_DIRLIST_PRETTY=$(echo $CONFIG_ROOT_DIRLIST | sed -e 's/^/\//;
 
 update_root_checksums() {
   if ! detect_root_device; then
-    whiptail $BG_COLOR_ERROR --title 'ERROR: No Valid Root Disk Found' \
+    whiptail_error --title 'ERROR: No Valid Root Disk Found' \
       --msgbox "No Valid Root Disk Found" 0 80
     die "No Valid Root Disk Found"
   fi
@@ -23,7 +23,7 @@ update_root_checksums() {
   if ! grep -q /boot /proc/mounts ; then
     if ! mount -o rw /boot; then
        unmount_root_device
-       whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
+       whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi
@@ -48,7 +48,7 @@ update_root_checksums() {
 }
 check_root_checksums() {
   if ! detect_root_device; then
-    whiptail $BG_COLOR_ERROR --title 'ERROR: No Valid Root Disk Found' \
+    whiptail_error --title 'ERROR: No Valid Root Disk Found' \
       --msgbox "No Valid Root Disk Found" 0 80
     die "No Valid Root Disk Found"
   fi
@@ -57,7 +57,7 @@ check_root_checksums() {
   if ! grep -q /boot /proc/mounts ; then
     if ! mount -o ro /boot; then
        unmount_root_device
-       whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
+       whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi
@@ -65,7 +65,7 @@ check_root_checksums() {
 
   # check that root hash file exists
   if [ ! -f ${HASH_FILE} ]; then
-     if (whiptail $BG_COLOR_WARNING --title 'WARNING: No Root Hash File Found' \
+     if (whiptail_warning --title 'WARNING: No Root Hash File Found' \
         --yesno "\nIf you just enabled root hash checking feature,
                 \nthen you need to create the initial hash file.
                 \nOtherwise, This could be caused by tampering.
@@ -81,7 +81,7 @@ check_root_checksums() {
   echo "+++ Checking root hash file signature "
   if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
     ERROR=`cat /tmp/hash_output`
-    whiptail $BG_COLOR_ERROR --title 'ERROR: Signature Failure' \
+    whiptail_error --title 'ERROR: Signature Failure' \
       --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
     unmount_root_device
     die 'Invalid signature'
@@ -94,7 +94,7 @@ check_root_checksums() {
     grep -E -v '^[+-]{3}|[@]{2} ' /tmp/new_file_diff > /tmp/new_file_diff2 # strip any output that's not a file
     mv /tmp/new_file_diff2 /tmp/new_file_diff
     CHANGED_FILES_COUNT=$(wc -l /tmp/new_file_diff | cut -f1 -d ' ')
-    whiptail $BG_COLOR_ERROR --title 'ERROR: Files Added/Removed in Root ' \
+    whiptail_error --title 'ERROR: Files Added/Removed in Root ' \
       --msgbox "${CHANGED_FILES_COUNT} files were added/removed in root!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 0 80
 
     echo "Type \"q\" to exit the list and return to the menu." >> /tmp/new_file_diff
@@ -131,7 +131,7 @@ check_root_checksums() {
   else
     CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':' | tee -a /tmp/hash_output_mismatches)
     CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
-    whiptail $BG_COLOR_ERROR --title 'ERROR: Root Hash Mismatch' \
+    whiptail_error --title 'ERROR: Root Hash Mismatch' \
       --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return to the menu." 0 80
     unmount_root_device
 
@@ -431,7 +431,7 @@ while true; do
   if ! grep -q /boot /proc/mounts ; then
     if ! mount -o ro /boot; then
        unmount_root_device
-       whiptail $BG_COLOR_ERROR --title 'ERROR: Unable to mount /boot' \
+       whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
        die "Unable to mount /boot"
     fi

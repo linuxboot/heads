@@ -3,9 +3,10 @@
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
 MAIN_MENU_TITLE="${BOARD_NAME} | Extended System Information"
-export BG_COLOR_MAIN_MENU=""
+export BG_COLOR_MAIN_MENU="normal"
 
 . /etc/functions
+. /etc/gui_functions
 . /etc/luks-functions
 . /tmp/config
 
@@ -54,5 +55,5 @@ TRACE_FUNC
   
   FB_OPTIONS=""
   if whiptail --version |grep "fbwhiptail"; then FB_OPTIONS="--text-size 12"; fi
-  whiptail $BG_COLOR_MAIN_MENU $FB_OPTIONS --title 'System Info' \
+  whiptail_type $BG_COLOR_MAIN_MENU $FB_OPTIONS --title 'System Info' \
 	    --msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')\n\n$(cat /tmp/devices_usb_pci)" 0 80

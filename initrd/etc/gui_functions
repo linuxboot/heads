@@ -23,15 +23,51 @@ mount_usb()
   # Mount the USB boot device
   mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
   if [ $USB_FAILED -ne 0 ]; then
-    whiptail $BG_COLOR_ERROR --title 'USB Drive Missing' \
+    whiptail_error --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 0 80
     mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
     if [ $USB_FAILED -ne 0 ]; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR: Mounting /media Failed' \
+      whiptail_error --title 'ERROR: Mounting /media Failed' \
         --msgbox "Unable to mount USB device" 0 80
       exit 1
     fi
   fi
+}
+
+# -- Display related functions --
+# Produce a whiptail prompt with 'warning' background, works for fbwhiptail and newt
+whiptail_warning() {
+    if [ -x /bin/fbwhiptail ]; then
+        whiptail $BG_COLOR_WARNING "$@"
+    else
+        env NEWT_COLORS="root=,$TEXT_BG_COLOR_WARNING" whiptail "$@"
+    fi
+}
+
+# Produce a whiptail prompt with 'error' background, works for fbwhiptail and newt
+whiptail_error() {
+    if [ -x /bin/fbwhiptail ]; then
+        whiptail $BG_COLOR_ERROR "$@"
+    else
+        env NEWT_COLORS="root=,$TEXT_BG_COLOR_ERROR" whiptail "$@"
+    fi
+}
+
+# Produce a whiptail prompt of the given type - 'error', 'warning', or 'normal'
+whiptail_type() {
+    local TYPE="$1"
+    shift
+    case "$TYPE" in
+        error)
+            whiptail_error "$@"
+	    ;;
+        warning)
+            whiptail_warning "$@"
+	    ;;
+        normal)
+	    whiptail "$@"
+	    ;;
+    esac
 }
 
 # Create display text for a size in bytes in either MB or GB, unit selected
@@ -107,7 +143,7 @@ file_selector()
 	done < "$FILE_LIST"
 
 	if [ "${#CHOICE_ARGS[@]}" -eq 0 ]; then
-		whiptail $BG_COLOR_ERROR --title 'ERROR: No Files Found' \
+		whiptail_error --title 'ERROR: No Files Found' \
 			--msgbox "No Files found matching the pattern. Aborting." 0 80
 		exit 1
 	fi
@@ -144,7 +180,7 @@ show_system_info()
   cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
   kernel=$(uname -s -r)
 
-  whiptail $BG_COLOR_MAIN_MENU --title 'System Info' \
+  whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
     --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
 }
 
