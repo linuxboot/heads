@@ -1,6 +1,7 @@
 #!/bin/bash
 # Mount a USB device
 . /etc/functions
+. /etc/gui_functions
 . /etc/luks-functions
 
 TRACE_FUNC
@@ -82,7 +83,7 @@ fi
 list_usb_storage > /tmp/usb_block_devices
 if [ -z "$(cat /tmp/usb_block_devices)" ]; then
   if [ -x /bin/whiptail ]; then
-    whiptail $BG_COLOR --title 'USB Drive Missing' \
+    whiptail_warning --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 0 80
   else
     echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
@@ -92,7 +93,7 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
   list_usb_storage > /tmp/usb_block_devices
   if [ -z "$(cat /tmp/usb_block_devices)" ]; then
     if [ -x /bin/whiptail ]; then
-      whiptail $BG_COLOR_ERROR --title 'ERROR: USB Drive Missing' \
+      whiptail_error --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 0 80
     else
       echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."
@@ -135,7 +136,7 @@ else
       done < /tmp/usb_disk_list
 
       MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail $BG_COLOR --title "Select your USB disk" \
+      whiptail --title "Select your USB disk" \
         --menu "Choose your USB disk [1-$n, a to abort]:" 0 80 8 \
         -- $MENU_OPTIONS \
         2>/tmp/whiptail
