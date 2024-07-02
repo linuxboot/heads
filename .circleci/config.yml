@@ -261,7 +261,7 @@ workflows:
       - save_cache:
           requires:
             - talos-2
-            - librem_14
+            - nitropad-nv41
 
       #
       # Those onboarding new boards should add their entries below.
@@ -297,22 +297,8 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: x230-legacy-flash
-          target: x230-legacy-flash
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-legacy
-          target: x230-legacy
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
-
-      - build:
-          name: x230-hotp-legacy
-          target: x230-hotp-legacy
+          name: t420-maximized
+          target: t420-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
