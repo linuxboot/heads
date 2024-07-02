@@ -1,0 +1,20 @@
+diff --recursive -u ./clean/linux-4.9.80/arch/x86/kernel/nmi.c linux-4.9.80/arch/x86/kernel/nmi.c
+--- ./clean/linux-4.9.80/arch/x86/kernel/nmi.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.80/arch/x86/kernel/nmi.c	2018-02-07 18:56:10.475613884 -0500
+@@ -303,6 +303,8 @@
+ 
+ 	__this_cpu_add(nmi_stats.unknown, 1);
+ 
++#if 0
++// qemu generates these for some reason
+ 	pr_emerg("Uhhuh. NMI received for unknown reason %02x on CPU %d.\n",
+ 		 reason, smp_processor_id());
+ 
+@@ -311,6 +313,7 @@
+ 		nmi_panic(regs, "NMI: Not continuing");
+ 
+ 	pr_emerg("Dazed and confused, but trying to continue\n");
++#endif
+ }
+ NOKPROBE_SYMBOL(unknown_nmi_error);
+ 
