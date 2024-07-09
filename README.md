@@ -54,7 +54,7 @@ Build docker from nix develop layer locally
 * Build nix developer local environment with flakes locked to specified versions  
     * `nix --print-build-logs --verbose develop --ignore-environment --command true`  
 * Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image):  
-    * `nix build .#dockerImage && docker load < result` 
+    * `nix --print-build-logs --verbose build .#dockerImage && docker load < result` 
 
 On some hardened OSes, you may encounter problems with ptrace.
 ```
@@ -122,7 +122,7 @@ git commit --signoff -m "Bump nix develop based docker image to $docker_hub_repo
 #use commited flake.nix and flake.lock in nix develop
 nix --print-build-logs --verbose develop --ignore-environment --command true
 #build new docker image from nix develop environement
-nix build .#dockerImage && docker load < result
+nix --print-build-logs --verbose build .#dockerImage && docker load < result
 #tag produced docker image with new version
 docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version"
 #push newly created docker image to docker hub
@@ -138,7 +138,7 @@ This can be put in reproducible oneliners to ease maintainership.
 
 Test image in dirty mode:
 ```
-docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env" && sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml && nix --print-build-logs --verbose develop --ignore-environment --command true && nix build .#dockerImage && docker load < result && docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version" && docker push "$docker_hub_repo:$docker_version"
+docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env" && sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml && nix --print-build-logs --verbose develop --ignore-environment --command true && nix --print-build-logs --verbose build .#dockerImage && docker load < result && docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version" && docker push "$docker_hub_repo:$docker_version"
 ```
 
 Notes:
