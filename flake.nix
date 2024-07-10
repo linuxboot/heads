@@ -52,6 +52,7 @@
         libtool
         m4
         ncurses5 # make menuconfig and slang
+        nss
         openssl # needed for talos-2 kernel build
         parted
         patch
