@@ -73,9 +73,9 @@ coreboot-4.22.01_hash := 3d1a36dfb2a654133c7f36cf4da436f0d79f535644069adfe7cdcad
 coreboot-blobs-4.22.01_hash := 4bb98f1a1cc8b3c7004a1d720462bfff0fe34a9106163df2708b952bddfc5203
 $(eval $(call coreboot_module,4.22.01,))
 
-coreboot-24.02.01_hash := e56f5c0c9008bfdec1c4be6409ac093680140f9441efd3d5e47bdeffcbf77e50
-coreboot-blobs-24.02.01_hash := 8d03b82cd2b2593473d4cd511c7bef7fdd43839237f6c37a8383161660c14427
-$(eval $(call coreboot_module,24.02.01,))
+coreboot-24.05_hash := e22afdbac40068ba687fd975f03f6b958599a32e70f539d9d0c74d16a63d7cea
+coreboot-blobs-24.05_hash := d2368169cb9befd10f9affe9bf7663e6ff38b80ae5772515f08d4b47250a3a83
+$(eval $(call coreboot_module,24.05,))
 
 # coreboot git forks
 
@@ -86,7 +86,7 @@ coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
 
-# Similarly, purism is based on 24.02.01, but nothing builds against that release
+# Similarly, purism is based on 24.05, but nothing builds against that release
 # or any other fork - no benefit to sharing the toolchain yet.
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := 93435b9067d30ec84a6c45ca8649cc76913b1cb8
