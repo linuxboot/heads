@@ -112,6 +112,17 @@ case "$PKG_NAME" in
 		if [ "$PKG_BASENAME" = acpica-unix2-20220331.tar.gz ]; then
 			PKG_BASEURL="https://downloadmirror.intel.com/774879/"
 		fi
+		if [[ "$PKG_BASENAME" == acpica-unix-* ]]; then
+    			pkg_timestamp=$(echo "$PKG_BASENAME" | grep -oP 'acpica-unix-\K\d+(?=\.tar\.gz)')
+		fi
+		# acpica-unix moved to intel website. Harder to maintain and annoying:
+    		if [[ "$pkg_timestamp" =~ ^[0-9]+$ ]]; then
+        		if [ "$pkg_timestamp" = "20230628" ]; then
+            			PKG_BASEURL="https://downloadmirror.intel.com/783534/"
+        		elif [ "$pkg_timestamp" = "20220331" ]; then
+            			PKG_BASEURL="https://downloadmirror.intel.com/774879/"
+        		fi
+    		fi
 		;;
 esac
 
