@@ -384,8 +384,15 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNMAINTAINED_t530-maximized
-          target: UNMAINTAINED_t530-maximized
+          name: t530-maximized
+          target: t530-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t530-hotp-maximized
+          target: t530-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
