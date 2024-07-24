@@ -438,6 +438,7 @@ show_options_menu()
     'C' ' Reencrypt LUKS container -->' \
     'P' ' Change LUKS Disk Recovery Key passphrase ->' \
     'R' ' Check/Update file hashes on root disk -->' \
+    'h' ' Change system time' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -475,6 +476,9 @@ show_options_menu()
       ;;
     R )
       root-hashes-gui.sh
+      ;;
+    h )
+      change-time
       ;;
     x )
       recovery "User requested recovery shell"
