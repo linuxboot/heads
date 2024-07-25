@@ -4,6 +4,8 @@
 clear
 
 echo -e -n "Please enter the date and time you wish to set\n"
+echo -e -n "You need to set the time according to the UTC/GMT timezone please check https://time.is/UTC\n"
+
 
 get_date () {
     echo -e -n "enter the $1 please ($2-$3) (enter for $2)\n"

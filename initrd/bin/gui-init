@@ -221,6 +221,7 @@ update_totp()
   If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n
   How would you like to proceed?" 0 80 4 \
         'g' ' Generate new HOTP/TOTP secret' \
+        'h' ' Change system time' \
         'i' ' Ignore error and continue to main menu' \
         'p' ' Reset the TPM' \
         'x' ' Exit to recovery shell' \
@@ -233,6 +234,9 @@ update_totp()
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
             generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
           fi
+          ;;
+        h )
+          change-time
           ;;
         i )
           skip_to_menu="true"
@@ -430,6 +434,7 @@ show_options_menu()
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
+    'h' ' Change system time' \
     'u' ' Update checksums and sign all files in /boot' \
     'c' ' Change configuration settings -->' \
     'f' ' Flash/Update the BIOS -->' \
@@ -438,7 +443,6 @@ show_options_menu()
     'C' ' Reencrypt LUKS container -->' \
     'P' ' Change LUKS Disk Recovery Key passphrase ->' \
     'R' ' Check/Update file hashes on root disk -->' \
-    'h' ' Change system time' \
     'x' ' Exit to recovery shell' \
     'r' ' <-- Return to main menu' \
     2>/tmp/whiptail || recovery "GUI menu failed"
@@ -450,6 +454,9 @@ show_options_menu()
       ;;
     t )
       show_tpm_totp_hotp_options_menu
+      ;;
+    h )
+      change-time
       ;;
     u )
       prompt_update_checksums
@@ -476,9 +483,6 @@ show_options_menu()
       ;;
     R )
       root-hashes-gui.sh
-      ;;
-    h )
-      change-time
       ;;
     x )
       recovery "User requested recovery shell"
