@@ -79,6 +79,7 @@
         diffoscopeMinimal # Not sure exactly what is packed here, let's try. Might need diffoscope if something is missing
         gnupg #to inject public key inside of qemu create rom through inject_gpg target of targets/qemu.mk TODO: remove when pflash supported by flashrom + modify code
         less # so 'git log' is usable
+        moreutils # so that 'make 2>&1 | ts' can give timestamps
       ] ++ [
         # Tools for handling binary blobs in their compressed state. (blobs/xx30/vbios_[tw]530.sh)
         bundler
