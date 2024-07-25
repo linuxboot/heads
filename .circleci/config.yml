@@ -16,7 +16,7 @@ commands:
             echo "Sourcing /devenv.sh since docker entrypoint doesn't do it as expected"
             source /devenv.sh
             rm -rf build/<<parameters.arch>>/<<parameters.target>>/* build/<<parameters.arch>>/log/*
-            make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> || touch ./tmpDir/failed_build
+            make V=1 BOARD=<<parameters.target>> <<parameters.subcommand>> | ts || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -45,7 +45,7 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.0
+      - image: tlaurion/heads-dev-env:v0.2.1
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -111,7 +111,7 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.0
+      - image: tlaurion/heads-dev-env:v0.2.1
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -139,7 +139,7 @@ jobs:
 
   build:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.0
+      - image: tlaurion/heads-dev-env:v0.2.1
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -160,7 +160,7 @@ jobs:
 
   save_cache:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.0
+      - image: tlaurion/heads-dev-env:v0.2.1
     resource_class: large
     working_directory: ~/heads
     steps:
