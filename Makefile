@@ -378,7 +378,9 @@ define define_module =
     # First time:
     #   Checkout the tree instead and create the canary file with repo and
     #   revision so that we know that the files are all present and their
-    #   version.
+    #   version.  Submodules are _not_ checked out, because coreboot has
+    #   many submodules that won't be used, let coreboot check out its own
+    #   submodules during build
     #
     # Other times:
     #   If .canary contains the same repo and revision combination, do nothing.
@@ -392,7 +394,7 @@ define define_module =
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
 		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && git submodule update --init --checkout; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
