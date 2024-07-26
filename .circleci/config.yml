@@ -277,7 +277,7 @@ workflows:
             - librem_14
 
       # Those onboarding new boards should add their entries below.
-      # coreboot 4.22.01 boards
+      # coreboot 24.02.01 boards
       - build:
           name: x220-hotp-maximized
           target: x220-hotp-maximized
