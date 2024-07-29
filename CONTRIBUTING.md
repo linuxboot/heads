@@ -50,6 +50,7 @@ Before opening an issue or submitting a contribution, please:
 - Be responsive to feedback and prepared to make adjustments.
 - **Important**: All commits to linuxboot/heads (*not heads-wiki!*) must be signed. For instructions, see:
   [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
+  If you won't GPG-sign your commits (GitHub signature doesn't count), they will get signed by a maintainer after a successful review, but it's strongly preferred you do it yourself.
 
 ## GitHub Repositories
 
