@@ -1,8 +1,8 @@
 # Contributing to LinuxBoot/Heads
 
 Thank you for your interest in contributing to LinuxBoot/Heads! We welcome contributions
-from everyone. By participating in this project, respecting these contribution guidelines
-will ease and fasten their review, fixing and merging.
+from everyone. Following these contribution guidelines will make handling of issues and
+PRs a faster and smoother process, so please try to adhere to them.
 
 ## Communication Channels
 
