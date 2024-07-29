@@ -21,7 +21,7 @@ Before opening an issue or submitting a contribution, please:
 
 - Clearly state your topic or question.
 - Provide context, including your environment (OS, hardware, etc.) if relevant.
-- Be patient and respectful while waiting for responses.
+- Be patient and respectful while waiting for responses. Feel free to "ping" (draw attention) after some time if it looks like your question wasn't noticed.
 - Structure your topic effectively with a clear title and organized content.
 - Use code blocks for command outputs or error messages.
 - Consider breaking complex topics into smaller, manageable questions.
