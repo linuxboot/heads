@@ -17,6 +17,14 @@ Before opening an issue or submitting a contribution, please:
 2. Review the documentation at https://osresearch.net.
 3. Choose the appropriate channel for your contribution or question.
 
+If you're unsure about what kind of issue you're looking at or whether it's an actual issue 
+ with the project rather than your usage mistake, feel free to post a quick question briefly 
+ (actual amount of details depends on the situation) describing the situation and expect to 
+ either get a suitable answer or a request to provide a detailed problem report on GitHub 
+ which will be treated with more attention. In case of an absence of a GitHub account and 
+ unwillingness to create one, detailed report can also be submitted via Matrix and an issue 
+ will be opened on GitHub by a maintainer.
+
 ### When Starting a Discussion on Matrix
 
 - Clearly state your topic or question.
