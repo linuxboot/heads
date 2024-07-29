@@ -221,7 +221,6 @@ update_totp()
   If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n
   How would you like to proceed?" 0 80 4 \
         'g' ' Generate new HOTP/TOTP secret' \
-        'h' ' Change system time' \
         'i' ' Ignore error and continue to main menu' \
         'p' ' Reset the TPM' \
         'x' ' Exit to recovery shell' \
@@ -234,9 +233,6 @@ update_totp()
               --yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80) then
             generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
           fi
-          ;;
-        h )
-          change-time
           ;;
         i )
           skip_to_menu="true"
@@ -551,16 +547,8 @@ prompt_totp_mismatch()
 {
   TRACE_FUNC
   if (whiptail_warning --title "TOTP/HOTP code mismatched" \
-    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
-    echo ""
-    echo "To correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone"
-    echo "and save it to the RTC: 'hwclock -w'"
-    echo ""
-    echo "Alternatively you could do this automatically with an Ethernet cable connected to a functional network: 'network-init-recovery'"
-    echo ""
-    echo "Then reboot and try again"
-    echo ""
-    recovery "TOTP/HOTP mismatch"
+    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift.\n\nHere, we will manually set system time to see if TOTP code mismatch was because of time drift.\n\nAlternatively you could sync time from network automatically with 'network-init-recovery' helper from Recovery shell\n " 0 80) then
+  		change-time
   fi
 }
 
