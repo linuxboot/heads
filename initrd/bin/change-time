@@ -4,11 +4,11 @@
 clear
 
 echo -e -n "Please enter the date and time you wish to set\n"
-echo -e -n "You need to set the time according to the UTC/GMT timezone please check https://time.is/UTC\n"
+echo -e -n "You need to set the time according to the UTC/GMT timezone please check https://time.is/UTC\n\n"
 
 
 get_date () {
-    echo -e -n "enter the $1 please ($2-$3) (enter for $2)\n"
+    echo -e -n "Please insert $1 (between $2-$3) (Enter key to accept $2)\n"
     read -n $4 value
     echo -e "\n"
     #if enter
@@ -19,7 +19,7 @@ get_date () {
     #must be a $4 digits number between $2 and $3
     while [[ ! $value =~ ^[0-9]{$4} ]] || [[ ${value#0} -lt $2 ]] || [[ ${value#0} -gt $3 ]]; 
     do    
-        echo -e -n "wrong $1, you enter "$value" please enter it again, must be a $4 digits number between $2 and $3 (press enter for $2) \n"
+        echo -e -n "$1 is wrong: you entered "$value". Please try again, it must be $4 digits number between $2 and $3 (press Enter to accept $2) \n"
         read -n $4 value
         echo -e "\n"
         if [[ $value = "" ]]; then 
@@ -36,9 +36,9 @@ get_date "day" "01" "31" "2"
 day=$value
 get_date "hour" "00" "23" "2"
 hour=$value
-get_date "min" "00" "59" "2"
+get_date "minute" "00" "59" "2"
 min=$value
-get_date "sec" "00" "59" "2"
+get_date "second" "00" "59" "2"
 sec=$value
 
 ##getting the output of date -s 
@@ -46,17 +46,17 @@ OUTPUT=$(date -s "$year-$month-$day $hour:$min:$sec" 2>&1)
 
 ##if output is starting with the letter d which is the beginning of the error message then we do the script again 
 if [[ ${OUTPUT} == d* ]]; then
-    echo "The date is not correct, press any key to set it again"
+    echo "The date is not correct, press any key to try again"
     echo -e "\n"
-    read -n 1 noting
+    read -n 1 nothing
     clear
     change-time
 else
     hwclock -w
-    echo -e "the date has been sucessfully set to $year-$month-$day $hour:$min:$sec"
+    echo -e "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec"
     echo -e "\n"
 
-    echo -e "press any key to return to the menu"
+    echo -e "Press any key to return to the menu"
     echo -e "\n"
     read -n 1 nothing
 fi
