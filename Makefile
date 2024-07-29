@@ -378,7 +378,9 @@ define define_module =
     # First time:
     #   Checkout the tree instead and create the canary file with repo and
     #   revision so that we know that the files are all present and their
-    #   version.
+    #   version.  Submodules are _not_ checked out, because coreboot has
+    #   many submodules that won't be used, let coreboot check out its own
+    #   submodules during build
     #
     # Other times:
     #   If .canary contains the same repo and revision combination, do nothing.
@@ -392,7 +394,7 @@ define define_module =
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
 		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && git submodule update --init --checkout; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
@@ -798,6 +800,19 @@ board.move_untested_to_tested:
 	mv boards/$$BOARD boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+
+board.move_unmaintained_to_tested:
+	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
+	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNMAINTAINED_//'); \
+	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
+	rm -rf boards/$$NEW_BOARD; \
+	mv boards/$$BOARD boards/$$NEW_BOARD; \
+	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
+	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml; \
+	echo "Board $$BOARD has been moved to tested status as $$NEW_BOARD"; \
+	echo "Please review and update .circleci/config.yml manually if needed"
 
 board.move_untested_to_unmaintained:
 	@echo "NEW_BOARD variable will move from UNTESTED_ to UNMAINTAINED_ from $(BOARD)"
