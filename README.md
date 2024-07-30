@@ -1,7 +1,7 @@
 ![Heads booting on an x230](https://user-images.githubusercontent.com/827570/156627927-7239a936-e7b1-4ffb-9329-1c422dc70266.jpeg)
 
 Heads: the other side of TAILS
-===
+==
 
 Heads is a configuration for laptops and servers that tries to bring
 more security to commodity hardware.  Among its goals are:
@@ -25,42 +25,60 @@ Documentation
 ===
 Please refer to [Heads-wiki](https://osresearch.net) for your Heads' documentation needs.
 
+Contributing
+===
+We welcome contributions to the Heads project! Before contributing, please read our [Contributing Guidelines](CONTRIBUTING.md) for information on how to get started, submit issues, and propose changes.
+
 
 Building heads
-===
+==
 
 Under QubesOS?
-====
+===
 * Setup nix persistent layer under QubesOS (Thanks @rapenne-s !)
   * https://dataswamp.org/~solene/2023-05-15-qubes-os-install-nix.html
 * Install docker under QubesOS (imperfect old article of mine. Better somewhere?)
   * https://gist.github.com/tlaurion/9113983bbdead492735c8438cd14d6cd
 
 Build docker from nix develop layer locally
-====
+===
 
 #### Set up Nix and flakes  
 
-* If you don't already have Nix, install it:  
-    * `[ -d /nix ] || sh <(curl -L https://nixos.org/nix/install) --no-daemon`  
-    * `. /home/user/.nix-profile/etc/profile.d/nix.sh`  
-* Enable flake support in nix  
-    * `mkdir -p ~/.config/nix`  
-    * `echo 'experimental-features = nix-command flakes' >>~/.config/nix/nix.conf`  
+* If you don't already have Nix, install it:
+    * `[ -d /nix ] || sh <(curl -L https://nixos.org/nix/install) --no-daemon`
+    * `. /home/user/.nix-profile/etc/profile.d/nix.sh`
+* Enable flake support in nix
+    * `mkdir -p ~/.config/nix`
+    * `echo 'experimental-features = nix-command flakes' >>~/.config/nix/nix.conf`
+
 
 #### Build image
 
 * Build nix developer local environment with flakes locked to specified versions  
     * `nix --print-build-logs --verbose develop --ignore-environment --command true`  
-* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image:  
-    * `nix build .#dockerImage && docker load < result` 
+* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image):  
+    * `nix --print-build-logs --verbose build .#dockerImage && docker load < result` 
+
+On some hardened OSes, you may encounter problems with ptrace.
+```
+       > proot error: ptrace(TRACEME): Operation not permitted
+```
+The most likely reason is that your [kernel.yama.ptrace_scope](https://www.kernel.org/doc/Documentation/security/Yama.txt) variable is too high and doesn't allow docker+nix to run properly.
+You'll need to set kernel.yama.ptrace_scope to 1 while you build the heads binary.
+
+```
+sudo sysctl kernel.yama.ptrace_scope #show you the actual value, probably 2 or 3
+sudo sysctl -w kernel.yama.ptrace_scope=1 #setup the value to let nix+docker run properly
+```
+(don't forget to put back the value you had after finishing build head)
 
 Done!
 
 Your local docker image "linuxboot/heads:dev-env" is ready to use, reproducible for the specific Heads commit used and will produce ROMs reproducible for that Heads commit ID.
 
 Jump into nix develop created docker image for interactive workflow
-=====
+====
 `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env`
 
 
@@ -94,15 +112,37 @@ docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd
 
 Maintenance notes on docker image
 ===
-Redo the steps above in case the flake.nix or nix.lock changes. Then publish on docker hub:
+Redo the steps above in case the flake.nix or nix.lock changes. Commit changes. Then publish on docker hub:
 
 ```
-docker tag linuxboot/heads:dev-env tlaurion/heads-dev-env:vx.y.z
-docker push tlaurion/heads-dev-env:vx.y.z
-#test against CircleCI in PR. Merge.
-#make last version the latest
-docker tag tlaurion/heads-dev-env:vx.y.z tlaurion/heads-dev-env:latest
-docker push tlaurion/heads-dev-env:latest
+#put relevant things in variables:
+docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env"
+#update pinned packages to latest available ones if needed, modify flake.nix derivatives if needed:
+nix flakes update
+#modify CircleCI image to use newly pushed docker image
+sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml
+# commit changes
+git commit --signoff -m "Bump nix develop based docker image to $docker_hub_repo:$docker_version"
+#use commited flake.nix and flake.lock in nix develop
+nix --print-build-logs --verbose develop --ignore-environment --command true
+#build new docker image from nix develop environement
+nix --print-build-logs --verbose build .#dockerImage && docker load < result
+#tag produced docker image with new version
+docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version"
+#push newly created docker image to docker hub
+docker push "$docker_hub_repo:$docker_version"
+#test with CircleCI in PR. Merge.
+git push ...
+#make last tested docker image version the latest
+docker tag "$docker_hub_repo:$docker_version" "$docker_hub_repo:latest"
+docker push "$docker_hub_repo:latest"
+```
+
+This can be put in reproducible oneliners to ease maintainership.
+
+Test image in dirty mode:
+```
+docker_version="vx.y.z" && docker_hub_repo="tlaurion/heads-dev-env" && sed "s@\(image: \)\(.*\):\(v[0-9]*\.[0-9]*\.[0-9]*\)@\1\2:$docker_version@" -i .circleci/config.yml && nix --print-build-logs --verbose develop --ignore-environment --command true && nix --print-build-logs --verbose build .#dockerImage && docker load < result && docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version" && docker push "$docker_hub_repo:$docker_version"
 ```
 
 Notes:

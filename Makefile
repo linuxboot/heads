@@ -175,11 +175,12 @@ endif
 # Create a temporary directory for the initrd
 initrd_dir	:= $(BOARD)
 initrd_tmp_dir	:= $(shell mktemp -d)
+initrd_data_dir	:= $(initrd_tmp_dir)/etc/terminfo/l
 initrd_lib_dir	:= $(initrd_tmp_dir)/lib
 initrd_bin_dir	:= $(initrd_tmp_dir)/bin
 modules-y += initrd
 
-$(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)")
+$(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
 
 # We are running our own version of make,
 # proceed with the build.
@@ -291,6 +292,9 @@ include modules/*
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
 endef
+define data =
+$(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_data)))
+endef
 define libs =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_libraries)))
 endef
@@ -298,6 +302,7 @@ endef
 define outputs =
 $(foreach m,$1,\
 	$(call bins,$m)\
+	$(call data,$m)\
 	$(call libs,$m)\
 )
 endef
@@ -373,7 +378,9 @@ define define_module =
     # First time:
     #   Checkout the tree instead and create the canary file with repo and
     #   revision so that we know that the files are all present and their
-    #   version.
+    #   version.  Submodules are _not_ checked out, because coreboot has
+    #   many submodules that won't be used, let coreboot check out its own
+    #   submodules during build
     #
     # Other times:
     #   If .canary contains the same repo and revision combination, do nothing.
@@ -387,7 +394,7 @@ define define_module =
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
 		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && git submodule update --init --checkout; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
 		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
@@ -577,6 +584,11 @@ $(initrd_bin_dir)/$(notdir $1): $1
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
+define initrd_data_add =
+$(initrd_data_dir)/$(notdir $1): $1
+	$(call do,INSTALL-DATA,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
+initrd_data += $(initrd_data_dir)/$(notdir $1)
+endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
@@ -617,12 +629,15 @@ bin_modules-$(CONFIG_KBD) += kbd
 bin_modules-$(CONFIG_ZSTD) += zstd
 bin_modules-$(CONFIG_E2FSPROGS) += e2fsprogs
 bin_modules-$(CONFIG_EXFATPROGS) += exfatprogs
-bin_modules-$(CONFIG_IOTOOLS) += iotools
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
 )
 
+# Install the data for every module that we have built
+$(foreach m, $(modules-y), \
+	$(call map,initrd_data_add,$(call data,$m)) \
+)
 # Install the libraries for every module that we have built
 $(foreach m, $(modules-y), \
 	$(call map,initrd_lib_add,$(call libs,$m)) \
@@ -728,9 +743,11 @@ $(build)/$(initrd_dir)/heads.cpio: FORCE
 #
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
+	$(initrd_data) \
 	$(initrd_libs) \
 	$(initrd_tmp_dir)/etc/config \
 
+	$(info Used **BINS**: $(initrd_bins))
 	$(call do-cpio,$@,$(initrd_tmp_dir))
 	@$(RM) -rf "$(initrd_tmp_dir)"
 
@@ -783,6 +800,19 @@ board.move_untested_to_tested:
 	mv boards/$$BOARD boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+
+board.move_unmaintained_to_tested:
+	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
+	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNMAINTAINED_//'); \
+	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
+	rm -rf boards/$$NEW_BOARD; \
+	mv boards/$$BOARD boards/$$NEW_BOARD; \
+	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
+	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml; \
+	echo "Board $$BOARD has been moved to tested status as $$NEW_BOARD"; \
+	echo "Please review and update .circleci/config.yml manually if needed"
 
 board.move_untested_to_unmaintained:
 	@echo "NEW_BOARD variable will move from UNTESTED_ to UNMAINTAINED_ from $(BOARD)"
