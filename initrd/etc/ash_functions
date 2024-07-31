@@ -67,11 +67,6 @@ preserve_rom() {
 
 confirm_gpg_card() {
 	TRACE "Under /etc/ash_functions:confirm_gpg_card"
-
-	# Setup the USB so we can reach the USB Security Dongle's smartcard
-	#  Otherwise QEMU TCG is having issues...
-	enable_usb
-	
 	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
 	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
 	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
@@ -142,6 +137,9 @@ confirm_gpg_card() {
 			return
 		fi
 	fi
+
+	# setup the USB so we can reach the USB Security Dongle's smartcard
+	enable_usb
 
 	echo -e "\nVerifying presence of GPG card...\n"
 	# ensure we don't exit without retrying
