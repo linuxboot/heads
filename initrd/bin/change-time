@@ -49,11 +49,7 @@ min=$value
 get_date "second" "00" "59" "2"
 sec=$value
 
-##getting the output of date -s 
-OUTPUT=$(date -s "$year-$month-$day $hour:$min:$sec" 2>&1)
-
-##if output is starting with the letter d which is the beginning of the error message then we do the script again 
-if [[ ${OUTPUT} == d* ]]; then
+if ! date -s "$year-$month-$day $hour:$min:$sec" &>/dev/null; then
     echo "The date is not correct, press any key to try again"
     echo -e "\n"
     read -n 1 nothing
