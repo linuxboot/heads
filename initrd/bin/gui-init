@@ -430,6 +430,7 @@ show_options_menu()
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
     't' ' TPM/TOTP/HOTP Options -->' \
+    'h' ' Change system time' \
     'u' ' Update checksums and sign all files in /boot' \
     'c' ' Change configuration settings -->' \
     'f' ' Flash/Update the BIOS -->' \
@@ -449,6 +450,9 @@ show_options_menu()
       ;;
     t )
       show_tpm_totp_hotp_options_menu
+      ;;
+    h )
+      change-time.sh
       ;;
     u )
       prompt_update_checksums
@@ -543,16 +547,8 @@ prompt_totp_mismatch()
 {
   TRACE_FUNC
   if (whiptail_warning --title "TOTP/HOTP code mismatched" \
-    --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift:\n\nTo correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone\nand save it to the RTC: 'hwclock -w'\nthen reboot and try again.\n\nWould you like to exit to a recovery console?" 0 80) then
-    echo ""
-    echo "To correct clock drift: 'date -s yyyy-MM-DD hh:mm:ss' in UTC timezone"
-    echo "and save it to the RTC: 'hwclock -w'"
-    echo ""
-    echo "Alternatively you could do this automatically with an Ethernet cable connected to a functional network: 'network-init-recovery'"
-    echo ""
-    echo "Then reboot and try again"
-    echo ""
-    recovery "TOTP/HOTP mismatch"
+    --yesno "TOTP/HOTP code mismatches could indicate TPM tampering or clock drift.\n\nThe current UTC time is: $(date "+%Y-%m-%d %H:%M:%S")\nIf this is incorrect, set the correct time and check TOTP/HOTP again.\n\nDo you want to change the time?" 0 80) then
+  		change-time.sh
   fi
 }
 
