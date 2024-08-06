@@ -452,7 +452,7 @@ show_options_menu()
       show_tpm_totp_hotp_options_menu
       ;;
     h )
-      change-time
+      change-time.sh
       ;;
     u )
       prompt_update_checksums
@@ -548,7 +548,7 @@ prompt_totp_mismatch()
   TRACE_FUNC
   if (whiptail_warning --title "TOTP/HOTP code mismatched" \
     --yesno "TOTP/HOTP code mismatches could indicate either TPM tampering or clock drift.\n\nHere, we will manually set system time to see if TOTP code mismatch was because of time drift.\n\nAlternatively you could sync time from network automatically with 'network-init-recovery' helper from Recovery shell\n " 0 80) then
-  		change-time
+  		change-time.sh
   fi
 }
 
