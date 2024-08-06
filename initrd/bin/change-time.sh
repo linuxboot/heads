@@ -25,8 +25,11 @@ get_date () {
         echo
     done
 
-    # Pad with zeroes to length of maximum value
-    value="$(printf "%0${#max}u" "$value")"
+    # Pad with zeroes to length of maximum value.
+    # The "$((10#$value))" is needed to handle 08 and 09 correctly, which printf
+    # would otherwise interpret as octal.  This effectively strips the leading
+    # zero by evaluating an arithmetic expression with the base set to 10.
+    value="$(printf "%0${#max}u" "$((10#$value))")"
 }
 
 enter_time_and_change()
