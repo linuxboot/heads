@@ -3,8 +3,8 @@
 
 clear
 
-echo -e -n "Please enter the date and time you wish to set\n"
-echo -e -n "You need to set the time according to the UTC/GMT timezone please check https://time.is/UTC\n\n"
+echo -e -n "Please enter the current date and time in UTC\n"
+echo -e -n "To find the current date and time in UTC, please check https://time.is/UTC\n\n"
 
 
 get_date () {
@@ -12,14 +12,15 @@ get_date () {
     field_name="$1"
     min="$2"
     max="$3"
-    echo "Please insert $field_name (between $min-$max)"
+    echo -n "Enter the current $field_name [$min-$max]: "
     read -r value
     echo
 
     #must be a number between $2 and $3
     while [[ ! $value =~ ^[0-9]+$ ]] || [[ ${value#0} -lt $min ]] || [[ ${value#0} -gt $max ]];
-    do    
-        echo "$field_name is wrong: you entered \"$value\". Please try again, it must be a number between $min and $max"
+    do
+        echo "Please try again, it must be a number from $min to $max."
+        echo -n "Enter the current $field_name [$min-$max]: "
         read -r value
         echo
     done
