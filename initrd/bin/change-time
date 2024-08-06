@@ -28,31 +28,40 @@ get_date () {
     value="$(printf "%0${#max}u" "$value")"
 }
 
-get_date "year" "2024" "2200"
-year=$value
-get_date "month" "01" "12"
-month=$value
-get_date "day" "01" "31"
-day=$value
-get_date "hour" "00" "23"
-hour=$value
-get_date "minute" "00" "59"
-min=$value
-get_date "second" "00" "59"
-sec=$value
+enter_time_and_change()
+{
+    get_date "year" "2024" "2200"
+    year=$value
+    get_date "month" "01" "12"
+    month=$value
+    get_date "day" "01" "31"
+    day=$value
+    get_date "hour" "00" "23"
+    hour=$value
+    get_date "minute" "00" "59"
+    min=$value
+    get_date "second" "00" "59"
+    sec=$value
 
-if ! date -s "$year-$month-$day $hour:$min:$sec" &>/dev/null; then
-    echo "The date is not correct, press any key to try again"
-    echo -e "\n"
-    read -n 1 nothing
-    clear
-    change-time
-else
-    hwclock -w
-    echo -e "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec"
-    echo -e "\n"
+    if ! date -s "$year-$month-$day $hour:$min:$sec" &>/dev/null; then
+        return 1
+    fi
+    return 0
+}
 
-    echo -e "Press any key to return to the menu"
-    echo -e "\n"
-    read -n 1 nothing
-fi
+while ! enter_time_and_change; do
+    echo "Could not set the date to $year-$month-$day $hour:$min:$sec"
+    read -rp "Try again? [Y/n]: " try_again_confirm
+    if [ "${try_again_confirm^^}" = N ]; then
+            exit 1
+    fi
+    echo
+done
+
+hwclock -w
+echo "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec"
+echo
+
+echo "Press Enter to return to the menu"
+echo
+read -r nothing
