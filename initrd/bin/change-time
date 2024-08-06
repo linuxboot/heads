@@ -8,22 +8,27 @@ echo -e -n "You need to set the time according to the UTC/GMT timezone please ch
 
 
 get_date () {
-    echo -e -n "Please insert $1 (between $2-$3) (Enter key to accept $2)\n"
-    read -n $4 value
+    local field_name min max digits
+    field_name="$1"
+    min="$2"
+    max="$3"
+    digits="$4"
+    echo -e -n "Please insert $field_name (between $min-$max) (Enter key to accept $min)\n"
+    read -n $digits value
     echo -e "\n"
     #if enter
     if [[ $value = "" ]]; then 
-        value=$2    
+        value=$min
     fi
 
     #must be a $4 digits number between $2 and $3
-    while [[ ! $value =~ ^[0-9]{$4} ]] || [[ ${value#0} -lt $2 ]] || [[ ${value#0} -gt $3 ]]; 
+    while [[ ! $value =~ ^[0-9]{$digits} ]] || [[ ${value#0} -lt $min ]] || [[ ${value#0} -gt $max ]];
     do    
-        echo -e -n "$1 is wrong: you entered "$value". Please try again, it must be $4 digits number between $2 and $3 (press Enter to accept $2) \n"
-        read -n $4 value
+        echo -e -n "$field_name is wrong: you entered \"$value\". Please try again, it must be $digits digits number between $min and $max (press Enter to accept $min) \n"
+        read -n $digits value
         echo -e "\n"
         if [[ $value = "" ]]; then 
-            value=$2    
+            value=$min
         fi
     done
 }
