@@ -3,9 +3,11 @@
 
 clear
 
-echo -e -n "Please enter the current date and time in UTC\n"
-echo -e -n "To find the current date and time in UTC, please check https://time.is/UTC\n\n"
-
+echo "The system time is: $(date "+%Y-%m-%d %H:%M:%S %Z")"
+echo
+echo "Please enter the current date and time in UTC"
+echo "To find the current date and time in UTC, please check https://time.is/UTC"
+echo
 
 get_date () {
     local field_name min max
@@ -63,7 +65,7 @@ while ! enter_time_and_change; do
 done
 
 hwclock -w
-echo "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec"
+echo "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec UTC"
 echo
 
 echo "Press Enter to return to the menu"
