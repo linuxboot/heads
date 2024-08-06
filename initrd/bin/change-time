@@ -14,23 +14,26 @@ get_date () {
     max="$3"
     digits="$4"
     echo -e -n "Please insert $field_name (between $min-$max) (Enter key to accept $min)\n"
-    read -n $digits value
+    read -r value
     echo -e "\n"
     #if enter
     if [[ $value = "" ]]; then 
         value=$min
     fi
 
-    #must be a $4 digits number between $2 and $3
-    while [[ ! $value =~ ^[0-9]{$digits} ]] || [[ ${value#0} -lt $min ]] || [[ ${value#0} -gt $max ]];
+    #must be a number between $2 and $3
+    while [[ ! $value =~ ^[0-9]*$ ]] || [[ ${value#0} -lt $min ]] || [[ ${value#0} -gt $max ]];
     do    
-        echo -e -n "$field_name is wrong: you entered \"$value\". Please try again, it must be $digits digits number between $min and $max (press Enter to accept $min) \n"
-        read -n $digits value
+        echo -e -n "$field_name is wrong: you entered \"$value\". Please try again, it must be a number between $min and $max (press Enter to accept $min) \n"
+        read -r value
         echo -e "\n"
         if [[ $value = "" ]]; then 
             value=$min
         fi
     done
+
+    # Pad with zeroes to digits
+    value="$(printf "%0${digits}u" "$value")"
 }
 
 get_date "year" "2024" "2200" "4"
