@@ -16,7 +16,7 @@ endif
 
 ifeq "$(CONFIG_TPM2_TSS)" "y"
 SWTPM_TPMVER := --tpm2
-SWTPM_PRESETUP := swtpm_setup --create-config-files root skip-if-exist
+SWTPM_PRESETUP := swtpm_setup --create-config-files root,skip-if-exist
 else
 # TPM1 is the default
 SWTPM_TPMVER :=
