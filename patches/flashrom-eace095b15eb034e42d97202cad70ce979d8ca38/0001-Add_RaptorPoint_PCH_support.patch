@@ -1,4 +1,4 @@
-From 91be4b39e6c32463b506097f916352f6795800cd Mon Sep 17 00:00:00 2001
+From 99d16ef516b6080ceaaa866984b7e7fb471eaef0 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
 Date: Mon, 19 Jun 2023 09:36:52 +0200
 Subject: [PATCH] ichspi: Add RaptorPoint PCH support
@@ -6,15 +6,17 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
+TEST=probe flash on Z790 chipset
+
 Change-Id: I13ac52d5400c0e2260e12d605077fc2182c379ef
 Signed-off-by: Michał Żygowski <michal.zygowski@3mdeb.com>
 ---
  chipset_enable.c                              | 20 ++++++++++++++++++-
  ich_descriptors.c                             |  9 +++++++++
- ichspi.c                                      |  7 +++++++
+ ichspi.c                                      |  6 ++++++
  include/programmer.h                          |  1 +
  .../ich_descriptors_tool.c                    |  2 ++
- 5 files changed, 38 insertions(+), 1 deletion(-)
+ 5 files changed, 37 insertions(+), 1 deletion(-)
 
 diff --git a/chipset_enable.c b/chipset_enable.c
 index facf29e500..6b1c1b5c99 100644
@@ -154,7 +156,7 @@ index eaf44b0693..c436fabd37 100644
  	case CHIPSET_PANTHER_LAKE:
  	case CHIPSET_APOLLO_LAKE:
 diff --git a/ichspi.c b/ichspi.c
-index f74fb05c9e..9718600b91 100644
+index f74fb05c9e..d01f2f3887 100644
 --- a/ichspi.c
 +++ b/ichspi.c
 @@ -2106,6 +2106,7 @@ static void init_chipset_properties(struct swseq_data *swseq, struct hwseq_data
@@ -165,16 +167,7 @@ index f74fb05c9e..9718600b91 100644
  	case CHIPSET_APOLLO_LAKE:
  	case CHIPSET_GEMINI_LAKE:
  	case CHIPSET_JASPER_LAKE:
-@@ -2147,6 +2148,8 @@ static void init_chipset_properties(struct swseq_data *swseq, struct hwseq_data
- 	case CHIPSET_400_SERIES_COMET_POINT:
- 	case CHIPSET_500_SERIES_TIGER_POINT:
- 	case CHIPSET_600_SERIES_ALDER_POINT:
-+	case CHIPSET_700_SERIES_RAPTOR_POINT:
-+	case CHIPSET_METEOR_LAKE:
- 	case CHIPSET_APOLLO_LAKE:
- 	case CHIPSET_GEMINI_LAKE:
- 	case CHIPSET_JASPER_LAKE:
-@@ -2210,6 +2213,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+@@ -2147,6 +2148,7 @@ static void init_chipset_properties(struct swseq_data *swseq, struct hwseq_data
  	case CHIPSET_400_SERIES_COMET_POINT:
  	case CHIPSET_500_SERIES_TIGER_POINT:
  	case CHIPSET_600_SERIES_ALDER_POINT:
@@ -182,7 +175,15 @@ index f74fb05c9e..9718600b91 100644
  	case CHIPSET_APOLLO_LAKE:
  	case CHIPSET_GEMINI_LAKE:
  	case CHIPSET_JASPER_LAKE:
-@@ -2291,6 +2295,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+@@ -2210,6 +2212,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+ 	case CHIPSET_JASPER_LAKE:
+@@ -2291,6 +2294,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
  		case CHIPSET_400_SERIES_COMET_POINT:
  		case CHIPSET_500_SERIES_TIGER_POINT:
  		case CHIPSET_600_SERIES_ALDER_POINT:
@@ -190,7 +191,7 @@ index f74fb05c9e..9718600b91 100644
  		case CHIPSET_APOLLO_LAKE:
  		case CHIPSET_GEMINI_LAKE:
  		case CHIPSET_JASPER_LAKE:
-@@ -2332,6 +2337,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+@@ -2332,6 +2336,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
  		case CHIPSET_400_SERIES_COMET_POINT:
  		case CHIPSET_500_SERIES_TIGER_POINT:
  		case CHIPSET_600_SERIES_ALDER_POINT:
@@ -198,11 +199,11 @@ index f74fb05c9e..9718600b91 100644
  		case CHIPSET_APOLLO_LAKE:
  		case CHIPSET_GEMINI_LAKE:
  		case CHIPSET_JASPER_LAKE:
-@@ -2371,6 +2377,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+@@ -2371,6 +2376,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
  	     ich_gen == CHIPSET_400_SERIES_COMET_POINT ||
  	     ich_gen == CHIPSET_500_SERIES_TIGER_POINT ||
  	     ich_gen == CHIPSET_600_SERIES_ALDER_POINT ||
-+	     ich_gen == CHIPSET_700_SERIES_RAPTOR_POINT)) {
++	     ich_gen == CHIPSET_700_SERIES_RAPTOR_POINT ||
  	     ich_gen == CHIPSET_C740_SERIES_EMMITSBURG)) {
  		msg_pdbg("Enabling hardware sequencing by default for 100+ series PCH.\n");
  		ich_spi_mode = ich_hwseq;
