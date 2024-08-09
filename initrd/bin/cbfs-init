@@ -9,8 +9,15 @@ if [ -z "$CONFIG_PCR" ]; then
 	CONFIG_PCR=7
 fi
 
+if [ "$CONFIG_CBFS_VIA_FLASHROM" = "y" ]; then
+	# Use flashrom directly, because we don't have /tmp/config with params for flash.sh yet
+	/bin/flashrom -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom > /dev/null 2>&1 \
+		&& CBFS_ARG=" -o /tmp/cbfs-init.rom" \
+		|| echo "Failed reading Heads configuration from flash! Some features may not be available."
+fi
+
 # Load individual files
-cbfsfiles=`cbfs -t 50 -l 2>/dev/null | grep "^heads/initrd/"`
+cbfsfiles=`cbfs -t 50 -l $CBFS_ARG 2>/dev/null | grep "^heads/initrd/"`
 
 for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:12}
@@ -18,7 +25,7 @@ for cbfsname in `echo $cbfsfiles`; do
 		echo "Loading $filename from CBFS"
 		mkdir -p `dirname $filename` \
 		|| die "$filename: mkdir failed"
-		cbfs -t 50 -r $cbfsname > "$filename" \
+		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TMPFILE=/tmp/cbfs.$$
