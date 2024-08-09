@@ -88,6 +88,7 @@ linux_modules-$(CONFIG_LINUX_E1000E)	+= drivers/net/ethernet/intel/e1000e/e1000e
 
 # Dell R630 ethernet and RAID controller
 linux_modules-$(CONFIG_LINUX_IGB)	+= drivers/net/ethernet/intel/igb/igb.ko
+linux_modules-$(CONFIG_LINUX_IGC)	+= drivers/net/ethernet/intel/igc/igc.ko
 linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_mm.ko
 linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_sas.ko
 linux_modules-$(CONFIG_LINUX_MEGARAID)	+= drivers/scsi/megaraid/megaraid_mbox.ko

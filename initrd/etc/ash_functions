@@ -50,14 +50,19 @@ fw_version() {
 
 preserve_rom() {
 	TRACE "Under /etc/ash_functions:preserve_rom"
+	if [ "$CONFIG_CBFS_VIA_FLASHROM" = "y" ]; then
+		CBFS_ARG=" -o /tmp/cbfs-init.rom"
+	else
+		CBFS_ARG=""
+	fi
 	new_rom="$1"
-	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+	old_files=`cbfs -t 50 -l $CBFS_ARG 2>/dev/null | grep "^heads/"`
 
 	for old_file in `echo $old_files`; do
 		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $1"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
+			cbfs -t 50 $CBFS_ARG -r $old_file >/tmp/rom.$$ \
 			|| die "Failed to read cbfs file from ROM"
 			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
 			|| die "Failed to write cbfs file to new ROM file"
