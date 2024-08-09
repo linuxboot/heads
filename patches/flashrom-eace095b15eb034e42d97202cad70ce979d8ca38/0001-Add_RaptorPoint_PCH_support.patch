@@ -1,0 +1,234 @@
+From 24b8fcfccef31fbb95bc1dd308180f57d5cdb64c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
+Date: Mon, 19 Jun 2023 09:36:52 +0200
+Subject: [PATCH] Add RaptorPoint PCH support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: I13ac52d5400c0e2260e12d605077fc2182c379ef
+Signed-off-by: Michał Żygowski <michal.zygowski@3mdeb.com>
+---
+ chipset_enable.c                              | 20 ++++++++++++++++++-
+ ich_descriptors.c                             |  9 +++++++++
+ ichspi.c                                      |  8 +++++++-
+ include/programmer.h                          |  1 +
+ .../ich_descriptors_tool.c                    |  2 ++
+ 5 files changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/chipset_enable.c b/chipset_enable.c
+index d6103c13b..3a07d6093 100644
+--- a/chipset_enable.c
++++ b/chipset_enable.c
+@@ -607,6 +607,7 @@ static enum chipbustype enable_flash_ich_report_gcs(
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_ELKHART_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+@@ -714,6 +715,7 @@ static enum chipbustype enable_flash_ich_report_gcs(
+ 		break;
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 		boot_straps = boot_straps_pch500;
+ 		break;
+@@ -749,6 +751,7 @@ static enum chipbustype enable_flash_ich_report_gcs(
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -1009,6 +1012,11 @@ static int enable_flash_pch600(const struct programmer_cfg *cfg, struct pci_dev
+ 	return enable_flash_pch100_or_c620(cfg, dev, name, 0x1f, 5, CHIPSET_600_SERIES_ALDER_POINT);
+ }
+ 
++static int enable_flash_pch700(const struct programmer_cfg *cfg, struct pci_dev *const dev, const char *const name)
++{
++	return enable_flash_pch100_or_c620(cfg, dev, name, 0x1f, 5, CHIPSET_700_SERIES_RAPTOR_POINT);
++}
++
+ static int enable_flash_mtl(const struct programmer_cfg *cfg, struct pci_dev *const dev, const char *const name)
+ {
+ 	return enable_flash_pch100_or_c620(cfg, dev, name, 0x1f, 5, CHIPSET_METEOR_LAKE);
+@@ -2175,9 +2183,19 @@ const struct penable chipset_enables[] = {
+ 	{0x8086, 0x7a83, B_S,    NT,  "Intel", "Q670",				enable_flash_pch600},
+ 	{0x8086, 0x7a84, B_S,    DEP, "Intel", "Z690",				enable_flash_pch600},
+ 	{0x8086, 0x7a88, B_S,    NT,  "Intel", "W680",				enable_flash_pch600},
+-	{0x8086, 0x7a8a, B_S,    NT,  "Intel", "W685",				enable_flash_pch600},
+ 	{0x8086, 0x7a8d, B_S,    NT,  "Intel", "WM690",				enable_flash_pch600},
+ 	{0x8086, 0x7a8c, B_S,    NT,  "Intel", "HM670",				enable_flash_pch600},
++	{0x8086, 0x7a90, B_S,    NT,  "Intel", "R680E",				enable_flash_pch600},
++	{0x8086, 0x7a91, B_S,    NT,  "Intel", "Q670E",				enable_flash_pch600},
++	{0x8086, 0x7a92, B_S,    NT,  "Intel", "H610E",				enable_flash_pch600},
++	{0x8086, 0x7a8a, B_S,    NT,  "Intel", "W790",				enable_flash_pch700},
++	{0x8086, 0x7a04, B_S,    DEP, "Intel", "Z790",				enable_flash_pch700},
++	{0x8086, 0x7a05, B_S,    NT,  "Intel", "H770",				enable_flash_pch700},
++	{0x8086, 0x7a06, B_S,    NT,  "Intel", "B760",				enable_flash_pch700},
++	{0x8086, 0x7a0c, B_S,    NT,  "Intel", "HM770",				enable_flash_pch700},
++	{0x8086, 0x7a0d, B_S,    NT,  "Intel", "WM790",				enable_flash_pch700},
++	{0x8086, 0x7a14, B_S,    NT,  "Intel", "C262",				enable_flash_pch700},
++	{0x8086, 0x7a13, B_S,    NT,  "Intel", "C266",				enable_flash_pch700},
+ 	{0x8086, 0x7e23, B_S,    DEP, "Intel", "Meteor Lake-P/M",		enable_flash_mtl},
+ #endif
+ 	{0},
+diff --git a/ich_descriptors.c b/ich_descriptors.c
+index b37ce6d51..416b610cc 100644
+--- a/ich_descriptors.c
++++ b/ich_descriptors.c
+@@ -48,6 +48,7 @@ ssize_t ich_number_of_regions(const enum ich_chipset cs, const struct ich_desc_c
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_ELKHART_LAKE:
+ 	case CHIPSET_JASPER_LAKE:
+@@ -77,6 +78,7 @@ ssize_t ich_number_of_masters(const enum ich_chipset cs, const struct ich_desc_c
+ 	case CHIPSET_C620_SERIES_LEWISBURG:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+ 	case CHIPSET_JASPER_LAKE:
+@@ -215,6 +217,7 @@ static const char *pprint_density(enum ich_chipset cs, const struct ich_descript
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -313,6 +316,7 @@ static const char *pprint_freq(enum ich_chipset cs, uint8_t value)
+ 		return freq_str[2][value];
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 		return freq_str[3][value];
+ 	case CHIPSET_ELKHART_LAKE:
+@@ -361,6 +365,7 @@ void prettyprint_ich_descriptor_component(enum ich_chipset cs, const struct ich_
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -489,6 +494,7 @@ void prettyprint_ich_descriptor_master(const enum ich_chipset cs, const struct i
+ 	    cs == CHIPSET_400_SERIES_COMET_POINT ||
+ 	    cs == CHIPSET_500_SERIES_TIGER_POINT ||
+ 	    cs == CHIPSET_600_SERIES_ALDER_POINT ||
++	    cs == CHIPSET_700_SERIES_RAPTOR_POINT ||
+ 	    cs == CHIPSET_JASPER_LAKE || cs == CHIPSET_METEOR_LAKE) {
+ 		const char *const master_names[] = {
+ 			"BIOS", "ME", "GbE", "unknown", "EC",
+@@ -1087,6 +1093,7 @@ static enum ich_chipset guess_ich_chipset(const struct ich_desc_content *const c
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+ 	case CHIPSET_JASPER_LAKE:
+@@ -1246,6 +1253,7 @@ int getFCBA_component_density(enum ich_chipset cs, const struct ich_descriptors
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -1291,6 +1299,7 @@ static uint32_t read_descriptor_reg(enum ich_chipset cs, uint8_t section, uint16
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+diff --git a/ichspi.c b/ichspi.c
+index c94d9971f..f50654784 100644
+--- a/ichspi.c
++++ b/ichspi.c
+@@ -1884,6 +1884,7 @@ static void init_chipset_properties(struct swseq_data *swseq, struct hwseq_data
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -1923,6 +1924,7 @@ static void init_chipset_properties(struct swseq_data *swseq, struct hwseq_data
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -1984,6 +1986,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+ 	case CHIPSET_400_SERIES_COMET_POINT:
+ 	case CHIPSET_500_SERIES_TIGER_POINT:
+ 	case CHIPSET_600_SERIES_ALDER_POINT:
++	case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 	case CHIPSET_METEOR_LAKE:
+ 	case CHIPSET_APOLLO_LAKE:
+ 	case CHIPSET_GEMINI_LAKE:
+@@ -2064,6 +2067,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+ 		case CHIPSET_400_SERIES_COMET_POINT:
+ 		case CHIPSET_500_SERIES_TIGER_POINT:
+ 		case CHIPSET_600_SERIES_ALDER_POINT:
++		case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 		case CHIPSET_METEOR_LAKE:
+ 		case CHIPSET_APOLLO_LAKE:
+ 		case CHIPSET_GEMINI_LAKE:
+@@ -2103,6 +2107,7 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+ 		case CHIPSET_400_SERIES_COMET_POINT:
+ 		case CHIPSET_500_SERIES_TIGER_POINT:
+ 		case CHIPSET_600_SERIES_ALDER_POINT:
++		case CHIPSET_700_SERIES_RAPTOR_POINT:
+ 		case CHIPSET_METEOR_LAKE:
+ 		case CHIPSET_APOLLO_LAKE:
+ 		case CHIPSET_GEMINI_LAKE:
+@@ -2140,7 +2145,8 @@ static int init_ich_default(const struct programmer_cfg *cfg, void *spibar, enum
+ 	     ich_gen == CHIPSET_300_SERIES_CANNON_POINT ||
+ 	     ich_gen == CHIPSET_400_SERIES_COMET_POINT ||
+ 	     ich_gen == CHIPSET_500_SERIES_TIGER_POINT ||
+-	     ich_gen == CHIPSET_600_SERIES_ALDER_POINT)) {
++	     ich_gen == CHIPSET_600_SERIES_ALDER_POINT ||
++	     ich_gen == CHIPSET_700_SERIES_RAPTOR_POINT)) {
+ 		msg_pdbg("Enabling hardware sequencing by default for 100+ series PCH.\n");
+ 		ich_spi_mode = ich_hwseq;
+ 	}
+diff --git a/include/programmer.h b/include/programmer.h
+index 1c5d82096..c64dbac7a 100644
+--- a/include/programmer.h
++++ b/include/programmer.h
+@@ -376,6 +376,7 @@ enum ich_chipset {
+ 	CHIPSET_400_SERIES_COMET_POINT,
+ 	CHIPSET_500_SERIES_TIGER_POINT,
+ 	CHIPSET_600_SERIES_ALDER_POINT,
++	CHIPSET_700_SERIES_RAPTOR_POINT,
+ 	CHIPSET_METEOR_LAKE,
+ 	CHIPSET_APOLLO_LAKE,
+ 	CHIPSET_GEMINI_LAKE,
+diff --git a/util/ich_descriptors_tool/ich_descriptors_tool.c b/util/ich_descriptors_tool/ich_descriptors_tool.c
+index a5a59ad29..44af49b6a 100644
+--- a/util/ich_descriptors_tool/ich_descriptors_tool.c
++++ b/util/ich_descriptors_tool/ich_descriptors_tool.c
+@@ -238,6 +238,8 @@ int main(int argc, char *argv[])
+ 			cs = CHIPSET_500_SERIES_TIGER_POINT;
+ 		else if (strcmp(csn, "600") == 0)
+ 			cs = CHIPSET_600_SERIES_ALDER_POINT;
++		else if (strcmp(csn, "700") == 0)
++			cs = CHIPSET_700_SERIES_RAPTOR_POINT;
+ 		else if (strcmp(csn, "apollo") == 0)
+ 			cs = CHIPSET_APOLLO_LAKE;
+ 		else if (strcmp(csn, "gemini") == 0)
