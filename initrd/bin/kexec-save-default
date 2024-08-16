@@ -218,16 +218,17 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			save_key="y"
 		fi
 	else
-		DEBUG "No previous LUKS TPM Disk Unlock Key was set up, confirming to add a Disk Encryption Key to the TPM"
+		DEBUG "No previous LUKS TPM Disk Unlock Key was set up, confirming to add a Disk Unlock Key (DUK) to the TPM"
 		read \
 			-n 1 \
-			-p "Do you wish to add a disk encryption to the TPM [y/N]: " \
+			-p "Do you wish to add a disk encryption key to the TPM [y/N]: " \
 			add_key_confirm
+			#TODO: still not convinced: disk encryption key? decryption key? everywhere TPM Disk Unlock Key. Confusing even more?
 		echo
 
 		if [ "$add_key_confirm" = "y" \
 			-o "$add_key_confirm" = "Y" ]; then
-			DEBUG "User confirmed desire to add a Disk Encryption Key to the TPM"
+			DEBUG "User confirmed desire to add a Disk Unlock Key (DUK) to the TPM"
 			save_key="y"
 		fi
 	fi
