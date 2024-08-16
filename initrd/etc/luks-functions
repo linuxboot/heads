@@ -7,6 +7,7 @@
 
 #List all LUKS devices on the system
 list_luks_devices() {
+	TRACE_FUNC
 	#generate a list of devices to choose from that contain a LUKS header
 	lvm vgscan || true
 	blkid | cut -d ':' -f 1 | while read device; do
@@ -267,12 +268,15 @@ prepare_thumb_drive()
 
 select_luks_container()
 {
+	#TODO: extend logic to prompt for block devices with model if multiple LUKS are found on block device instead of partitions
+	# Then feed luks with those partitions so that reencrypt and passphrase change can use passphrase to test all selected
 	TRACE_FUNC
 	if [ -s /boot/kexec_key_devices.txt ]; then
 		DEBUG "Reusing known good LUKS container device from /boot/kexec_key_devices.txt"
-		DEBUG "LUKS container device: $(cut -d ' ' -f1 /boot/kexec_key_devices.txt)"
-		LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt)
-	else
+		LUKS=$(cut -d ' ' -f1 /boot/kexec_key_devices.txt) 
+		DEBUG "LUKS container device: $(echo $LUKS)"
+		# LUKS variable not exported yet, prompt for LUKS device
+	elif [ -z "$LUKS" ]; then
 		list_luks_devices > /tmp/luks_devices.txt
 		#if /tmp/luks_devices.txt exists and is not empty
 		if [ -s /tmp/luks_devices.txt ]; then
@@ -280,11 +284,21 @@ select_luks_container()
 			if [ "$FILE" == "" ]; then
 				return 1
 			else
-				LUKS=$FILE
-				detect_boot_device
-				mount -o remount,rw /boot
-				echo "$LUKS $(cryptsetup luksUUID $LUKS)" >/boot/kexec_key_devices.txt
-				mount -o remount,ro /boot
+				#TODO: What about BRTFS multi LUKS setup of QubesOS?
+				# if multiple LUKS containers are found on same block device
+				# select all of the luks containers on same block device instead of just one
+				# note that block devices for example under /dev/sda will be /dev/sda1, /dev/sda2, etc
+				# so we need to select all of the partitions on the same block device from /tmp/luks_devices.txt
+				# and then export them to LUKS variable
+				# then reencrypt and passphrase change functions will loop on all of the LUKS containers
+				# and test passphrase on all of them
+				if grep -q "$(echo $FILE | sed 's/[0-9]*$//')" /tmp/luks_devices.txt; then
+					DEBUG "Multiple LUKS containers found on same block device, selecting them all"
+					LUKS=$(grep $(echo $FILE | sed 's/[0-9]*$//') /tmp/luks_devices.txt)
+				else
+					DEBUG "Single LUKS container found on block device, assigning to LUKS variable"
+					LUKS=$FILE
+				fi
 			fi
 		else
 			warn "No encrypted device found"
@@ -295,41 +309,79 @@ select_luks_container()
 
 test_luks_current_disk_recovery_key_passphrase()
 {
+	#TODO: reuse/generalize usage of this function. Tests for LUKS are still done 4 times independently of this helper
 	TRACE_FUNC
 	while :; do
 		select_luks_container || return 1
+
+		# LUKS contains multiline string of LUKS containers on same block device
+		# transform it into words of a same string separated by space
+		PRINTABLE_LUKS=$(echo $LUKS)
+
+		TRACE_FUNC
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
-			#if no external provisioning provides current LUKS Disk Recovery Key passphrase
+			# if no external provisioning provides current LUKS Disk Recovery Key passphrase
 			echo -e "\nEnter the current LUKS Disk Recovery Key passphrase (Configured at OS installation or by OEM):"
 			read -r luks_current_Disk_Recovery_Key_passphrase
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Testing opening "$LUKS" LUKS encrypted drive content with the current LUKS Disk Recovery Key passphrase..."
-			cryptsetup open $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		else
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Testing opening "$LUKS" LUKS encrypted drive content with the current LUKS Disk Recovery Key passphrase..."
-			cryptsetup open $LUKS test --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		fi
-		#Validate past cryptsetup-reencrypt attempts
-		if [ $? -eq 0 ]; then
-			whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
-				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 30 60
-			shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null
-			#unsetting luks_current_Disk_Recovery_Key_passphrase so we prompt for it again LUKS Disk Recovery Key passphrase prompt on next round
-			unset luks_current_Disk_Recovery_Key_passphrase
-			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
-			#maybe the container was not the right one
-			detect_boot_device
-			mount -o remount,rw /boot
-			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
-		else
-			#LuksOpen test was successful. Cleanup should be called only when done
-			#Exporting successfully used passphrase possibly reused by oem-factory-reset
 
-			#We close the volume
-			cryptsetup close test
-			export luks_current_Disk_Recovery_Key_passphrase
+		# test all LUKS containers on same block device as returned by select_luks_container
+		echo -e "\n$PRINTABLE_LUKS: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
+
+		# Loop on all LUKS containers on same block device
+		for luks_container in $LUKS; do
+			DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
+			DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
+			# Validate past cryptsetup reencrypt attempts
+			if [ $? -ne 0 ]; then
+				# if we have more than one LUKS container and passphrase test unsuccessful, tell user how to change passphrase
+				if [ $(echo $LUKS | wc -w) -gt 1 ]; then
+					#TODO remove this once whiptail_error whiptail_warning can take titles with double quotes
+					#whiptail_warning --title 'tes' --msgbox 'test' 0 80
+					#whiptail_error --title 'error' --msgbox 'error' 0 80
+					#Neither work today. Not related to this PR... Using whiptail without coloring.
+
+					msg=$(echo -e "All $PRINTABLE_LUKS must unlock with the same Disk Recovery Key passphrase for the current operation to succeed.\n\nTo change individual LUKS container passphrase, do so from 'Options-> Change LUKS Disk Recovery Key passphrase'\n\nThen retry this operation." | fold -w 70 -s)
+					whiptail --title "$luks_container"': Wrong current LUKS Disk Recovery Key passphrase?' \
+						--msgbox "$msg" 0 80
+					
+					TRACE_FUNC
+					luks_secrets_cleanup
+					die "$PRINTABLE_LUKS individual containers NEED to share the same Disk Recovery Key passphrase"
+					# We exited to caller, LUKS still set. TODO: problem? Should we call all cleaning functions on die?
+				fi
+
+				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
+				TRACE_FUNC
+
+				detect_boot_device
+				mount -o remount,rw /boot
+				rm -f /boot/kexec_key_devices.txt
+				mount -o remount,ro /boot
+				luks_secrets_cleanup
+				# remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
+				# maybe the container was not the right one
+				unset LUKS
+			else
+				# LuksOpen test was successful. Cleanup should be called only when done
+				# Exporting successfully used passphrase possibly reused by oem-factory-reset
+				echo "$luks_container: unlocking LUKS container with current Disk Recovery Key passphrase successful"
+
+				# Exporting successfully used passphrase possibly reused by oem-factory-reset
+				export luks_current_Disk_Recovery_Key_passphrase
+			fi
+		done
+
+		# exit while loop if LUKS variable is not empty
+		if [ -n "$LUKS" ]; then
+			# We export the LUKS volume(s) that was/were validated via passphrase test
+			export LUKS
+			TRACE_FUNC
+			DEBUG "$LUKS exported to be reused"
 			break;
 		fi
 	done
@@ -337,12 +389,16 @@ test_luks_current_disk_recovery_key_passphrase()
 
 luks_reencrypt() {
 	TRACE_FUNC
-	while :; do
-		select_luks_container || return 1
-                #If the user just set a new LUKS Disk Recovery Key passphrase
-                if [ -n "$luks_new_Disk_Recovery_Key_passphrase" ]; then
-                        luks_current_Disk_Recovery_Key_passphrase="$luks_new_Disk_Recovery_Key_passphrase"
-                fi
+	#TODO: REFACTOR This and luks passphrase change function needs to loop on same drive discovered luks containers so that reencrypt/passwd change is done on all luks containers of same drive 
+	# Ideal would be to list luks devices and then try keep and append LUKS devices to a list of devices to reencrypt or change passphrase
+	# then loop on that list of devices that could be opened and reencrypt/change passphrase for all the devices that could be tested opened with that passphrase
+	select_luks_container || return 1
+
+	# Count the number of containers to be reencrypted
+	num_containers=$(echo "$LUKS" | wc -w)
+	reencrypted_containers=0
+
+	while [ $reencrypted_containers -lt $num_containers ]; do
 		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
 			#if no external provisioning provides current LUKS Disk Recovery Key passphrase
 			msg=$(echo -e "This will replace the encrypted container content and its LUKS Disk Recovery Key.\n\nThe passphrase associated with this key will be asked from the user under the following conditions:\n 1-Every boot if no Disk Unlock Key was added to the TPM\n 2-If the TPM fails (hardware failure)\n 3-If the firmware has been tampered with/modified by the user\n\nThis process requires you to type the current LUKS Disk Recovery Key passphrase and will delete the LUKS TPM Disk Unlock Key slot, if set up, by setting a default boot LUKS key slot (1) if present.\n\nAt the next prompt, you may be asked to select which file corresponds to the LUKS device container.\n\nHit Enter to continue." | fold -w 70 -s)
@@ -351,97 +407,185 @@ luks_reencrypt() {
 			echo -e "\nEnter the current LUKS Disk Recovery Key passphrase:"
 			read -r luks_current_Disk_Recovery_Key_passphrase
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Reencrypting "$LUKS" LUKS encrypted drive content with a new LUKS Disk Recovery Key. Do NOT shut down or reboot!"
-			cryptsetup-reencrypt -B 64 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		else
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Reencrypting "$LUKS" LUKS encrypted drive content with a new LUKS Disk Recovery Key. Do NOT shut down or reboot!"
-			cryptsetup-reencrypt -B 64 --use-directio "$LUKS" --key-slot 0 --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase
 		fi
-		#Validate past cryptsetup-reencrypt attempts
-		if [ $(echo $?) -ne 0 ]; then
-			whiptail --title 'Invalid Actual LUKS Disk Recovery Key passphrase?' --msgbox \
-				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 30 60
-			shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null
-			#unsetting luks_current_Disk_Recovery_Key_passphrase so we prompt for it again LUKS Disk Recovery Key passphrase prompt on next round
-			unset luks_current_Disk_Recovery_Key_passphrase
-			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
-			#maybe the container was not the right one
-			detect_boot_device
-			mount -o remount,rw /boot
-			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
-		else
-			#Reencryption was successful. Cleanup should be called only when done
-			#Exporting successfully used passphrase possibly reused by oem-factory-reset
-			export luks_current_Disk_Recovery_Key_passphrase
-		break;
-		fi
+
+		# Split the $LUKS variable into an array of LUKS containers
+		luks_containers=($LUKS)
+		TRACE_FUNC
+		DEBUG "luks_containers: $luks_containers"
+
+		# Loop through each LUKS container
+		for luks_container in "${luks_containers[@]}"; do
+			DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
+			if ! DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1; then
+				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
+				# Remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
+				# Maybe the container was not the right one
+				TRACE_FUNC
+				detect_boot_device
+				mount -o remount,rw /boot
+				rm -f /boot/kexec_key_devices.txt
+				mount -o remount,ro /boot
+				luks_secrets_cleanup
+				unset LUKS
+				continue
+			fi
+		done
+		
+		DEBUG "Test opening ${luks_containers[@]} successful. Now testing key slots to determine which holds master key"
+		for luks_container in "${luks_containers[@]}"; do
+			# First obtain which luks1/luks2 key-slot can be unlocked with the key-file
+			DRK_KEYSLOT=-1
+			DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
+			for i in $(seq 0 31); do
+				if DO_WITH_DEBUG cryptsetup open --test-passphrase $luks_container --key-slot $i --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1; then
+					DRK_KEYSLOT=$i
+					DEBUG "$luks_container: Found key-slot $DRK_KEYSLOT that can be unlocked with the current passphrase. breaking loop"
+					break
+				fi
+			done
+
+			# Validate if a key slot was found
+			if [ $DRK_KEYSLOT -eq -1 ]; then
+				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
+				# Remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
+				# Maybe the container was not the right one
+				TRACE_FUNC
+				detect_boot_device
+				mount -o remount,rw /boot
+				rm -f /boot/kexec_key_devices.txt
+				mount -o remount,ro /boot
+				luks_secrets_cleanup
+				unset LUKS
+				continue
+			fi
+
+			# Now reencrypt the LUKS container with the same key slot
+			# Warn and launch actual reencryption
+			echo -e "\nReencrypting $luks_container LUKS encrypted drive content with current Recovery Disk Key passphrase..."
+			warn "DO NOT POWER DOWN MACHINE, UNPLUG AC OR REMOVE BATTERY DURING REENCRYPTION PROCESS"
+			
+			# --perf-no_read_workqueue and/or --perf-no_write_workqueue improve encryption/reencrypton performance on kernel 5.10.9+
+			# bypassing dm-crypt queues.
+			# Ref https://github.com/cloudflare/linux/issues/1#issuecomment-729695518
+			# --resilience=none disables the resilience feature of cryptsetup, which is enabled by default
+			# --force-offline-reencrypt forces the reencryption to be done offline (no read/write operations on the device)
+			# --disable-locks disables the lock feature of cryptsetup, which is enabled by default
+
+			if ! DO_WITH_DEBUG cryptsetup reencrypt \
+			--perf-no_read_workqueue --perf-no_write_workqueue \
+			--resilience=none --force-offline-reencrypt --disable-locks \
+			"$luks_container" --key-slot "$DRK_KEYSLOT" \
+			--key-file /tmp/luks_current_Disk_Recovery_Key_passphrase; then
+				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
+				
+				TRACE_FUNC
+
+				#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
+				#maybe the container was not the right one
+				detect_boot_device
+				mount -o remount,rw /boot
+				rm -f /boot/kexec_key_devices.txt
+				mount -o remount,ro /boot
+				luks_secrets_cleanup
+				unset LUKS
+			else
+				#Reencryption was successful. Cleanup should be called only when done
+				#Exporting successfully used passphrase possibly reused by oem-factory-reset
+				export luks_current_Disk_Recovery_Key_passphrase
+				export LUKS
+
+				# Increment the count of reencrypted containers
+				reencrypted_containers=$((reencrypted_containers + 1))
+			fi
+		done
 	done
 }
 
-luks_change_passphrase()
-{
-	TRACE_FUNC
-	while :; do
-		select_luks_container || return 1
-		#if actual or new LUKS Disk Recovery Key is not provisioned by oem-provisioning file
-		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ] || [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
-			whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
-				"Please enter the current LUKS Disk Recovery Key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nHit Enter to continue" 30 60
-			if [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
-				echo -e "\nEnter your desired replacement for the actual LUKS Disk Recovery Key passphrase (At least 8 characters long):"
-				while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
-				{
-					read -r luks_new_Disk_Recovery_Key_passphrase
-			        };done
-			fi
-			if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
-				echo -e "\nEnter the current LUKS Disk Recovery Key passphrase (Configured at OS installation or by OEM):"
-				read -r luks_current_Disk_Recovery_Key_passphrase
-			fi
-			export luks_current_Disk_Recovery_Key_passphrase
-			export luks_new_Disk_Recovery_Key_passphrase
-			echo -n "$luks_new_Disk_Recovery_Key_passphrase" >/tmp/luks_new_Disk_Recovery_Key_passphrase
-			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Changing "$LUKS" LUKS encrypted disk passphrase to the new LUKS Disk Recovery Key passphrase..."
-			cryptsetup luksChangeKey "$LUKS" --key-slot 0 --key-file=/tmp/luks_current_Disk_Recovery_Key_passphrase /tmp/luks_new_Disk_Recovery_Key_passphrase
-		else
-			#If current and new LUKS Disk Recovery Key were exported
-			echo -n "$luks_new_Disk_Recovery_Key_passphrase" >/tmp/luks_new_Disk_Recovery_Key_passphrase
-			echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/luks_current_Disk_Recovery_Key_passphrase
-			warn "Changing "$LUKS" LUKS encrypted disk passphrase to the new LUKS Disk Recovery Key passphrase..."
-			cryptsetup luksChangeKey "$LUKS" --key-slot 0 --key-file=/tmp/luks_current_Disk_Recovery_Key_passphrase /tmp/luks_new_Disk_Recovery_Key_passphrase
-		fi
+luks_change_passphrase() {
+    TRACE_FUNC
 
-		#Validate past cryptsetup attempts
-		if [ $(echo $?) -ne 0 ]; then
-			#Cryptsetup luksChangeKey was unsuccessful
-			whiptail --title 'Invalid LUKS passphrase?' --msgbox \
-				"The LUKS Disk Recovery Key passphrase was provided to you by the OEM over\n a secure communication channel.\n\nIf you previously changed it and do not remember it,\n you will have to reinstall the OS from a USB drive.\nTo do so, put OS ISO file and it's signature file on root of a USB drive,\n and select Boot from USB\n\nHit Enter to continue." 30 60
-			unset luks_current_Disk_Recovery_Key_passphrase
-			unset luks_new_Disk_Recovery_Key_passphrase
-			#remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
-			#maybe the container was not the right one
-			detect_boot_device
-			mount -o remount,rw /boot
-			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
-		else
-			#Cryptsetup was successful.
-			#Cleanup should be called seperately.
-			#Exporting successfully used passphrase possibly reused by oem-factory-reset
-			export luks_new_Disk_Recovery_Key_passphrase
-	break;		
-		fi
-	done
+    select_luks_container || return 1
+
+    # Count the number of containers to be processed
+    num_containers=$(echo "$LUKS" | wc -w)
+    changed_containers=0
+
+    # Split the $LUKS variable into an array of LUKS containers
+    IFS=' ' read -ra luks_containers <<< "$LUKS"
+
+    for luks_container in "${luks_containers[@]}"; do
+        if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ] || [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+            whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
+                "Please enter the current LUKS Disk Recovery Key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nHit Enter to continue" 0 80
+
+            if [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+                echo -e "\nEnter your desired replacement for the actual LUKS Disk Recovery Key passphrase (At least 8 characters long):"
+                while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
+                    read -r luks_new_Disk_Recovery_Key_passphrase
+                done
+            fi
+
+            if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
+                echo -e "\nEnter the current LUKS Disk Recovery Key passphrase (Configured at OS installation or by OEM):"
+                read -r luks_current_Disk_Recovery_Key_passphrase
+            fi
+        fi
+
+        echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/luks_current_Disk_Recovery_Key_passphrase
+        echo -n "$luks_new_Disk_Recovery_Key_passphrase" > /tmp/luks_new_Disk_Recovery_Key_passphrase
+
+        DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
+        if ! DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1; then
+            whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+                "If you previously changed it and do not remember it, you will have to\n reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
+            TRACE_FUNC
+            detect_boot_device
+            mount -o remount,rw /boot
+            rm -f /boot/kexec_key_devices.txt
+            mount -o remount,ro /boot
+            luks_secrets_cleanup
+			unset LUKS
+            continue
+        fi
+
+        echo -e "\nChanging $luks_container LUKS encrypted disk passphrase to the new LUKS Disk Recovery Key passphrase..."
+        if ! DO_WITH_DEBUG cryptsetup luksChangeKey "$luks_container" --key-file=/tmp/luks_current_Disk_Recovery_Key_passphrase /tmp/luks_new_Disk_Recovery_Key_passphrase; then
+            whiptail --title 'Failed to change LUKS passphrase' --msgbox \
+                "Failed to change the passphrase for $luks_container.\nPlease try again." 0 80
+            continue
+        fi
+
+        echo "Success changing passphrase for $luks_container."
+        changed_containers=$((changed_containers + 1))
+    done
+
+    if [ $changed_containers -eq $num_containers ]; then
+        # All containers processed successfully
+        luks_current_Disk_Recovery_Key_passphrase=$luks_new_Disk_Recovery_Key_passphrase
+        export luks_current_Disk_Recovery_Key_passphrase
+        export luks_new_Disk_Recovery_Key_passphrase
+        export LUKS
+    fi
 }
 
 luks_secrets_cleanup()
 {
+	TRACE_FUNC
+
 	#Cleanup
 	shred -n 10 -z -u /tmp/luks_new_Disk_Recovery_Key_passphrase 2>/dev/null || true
 	shred -n 10 -z -u /tmp/luks_current_Disk_Recovery_Key_passphrase 2>/dev/null || true
+
+	#Unset variables (when in same boot)
 	unset luks_current_Disk_Recovery_Key_passphrase
 	unset luks_new_Disk_Recovery_Key_passphrase
+
+	#TODO: refactor logic of selec_luks_conatainer, where to put	
+	#unset LUKS
 }
