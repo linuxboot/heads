@@ -1,0 +1,40 @@
+diff --git a/scripts/check-sysctl-docs b/scripts/check-sysctl-docs
+index 8bcb9e26c7bc..90137319c50a 100755
+--- a/scripts/check-sysctl-docs
++++ b/scripts/check-sysctl-docs
+@@ -1,4 +1,4 @@
+-#!/usr/bin/gawk -f
++#!/usr/bin/env -S gawk -f
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ # Script to check sysctl documentation against source files
+diff --git a/scripts/ld-version.sh b/scripts/ld-version.sh
+index f2be0ff9a738..7a5b546ece16 100755
+--- a/scripts/ld-version.sh
++++ b/scripts/ld-version.sh
+@@ -1,4 +1,4 @@
+-#!/usr/bin/awk -f
++#!/usr/bin/env -S awk -f
+ # SPDX-License-Identifier: GPL-2.0
+ # extract linker version number from stdin and turn into single number
+ 	{
+diff --git a/scripts/parse-maintainers.pl b/scripts/parse-maintainers.pl
+index 2ca4eb3f190d..9515765158fa 100755
+--- a/scripts/parse-maintainers.pl
++++ b/scripts/parse-maintainers.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/perl -w
++#!/usr/bin/env -S perl -w
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ use strict;
+diff --git a/scripts/ver_linux b/scripts/ver_linux
+index 0968a3070eff..345b92f71d2d 100755
+--- a/scripts/ver_linux
++++ b/scripts/ver_linux
+@@ -1,4 +1,4 @@
+-#!/usr/bin/awk -f
++#!/usr/bin/env -S awk -f
+ # SPDX-License-Identifier: GPL-2.0
+ # Before running this script please ensure that your PATH is
+ # typical as you use for compilation/installation. I use
