@@ -1,0 +1,19 @@
+modules-$(CONFIG_LVM2) += libaio
+
+libaio_version := 0.3.113
+libaio_dir := libaio-$(libaio_version)
+libaio_tar := libaio_$(libaio_version).orig.tar.gz
+libaio_url := https://deb.debian.org/debian/pool/main/liba/libaio/$(libaio_tar)
+libaio_hash := 2c44d1c5fd0d43752287c9ae1eb9c023f04ef848ea8d4aafa46e9aedb678200b
+
+libaio_target := \
+	DESTDIR="$(INSTALL)" \
+	prefix="/" \
+	$(CROSS_TOOLS) \
+	install \
+	&& mv $(build)/$(libaio_dir)/src/libaio.so.1.0.2 $(build)/$(libaio_dir)/src/libaio.so.1 \
+
+libaio_libraries:= src/libaio.so.1
+
+libaio_depends := $(musl_dep)
+
