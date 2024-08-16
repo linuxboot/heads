@@ -44,6 +44,12 @@ GPG_ALGO="RSA"
 # Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
 RSA_KEY_LENGTH=3072
 
+#Override RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards until canokey fixes
+if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
+    DEBUG "Overriding RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards"
+    RSA_KEY_LENGTH=2048
+fi
+
 GPG_USER_NAME="OEM Key"
 GPG_KEY_NAME=$(date +%Y%m%d%H%M%S)
 GPG_USER_MAIL="oem-${GPG_KEY_NAME}@example.com"
@@ -266,20 +272,20 @@ keytocard_subkeys_to_smartcard() {
     {
         echo "key 1"            #Toggle on Signature key in --edit-key mode on local keyring
         echo "keytocard"        #Move Signature key to smartcard
-        echo "1"                #Select Signature key keyslot on smartcard
+        echo "1"                #Select Signature key key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "0"                #No expiration date
         echo "key 1"            #Toggle off Signature key
         echo "key 2"            #Toggle on Encryption key
         echo "keytocard"        #Move Encryption key to smartcard
-        echo "2"                #Select Encryption key keyslot on smartcard
+        echo "2"                #Select Encryption key key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "key 2"            #Toggle off Encryption key
         echo "key 3"            #Toggle on Authentication key
         echo "keytocard"        #Move Authentication key to smartcard
-        echo "3"                #Select Authentication key keyslot on smartcard
+        echo "3"                #Select Authentication key slot on smartcard
         echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
         echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
         echo "key 3"            #Toggle off Authentication key
@@ -383,6 +389,7 @@ export_public_key_to_thumbdrive_public_partition() {
 
     #pass non-empty arguments to --pass, --mountpoint, --device, --mode
     mount-usb --device "$device" --mode "$mode" --mountpoint "$mountpoint" || die "Error mounting thumb drive's public partition"
+    #TODO: reuse "Obtain GPG key ID" so that pubkey on public thumb drive partition is named after key ID
     gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || die "Error exporting public key to thumb drive's public partition"
     umount "$mountpoint" || die "Error unmounting thumb drive's public partition"
 
@@ -879,6 +886,7 @@ report_integrity_measurements
 clear
 
 #Prompt user for use of default configuration options
+TRACE_FUNC
 echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
 read -n 1 use_defaults
 
@@ -907,6 +915,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     echo
     if [ "$prompt_output" == "y" \
         -o "$prompt_output" == "Y" ]; then
+        TRACE_FUNC
         test_luks_current_disk_recovery_key_passphrase
         luks_new_Disk_Recovery_Key_desired=1
         echo -e "\n"
@@ -970,8 +979,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
     echo
     if [ "$prompt_output" == "y" \
         -o "$prompt_output" == "Y" ]; then
-        echo -e "\nThe chosen custom password must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
-        echo
+        echo -e "\nThe chosen custom password must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
         while [[ ${#CUSTOM_SINGLE_PASS} -lt 8 ]] || [[ ${#CUSTOM_SINGLE_PASS} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
             echo -e -n "Enter the custom password: "
             read CUSTOM_SINGLE_PASS
@@ -999,8 +1007,8 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
                     read TPM_PASS
                 done
             fi
-            while [[ ${#ADMIN_PIN} -lt 8 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-                echo -e -n "\nThis PIN should be between 8 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
+            while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+                echo -e -n "\nThis PIN should be between 6 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
                 echo -e -n "Enter desired GPG Admin PIN: "
                 read ADMIN_PIN
             done
@@ -1028,6 +1036,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
             }
         done
         #We test that current LUKS Disk Recovery Key passphrase is known prior of going further
+        TRACE_FUNC
         test_luks_current_disk_recovery_key_passphrase
         echo -e "\n"
     fi
@@ -1147,8 +1156,8 @@ fi
 
 if [ -n "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     #Reencryption of disk, LUKS Disk Recovery Key and LUKS Disk Recovery Key passphrase change is requested
-    luks_change_passphrase
     luks_reencrypt
+    luks_change_passphrase
 elif [ -n "$luks_new_Disk_Recovery_Key_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
     #Reencryption of disk was requested but not passphrase change
     luks_reencrypt
