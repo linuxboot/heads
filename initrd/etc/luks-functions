@@ -476,11 +476,12 @@ luks_reencrypt() {
 			# --force-offline-reencrypt forces the reencryption to be done offline (no read/write operations on the device)
 			# --disable-locks disables the lock feature of cryptsetup, which is enabled by default
 
-			if ! DO_WITH_DEBUG cryptsetup reencrypt \
-			--perf-no_read_workqueue --perf-no_write_workqueue \
-			--resilience=none --force-offline-reencrypt --disable-locks \
-			"$luks_container" --key-slot "$DRK_KEYSLOT" \
-			--key-file /tmp/luks_current_Disk_Recovery_Key_passphrase; then
+			#if ! DO_WITH_DEBUG cryptsetup reencrypt \
+			#--perf-no_read_workqueue --perf-no_write_workqueue \
+			#--resilience=none --force-offline-reencrypt --disable-locks \
+			#"$luks_container" --key-slot "$DRK_KEYSLOT" \
+			#--key-file /tmp/luks_current_Disk_Recovery_Key_passphrase; then
+			if ! DO_WITH_DEBUG echo "fake cryptsetup reencrypt call"; then
 				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				
