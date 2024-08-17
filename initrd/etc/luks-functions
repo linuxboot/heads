@@ -344,7 +344,7 @@ test_luks_current_disk_recovery_key_passphrase()
 					#whiptail_error --title 'error' --msgbox 'error' 0 80
 					#Neither work today. Not related to this PR... Using whiptail without coloring.
 
-					msg=$(echo -e "All $PRINTABLE_LUKS must unlock with the same Disk Recovery Key passphrase for the current operation to succeed.\n\nTo change individual LUKS container passphrase, do so from 'Options-> Change LUKS Disk Recovery Key passphrase'\n\nThen retry this operation." | fold -w 70 -s)
+					msg=$(echo -e "All $PRINTABLE_LUKS LUKS containers must be unlockable by a shared Disk Recovery Key (DRK) passphrase for the current operation to succeed.\n\nTo change individual LUKS container DRK passphrase, do so from 'Options-> Change LUKS Disk Recovery Key passphrase'\n\nThen retry this operation." | fold -w 70 -s)
 					whiptail --title "$luks_container"': Wrong current LUKS Disk Recovery Key passphrase?' \
 						--msgbox "$msg" 0 80
 					
