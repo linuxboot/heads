@@ -46,6 +46,7 @@ DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modul
 # pcr 6 (drive LUKS header) is not measured at sealing/unsealing of totp
 DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not firmware integrity attestation related)"
 # pcr 7 is containing measurements of user injected stuff in cbfs
+DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
 tpmr pcrread -a 7 "$pcrf"
 #Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
 tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
@@ -56,5 +57,6 @@ shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 url="otpauth://totp/$HOST?secret=$secret"
 secret=""
 
+DEBUG "TOTP secret output on screen (both URL and QR code)"
 qrenc "$url"
 echo "$url"
