@@ -21,106 +21,6 @@ case "$CONFIG_FLASHROM_OPTIONS" in
   ;;
 esac
 
-flashrom_progress() {
-    # The ichspi programmer now spews register status lines constantly that are
-    # brutally slow to feed through the parser in flashrom_progress_tokenize.
-    # Filter the input with grep for only lines containing at least one token
-    # that we care about.
-    grep -E -e 'contents\.\.\.' -e 'done\.' -e '0x[0-9a-f]+-(0x[0-9a-f]+):' \
-        -e 'identical' -e 'VERIFIED\.' -e 'FAILED' | \
-        tr ' ' '\n' | flashrom_progress_tokenize "$1"
-}
-
-print_flashing_progress() {
-    local spaces='                                                  '
-    local hashes='##################################################'
-    local percent pct1 pct2 progressbar progressbar2
-    percent="$1"
-    pct1=$((percent / 2))
-    pct2=$((50 - percent / 2))
-    progressbar=${hashes:0:$pct1}
-    progressbar2=${spaces:0:$pct2}
-    echo -ne "Flashing: [${progressbar}${spin:$spin_idx:1}${progressbar2}] (${percent}%)\\r"
-}
-
-flashrom_progress_tokenize() {
-    local current=0
-    local total_bytes="$1"
-    local percent=0
-    local IN=''
-    local spin='-\|/'
-    local spin_idx=0
-    local status='init'
-    local prev_word=''
-    local prev_prev_word=''
-
-    echo "Initializing Flash Programmer"
-    while true ; do
-        prev_prev_word=$prev_word
-        prev_word=$IN
-        IFS= read -r -t 0.2 IN
-        spin_idx=$(( (spin_idx+1) %4 ))
-        if [ "$status" == "init" ]; then
-            if [ "$IN" == "contents..." ]; then
-                status="reading"
-                echo "Reading old flash contents. Please wait..."
-            fi
-        fi
-        if [ "$status" == "reading" ]; then
-            if echo "${IN}" | grep "done." > /dev/null ; then
-                status="writing"
-                IN=
-            fi
-        fi
-        if [ "$status" == "writing" ]; then
-            # walk_eraseblocks() prints info for each block, of the form
-            # , 0xAAAAAA-0xBBBBBB:X
-            # The 'X' is a char indicating the action, but the debug from actually erasing
-            # and writing is mixed into the output so it may be separated.  It can also be
-            # interrupted occasionally, so only match a complete token.
-            current=$(echo "$IN" | sed -nE 's/^0x[0-9a-f]+-(0x[0-9a-f]+):.*$/\1/p')
-            if [ "$current" != "" ]; then
-                percent=$((100 * (current + 1) / total_bytes))
-            fi
-            print_flashing_progress "$percent"
-            if [ "$IN" == "done." ]; then
-                status="verifying"
-                IN=
-                print_flashing_progress 100
-                echo ""
-                echo "Verifying flash contents. Please wait..."
-            fi
-            # This appears before "Erase/write done."; skip the verifying state
-            if [ "$IN" == "identical" ]; then
-                status="done"
-                IN=
-                print_flashing_progress 100
-                echo ""
-                echo "The flash contents are identical to the image being flashed."
-                break
-            fi
-        fi
-        if [ "$status" == "verifying" ]; then
-            if echo "${IN}" | grep "VERIFIED." > /dev/null ; then
-                status="done"
-                echo "The flash contents were verified and the image was flashed correctly."
-                break
-            elif echo "${IN}" | grep "FAILED" > /dev/null ; then
-                echo 'Error while verifying flash content'
-                break
-            fi
-        fi
-    done
-    echo ""
-    if [ "$status" == "done" ]; then
-        return 0
-    else
-        echo 'Error flashing coreboot -- see timestampped flashrom log in /tmp for more info'
-        echo ""
-        return 1
-    fi
-}
-
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
@@ -148,9 +48,7 @@ flash_rom() {
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
     fi
 
-    flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom \
-      -V -o "/tmp/flashrom-$(date '+%Y%m%d-%H%M%S').log" 2>&1 | \
-      flashrom_progress "$(stat -c %s "/tmp/${CONFIG_BOARD}.rom")" \
+    flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
       || die "$ROM: Flash failed"
   fi
 }
