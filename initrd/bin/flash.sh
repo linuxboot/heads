@@ -48,6 +48,7 @@ flash_rom() {
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
     fi
 
+    warn "Do not power off computer.  Updating firmware, this will take a few minutes..."
     flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
       || die "$ROM: Flash failed"
   fi
