@@ -28,7 +28,7 @@ fi
 #  Unify lsmod output to use - instead of _ for comparison
 module_name=$(basename "$MODULE" | sed 's/_/-/g' | sed 's/\.ko$//')
 if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
-	DEBUG "$MODULE: already loaded"
+	DEBUG "$MODULE: already loaded, skipping"
 	exit 0
 fi
 
@@ -39,17 +39,14 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
-	DEBUG "Extending TPM PCR $MODULE_PCR with $MODULE prior of usage"
+	echo "TPM: Extending PCR[$MODULE_PCR] with $MODULE prior of loading into kernel"
 	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 	|| die "$MODULE: tpm extend failed"
 fi
 
 if [ ! -z "$*" -a -z "$tpm_missing" ]; then
-	DEBUG "Extending TPM PCR $MODULE_PCR with $*"
-	TMPFILE=/tmp/insmod.$$
-	echo "$@" > $TMPFILE
-	DEBUG "Extending TPM PCR $MODULE_PCR with $MODULE prior of usage"
-	tpmr extend -ix "$MODULE_PCR" -if $TMPFILE \
+	echo "TPM: Extending PCR[$MODULE_PCR] with $MODULE prior of loading into kernel"
+	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 	|| die "$MODULE: tpm extend on arguments failed"
 fi
 

@@ -241,7 +241,7 @@ recovery() {
 	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		DEBUG "Extending TPM PCR 4 for recovery shell access"
+		echo "TPM: Extending PCR[4] to prevent any further secret unsealing"
 		tpmr extend -ix 4 -ic recovery
 	fi
 
