@@ -15,17 +15,14 @@ cbfsfiles=`cbfs -t 50 -l 2>/dev/null | grep "^heads/initrd/"`
 for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:12}
 	if [ ! -z "$filename" ]; then
-		echo "Loading $filename from CBFS"
 		mkdir -p `dirname $filename` \
 		|| die "$filename: mkdir failed"
-		cbfs -t 50 -r $cbfsname > "$filename" \
+		echo "Extracting CBFS file $cbfsname into $filename"
+		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
-			TMPFILE=/tmp/cbfs.$$
-			echo "$filename" > $TMPFILE
-			cat $filename >> $TMPFILE
-			DEBUG "Extending TPM PCR $CONFIG_PCR with $filename"
-			tpmr extend -ix "$CONFIG_PCR" -if $TMPFILE \
+			echo "TPM: Extending PCR[$CONFIG_PCR with] with $filename"
+			tpmr extend -ix "$CONFIG_PCR" -if $filename \
 			|| die "$filename: tpm extend failed"
 		fi
 	fi
