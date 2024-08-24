@@ -1,0 +1,62 @@
+From f6c818898b3f978bd22ed2829a881322e0eadaf9 Mon Sep 17 00:00:00 2001
+From: Mike Rothfuss <6182328+mrothfuss@users.noreply.github.com>
+Date: Fri, 23 Aug 2024 19:54:54 -0600
+Subject: [PATCH 1/2] northbridge/amd: Fixed errors in fam15h DQS timing
+
+Fixed two errors in determining whether valid values were
+found for read DQS delays in raminit.
+---
+ src/northbridge/amd/amdmct/mct_ddr3/mctdqs_d.c | 17 ++++++-----------
+ 1 file changed, 6 insertions(+), 11 deletions(-)
+
+diff --git a/src/northbridge/amd/amdmct/mct_ddr3/mctdqs_d.c b/src/northbridge/amd/amdmct/mct_ddr3/mctdqs_d.c
+index d34b2dc2ba..6cf67afa4f 100644
+--- a/src/northbridge/amd/amdmct/mct_ddr3/mctdqs_d.c
++++ b/src/northbridge/amd/amdmct/mct_ddr3/mctdqs_d.c
+@@ -21,6 +21,7 @@
+ #include <arch/cpu.h>
+ #include <cpu/amd/msr.h>
+ #include <cpu/amd/mtrr.h>
++#include <southbridge/amd/common/reset.h>
+ #include "mct_d.h"
+ #include "mct_d_gcc.h"
+ 
+@@ -1287,6 +1288,7 @@ static uint8_t TrainDQSRdWrPos_D_Fam15(struct MCTStatStruc *pMCTstat,
+ 	uint8_t cur_count = 0;
+ 	uint8_t best_pos = 0;
+ 	uint8_t best_count = 0;
++	uint16_t region_center;
+ 
+ 	uint32_t index_reg = 0x98;
+ 	uint32_t dev = pDCTstat->dev_dct;
+@@ -1455,23 +1457,16 @@ static uint8_t TrainDQSRdWrPos_D_Fam15(struct MCTStatStruc *pMCTstat,
+ 				last_pos = 0;
+ 			}
+ 
+-			if (best_count > 2) {
+-				uint16_t region_center = (best_pos + (best_count / 2));
+-
+-				if (region_center < 16) {
+-					printk(BIOS_WARNING, "TrainDQSRdWrPos: negative DQS recovery delay detected!"
+-							"  Attempting to continue but your system may be unstable...\n");
+-					region_center = 0;
+-				} else {
+-					region_center -= 16;
+-				}
++			region_center = (best_pos + (best_count / 2));
++			if ((best_count > 2) && (region_center >= 16)) {
++				region_center -= 16;
+ 
+ 				/* Restore current settings of other (previously trained) lanes to the active array */
+ 				memcpy(current_read_dqs_delay, initial_read_dqs_delay, sizeof(current_read_dqs_delay));
+ 
+ 				/* Program the Read DQS Timing Control register with the center of the passing window */
+ 				current_read_dqs_delay[lane] = region_center;
+-				passing_dqs_delay_found[lane] = 1;
++				passing_read_dqs_delay_found = 1;
+ 
+ 				/* Commit the current Read DQS Timing Control settings to the hardware registers */
+ 				write_dqs_read_data_timing_registers(current_read_dqs_delay, dev, dct, dimm, index_reg);
+-- 
+2.39.2
+
