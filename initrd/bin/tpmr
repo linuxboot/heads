@@ -101,7 +101,7 @@ is_hash() {
 
 # extend_pcr_state - extend a PCR state value with more hashes or raw data (which is hashed)
 # usage:
-# extend_pcr_state <alg> <initial_state> <files/hashes...>
+# extend_pcr_state <alg> <state> <files/hashes...>
 # alg - either 'sha1' or 'sha256' to specify algorithm
 # state - a hash value setting the initial state
 # files/hashes... - any number of files or hashes, state is extended once for each item
