@@ -1,0 +1,48 @@
+modules-$(CONFIG_FLASHPROG) += flashprog
+
+flashprog_depends := pciutils $(musl_dep)
+
+flashprog_change := 72991
+flashprog_revision := 5
+flashprog_version := $(flashprog_change)_$(flashprog_revision)
+flashprog_dir := flashprog-$(flashprog_version)
+flashprog_tar := $(flashprog_dir).tar.gz
+flashprog_url := https://review.sourcearcade.org/changes/flashprog~$(flashprog_change)/revisions/$(flashprog_revision)/archive?format=tgz
+flashprog_hash := 8e8e6d901d3bc37b80db1f10dd21b9490709bdb54a0ca06892f8922a284f2ed9
+
+# Default options for flashprog
+flashprog_cfg := \
+	WARNERROR=no \
+	CONFIG_NOTHING=yes \
+	CONFIG_INTERNAL=yes \
+	CONFIG_INTERNAL_X86=yes \
+
+ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+flashprog_cfg := \
+	WARNERROR=no \
+	CONFIG_NOTHING=yes \
+	CONFIG_LINUX_MTD=yes
+endif
+
+#Only enable AST1100 if requested per board configs
+ifeq "$(CONFIG_FLASHPROG_AST1100)" "y"
+flashprog_cfg += CONFIG_AST1100=yes
+endif
+
+flashprog_target := \
+	$(MAKE_JOBS) \
+	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	DESTDIR="$(INSTALL)" \
+	INSTALL="$(INSTALL)" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+	PREFIX="$(INSTALL)" \
+	$(CROSS_TOOLS) \
+	$(flashprog_cfg) \
+	flashprog
+
+flashprog_output := \
+	flashprog
+
+flashprog_libraries := \
+
+flashprog_configure := 
