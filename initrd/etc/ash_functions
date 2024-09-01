@@ -5,9 +5,9 @@
 
 die() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
 	else
-		echo >&2 "!!! ERROR: $* !!!";
+		echo -e "!!! ERROR: $* !!!" > &2;
 	fi
 	sleep 2;
 	exit 1;
@@ -15,9 +15,9 @@ die() {
 
 warn() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
-		echo " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
 	else
-		echo >&2 " *** WARNING: $* ***";
+		echo -e " *** WARNING: $* ***" > &2;
 	fi
 	sleep 1;
 }
