@@ -26,13 +26,13 @@ flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
     $CONFIG_FLASH_OPTIONS -r "${ROM}" \
-    || die "Backup to $ROM failed"
+    || recovery "Backup to $ROM failed"
   else
     cp "$ROM" /tmp/${CONFIG_BOARD}.rom
     sha256sum /tmp/${CONFIG_BOARD}.rom
     if [ "$CLEAN" -eq 0 ]; then
       preserve_rom /tmp/${CONFIG_BOARD}.rom \
-      || die "$ROM: Config preservation failed"
+      || recovery "$ROM: Config preservation failed"
     fi
     # persist serial number from CBFS
     if cbfs.sh -r serial_number > /tmp/serial 2>/dev/null; then
@@ -86,7 +86,7 @@ if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
 
         echo "Reading current flash and building an update image"
         $CONFIG_FLASH_OPTIONS -r /tmp/flash.sh.bak \
-            || die "Read of flash has failed"
+            || recovery "Read of flash has failed"
 
         # ROM and bootblock already have ECC
         bootblock=$(echo /tmp/verified_rom/*.bootblock)
