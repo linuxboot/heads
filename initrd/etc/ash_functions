@@ -7,7 +7,7 @@ die() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
 	else
-		echo -e "!!! ERROR: $* !!!" > &2;
+		echo -e >&2 "!!! ERROR: $* !!!";
 	fi
 	sleep 2;
 	exit 1;
@@ -17,7 +17,7 @@ warn() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
 	else
-		echo -e " *** WARNING: $* ***" > &2;
+		echo -e >&2 " *** WARNING: $* ***";
 	fi
 	sleep 1;
 }

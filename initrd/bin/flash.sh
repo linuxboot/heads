@@ -12,19 +12,20 @@ echo
 
 TRACE "Under /bin/flash.sh"
 
-case "$CONFIG_FLASHROM_OPTIONS" in
-  -* )
-    echo "Board $CONFIG_BOARD detected, continuing..."
+case "$CONFIG_FLASH_OPTIONS" in
+  "" )
+    die "ERROR: No flash options have been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
   ;;
   * )
-    die "ERROR: No board has been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
+    DEBUG "Flash options detected: $CONFIG_FLASH_OPTIONS"
+    echo "Board $CONFIG_BOARD detected with flash options configured. Continuing..."
   ;;
 esac
 
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
-    flashrom $CONFIG_FLASHROM_OPTIONS -r "${ROM}" \
+    $CONFIG_FLASH_OPTIONS -r "${ROM}" \
     || die "Backup to $ROM failed"
   else
     cp "$ROM" /tmp/${CONFIG_BOARD}.rom
@@ -42,14 +43,14 @@ flash_rom() {
     # persist PCHSTRP9 from flash descriptor
     if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
       echo "Persisting PCHSTRP9"
-      flashrom $CONFIG_FLASHROM_OPTIONS -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
+      $CONFIG_FLASH_OPTIONS -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
       || die "Failed to read flash descriptor"
       dd if=/tmp/ifd.bin bs=1 count=4 skip=292 of=/tmp/pchstrp9.bin >/dev/null 2>&1
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
     fi
 
     warn "Do not power off computer.  Updating firmware, this will take a few minutes"
-    flashrom $CONFIG_FLASHROM_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
+    $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
       || recovery "$ROM: Flash failed"
   fi
 }
@@ -84,7 +85,7 @@ if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
         fi
 
         echo "Reading current flash and building an update image"
-        flashrom $CONFIG_FLASHROM_OPTIONS -r /tmp/flash.sh.bak \
+        $CONFIG_FLASH_OPTIONS -r /tmp/flash.sh.bak \
             || die "Read of flash has failed"
 
         # ROM and bootblock already have ECC
