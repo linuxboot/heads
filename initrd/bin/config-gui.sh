@@ -564,9 +564,10 @@ while true; do
              --yesno "This will disable DEBUG and TRACE output from scripts.
                     \n\nDo you want to proceed?" 0 80) then
           
-          set_user_config "CONFIG_DEBUG_OUTPUT" "n"
-          set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
-
+          # Unset both debugging and tracing output
+          unset_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT"
+          unset_user_config "CONFIG_DEBUG_OUTPUT"
+          
           whiptail --title 'Config change successful' \
             --msgbox "Debugging and Tracing output disabled;\nsave the config change and reboot for it to go into effect." 0 80
         fi
