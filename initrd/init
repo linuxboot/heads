@@ -140,8 +140,14 @@ fi
 #
 # Values in user config have higher priority during combining thus effectively
 # changing the value for the rest of the scripts which source /tmp/config.
-echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
-echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
+
+#Only set CONFIG_TPM and CONFIG_TPM2_TOOLS if they are not already set in /etc/config.user
+if ! grep -q 'CONFIG_TPM=' /etc/config.user; then
+	echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
+fi
+if ! grep -q 'CONFIG_TPM2_TOOLS=' /etc/config.user; then
+	echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
+fi
 
 # CONFIG_BASIC was previously CONFIG_PUREBOOT_BASIC in the PureBoot distribution.
 # Substitute it in config.user if present for backward compatibility.
