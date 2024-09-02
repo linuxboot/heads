@@ -328,6 +328,24 @@ load_config_value() {
         fi
 }
 
+# Unset a config variable in running config and use
+unset_user_config()
+{
+		# check if the running config has option set
+		if grep -q "$1" /tmp/config; then
+			DEBUG "$1 found in /tmp/config"			
+			# unset the config in the current environment
+			# NOTE: only unsets on running console!!! 
+			unset $1			
+			# remove the whole line from the config files
+			sed -i "/$1/d" /tmp/config /etc/config*
+			# source the new config
+			. /tmp/config
+		else
+			DEBUG "$1 not found in /tmp/config. Doing nothing."
+		fi
+}
+
 enable_usb()
 {
 	TRACE "Under /etc/ash_functions:enable_usb"
