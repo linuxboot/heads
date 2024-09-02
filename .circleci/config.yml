@@ -485,6 +485,34 @@ workflows:
           requires:
             - nitropad-nv41
 
+      - build:
+          name: msi_z690a_ddr4
+          target: msi_z690a_ddr4
+          subcommand: ""
+          requires:
+            - nitropad-nv41
+
+      - build:
+          name: msi_z690a_ddr5
+          target: msi_z690a_ddr5
+          subcommand: ""
+          requires:
+            - nitropad-nv41
+
+      - build:
+          name: msi_z790p_ddr4
+          target: msi_z790p_ddr4
+          subcommand: ""
+          requires:
+            - nitropad-nv41
+
+      - build:
+          name: msi_z790p_ddr5
+          target: msi_z790p_ddr5
+          subcommand: ""
+          requires:
+            - nitropad-nv41
+
       # coreboot 4.11
       - build:
           name: UNMAINTAINED_kgpe-d16_workstation
