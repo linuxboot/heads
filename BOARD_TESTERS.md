@@ -40,6 +40,9 @@ Librems:
 - [ ] Librem 15v3 (Skylake): @JonathonHall-Purism
 - [ ] Librem 15v4 (Kabylake): @JonathonHall-Purism
 
+System76:
+- [ ] Galago Pro 5 (Tiger Lake-U, Intel 11th Gen CPU, iGPU): @loftlifter31
+
 Clevo:
 ===
 - [ ] Nitropad NS50 (AlderLake) : @daringer
