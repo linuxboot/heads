@@ -97,6 +97,13 @@ coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
 coreboot-dasharo_patch_version := unreleased
 $(eval $(call coreboot_module,dasharo,))
 
+# System76 maintain their own fork
+coreboot-system76_repo := https://github.com/system76/coreboot
+coreboot-system76_commit_hash := 6da534f92044c684139675a599eef92d077b2b36
+coreboot-system76_patch_version := unreleased
+$(eval $(call coreboot_module,system76,))
+
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
