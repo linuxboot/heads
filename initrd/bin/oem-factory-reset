@@ -70,6 +70,7 @@ whiptail_error() {
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
     fi
+    DEBUG "whiptail error: $msg"
     whiptail_error --msgbox "${msg}\n\n" $HEIGHT $WIDTH --title "Error"
 }
 
