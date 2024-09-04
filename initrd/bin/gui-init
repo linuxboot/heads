@@ -363,7 +363,7 @@ check_gpg_key()
     option=$(cat /tmp/whiptail)
     case "$option" in 
       g )
-        gpg-gui.sh && BG_COLOR_MAIN_MENU="normnal"
+        gpg-gui.sh && BG_COLOR_MAIN_MENU="normal"
         ;;
       i )
         skip_to_menu="true"
