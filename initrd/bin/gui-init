@@ -21,6 +21,7 @@ skip_to_menu="false"
 mount_boot()
 {
   TRACE_FUNC
+
   # Mount local disk if it is not already mounted
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
@@ -67,7 +68,9 @@ mount_boot()
 verify_global_hashes()
 {
   TRACE_FUNC
+
   # Check the hashes of all the files, ignoring signatures for now
+  DEBUG "Checking global hashes, ignoring signatures"
   check_config /boot force
   TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
   TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
@@ -75,18 +78,23 @@ verify_global_hashes()
   TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
   if verify_checksums /boot ; then
+    DEBUG "Verified global hashes"
     return 0
   elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]] ; then
     if (whiptail_error --title 'ERROR: Missing File!' \
         --yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an\nolder version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to create the missing files now?" 0 80) then
       if update_checksums ; then
+        DEBUG "Verified global hashes: updated missing files"
         BG_COLOR_MAIN_MENU="normal"
         return 0;
       else
+        DEBUG "Failed to update checksums / sign default config"
         whiptail_error --title 'ERROR' \
           --msgbox "Failed to update checksums / sign default config" 0 80
       fi
     fi
+
+    # missing files, return to main menu and setting BG_COLOR_MAIN_MENU to error
     BG_COLOR_MAIN_MENU="error"
     return 1
   else
@@ -94,7 +102,9 @@ verify_global_hashes()
     CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
 
     # if files changed before package manager started, show stern warning
-    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then 
+    if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then
+      DEBUG "Package trigger pre file exists" 
+      TRACE_FUNC
       PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
       TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
 
@@ -103,6 +113,8 @@ verify_global_hashes()
       LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" $TMP_PACKAGE_TRIGGER_POST)
       UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
 
+      DEBUG "Package trigger post file exists"
+      TRACE_FUNC
       if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
         TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
       else
@@ -111,6 +123,8 @@ verify_global_hashes()
 
     else
       if [ $CHANGED_FILES_COUNT -gt 10 ]; then
+        DEBUG "More than 10 files changed, showing less output, not whiptail"
+
         # drop to console to show full file list
         whiptail_error --title 'ERROR: Boot Hash Mismatch' \
           --msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 0 80
@@ -125,6 +139,8 @@ verify_global_hashes()
       fi
     fi
 
+    DEBUG "Hash mismatch detected"
+    TRACE_FUNC
     if (whiptail_error --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80) then
       if update_checksums ; then
         BG_COLOR_MAIN_MENU="normal"
@@ -134,6 +150,8 @@ verify_global_hashes()
           --msgbox "Failed to update checksums / sign default config" 0 80
       fi
     fi
+
+    # hash mismatch, return to main menu and setting BG_COLOR_MAIN_MENU to error
     BG_COLOR_MAIN_MENU="error"
     return 1
   fi
@@ -142,6 +160,7 @@ verify_global_hashes()
 prompt_update_checksums()
 {
   TRACE_FUNC
+
   if (whiptail_warning --title 'Update Checksums and sign all files in /boot' \
       --yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80) then
     if ! update_checksums ; then
@@ -154,6 +173,7 @@ prompt_update_checksums()
 generate_totp_hotp()
 {
   TRACE_FUNC  
+
   tpm_owner_password="$1"	# May be empty, will prompt if needed and empty
   if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
     echo "Generating new HOTP secret"
@@ -172,8 +192,9 @@ generate_totp_hotp()
         read
       fi
     fi
+
     # clear screen
-    printf "\033c"
+    clear
   else
     warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed"
     warn 'Try "Generate new HOTP/TOTP secret" option if you updated firmware content'
@@ -183,13 +204,14 @@ generate_totp_hotp()
 update_totp()
 {
   TRACE_FUNC
+
   # update the TOTP code
-  date=`date "+%Y-%m-%d %H:%M:%S %Z"`
+  date=$(date "+%Y-%m-%d %H:%M:%S %Z")
   tries=0
   if [ "$CONFIG_TPM" != "y" ]; then
     TOTP="NO TPM"
   else
-    TOTP=`unseal-totp`
+    TOTP=$(unseal-totp)
     # On platforms using CONFIG_BOOT_EXTRA_TTYS multiple processes may try to
     # access TPM at the same time, failing with EBUSY. The order of execution
     # is unpredictable, so the error may appear on main console, secondary one,
@@ -199,7 +221,7 @@ update_totp()
     while [ $? -ne 0 ] && [ $tries -lt 2 ]; do
       sleep 0.5
       ((tries++))
-      TOTP=`unseal-totp`
+      TOTP=$(unseal-totp)
     done
     if [ $? -ne 0 ]; then
       BG_COLOR_MAIN_MENU="error"
@@ -252,6 +274,7 @@ update_totp()
 update_hotp()
 {
   TRACE_FUNC
+
   HOTP="Unverified"
   if [ -x /bin/hotp_verification ]; then
     if ! hotp_verification info ; then
@@ -319,26 +342,36 @@ clean_boot_check()
   TRACE_FUNC
   # assume /boot mounted
   if ! grep -q /boot /proc/mounts ; then
+    DEBUG "No /boot mounted, skipping clean boot check"
     return
   fi
 
   # check for any kexec files in /boot
-  kexec_files=`find /boot -name kexec*.txt`
-  [ ! -z "$kexec_files" ] && return
+  kexec_files=$(find /boot -name kexec*.txt)
+
+  if [ ! -z "$kexec_files" ]; then
+    DEBUG "Kexec files found in /boot, skipping clean boot check"
+    return
+  fi
   
   #check for GPG key in keyring
-  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
-  [ $GPG_KEY_COUNT -ne 0 ] && return
+  GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
+  if [ $GPG_KEY_COUNT -ne 0 ]; then
+    DEBUG "GPG keys found in keyring, skipping clean boot check"
+    return
+  fi
 
    # check for USB security token
   if [ -x /bin/hotp_verification ]; then
     if ! gpg --card-status > /dev/null ; then
+      DEBUG "hotp_verification found, but no USB Security dongle found connected, skipping clean boot check"
       return
     fi
   fi
 
   # OS is installed, no kexec files present, no GPG keys in keyring, security token present
   # prompt user to run OEM factory reset
+  TRACE_FUNC
   oem-factory-reset \
     "Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?"
 }
@@ -346,12 +379,16 @@ clean_boot_check()
 check_gpg_key()
 {
   TRACE_FUNC
-  GPG_KEY_COUNT=`gpg -k 2>/dev/null | wc -l`
+
+  GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
   if [ $GPG_KEY_COUNT -eq 0 ]; then
     BG_COLOR_MAIN_MENU="error"
     if [ "$skip_to_menu" = "true" ]; then
+      DEBUG "Skipping GPG key check due to prior error"
       return 1  # Already asked to skip to menu from a prior error
     fi
+
+    DEBUG "No GPG keys found in keyring, prompting user on how to proceed"
     whiptail_error --title "ERROR: GPG keyring empty!" \
       --menu "ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
       'g' ' Add a GPG key to the running BIOS' \
@@ -363,7 +400,7 @@ check_gpg_key()
     option=$(cat /tmp/whiptail)
     case "$option" in 
       g )
-        gpg-gui.sh && BG_COLOR_MAIN_MENU="normnal"
+        gpg-gui.sh && BG_COLOR_MAIN_MENU="normal"
         ;;
       i )
         skip_to_menu="true"
@@ -383,6 +420,7 @@ check_gpg_key()
 prompt_auto_default_boot()
 {
   TRACE_FUNC
+
   echo -e "\nHOTP verification success\n\n"
   if pause_automatic_boot; then
     echo -e "\n\nAttempting default boot...\n\n"
@@ -393,7 +431,8 @@ prompt_auto_default_boot()
 show_main_menu()
 {
   TRACE_FUNC
-  date=`date "+%Y-%m-%d %H:%M:%S %Z"`
+
+  date=$(date "+%Y-%m-%d %H:%M:%S %Z")
   whiptail_type $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
     --menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 0 80 10 \
     'd' ' Default boot' \
@@ -426,6 +465,7 @@ show_main_menu()
 show_options_menu()
 {
   TRACE_FUNC
+
   whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
@@ -491,6 +531,7 @@ show_options_menu()
 show_boot_options_menu()
 {
   TRACE_FUNC
+
   whiptail_type $BG_COLOR_MAIN_MENU --title "Boot Options" \
     --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
@@ -519,6 +560,7 @@ show_boot_options_menu()
 show_tpm_totp_hotp_options_menu()
 {
   TRACE_FUNC
+
   whiptail_type $BG_COLOR_MAIN_MENU --title "TPM/TOTP/HOTP Options" \
     --menu "Select An Option" 0 80 10 \
     'g' ' Generate new TOTP/HOTP secret' \
@@ -546,6 +588,7 @@ show_tpm_totp_hotp_options_menu()
 prompt_totp_mismatch()
 {
   TRACE_FUNC
+
   if (whiptail_warning --title "TOTP/HOTP code mismatched" \
     --yesno "TOTP/HOTP code mismatches could indicate TPM tampering or clock drift.\n\nThe current UTC time is: $(date "+%Y-%m-%d %H:%M:%S")\nIf this is incorrect, set the correct time and check TOTP/HOTP again.\n\nDo you want to change the time?" 0 80) then
   		change-time.sh
@@ -555,6 +598,7 @@ prompt_totp_mismatch()
 reset_tpm()
 {
   TRACE_FUNC
+
   if [ "$CONFIG_TPM" = "y" ]; then
     if (whiptail_warning --title 'Reset the TPM' \
         --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
@@ -599,8 +643,10 @@ reset_tpm()
 select_os_boot_option()
 {
   TRACE_FUNC
+
   mount_boot
   if verify_global_hashes ; then
+    DEBUG "Verified global hashes"
     kexec-select-boot -m -b /boot -c "grub.cfg" -g
   fi
 }
@@ -608,6 +654,7 @@ select_os_boot_option()
 attempt_default_boot()
 {
   TRACE_FUNC
+  
   mount_boot
     
   if ! verify_global_hashes; then
@@ -648,22 +695,27 @@ else
 fi
 
 if [ -x /bin/hotp_verification ]; then
+  DEBUG "hotp_verification found, enabling USB"
   enable_usb
 fi
 
 if detect_boot_device ; then
   # /boot device with installed OS found
+  DEBUG "Boot device detected: $CONFIG_BOOT_DEV"
   clean_boot_check
 else
   # can't determine /boot device or no OS installed, 
   # so fall back to interactive selection
+  DEBUG "No boot device detected, prompting user"
   mount_boot
 fi
 
 # detect whether any GPG keys exist in the keyring, if not, initialize that first
+TRACE_FUNC
 check_gpg_key
 # Even if GPG init fails, still try to update TOTP/HOTP so the main menu can
 # show the correct status.
+TRACE_FUNC
 update_totp
 update_hotp
 

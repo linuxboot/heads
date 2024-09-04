@@ -53,6 +53,7 @@ SKIP_BOOT="n"
 ## functions
 
 die() {
+    TRACE_FUNC
 
     local msg=$1
     if [ -n "$msg" ]; then
@@ -63,6 +64,8 @@ die() {
 }
 
 whiptail_error() {
+    TRACE_FUNC
+
     local msg=$1
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
@@ -71,17 +74,21 @@ whiptail_error() {
 }
 
 whiptail_error_die() {
+    TRACE_FUNC
+
     whiptail_error "$@"
     die
 }
 
 mount_boot() {
     TRACE_FUNC
+    
     # Mount local disk if it is not already mounted.
     # Added so that 'o' can be typed early at boot to enter directly into OEM Factory Reset
     if ! grep -q /boot /proc/mounts; then
         # try to mount if CONFIG_BOOT_DEV exists
         if [ -e "$CONFIG_BOOT_DEV" ]; then
+            DEBUG "Mounting $CONFIG_BOOT_DEV to /boot"
             mount -o ro $CONFIG_BOOT_DEV /boot || die "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
         fi
     fi
@@ -297,6 +304,7 @@ keytocard_subkeys_to_smartcard() {
 #Whiptail prompt to insert to be wiped thumb drive
 prompt_insert_to_be_wiped_thumb_drive() {
     TRACE_FUNC
+
     #Whiptail warning about having only desired to be wiped thumb drive inserted
     whiptail_warning --title 'WARNING: Please insert the thumb drive to be wiped' \
         --msgbox "The thumb drive will be WIPED next.\n\nPlease connect only the thumb drive to be wiped and disconnect others." 0 80 ||
@@ -580,6 +588,7 @@ generate_OEM_gpg_keys() {
 
 gpg_key_change_pin() {
     TRACE_FUNC
+
     DEBUG "Changing GPG key PIN"
     # 1 = user PIN, 3 = admin PIN
     PIN_TYPE=$1
@@ -755,6 +764,8 @@ report_integrity_measurements() {
 
     #check for GPG key in keyring
     GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
+    DEBUG "GPG key count: $GPG_KEY_COUNT"
+
     if [ "$GPG_KEY_COUNT" -ne 0 ]; then
         # Check and report TOTP
         # update the TOTP code every thirty seconds
@@ -801,6 +812,7 @@ report_integrity_measurements() {
                 ;;
             esac
         else
+            DEBUG "HOTP not enabled in board config"
             HOTP='N/A'
         fi
         # Check for detached signed digest and report on /boot integrity status
@@ -815,6 +827,8 @@ report_integrity_measurements() {
 
         #Show results
         whiptail_type $BG_COLOR_MAIN_MENU --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
+    else
+        DEBUG "No GPG key found in keyring."
     fi
 
     TRACE_FUNC
@@ -840,7 +854,7 @@ usb_security_token_capabilities_check() {
 
 # check for args
 if [ "$1" != "" ]; then
-    title_text=$1
+    title_text="$1"
 else
     title_text="OEM Factory Reset / Re-Ownership"
 fi
@@ -871,8 +885,11 @@ $TPM_STR
 fi
 
 #Make sure /boot is mounted if board config defines default
+TRACE_FUNC
 mount_boot
+
 # We show current integrity measurements status and time
+TRACE_FUNC
 report_integrity_measurements
 
 # Clear the screen
@@ -1100,6 +1117,8 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
             fi
         fi
     else
+        TRACE_FUNC
+
         GPG_EXPORT=0
         # needed for USB Security Dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
         enable_usb
@@ -1119,6 +1138,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD
     fi
 
     #Now that USB Security Dongle is detected, we can check its capabilities and limitations
+    TRACE_FUNC
     usb_security_token_capabilities_check
 fi
 
@@ -1127,13 +1147,16 @@ assert_signable
 # Action time...
 
 # clear gpg-agent cache so that next gpg calls doesn't have past keyring in memory
+DEBUG "Clearing gpg-agent cache"
 killall gpg-agent >/dev/null 2>&1 || true
 # clear local keyring
+DEBUG "Clearing local keyring"
 rm -rf /.gnupg/*.kbx /.gnupg/*.gpg >/dev/null 2>&1 || true
 
 # detect and set /boot device
 echo -e "\nDetecting and setting boot device...\n"
 if ! detect_boot_device; then
+    DEBUG "Boot device detection failed. Skipping boot device configuration."
     SKIP_BOOT="y"
 else
     echo -e "Boot device set to $CONFIG_BOOT_DEV\n"
@@ -1141,6 +1164,7 @@ fi
 
 # update configs
 if [[ "$SKIP_BOOT" == "n" ]]; then
+    DEBUG "Updating boot device in user config"
     replace_config /etc/config.user "CONFIG_BOOT_DEV" "$CONFIG_BOOT_DEV"
     combine_configs
 fi
@@ -1168,9 +1192,11 @@ if [ $? -ne 0 ]; then
 fi
 
 # clear local keyring
+DEBUG "Clearing local keyring"
 rm /.gnupg/*.gpg 2>/dev/null
 rm /.gnupg/*.kbx 2>/dev/null
 # initialize gpg wth empty keyring
+DEBUG "Initializing gpg with empty keyring"
 gpg --list-keys >/dev/null 2>&1
 
 #Generate keys in memory and copy to smartcard
