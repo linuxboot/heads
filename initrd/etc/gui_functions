@@ -6,8 +6,8 @@
 # continue with automatic boot, nonzero if user interrupted.
 pause_automatic_boot()
 {
-	if IFS= read -t "$CONFIG_AUTO_BOOT_TIMEOUT" -s -n 1 -p \
-		"Automatic boot in $CONFIG_AUTO_BOOT_TIMEOUT seconds unless interrupted by keypress... "; then
+	if IFS= read -t "$CONFIG_AUTO_BOOT_TIMEOUT" -s -n 1 -r -p \
+		$'Automatic boot in '"$CONFIG_AUTO_BOOT_TIMEOUT"$' seconds unless interrupted by keypress...\n'; then
 		return 1 # Interrupt automatic boot
 	fi
 	return 0 # Continue with automatic boot
