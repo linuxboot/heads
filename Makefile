@@ -413,19 +413,19 @@ define define_module =
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
-		if [ -r patches/$($1_patch_name).patch ]; then \
+	if [ -r patches/$($1_patch_name).patch ]; then \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< patches/$($1_patch_name).patch \
-				|| exit 1 ; \
+			< patches/$($1_patch_name).patch \
+			|| exit 1 ; \
 		fi && \
-		if [ -d patches/$($1_patch_name) ] && \
-		   [ -r patches/$($1_patch_name) ] ; then \
-			for patch in patches/$($1_patch_name)/*.patch ; do \
-				echo "Applying patch file : $$$$patch " ;  \
+	if [ -d patches/$($1_patch_name) ] && \
+	   [ -r patches/$($1_patch_name) ] ; then \
+		for patch in patches/$($1_patch_name)/*.patch ; do \
+			echo "Applying patch file : $$$$patch " ;  \
 				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-					< $$$$patch \
-					|| exit 1 ; \
-			done ; \
+				< $$$$patch \
+				|| exit 1 ; \
+		done ; \
 		fi && \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
@@ -644,7 +644,7 @@ $(foreach m, $(modules-y), \
 )
 
 #
-# hack to build cbmem from coreboot
+# hack to build cbmem, cbfstool and ifdtool from coreboot
 # this must be built *AFTER* musl, but since coreboot depends on other things
 # that depend on musl it should be ok.
 #
