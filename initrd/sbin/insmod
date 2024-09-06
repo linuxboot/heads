@@ -28,7 +28,7 @@ fi
 #  Unify lsmod output to use - instead of _ for comparison
 module_name=$(basename "$MODULE" | sed 's/_/-/g' | sed 's/\.ko$//')
 if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
-	DEBUG "$MODULE: already loaded"
+	DEBUG "$MODULE: already loaded, skipping"
 	exit 0
 fi
 
@@ -39,18 +39,22 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
-	DEBUG "Extending TPM PCR $MODULE_PCR with $MODULE prior of usage"
-	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
-	|| die "$MODULE: tpm extend failed"
-fi
-
-if [ ! -z "$*" -a -z "$tpm_missing" ]; then
-	DEBUG "Extending TPM PCR $MODULE_PCR with $*"
-	TMPFILE=/tmp/insmod.$$
-	echo "$@" > $TMPFILE
-	DEBUG "Extending TPM PCR $MODULE_PCR with $MODULE prior of usage"
-	tpmr extend -ix "$MODULE_PCR" -if $TMPFILE \
-	|| die "$MODULE: tpm extend on arguments failed"
+	echo "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"
+	# Extend with the module parameters (even if they are empty) and the
+	# module. Changing the parameters or the module content will result in a
+	# different PCR measurement.
+	if [ -n "$*" ]; then
+		TRACE_FUNC
+		DEBUG "Extending with module parameters and the module's content"
+		tpmr extend -ix "$MODULE_PCR" -ic "$*"
+		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	else
+		TRACE_FUNC
+		DEBUG "No module parameters, extending only with the module's content"
+		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	fi
 fi
 
 # Since we have replaced the real insmod, we must invoke
