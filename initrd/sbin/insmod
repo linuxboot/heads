@@ -43,9 +43,18 @@ if [ -z "$tpm_missing" ]; then
 	# Extend with the module parameters (even if they are empty) and the
 	# module. Changing the parameters or the module content will result in a
 	# different PCR measurement.
-	tpmr extend -ix "$MODULE_PCR" -ic "$*"
-	tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
-	|| die "$MODULE: tpm extend failed"
+	if [ -n "$*" ]; then
+		TRACE_FUNC
+		DEBUG "Extending with module parameters and the module's content"
+		tpmr extend -ix "$MODULE_PCR" -ic "$*"
+		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	else
+		TRACE_FUNC
+		DEBUG "No module parameters, extending only with the module's content"
+		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	fi
 fi
 
 # Since we have replaced the real insmod, we must invoke

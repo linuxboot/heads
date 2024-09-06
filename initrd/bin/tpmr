@@ -235,14 +235,20 @@ tpm2_extend() {
 	while true; do
 		case "$1" in
 		-ix)
+			# store index and shift so -ic and -if can be processed
 			index="$2"
 			shift 2
 			;;
 		-ic)
+			string=$(echo -n "$2")
 			hash="$(echo -n "$2" | sha256sum | cut -d' ' -f1)"
+			TRACE_FUNC
+			DEBUG "TPM: Will extend PCR[$index] with hash of string $string"
 			shift 2
 			;;
 		-if)
+			TRACE_FUNC
+			DEBUG "TPM: Will extend PCR[$index] with hash of file content $2"
 			hash="$(sha256sum "$2" | cut -d' ' -f1)"
 			shift 2
 			;;
@@ -253,7 +259,9 @@ tpm2_extend() {
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
 	tpm2 pcrread "sha256:$index"
-	DEBUG "TPM: Extended PCR[$index] with $hash"
+
+	TRACE_FUNC
+	DEBUG "TPM: Extended PCR[$index] with hash $hash"
 }
 
 tpm2_counter_read() {
@@ -767,7 +775,18 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		tpm1_destroy "$@"
 		;;
 	extend)
-		DEBUG "TPM: Extending PCR[$3] with $5"
+		#check if we extend with a hash or a file
+		if [ "$4" = "-if" ]; then
+			DEBUG "TPM: Will extend PCR[$3] hash content of file $5"
+			hash="$(sha1sum "$5" | cut -d' ' -f1)"
+		elif [ "$4" = "-ic" ]; then
+			string=$(echo -n "$5")
+			DEBUG "TPM: Will extend PCR[$3] with hash of filename $string"
+			hash="$(echo -n "$5" | sha1sum | cut -d' ' -f1)"
+		fi
+		
+		TRACE_FUNC
+		DEBUG "TPM: Extending PCR[$3] with hash $hash"
 		DO_WITH_DEBUG exec tpm "$@"
 		;;
 	seal)
@@ -808,6 +827,7 @@ calcfuturepcr)
 	replay_pcr "sha256" "$@"
 	;;
 extend)
+	TRACE_FUNC
 	DEBUG "TPM: Extending PCR[$2] with $4"
 	tpm2_extend "$@"
 	;;
