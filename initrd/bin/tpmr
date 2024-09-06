@@ -29,11 +29,11 @@ else
 	. /etc/config
 fi
 
-TRACE_FUNC
 
 # Busybox xxd lacks -r, and we get hex dumps from TPM1 commands.  This converts
 # a hex dump to binary data using sed and printf
 hex2bin() {
+	TRACE_FUNC
 	sed 's/\([0-9A-F]\{2\}\)/\\\\\\x\1/gI' | xargs printf
 }
 
@@ -43,6 +43,7 @@ hex2bin() {
 # as a file still chokes if the password begins with 'hex:', oddly tpm2-tools
 # accepts 'hex:' in the file content.)
 tpm2_password_hex() {
+	TRACE_FUNC
 	echo "hex:$(echo -n "$1" | xxd -p | tr -d ' \n')"
 }
 
@@ -61,7 +62,7 @@ tpm2_pcrread() {
 
 	if [ -z "$APPEND" ]; then
 		# Don't append - truncate file now so real command always
-		# appends
+		# overwrites
 		true >"$file"
 	fi
 
@@ -79,7 +80,7 @@ tpm1_pcrread() {
 
 	if [ -z "$APPEND" ]; then
 		# Don't append - truncate file now so real command always
-		# appends
+		# overwrites
 		true >"$file"
 	fi
 
@@ -100,11 +101,12 @@ is_hash() {
 
 # extend_pcr_state - extend a PCR state value with more hashes or raw data (which is hashed)
 # usage:
-# extend_pcr_state <alg> <initial_state> <files/hashes...>
+# extend_pcr_state <alg> <state> <files/hashes...>
 # alg - either 'sha1' or 'sha256' to specify algorithm
-# initial_state - a hash value setting the initial state
+# state - a hash value setting the initial state
 # files/hashes... - any number of files or hashes, state is extended once for each item
 extend_pcr_state() {
+	TRACE_FUNC
 	local alg="$1"
 	local state="$2"
 	local next extend
@@ -233,14 +235,20 @@ tpm2_extend() {
 	while true; do
 		case "$1" in
 		-ix)
+			# store index and shift so -ic and -if can be processed
 			index="$2"
 			shift 2
 			;;
 		-ic)
+			string=$(echo -n "$2")
 			hash="$(echo -n "$2" | sha256sum | cut -d' ' -f1)"
+			TRACE_FUNC
+			DEBUG "TPM: Will extend PCR[$index] with hash of string $string"
 			shift 2
 			;;
 		-if)
+			TRACE_FUNC
+			DEBUG "TPM: Will extend PCR[$index] with hash of file content $2"
 			hash="$(sha256sum "$2" | cut -d' ' -f1)"
 			shift 2
 			;;
@@ -250,7 +258,10 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	DO_WITH_DEBUG tpm2 pcrread "sha256:$index"
+	tpm2 pcrread "sha256:$index"
+
+	TRACE_FUNC
+	DEBUG "TPM: Extended PCR[$index] with hash $hash"
 }
 
 tpm2_counter_read() {
@@ -348,9 +359,9 @@ tpm2_startsession() {
 		die "tpm2_flushcontext: unable to flush saved session"
 	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "$PRIMARY_HANDLE_FILE"
 	#TODO: do the right thing to not have to suppress "WARN: check public portion the tpmkey manually" see https://github.com/linuxboot/heads/pull/1630#issuecomment-2075120429
-	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE" 2>&1 > /dev/null
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE" > /dev/null 2>&1
 	#TODO: do the right thing to not have to suppress "WARN: check public portion the tpmkey manually" see https://github.com/linuxboot/heads/pull/1630#issuecomment-2075120429
-	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$DEC_SESSION_FILE" 2>&1 > /dev/null
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$DEC_SESSION_FILE" > /dev/null 2>&1
 	tpm2 sessionconfig -Q --disable-encrypt "$DEC_SESSION_FILE"
 }
 
@@ -381,6 +392,7 @@ cleanup_shred() {
 # tpm2_destroy: Destroy a sealed file in the TPM.  The mechanism differs by
 # TPM version - TPM2 evicts the file object, so it no longer exists.
 tpm2_destroy() {
+	TRACE_FUNC
 	index="$1" # Index of the sealed file
 	size="$2"  # Size of zeroes to overwrite for TPM1 (unused in TPM2)
 
@@ -396,6 +408,7 @@ tpm2_destroy() {
 # TPM version - TPM1 overwrites the file with zeroes, since this can be done
 # without authorization.  (Deletion requires authorization.)
 tpm1_destroy() {
+	TRACE_FUNC
 	index="$1" # Index of the sealed file
 	size="$2"  # Size of zeroes to overwrite for TPM1
 
@@ -761,6 +774,21 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		tpm1_destroy "$@"
 		;;
+	extend)
+		#check if we extend with a hash or a file
+		if [ "$4" = "-if" ]; then
+			DEBUG "TPM: Will extend PCR[$3] hash content of file $5"
+			hash="$(sha1sum "$5" | cut -d' ' -f1)"
+		elif [ "$4" = "-ic" ]; then
+			string=$(echo -n "$5")
+			DEBUG "TPM: Will extend PCR[$3] with hash of filename $string"
+			hash="$(echo -n "$5" | sha1sum | cut -d' ' -f1)"
+		fi
+		
+		TRACE_FUNC
+		DEBUG "TPM: Extending PCR[$3] with hash $hash"
+		DO_WITH_DEBUG exec tpm "$@"
+		;;
 	seal)
 		shift
 		tpm1_seal "$@"
@@ -799,6 +827,8 @@ calcfuturepcr)
 	replay_pcr "sha256" "$@"
 	;;
 extend)
+	TRACE_FUNC
+	DEBUG "TPM: Extending PCR[$2] with $4"
 	tpm2_extend "$@"
 	;;
 counter_read)
