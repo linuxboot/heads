@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e -o pipefail
 . /etc/functions
+. /etc/gui_functions
 
 TRACE_FUNC
 
@@ -9,8 +10,11 @@ TRACE_FUNC
 # Good system clock is required for GPG to work properly.
 # if system year is less then 2024, prompt user to set correct time
 if [ "$(date +%Y)" -lt 2024 ]; then
-    warn "System time is incorrect. Please set the correct time."
-    change-time.sh
+    if whiptail_warning --title "System Time Incorrect" \
+        --yesno "The system time is incorrect. Please set the correct time." \
+        0 80 --yes-button Continue --no-button Skip --clear; then
+        change-time.sh
+    fi
 fi
 
 # Import user's keys if they exist
