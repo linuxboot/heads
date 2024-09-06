@@ -491,6 +491,13 @@ workflows:
           requires:
             - librem_14
 
+      - build:
+          name: librem_11
+          target: librem_11
+          subcommand: ""
+          requires:
+            - librem_14
+
       # dasharo release
       - build:
           name: nitropad-ns50
