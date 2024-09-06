@@ -62,7 +62,7 @@ die() {
     exit 1
 }
 
-whiptail_error() {
+local_whiptail_error() {
     local msg=$1
     if [ "$msg" = "" ]; then
         die "whiptail error: An error msg is required"
@@ -71,7 +71,7 @@ whiptail_error() {
 }
 
 whiptail_error_die() {
-    whiptail_error "$@"
+    local_whiptail_error "$@"
     die
 }
 
@@ -1111,7 +1111,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD
     echo -e "\nChecking for USB Security Dongle...\n"
     enable_usb
     if ! gpg --card-status >/dev/null 2>&1; then
-        whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
+        local_whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
         if ! gpg --card-status >/dev/null 2>/tmp/error; then
             ERROR=$(tail -n 1 /tmp/error | fold -s)
             whiptail_error_die "Unable to detect USB Security Dongle:\n\n${ERROR}"
