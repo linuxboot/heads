@@ -21,7 +21,8 @@ for cbfsname in `echo $cbfsfiles`; do
 		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
-			echo "TPM: Extending PCR[$CONFIG_PCR with] with $filename"
+			TRACE_FUNC
+			echo "TPM: Extending PCR[$CONFIG_PCR] with $filename"
 			# Measure both the filename and its content.  This
 			# ensures that renaming files or pivoting file content
 			# will still affect the resulting PCR measurement.
