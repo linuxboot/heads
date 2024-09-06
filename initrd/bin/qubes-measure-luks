@@ -19,6 +19,7 @@ sha256sum /tmp/lukshdr-* >/tmp/luksDump.txt || die "Unable to hash LUKS headers"
 DEBUG "Removing /tmp/lukshdr-*"
 rm /tmp/lukshdr-*
 
-DEBUG "Extending TPM PCR 6 with hash of LUKS headers from /tmp/luksDump.txt"
+TRACE_FUNC
+echo "TPM: Extending PCR[6] with hash of LUKS headers from /tmp/luksDump.txt"
 tpmr extend -ix 6 -if /tmp/luksDump.txt ||
 	die "Unable to extend PCR"
