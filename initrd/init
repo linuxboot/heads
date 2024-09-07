@@ -105,9 +105,11 @@ fi
 if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
+	export BG_COLOR_MAIN_MENU="normal"
 else
 	export TEXT_BG_COLOR_WARNING="${CONFIG_WARNING_TEXT_BG_COLOR:-"yellow"}"
 	export TEXT_BG_COLOR_ERROR="${CONFIG_ERROR_TEXT_BG_COLOR:-"red"}"
+	export BG_COLOR_MAIN_MENU="normal"
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
