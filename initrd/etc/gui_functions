@@ -37,6 +37,7 @@ mount_usb()
 # -- Display related functions --
 # Produce a whiptail prompt with 'warning' background, works for fbwhiptail and newt
 whiptail_warning() {
+	#TODO: Cannot be called as is under luks_functions with string expension in title: why?
     if [ -x /bin/fbwhiptail ]; then
         whiptail $BG_COLOR_WARNING "$@"
     else
@@ -46,6 +47,7 @@ whiptail_warning() {
 
 # Produce a whiptail prompt with 'error' background, works for fbwhiptail and newt
 whiptail_error() {
+	#TODO: Cannot be called as is under luks_functions with string expension in title: why?
     if [ -x /bin/fbwhiptail ]; then
         whiptail $BG_COLOR_ERROR "$@"
     else
@@ -55,6 +57,7 @@ whiptail_error() {
 
 # Produce a whiptail prompt of the given type - 'error', 'warning', or 'normal'
 whiptail_type() {
+    TRACE_FUNC
     local TYPE="$1"
     shift
     case "$TYPE" in
