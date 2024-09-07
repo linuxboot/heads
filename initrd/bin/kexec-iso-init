@@ -37,14 +37,15 @@ ADD_FILE=/tmp/kexec/kexec_iso_add.txt
 if [ -r $ADD_FILE ]; then
 	NEW_ADD=`cat $ADD_FILE`
 	ADD=$(eval "echo \"$NEW_ADD\"")
-	echo "+++ Overriding standard ISO kernel add arguments: $ADD"
 fi
+echo "+++ Overriding standard ISO kernel arguments with additions: $ADD"
+
 REMOVE_FILE=/tmp/kexec/kexec_iso_remove.txt
 if [ -r $REMOVE_FILE ]; then
 	NEW_REMOVE=`cat $REMOVE_FILE`
 	REMOVE=$(eval "echo \"$NEW_REMOVE\"")
-	echo "+++ Overriding standard ISO kernel remove arguments: $REMOVE"
 fi
+echo "+++ Overriding standard ISO kernel arguments with suppressions: $REMOVE"
 
 # Call kexec and indicate that hashes have been verified
 DO_WITH_DEBUG kexec-select-boot -b /boot -d /media -p "$paramsdir" \
