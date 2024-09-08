@@ -697,13 +697,24 @@ mount_possible_boot_device() {
 		return 1
 	fi
 
-	TRACE "Try mounting $BOOT_DEV as /boot"
-	if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
-		if ls -d /boot/grub* >/dev/null 2>&1; then
-			# This device is a reasonable boot device
-			return 0
-		fi
+	# Get the size of BOOT_DEV in 512-byte sectors
+	sectors=$(blockdev --getsz "$BOOT_DEV")
+
+	# Check if the partition is small (less than 2MB, which is 4096 sectors)
+	if [ "$sectors" -lt 4096 ]; then
+		TRACE_FUNC
+		DEBUG "Partition $BOOT_DEV is very small, likely BIOS boot. Skipping mount."
+		return 1
+	else
+		TRACE_FUNC
+		DEBUG "Try mounting $BOOT_DEV as /boot"
+		if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				# This device is a reasonable boot device
+				return 0
+			fi
 		umount /boot || true
+		fi
 	fi
 
 	return 1
