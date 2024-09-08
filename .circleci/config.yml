@@ -348,6 +348,14 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      #TODO: move away of 24.02.01 coreboot and depend on optiplex specific dasharo commit
+      - build:
+          name: optiplex-7010_9010-maximized
+          target: optiplex-7010_9010-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
       - build:
           name: x230-maximized-fhd_edp
           target: x230-maximized-fhd_edp
