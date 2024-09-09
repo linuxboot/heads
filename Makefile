@@ -794,6 +794,8 @@ modules.clean:
 board.move_untested_to_tested:
 	@echo "NEW_BOARD variable will remove UNTESTED_ prefix from $(BOARD)"
 	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
+	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
+	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
 	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
 	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
 	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
@@ -831,11 +833,13 @@ board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
 	@NEW_BOARD=UNTESTED_$(BOARD); \
 	rm -rf boards/$${NEW_BOARD}; \
+	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
+	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
 	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
 	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
 	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
-	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
 # Inject a GPG key into the image - this is most useful when testing in qemu,
