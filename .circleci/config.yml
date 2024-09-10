@@ -392,15 +392,15 @@ workflows:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-maximized
-          target: UNTESTED_w541-maximized
+          name: w541-maximized
+          target: w541-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-hotp-maximized
-          target: UNTESTED_w541-hotp-maximized
+          name: w541-hotp-maximized
+          target: w541-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
