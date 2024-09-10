@@ -432,15 +432,15 @@ workflows:
 
 
       - build:
-          name: UNTESTED_t440p-maximized
-          target: UNTESTED_t440p-maximized
+          name: t440p-maximized
+          target: t440p-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized
 
       - build:
-          name: UNTESTED_t440p-hotp-maximized
-          target: UNTESTED_t440p-hotp-maximized
+          name: t440p-hotp-maximized
+          target: t440p-hotp-maximized
           subcommand: ""
           requires:
             - x230-hotp-maximized

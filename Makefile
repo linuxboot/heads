@@ -792,17 +792,20 @@ modules.clean:
 	done
 
 board.move_untested_to_tested:
-	@echo "NEW_BOARD variable will remove UNTESTED_ prefix from $(BOARD)"
+	@echo "Moving $(BOARD) from UNTESTED to tested status"
 	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
-	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
-	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
-	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
-	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
-	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD boards/$$NEW_BOARD; \
-	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
-	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
+	NEW_INCLUDE_BOARD=$$(echo $$INCLUDE_BOARD | sed 's/^UNTESTED_//'); \
+	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
+	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
+	sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
+	echo "Renaming config file to $${NEW_BOARD}.config"; \
+	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	echo "Renaming board directory to $${NEW_BOARD}"; \
+	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Updating .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
+	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"
 
 board.move_unmaintained_to_tested:
 	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
