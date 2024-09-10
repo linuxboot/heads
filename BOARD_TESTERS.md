@@ -15,8 +15,8 @@ Laptops
 
 xx20 (Sandy):
 ===
-- [ ] t420 (xx20): @alexmaloteaux @natterangell (iGPU) @akfhasodh @doob85
-- [ ] x220 (xx20): @Thrilleratplay @BlackMaria @srgrint
+- [ ] t420 (xx20): @natterangell(iGPU) @alexmaloteaux @akfhasodh @doob85
+- [ ] x220 (xx20): @srgrint @Thrilleratplay
 
 xx30 (Ivy):
 ===
@@ -28,8 +28,8 @@ xx30 (Ivy):
 
 xx4x(Haswell):
 ===
-- [ ] t440p: @ThePlexus @srgrint @akunterkontrolle @rbreslow
-- [ ] w541 (similar to t440p): @resende-gustavo @gaspar-ilom
+- [ ] t440p: @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
+- [ ] w541 (similar to t440p): @resende-gustavo @gaspar-ilom (Always tested late: Needs more responsive board testers or risk to become unmaintained. Now tagged untested)
 
 Librems:
 ===
@@ -43,7 +43,7 @@ Librems:
 Clevo:
 ===
 - [ ] Nitropad NS50 (AlderLake) : @daringer
-- [ ] Nitropad NV41 (AlderLake) : @daringer, @tlaurion
+- [ ] Nitropad NV41 (AlderLake) : @tlaurion @daringer
 
 
 Desktops/Servers
@@ -51,5 +51,5 @@ Desktops/Servers
 - [ ] kgpe-d16 (AMD fam15h) (dropped in coreboot 4.12): @tlaurion @Tonux599 @zifxify @arhabd
 - [ ] Librem L1UM v1 (Broadwell): @JonathonHall-Purism
 - [ ] Librem L1Um v2 (CoffeeLake): @JonathonHall-Purism
-- [ ] Talos II (PPC64LE, Power9) : @tlaurion
+- [ ] Talos II (PPC64LE, Power9) : @tlaurion (Will become untested, no other known users, not worth my time nor effort even though massive investment of all forms)
 - [ ] z220-cmt (HP Z220 CMT): @d-wid
