@@ -25,6 +25,7 @@ xx30 (Ivy):
 - [ ] x230 (xx30): @nestire(x230-legacy, x230-maximized) @tlaurion(maximized) @osresearch @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns @doob85 @natterangell (x230i variant: irrelevant individual board)
 - [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display)
 - [ ] t530 (xx30): @fhvyhjriur @3hhh (Opportunity to mainstream and close https://github.com/linuxboot/heads/issues/1682)
+- [ ] x230t : @fhvyhjriur
 
 xx4x(Haswell):
 ===
