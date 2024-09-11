@@ -1,7 +1,5 @@
 #!/bin/ash
 #
-# based off of flashrom-x230
-#
 # NOTE: This script is used on legacy-flash boards and runs with busybox ash,
 # not bash
 set -e -o pipefail
@@ -14,7 +12,7 @@ TRACE "Under /bin/flash.sh"
 
 case "$CONFIG_FLASH_OPTIONS" in
   "" )
-    die "ERROR: No flash options have been configured!\n\nEach board requires specific flashrom options and it's unsafe to flash without them.\n\nAborting."
+    die "ERROR: No flash options have been configured!\n\nEach board requires specific CONFIG_FLASH_OPTIONS options configured. It's unsafe to flash without them.\n\nAborting."
   ;;
   * )
     DEBUG "Flash options detected: $CONFIG_FLASH_OPTIONS"
