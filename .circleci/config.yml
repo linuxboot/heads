@@ -250,8 +250,8 @@ workflows:
       # No need to wait further for other board's cache
       # We reuse built modules from x230-hotp-maximized cache only
       - build_and_persist:
-          name: nitropad-nv41
-          target: nitropad-nv41
+          name: novacustom_nv4x_adl
+          target: novacustom_nv4x_adl
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -516,7 +516,7 @@ workflows:
           target: nitropad-ns50
           subcommand: ""
           requires:
-            - nitropad-nv41
+            - novacustom_nv4x_adl
 
       # coreboot 4.11
       - build:
