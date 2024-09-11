@@ -325,6 +325,20 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: x230t-maximized
+          target: x230t-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: x230t-hotp-maximized
+          target: x230t-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: x230-maximized
           target: x230-maximized
           subcommand: ""
