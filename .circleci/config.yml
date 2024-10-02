@@ -240,6 +240,14 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      # coreboot system76
+      - build_and_persist:
+          name: galp5
+          target: galp5
+          subcommand: ""
+          requires:
+            - librem_14
+
       # coreboot nitropad
       # Nitropads depending on x230-hotp-maximized cache since kernel is 6.x and coreboot is git is unshared
       # We use nitropad's coreboot's fork crossgcc
