@@ -279,6 +279,8 @@ linux.save_in_versioned_defconfig_format:
 		savedefconfig \
 	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"
 
+# This one can be used in kernel version bump, which will accept all new defconfig options for the new version.
+#  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
 linux.save_in_oldconfig_format_in_place:
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
@@ -286,7 +288,7 @@ linux.save_in_oldconfig_format_in_place:
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
 		CROSS_COMPILE="$(CROSS)" \
-		oldconfig \
+		olddefconfig \
 	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
 
 linux.save_in_versioned_oldconfig:
@@ -296,7 +298,7 @@ linux.save_in_versioned_oldconfig:
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
 		CROSS_COMPILE="$(CROSS)" \
-		oldefconfig \
+		oldconfig \
 	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)"
 
 # Prior of attempting to bump kernel version, call make BOARD=xyz linux.save_in_oldconfig_format_in_place
@@ -310,5 +312,6 @@ linux.prompt_for_new_config_options_for_kernel_version_bump:
 	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
 		O="$(build)/$(linux_dir)" \
 		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
 		oldconfig \
 	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
