@@ -357,6 +357,13 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: optiplex-7010_9010_TXT-maximized
+          target: optiplex-7010_9010_TXT-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: x230-maximized-fhd_edp
           target: x230-maximized-fhd_edp
           subcommand: ""
