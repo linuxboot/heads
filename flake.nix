@@ -87,6 +87,8 @@
         ruby
         sudo # ( °-° )
         upx
+        binwalk # Extract all components of a binary
+        uefi-firmware-parser #Parse and extract further hidden UEFI blobs from binaries
       ];
     in {
       # The development shell includes all the dependencies.
