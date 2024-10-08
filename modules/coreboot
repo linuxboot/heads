@@ -97,6 +97,13 @@ coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
 coreboot-dasharo_patch_version := unreleased
 $(eval $(call coreboot_module,dasharo,))
 
+#fam15h coreboot fork (kgpe-d16), based on coreboot 4.11 branch)
+coreboot-fam15h_repo := https://git.15h.org/mrothfuss/coreboot-15h
+coreboot-fam15h_commit_hash := d176edf4ae9999b95cc9f71914eadef59376b717
+coreboot-fam15h_patch_version := unreleased
+$(eval $(call coreboot_module,fam15h,))
+#TODO: reuse coreboot 4.11 buildstack? Only build c language?
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
