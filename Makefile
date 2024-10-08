@@ -837,6 +837,28 @@ board.move_tested_to_untested:
 	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
+board.move_tested_to_unmaintained:
+	@echo "Moving $(BOARD) from tested to unmaintained status"
+	@NEW_BOARD=UNMAINTAINED_$(BOARD); \
+	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
+	NEW_INCLUDE_BOARD=UNMAINTAINED_$${INCLUDE_BOARD}; \
+	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
+	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
+	if [ -n "$$INCLUDE_BOARD" ]; then \
+		sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
+	fi; \
+	echo "Creating unmaintained_boards directory if it doesn't exist"; \
+	mkdir -p unmaintained_boards/$${NEW_BOARD}; \
+	echo "Moving and renaming config file to unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config"; \
+	mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
+	echo "Moving board directory contents to unmaintained_boards/$${NEW_BOARD}"; \
+	mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
+	rmdir boards/$(BOARD); \
+	echo "Updating .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
+	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"; \
+	echo "Please manually review and remove any unnecessary entries in .circleci/config.yml"
+
 # Inject a GPG key into the image - this is most useful when testing in qemu,
 # since we can't reflash the firmware in qemu to update the keychain.  Instead,
 # inject the public key ahead of time.  Specify the location of the key with
