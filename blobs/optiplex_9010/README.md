@@ -2,6 +2,9 @@ This blobs/optiplex_9010/ifd.bin is a configuration blob, and comes from my opti
 It was put in place with:
 
 python ~/me_cleaner/me_cleaner.py -S -r -t -d -O /tmp/discarded.bin -D ~/heads/blobs/optiplex_9010/ifd.bin -M /tmp/temporary_me.bin optiplex_9010-internal_backup.rom
+./build/x86/coreboot-24.02.01/util/ifdtool/ifdtool -n blobs/optiplex_9010/layout.txt blobs/optiplex_9010/ifd.bin -O blobs/optiplex_9010/ifd.bin
+
+NOTE: We rely on blobs/optiplex_9010/layout.txt which changes the size of the ME region to match Lenovo xx30 blob used in x230 and others.
 
 ----
 
