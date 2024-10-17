@@ -604,6 +604,7 @@ bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom
+bin_modules-$(CONFIG_FLASHPROG) += flashprog
 bin_modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 bin_modules-$(CONFIG_CRYPTSETUP2) += cryptsetup2
 bin_modules-$(CONFIG_GPG) += gpg
@@ -791,15 +792,20 @@ modules.clean:
 	done
 
 board.move_untested_to_tested:
-	@echo "NEW_BOARD variable will remove UNTESTED_ prefix from $(BOARD)"
+	@echo "Moving $(BOARD) from UNTESTED to tested status"
 	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
-	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
-	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
-	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD boards/$$NEW_BOARD; \
-	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
-	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
+	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
+	NEW_INCLUDE_BOARD=$$(echo $$INCLUDE_BOARD | sed 's/^UNTESTED_//'); \
+	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
+	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
+	sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
+	echo "Renaming config file to $${NEW_BOARD}.config"; \
+	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	echo "Renaming board directory to $${NEW_BOARD}"; \
+	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Updating .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
+	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"
 
 board.move_unmaintained_to_tested:
 	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
@@ -830,12 +836,36 @@ board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
 	@NEW_BOARD=UNTESTED_$(BOARD); \
 	rm -rf boards/$${NEW_BOARD}; \
+	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
+	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
 	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
 	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
 	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
-	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
+
+board.move_tested_to_unmaintained:
+	@echo "Moving $(BOARD) from tested to unmaintained status"
+	@NEW_BOARD=UNMAINTAINED_$(BOARD); \
+	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
+	NEW_INCLUDE_BOARD=UNMAINTAINED_$${INCLUDE_BOARD}; \
+	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
+	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
+	if [ -n "$$INCLUDE_BOARD" ]; then \
+		sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
+	fi; \
+	echo "Creating unmaintained_boards directory if it doesn't exist"; \
+	mkdir -p unmaintained_boards/$${NEW_BOARD}; \
+	echo "Moving and renaming config file to unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config"; \
+	mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
+	echo "Moving board directory contents to unmaintained_boards/$${NEW_BOARD}"; \
+	mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
+	rmdir boards/$(BOARD); \
+	echo "Updating .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
+	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"; \
+	echo "Please manually review and remove any unnecessary entries in .circleci/config.yml"
 
 # Inject a GPG key into the image - this is most useful when testing in qemu,
 # since we can't reflash the firmware in qemu to update the keychain.  Instead,
