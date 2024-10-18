@@ -88,7 +88,7 @@ $(eval $(call coreboot_module,talos_2,))
 
 # coreboot-purism is based on 24.02.01 - reuse that toolchain.
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
-coreboot-purism_commit_hash := f4f61b75bcfc50fa3a89f8f438e5312e750f6e3c
+coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,24.02.01))
 
 # MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
