@@ -8,7 +8,7 @@
     "description": "Thierry Laurion, founder of Insurgo Open Technologies and maintainer of the Heads open-source firmware project. Dedicated to developing secure, user-friendly technologies that enhance physical security and data protection.",
     "webpageUrl": {
       "url": "https://github.com/linuxboot/heads",
-      "wellKnown": "https://github.com/linuxboot/heads/blob/main/funding.json"
+      "wellKnown": "https://github.com/linuxboot/heads/blob/master/funding.json"
     }
   },
   "projects": [
