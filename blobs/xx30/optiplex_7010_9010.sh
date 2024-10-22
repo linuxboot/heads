@@ -12,7 +12,8 @@ if [[ ! -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin" ]] || [[ ! -f "${output_dir
     pushd "$(mktemp -d)" || exit
 
     #Download Dell firmware update package
-    wget https://web.archive.org/web/20241007124946/https://dl.dell.com/FOLDER05066036M/1/O7010A29.exe
+    wget --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36" https://dl.dell.com/FOLDER05066036M/1/O7010A29.exe \
+	    ||  wget https://web.archive.org/web/20241007124946/https://dl.dell.com/FOLDER05066036M/1/O7010A29.exe
 
     #Extract binary
     binwalk -e O7010A29.exe -C . --run-as=root
