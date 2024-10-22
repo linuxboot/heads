@@ -468,7 +468,7 @@ luks_reencrypt() {
 			--perf-no_read_workqueue --perf-no_write_workqueue \
 			--resilience=none --force-offline-reencrypt --disable-locks \
 			"$luks_container" --key-slot "$DRK_KEYSLOT" \
-			--key-file /tmp/luks_current_Disk_Recovery_Key_passphrase; then
+			--key-file /tmp/secret/luks_current_Disk_Recovery_Key_passphrase; then
 				whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				
