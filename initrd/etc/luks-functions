@@ -339,13 +339,8 @@ test_luks_current_disk_recovery_key_passphrase()
 			if [ $? -ne 0 ]; then
 				# if we have more than one LUKS container and passphrase test unsuccessful, tell user how to change passphrase
 				if [ $(echo $LUKS | wc -w) -gt 1 ]; then
-					#TODO remove this once whiptail_error whiptail_warning can take titles with double quotes
-					#whiptail_warning --title 'tes' --msgbox 'test' 0 80
-					#whiptail_error --title 'error' --msgbox 'error' 0 80
-					#Neither work today. Not related to this PR... Using whiptail without coloring.
-
 					msg=$(echo -e "All $PRINTABLE_LUKS LUKS containers must be unlockable by a shared Disk Recovery Key (DRK) passphrase for the current operation to succeed.\n\nTo change individual LUKS container DRK passphrase, do so from 'Options-> Change LUKS Disk Recovery Key passphrase'\n\nThen retry this operation." | fold -w 70 -s)
-					whiptail --title "$luks_container"': Wrong current LUKS Disk Recovery Key passphrase?' \
+					whiptail_error --title "$luks_container"': Wrong current LUKS Disk Recovery Key passphrase?' \
 						--msgbox "$msg" 0 80
 					
 					TRACE_FUNC
@@ -354,7 +349,7 @@ test_luks_current_disk_recovery_key_passphrase()
 					# We exited to caller, LUKS still set. TODO: problem? Should we call all cleaning functions on die?
 				fi
 
-				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+				whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				TRACE_FUNC
 
@@ -411,11 +406,10 @@ luks_reencrypt() {
 		else
 			echo -n "$luks_current_Disk_Recovery_Key_passphrase" > /tmp/secret/luks_current_Disk_Recovery_Key_passphrase
 		fi
-
 		
 		DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
 		if ! DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/secret/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1; then
-			whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+			whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 			# Remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
 			# Maybe the container was not the right one
@@ -444,7 +438,7 @@ luks_reencrypt() {
 
 			# Validate if a key slot was found
 			if [ $DRK_KEYSLOT -eq -1 ]; then
-				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+				whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 				"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				# Remove "known good" selected LUKS container so that next pass asks again user to select LUKS container.
 				# Maybe the container was not the right one
@@ -475,7 +469,7 @@ luks_reencrypt() {
 			--resilience=none --force-offline-reencrypt --disable-locks \
 			"$luks_container" --key-slot "$DRK_KEYSLOT" \
 			--key-file /tmp/luks_current_Disk_Recovery_Key_passphrase; then
-				whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+				whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 					"If you previously changed it and do not remember it, you will have to\n reinstall the OS from a an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				
 				TRACE_FUNC
@@ -529,7 +523,7 @@ luks_change_passphrase()
 
         DEBUG "$luks_container: Test unlocking of LUKS encrypted drive content with current LUKS Disk Recovery Key passphrase..."
         if ! DO_WITH_DEBUG cryptsetup open --test-passphrase "$luks_container" --key-file /tmp/secret/luks_current_Disk_Recovery_Key_passphrase > /dev/null 2>&1; then
-            whiptail --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
+            whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
                 "If you previously changed it and do not remember it, you will have to\n reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an\n external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
             TRACE_FUNC
             detect_boot_device
@@ -543,7 +537,7 @@ luks_change_passphrase()
 
         echo -e "\nChanging $luks_container LUKS encrypted disk passphrase to the new LUKS Disk Recovery Key passphrase..."
         if ! DO_WITH_DEBUG cryptsetup luksChangeKey "$luks_container" --key-file=/tmp/secret/luks_current_Disk_Recovery_Key_passphrase /tmp/secret/luks_new_Disk_Recovery_Key_passphrase; then
-            whiptail --title 'Failed to change LUKS passphrase' --msgbox \
+            whiptail_error --title 'Failed to change LUKS passphrase' --msgbox \
                 "Failed to change the passphrase for $luks_container.\nPlease try again." 0 80
             continue
         fi
