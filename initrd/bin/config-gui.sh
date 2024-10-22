@@ -85,7 +85,7 @@ while true; do
         'Z' " $(get_config_display_action "$CONFIG_DEBUG_OUTPUT") $CONFIG_BRAND_NAME debug and function tracing output"
     )
 
-    [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ] && dynamic_config_options+=(
+    [ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ] && dynamic_config_options+=(
         't' ' Deactivate Platform Locking to permit OS write access to firmware'
     )
 
@@ -105,8 +105,8 @@ while true; do
 
   case "$menu_choice" in
     "t" )
-      unset CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE
-      replace_config /etc/config.user "CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" "n"
+      unset CONFIG_FINALIZE_PLATFORM_LOCKING
+      replace_config /etc/config.user "CONFIG_FINALIZE_PLATFORM_LOCKING" "n"
       combine_configs
       . /tmp/config
     ;;

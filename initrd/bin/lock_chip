@@ -9,7 +9,7 @@
 . /etc/ash_functions
 
 TRACE "Under /bin/lock_chip"
-if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING_PRESKYLAKE" = "y" ]; then
+if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
 	APM_CNT=0xb2
 	FIN_CODE=0xcb
 fi
