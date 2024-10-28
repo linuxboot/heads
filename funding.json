@@ -1,0 +1,85 @@
+{
+  "version": "v1.0.0",
+  "entity": {
+    "type": "individual",
+    "role": "maintainer",
+    "name": "Thierry Laurion",
+    "email": "thierry.laurion@gmail.com",
+    "description": "Thierry Laurion, founder of Insurgo Open Technologies and maintainer of the Heads open-source firmware project. Dedicated to developing secure, user-friendly technologies that enhance physical security and data protection.",
+    "webpageUrl": {
+      "url": "https://github.com/linuxboot/heads"
+    }
+  },
+  "projects": [
+    {
+      "guid": "heads",
+      "name": "Heads",
+      "description": "Heads is an open-source firmware project designed to enhance the security and integrity of laptops and servers. It provides a tamper-evident and cryptographically verified boot process, empowering users to maintain control over their hardware and data.",
+      "webpageUrl": {
+        "url": "https://github.com/linuxboot/heads"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/linuxboot/heads"
+      },
+      "licenses": [
+        "spdx:GPL-3.0"
+      ],
+      "tags": [
+        "firmware",
+        "security",
+        "open-source",
+        "linuxboot",
+        "coreboot",
+        "heads",
+        "TPM",
+        "measured-boot",
+        "linux"
+      ]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "opencollective",
+        "type": "payment-provider",
+        "address": "https://opencollective.com/insurgo",
+        "description": "Support Heads development via Open Collective"
+      },
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/tlaurion",
+        "description": "Support Heads development via GitHub Sponsors"
+      }
+    ],
+    "plans": [
+      {
+        "guid": "monthly-support",
+        "status": "active",
+        "name": "monthly-support",
+        "description": "Monthly Support Plan",
+        "amount": 10,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": [
+          "opencollective",
+          "github-sponsors"
+        ]
+      },
+      {
+        "guid": "one-time-donation",
+        "status": "active",
+        "name": "One-Time Donation",
+        "description": "Make a one-time donation to support Heads.",
+        "amount": 50,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": [
+          "opencollective",
+          "github-sponsors"
+        ]
+      }
+    ],
+    "history": []
+  }
+}
