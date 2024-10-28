@@ -182,19 +182,21 @@ while true; do
                   \n\nDo you want to proceed?" 0 80) then
         read_rom /tmp/config-gui.rom
         # clear local keyring
-        rm /.gnupg/* | true
+        rm -rf /.gnupg/* || true
+
         # clear /boot signatures/checksums
+        detect_boot_device
         mount -o remount,rw /boot
-        rm /boot/kexec* | true
+        rm -f /boot/kexec* || true
         mount -o remount,ro /boot
+        
         # clear GPG keys and user settings
         for i in `cbfs.sh -o /tmp/config-gui.rom -l | grep -e "heads/"`; do
           cbfs.sh -o /tmp/config-gui.rom -d $i
         done
         # flash cleared ROM
-
-
         /bin/flash.sh -c /tmp/config-gui.rom
+        
         # reset TPM if present
         if [ "$CONFIG_TPM" = "y" ]; then
           /bin/tpm-reset
