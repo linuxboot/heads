@@ -78,7 +78,7 @@ for dev in $key_devices	; do
 
 		DEBUG "Testing $DISK_RECOVERY_KEY_FILE keyfile created from provided passphrase against $dev individual key slots"
 		if cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
-			DEBUG "LUKS device $dev unlocked successfully with the DRK passphrase"
+			echo "++++++ $dev: LUKS device unlocked successfully with the DRK passphrase"
 			luks_drk_passphrase_valid=1
 			break
 		else
