@@ -911,6 +911,7 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "Only a minimal time is needed for rebuilding, which is also good for your SSD."
 	@echo "*** USE THIS APPROACH FIRST ***"
 	find ./build/ -type f -name ".canary" -print -delete
+	find ./build/ -type f -name ".patched" -print -delete
 	find ./install/*/* -print -exec rm -rf {} +
 
 real.gitclean_keep_packages_and_build:
