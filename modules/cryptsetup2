@@ -2,11 +2,11 @@ modules-$(CONFIG_CRYPTSETUP2) += cryptsetup2
 
 cryptsetup2_depends := util-linux popt lvm2 json-c $(musl_dep)
 
-cryptsetup2_version := 2.3.3
+cryptsetup2_version := 2.6.1
 cryptsetup2_dir := cryptsetup-$(cryptsetup2_version)
 cryptsetup2_tar := cryptsetup-$(cryptsetup2_version).tar.xz
-cryptsetup2_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v2.3/cryptsetup-$(cryptsetup2_version).tar.xz
-cryptsetup2_hash := 3bca4ffe39e2f94cef50f6ea65acb873a6dbce5db34fc6bcefe38b6d095e82df
+cryptsetup2_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v2.6/cryptsetup-$(cryptsetup2_version).tar.xz
+cryptsetup2_hash := 410ded65a1072ab9c8e41added37b9729c087fef4d2db02bb4ef529ad6da4693
 
 # Use an empty prefix so that the executables will not include the
 # build path.
@@ -16,9 +16,15 @@ cryptsetup2_configure := \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
-	--disable-gcrypt-pbkdf2 \
+	--enable-internal-sse-argon2 \
 	--disable-rpath \
-	--enable-cryptsetup-reencrypt \
+	--disable-gcrypt-pbkdf2 \
+	--disable-ssh-token \
+	--disable-asciidoc \
+	--disable-nls \
+	--disable-selinux \
+	--disable-udev \
+	--disable-external-tokens \
 	--with-crypto_backend=kernel \
 	--with-tmpfilesdir=$(INSTALL)/lib/tmpfiles.d
 
@@ -33,7 +39,6 @@ cryptsetup2_target := \
 
 cryptsetup2_output := \
 	.libs/cryptsetup \
-	.libs/cryptsetup-reencrypt \
 	.libs/veritysetup \
 
 cryptsetup2_libraries := \
