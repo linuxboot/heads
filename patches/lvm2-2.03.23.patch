@@ -1,0 +1,150 @@
+--- ./lib/mm/memlock.c.orig	2023-11-27 13:52:46.281000000 -0500
++++ ./lib/mm/memlock.c	2023-11-27 13:56:35.656000000 -0500
+@@ -160,6 +160,7 @@
+ 
+ static void _allocate_memory(void)
+ {
++#if 0
+ #if defined(__GLIBC__) && !defined(VALGRIND_POOL)
+ 	/* Memory allocation is currently only tested with glibc
+ 	 * for different C libraries, some other mechanisms might be needed
+@@ -233,11 +234,14 @@
+ 	for (i = 0; i < area; ++i)
+ 		free(areas[i]);
+ #endif
++#endif
+ }
+ 
+ static void _release_memory(void)
+ {
++#if 0
+ 	free(_malloc_mem);
++#endif
+ }
+ 
+ /*
+@@ -313,7 +317,7 @@
+ 
+ 	if (lock == LVM_MLOCK) {
+ 		if (mlock((const void*)from, sz) < 0) {
+-			log_sys_error("mlock", line);
++			//log_sys_error("mlock", line);
+ 			return 0;
+ 		}
+ 	} else {
+--- ./libdm/libdm-stats.c.orig	2023-11-27 13:59:40.677000000 -0500
++++ ./libdm/libdm-stats.c	2023-11-27 14:07:28.655000000 -0500
+@@ -18,7 +18,23 @@
+ #include "libdm/misc/dmlib.h"
+ #include "libdm/misc/kdev_t.h"
+ 
++#if 0
+ #include "math.h" /* log10() */
++#else
++static int ilog10(double x)
++{
++       int e = 0;
++
++       while(x > 10)
++       {
++               e++;
++               x = x / 10;
++       }
++
++       return e;
++}
++#endif
++
+ 
+ #include <sys/sysmacros.h>
+ #include <sys/ioctl.h>
+@@ -556,7 +572,12 @@
+ 	while(entry >= bins) {
+ 		value = (double) (entry--)->upper;
+ 		/* Use lround to avoid size_t -> double cast warning. */
++#if 0
+ 		hist_len += 1 + (size_t) lround(log10(value / scale));
++#else
++		hist_len += 1 + ilog10(value / scale);
++#endif
++
+ 		if (entry != bins)
+ 			hist_len++; /* ',' */
+ 	}
+@@ -1863,7 +1884,12 @@
+ 	i = dm_bit_get_first(regions);
+ 	for (; i >= 0; i = dm_bit_get_next(regions, i)) {
+ 		/* length of region_id or range start in characters */
++#if 0
+ 		id_len = (i) ? 1 + (size_t) log10(i) : 1;
++#else
++		id_len = (i) ? 1 + ilog10(i) : 1;
++#endif
++
+ 		buflen += id_len;
+ 		j = i;
+ 		do
+@@ -1878,7 +1904,11 @@
+ 		/* handle range */
+ 		if (i != j) {
+ 			/* j is always > i, which is always >= 0 */
++#if 0
+ 			id_len = 1 + (size_t) log10(j);
++#else 
++			id_len = 1 + ilog10(j);
++#endif
+ 			buflen += id_len + 1; /* range end plus "-" */
+ 		}
+ 		buflen++;
+ 
+--- ./tools/lvmcmdline.c.orig	2023-11-27 14:12:46.649000000 -0500
++++ ./tools/lvmcmdline.c	2023-11-27 14:15:47.563000000 -0500
+@@ -3438,7 +3438,7 @@
+ static int _check_standard_fds(void)
+ {
+ 	int err = is_valid_fd(STDERR_FILENO);
+-
++#if 0
+ 	if (!is_valid_fd(STDIN_FILENO) &&
+ 	    !(stdin = fopen(_PATH_DEVNULL, "r"))) {
+ 		if (err)
+@@ -3463,7 +3463,7 @@
+ 		       strerror(errno));
+ 		return 0;
+ 	}
+-
++#endif
+ 	return 1;
+ }
+ 
+@@ -3644,7 +3644,7 @@
+ 	 */
+ 	dm_set_name_mangling_mode(DM_STRING_MANGLING_NONE);
+ 
+-	if (!(cmd = create_toolcontext(0, NULL, 1, threaded, set_connections, set_filters))) {
++	if (!(cmd = create_toolcontext(0, NULL, 0, threaded, set_connections, set_filters))) {
+ 		return_NULL;
+ 	}
+ 
+--- ./make.tmpl.orig	2023-11-28 13:29:11.744000000 -0500
++++ ./make.tmpl.in	2023-11-28 13:29:36.716000000 -0500
+@@ -210,7 +210,7 @@
+ M_INSTALL_PROGRAM = -m 555
+ M_INSTALL_DATA = -m 444
+ endif
+-INSTALL_PROGRAM = $(INSTALL) $(M_INSTALL_PROGRAM) $(STRIP)
++INSTALL_PROGRAM = $(INSTALL) $(M_INSTALL_PROGRAM)
+ INSTALL_DATA = $(INSTALL) -p $(M_INSTALL_DATA)
+ INSTALL_WDATA = $(INSTALL) -p -m 644
+ 
+--- ./libdm/make.tmpl.orig	2023-11-28 13:29:52.760000000 -0500
++++ ./libdm/make.tmpl.in	2023-11-28 13:30:22.336000000 -0500
+@@ -173,7 +173,7 @@
+ M_INSTALL_PROGRAM = -m 555
+ M_INSTALL_DATA = -m 444
+ endif
+-INSTALL_PROGRAM = $(INSTALL) $(M_INSTALL_PROGRAM) $(STRIP)
++INSTALL_PROGRAM = $(INSTALL) $(M_INSTALL_PROGRAM)
+ INSTALL_DATA = $(INSTALL) -p $(M_INSTALL_DATA)
+ INSTALL_WDATA = $(INSTALL) -p -m 644
+ 
