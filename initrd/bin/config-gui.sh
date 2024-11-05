@@ -71,12 +71,10 @@ while true; do
     )
 
     # Boards with built-in keyboards can support optional USB keyboards as well.
-    # Export CONFIG_SUPPORT_USB_KEYBOARD=y to enable optional support.
-    # Boards that do not have a built-in keyboard export
+    # Boards that do not have a built-in keyboard/internal keyboard is USB connected export
     # CONFIG_USB_KEYBOARD_REQUIRED=y; this hides the config option and ensures
     # USB keyboard support always loads.
-    [ "$CONFIG_SUPPORT_USB_KEYBOARD" = y ] && [ "$CONFIG_USB_KEYBOARD_REQUIRED" != y ] \
-        && dynamic_config_options+=(
+    [ "$CONFIG_USB_KEYBOARD_REQUIRED" != y ] && dynamic_config_options+=(
             'K' " $(get_config_display_action "$CONFIG_USER_USB_KEYBOARD") USB keyboard"
         )
 
