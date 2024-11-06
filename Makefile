@@ -189,11 +189,11 @@ $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o pipefail -c
 
-# Include the musl-cross module early so that $(CROSS) will
+# Include the musl-cross-make module early so that $(CROSS) will
 # be defined prior to any other module.
-include modules/musl-cross
+include modules/musl-cross-make
 
-musl_dep	:= musl-cross
+musl_dep	:= musl-cross-make
 target		:= $(shell echo $(CROSS) | grep -Eoe '([^/]*?)-linux-musl')
 arch		:= $(subst -linux-musl, , $(target))
 heads_cc	:= $(CROSS)gcc \
@@ -568,8 +568,8 @@ endef
 
 $(call map, define_module, $(modules-y))
 
-# hack to force musl-cross to be built before musl
-#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
+# hack to force musl-cross-make to be built before musl
+#$(build)/$(musl_dir)/.configured: $(build)/$(musl-cross-make_dir)/../../crossgcc/x86_64-linux-musl/bin/x86_64-musl-linux-gcc
 
 #
 # Install a file into the initrd, if it changed from
@@ -606,7 +606,7 @@ endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
-#bin_modules-$(CONFIG_MUSL) += musl-cross
+#bin_modules-$(CONFIG_MUSL) += musl-cross-make
 bin_modules-$(CONFIG_KEXEC) += kexec
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
@@ -666,7 +666,7 @@ endif
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool \
 $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
-: $(build)/$(coreboot_base_dir)/.canary musl-cross
+: $(build)/$(coreboot_base_dir)/.canary musl-cross-make
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
 	)
@@ -785,7 +785,7 @@ $(build)/$(initrd_dir)/tools.cpio: $(foreach d,$(bin_modules-y),$(build)/$($d_di
 
 
 # List of all modules, excluding the slow to-build modules
-modules-slow := musl musl-cross kernel_headers
+modules-slow := musl musl-cross-make kernel_headers
 module_dirs := $(foreach m,$(filter-out $(modules-slow),$(modules-y)),$($m_dir))
 
 echo_modules:

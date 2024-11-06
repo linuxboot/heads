@@ -2,13 +2,13 @@ CONFIG_MUSL ?= y
 
 ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
-modules-$(CONFIG_MUSL) += musl-cross
+modules-$(CONFIG_MUSL) += musl-cross-make
 
-musl-cross_version := 38e52db8358c043ae82b346a2e6e66bc86a53bc1
-musl-cross_dir := musl-cross-$(musl-cross_version)
-musl-cross_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross_version).tar.gz
-musl-cross_tar := musl-cross-$(musl-cross_version).tar.gz
-musl-cross_hash := b4b85d6d3ddab0f2b8650a53e775673f8c346fa2fb07d652a9880bd206ade100
+musl-cross-make_version := fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+musl-cross-make_dir := musl-cross-make-$(musl-cross-make_version)
+musl-cross-make_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross-make_version).tar.gz
+musl-cross-make_tar := musl-cross-make-$(musl-cross-make_version).tar.gz
+musl-cross-make_hash := 15b8e0a287d738a46e069e90d67a8d96213b357b79aaf3e8cf0cd40e4b230d9e
 
 
 ifneq "$(CROSS)" ""
@@ -20,42 +20,42 @@ else
 $(info Using $(CROSS)gcc)
 endif
 
-# The cross compiler has already been built, so the musl-cross target
+# The cross compiler has already been built, so the musl-cross-make target
 # is a NOP.  We really don't need to check out this code tree, but it is easier
 # if we have a target for it.
-musl-cross_target := --version
+musl-cross-make_target := --version
 
 # Ask the compiler where to find its own libc.so
-musl-cross_libraries := \
+musl-cross-make_libraries := \
 	$(shell $(CROSS)gcc --print-file-name=libc.so) \
 
 else
 
 # Force a full build of the cross compiler for target platform
 # No need to build i386 for x86 since coreboot uses its own compiler
-musl-cross_configure := \
+musl-cross-make_configure := \
 	echo -e >> Makefile 'musl-target:' ; \
 	echo -e >> Makefile '\t$$$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ;
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
-musl-cross_target := \
+musl-cross-make_target := \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
 	$(MAKE_JOBS) \
 	"musl-target"
 
 CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
-musl-cross_libraries := $(CROSS_PATH)/$(subst -,_,$(MUSL_ARCH))-linux-musl/lib/libc.so
+musl-cross-make_libraries := $(CROSS_PATH)/$(subst -,_,$(MUSL_ARCH))-linux-musl/lib/libc.so
 
 endif
 
 
-musl-cross_output := $(CROSS)gcc
+musl-cross-make_output := $(CROSS)gcc
 
 ## Fake a target so that musl will force a header install by the
 ## Linux kernel sources.
-$(build)/$(musl-cross_dir)/.build: $(INSTALL)/include/linux/limits.h
+$(build)/$(musl-cross-make_dir)/.build: $(INSTALL)/include/linux/limits.h
 
 
 endif

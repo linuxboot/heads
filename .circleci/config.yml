@@ -65,11 +65,11 @@ jobs:
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find .circleci/config.yml ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross.sha256sums
+            find .circleci/config.yml ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
-            find .circleci/config.yml ./Makefile ./flake.lock modules/musl-cross* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross.sha256sums
+            find .circleci/config.yml ./Makefile ./flake.lock modules/musl-cross-make* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross-make.sha256sums
       - restore_cache:
           # First matched/found key wins and following keys are not tried
           keys:
@@ -79,10 +79,10 @@ jobs:
             - nix-docker-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
             # Cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
-            - nix-docker-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-make-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
 
             # Cache for musl-cross-make module digest (rarely modified).
-            - nix-docker-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-make-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
@@ -171,26 +171,26 @@ jobs:
       - attach_workspace:
           at: ~/heads
       - save_cache:
-          # Generate cache for the same musl-cross module definition if hash is not previously existing
+          # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-docker-heads-musl-cross-{{ checksum "./tmpDir/musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-musl-cross-make-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
-            - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/x86/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - crossgcc
             - packages
       - save_cache:
           # Generate cache for the same coreboot and musl-cross-make modules definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-docker-heads-coreboot-musl-cross-{{ checksum "./tmpDir/coreboot_musl-cross.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-coreboot-musl-cross-make-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - build/ppc64/coreboot-talos_2
-            - build/ppc64/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
             - build/x86/coreboot-dasharo
             - build/x86/coreboot-purism
-            - build/x86/musl-cross-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/x86/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - crossgcc
             - packages
       - save_cache:
@@ -208,20 +208,20 @@ workflows:
     jobs:
       - prep_env
 
-      # This step builds musl-cross for x86 architecture, which will be used by subsequent x86 board builds
+      # This step builds musl-cross-make for x86 architecture, which will be used by subsequent x86 board builds
       - build_and_persist:
-          name: x86-musl-cross
+          name: x86-musl-cross-make
           target: x230-hotp-maximized
-          subcommand: "musl-cross"
+          subcommand: "musl-cross-make"
           requires:
             - prep_env
 
-      # This step builds musl-cross for ppc64 architecture, which will be used by subsequent ppc64 board builds
+      # This step builds musl-cross-make for ppc64 architecture, which will be used by subsequent ppc64 board builds
       - build_and_persist:
-          name: ppc64-musl-cross
+          name: ppc64-musl-cross-make
           arch: ppc64
           target: talos-2
-          subcommand: "musl-cross"
+          subcommand: "musl-cross-make"
           requires:
             - prep_env
 
@@ -234,7 +234,7 @@ workflows:
           target: x230-hotp-maximized
           subcommand: ""
           requires:
-            - x86-musl-cross
+            - x86-musl-cross-make
 
       # coreboot purism
       - build_and_persist:
@@ -254,7 +254,7 @@ workflows:
           target: nitropad-nv41
           subcommand: ""
           requires:
-            - x86-musl-cross
+            - x86-musl-cross-make
 
       # coreboot talos_2
       - build_and_persist:
@@ -263,7 +263,7 @@ workflows:
           target: talos-2
           subcommand: ""
           requires:
-            - ppc64-musl-cross
+            - ppc64-musl-cross-make
 
       # coreboot 4.11
       - build_and_persist:
@@ -271,7 +271,7 @@ workflows:
           target: librem_l1um
           subcommand: ""
           requires:
-            - x86-musl-cross
+            - x86-musl-cross-make
 
       # Cache one workspace per architecture
       # Make sure workspace caches are chainloaded and the last in chain for an arch is saved
