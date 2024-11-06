@@ -79,6 +79,8 @@ $(INSTALL)/include/linux/limits.h: $(build)/$(linux_base_dir)/.canary
 		KCONFIG_CONFIG="$(pwd)/$(linux_kconfig)" \
 		headers_install
 
+# Inconditional: add USB keyboard support to all boards (linux_modules-y)
+linux_modules-y	+= drivers/hid/usbhid/usbhid.ko
 
 # qemu
 linux_modules-$(CONFIG_LINUX_E1000)	+= drivers/net/ethernet/intel/e1000/e1000.ko
@@ -121,9 +123,6 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/ehci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
-
-#USB modules when a USB keyboard is defined in board config
-linux_modules-$(CONFIG_SUPPORT_USB_KEYBOARD)	+= drivers/hid/usbhid/usbhid.ko
 
 #USB modules for Mobile USB Tethering (Most Android phones, Librem phone, etc)
 linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/mii.ko
