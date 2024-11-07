@@ -220,7 +220,7 @@ workflows:
       - build_and_persist:
           name: ppc64-musl-cross-make
           arch: ppc64
-          target: talos-2
+          target: UNTESTED_talos-2
           subcommand: "musl-cross-make"
           requires:
             - prep_env
@@ -258,9 +258,9 @@ workflows:
 
       # coreboot talos_2
       - build_and_persist:
-          name: talos-2
+          name: UNTESTED_talos-2
           arch: ppc64
-          target: talos-2
+          target: UNTESTED_talos-2
           subcommand: ""
           requires:
             - ppc64-musl-cross-make
@@ -277,7 +277,7 @@ workflows:
       # Make sure workspace caches are chainloaded and the last in chain for an arch is saved
       - save_cache:
           requires:
-            - talos-2
+            - UNTESTED_talos-2
             - librem_14
 
       # Those onboarding new boards should add their entries below.
