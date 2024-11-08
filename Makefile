@@ -231,9 +231,9 @@ ifeq ($(CONFIG_COREBOOT), y)
 # Legacy flash boards don't generate an update package, the only purpose of
 # those boards is to be flashed over vendor firmware via an exploit.
 ifneq ($(CONFIG_LEGACY_FLASH), y)
-# talos-2 builds its own update package, which is not integrated with the ZIP
-# method currently
-ifneq ($(BOARD), talos-2)
+# Boards containing 'talos-2' build their own update package, which is not integrated with the ZIP method currently
+ifneq ($(findstring talos-2, $(BOARD)),)
+else
 # Coreboot targets create an update package that can be applied with integrity
 # verification before flashing (see flash-gui.sh).  The ZIP package format
 # allows other metadata that might be needed to added in the future without
