@@ -518,6 +518,13 @@ workflows:
           requires:
             - novacustom_nv4x_adl
 
+      - build:
+          name: novacustom-v540tu
+          target: novacustom-v540tu
+          subcommand: ""
+          requires:
+            - nitropad-nv41
+
       # coreboot 4.11
       - build:
           name: UNMAINTAINED_kgpe-d16_workstation
@@ -533,7 +540,7 @@ workflows:
           subcommand: ""
           requires:
             - librem_l1um
-      
+
       # coreboot 4.11
       - build:
           name: UNMAINTAINED_kgpe-d16_server
