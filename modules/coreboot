@@ -93,8 +93,7 @@ $(eval $(call coreboot_module,purism,24.02.01))
 
 # MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
-coreboot-dasharo_commit_hash := 3a9aa3a4692f3dd49732f5b4e3ec54be385f0969
-coreboot-dasharo_patch_version := unreleased
+coreboot-dasharo_commit_hash := db1d9cd59d0d7d5b708bbdf8670780914061410c
 $(eval $(call coreboot_module,dasharo,))
 
 # Check that the board configured the coreboot version correctly
