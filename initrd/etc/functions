@@ -25,7 +25,10 @@ SINK_LOG() {
 	# last (unterminated) line.  Add a line break with echo to ensure we
 	# don't lose any input.  Buffer up to one blank line so we can avoid
 	# emitting a final (or only) blank line.
-	(cat; echo) | while IFS= read -r line; do
+	(
+		cat
+		echo
+	) | while IFS= read -r line; do
 		[[ -n "$haveblank" ]] && DEBUG "$name: " # Emit buffered blank line
 		if [[ -z "$line" ]]; then
 			haveblank=y
@@ -129,10 +132,10 @@ TRACE_FUNC() {
 DEBUG_STACK() {
 	local FRAMES
 	FRAMES="${#FUNCNAME[@]}"
-	DEBUG "call stack: ($((FRAMES-1)) frames)"
+	DEBUG "call stack: ($((FRAMES - 1)) frames)"
 	# Don't print DEBUG_STACK itself, start from 1
-	for i in $(seq 1 "$((FRAMES-1))"); do
-		DEBUG "- $((i-1)) - ${BASH_SOURCE[$i]}(${BASH_LINENO[$((i-1))]}): ${FUNCNAME[$i]}"
+	for i in $(seq 1 "$((FRAMES - 1))"); do
+		DEBUG "- $((i - 1)) - ${BASH_SOURCE[$i]}(${BASH_LINENO[$((i - 1))]}): ${FUNCNAME[$i]}"
 	done
 }
 
@@ -248,7 +251,7 @@ device_has_partitions() {
 	# In both cases the output is 5 lines: 3 about device info, 1 empty line
 	# and the 5th will be the table header or the invalid message.
 	local DISK_DATA=$(fdisk -l "$DEVICE")
-	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || \
+	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" ||
 		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
 		# No partition table
 		return 1
@@ -305,9 +308,9 @@ list_usb_storage() {
 		done
 }
 
-# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.  
-# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed. 
-# Tools should optionally accept a TPM password on the command line, since some flows need 
+# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
+# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed.
+# Tools should optionally accept a TPM password on the command line, since some flows need
 # it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE_FUNC
@@ -327,7 +330,7 @@ prompt_tpm_owner_password() {
 	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
 }
 
-# Prompt for a new TPM Owner Password when resetting the TPM.  
+# Prompt for a new TPM Owner Password when resetting the TPM.
 # Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
 # The password must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
@@ -357,7 +360,7 @@ prompt_new_owner_password() {
 
 check_tpm_counter() {
 	TRACE_FUNC
-	
+
 	LABEL=${2:-3135106223}
 	tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
@@ -370,7 +373,7 @@ check_tpm_counter() {
 			-pwdc '' \
 			-la $LABEL |
 			tee /tmp/counter ||
-				die "Unable to create TPM counter"
+			die "Unable to create TPM counter"
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
 
@@ -654,7 +657,7 @@ is_gpt_bios_grub() {
 
 	# Extract the partition number
 	if ! [[ $(basename "$PART_DEV") =~ ([0-9]+)$ ]]; then
-		return 0	# Can't figure out the partition number
+		return 0 # Can't figure out the partition number
 	fi
 
 	NUMBER="${BASH_REMATCH[1]}"
@@ -713,7 +716,7 @@ mount_possible_boot_device() {
 				# This device is a reasonable boot device
 				return 0
 			fi
-		umount /boot || true
+			umount /boot || true
 		fi
 	fi
 
@@ -744,7 +747,7 @@ detect_boot_device() {
 			devname="$(basename "$i")"
 			partitions=("/sys/class/block/$devname/$devname"?*)
 		else
-			partitions=("$i")	# Use the device itself
+			partitions=("$i") # Use the device itself
 		fi
 		for partition in "${partitions[@]}"; do
 			partition_dev=/dev/"$(basename "$partition")"
@@ -868,3 +871,134 @@ run_at_exit_handlers() {
 	done
 }
 trap run_at_exit_handlers EXIT
+
+# Helper function to generate diceware passphrase
+generate_passphrase() {
+	usage_generate_passphrase() {
+		echo "Usage: generate_passphrase --dictionary|-d <dictionary_file> [--number_words|-n <num_words>] [--max_length|-m <max_size>] [--lowercase|-l]"
+		echo "Generates a passphrase using a Diceware dictionary."
+		echo "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionnaries/eff_short_wordlist_2_0.txt )."
+		echo "  [--number_words|-n <num_words>]  Number of words in the passphrase (default: 3)."
+		echo "  [--max_length|-m <max_size>]  Maximum size of the passphrase (default: 256)."
+		echo "  [--lowercase|-l]  Use lowercase words (default: false)."
+	}
+
+	# Helper subfunction to get a word from the dictionary based on dice rolls
+	get_word_from_dictionary() {
+		local rolls="$1"
+		local dictionary_file="$2"
+		local word=""
+
+		word=$(grep "^$rolls" "$dictionary_file" | awk '{print $2}')
+		echo "$word"
+	}
+
+	# Helper subfunction to generate dice rolls
+	generate_dice_rolls() {
+		TRACE_FUNC
+		local num_rolls="$1"
+		local rolls=""
+		local random_bytes
+
+		# Read num_rolls bytes from /dev/urandom in one go
+		random_bytes=$(dd if=/dev/urandom bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
+
+		# Process each byte to generate a dice roll
+		while read -r byte; do
+			roll=$((byte % 6 + 1))
+			DEBUG "Randomized dice roll: $roll"
+			rolls+=$roll
+		done <<<"$random_bytes"
+
+		DEBUG "Generated dice rolls: $rolls"
+		echo "$rolls"
+	}
+
+	TRACE_FUNC
+	local dictionary_file="/etc/diceware_dictionnaries/eff_short_wordlist_2_0.txt"
+	local num_words=3
+	local max_size=256
+	local lowercase=false
+
+	# Parse parameters
+	while [[ "$#" -gt 0 ]]; do
+		case "$1" in
+		--dictionary | -d)
+			dictionary_file="$2"
+			shift
+			;;
+		--lowercase | -l)
+			lowercase=true
+			;;
+		--number_words | -n)
+			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
+				warn "Invalid number of words: $2"
+				usage_generate_passphrase
+				return 1
+			fi
+			num_words="$2"
+			shift
+			;;
+		--max_length | -m)
+			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
+				warn "Invalid maximum size: $2"
+				usage_generate_passphrase
+				return 1
+			fi
+			max_size="$2"
+			shift
+			;;
+		*)
+			warn "Unknown parameter: $1"
+			usage_generate_passphrase
+			return 1
+			;;
+		esac
+		shift
+	done
+
+	# Validate dictionary file
+	if [[ -z "$dictionary_file" || ! -f "$dictionary_file" ]]; then
+		warn "Dictionary file not found or not provided: $dictionary_file"
+		usage_generate_passphrase
+		return 1
+	fi
+
+	local passphrase=""
+	local word=""
+	local key=""
+	local digits=0
+
+	# Read the number of digits from the first line of the dictionary file
+	read -r key _ <"$dictionary_file"
+
+	# Validate that the key is composed entirely of digits
+	if ! [[ $key =~ ^[0-9]+$ ]]; then
+		echo "Error: Dictionary is not compliant with EFF diceware dictionaries."
+		echo "The first line of the dictionary should be in the format: <digits> <word>"
+		echo "Example: 11111 word"
+		exit 1
+	fi
+
+	digits=${#key}
+	DEBUG "Number of digits in dice rolls: $digits"
+
+	for ((i = 0; i < num_words; ++i)); do
+		key=$(generate_dice_rolls "$digits")
+		word=$(get_word_from_dictionary "$key" "$dictionary_file")
+		DEBUG "Retrieved word: $word"
+		if [[ "$lowercase" == "false" ]]; then
+			DEBUG "Capitalizing the first letter of the word"
+			word=${word^} # Capitalize the first letter
+		fi
+		passphrase+="$word "
+		if [[ ${#passphrase} -gt $max_size ]]; then
+			DEBUG "Passphrase exceeds max size: $max_size, removing last word"
+			passphrase=${passphrase% *} # Remove the last word if it exceeds max_size
+			break
+		fi
+	done
+
+	echo "$passphrase"
+	return 0
+}
