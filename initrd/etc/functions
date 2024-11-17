@@ -887,7 +887,7 @@ generate_passphrase() {
 		local dictionary_file="$2"
 		local word=""
 
-		word=$(grep "^$rolls" "$dictionary_file" | awk '{print $2}')
+		word=$(grep "^$rolls" "$dictionary_file" | awk -F ' ' '{print $2}')
 		echo "$word"
 	}
 
@@ -898,17 +898,14 @@ generate_passphrase() {
 		local rolls=""
 		local random_bytes
 
-		# Read num_rolls bytes from /dev/urandom in one go
-		random_bytes=$(dd if=/dev/urandom bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
+		# Read num_rolls bytes from /dev/random, fed by CPU RRAND in one go
+		random_bytes=$(dd if=/dev/random bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
 
 		# Process each byte to generate a dice roll
 		while read -r byte; do
 			roll=$((byte % 6 + 1))
-			DEBUG "Randomized dice roll: $roll"
 			rolls+=$roll
 		done <<<"$random_bytes"
-
-		DEBUG "Generated dice rolls: $rolls"
 		echo "$rolls"
 	}
 
@@ -978,15 +975,12 @@ generate_passphrase() {
 		exit 1
 	fi
 
-	digits=${#key}
-	DEBUG "Number of digits in dice rolls: $digits"
+	digits=${#key} #Number of digits in dice rolls
 
 	for ((i = 0; i < num_words; ++i)); do
 		key=$(generate_dice_rolls "$digits")
 		word=$(get_word_from_dictionary "$key" "$dictionary_file")
-		DEBUG "Retrieved word: $word"
 		if [[ "$lowercase" == "false" ]]; then
-			DEBUG "Capitalizing the first letter of the word"
 			word=${word^} # Capitalize the first letter
 		fi
 		passphrase+="$word "
@@ -997,6 +991,8 @@ generate_passphrase() {
 		fi
 	done
 
+	#Remove passphrase trailing space from passphrase+="$word"
+	passphrase=${passphrase% }
 	echo "$passphrase"
 	return 0
 }
