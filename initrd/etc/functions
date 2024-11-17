@@ -570,9 +570,7 @@ escape_zero() {
 assert_signable() {
 	TRACE_FUNC
 	# ensure /boot mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o ro /boot || die "Unable to mount /boot"
-	fi
+	detect_boot_device
 
 	find /boot -print0 >/tmp/signable.ref
 	local del='\001-\037\134\177-\377'
