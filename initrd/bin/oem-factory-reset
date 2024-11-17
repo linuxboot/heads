@@ -44,6 +44,45 @@ GPG_ALGO="RSA"
 # Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
 RSA_KEY_LENGTH=3072
 
+# Function to handle --mode parameter
+handle_mode() {
+	local mode=$1
+	case $mode in
+	oem)
+		DEBUG "OEM mode selected"
+		# Add OEM mode specific logic here
+		;;
+	user)
+		DEBUG "User mode selected"
+		# Add User mode specific logic here
+		;;
+	*)
+		warn "Unknown mode: $mode"
+		exit 1
+		;;
+	esac
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+	key="$1"
+	case $key in
+	--mode)
+		MODE="$2"
+		shift # past argument
+		shift # past value
+		;;
+	*)
+		shift # past unrecognized argument
+		;;
+	esac
+done
+
+# Handle the --mode parameter if provided
+if [[ -n "$MODE" ]]; then
+	handle_mode "$MODE"
+fi
+
 #Override RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards until canokey fixes
 if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
 	DEBUG "Overriding RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards"
@@ -1332,10 +1371,20 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
 
-## Show to user current configured secrets prior of rebooting
-whiptail --msgbox "
+# Show qrcode of configured secrets and ask user to confirm scanning of and loop until confirmed with qrenc $passphrases
+while true; do
+	whiptail --msgbox "
     $(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
-	$HEIGHT $WIDTH --title "Configured secrets"
+		$HEIGHT $WIDTH --title "Configured secrets"
+	qrencode "$passphrases"
+	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
+	echo -e -n "Please confirm you have scanned the QR code above [y/N]: "
+	read -n 1 prompt_output
+	echo
+	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
+		break
+	fi
+done
 
 ## all done -- reboot
 whiptail --msgbox "
