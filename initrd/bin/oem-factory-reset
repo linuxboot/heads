@@ -23,12 +23,10 @@ CANCEL="--no-button Cancel"
 HEIGHT="0"
 WIDTH="80"
 
+# Default values
 USER_PIN_DEF=123456
 ADMIN_PIN_DEF=12345678
 TPM_PASS_DEF=12345678
-USER_PIN=""
-ADMIN_PIN=""
-TPM_PASS=""
 GPG_GEN_KEY_IN_MEMORY="n"
 GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 
@@ -50,11 +48,16 @@ handle_mode() {
 	case $mode in
 	oem)
 		DEBUG "OEM mode selected"
-		# Add OEM mode specific logic here
+		CUSTOM_SINGLE_PASS=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
+		USER_PIN=$CUSTOM_SINGLE_PASS
+		ADMIN_PIN=$CUSTOM_SINGLE_PASS
+		TPM_PASS=$CUSTOM_SINGLE_PASS
 		;;
 	user)
 		DEBUG "User mode selected"
-		# Add User mode specific logic here
+		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
+		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
+		TPM_PASS=$ADMIN_PIN
 		;;
 	*)
 		warn "Unknown mode: $mode"
@@ -81,6 +84,9 @@ done
 # Handle the --mode parameter if provided
 if [[ -n "$MODE" ]]; then
 	handle_mode "$MODE"
+else
+	# Default to User Re-Ownership mode
+	handle_mode "user"
 fi
 
 #Override RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards until canokey fixes
@@ -719,9 +725,10 @@ generate_checksums() {
 	fi
 
 	DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
-	if sha256sum $param_files 2>/dev/null | DO_WITH_DEBUG gpg \
+
+	if sha256sum $param_files 2>/dev/null | gpg \
 		--pinentry-mode loopback \
-		--passphrase "${USER_PIN}" \
+		--passphrase-file <(echo -n "$USER_PIN") \
 		--digest-algo SHA256 \
 		--detach-sign \
 		-a \
@@ -1371,14 +1378,18 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
 
-# Show qrcode of configured secrets and ask user to confirm scanning of and loop until confirmed with qrenc $passphrases
+# Show configured secrets in whiptail and loop until user confirms qr code was scanned
 while true; do
 	whiptail --msgbox "
     $(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
 		$HEIGHT $WIDTH --title "Configured secrets"
-	qrencode "$passphrases"
+	# strip the initial newline of passphrases
+	qr_code=$(echo -e "$passphrases" | sed '1s/^\n//')
+	#Tell user to scan the QR code containing all configured secrets
+	echo -e "\nScan the QR code below to save the secrets to a secure location"
+	qrenc "$qr_code"
 	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
-	echo -e -n "Please confirm you have scanned the QR code above [y/N]: "
+	echo -e -n "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]: "
 	read -n 1 prompt_output
 	echo
 	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
