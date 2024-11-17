@@ -206,8 +206,8 @@ if [ "$boot_option" = "r" ]; then
 	# just in case...
 	exit
 elif [ "$boot_option" = "o" ]; then
-	# Launch OEM Factory Reset/Re-Ownership
-	oem-factory-reset
+	# Launch OEM Factory Reset mode
+	oem-factory-reset --mode oem
 	# just in case...
 	exit
 fi
