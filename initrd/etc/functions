@@ -899,7 +899,7 @@ generate_passphrase() {
 		local random_bytes
 
 		# Read num_rolls bytes from /dev/urandom in one go
-		random_bytes=$(dd if=/dev/urandom bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
+		random_bytes=$(dd if=/dev/random bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
 
 		# Process each byte to generate a dice roll
 		while read -r byte; do
@@ -997,6 +997,8 @@ generate_passphrase() {
 		fi
 	done
 
-	echo "$passphrase"
+	passphrase=$(echo "$passphrase" | xargs) # Remove any leading/trailing whitespace
+	DEBUG "Generated passphrase: $passphrase<="
+	echo -n "$passphrase" # Use echo -n to avoid adding a newline character
 	return 0
 }
