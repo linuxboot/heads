@@ -58,9 +58,6 @@ handle_mode() {
 		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		TPM_PASS=$ADMIN_PIN
-		# Inspect the passphrase using xxd and output to DEBUG
-		DEBUG "USER_PIN (hex): $(echo "$USER_PIN" | xxd)"
-		DEBUG "ADMIN_PIN (hex): $(echo "$ADMIN_PIN" | xxd)"
 		;;
 	*)
 		warn "Unknown mode: $mode"
@@ -728,9 +725,6 @@ generate_checksums() {
 	fi
 
 	DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
-	DEBUG "TODO REMOVE: USER_PIN=$USER_PIN ADMIN_PIN=$ADMIN_PIN"
-	echo "$USER_PIN" | xxd
-	echo "$ADMIN_PIN" | xxd
 
 	if sha256sum $param_files 2>/dev/null | gpg \
 		--pinentry-mode loopback \
