@@ -887,7 +887,7 @@ generate_passphrase() {
 		local dictionary_file="$2"
 		local word=""
 
-		word=$(grep "^$rolls" "$dictionary_file" | awk '{print $2}')
+		word=$(grep "^$rolls" "$dictionary_file" | awk -F ' ' '{print $2}')
 		echo "$word"
 	}
 
@@ -984,7 +984,7 @@ generate_passphrase() {
 	for ((i = 0; i < num_words; ++i)); do
 		key=$(generate_dice_rolls "$digits")
 		word=$(get_word_from_dictionary "$key" "$dictionary_file")
-		DEBUG "Retrieved word: $word"
+		DEBUG "Retrieved word: =>$word<="
 		if [[ "$lowercase" == "false" ]]; then
 			DEBUG "Capitalizing the first letter of the word"
 			word=${word^} # Capitalize the first letter
@@ -999,6 +999,6 @@ generate_passphrase() {
 
 	passphrase=$(echo "$passphrase" | xargs) # Remove any leading/trailing whitespace
 	DEBUG "Generated passphrase: $passphrase<="
-	echo -n "$passphrase" # Use echo -n to avoid adding a newline character
+	echo "$passphrase"
 	return 0
 }
