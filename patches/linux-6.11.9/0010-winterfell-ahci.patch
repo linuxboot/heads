@@ -1,0 +1,18 @@
+diff --recursive -u ./clean/linux-4.9.80/drivers/ata/libahci.c linux-4.9.80/drivers/ata/libahci.c
+--- ./clean/linux-4.9.80/drivers/ata/libahci.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.80/drivers/ata/libahci.c	2018-02-07 18:02:32.526535910 -0500
+@@ -537,8 +537,12 @@
+ 	}
+ 
+ 	/* fabricate port_map from cap.nr_ports for < AHCI 1.3 */
+-	if (!port_map && vers < 0x10300) {
+-		port_map = (1 << ahci_nr_ports(cap)) - 1;
++	if (!port_map) { //  && vers < 0x10300) {
++		printk("%s: saved_port=%02x\n", __func__, hpriv->saved_port_map);
++		writel(0x1, mmio + HOST_PORTS_IMPL);
++		port_map = readl(mmio + HOST_PORTS_IMPL);
++
++		//port_map = (1 << ahci_nr_ports(cap)) - 1;
+ 		dev_warn(dev, "forcing PORTS_IMPL to 0x%lx\n", port_map);
+ 
+ 		/* write the fixed up value to the PI register */
