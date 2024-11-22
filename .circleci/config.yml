@@ -523,7 +523,7 @@ workflows:
           target: novacustom-v540tu
           subcommand: ""
           requires:
-            - nitropad-nv41
+            - novacustom_nv4x_adl
 
       # coreboot 4.11
       - build:
