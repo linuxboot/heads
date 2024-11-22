@@ -34,6 +34,9 @@ linux_hash := 40f014d53e81f204f6d2a364aae4201ae07970dd1b70dc602d7c66c1a140f558
 else ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
 linux_version := 6.1.8
 linux_hash := b60bb53ab8ba370a270454b11e93d41af29126fc72bd6ede517673e2e57b816d
+else ifeq "$(CONFIG_LINUX_VERSION)" "6.11.9"
+linux_version := 6.11.9
+linux_hash := 75658a7aa3bd9598c96ee1e5862c5e1d34fced75c28d825c727a1510a6f384b4
 else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
 endif 
@@ -280,7 +283,7 @@ linux.save_in_versioned_defconfig_format:
 
 # This one can be used in kernel version bump, which will accept all new defconfig options for the new version.
 #  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
-linux.save_in_oldconfig_format_in_place:
+linux.save_in_olddefconfig_format_in_place:
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
 	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
