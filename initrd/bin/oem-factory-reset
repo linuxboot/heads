@@ -680,7 +680,7 @@ generate_checksums() {
     fi
 
     DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
-    if sha256sum $param_files 2>/dev/null | DO_WITH_DEBUG gpg \
+    if sha256sum $param_files 2>/dev/null | DO_WITH_DEBUG --mask-position 4 gpg \
         --pinentry-mode loopback \
         --passphrase "${USER_PIN}" \
         --digest-algo SHA256 \
