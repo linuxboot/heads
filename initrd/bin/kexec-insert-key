@@ -66,7 +66,7 @@ fi
 
 # Override PCR 4 so that user can't read the key
 TRACE_FUNC
-echo "TPM: Extending PCR[4] to prevent any future secret unsealing"
+LOG "TPM: Extending PCR[4] to prevent any future secret unsealing"
 tpmr extend -ix 4 -ic generic ||
 	die 'Unable to scramble PCR'
 
