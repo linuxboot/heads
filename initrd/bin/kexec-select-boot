@@ -385,7 +385,7 @@ while true; do
 		if [ ! -r "$TMP_KEY_DEVICES" ]; then
 			# Extend PCR4 as soon as possible
 			TRACE_FUNC
-			DEBUG "TPM: Extending PCR[4] to prevent further secret unsealing"
+			LOG "TPM: Extending PCR[4] to prevent further secret unsealing"
 			tpmr extend -ix 4 -ic generic ||
 				die "Failed to extend TPM PCR[4]"
 		fi

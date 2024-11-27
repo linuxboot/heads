@@ -39,7 +39,16 @@ TRACE() {
 
 # Write directly to the debug log (but not kmsg), never appears on console
 LOG() {
-	echo "LOG: $*" >>/tmp/debug.log
+	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		DEBUG "$*"
+	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then	
+		# if in quiet mode, output solely to debug.log
+		echo "$*" >> /tmp/debug.log
+	else
+		# if not in quiet mode, output to console
+		echo "$*"
+	fi
 }
 
 fw_version() {
@@ -241,7 +250,7 @@ recovery() {
 	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		echo "TPM: Extending PCR[4] to prevent any further secret unsealing"
+		LOG "TPM: Extending PCR[4] to prevent any further secret unsealing"
 		tpmr extend -ix 4 -ic recovery
 	fi
 
