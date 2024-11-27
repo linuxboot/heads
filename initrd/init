@@ -59,6 +59,11 @@ hwclock -l -s
 . /etc/ash_functions
 . /etc/config
 
+# report if we are in quiet mode, tell logs available under /tmp/debug.log
+if [ "$CONFIG_QUIET_MODE" = "y" ]; then
+	echo "Quiet mode enabled. To see technical output, do 'cat /tmp/debug.log' from Recovery Shell!" > /dev/tty0
+fi
+
 # Board config had CONFIG_DEBUG_OUTPUT=y defined.
 # Note that boards's coreboot config kernel command line "debug" option only will have all kernel messages output on console prior of this point
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
