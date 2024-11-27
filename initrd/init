@@ -125,6 +125,7 @@ if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 fi
 
 # Set GPG_TTY before calling gpg in key-init
+#TODO: do better then this; on dual console gpg only interacts with main console (affects Talos-2 and all whiptail variants)
 export GPG_TTY=/dev/console
 
 # Initialize gpnupg with distro/user keys and setup the keyrings
@@ -144,10 +145,10 @@ fi
 # changing the value for the rest of the scripts which source /tmp/config.
 
 #Only set CONFIG_TPM and CONFIG_TPM2_TOOLS if they are not already set in /etc/config.user
-if ! grep -q 'CONFIG_TPM=' /etc/config.user; then
+if ! grep -q 'CONFIG_TPM=' /etc/config.user 2>/dev/null; then
 	echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
 fi
-if ! grep -q 'CONFIG_TPM2_TOOLS=' /etc/config.user; then
+if ! grep -q 'CONFIG_TPM2_TOOLS=' /etc/config.user 2> /dev/null; then
 	echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
 fi
 
