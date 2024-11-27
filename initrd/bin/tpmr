@@ -258,7 +258,7 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	tpm2 pcrread "sha256:$index"
+	LOG $(tpm2 pcrread "sha256:$index" 2>&1) 
 
 	TRACE_FUNC
 	DEBUG "TPM: Extended PCR[$index] with hash $hash"
@@ -786,7 +786,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		fi
 		
 		TRACE_FUNC
-		DEBUG "TPM: Extending PCR[$3] with hash $hash"
+		LOG "TPM: Extending PCR[$3] with hash $hash"
 		DO_WITH_DEBUG exec tpm "$@"
 		;;
 	seal)
@@ -828,7 +828,7 @@ calcfuturepcr)
 	;;
 extend)
 	TRACE_FUNC
-	DEBUG "TPM: Extending PCR[$2] with $4"
+	LOG "TPM: Extending PCR[$2] with $4"
 	tpm2_extend "$@"
 	;;
 counter_read)
