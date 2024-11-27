@@ -1,0 +1,24 @@
+From 6fca185285b3c355511885cdb4344a758550c9ba Mon Sep 17 00:00:00 2001
+From: Krystian Hebel <krystian.hebel@3mdeb.com>
+Date: Wed, 8 Mar 2023 13:53:10 +0100
+Subject: [PATCH 6/7] arch/powerpc/Kconfig: enable inclusion of
+ drivers/firmware
+
+Signed-off-by: Krystian Hebel <krystian.hebel@3mdeb.com>
+---
+ arch/powerpc/Kconfig | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index 2fe51e0ad..76cfc1277 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -1309,3 +1309,5 @@ config PPC_LIB_RHEAP
+ source "arch/powerpc/kvm/Kconfig"
+ 
+ source "kernel/livepatch/Kconfig"
++
++source "drivers/firmware/Kconfig"
+-- 
+2.47.1
+
