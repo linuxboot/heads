@@ -138,6 +138,17 @@ mount_boot() {
 	fi
 }
 
+reset_nk3_secret_app() {
+	TRACE_FUNC
+	# Reset Nitrokey 3 secret app
+	if lsusb | grep -q "20a0:42b2"; then
+		echo
+		echo "Resetting Nitrokey 3 secret app"
+		# Reset Nitrokey 3 secret app
+		/bin/hotp_verification reset
+	fi
+}
+
 #Generate a gpg master key: no expiration date, ${RSA_KEY_LENGTH} bits
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
@@ -533,6 +544,11 @@ gpg_key_factory_reset() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
 	fi
+
+	#Reset Nitrokey 3 secret app
+	reset_nk3_secret_app
+	# Nk3 now ready to set secret app PIN on first use...
+	
 	# If Nitrokey Storage is inserted, reset AES keys as well
 	if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
 		DEBUG "Nitrokey Storage detected, resetting AES keys..."
@@ -540,6 +556,7 @@ gpg_key_factory_reset() {
 		DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
 		killall -9 scdaemon
 	fi
+	
 	# Toggle forced sig (good security practice, forcing PIN request for each signature request)
 	if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
 		DEBUG "GPG toggling forcesig on since off..."
@@ -554,6 +571,7 @@ gpg_key_factory_reset() {
 			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
 		fi
 	fi
+	
 	# use p256 for key generation if requested
 	if [ "$GPG_ALGO" = "p256" ]; then
 		{
