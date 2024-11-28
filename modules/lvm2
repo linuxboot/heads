@@ -16,6 +16,9 @@ lvm2_configure := \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "" \
 	--libexecdir "/bin" \
+	--with-default-pid-dir=/run \
+	--with-default-dm-run-dir=/run \
+	--with-default-run-dir=/run/lvm \
 	--with-optimisation=-Os \
 	--enable-devmapper \
 	--disable-selinux \
