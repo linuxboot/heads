@@ -55,10 +55,10 @@ Build docker from nix develop layer locally
 
 #### Build image
 
+* Have docker and Nix installed
+
 * Build nix developer local environment with flakes locked to specified versions  
-    * `nix --print-build-logs --verbose develop --ignore-environment --command true`  
-* Build docker image with current develop created environment (this will take a while and create "linuxboot/heads:dev-env" local docker image):  
-    * `nix --print-build-logs --verbose build .#dockerImage && docker load < result` 
+    * `./docker_local_dev.sh`
 
 On some hardened OSes, you may encounter problems with ptrace.
 ```
@@ -75,12 +75,16 @@ sudo sysctl -w kernel.yama.ptrace_scope=1 #setup the value to let nix+docker run
 
 Done!
 
-Your local docker image "linuxboot/heads:dev-env" is ready to use, reproducible for the specific Heads commit used and will produce ROMs reproducible for that Heads commit ID.
+Your local docker image "linuxboot/heads:dev-env" is ready to use, reproducible for the specific Heads commit used to build it, and will produce ROMs reproducible for that Heads commit ID.
 
 Jump into nix develop created docker image for interactive workflow
 ====
-`docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env`
+There is 3 helpers:
+- `./docker_local_dev.sh`: for developers wanting to customize docker image built from flake.nix(nix devenv creation) and flake.lock (pinned versions used by flake.nix)
+- `./docker_latest.sh`: for Heads developers, wanting to use latest published docker images to develop Heads
+- `./docker_repro.sh`: versioned docker image used under CircleCI to produce reproducivle builds, both locally and under CircleCI. **Use this one if in doubt**
 
+ie: `./docker_repro.sh` will jump into CircleCI used versioned docker image for that Heads commit id to build images reproducibly if git repo is clean (not dirty).
 
 From there you can use the docker image interactively.
 
@@ -92,22 +96,22 @@ Please refer to [qemu documentation](targets/qemu.md) for more information.
 
 Eg:
 ```
-make BOARD=qemu-coreboot-fbwhiptail-tpm2 # Build rom, export public key to emulated usb storage from qemu runtime
-make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=~/pubkey.asc inject_gpg # Inject pubkey into rom image
-make BOARD=qemu-coreboot-fbwhiptail-tpm2 USB_TOKEN=Nitrokey3NFC PUBKEY_ASC=~/pubkey.asc ROOT_DISK_IMG=~/qemu-disks/debian-9.cow2 INSTALL_IMG=~/Downloads/debian-9.13.0-amd64-xfce-CD-1.iso run # Install
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 # Build rom, export public key to emulated usb storage from qemu runtime
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=~/pubkey.asc inject_gpg # Inject pubkey into rom image
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 USB_TOKEN=Nitrokey3NFC PUBKEY_ASC=~/pubkey.asc ROOT_DISK_IMG=~/qemu-disks/debian-9.cow2 INSTALL_IMG=~/Downloads/debian-9.13.0-amd64-xfce-CD-1.iso run # Install
 ```
 
-Alternatively, you can use locally built docker image to build a board ROM image in a single call.
+Alternatively, you can use locally built docker image to build a board ROM image in a single call **but do not expect reproducible builds if not using versioned docker images as per CircleCI as per usage of `./docker_repro.sh`**
 
 Eg:
-`docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env -- make BOARD=nitropad-nv41`
+`./docker_local_dev.sh make BOARD=nitropad-nv41`
 
 
 Pull docker hub image to prepare reproducible ROMs as CircleCI in one call
 ====
 ```
-docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=x230-hotp-maximized
-docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=nitropad-nv41
+./docker_repro.sh make BOARD=x230-hotp-maximized
+./docker_repro.sh make BOARD=nitropad-nv41
 ```
 
 Maintenance notes on docker image

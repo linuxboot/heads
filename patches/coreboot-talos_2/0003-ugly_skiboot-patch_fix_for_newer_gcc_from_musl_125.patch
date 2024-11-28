@@ -1,0 +1,17 @@
+diff --git a/payloads/external/skiboot/patches/0002-ugly_fix_for_newer_gcc_from_musl_125.patch b/payloads/external/skiboot/patches/0002-ugly_fix_for_newer_gcc_from_musl_125.patch
+new file mode 100644
+index 0000000..5db9bca
+--- /dev/null
++++ b/payloads/external/skiboot/patches/0002-ugly_fix_for_newer_gcc_from_musl_125.patch
+@@ -0,0 +1,11 @@
++--- Makefile.main.orig	2024-11-06 16:19:12.161240140 -0500
+++++ Makefile.main	2024-11-06 16:23:01.119252412 -0500
++@@ -74,7 +74,7 @@
++ CPPFLAGS += -DDEBUG -DCCAN_LIST_DEBUG
++ endif
++ 
++-CFLAGS := -fno-strict-aliasing -pie -fpie -fno-pic -mbig-endian -m64 -fno-asynchronous-unwind-tables
+++CFLAGS := -Wno-error=address-of-packed-member -Wno-error=format-overflow -fno-strict-aliasing -pie -fpie -fno-pic -mbig-endian -m64 -fno-asynchronous-unwind-tables
++ CFLAGS += -mcpu=power7
++ CFLAGS += -Wl,--oformat,elf64-powerpc -ggdb
++ CFLAGS += $(call try-cflag,$(CC),-ffixed-r13)
