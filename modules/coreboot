@@ -91,7 +91,8 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,24.02.01))
 
-# MSI and Nitropad NV41 / NS50 boards are based on Dasharo coreboot port
+# MSI and NovaCustom NV4xPZ, NS5xPU, V540TU, V560TU boards are based on Dasharo
+# coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := db1d9cd59d0d7d5b708bbdf8670780914061410c
 $(eval $(call coreboot_module,dasharo,))
