@@ -1,0 +1,91 @@
+From 9cdaa84d65888ea288860426a70f36737a6640c6 Mon Sep 17 00:00:00 2001
+From: Krystian Hebel <krystian.hebel@3mdeb.com>
+Date: Tue, 28 Mar 2023 18:31:21 +0200
+Subject: [PATCH 7/7] drivers/firmware/google: expose CBMEM as sysfs file
+
+Signed-off-by: Krystian Hebel <krystian.hebel@3mdeb.com>
+---
+ drivers/firmware/google/Kconfig          |  8 ++++++
+ drivers/firmware/google/coreboot_table.c | 33 ++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+)
+
+diff --git a/drivers/firmware/google/Kconfig b/drivers/firmware/google/Kconfig
+index 41b78f5cb..cb0443f9c 100644
+--- a/drivers/firmware/google/Kconfig
++++ b/drivers/firmware/google/Kconfig
+@@ -44,6 +44,14 @@ config GOOGLE_COREBOOT_TABLE
+ 	  device tree node /firmware/coreboot.
+ 	  If unsure say N.
+ 
++config GOOGLE_COREBOOT_CBMEM
++	bool "Expose CBMEM as file"
++	depends on GOOGLE_COREBOOT_TABLE
++	help
++	  This option exposes raw contents of coreboot's CBMEM to be consumed
++	  by userspace tools. Path to file: /sys/firmware/cbmem.
++	  If unsure say N.
++
+ config GOOGLE_MEMCONSOLE
+ 	tristate
+ 	depends on GOOGLE_MEMCONSOLE_X86_LEGACY || GOOGLE_MEMCONSOLE_COREBOOT
+diff --git a/drivers/firmware/google/coreboot_table.c b/drivers/firmware/google/coreboot_table.c
+index 33ae94745..06d6db594 100644
+--- a/drivers/firmware/google/coreboot_table.c
++++ b/drivers/firmware/google/coreboot_table.c
+@@ -81,6 +81,18 @@ void coreboot_driver_unregister(struct coreboot_driver *driver)
+ }
+ EXPORT_SYMBOL(coreboot_driver_unregister);
+ 
++#ifdef CONFIG_GOOGLE_COREBOOT_CBMEM
++static ssize_t cbmem_read(struct file *filp, struct kobject *kobp,
++			  struct bin_attribute *bin_attr, char *buf,
++			  loff_t pos, size_t count)
++{
++	return memory_read_from_buffer(buf, count, &pos,
++				       bin_attr->private, bin_attr->size);
++}
++
++static BIN_ATTR_RO(cbmem, 0);
++#endif
++
+ static int coreboot_table_populate(struct device *dev, void *ptr)
+ {
+ 	int i, ret;
+@@ -167,6 +179,20 @@ static int coreboot_table_probe(struct platform_device *pdev)
+ 
+ 	memunmap(ptr);
+ 
++#ifdef CONFIG_GOOGLE_COREBOOT_CBMEM
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
++	if (res && res->start && res->end && resource_size(res)) {
++		bin_attr_cbmem.size = resource_size(res);
++		bin_attr_cbmem.private = memremap(res->start,
++						  resource_size(res),
++						  MEMREMAP_WB);
++		if (sysfs_create_bin_file(firmware_kobj, &bin_attr_cbmem)) {
++			bin_attr_cbmem.size = 0;
++			bin_attr_cbmem.private = NULL;
++		}
++	}
++#endif
++
+ 	return ret;
+ }
+ 
+@@ -178,6 +204,13 @@ static int __cb_dev_unregister(struct device *dev, void *dummy)
+ 
+ static int coreboot_table_remove(struct platform_device *pdev)
+ {
++#ifdef CONFIG_GOOGLE_COREBOOT_CBMEM
++	if (bin_attr_cbmem.private) {
++		sysfs_remove_bin_file(firmware_kobj, &bin_attr_cbmem);
++		memunmap(bin_attr_cbmem.private);
++	}
++#endif
++
+ 	bus_for_each_dev(&coreboot_bus_type, NULL, NULL, __cb_dev_unregister);
+ 	return 0;
+ }
+-- 
+2.47.1
+
