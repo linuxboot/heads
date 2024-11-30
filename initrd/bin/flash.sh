@@ -21,7 +21,12 @@ case "$CONFIG_FLASH_OPTIONS" in
 esac
 
 flash_rom() {
-  ROM=$1
+  #backup firmware to rollback into in all failed attempts
+  warn "Taking a backup of firmware in case we need to rollback..."
+  $CONFIG_FLASH_OPTIONS -r /tmp/${CONFIG_BOARD}_bak.rom
+
+  ROM=$1 # ROM file to flash
+
   if [ "$READ" -eq 1 ]; then
     $CONFIG_FLASH_OPTIONS -r "${ROM}" \
     || recovery "Backup to $ROM failed"
@@ -47,9 +52,13 @@ flash_rom() {
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
     fi
 
-    warn "Do not power off computer.  Updating firmware, this will take a few minutes"
+    warn "Do not power off computer.  Updating firmware, this could take a few minutes"
     $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
-      || recovery "$ROM: Flash failed"
+      || warn "$ROM: Flash failed, restoring rollback fimrware backup..." \
+				&& $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}_bak.rom \
+        && warn "$ROM: Flash failed, restored previous known good firmware state."
+      #TODO: there is a lot of output from flashprog here to suppress??? 
+      # But at least we didn't cause a brick...
   fi
 }
 
@@ -104,6 +113,6 @@ fi
 flash_rom $ROM
 
 # don't leave temporary files lying around
-rm -f /tmp/flash.sh.bak
+rm -f /tmp/flash.sh.bak /tmp/${CONFIG_BOARD}_bak.rom
 
 exit 0
