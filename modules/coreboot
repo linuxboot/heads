@@ -95,7 +95,7 @@ $(eval $(call coreboot_module,purism,24.02.01))
 # coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := db1d9cd59d0d7d5b708bbdf8670780914061410c
-$(eval $(call coreboot_module,dasharo,))
+$(eval $(call coreboot_module,dasharo,24.02.01))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
