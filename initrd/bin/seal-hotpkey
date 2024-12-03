@@ -105,6 +105,7 @@ awk_get_admin_counter="$awk_admin_counter_regex"' { print gensub('"$awk_admin_co
 admin_pin_retries="$(echo "$hotp_token_info" | awk "$awk_get_admin_counter")"
 admin_pin_retries="${admin_pin_retries:-0}"
 DEBUG "Admin PIN retry counter is $admin_pin_retries"
+#TODO: as per hotp_verification 1.6: this is 8 for nk3 and wrong. FIX
 
 # Try using factory default admin PIN for 1 month following OEM reset to ease
 # initial setup.  But don't do it forever to encourage changing the PIN and
