@@ -332,7 +332,7 @@ tpm2_counter_create() {
 		esac
 	done
 	prompt_tpm_owner_password
-	rand_index="1$(dd if=/dev/urandom bs=1 count=3 | xxd -pc3)"
+	rand_index="1$(dd if=/dev/urandom bs=1 count=3 2>/dev/null | xxd -pc3)"
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
 		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/console ||
 		{
@@ -412,7 +412,7 @@ tpm1_destroy() {
 	index="$1" # Index of the sealed file
 	size="$2"  # Size of zeroes to overwrite for TPM1
 
-	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero
+	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero > /dev/null 2>&1
 	tpm nv_writevalue -in "$index" -if /tmp/wipe-totp-zero ||
 		die "Unable to wipe sealed secret from TPM NVRAM"
 }
@@ -690,7 +690,7 @@ tpm2_reset() {
 	# The default lockout password is empty, so we must set this, and we
 	# don't need to provide any auth (use the default empty password).
 	tpm2 changeauth -Q -c lockout \
-		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none | xxd -p | tr -d ' \n')"
+		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none 2>/dev/null | xxd -p | tr -d ' \n')"
 }
 tpm1_reset() {
 	TRACE_FUNC
@@ -729,7 +729,7 @@ tpm2_kexec_finalize() {
 	# being cleared in the OS.
 	# This passphrase is only effective before the next boot.
 	echo "Locking TPM2 platform hierarchy..."
-	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none | xxd -p)
+	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none 2>/dev/null | xxd -p)
 	tpm2 changeauth -c platform "$randpass" ||
 		warn "Failed to lock platform hierarchy of TPM2"
 }
