@@ -61,7 +61,7 @@ unpack_first_segment() {
 	mkdir -p "$dest_dir"
 
 	# peek the beginning of the file to determine what type of content is next
-	magic="$(dd if="$unpack_archive" bs=6 count=1 status=none | xxd -p)"
+	magic="$(dd if="$unpack_archive" bs=6 count=1 status=none 2>/dev/null | xxd -p)"
 
 	# read this segment of the archive, then write the rest to the next file
 	(
