@@ -254,7 +254,7 @@ workflows:
           target: novacustom_nv4x_adl
           subcommand: ""
           requires:
-            - x86-musl-cross-make
+            - x230-hotp-maximized
 
       # coreboot talos_2
       - build_and_persist:
@@ -510,7 +510,7 @@ workflows:
           requires:
             - librem_14
 
-      # dasharo release
+      # dasharo release, share 24.02.01 utils/crossgcc
       - build:
           name: nitropad-ns50
           target: nitropad-ns50
