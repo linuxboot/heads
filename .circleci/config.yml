@@ -519,6 +519,13 @@ workflows:
             - novacustom_nv4x_adl
 
       - build:
+          name: novacustom-v5460tu
+          target: novacustom-v560tu
+          subcommand: ""
+          requires:
+            - novacustom_nv4x_adl
+
+      - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
           subcommand: ""
