@@ -1,0 +1,450 @@
+From 707c6545a509eeb24a06537e5f835d786c2e657e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Sosth=C3=A8ne=20Gu=C3=A9don?= <sosthene@nitrokey.com>
+Date: Thu, 5 Dec 2024 16:44:30 +0100
+Subject: [PATCH] Add support for nitrokey 3 distinction between the secrets
+ app and other
+
+This now adds the secrets app version and the nitrokey 3 firmware version,
+and also the gpg pins
+---
+ src/ccid.c            |  71 +++++++++++++++++++++++++-
+ src/ccid.h            |   2 +
+ src/device.c          |  29 +++++------
+ src/device.h          |   2 +-
+ src/main.c            |  41 +++++++++++----
+ src/operations_ccid.c | 113 +++++++++++++++++++++++++++++++++++++-----
+ src/operations_ccid.h |   2 +-
+ src/structs.h         |  19 +++++++
+ 8 files changed, 238 insertions(+), 41 deletions(-)
+
+diff --git a/src/ccid.c b/src/ccid.c
+index 9cf24a0..a2cc919 100644
+--- a/src/ccid.c
++++ b/src/ccid.c
+@@ -104,7 +104,7 @@ IccResult parse_icc_result(uint8_t *buf, size_t buf_len) {
+             //            .buffer_len = buf_len
+     };
+     // Make sure the response do not contain overread attempts
+-    rassert(i.data_len < buf_len - 10);
++    rassert(i.data_len <= buf_len - 10);
+     return i;
+ }
+ 
+@@ -307,6 +307,75 @@ int send_select_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_siz
+     return RET_NO_ERROR;
+ }
+ 
++int send_select_nk3_admin_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_size, IccResult *iccResult) {
++    unsigned char cmd_select[] = {
++            0x6f,
++            0x0E,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0xa4,
++            0x04,
++            0x00,
++            0x09,
++            0xa0,
++            0x00,
++            0x00,
++            0x08,
++            0x47,
++            0x00,
++            0x00,
++            0x00,
++            0x01,
++    };
++
++    check_ret(
++            ccid_process_single(handle, buf, buf_size, cmd_select, sizeof cmd_select, iccResult),
++            RET_COMM_ERROR);
++
++
++    return RET_NO_ERROR;
++}
++
++int send_select_nk3_pgp_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_size, IccResult *iccResult) {
++    unsigned char cmd_select[] = {
++            0x6f,
++            0x0C,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0x00,
++            0xA4,
++            0x04,
++            0x00,
++            0x06,
++            0xD2,
++            0x76,
++            0x00,
++            0x01,
++            0x24,
++            0x01,
++            0x00,
++    };
++
++    check_ret(
++            ccid_process_single(handle, buf, buf_size, cmd_select, sizeof cmd_select, iccResult),
++            RET_COMM_ERROR);
++
++
++    return RET_NO_ERROR;
++}
+ 
+ int ccid_init(libusb_device_handle *handle) {
+ 
+diff --git a/src/ccid.h b/src/ccid.h
+index ed17dc7..3dcf106 100644
+--- a/src/ccid.h
++++ b/src/ccid.h
+@@ -70,6 +70,8 @@ uint32_t icc_pack_tlvs_for_sending(uint8_t *buf, size_t buflen, TLV tlvs[], int
+ libusb_device_handle *get_device(libusb_context *ctx, const struct VidPid pPid[], int devices_count);
+ int ccid_init(libusb_device_handle *handle);
+ int send_select_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_size, IccResult *iccResult);
++int send_select_nk3_admin_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_size, IccResult *iccResult);
++int send_select_nk3_pgp_ccid(libusb_device_handle *handle, uint8_t buf[], size_t buf_size, IccResult *iccResult);
+ 
+ 
+ enum {
+diff --git a/src/device.c b/src/device.c
+index 4b9361e..52acece 100644
+--- a/src/device.c
++++ b/src/device.c
+@@ -29,6 +29,7 @@
+ #include "structs.h"
+ #include "utils.h"
+ #include <assert.h>
++#include <hidapi/hidapi.h>
+ #include <stdbool.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -259,23 +260,19 @@ int device_receive_buf(struct Device *dev) {
+ 
+ #include "operations_ccid.h"
+ 
+-int device_get_status(struct Device *dev, struct ResponseStatus *out_status) {
+-    assert(out_status != NULL);
++int device_get_status(struct Device *dev, struct FullResponseStatus *out_response) {
++    assert(out_response != NULL);
+     assert(dev != NULL);
+-    memset(out_status, 0, sizeof(struct ResponseStatus));
++    memset(out_response, 0, sizeof(struct FullResponseStatus));
++
++    struct ResponseStatus *out_status = &out_response->response_status;
+ 
+     if (dev->connection_type == CONNECTION_CCID) {
+-        int counter = 0;
+-        uint32_t serial = 0;
+-        uint16_t version = 0;
+-        int res = status_ccid(dev->mp_devhandle_ccid,
+-                              &counter,
+-                              &version,
+-                              &serial);
+-        out_status->retry_admin = counter;
+-        out_status->retry_user = counter;
+-        out_status->card_serial_u32 = serial;
+-        out_status->firmware_version = version;
++        int res = status_ccid(dev->mp_devhandle_ccid, out_response);
++        // out_status->retry_admin = counter;
++        // out_status->retry_user = counter;
++        // out_status->card_serial_u32 = serial;
++        // out_status->firmware_version = version;
+         return res;
+     }
+ 
+@@ -290,7 +287,7 @@ int device_get_status(struct Device *dev, struct ResponseStatus *out_status) {
+ 
+     device_send_buf(dev, GET_STATUS);
+     device_receive_buf(dev);
+-    *out_status = *(struct ResponseStatus *) dev->packet_response.response_st.payload;
++    out_response->response_status = *(struct ResponseStatus *) dev->packet_response.response_st.payload;
+ 
+     if (out_status->firmware_version_st.minor == 1) {
+         for (int i = 0; i < 100; ++i) {
+@@ -343,4 +340,4 @@ const char *command_status_to_string(uint8_t status_code) {
+ void clean_buffers(struct Device *dev) {
+     memset(dev->ccid_buffer_in, 0, sizeof dev->ccid_buffer_in);
+     memset(dev->ccid_buffer_out, 0, sizeof dev->ccid_buffer_out);
+-}
+\ No newline at end of file
++}
+diff --git a/src/device.h b/src/device.h
+index c895546..97feeeb 100644
+--- a/src/device.h
++++ b/src/device.h
+@@ -72,7 +72,7 @@ struct Device {
+ 
+ int device_connect(struct Device *dev);
+ int device_disconnect(struct Device *dev);
+-int device_get_status(struct Device *dev, struct ResponseStatus *out_status);
++int device_get_status(struct Device *dev, struct FullResponseStatus *out_status);
+ int device_send(struct Device *dev, uint8_t *in_data, size_t data_size, uint8_t command_ID);
+ int device_receive(struct Device *dev, uint8_t *out_data, size_t out_buffer_size);
+ int device_send_buf(struct Device *dev, uint8_t command_ID);
+diff --git a/src/main.c b/src/main.c
+index 059069e..9b38552 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -93,25 +93,46 @@ int parse_cmd_and_run(int argc, char *const *argv) {
+                 res = RET_NO_ERROR;
+                 break;
+             case 'i': {// id | info
+-                struct ResponseStatus status;
++                struct FullResponseStatus status;
++                memset(&status, 0, sizeof (struct FullResponseStatus));
++
+                 res = device_get_status(&dev, &status);
+                 check_ret((res != RET_NO_ERROR) && (res != RET_NO_PIN_ATTEMPTS), res);
+                 if (strnlen(argv[1], 10) == 2 && argv[1][1] == 'd') {
+                     // id command - print ID only
+-                    print_card_serial(&status);
++                    print_card_serial(&status.response_status);
+                 } else {
+                     // info command - print status
+                     printf("Connected device status:\n");
+                     printf("\tCard serial: ");
+-                    print_card_serial(&status);
+-                    printf("\tFirmware: v%d.%d\n",
+-                           status.firmware_version_st.major,
+-                           status.firmware_version_st.minor);
+-                    if (res != RET_NO_PIN_ATTEMPTS) {
+-                        printf("\tCard counters: Admin %d, User %d\n",
+-                               status.retry_admin, status.retry_user);
++                    print_card_serial(&status.response_status);
++                    if (status.device_type == Nk3) {
++                         printf("\tFirmware Nitrokey 3: v%d.%d.%d\n",
++                               (status.nk3_extra_info.firmware_version >> 22) & 0b1111111111,
++                               (status.nk3_extra_info.firmware_version >> 6) & 0xFFFF,
++                               status.nk3_extra_info.firmware_version & 0b111111);
++                        printf("\tFirmware Secrets App: v%d.%d\n",
++                               status.response_status.firmware_version_st.major,
++                               status.response_status.firmware_version_st.minor);
++                        if (res != RET_NO_PIN_ATTEMPTS) {
++                            printf("\tSecrets app PIN counter: %d\n",
++                                   status.response_status.retry_user);
++                        } else {
++                            printf("\tSecrets app PIN counter: PIN is not set - set PIN before the first use\n");
++                        }
++                        printf("\tGPG Card counters: Admin %d, User %d\n",
++                               status.nk3_extra_info.pgp_admin_pin_retries,
++                               status.nk3_extra_info.pgp_user_pin_retries);
+                     } else {
+-                        printf("\tCard counters: PIN is not set - set PIN before the first use\n");
++                        printf("\tFirmware: v%d.%d\n",
++                               status.response_status.firmware_version_st.major,
++                               status.response_status.firmware_version_st.minor);
++                        if (res != RET_NO_PIN_ATTEMPTS) {
++                            printf("\tCard counters: Admin %d, User %d\n",
++                                   status.response_status.retry_admin, status.response_status.retry_user);
++                        } else {
++                            printf("\tCard counters: PIN is not set - set PIN before the first use\n");
++                        }
+                     }
+                 }
+                 if (res == RET_NO_PIN_ATTEMPTS) {
+diff --git a/src/operations_ccid.c b/src/operations_ccid.c
+index eb46124..25772e5 100644
+--- a/src/operations_ccid.c
++++ b/src/operations_ccid.c
+@@ -273,14 +273,102 @@ int verify_code_ccid(struct Device *dev, const uint32_t code_to_verify) {
+     return RET_VALIDATION_PASSED;
+ }
+ 
+-int status_ccid(libusb_device_handle *handle, int *attempt_counter, uint16_t *firmware_version, uint32_t *serial_number) {
++int status_ccid(libusb_device_handle *handle, struct FullResponseStatus *full_response) {
++    rassert(full_response != NULL);
++    struct ResponseStatus *response = &full_response->response_status;
+     rassert(handle != NULL);
+-    rassert(attempt_counter != NULL);
+-    rassert(firmware_version != NULL);
+-    rassert(serial_number != NULL);
+     uint8_t buf[1024] = {};
+     IccResult iccResult = {};
+-    int r = send_select_ccid(handle, buf, sizeof buf, &iccResult);
++    bool pin_counter_is_error = false;
++    int r;
++    libusb_device *usb_dev;
++    struct libusb_device_descriptor usb_desc;
++
++    usb_dev = libusb_get_device(handle);
++
++    r = libusb_get_device_descriptor(usb_dev, &usb_desc);
++
++    if (r < 0) {
++        return r;
++    }
++
++
++    if (usb_desc.idVendor == NITROKEY_USB_VID || usb_desc.idProduct == NITROKEY_3_USB_PID) {
++        full_response->device_type = Nk3;
++    } else if (usb_desc.idVendor == NITROKEY_USB_VID || usb_desc.idProduct == NITROKEY_PRO_USB_PID) {
++        full_response->device_type = NkPro2;
++    } else if (usb_desc.idVendor == NITROKEY_USB_VID || usb_desc.idProduct == NITROKEY_STORAGE_USB_PID) {
++        full_response->device_type = NkStorage;
++    } else if (usb_desc.idVendor == LIBREM_KEY_USB_VID || usb_desc.idProduct == LIBREM_KEY_USB_PID) {
++        full_response->device_type = LibremKey;
++    }
++
++    if (full_response->device_type == Nk3) {
++        r = send_select_nk3_admin_ccid(handle, buf, sizeof buf, &iccResult);
++        if (r != RET_NO_ERROR) {
++            return r;
++        }
++
++        uint8_t data_iso[MAX_CCID_BUFFER_SIZE] = {};
++        uint32_t iso_actual_length = iso7816_compose(
++                data_iso, sizeof data_iso,
++                0x61, 0, 0, 0, 4, NULL, 0);
++
++        // encode ccid wrapper
++        uint32_t icc_actual_length = icc_compose(buf, sizeof buf,
++                                                 0x6F, iso_actual_length,
++                                                 0, 0, 0, data_iso);
++        int transferred;
++        r = ccid_send(handle, &transferred, buf, icc_actual_length);
++        if (r != 0) {
++            return r;
++        }
++
++        r = ccid_receive(handle, &transferred, buf, sizeof buf);
++        if (r != 0) {
++            return r;
++        }
++
++        IccResult iccResult = parse_icc_result(buf, transferred);
++        rassert(iccResult.data_status_code == 0x9000);
++        rassert(iccResult.data_len == 6);
++        full_response->nk3_extra_info.firmware_version = be32toh(*(uint32_t *) iccResult.data);
++    }
++
++    if (full_response->device_type == Nk3) {
++        r = send_select_nk3_pgp_ccid(handle, buf, sizeof buf, &iccResult);
++        if (r != RET_NO_ERROR) {
++            return r;
++        }
++
++        uint8_t data_iso[MAX_CCID_BUFFER_SIZE] = {};
++        uint32_t iso_actual_length = iso7816_compose(
++                data_iso, sizeof data_iso,
++                0xCA, 0, 0xC4, 0, 0xFF, NULL, 0);
++
++        // encode ccid wrapper
++        uint32_t icc_actual_length = icc_compose(buf, sizeof buf,
++                                                 0x6F, iso_actual_length,
++                                                 0, 0, 0, data_iso);
++        int transferred;
++        r = ccid_send(handle, &transferred, buf, icc_actual_length);
++        if (r != 0) {
++            return r;
++        }
++
++        r = ccid_receive(handle, &transferred, buf, sizeof buf);
++        if (r != 0) {
++            return r;
++        }
++
++        IccResult iccResult = parse_icc_result(buf, transferred);
++        rassert(iccResult.data_status_code == 0x9000);
++        rassert(iccResult.data_len == 9);
++        full_response->nk3_extra_info.pgp_user_pin_retries = iccResult.data[4];
++        full_response->nk3_extra_info.pgp_admin_pin_retries = iccResult.data[6];
++    }
++
++    r = send_select_ccid(handle, buf, sizeof buf, &iccResult);
+     if (r != RET_NO_ERROR) {
+         return r;
+     }
+@@ -292,29 +380,30 @@ int status_ccid(libusb_device_handle *handle, int *attempt_counter, uint16_t *fi
+     r = get_tlv(iccResult.data, iccResult.data_len, Tag_PINCounter, &counter_tlv);
+     if (!(r == RET_NO_ERROR && counter_tlv.tag == Tag_PINCounter)) {
+         // PIN counter not found - comm error (ignore) or PIN not set
+-        *attempt_counter = -1;
++        pin_counter_is_error = true;
+     } else {
+-        *attempt_counter = counter_tlv.v_data[0];
++        response->retry_admin = counter_tlv.v_data[0];
++        response->retry_user = counter_tlv.v_data[0];
+     }
+ 
+     TLV serial_tlv = {};
+     r = get_tlv(iccResult.data, iccResult.data_len, Tag_SerialNumber, &serial_tlv);
+     if (r == RET_NO_ERROR && serial_tlv.tag == Tag_SerialNumber) {
+-        *serial_number = be32toh(*(uint32_t *) serial_tlv.v_data);
++        response->card_serial_u32 = be32toh(*(uint32_t *) serial_tlv.v_data);
+     } else {
+         // ignore errors - unsupported or hidden serial_tlv number
+-        *serial_number = 0;
++        response->card_serial_u32 = 0;
+     }
+ 
+     TLV version_tlv = {};
+     r = get_tlv(iccResult.data, iccResult.data_len, Tag_Version, &version_tlv);
+     if (!(r == RET_NO_ERROR && version_tlv.tag == Tag_Version)) {
+-        *firmware_version = 0;
++        response->firmware_version = 0;
+         return RET_COMM_ERROR;
+     }
+-    *firmware_version = be16toh(*(uint16_t *) version_tlv.v_data);
++    response->firmware_version = be16toh(*(uint16_t *) version_tlv.v_data);
+ 
+-    if (*attempt_counter == -1) {
++    if (pin_counter_is_error == true) {
+         return RET_NO_PIN_ATTEMPTS;
+     }
+     return RET_NO_ERROR;
+diff --git a/src/operations_ccid.h b/src/operations_ccid.h
+index b26b3c7..ea463b4 100644
+--- a/src/operations_ccid.h
++++ b/src/operations_ccid.h
+@@ -10,7 +10,7 @@ int authenticate_ccid(struct Device *dev, const char *admin_PIN);
+ int authenticate_or_set_ccid(struct Device *dev, const char *admin_PIN);
+ int set_secret_on_device_ccid(struct Device *dev, const char *admin_PIN, const char *OTP_secret_base32, const uint64_t hotp_counter);
+ int verify_code_ccid(struct Device *dev, const uint32_t code_to_verify);
+-int status_ccid(libusb_device_handle *handle, int *attempt_counter, uint16_t *firmware_version, uint32_t *serial_number);
++int status_ccid(libusb_device_handle *handle, struct FullResponseStatus *full_response);
+ 
+ 
+ #endif//NITROKEY_HOTP_VERIFICATION_OPERATIONS_CCID_H
+diff --git a/src/structs.h b/src/structs.h
+index 6309cd0..9e87134 100644
+--- a/src/structs.h
++++ b/src/structs.h
+@@ -116,6 +116,25 @@ struct ResponseStatus {
+     uint8_t retry_user;  /*not present in the firmware response for the Status command in v0.8 firmware*/
+ };
+ 
++enum DeviceType {
++  Unknown = 0,
++  Nk3,
++  NkPro2,  
++  NkStorage,
++  LibremKey,
++};
++
++struct FullResponseStatus {
++    enum DeviceType device_type;
++    struct ResponseStatus response_status;
++    struct {
++        // Only valid if device_type is NK3
++        uint8_t pgp_admin_pin_retries;    
++        uint8_t pgp_user_pin_retries;    
++        uint32_t firmware_version;
++    } nk3_extra_info;
++};
++
+ 
+ struct WriteToOTPSlot {
+     //admin auth
