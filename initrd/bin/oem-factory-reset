@@ -52,12 +52,16 @@ handle_mode() {
 		USER_PIN=$CUSTOM_SINGLE_PASS
 		ADMIN_PIN=$CUSTOM_SINGLE_PASS
 		TPM_PASS=$CUSTOM_SINGLE_PASS
+
+		title_text="OEM Factory Reset Mode"
 		;;
 	user)
 		DEBUG "User mode selected"
 		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		TPM_PASS=$ADMIN_PIN
+
+		title_text="User Re-Ownership Mode"
 		;;
 	*)
 		warn "Unknown oem-factory-reset lauched mode, setting PINs to weak defaults"
@@ -911,9 +915,7 @@ usb_security_token_capabilities_check() {
 ## main script start
 
 # check for args
-if [ "$1" != "" ]; then
-	title_text=$1
-else
+if [ -z "$title_text" ]; then
 	title_text="OEM Factory Reset / Re-Ownership"
 fi
 if [ "$2" != "" ]; then
