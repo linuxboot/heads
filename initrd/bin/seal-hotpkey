@@ -127,23 +127,33 @@ else
 fi
 
 if [ "$admin_pin_status" -ne 0 ]; then
+
+  # create custom message for PIN prompt based on nk3 lsusb product id
+  prompt_message=""
+  if lsusb | grep -q "20a0:42b2"; then
+	  prompt_message="Secure App"
+  else
+	  prompt_message="GPG Admin"
+  fi
+
+
   # prompt user for PIN and retry
   echo ""
-  read -s -p "Enter your $HOTPKEY_BRANDING Admin PIN: " admin_pin
+  read -s -p "Enter your $HOTPKEY_BRANDING $prompt_message PIN: " admin_pin
   echo -e "\n"
   
   hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
   if [ $? -ne 0 ]; then
     echo -e "\n"
-    read -s -p "Error setting HOTP secret, re-enter Admin PIN and try again: " admin_pin
+    read -s -p "Error setting HOTP secret, re-enter $prompt_message PIN and try again: " admin_pin
     echo -e "\n"
     if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" ; then
       # don't leak key on failure
       shred -n 10 -z -u "$HOTP_SECRET" 2> /dev/null
       if [ "$HOTPKEY_BRANDING" == "Nitrokey" ]; then
-	fatal_error "Setting HOTP secret failed, to reset nitrokey pin use: nitropy nk3 secrets reset or the Nitrokey App 2"
+	      fatal_error "Setting HOTP secret failed, to reset $prompt_message PIN, redo Re-Ownership procedure, the Nitrokey App 2 or contact Nitrokey support"
       else
-	fatal_error "Setting HOTP secret failed"
+	      fatal_error "Setting HOTP secret failed"
       fi
     fi
   fi
