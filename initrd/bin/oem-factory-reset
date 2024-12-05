@@ -86,9 +86,6 @@ done
 # Handle the --mode parameter if provided
 if [[ -n "$MODE" ]]; then
 	handle_mode "$MODE"
-else
-	# Default to User Re-Ownership mode
-	handle_mode "user"
 fi
 
 #Override RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards until canokey fixes
