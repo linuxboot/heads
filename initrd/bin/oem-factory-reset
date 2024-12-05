@@ -139,14 +139,15 @@ mount_boot() {
 
 reset_nk3_secret_app() {
 	TRACE_FUNC
-	# Reset Nitrokey 3 secret app
+	# Reset Nitrokey 3 Secret App
 	if lsusb | grep -q "20a0:42b2"; then
 		echo
-		echo "Resetting Nitrokey 3 secret app"
+		echo "Resetting Nitrokey 3 Secret App PIN. Physical presence (touch) will be required"
+		#TODO, change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
 		killall -9 scdaemon 2>&1 >/dev/null || true
-		# Reset Nitrokey 3 secret app
-		/bin/hotp_verification reset $ADMIN_PIN
+		# Reset Nitrokey 3 secret app with PIN
+		/bin/hotp_verification reset "${ADMIN_PIN}"
 	fi
 }
 
@@ -548,7 +549,6 @@ gpg_key_factory_reset() {
 
 	#Reset Nitrokey 3 secret app
 	reset_nk3_secret_app
-	# Nk3 now ready to set secret app PIN on first use...
 	
 	# If Nitrokey Storage is inserted, reset AES keys as well
 	if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
@@ -1390,7 +1390,7 @@ passphrases+="GPG Admin PIN: ${ADMIN_PIN}\n"
 
 #if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
 if lsusb | grep -q "20a0:42b2"; then
-	passphrases+="Nitrokey 3 Security App PIN: ${ADMIN_PIN}\n"
+	passphrases+="Nitrokey 3 Secret App PIN: ${ADMIN_PIN}\n"
 fi
 
 #USER PIN was configured if GPG_GEN_KEY_IN_MEMORY is not active or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is active
