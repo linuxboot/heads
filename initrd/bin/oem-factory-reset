@@ -1387,6 +1387,12 @@ fi
 
 #GPG PINs output
 passphrases+="GPG Admin PIN: ${ADMIN_PIN}\n"
+
+#if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
+if lsusb | grep -q "20a0:42b2"; then
+	passphrases+="Nitrokey 3 Security App PIN: ${ADMIN_PIN}\n"
+fi
+
 #USER PIN was configured if GPG_GEN_KEY_IN_MEMORY is not active or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is active
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	passphrases+="GPG User PIN: ${USER_PIN}\n"
@@ -1396,6 +1402,7 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
+
 
 # Show configured secrets in whiptail and loop until user confirms qr code was scanned
 while true; do
