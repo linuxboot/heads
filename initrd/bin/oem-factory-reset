@@ -60,8 +60,10 @@ handle_mode() {
 		TPM_PASS=$ADMIN_PIN
 		;;
 	*)
-		warn "Unknown mode: $mode"
-		exit 1
+		warn "Unknown oem-factory-reset lauched mode, setting PINs to weak defaults"
+		USER_PIN=$USER_PIN_DEF
+		ADMIN_PIN=$ADMIN_PIN_DEF
+		TPM_PASS=$ADMIN_PIN_DEF
 		;;
 	esac
 }
@@ -144,8 +146,10 @@ reset_nk3_secret_app() {
 	if lsusb | grep -q "20a0:42b2"; then
 		echo
 		echo "Resetting Nitrokey 3 secret app"
+		DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
+		killall -9 scdaemon 2>&1 >/dev/null || true
 		# Reset Nitrokey 3 secret app
-		/bin/hotp_verification reset
+		/bin/hotp_verification reset $ADMIN_PIN
 	fi
 }
 
