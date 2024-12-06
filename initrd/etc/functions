@@ -875,7 +875,7 @@ generate_passphrase() {
 	usage_generate_passphrase() {
 		echo "Usage: generate_passphrase --dictionary|-d <dictionary_file> [--number_words|-n <num_words>] [--max_length|-m <max_size>] [--lowercase|-l]"
 		echo "Generates a passphrase using a Diceware dictionary."
-		echo "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionnaries/eff_short_wordlist_2_0.txt )."
+		echo "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionaries/eff_short_wordlist_2_0.txt )."
 		echo "  [--number_words|-n <num_words>]  Number of words in the passphrase (default: 3)."
 		echo "  [--max_length|-m <max_size>]  Maximum size of the passphrase (default: 256)."
 		echo "  [--lowercase|-l]  Use lowercase words (default: false)."
@@ -910,7 +910,7 @@ generate_passphrase() {
 	}
 
 	TRACE_FUNC
-	local dictionary_file="/etc/diceware_dictionnaries/eff_short_wordlist_2_0.txt"
+	local dictionary_file="/etc/diceware_dictionaries/eff_short_wordlist_2_0.txt"
 	local num_words=3
 	local max_size=256
 	local lowercase=false
