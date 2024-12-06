@@ -1376,7 +1376,7 @@ if [[ "$SKIP_BOOT" == "n" ]]; then
 fi
 
 # passphrases set to be empty first
-passphrases="\n"
+passphrases=""
 
 # Prepare whiptail output of configured secrets
 if [ -n "$luks_new_Disk_Recovery_Key_passphrase" -o -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
@@ -1406,14 +1406,11 @@ fi
 
 # Show configured secrets in whiptail and loop until user confirms qr code was scanned
 while true; do
-	whiptail --msgbox "
-    $(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
+	whiptail --msgbox "$(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
 		$HEIGHT $WIDTH --title "Configured secrets"
-	# strip the initial newline of passphrases
-	qr_code=$(echo -e "$passphrases" | sed '1s/^\n//')
 	#Tell user to scan the QR code containing all configured secrets
 	echo -e "\nScan the QR code below to save the secrets to a secure location"
-	qrenc "$qr_code"
+	qrenc "$(echo -e "$passphrases")"
 	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
 	echo -e -n "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]: "
 	read -n 1 prompt_output
