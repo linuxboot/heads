@@ -881,32 +881,18 @@ generate_passphrase() {
 		echo "  [--lowercase|-l]  Use lowercase words (default: false)."
 	}
 
-	# Helper subfunction to get a word from the dictionary based on dice rolls
-	get_word_from_dictionary() {
-		local rolls="$1"
-		local dictionary_file="$2"
-		local word=""
+	# Helper subfunction to get a random word from the dictionary
+	get_random_word_from_dictionary() {
+		local dictionary_file="$1" lines random
 
-		word=$(grep "^$rolls" "$dictionary_file" | awk -F ' ' '{print $2}')
-		echo "$word"
-	}
-
-	# Helper subfunction to generate dice rolls
-	generate_dice_rolls() {
-		TRACE_FUNC
-		local num_rolls="$1"
-		local rolls=""
-		local random_bytes
-
-		# Read num_rolls bytes from /dev/random, fed by CPU RRAND in one go
-		random_bytes=$(dd if=/dev/random bs=1 count="$num_rolls" 2>/dev/null | hexdump -e '1/1 "%u\n"')
-
-		# Process each byte to generate a dice roll
-		while read -r byte; do
-			roll=$((byte % 6 + 1))
-			rolls+=$roll
-		done <<<"$random_bytes"
-		echo "$rolls"
+		lines="$(wc -l <"$dictionary_file")"
+		# 4 random bytes are used to reduce modulo bias to an acceptable
+		# level.  4 bytes with modulus 1296 results in 0.000003% bias
+		# toward the first 1263 words.
+		random="$(dd if=/dev/random bs=4 count=1 status=none | hexdump -e '1/4 "%u\n"')"
+		((random%=lines))
+		((++random)) # tail's line count is 1-based
+		tail -n +"$random" "$dictionary_file" | head -1 | cut -d$'\t' -f2
 	}
 
 	TRACE_FUNC
@@ -961,25 +947,9 @@ generate_passphrase() {
 
 	local passphrase=""
 	local word=""
-	local key=""
-	local digits=0
-
-	# Read the number of digits from the first line of the dictionary file
-	read -r key _ <"$dictionary_file"
-
-	# Validate that the key is composed entirely of digits
-	if ! [[ $key =~ ^[0-9]+$ ]]; then
-		echo "Error: Dictionary is not compliant with EFF diceware dictionaries."
-		echo "The first line of the dictionary should be in the format: <digits> <word>"
-		echo "Example: 11111 word"
-		exit 1
-	fi
-
-	digits=${#key} #Number of digits in dice rolls
 
 	for ((i = 0; i < num_words; ++i)); do
-		key=$(generate_dice_rolls "$digits")
-		word=$(get_word_from_dictionary "$key" "$dictionary_file")
+		word=$(get_random_word_from_dictionary "$dictionary_file")
 		if [[ "$lowercase" == "false" ]]; then
 			word=${word^} # Capitalize the first letter
 		fi
