@@ -143,13 +143,15 @@ mount_boot() {
 
 reset_nk3_secret_app() {
 	TRACE_FUNC
-	# Reset Nitrokey 3 Secret App
+	# Reset Nitrokey 3 Secrets App
 	if lsusb | grep -q "20a0:42b2"; then
 		echo
-		echo "Resetting Nitrokey 3 Secret App PIN. Physical presence (touch) will be required"
+		warn "Resetting Nitrokey 3 Secrets App PIN. Physical presence (touch) will be required"
 		#TODO, change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
-		/bin/hotp_verification reset "${ADMIN_PIN}"
+		if ! /bin/hotp_verification reset "${ADMIN_PIN}"; then
+			whiptail_error_die "Failed to reset Nitrokey 3 Secrets App with error code $?, contact Nitrokey support"
+		fi
 	fi
 }
 
@@ -552,7 +554,6 @@ gpg_key_factory_reset() {
 		whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
 	fi
 
-	
 	# If Nitrokey Storage is inserted, reset AES keys as well
 	if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
 		DEBUG "Nitrokey Storage detected, resetting AES keys..."
@@ -560,7 +561,7 @@ gpg_key_factory_reset() {
 		DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
 		killall -9 scdaemon
 	fi
-	
+
 	# Toggle forced sig (good security practice, forcing PIN request for each signature request)
 	if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
 		DEBUG "GPG toggling forcesig on since off..."
@@ -575,7 +576,7 @@ gpg_key_factory_reset() {
 			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
 		fi
 	fi
-	
+
 	# use p256 for key generation if requested
 	if [ "$GPG_ALGO" = "p256" ]; then
 		{
@@ -1388,7 +1389,7 @@ fi
 
 #if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
 if lsusb | grep -q "20a0:42b2"; then
-	passphrases+="Nitrokey 3 Secret App PIN: ${ADMIN_PIN}\n"
+	passphrases+="Nitrokey 3 Secrets App PIN: ${ADMIN_PIN}\n"
 fi
 
 #GPG PINs output
@@ -1402,7 +1403,6 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	passphrases+="GPG key material backup passphrase: ${ADMIN_PIN}\n"
 fi
-
 
 # Show configured secrets in whiptail and loop until user confirms qr code was scanned
 while true; do
