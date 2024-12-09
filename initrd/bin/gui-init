@@ -162,7 +162,7 @@ generate_totp_hotp()
     echo
     if [ -x /bin/hotp_verification ]; then
       if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
-        echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security Dongle (e.g. Librem Key or Nitrokey)"
+        echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
         read
       fi
       /bin/seal-hotpkey
@@ -644,7 +644,7 @@ TRACE_FUNC
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
-	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
 
 if [ -x /bin/hotp_verification ]; then

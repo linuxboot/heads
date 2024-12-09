@@ -29,7 +29,6 @@ else
 	. /etc/config
 fi
 
-
 # Busybox xxd lacks -r, and we get hex dumps from TPM1 commands.  This converts
 # a hex dump to binary data using sed and printf
 hex2bin() {
@@ -258,7 +257,7 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	LOG $(tpm2 pcrread "sha256:$index" 2>&1) 
+	LOG $(tpm2 pcrread "sha256:$index" 2>&1)
 
 	TRACE_FUNC
 	DEBUG "TPM: Extended PCR[$index] with hash $hash"
@@ -307,7 +306,7 @@ tpm1_counter_create() {
 	# other parameters for TPM1 are passed directly, and TPM2 mimics the
 	# TPM1 interface.
 	prompt_tpm_owner_password
-	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@"; then
+	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@" >/dev/null 2>&1; then
 		DEBUG "Failed to create counter from tpm1_counter_create. Wiping /tmp/secret/tpm_owner_password"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_password
 		die "Unable to create counter from tpm1_counter_create"
@@ -334,7 +333,7 @@ tpm2_counter_create() {
 	prompt_tpm_owner_password
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 2>/dev/null | xxd -pc3)"
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/console ||
+		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/null 2>&1 ||
 		{
 			DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
@@ -357,12 +356,13 @@ tpm2_startsession() {
 	tpm2 flushcontext -Q \
 		--saved-session ||
 		die "tpm2_flushcontext: unable to flush saved session"
-	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "$PRIMARY_HANDLE_FILE"
+	#TODO: readpublic cannot be silenced even if redirected to /dev/null with both stderr and stdout redirected?
+	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "$PRIMARY_HANDLE_FILE" >/dev/null 2>&1
 	#TODO: do the right thing to not have to suppress "WARN: check public portion the tpmkey manually" see https://github.com/linuxboot/heads/pull/1630#issuecomment-2075120429
-	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE" > /dev/null 2>&1
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE" >/dev/null 2>&1
 	#TODO: do the right thing to not have to suppress "WARN: check public portion the tpmkey manually" see https://github.com/linuxboot/heads/pull/1630#issuecomment-2075120429
-	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$DEC_SESSION_FILE" > /dev/null 2>&1
-	tpm2 sessionconfig -Q --disable-encrypt "$DEC_SESSION_FILE"
+	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$DEC_SESSION_FILE" >/dev/null 2>&1
+	tpm2 sessionconfig -Q --disable-encrypt "$DEC_SESSION_FILE" >/dev/null 2>&1
 }
 
 # Use cleanup_session() with at_exit to release a TPM2 session and delete the
@@ -412,7 +412,7 @@ tpm1_destroy() {
 	index="$1" # Index of the sealed file
 	size="$2"  # Size of zeroes to overwrite for TPM1
 
-	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero > /dev/null 2>&1
+	dd if=/dev/zero bs="$size" count=1 of=/tmp/wipe-totp-zero >/dev/null 2>&1
 	tpm nv_writevalue -in "$index" -if /tmp/wipe-totp-zero ||
 		die "Unable to wipe sealed secret from TPM NVRAM"
 }
@@ -502,7 +502,7 @@ tpm1_seal() {
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	pcrf="$4"
 	sealed_size="$5"
-	pass="$6"         # May be empty to seal with no password
+	pass="$6"               # May be empty to seal with no password
 	tpm_owner_password="$7" # Owner password - will prompt if needed and not empty
 
 	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
@@ -511,7 +511,6 @@ tpm1_seal() {
 	POLICY_ARGS=()
 
 	DEBUG "tpm1_seal arguments: file=$file index=$index pcrl=$pcrl pcrf=$pcrf sealed_size=$sealed_size pass=$(mask_param "$pass") tpm_password=$(mask_param "$tpm_password")"
-
 
 	# If a password was given, add it to the policy arguments
 	if [ "$pass" ]; then
@@ -534,7 +533,7 @@ tpm1_seal() {
 		-of "$sealed_file" \
 		-hk 40000000 \
 		"${POLICY_ARGS[@]}"
-	
+
 	# try it without the TPM Owner Password first
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
 		# to create an nvram space we need the TPM Owner Password
@@ -605,9 +604,22 @@ tpm2_unseal() {
 		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
 	fi
 
-	tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-		-S "$ENC_SESSION_FILE" >"$file"
+	# tpm2 unseal will write the unsealed data to stdout and any errors to
+	# 	stderr.  We capture the unsealed data to $file, but still log the errors for quiet mode.
+	# In case of unseal error, caller will also report on TOTP not being able to be unsealed.
+	TMP_ERR_FILE=$(mktemp)
+if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
+    -S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_ERR_FILE"; then
+    # Log the contents of the temporary error file
+    while IFS= read -r line; do
+        LOG "tpm2 stderr: $line"
+    done <"$TMP_ERR_FILE"
+    rm -f "$TMP_ERR_FILE"
+    die "Unable to unseal secret from TPM NVRAM with tpm2 unseal"
+fi
+rm -f "$TMP_ERR_FILE"
 }
+
 tpm1_unseal() {
 	TRACE_FUNC
 	index="$1"
@@ -650,15 +662,15 @@ tpm2_reset() {
 	# output TPM Owner Password to a file to be reused in this boot session until recovery shell/reboot
 	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
 	echo -n "$tpm_owner_password" >"$SECRET_DIR/tpm_owner_password"
-	tpm2 clear -c platform > /dev/null 2>&1 || LOG "Unable to clear TPM on platform hierarchy"
-	tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")" > /dev/null 2>&1 || LOG "Unable to change owner password"
-	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")" > /dev/null 2>&1 || LOG "Unable to change endorsement password"
+	tpm2 clear -c platform >/dev/null 2>&1 || LOG "Unable to clear TPM on platform hierarchy"
+	tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to change owner password"
+	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to change endorsement password"
 	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
-		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$tpm_owner_password")" > /dev/null 2>&1 || LOG "Unable to create primary key"
+		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to create primary key"
 	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
-		-P "$(tpm2_password_hex "$tpm_owner_password")" > /dev/null 2>&1 || LOG "Unable to evict primary key"
-	shred -u "$SECRET_DIR/primary.ctx" > /dev/null 2>&1
-	tpm2_startsession > /dev/null 2>&1 || LOG "Unable to start session"
+		-P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to evict primary key"
+	shred -u "$SECRET_DIR/primary.ctx" >/dev/null 2>&1
+	tpm2_startsession >/dev/null 2>&1 || LOG "Unable to start session"
 
 	# Set the dictionary attack parameters.  TPM2 defaults vary widely, we
 	# want consistent behavior on any TPM.
@@ -681,7 +693,7 @@ tpm2_reset() {
 		--max-tries=10 \
 		--recovery-time=3600 \
 		--lockout-recovery-time=0 \
-		--auth="session:$ENC_SESSION_FILE" > /dev/null 2>&1 || LOG "Unable to set dictionary lockout parameters"
+		--auth="session:$ENC_SESSION_FILE" >/dev/null 2>&1 || LOG "Unable to set dictionary lockout parameters"
 
 	# Set a random DA lockout password, so the DA lockout can't be cleared
 	# with a password.  Heads doesn't offer dictionary attach reset, instead
@@ -690,7 +702,7 @@ tpm2_reset() {
 	# The default lockout password is empty, so we must set this, and we
 	# don't need to provide any auth (use the default empty password).
 	tpm2 changeauth -Q -c lockout \
-		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none 2>/dev/null | xxd -p | tr -d ' \n')" > /dev/null 2>&1 || LOG "Unable to set lockout password"
+		"hex:$(dd if=/dev/urandom bs=32 count=1 status=none 2>/dev/null | xxd -p | tr -d ' \n')" >/dev/null 2>&1 || LOG "Unable to set lockout password"
 }
 tpm1_reset() {
 	TRACE_FUNC
@@ -700,17 +712,17 @@ tpm1_reset() {
 	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
 	echo -n "$tpm_owner_password" >"$SECRET_DIR/tpm_owner_password"
 	# Make sure the TPM is ready to be reset
-	tpm physicalpresence -s > /dev/null 2>&1 || LOG "Unable to assert physical presence"
-	tpm physicalenable > /dev/null 2>&1 || >LOG "Unable to enable TPM"
-	tpm physicalsetdeactivated -c > /dev/null 2>&1 || LOG "Unable to deactivate TPM"
-	tpm forceclear -pwdo "$tpm_owner_password" > /dev/null 2>&1 || LOG "Unable to clear TPM"
-	tpm physicalenable > /dev/null 2>&1 || LOG "Unable to enable TPM"
-	tpm takeown -pwdo "$tpm_owner_password" > /dev/null 2>&1 || LOG "Unable to take ownership of TPM"
+	tpm physicalpresence -s >/dev/null 2>&1 || LOG "Unable to assert physical presence"
+	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
+	tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "Unable to deactivate TPM"
+	tpm forceclear -pwdo "$tpm_owner_password" >/dev/null 2>&1 || LOG "Unable to clear TPM"
+	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
+	tpm takeown -pwdo "$tpm_owner_password" >/dev/null 2>&1 || LOG "Unable to take ownership of TPM"
 
 	# And now turn it all back on
-	tpm physicalpresence -s > /dev/null 2>&1 || LOG "Unable to assert physical presence"
-	tpm physicalenable > /dev/null 2>&1 || LOG "Unable to enable TPM"
-	tpm physicalsetdeactivated -c > /dev/null 2>&1 || LOG "Unable to deactivate TPM"
+	tpm physicalpresence -s >/dev/null 2>&1 || LOG "Unable to assert physical presence"
+	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
+	tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "Unable to deactivate TPM physical presence requirement"
 }
 
 # Perform final cleanup before boot and lock the platform heirarchy.
@@ -784,7 +796,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 			DEBUG "TPM: Will extend PCR[$3] with hash of filename $string"
 			hash="$(echo -n "$5" | sha1sum | cut -d' ' -f1)"
 		fi
-		
+
 		TRACE_FUNC
 		LOG "TPM: Extending PCR[$3] with hash $hash"
 		DO_WITH_DEBUG exec tpm "$@"

@@ -181,7 +181,7 @@ fi
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
-	pause_recovery 'Console recovery shell' \
+	pause_recovery 'Serial console recovery shell' \
 		< "$CONFIG_BOOT_RECOVERY_SERIAL" \
 		> "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
@@ -207,6 +207,7 @@ if [ "$boot_option" = "r" ]; then
 	exit
 elif [ "$boot_option" = "o" ]; then
 	# Launch OEM Factory Reset mode
+	echo -e "***** Entering OEM Factory Reset mode\n" > /dev/tty0
 	oem-factory-reset --mode oem
 	# just in case...
 	exit
