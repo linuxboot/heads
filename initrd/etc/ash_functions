@@ -39,7 +39,16 @@ TRACE() {
 
 # Write directly to the debug log (but not kmsg), never appears on console
 LOG() {
-	echo "LOG: $*" >>/tmp/debug.log
+	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		DEBUG "$*"
+	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then	
+		# if in quiet mode, output solely to debug.log
+		echo "$*" >> /tmp/debug.log
+	else
+		# if not in quiet mode, output to console
+		echo "$*"
+	fi
 }
 
 fw_version() {
@@ -145,7 +154,7 @@ confirm_gpg_card() {
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
-	gpg --card-status >/dev/null
+	gpg_output=$(gpg --card-status 2>&1)
 	if [ $? -ne 0 ]; then
 		# prompt for reinsertion and try a second time
 		read -n1 -r -p \
@@ -156,13 +165,26 @@ confirm_gpg_card() {
 			set -e
 		fi
 		# retry card status
-		gpg --card-status >/dev/null ||
+		gpg_output=$(gpg --card-status 2>&1) ||
 			die "gpg card read failed"
 	fi
 	# restore prev errexit state
 	if [ "$errexit" = "on" ]; then
 		set -e
 	fi
+
+	# Extract and display GPG PIN retry counters
+	# output excerpt: "PIN retry counter : 3 0 3"
+	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
+	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
+	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
+	
+	echo ""	
+	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
+	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
+	echo ""
+	warn "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	echo ""
 }
 
 gpg_auth() {
@@ -241,7 +263,7 @@ recovery() {
 	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		echo "TPM: Extending PCR[4] to prevent any further secret unsealing"
+		LOG "TPM: Extending PCR[4] to prevent any further secret unsealing"
 		tpmr extend -ix 4 -ic recovery
 	fi
 

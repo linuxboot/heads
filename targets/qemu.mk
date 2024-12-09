@@ -45,7 +45,7 @@ $(MEMORY_SIZE_FILE):
 	@echo "$(QEMU_MEMORY_SIZE)" >"$(MEMORY_SIZE_FILE)"
 USB_FD_IMG=$(build)/$(BOARD)/usb_fd.raw
 $(USB_FD_IMG):
-	dd if=/dev/zero bs=1M of="$(USB_FD_IMG)" bs=1M count=256
+	dd if=/dev/zero bs=1M of="$(USB_FD_IMG)" bs=1M count=256 >/dev/null 2>&1
 	# Debian obnoxiously does not include /usr/sbin in PATH for non-root, even
 	# though it is meaningful to use mkfs.vfat (etc.) as non-root
 	MKFS_VFAT=mkfs.vfat; \
