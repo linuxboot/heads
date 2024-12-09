@@ -307,7 +307,7 @@ tpm1_counter_create() {
 	# other parameters for TPM1 are passed directly, and TPM2 mimics the
 	# TPM1 interface.
 	prompt_tpm_owner_password
-	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@"; then
+	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@" >/dev/null 2>&1; then
 		DEBUG "Failed to create counter from tpm1_counter_create. Wiping /tmp/secret/tpm_owner_password"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_password
 		die "Unable to create counter from tpm1_counter_create"
@@ -334,7 +334,7 @@ tpm2_counter_create() {
 	prompt_tpm_owner_password
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 2>/dev/null | xxd -pc3)"
 	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/console ||
+		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/null 2>&1 ||
 		{
 			DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_password
