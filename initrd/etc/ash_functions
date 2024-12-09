@@ -147,7 +147,7 @@ confirm_gpg_card() {
 		fi
 	fi
 
-	# setup the USB so we can reach the USB Security Dongle's smartcard
+	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
 	enable_usb
 
 	echo -e "\nVerifying presence of GPG card...\n"

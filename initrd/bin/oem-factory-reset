@@ -143,15 +143,26 @@ mount_boot() {
 
 reset_nk3_secret_app() {
 	TRACE_FUNC
-	# Reset Nitrokey 3 Secrets App
+	# Reset Nitrokey 3 Secrets app with $ADMIN_PIN (default 12345678, or customised)
 	if lsusb | grep -q "20a0:42b2"; then
 		echo
-		warn "Resetting Nitrokey 3 Secrets App PIN. Physical presence (touch) will be required"
-		#TODO, change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
+		warn "Resetting Nitrokey 3 Secrets App with PIN. Physical presence (touch) will be required"
+		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
-		if ! /bin/hotp_verification reset "${ADMIN_PIN}"; then
-			whiptail_error_die "Failed to reset Nitrokey 3 Secrets App with error code $?, contact Nitrokey support"
-		fi
+		# Do 3 attempts to reset Nitrokey 3 Secrets App if return code is 3 (no touch)
+		for attempt in 1 2 3; do
+			if /bin/hotp_verification reset "${ADMIN_PIN}"; then
+				echo
+				return 0
+			else
+				error_code=$?
+				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
+					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 cecrets app reset attempt: $attempt/3"
+				else
+					whiptail_error_die "Nitrokey 3 secrets app reset failed with error:$error_code. Contact Nitrokey support"
+				fi
+			fi
+		done
 	fi
 }
 
@@ -323,7 +334,7 @@ generate_inmemory_p256_master_and_subkeys() {
 keytocard_subkeys_to_smartcard() {
 	TRACE_FUNC
 
-	#make sure usb ready and USB Security Dongle ready to communicate with
+	#make sure usb ready and USB Security dongle ready to communicate with
 	enable_usb
 	enable_usb_storage
 	gpg --card-status >/dev/null 2>&1 || die "Error getting GPG card status"
@@ -541,7 +552,7 @@ gpg_key_factory_reset() {
 	reset_nk3_secret_app
 
 	# Factory reset GPG card
-	echo "GPG factory reset of USB Security Dongle's smartcard..."
+	echo "GPG factory reset of USB Security dongle's OpenPGP smartcard..."
 	{
 		echo admin         # admin menu
 		echo factory-reset # factory reset smartcard
@@ -595,7 +606,7 @@ gpg_key_factory_reset() {
 			>/tmp/gpg_card_edit_output 2>&1
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key to NIST-P256 in USB Security Dongle failed."
+			whiptail_error_die "Setting key to NIST-P256 in USB Security dongle failed."
 		fi
 	# fallback to RSA key generation by default
 	elif [ "$GPG_ALGO" = "RSA" ]; then
@@ -617,7 +628,7 @@ gpg_key_factory_reset() {
 			>/tmp/gpg_card_edit_output 2>&1
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB Security Dongle failed."
+			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB Security dongle failed."
 		fi
 	else
 		#Unknown GPG_ALGO
@@ -631,7 +642,7 @@ generate_OEM_gpg_keys() {
 	TRACE_FUNC
 
 	#This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
-	echo "Generating GPG keys in USB Security Dongle's smartcard..."
+	echo "Generating GPG keys in USB Security dongle's OpenPGP smartcard..."
 	{
 		echo admin               # admin menu
 		echo generate            # generate keys
@@ -645,6 +656,11 @@ generate_OEM_gpg_keys() {
 		echo ${USER_PIN_DEF}     # Default user PIN since we just factory reset
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	#This outputs to console \
+	# "gpg: checking the trustdb"
+	# "gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model"
+	# "gpg: depth: 0 valid: 1 signed: 0 trust: 0-, 0q, 0n, 0m, 0f, 1u"
+	#TODO: Suppress this output to console (stdout shown in DEBUG mode)?
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
@@ -704,7 +720,7 @@ generate_checksums() {
 			tpmr counter_create \
 				-pwdc '' \
 				-la -3135106223 |
-				tee /tmp/counter ||
+				tee /tmp/counter >/dev/null 2>&1 ||
 				whiptail_error_die "Unable to create TPM counter"
 			TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 
@@ -850,14 +866,14 @@ report_integrity_measurements() {
 			enable_usb
 			for attempt in 1 2 3; do
 				if ! hotp_verification info >/dev/null 2>&1; then
-					whiptail_warning --title "WARNING: Please insert your HOTP enabled USB Security Dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security Dongle was not detected.\n\nPlease remove it and insert it again." 0 80
+					whiptail_warning --title "WARNING: Please insert your HOTP enabled USB Security dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security dongle was not detected.\n\nPlease remove it and insert it again." 0 80
 				else
 					break
 				fi
 			done
 
 			if [ $attempt -eq 3 ]; then
-				die "No HOTP enabled USB Security Dongle detected. Please disable 'CONFIG_HOTPKEY' in the board config and rebuild."
+				die "No HOTP enabled USB Security dongle detected. Please disable 'CONFIG_HOTPKEY' in the board config and rebuild."
 			fi
 
 			# Don't output HOTP codes to screen, so as to make replay attacks harder
@@ -872,7 +888,7 @@ report_integrity_measurements() {
 				BG_COLOR_MAIN_MENU="error"
 				;;
 			*)
-				HOTP="Error checking code, Insert USB Security Dongle and retry"
+				HOTP="Error checking code, Insert USB Security dongle and retry"
 				BG_COLOR_MAIN_MENU="warning"
 				;;
 			esac
@@ -997,21 +1013,21 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		; then
 		GPG_GEN_KEY_IN_MEMORY="y"
 		echo " ++++ Master key and subkeys will be generated in memory, backed up to dedicated LUKS container +++"
-		echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security Dongle's smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
+		echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security dongle's OpenPGP smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
 		read -n 1 prompt_output
 		echo
 		if [ "$prompt_output" == "n" \
 			-o "$prompt_output" == "N" ]; then
-			warn "Subkeys will NOT be copied to USB Security Dongle's smartcard"
+			warn "Subkeys will NOT be copied to USB Security dongle's OpenPGP smartcard"
 			warn "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environements"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 		else
-			echo "++++ Subkeys will be copied to USB Security Dongle's smartcard ++++"
+			echo "++++ Subkeys will be copied to USB Security dongle's OpenPGP smartcard ++++"
 			warn "Please keep your GPG key material backup thumb drive safe"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="y"
 		fi
 	else
-		echo "GPG key material will be generated on USB Security Dongle's smartcard without backup"
+		echo "GPG key material will be generated on USB Security dongle's OpenPGP smartcard without backup"
 		GPG_GEN_KEY_IN_MEMORY="n"
 		GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 	fi
@@ -1177,24 +1193,24 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
 		fi
 	else
 		GPG_EXPORT=0
-		# needed for USB Security Dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
+		# needed for USB Security dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
 		enable_usb
 	fi
 fi
 
-# ensure USB Security Dongle connected if GPG_GEN_KEY_IN_MEMORY=n or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=y
+# ensure USB Security dongle connected if GPG_GEN_KEY_IN_MEMORY=n or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=y
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
-	echo -e "\nChecking for USB Security Dongle...\n"
+	echo -e "\nChecking for USB Security dongle...\n"
 	enable_usb
 	if ! gpg --card-status >/dev/null 2>&1; then
-		local_whiptail_error "Can't access USB Security Dongle; \nPlease remove and reinsert, then press Enter."
+		local_whiptail_error "Can't access USB Security dongle; \nPlease remove and reinsert, then press Enter."
 		if ! gpg --card-status >/dev/null 2>/tmp/error; then
 			ERROR=$(tail -n 1 /tmp/error | fold -s)
-			whiptail_error_die "Unable to detect USB Security Dongle:\n\n${ERROR}"
+			whiptail_error_die "Unable to detect USB Security dongle:\n\n${ERROR}"
 		fi
 	fi
 
-	#Now that USB Security Dongle is detected, we can check its capabilities and limitations
+	#Now that USB Security dongle is detected, we can check its capabilities and limitations
 	usb_security_token_capabilities_check
 fi
 
@@ -1266,7 +1282,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	fi
 else
 	#Generate GPG key and subkeys on smartcard only
-	echo -e "\nResetting USB Security Dongle's GPG smartcard...\n(this will take around 3 minutes...)\n"
+	echo -e "\nResetting USB Security dongle's GPG smartcard...\n(this will take around 3 minutes...)\n"
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
 fi
@@ -1389,7 +1405,7 @@ fi
 
 #if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
 if lsusb | grep -q "20a0:42b2"; then
-	passphrases+="Nitrokey 3 Secrets App PIN: ${ADMIN_PIN}\n"
+	passphrases+="Nitrokey 3 Secrets app PIN: ${ADMIN_PIN}\n"
 fi
 
 #GPG PINs output

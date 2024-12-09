@@ -1,7 +1,7 @@
-From de355ed93ba50280bf377772082b76b7a2285185 Mon Sep 17 00:00:00 2001
+From 45fb0932c3a45978d894fcaae2c242ffa93516f2 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Sosth=C3=A8ne=20Gu=C3=A9don?= <sosthene@nitrokey.com>
 Date: Mon, 25 Nov 2024 17:04:47 +0100
-Subject: [PATCH 1/3] Add reset command for nitrokey 3
+Subject: [PATCH 1/4] Add reset command for nitrokey 3
 
 ---
  src/main.c            | 10 ++++++++--
@@ -10,7 +10,7 @@ Subject: [PATCH 1/3] Add reset command for nitrokey 3
  3 files changed, 50 insertions(+), 2 deletions(-)
 
 diff --git a/src/main.c b/src/main.c
-index 059069e..b80b71d 100644
+index ed26932..41b1692 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -21,6 +21,7 @@
@@ -20,8 +20,8 @@ index 059069e..b80b71d 100644
 +#include "operations_ccid.h"
  #include "return_codes.h"
  #include "utils.h"
- #include "version.h"
-@@ -134,8 +135,13 @@ int parse_cmd_and_run(int argc, char *const *argv) {
+ #include "operations_ccid.h"
+@@ -161,8 +162,13 @@ int parse_cmd_and_run(int argc, char *const *argv) {
                  }
                  break;
              case 'r':
@@ -38,7 +38,7 @@ index 059069e..b80b71d 100644
              default:
                  break;
 diff --git a/src/operations_ccid.c b/src/operations_ccid.c
-index eb46124..574155d 100644
+index 1ca6f54..cdaf940 100644
 --- a/src/operations_ccid.c
 +++ b/src/operations_ccid.c
 @@ -32,6 +32,47 @@
@@ -90,47 +90,48 @@ index eb46124..574155d 100644
      TLV tlvs[] = {
              {
 diff --git a/src/operations_ccid.h b/src/operations_ccid.h
-index b26b3c7..ec0070c 100644
+index 77a6fdc..20415c0 100644
 --- a/src/operations_ccid.h
 +++ b/src/operations_ccid.h
-@@ -11,6 +11,7 @@ int authenticate_or_set_ccid(struct Device *dev, const char *admin_PIN);
- int set_secret_on_device_ccid(struct Device *dev, const char *admin_PIN, const char *OTP_secret_base32, const uint64_t hotp_counter);
+@@ -12,6 +12,7 @@ int set_secret_on_device_ccid(struct Device *dev, const char *admin_PIN, const c
  int verify_code_ccid(struct Device *dev, const uint32_t code_to_verify);
- int status_ccid(libusb_device_handle *handle, int *attempt_counter, uint16_t *firmware_version, uint32_t *serial_number);
+ int status_ccid(libusb_device_handle *handle, struct FullResponseStatus *full_response);
+ int nk3_change_pin(struct Device *dev, const char *old_pin, const char*new_pin);
 +int nk3_reset(struct Device *dev);
  
  
  #endif//NITROKEY_HOTP_VERIFICATION_OPERATIONS_CCID_H
 
-From 8425e8c622138aef9ab207119e14f7cbedd40175 Mon Sep 17 00:00:00 2001
+From 12ba32eb823a3d895ce77052022f8da3e40172ca Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Sosth=C3=A8ne=20Gu=C3=A9don?= <sosthene@nitrokey.com>
 Date: Mon, 2 Dec 2024 10:29:59 +0100
-Subject: [PATCH 2/3] Add optional new pin when resetting
+Subject: [PATCH 2/4] Add optional new pin when resetting
 
 ---
- src/main.c            | 9 +++++----
- src/operations_ccid.c | 6 +++++-
- src/operations_ccid.h | 5 ++++-
- 3 files changed, 14 insertions(+), 6 deletions(-)
+ src/main.c            | 11 +++++++----
+ src/operations_ccid.c |  6 +++++-
+ src/operations_ccid.h |  5 ++++-
+ 3 files changed, 16 insertions(+), 6 deletions(-)
 
 diff --git a/src/main.c b/src/main.c
-index b80b71d..3f4a1cc 100644
+index 41b1692..84c0afe 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -38,9 +38,10 @@ void print_help(char *app_name) {
-            "\t%s info\n"
-            "\t%s version\n"
+@@ -41,8 +41,11 @@ void print_help(char *app_name) {
             "\t%s check <HOTP CODE>\n"
--           "\t%s regenerate <ADMIN PIN>\n"
+            "\t%s regenerate <ADMIN PIN>\n"
+            "\t%s set <BASE32 HOTP SECRET> <ADMIN PIN> [COUNTER]\n"
+-           "\t%s nk3-change-pin <old-pin> <new-pin>\n",
+-           app_name, app_name, app_name, app_name, app_name, app_name, app_name);
++           "\t%s nk3-change-pin <old-pin> <new-pin>\n"
 +           "\t%s reset [ADMIN PIN]\n"
 +           "\t%s regenerate\n"
-            "\t%s set <BASE32 HOTP SECRET> <ADMIN PIN> [COUNTER]\n",
--           app_name, app_name, app_name, app_name, app_name, app_name);
-+           app_name, app_name, app_name, app_name, app_name, app_name, app_name);
++           "\t%s set <BASE32 HOTP SECRET> <ADMIN PIN> [COUNTER]\n",
++           app_name, app_name, app_name, app_name, app_name, app_name, app_name, app_name, app_name, app_name);
  }
  
  
-@@ -136,8 +137,8 @@ int parse_cmd_and_run(int argc, char *const *argv) {
+@@ -163,8 +166,8 @@ int parse_cmd_and_run(int argc, char *const *argv) {
                  break;
              case 'r':
                  if (strncmp(argv[1], "reset", 15) == 0) {
@@ -142,7 +143,7 @@ index b80b71d..3f4a1cc 100644
                      if (argc != 3) break;
                      res = regenerate_AES_key(&dev, argv[2]);
 diff --git a/src/operations_ccid.c b/src/operations_ccid.c
-index 574155d..07834ce 100644
+index cdaf940..8b6ba77 100644
 --- a/src/operations_ccid.c
 +++ b/src/operations_ccid.c
 @@ -33,7 +33,7 @@
@@ -166,13 +167,13 @@ index 574155d..07834ce 100644
  }
  
 diff --git a/src/operations_ccid.h b/src/operations_ccid.h
-index ec0070c..61cad72 100644
+index 20415c0..4d55ad8 100644
 --- a/src/operations_ccid.h
 +++ b/src/operations_ccid.h
-@@ -11,7 +11,10 @@ int authenticate_or_set_ccid(struct Device *dev, const char *admin_PIN);
- int set_secret_on_device_ccid(struct Device *dev, const char *admin_PIN, const char *OTP_secret_base32, const uint64_t hotp_counter);
+@@ -12,7 +12,10 @@ int set_secret_on_device_ccid(struct Device *dev, const char *admin_PIN, const c
  int verify_code_ccid(struct Device *dev, const uint32_t code_to_verify);
- int status_ccid(libusb_device_handle *handle, int *attempt_counter, uint16_t *firmware_version, uint32_t *serial_number);
+ int status_ccid(libusb_device_handle *handle, struct FullResponseStatus *full_response);
+ int nk3_change_pin(struct Device *dev, const char *old_pin, const char*new_pin);
 -int nk3_reset(struct Device *dev);
 +// new_pin can be `null`
 +//
@@ -182,17 +183,17 @@ index ec0070c..61cad72 100644
  
  #endif//NITROKEY_HOTP_VERIFICATION_OPERATIONS_CCID_H
 
-From 596f701985682adf6bfab06c78cbe132cbcb2aae Mon Sep 17 00:00:00 2001
+From 0bbc6ea354b1f807a4d7ad4c0cd57f9cbab25a8b Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Sosth=C3=A8ne=20Gu=C3=A9don?= <sosthene@nitrokey.com>
 Date: Tue, 3 Dec 2024 10:48:27 +0100
-Subject: [PATCH 3/3] Fix null pointer bug on non nk3
+Subject: [PATCH 3/4] Fix null pointer bug on non nk3
 
 ---
  src/operations_ccid.c | 8 +++++++-
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/src/operations_ccid.c b/src/operations_ccid.c
-index 07834ce..538d434 100644
+index 8b6ba77..1221764 100644
 --- a/src/operations_ccid.c
 +++ b/src/operations_ccid.c
 @@ -36,6 +36,12 @@
@@ -216,4 +217,34 @@ index 07834ce..538d434 100644
 +        return RET_NO_ERROR;
      }
  
+ 
+
+From 0c5bd3da36ea8de5b8adf7878e9260b079bc110b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Sosth=C3=A8ne=20Gu=C3=A9don?= <sosthene@nitrokey.com>
+Date: Mon, 9 Dec 2024 17:42:54 +0100
+Subject: [PATCH 4/4] Print warning when device is not an NK3
+
+---
+ src/operations_ccid.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/operations_ccid.c b/src/operations_ccid.c
+index 1221764..356a1b4 100644
+--- a/src/operations_ccid.c
++++ b/src/operations_ccid.c
+@@ -39,6 +39,7 @@ int nk3_reset(struct Device *dev, const char * new_pin) {
+ 
+     if (!dev->mp_devhandle_ccid) {
+         // Not an NK3
++        printf("No Nitrokey 3 found. No operation performed\n");
+         return RET_NO_ERROR;
+     }
+     
+@@ -52,6 +53,7 @@ int nk3_reset(struct Device *dev, const char * new_pin) {
+ 
+ 
+     if (usb_desc.idVendor != NITROKEY_USB_VID || usb_desc.idProduct != NITROKEY_3_USB_PID) {
++        printf("No Nitrokey 3 found. No operation performed\n");
+         return RET_NO_ERROR;
+     }
  
