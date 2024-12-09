@@ -27,6 +27,9 @@ assert_signable
 
 confirm_gpg_card
 
+# remount /boot as rw
+mount -o remount,rw /boot
+
 # update hashes in /boot before signing
 if [ "$update" = "y" ]; then
 	(
@@ -81,8 +84,15 @@ for tries in 1 2 3; do
 	; then
 		# successful - update the validated params
 		check_config $paramsdir
+
+		# remount /boot as ro
+		mount -o remount,ro /boot
+
 		exit 0
 	fi
 done
+
+# remount /boot as ro
+mount -o remount,ro /boot
 
 die "$paramsdir: Unable to sign kexec hashes"
