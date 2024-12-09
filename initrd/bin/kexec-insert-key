@@ -92,7 +92,7 @@ echo '+++ Building initrd'
 # pad the initramfs (dracut doesn't pad the last gz blob)
 # without this the kernel init/initramfs.c fails to read
 # the subsequent uncompressed/compressed cpio
-dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync ||
+dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync > /dev/null 2>&1 ||
 	die "Failed to copy initrd to /tmp"
 
 if [ "$unseal_failed" = "n" ]; then
