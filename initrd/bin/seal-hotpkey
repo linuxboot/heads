@@ -1,5 +1,5 @@
 #!/bin/bash
-# Retrieve the sealed TOTP secret and initialize a USB Security Dongle with it
+# Retrieve the sealed TOTP secret and initialize a USB Security dongle with it
 
 . /etc/functions
 . /etc/gui_functions
@@ -34,7 +34,7 @@ fatal_error() {
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
-	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
@@ -77,13 +77,13 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 	fi
 fi
 
-# Set HOTP USB Security Dongle branding based on VID
+# Set HOTP USB Security dongle branding based on VID
 if lsusb | grep -q "20a0:"; then
 	HOTPKEY_BRANDING="Nitrokey"
 elif lsusb | grep -q "316d:"; then
 	HOTPKEY_BRANDING="Librem Key"
 else
-	HOTPKEY_BRANDING="HOTP USB Security Dongle"
+	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
 
 # Truncate the secret if it is longer than the maximum HOTP secret
@@ -175,7 +175,7 @@ counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
 	fatal_error "Unable to create hotp counter file"
 
-# Store/overwrite HOTP USB Security Dongle branding found out beforehand
+# Store/overwrite HOTP USB Security dongle branding found out beforehand
 echo $HOTPKEY_BRANDING >$HOTP_KEY ||
 	die "Unable to store hotp key file"
 
