@@ -146,7 +146,7 @@ reset_nk3_secret_app() {
 	# Reset Nitrokey 3 Secrets app with $ADMIN_PIN (default 12345678, or customised)
 	if lsusb | grep -q "20a0:42b2"; then
 		echo
-		warn "Resetting Nitrokey 3 Secrets App with PIN. Physical presence (touch) will be required"
+		warn "Resetting Nitrokey 3's Secrets App with PIN. Physical presence (touch) will be required"
 		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
 		# Do 3 attempts to reset Nitrokey 3 Secrets App if return code is 3 (no touch)
@@ -159,7 +159,7 @@ reset_nk3_secret_app() {
 				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
 					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 cecrets app reset attempt: $attempt/3"
 				else
-					whiptail_error_die "Nitrokey 3 secrets app reset failed with error:$error_code. Contact Nitrokey support"
+					whiptail_error_die "Nitrokey 3's secrets app reset failed with error:$error_code. Contact Nitrokey support"
 				fi
 			fi
 		done
@@ -547,10 +547,7 @@ gpg_key_factory_reset() {
 
 	#enable usb storage
 	enable_usb
-
-	#Reset Nitrokey 3 secret app
-	reset_nk3_secret_app
-
+	
 	# Factory reset GPG card
 	echo "GPG factory reset of USB Security dongle's OpenPGP smartcard..."
 	{
@@ -671,6 +668,7 @@ generate_OEM_gpg_keys() {
 
 gpg_key_change_pin() {
 	TRACE_FUNC
+
 	DEBUG "Changing GPG key PIN"
 	# 1 = user PIN, 3 = admin PIN
 	PIN_TYPE=$1
@@ -915,6 +913,8 @@ report_integrity_measurements() {
 usb_security_token_capabilities_check() {
 	TRACE_FUNC
 
+	echo -e "\nChecking for USB Security dongle...\n"
+
 	enable_usb
 	# ... first set board config preference
 	if [ -n "$CONFIG_GPG_ALGO" ]; then
@@ -926,6 +926,8 @@ usb_security_token_capabilities_check() {
 		GPG_ALGO="p256"
 		DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
 	fi
+
+	#TODO: put everything related to USB Security dongle here
 }
 
 ## main script start
@@ -1281,8 +1283,12 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 		keytocard_subkeys_to_smartcard
 	fi
 else
+	#enable usb storage
+	enable_usb
+	#Reset Nitrokey 3 secret app
+	reset_nk3_secret_app
 	#Generate GPG key and subkeys on smartcard only
-	echo -e "\nResetting USB Security dongle's GPG smartcard...\n(this will take around 3 minutes...)\n"
+	echo -e "\nResetting USB Security dongle's OpenPGP smartcard with GPG...\n(this will take around 3 minutes...)\n"
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
 fi
@@ -1301,7 +1307,7 @@ fi
 #Applying custom GPG PINs to the smartcard if they were provided
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	#Only apply smartcard PIN change if smartcard only or if keytocard op is expected next
-	if [ "${USER_PIN}" != "" -o "${ADMIN_PIN}" != "" ]; then
+	if [ "${USER_PIN}" != "${USER_PIN_DEF}" -o "${ADMIN_PIN}" != "${ADMIN_PIN_DEF}" ]; then
 		echo -e "\nChanging default GPG Admin PIN\n"
 		gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
 		echo -e "\nChanging default GPG User PIN\n"
@@ -1387,7 +1393,7 @@ fi
 
 ## sign files in /boot and generate checksums
 if [[ "$SKIP_BOOT" == "n" ]]; then
-	echo -e "\nSigning boot files and generating checksums...\n"
+	echo -e "\nUpdating checksums and signing all files in /boot...\n"
 	generate_checksums
 fi
 
