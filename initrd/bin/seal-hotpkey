@@ -126,7 +126,11 @@ if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
 elif [ "$admin_pin_retries" -lt 3 ]; then
 	echo "Not trying default PIN ($admin_pin), only $admin_pin_retries attempt(s) left"
 else
-	echo "Trying $prompt_message PIN ($admin_pin) to seal HOTP secret on $HOTPKEY_BRANDING... You may be requested to touch the dongle..."
+	echo "Trying $prompt_message PIN ($admin_pin) to seal HOTP secret on $HOTPKEY_BRANDING..."
+	#if we deal with the nk3, say to the user that touch will be required
+	if lsusb | grep -q "20a0:42b2"; then
+		warn "Touching the Nitrokey 3 to confirm presence operation is required"
+	fi
 	#TODO: silence the output of hotp_initialize once https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 	#hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
@@ -157,7 +161,7 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	fi
 else
 	# remind user to change admin password
-	warn "Factory $prompt_message default PIN detected: please change this PIN as soon as possible through OEM Factory Reset/User Re-Ownership"
+	warn "Factory $prompt_message default PIN 12345678 detected: please change this PIN as soon as possible through OEM Factory Reset/User Re-Ownership"
 fi
 
 # HOTP key no longer needed

@@ -97,16 +97,16 @@ done
 
 attempts=0
 while [ $attempts -lt 3 ]; do
-	read -s -p "New LUKS TPM Disk Unlock Key passphrase (DUK) for booting: " key_password
+	read -s -p "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting: " key_password
 	echo
 	read -s -p "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: " key_password2
 	echo
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))
 		if [ "$attempts" == "3" ]; then
-			die "Disk Unlock Key passphrases do not match. Exiting..."
+			die "Disk Unlock Key (DUK) passphrases do not match. Exiting..."
 		else
-			warn "Disk Unlock Key passphrases do not match. Please try again."
+			warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
 		fi
 	else
 		break
@@ -168,7 +168,7 @@ for dev in $key_devices; do
 		die "$dev: Unable to find a key slot that can be unlocked with provided passphrase. Exiting..."
 	fi
 
-	# If the key slot is not the expected DUK o FRK key slot, we will ask the user to confirm the wipe
+	# If the key slot is not the expected DUK or DRK key slot, we will ask the user to confirm the wipe
 	for keyslot in "${luks_used_keyslots[@]}"; do
 		if [ "$keyslot" != "$drk_key_slot" ]; then
 			#set wipe_desired to no by default
