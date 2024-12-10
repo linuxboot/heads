@@ -113,6 +113,7 @@ verify_global_hashes() {
 }
 
 verify_rollback_counter() {
+	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
