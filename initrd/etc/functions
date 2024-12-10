@@ -372,7 +372,7 @@ check_tpm_counter() {
 		tpmr counter_create \
 			-pwdc '' \
 			-la $LABEL |
-			tee /tmp/counter ||
+			tee /tmp/counter > /dev/null 2>&1 ||
 			die "Unable to create TPM counter"
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 	fi
@@ -391,7 +391,7 @@ read_tpm_counter() {
 increment_tpm_counter() {
 	TRACE_FUNC
 	tpmr counter_increment -ix "$1" -pwdc '' |
-		tee /tmp/counter-$1 ||
+		tee /tmp/counter-$1 > /dev/null 2>&1 ||
 		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
 }
 

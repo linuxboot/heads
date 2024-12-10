@@ -306,11 +306,18 @@ tpm1_counter_create() {
 	# other parameters for TPM1 are passed directly, and TPM2 mimics the
 	# TPM1 interface.
 	prompt_tpm_owner_password
-	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@" >/dev/null 2>&1; then
+	TMP_ERR_FILE=$(mktemp)
+	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@" 2>"$TMP_ERR_FILE"; then
 		DEBUG "Failed to create counter from tpm1_counter_create. Wiping /tmp/secret/tpm_owner_password"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_password
+		# Log the contents of the temporary error file
+		while IFS= read -r line; do
+			DEBUG "tpm1 stderr: $line"
+		done <"$TMP_ERR_FILE"
+		rm -f "$TMP_ERR_FILE"
 		die "Unable to create counter from tpm1_counter_create"
 	fi
+	rm -f "$TMP_ERR_FILE"
 }
 
 tpm2_counter_create() {
@@ -608,16 +615,16 @@ tpm2_unseal() {
 	# 	stderr.  We capture the unsealed data to $file, but still log the errors for quiet mode.
 	# In case of unseal error, caller will also report on TOTP not being able to be unsealed.
 	TMP_ERR_FILE=$(mktemp)
-if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-    -S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_ERR_FILE"; then
-    # Log the contents of the temporary error file
-    while IFS= read -r line; do
-        LOG "tpm2 stderr: $line"
-    done <"$TMP_ERR_FILE"
-    rm -f "$TMP_ERR_FILE"
-    die "Unable to unseal secret from TPM NVRAM with tpm2 unseal"
-fi
-rm -f "$TMP_ERR_FILE"
+	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
+		-S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_ERR_FILE"; then
+		# Log the contents of the temporary error file
+		while IFS= read -r line; do
+			LOG "tpm2 stderr: $line"
+		done <"$TMP_ERR_FILE"
+		rm -f "$TMP_ERR_FILE"
+		die "Unable to unseal secret from TPM NVRAM with tpm2 unseal"
+	fi
+	rm -f "$TMP_ERR_FILE"
 }
 
 tpm1_unseal() {
@@ -715,7 +722,7 @@ tpm1_reset() {
 	tpm physicalpresence -s >/dev/null 2>&1 || LOG "Unable to assert physical presence"
 	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
 	tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "Unable to deactivate TPM"
-	tpm forceclear -pwdo "$tpm_owner_password" >/dev/null 2>&1 || LOG "Unable to clear TPM"
+	tpm forceclear >/dev/null 2>&1 || LOG "Unable to clear TPM"
 	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
 	tpm takeown -pwdo "$tpm_owner_password" >/dev/null 2>&1 || LOG "Unable to take ownership of TPM"
 
@@ -787,7 +794,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		tpm1_destroy "$@"
 		;;
 	extend)
-		#check if we extend with a hash or a file
+		# Check if we extend with a hash or a file
 		if [ "$4" = "-if" ]; then
 			DEBUG "TPM: Will extend PCR[$3] hash content of file $5"
 			hash="$(sha1sum "$5" | cut -d' ' -f1)"
@@ -799,7 +806,14 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 
 		TRACE_FUNC
 		LOG "TPM: Extending PCR[$3] with hash $hash"
-		DO_WITH_DEBUG exec tpm "$@"
+
+		# Redirect the output of DO_WITH_DEBUG to a temporary file so we can LOG it in quiet mode
+		TMP_DEBUG_FILE=$(mktemp)
+		DO_WITH_DEBUG exec tpm "$@" >"$TMP_DEBUG_FILE" 2>&1
+		while IFS= read -r line; do
+			LOG "$line"
+		done <"$TMP_DEBUG_FILE"
+		rm -f "$TMP_DEBUG_FILE"
 		;;
 	seal)
 		shift
