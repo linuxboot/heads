@@ -622,7 +622,7 @@ tpm2_unseal() {
 			LOG "tpm2 stderr: $line"
 		done <"$TMP_ERR_FILE"
 		rm -f "$TMP_ERR_FILE"
-		die "Unable to unseal secret from TPM NVRAM with tpm2 unseal"
+		die "Unable to unseal secret from TPM NVRAM"
 	fi
 	rm -f "$TMP_ERR_FILE"
 }

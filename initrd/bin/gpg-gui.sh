@@ -148,7 +148,7 @@ while true; do
     'e' ' Replace GPG key(s) in the current ROM and reflash' \
     'l' ' List GPG keys in your keyring' \
     'p' ' Export public GPG key to USB drive' \
-    'g' ' Generate GPG keys manually on a USB security token' \
+    'g' ' Generate GPG keys manually on a USB security dongle' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
