@@ -519,18 +519,18 @@ workflows:
             - novacustom_nv4x_adl
 
       - build:
-          name: novacustom-v5460tu
+          name: novacustom-v560tu
           target: novacustom-v560tu
           subcommand: ""
           requires:
-            - novacustom_nv4x_adl
+            - x230-hotp-maximized
 
       - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
           subcommand: ""
           requires:
-            - novacustom_nv4x_adl
+            - x230-hotp-maximized
 
 
       # coreboot 4.11
