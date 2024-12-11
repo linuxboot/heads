@@ -96,7 +96,7 @@ $(eval $(call coreboot_module,purism,24.02.01))
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := 9ead4a0789595fc6b6b0327e168088893b6ea592
 $(eval $(call coreboot_module,dasharo,24.02.01))
-#coreboot-dasharo_patch_version := unreleased
+coreboot-dasharo_patch_version := unreleased
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
