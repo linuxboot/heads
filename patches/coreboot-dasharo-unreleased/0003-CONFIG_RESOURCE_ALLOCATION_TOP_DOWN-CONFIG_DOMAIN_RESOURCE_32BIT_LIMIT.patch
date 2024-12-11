@@ -1,0 +1,130 @@
+From a2180b33351e63187b6de834d3a3fd30ea8b500c Mon Sep 17 00:00:00 2001
+From: Arthur Heymans <arthur@aheymans.xyz>
+Date: Thu, 25 Jan 2024 16:40:50 +0100
+Subject: [PATCH] nb/intel/*: Match ACPI with resource allocation
+
+Currently resource allocation starts top down from the default value
+0xfe000000. This does not match what ACPI reports, so adapt
+CONFIG_DOMAIN_RESOURCE_32BIT_LIMIT to reflect that.
+
+Signed-off-by: Arthur Heymans <arthur@aheymans.xyz>
+Change-Id: I2ba0e96a7ab18d65b7fbbb38b1a979ea2ec6d1be
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/80207
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+---
+ src/northbridge/intel/gm45/Kconfig        | 4 ++++
+ src/northbridge/intel/haswell/Kconfig     | 4 ++++
+ src/northbridge/intel/i945/Kconfig        | 4 ++++
+ src/northbridge/intel/ironlake/Kconfig    | 4 ++++
+ src/northbridge/intel/pineview/Kconfig    | 4 ++++
+ src/northbridge/intel/sandybridge/Kconfig | 4 ++++
+ src/northbridge/intel/x4x/Kconfig         | 4 ++++
+ 7 files changed, 28 insertions(+)
+
+diff --git a/src/northbridge/intel/gm45/Kconfig b/src/northbridge/intel/gm45/Kconfig
+index 8059e7ee80..fef0d735b3 100644
+--- a/src/northbridge/intel/gm45/Kconfig
++++ b/src/northbridge/intel/gm45/Kconfig
+@@ -31,6 +31,10 @@ config ECAM_MMCONF_BUS_NUMBER
+ 	int
+ 	default 64
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default 0xfec00000
++
+ config SMM_RESERVED_SIZE
+ 	hex
+ 	default 0x100000
+diff --git a/src/northbridge/intel/haswell/Kconfig b/src/northbridge/intel/haswell/Kconfig
+index 4b83a25bc1..35403373e7 100644
+--- a/src/northbridge/intel/haswell/Kconfig
++++ b/src/northbridge/intel/haswell/Kconfig
+@@ -60,6 +60,10 @@ config ECAM_MMCONF_BUS_NUMBER
+ 	int
+ 	default 64
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default ECAM_MMCONF_BASE_ADDRESS
++
+ config DCACHE_RAM_BASE
+ 	hex
+ 	default 0xff7c0000
+diff --git a/src/northbridge/intel/i945/Kconfig b/src/northbridge/intel/i945/Kconfig
+index ef925e17e7..32eff1a611 100644
+--- a/src/northbridge/intel/i945/Kconfig
++++ b/src/northbridge/intel/i945/Kconfig
+@@ -41,6 +41,10 @@ config ECAM_MMCONF_BUS_NUMBER
+ 	int
+ 	default 64
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default 0xfec00000
++
+ config OVERRIDE_CLOCK_DISABLE
+ 	bool
+ 	default n
+diff --git a/src/northbridge/intel/ironlake/Kconfig b/src/northbridge/intel/ironlake/Kconfig
+index ce705dcf53..2bafebf92e 100644
+--- a/src/northbridge/intel/ironlake/Kconfig
++++ b/src/northbridge/intel/ironlake/Kconfig
+@@ -47,6 +47,10 @@ config ECAM_MMCONF_BASE_ADDRESS
+ config ECAM_MMCONF_BUS_NUMBER
+ 	default 256
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default 0xfec00000
++
+ config INTEL_GMA_BCLV_OFFSET
+ 	default 0x48254
+ 
+diff --git a/src/northbridge/intel/pineview/Kconfig b/src/northbridge/intel/pineview/Kconfig
+index 877812643a..59cfcd5e0a 100644
+--- a/src/northbridge/intel/pineview/Kconfig
++++ b/src/northbridge/intel/pineview/Kconfig
+@@ -38,4 +38,8 @@ config FIXED_DMIBAR_MMIO_BASE
+ config FIXED_EPBAR_MMIO_BASE
+ 	default 0xfed19000
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default 0xfec00000
++
+ endif
+diff --git a/src/northbridge/intel/sandybridge/Kconfig b/src/northbridge/intel/sandybridge/Kconfig
+index f7d56c7503..fa40b0668d 100644
+--- a/src/northbridge/intel/sandybridge/Kconfig
++++ b/src/northbridge/intel/sandybridge/Kconfig
+@@ -104,6 +104,10 @@ config ECAM_MMCONF_BUS_NUMBER
+ 	int
+ 	default 64
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default ECAM_MMCONF_BASE_ADDRESS
++
+ config DCACHE_RAM_BASE
+ 	hex
+ 	default 0xfefe0000
+diff --git a/src/northbridge/intel/x4x/Kconfig b/src/northbridge/intel/x4x/Kconfig
+index 9af063819b..097e11126c 100644
+--- a/src/northbridge/intel/x4x/Kconfig
++++ b/src/northbridge/intel/x4x/Kconfig
+@@ -28,6 +28,10 @@ config ECAM_MMCONF_BUS_NUMBER
+ 	int
+ 	default 256
+ 
++# This number must be equal or lower than what's reported in ACPI PCI _CRS
++config DOMAIN_RESOURCE_32BIT_LIMIT
++	default 0xfec00000
++
+ config SMM_RESERVED_SIZE
+ 	hex
+ 	default 0x100000
+-- 
+2.39.2
+
