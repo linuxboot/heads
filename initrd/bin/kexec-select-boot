@@ -113,6 +113,7 @@ verify_global_hashes() {
 }
 
 verify_rollback_counter() {
+	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
@@ -385,7 +386,7 @@ while true; do
 		if [ ! -r "$TMP_KEY_DEVICES" ]; then
 			# Extend PCR4 as soon as possible
 			TRACE_FUNC
-			DEBUG "TPM: Extending PCR[4] to prevent further secret unsealing"
+			LOG "TPM: Extending PCR[4] to prevent further secret unsealing"
 			tpmr extend -ix 4 -ic generic ||
 				die "Failed to extend TPM PCR[4]"
 		fi

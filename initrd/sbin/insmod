@@ -39,19 +39,19 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
-	echo "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"
+	LOG "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"
 	# Extend with the module parameters (even if they are empty) and the
 	# module. Changing the parameters or the module content will result in a
 	# different PCR measurement.
 	if [ -n "$*" ]; then
 		TRACE_FUNC
-		DEBUG "Extending with module parameters and the module's content"
+		LOG "Extending with module parameters and the module's content"
 		tpmr extend -ix "$MODULE_PCR" -ic "$*"
 		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 		|| die "$MODULE: tpm extend failed"
 	else
 		TRACE_FUNC
-		DEBUG "No module parameters, extending only with the module's content"
+		LOG "No module parameters, extending only with the module's content"
 		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
 		|| die "$MODULE: tpm extend failed"
 	fi
