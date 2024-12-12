@@ -7,7 +7,7 @@ hotp-verification_version := e6cf719d67a811356eecff69769fa1dbce47f953
 hotp-verification_dir := hotp-verification-$(hotp-verification_version)
 hotp-verification_tar := nitrokey-hotp-verification-$(hotp-verification_version).tar.gz
 hotp-verification_url := https://github.com/Nitrokey/nitrokey-hotp-verification/archive/$(hotp-verification_version).tar.gz
-hotp-verification_hash := 1095640fdae77938ce2d2ce294c7ecb8c27b77060975af8d838b6fd056ed5068
+hotp-verification_hash := 3c8b44e4d9a1f7454269f76102f32de6ed9de19ab0cf7119747eb97377c66a84
 
 hotp-verification_target := \
 	$(MAKE_JOBS) \
