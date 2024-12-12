@@ -79,10 +79,10 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 fi
 
 verify_global_hashes() {
-	echo "+++ Checking verified boot hash file "
+	LOG "+++ Checking verified boot hash file "
 	# Check the hashes of all the files
 	if verify_checksums "$bootdir" "$gui_menu"; then
-		echo "+++ Verified boot hashes "
+		LOG "+++ Verified boot hashes "
 		valid_hash='y'
 		valid_global_hash='y'
 	else
@@ -204,7 +204,7 @@ parse_option() {
 }
 
 scan_options() {
-	echo "+++ Scanning for unsigned boot options"
+	LOG "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
 	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
