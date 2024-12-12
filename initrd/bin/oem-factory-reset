@@ -1288,7 +1288,7 @@ else
 	#Reset Nitrokey 3 secret app
 	reset_nk3_secret_app
 	#Generate GPG key and subkeys on smartcard only
-	echo -e "\nResetting USB Security dongle's OpenPGP smartcard with GPG...\n(this will take around 3 minutes...)\n"
+	echo -e "\nResetting USB Security dongle's OpenPGP smartcard with GPG...\n(this may take up to 3 minutes...)\n"
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
 fi
@@ -1353,7 +1353,7 @@ else
 	#We are not running in QEMU, so flash the key to ROM
 
 	## flash generated key to ROM
-	echo -e "\nReading current firmware...\n(this will take a minute or two)\n"
+	echo -e "\nReading current firmware...\n(this may take up to two minutes...)\n"
 	/bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
 	if [ ! -s /tmp/oem-setup.rom ]; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
