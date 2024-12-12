@@ -368,7 +368,7 @@ check_tpm_counter() {
 	if [ -r "$1" ]; then
 		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
 	else
-		warn "$1 does not exist; creating new TPM counter"
+		LOG "$1 does not exist; creating new TPM counter"
 		tpmr counter_create \
 			-pwdc '' \
 			-la $LABEL |
@@ -384,7 +384,7 @@ check_tpm_counter() {
 
 read_tpm_counter() {
 	TRACE_FUNC
-	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" ||
+	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" > /dev/null 2>&1 ||
 		die "Counter read failed"
 }
 

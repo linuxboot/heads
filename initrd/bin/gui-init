@@ -571,7 +571,7 @@ reset_tpm()
       # now that the TPM is reset, remove invalid TPM counter files
       mount_boot
       mount -o rw,remount /boot
-      warn "Removing rollback and primary handle hash under /boot"
+      LOG "Removing rollback and primary handle hash under /boot"
       rm -f /boot/kexec_rollback.txt
       rm -f /boot/kexec_primhdl_hash.txt
 
@@ -585,6 +585,8 @@ reset_tpm()
 
       sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
       || die "Unable to create rollback file"
+
+	  warn "boot content has been modified, please update the checksums and sign the files from Options -> Update checksums and sign all files in /boot"
       mount -o ro,remount /boot
 
       generate_totp_hotp "$tpm_owner_password"
