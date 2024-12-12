@@ -419,7 +419,7 @@ check_config() {
 		fi
 	fi
 
-	echo "+++ Found verified kexec boot params"
+	LOG "+++ Found verified kexec boot params"
 	cp $1/kexec*.txt /tmp/kexec ||
 		die "Failed to copy kexec boot params to tmp"
 }
