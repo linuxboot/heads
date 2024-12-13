@@ -115,15 +115,18 @@ verify_global_hashes() {
 verify_rollback_counter() {
 	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
+
+	DEBUG "TPM_COUNTER: $TPM_COUNTER found in $TMP_ROLLBACK_FILE"
+
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
 	fi
 
-	read_tpm_counter $TPM_COUNTER > /dev/null 2>&1 ||
+	read_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
 		die "Failed to read TPM counter"
 
 	sha256sum -c $TMP_ROLLBACK_FILE ||
-		die "Invalid TPM counter state"
+		die "Invalid TPM counter state. TPM Reset required"
 
 	valid_rollback="y"
 }
@@ -268,7 +271,7 @@ default_select() {
 
 	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Enforce that default option hashes are valid
-		echo "+++ Checking verified default boot hash file "
+		LOG "+++ Checking verified default boot hash file "
 		# Check the hashes of all the files
 		if (cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
 			echo "+++ Verified default boot hashes "

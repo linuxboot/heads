@@ -10,10 +10,13 @@ rollback="n"
 update="n"
 while getopts "p:c:ur" arg; do
 	case $arg in
-		p) paramsdir="$OPTARG" ;;
-		c) counter="$OPTARG"; rollback="y" ;;
-		u) update="y" ;;
-		r) rollback="y" ;;
+	p) paramsdir="$OPTARG" ;;
+	c)
+		counter="$OPTARG"
+		rollback="y"
+		;;
+	u) update="y" ;;
+	r) rollback="y" ;;
 	esac
 done
 
@@ -34,14 +37,14 @@ mount -o remount,rw /boot
 if [ "$update" = "y" ]; then
 	(
 		cd /boot
-		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum > /boot/kexec_hashes.txt
+		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >/boot/kexec_hashes.txt
 		if [ -e /boot/kexec_default_hashes.txt ]; then
 			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-			echo $DEFAULT_FILES | xargs sha256sum > /boot/kexec_default_hashes.txt
+			echo $DEFAULT_FILES | xargs sha256sum >/boot/kexec_default_hashes.txt
 		fi
 
 		#also save the file & directory structure to detect added files
-		print_tree > /boot/kexec_tree.txt
+		print_tree >/boot/kexec_tree.txt
 	)
 	[ $? -eq 0 ] || die "$paramsdir: Failed to update hashes."
 
@@ -55,23 +58,23 @@ if [ "$rollback" = "y" ]; then
 
 	if [ -n "$counter" ]; then
 		# use existing counter
-		read_tpm_counter $counter \
-		|| die "$paramsdir: Unable to read tpm counter '$counter'"
+		read_tpm_counter $counter >/dev/null 2>&1 ||
+			die "$paramsdir: Unable to read tpm counter '$counter'"
 	else
 		# increment counter
-		check_tpm_counter $rollback_file \
-		|| die "$paramsdir: Unable to find/create tpm counter"
+		check_tpm_counter $rollback_file >/dev/null 2>&1 ||
+			die "$paramsdir: Unable to find/create tpm counter"
 		counter="$TPM_COUNTER"
 
-		increment_tpm_counter $counter \
-		|| die "$paramsdir: Unable to increment tpm counter"
+		increment_tpm_counter $counter >/dev/null 2>&1 ||
+			die "$paramsdir: Unable to increment tpm counter"
 	fi
 
-	sha256sum /tmp/counter-$counter > $rollback_file \
-	|| die "$paramsdir: Unable to create rollback file"
+	sha256sum /tmp/counter-$counter >$rollback_file ||
+		die "$paramsdir: Unable to create rollback file"
 fi
 
-param_files=`find $paramsdir/kexec*.txt`
+param_files=$(find $paramsdir/kexec*.txt)
 if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
@@ -80,8 +83,8 @@ for tries in 1 2 3; do
 	if sha256sum $param_files | gpg \
 		--detach-sign \
 		-a \
-		> $paramsdir/kexec.sig \
-	; then
+		>$paramsdir/kexec.sig \
+		; then
 		# successful - update the validated params
 		check_config $paramsdir
 
