@@ -75,6 +75,13 @@ preserve_rom() {
 }
 
 confirm_gpg_card() {
+
+	#TODO: ideally, we ask for confirmation only once per boot session
+	#TODO: even change logic here to try first and then ask user to confirm if not found
+	#TODO: or ask GPG user PIN once and cache it for the rest of the boot session for reusal
+	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
+	
+
 	TRACE "Under /etc/ash_functions:confirm_gpg_card"
 	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
 	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?

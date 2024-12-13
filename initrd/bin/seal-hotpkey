@@ -65,6 +65,10 @@ mount_boot || exit 1
 counter_value=1
 
 enable_usb
+
+# Make sure no conflicting GPG related services are running, gpg-agent will respawn
+killall gpg-agent scdaemon >/dev/null 2>&1
+
 # While making sure the key is inserted, capture the status so we can check how
 # many PIN attempts remain
 if ! hotp_token_info="$(hotp_verification info)"; then
@@ -162,8 +166,8 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	fi
 else
 	# remind user to change admin password
-	warn "Weak OEM default PINs are under use to enforce remote attestation/encryption/signature operations" 
-	warn "$CONFIG_BRAND_NAME security is compromised until the ownership of this device is re-established by changing secrets by non-default values" 
+	warn "Weak OEM default PINs are under use to enforce remote attestation/encryption/signature operations"
+	warn "$CONFIG_BRAND_NAME security is compromised until the ownership of this device is re-established by changing secrets by non-default values"
 	warn "You must change current default secrets through 'Options -> OEM Factory Reset/Re-Ownership' menu and not accept the default options"
 	warn "You will be asked to answer a questionnaire to re-own your device and USB security dongles with new secrets"
 fi
