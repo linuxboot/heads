@@ -547,7 +547,7 @@ gpg_key_factory_reset() {
 
 	#enable usb storage
 	enable_usb
-	
+
 	# Factory reset GPG card
 	echo "GPG factory reset of USB Security dongle's OpenPGP smartcard..."
 	{

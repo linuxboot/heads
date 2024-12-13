@@ -651,7 +651,7 @@ tpm1_unseal() {
 		-sz "$sealed_size" \
 		-of "$sealed_file" ||
 		die "Unable to read sealed file from TPM NVRAM"
-		# TODO: Cannot log + exit instead of dying!?!
+	# TODO: Cannot log + exit instead of dying!?!
 
 	PASS_ARGS=()
 	if [ "$pass" ]; then
