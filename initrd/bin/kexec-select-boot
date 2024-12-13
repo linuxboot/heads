@@ -119,7 +119,7 @@ verify_rollback_counter() {
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
 	fi
 
-	read_tpm_counter $TPM_COUNTER ||
+	read_tpm_counter $TPM_COUNTER > /dev/null 2>&1 ||
 		die "Failed to read TPM counter"
 
 	sha256sum -c $TMP_ROLLBACK_FILE ||

@@ -580,7 +580,7 @@ reset_tpm()
       || die "Unable to find/create tpm counter"
       counter="$TPM_COUNTER"
 
-      increment_tpm_counter $counter \
+      increment_tpm_counter $counter > /dev/null 2>&1 \
       || die "Unable to increment tpm counter"
 
       sha256sum /tmp/counter-$counter > /boot/kexec_rollback.txt \
