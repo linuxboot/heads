@@ -363,7 +363,6 @@ tpm2_startsession() {
 	tpm2 flushcontext -Q \
 		--saved-session ||
 		die "tpm2_flushcontext: unable to flush saved session"
-	#TODO: readpublic cannot be silenced even if redirected to /dev/null with both stderr and stdout redirected?
 	tpm2 readpublic -Q -c "$PRIMARY_HANDLE" -t "$PRIMARY_HANDLE_FILE" >/dev/null 2>&1
 	#TODO: do the right thing to not have to suppress "WARN: check public portion the tpmkey manually" see https://github.com/linuxboot/heads/pull/1630#issuecomment-2075120429
 	tpm2 startauthsession -Q -c "$PRIMARY_HANDLE_FILE" --hmac-session -S "$ENC_SESSION_FILE" >/dev/null 2>&1
@@ -622,7 +621,10 @@ tpm2_unseal() {
 			LOG "tpm2 stderr: $line"
 		done <"$TMP_ERR_FILE"
 		rm -f "$TMP_ERR_FILE"
-		die "Unable to unseal secret from TPM NVRAM"
+		LOG "Unable to unseal secret from TPM NVRAM"
+
+		# should succeed, exit if it doesn't
+		exit 1
 	fi
 	rm -f "$TMP_ERR_FILE"
 }
@@ -649,6 +651,7 @@ tpm1_unseal() {
 		-sz "$sealed_size" \
 		-of "$sealed_file" ||
 		die "Unable to read sealed file from TPM NVRAM"
+		# TODO: Cannot log + exit instead of dying!?!
 
 	PASS_ARGS=()
 	if [ "$pass" ]; then

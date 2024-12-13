@@ -557,7 +557,7 @@ reset_tpm()
   TRACE_FUNC
   if [ "$CONFIG_TPM" = "y" ]; then
     if (whiptail_warning --title 'Reset the TPM' \
-        --yesno "This will clear the TPM and TPM password, replace them with new ones!\n\nDo you want to proceed?" 0 80) then
+        --yesno "This will clear the TPM and replace its Owner password with a new one!\n\nDo you want to proceed?" 0 80) then
 
       if ! prompt_new_owner_password; then
         echo "Press Enter to return to the menu..."
