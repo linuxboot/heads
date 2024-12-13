@@ -382,12 +382,14 @@ check_tpm_counter() {
 	fi
 }
 
+# Read the TPM counter value from the TPM.
 read_tpm_counter() {
 	TRACE_FUNC
 	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" > /dev/null 2>&1 ||
 		die "Counter read failed"
 }
 
+# Increment the TPM counter value in the TPM.
 increment_tpm_counter() {
 	TRACE_FUNC
 	tpmr counter_increment -ix "$1" -pwdc '' |
@@ -395,6 +397,7 @@ increment_tpm_counter() {
 		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
 }
 
+# Check detached signature on kexec boot params
 check_config() {
 	TRACE_FUNC
 	if [ ! -d /tmp/kexec ]; then
@@ -414,6 +417,7 @@ check_config() {
 	fi
 
 	if [ "$2" != "force" ]; then
+		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
 		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig -; then
 			die 'Invalid signature on kexec boot params'
 		fi
@@ -436,6 +440,7 @@ replace_rom_file() {
 	cbfs.sh -o "$ROM" -a "$ROM_FILE" -f "$NEW_FILE"
 }
 
+# Replace the config file by the changed one
 replace_config() {
 	TRACE_FUNC
 	CONFIG_FILE=$1
@@ -469,6 +474,7 @@ secret_from_rom_hash() {
 	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
 }
 
+# Update the checksums of the files in /boot and sign them
 update_checksums() {
 	TRACE_FUNC
 	# ensure /boot mounted
@@ -499,6 +505,7 @@ update_checksums() {
 	return $rv
 }
 
+# Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
 	find ./ ! -path './kexec*' -print0 | sort -z
@@ -584,6 +591,7 @@ assert_signable() {
 	rm -f /tmp/signable.*
 }
 
+# Verify the checksums of the files in /boot
 verify_checksums() {
 	TRACE_FUNC
 	local boot_dir="$1"
