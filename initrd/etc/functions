@@ -1,6 +1,390 @@
 #!/bin/bash
-# Shell functions for most initialization scripts
-. /etc/ash_functions
+
+# ------- Start of functions coming from /etc/ash_functions
+
+die() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	else
+		echo -e >&2 "!!! ERROR: $* !!!";
+	fi
+	sleep 2;
+	exit 1;
+}
+
+warn() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	else
+		echo -e >&2 " *** WARNING: $* ***";
+	fi
+	sleep 1;
+}
+
+DEBUG() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
+		echo "DEBUG: $*" | fold -s -w 960 | while read line; do
+			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		done
+	fi
+}
+
+TRACE() {
+	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ];then
+		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg > /dev/null;
+	fi
+}
+
+# Write directly to the debug log (but not kmsg), never appears on console
+LOG() {
+	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		DEBUG "$*"
+	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then	
+		# if in quiet mode, output solely to debug.log
+		echo "$*" >> /tmp/debug.log
+	else
+		# if not in quiet mode, output to console
+		echo "$*"
+	fi
+}
+
+fw_version() {
+	local FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+	# chop off date, since will always be epoch w/timeless builds
+	echo "${FW_VER::-10}"
+}
+
+preserve_rom() {
+	TRACE_FUNC
+	new_rom="$1"
+	old_files=`cbfs -t 50 -l 2>/dev/null | grep "^heads/"`
+
+	for old_file in `echo $old_files`; do
+		new_file=`cbfs.sh -o $1 -l | grep -x $old_file`
+		if [ -z "$new_file" ]; then
+			echo "+++ Adding $old_file to $1"
+			cbfs -t 50 -r $old_file >/tmp/rom.$$ \
+			|| die "Failed to read cbfs file from ROM"
+			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ \
+			|| die "Failed to write cbfs file to new ROM file"
+		fi
+	done
+}
+
+confirm_gpg_card() {
+
+	#TODO: ideally, we ask for confirmation only once per boot session
+	#TODO: even change logic here to try first and then ask user to confirm if not found
+	#TODO: or ask GPG user PIN once and cache it for the rest of the boot session for reusal
+	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
+	
+
+	TRACE_FUNC
+	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
+	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
+	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
+		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through pinentry"
+		return
+	fi
+
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
+		message="Please confirm that your GPG card is inserted(Y/n) or your GPG key material (b)backup thumbdrive is inserted [Y/n/b]: "
+	else
+		# Generic message if no known key material backup
+		message="Please confirm that your GPG card is inserted [Y/n]: "
+	fi
+
+	read \
+		-n 1 \
+		-p "$message" \
+		card_confirm
+	echo
+
+	if [ "$card_confirm" != "y" \
+		-a "$card_confirm" != "Y" \
+		-a "$card_confirm" != "b" \
+		-a -n "$card_confirm" ] \
+		; then
+		die "gpg card not confirmed"
+	fi
+
+	# If user has known GPG key material Thumb drive backup and asked to use it
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
+		#Only mount and import GPG key material thumb drive backup once
+		if [ ! "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]; then
+			CR_NONCE="/tmp/secret/cr_nonce"
+			CR_SIG="$CR_NONCE.sig"
+
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+
+			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
+			echo
+			gpg_admin_pin=""
+			while [ -z "$gpg_admin_pin" ]; do
+				#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
+				read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+				echo
+			done
+			#prompt user to select the proper encrypted partition, which should the first one on next prompt
+			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
+			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with provided GPG Admin PIN"
+			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
+				die "Unable to import GPG private subkeys"
+			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
+			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+				die "Unable to create $CR_NONCE to be detach-signed with GPG private signing subkey"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
+				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
+			#verify detached signature against public key in rom
+			gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 && \
+        			echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++"  || \
+			 	die "Unable to verify $CR_SIG detached signature against public key in ROM"
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
+			set_user_config "CONFIG_GPG_KEY_BACKUP_IN_USE" "y"
+			umount /media || die "Unable to unmount USB"
+			return
+		fi
+	fi
+
+	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
+	enable_usb
+
+	echo -e "\nVerifying presence of GPG card...\n"
+	# ensure we don't exit without retrying
+	errexit=$(set -o | grep errexit | awk '{print $2}')
+	set +e
+	gpg_output=$(gpg --card-status 2>&1)
+	if [ $? -ne 0 ]; then
+		# prompt for reinsertion and try a second time
+		read -n1 -r -p \
+			"Can't access GPG key; remove and reinsert, then press Enter to retry. " \
+			ignored
+		# restore prev errexit state
+		if [ "$errexit" = "on" ]; then
+			set -e
+		fi
+		# retry card status
+		gpg_output=$(gpg --card-status 2>&1) ||
+			die "gpg card read failed"
+	fi
+	# restore prev errexit state
+	if [ "$errexit" = "on" ]; then
+		set -e
+	fi
+
+	# Extract and display GPG PIN retry counters
+	# output excerpt: "PIN retry counter : 3 0 3"
+	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
+	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
+	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
+	
+	echo ""	
+	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
+	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
+	echo ""
+	warn "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	echo ""
+}
+
+gpg_auth() {
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]]; then
+		TRACE_FUNC
+		# If we have a GPG key backup, we can use it to authenticate even if the card is lost
+		echo >&2 "!!!!! Please authenticate with OpenPGP smartcard/backup media to prove you are the owner of this machine !!!!!"
+
+		# Wipe any existing nonce and signature
+		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+		
+		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
+		false
+		while [ $? -ne 0 ]; do
+			# Call confirm_gpg_card in subshell to ensure GPG key material presence
+			( confirm_gpg_card )
+		done
+
+		# Perform a signing-based challenge-response,
+		# to authencate that the card plugged in holding
+		# the key to sign the list of boot files.
+	
+		CR_NONCE="/tmp/secret/cr_nonce"
+		CR_SIG="$CR_NONCE.sig"
+
+		# Generate a random nonce
+		dd \
+			if=/dev/urandom \
+			of="$CR_NONCE" \
+			count=1 \
+			bs=20 \
+			2>/dev/null \
+			|| die "Unable to generate 20 random bytes"
+	
+		# Sign the nonce
+		for tries in 1 2 3; do
+			if gpg --digest-algo SHA256 \
+				--detach-sign \
+				-o "$CR_SIG" \
+				"$CR_NONCE" > /dev/null 2>&1 \
+				&& gpg --verify "$CR_SIG" "$CR_NONCE" > /dev/null 2>&1 \
+			; then
+				shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+				DEBUG "Under /etc/ash_functions:gpg_auth: success"
+				return 0
+			else
+				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
+				if [ "$tries" -lt 3 ]; then
+					echo >&2 "!!!!! GPG authentication failed, please try again !!!!!"
+					continue
+				else
+					die "GPG authentication failed, please reboot and try again"
+				fi
+			fi
+		done
+		return 1		
+	fi
+}
+
+recovery() {
+	TRACE_FUNC
+	echo >&2 "!!!!! $*"
+
+	# Remove any temporary secret files that might be hanging around
+	# but recreate the directory so that new tools can use it.
+
+	#safe to always be true. Otherwise "set -e" would make it exit here
+	shred -n 10 -z -u /tmp/secret/* 2> /dev/null || true
+	rm -rf /tmp/secret
+	mkdir -p /tmp/secret
+
+	# ensure /tmp/config exists for recovery scripts that depend on it
+	touch /tmp/config
+	. /tmp/config
+
+	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		LOG "TPM: Extending PCR[4] to prevent any further secret unsealing"
+		tpmr extend -ix 4 -ic recovery
+	fi
+
+	if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
+		echo >&2 "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
+		sleep 5
+		/bin/reboot
+	fi
+	while [ true ]
+	do
+		#Going to recovery shell should be authenticated if supported
+                gpg_auth
+
+		echo >&2 "!!!!! Starting recovery shell"
+		sleep 1
+		
+		if [ -x /bin/setsid ]; then
+			/bin/setsid -c /bin/sh
+		else
+			/bin/sh
+		fi
+	done
+}
+
+pause_recovery() {
+	TRACE_FUNC
+	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	recovery $*
+}
+
+combine_configs() {
+	TRACE_FUNC
+	cat /etc/config* > /tmp/config
+}
+
+replace_config() {
+        TRACE_FUNC
+        CONFIG_FILE=$1
+        CONFIG_OPTION=$2
+        NEW_SETTING=$3
+
+        touch $CONFIG_FILE
+        # first pull out the existing option from the global config and place in a tmp file
+        awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >${CONFIG_FILE}.tmp
+        awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>${CONFIG_FILE}.tmp
+
+        # then copy any remaining settings from the existing config file, minus the option you changed
+        grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >>${CONFIG_FILE}.tmp || true
+        sort ${CONFIG_FILE}.tmp | uniq >${CONFIG_FILE}
+        rm -f ${CONFIG_FILE}.tmp
+}
+
+# Set a config variable in a specific file to a given value - replace it if it
+# exists, or add it.  If added, the variable will be exported.
+set_config() {
+        CONFIG_FILE="$1"
+        CONFIG_OPTION="$2"
+        NEW_SETTING="$3"
+
+        if grep -q "$CONFIG_OPTION" "$CONFIG_FILE"; then
+                replace_config "$CONFIG_FILE" "$CONFIG_OPTION" "$NEW_SETTING"
+        else
+                echo "export $CONFIG_OPTION=\"$NEW_SETTING\"" >>"$CONFIG_FILE"
+        fi
+}
+
+# Set a value in config.user, re-combine configs, and update configs in the
+# environment.
+set_user_config() {
+        CONFIG_OPTION="$1"
+        NEW_SETTING="$2"
+
+        set_config /etc/config.user "$CONFIG_OPTION" "$NEW_SETTING"
+        combine_configs
+        . /tmp/config
+}
+
+# Load a config value to a variable, defaulting to empty.  Does not fail if the
+# config is not set (since it would expand to empty by default).
+load_config_value() {
+        local config_name="$1"
+        if grep -q "$config_name=" /tmp/config; then
+                grep "$config_name=" /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'
+        fi
+}
+
+enable_usb()
+{
+	TRACE_FUNC
+	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning 
+	insmod /lib/modules/ehci-hcd.ko || die "ehci_hcd: module load failed"
+	
+	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
+		insmod /lib/modules/uhci-hcd.ko || die "uhci_hcd: module load failed"
+		insmod /lib/modules/ohci-hcd.ko || die "ohci_hcd: module load failed"
+		insmod /lib/modules/ohci-pci.ko || die "ohci_pci: module load failed"
+	fi
+	insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
+	insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
+	insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
+	sleep 2
+
+	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
+	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
+	# Otherwise, if a user got CONFIG_USER_USB_KEYBOARD=n in their
+	# config.user by mistake (say, by copying config.user from a laptop to a
+	# desktop/server), they could lock themselves out, only recoverable by
+	# hardware flash.
+	if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = y ]; then
+		insmod /lib/modules/usbhid.ko || die "usbhid: module load failed"
+	fi
+}
+
+# ------- End of functions coming from /etc/ash_functions
+
 
 # Print <hidden> or <empty> depending on whether $1 is empty.  Useful to mask an
 # optional password parameter.

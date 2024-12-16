@@ -1,14 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 # For this to work:
 #  - io386 module needs to be enabled in board config
 #  - <Skylake: coreboot config need to enable CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y without enabling CONFIG_INTEL_CHIPSET_LOCKDOWN
 #  - >=Skylake: same as above and CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y, CONFIG_SPI_FLASH_SMM=y and mode (eg: CONFIG_BOOTMEDIA_LOCK_WHOLE_RO=y)
 #  - Heads is actually doing the CONFIG_INTEL_CHIPSET_LOCKDOWN equivalent here.
 
-#include ash shell functions (TRACE requires it)
-. /etc/ash_functions
+. /etc/functions
 
-TRACE "Under /bin/lock_chip"
+TRACE_FUNC
 if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
 	APM_CNT=0xb2
 	FIN_CODE=0xcb
