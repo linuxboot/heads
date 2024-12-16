@@ -1,14 +1,14 @@
-#!/bin/ash
+#!/bin/bash
 #
 # NOTE: This script is used on legacy-flash boards and runs with busybox ash,
 # not bash
 set -e -o pipefail
-. /etc/ash_functions
+. /etc/functions
 . /tmp/config
 
 echo
 
-TRACE "Under /bin/flash.sh"
+TRACE_FUNC
 
 case "$CONFIG_FLASH_OPTIONS" in
   "" )

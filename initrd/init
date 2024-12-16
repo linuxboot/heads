@@ -1,4 +1,4 @@
-#! /bin/ash
+#! /bin/bash
 # Note this is used on legacy-flash boards that lack bash, it runs with busybox
 # ash.  Calls to bash scripts must be guarded by checking config.
 
@@ -56,7 +56,7 @@ hwclock -l -s
 (grep -v '^\texfat$' /proc/filesystems && echo -e '\texfat') >/etc/filesystems
 
 # Read the system configuration parameters
-. /etc/ash_functions
+. /etc/functions
 . /etc/config
 
 # report if we are in quiet mode, tell logs available under /tmp/debug.log
@@ -81,7 +81,7 @@ else
 	DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
 fi
 
-TRACE "Under init"
+TRACE_FUNC
 
 # make sure we have sysctl requirements
 if [ ! -d /proc/sys ]; then
@@ -173,7 +173,7 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
 		dmesg -n 8
 		DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
-		TRACE "Under init:after combine_configs"
+		TRACE_FUNC
 	fi
 fi
 
