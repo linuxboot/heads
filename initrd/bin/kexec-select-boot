@@ -61,7 +61,7 @@ paramsdir="${paramsdir%%/}"
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	if [ -r "$PRIMHASH_FILE" ]; then
-		sha256sum -c "$PRIMHASH_FILE" ||
+		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
 			{
 				echo "FATAL: Hash of TPM2 primary key handle mismatch!"
 				warn "If you have not intentionally regenerated TPM2 primary key,"
@@ -116,8 +116,6 @@ verify_rollback_counter() {
 	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 
-	DEBUG "TPM_COUNTER: $TPM_COUNTER found in $TMP_ROLLBACK_FILE"
-
 	if [ -z "$TPM_COUNTER" ]; then
 		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
 	fi
@@ -125,7 +123,7 @@ verify_rollback_counter() {
 	read_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
 		die "Failed to read TPM counter"
 
-	sha256sum -c $TMP_ROLLBACK_FILE ||
+	sha256sum -c $TMP_ROLLBACK_FILE >/dev/null 2>&1 ||
 		die "Invalid TPM counter state. TPM Reset required"
 
 	valid_rollback="y"

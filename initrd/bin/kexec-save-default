@@ -277,7 +277,7 @@ if [ ! -d $paramsdir ]; then
 fi
 
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	sha256sum /tmp/secret/primary.handle >"$PRIMHASH_FILE" ||
+	sha256sum /tmp/secret/primary.handle >"$PRIMHASH_FILE" >/dev/null 2>&1 ||
 		die "ERROR: Failed to Hash TPM2 primary key handle!"
 	DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
 fi
