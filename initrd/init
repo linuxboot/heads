@@ -3,7 +3,7 @@
 # ash.  Calls to bash scripts must be guarded by checking config.
 
 mknod /dev/ttyprintk c 5 3
-echo "hello world" > /dev/ttyprintk
+echo "hello world" >/dev/ttyprintk
 
 # Setup our path
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
@@ -43,7 +43,7 @@ mkdir -p /tmp/secret
 
 # Now it is safe to print a banner
 if [ -r /etc/motd ]; then
-	cat /etc/motd > /dev/tty0
+	cat /etc/motd >/dev/tty0
 fi
 
 # Load the date from the hardware clock, setting it in local time
@@ -55,30 +55,67 @@ hwclock -l -s
 # filesystem after exFAT is iso9660, move exFAT last.
 (grep -v '^\texfat$' /proc/filesystems && echo -e '\texfat') >/etc/filesystems
 
-# Read the system configuration parameters
-. /etc/functions
+# Read the system configuration parameters from build time board configuration
 . /etc/config
+# import global functions
+. /etc/functions
 
-# report if we are in quiet mode, tell logs available under /tmp/debug.log
-if [ "$CONFIG_QUIET_MODE" = "y" ]; then
-	echo "Quiet mode enabled. To see technical output, do 'cat /tmp/debug.log' from Recovery Shell!" > /dev/tty0
+# export user related content from cbfs
+if [ "$CONFIG_COREBOOT" = "y" ]; then
+	/bin/cbfs-init
 fi
 
-# Board config had CONFIG_DEBUG_OUTPUT=y defined.
-# Note that boards's coreboot config kernel command line "debug" option only will have all kernel messages output on console prior of this point
+# Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
+if lspci -n | grep -E -q "8086:(2723|4df0)"; then
+	if ! cat /etc/config.user 2>/dev/null | grep -q "USE_BLOB_JAIL"; then
+		echo "CONFIG_USE_BLOB_JAIL=y" >>/etc/config.user
+	fi
+fi
+
+# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
+# determined above.
+#
+# Values in user config have higher priority during combining thus effectively
+# changing the value for the rest of the scripts which source /tmp/config.
+
+#Only set CONFIG_TPM and CONFIG_TPM2_TOOLS if they are not already set in /etc/config.user
+if ! grep -q 'CONFIG_TPM=' /etc/config.user 2>/dev/null; then
+	echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >>/etc/config.user
+fi
+if ! grep -q 'CONFIG_TPM2_TOOLS=' /etc/config.user 2>/dev/null; then
+	echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >>/etc/config.user
+fi
+
+# CONFIG_BASIC was previously CONFIG_PUREBOOT_BASIC in the PureBoot distribution.
+# Substitute it in config.user if present for backward compatibility.
+sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.user
+
+# Combine user configuration overrides from CBFS's /etc/config.user
+combine_configs
+# Load the user configuration parameters from combined config
+. /tmp/config
+
+# Enable maximum debug info from here if config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-	#Maximize printk messages to output all to console (8=debug)
-	#DEBUG and TRACE calls will output to /dev/kmsg, outputting both on dmesg and on console
-	dmesg -n 8 || true
-	DEBUG "Debug output enabled from board CONFIG_DEBUG_OUTPUT=y option (/etc/config)"
-else
-	# Board config did't have CONFIG_DEBUG_OUTPUT=y defined
+	#Output all kernel messages to console (8=debug)
+	#DEBUG and TRACE calls will be in dmesg and on console
 	# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
-	# Output only print messages with a priority of 4 (warnings) or lower (errors and critical) kernel messages to console
-	# This way, "debug" kernel command line option will have all kernel messages output on console prior of this point
-	# This is useful to debug boot issues but permits qemu board to boot without flooding console with kernel messages by disabling CONFIG_DEBUG_OUTPUT=y in qemu board config
-	dmesg -n 4 || true
-	DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
+	dmesg -n 8
+	DEBUG "Full debug output enabled from this point. For earlier debug output, enable CONFIG_DEBUG_OUTPUT=y in your board configuration at build time."
+	TRACE_FUNC
+fi
+
+# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log
+if [ "$CONFIG_QUIET_MODE" = "y" ]; then
+	# check origin of quiet mode setting =y: if it is under /etc/config.user then early cbfs-init outputs are not suppressible
+	# if it is under /etc/config then early cbfs-init outputs are suppressible
+	if ! grep -q 'CONFIG_QUIET_MODE="y"' /etc/config.user 2>/dev/null; then
+		echo "Quiet mode enabled at build time: see /tmp/debug.log for boot measurements related traces" >/dev/tty0
+	else
+		echo "Quiet mode enabled at runtime by user configuration: see /tmp/debug.log for additional boot measurements traces past this point" >/dev/tty0
+		echo "To suppress earlier boot measurements traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time." >/dev/tty0
+		" >/dev/tty0
+	fi
 fi
 
 TRACE_FUNC
@@ -91,14 +128,13 @@ if [ ! -d /proc/sys ]; then
 	warn "Please open an issue"
 fi
 
-if  [ ! -e /proc/sys/vm/panic_on_oom ]; then
-	warn "BUG!!! Requirements to setup Panic when under Out Of Memory situation through PROC_SYSCTL are missing (panic_on_oom was not enabled)" 
+if [ ! -e /proc/sys/vm/panic_on_oom ]; then
+	warn "BUG!!! Requirements to setup Panic when under Out Of Memory situation through PROC_SYSCTL are missing (panic_on_oom was not enabled)"
 	warn "Please open an issue"
 else
 	DEBUG "Applying panic_on_oom setting to sysctl"
-	echo 1 > /proc/sys/vm/panic_on_oom
+	echo 1 >/proc/sys/vm/panic_on_oom
 fi
-
 
 # set CONFIG_TPM dynamically before init
 if [ ! -e /dev/tpm0 ]; then
@@ -122,9 +158,6 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr startsession
 fi
 
-if [ "$CONFIG_COREBOOT" = "y" ]; then
-	[ -x /bin/bash ] && /bin/cbfs-init
-fi
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	/bin/uefi-init
 fi
@@ -134,56 +167,14 @@ fi
 export GPG_TTY=/dev/console
 
 # Initialize gpnupg with distro/user keys and setup the keyrings
-[ -x /bin/bash ] && /bin/key-init
-
-# Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
-if lspci -n | grep -E -q "8086:(2723|4df0)"; then
-  if ! cat /etc/config.user 2>/dev/null | grep -q "USE_BLOB_JAIL"; then
-    echo "CONFIG_USE_BLOB_JAIL=y" >> /etc/config.user
-  fi
-fi
-
-# Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
-# determined above.
-#
-# Values in user config have higher priority during combining thus effectively
-# changing the value for the rest of the scripts which source /tmp/config.
-
-#Only set CONFIG_TPM and CONFIG_TPM2_TOOLS if they are not already set in /etc/config.user
-if ! grep -q 'CONFIG_TPM=' /etc/config.user 2>/dev/null; then
-	echo "export CONFIG_TPM=\"$CONFIG_TPM\"" >> /etc/config.user
-fi
-if ! grep -q 'CONFIG_TPM2_TOOLS=' /etc/config.user 2> /dev/null; then
-	echo "export CONFIG_TPM2_TOOLS=\"$CONFIG_TPM2_TOOLS\"" >> /etc/config.user
-fi
-
-# CONFIG_BASIC was previously CONFIG_PUREBOOT_BASIC in the PureBoot distribution.
-# Substitute it in config.user if present for backward compatibility.
-sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.user
-
-combine_configs
-. /tmp/config
-
-# Enable maximum debug info from here if config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
-if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-        #Output all kernel messages to console (8=debug)
-        #DEBUG and TRACE calls will be in dmesg and on console
-        if ! grep -q 'CONFIG_DEBUG_OUTPUT="y"' /etc/config;then
-		# Board config did't have CONFIG_DEBUG_OUTPUT=y defined
-		# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
-		dmesg -n 8
-		DEBUG "Debug output enabled from /etc/config.user's CONFIG_DEBUG_OUTPUT=y after combine_configs (Config menu enabled Debug)"
-		TRACE_FUNC
-	fi
-fi
-
+/bin/key-init
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
 	pause_recovery 'Serial console recovery shell' \
-		< "$CONFIG_BOOT_RECOVERY_SERIAL" \
-		> "$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
+		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
+		>"$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
 
 # load USB modules for boards using a USB keyboard
@@ -207,14 +198,14 @@ if [ "$boot_option" = "r" ]; then
 	exit
 elif [ "$boot_option" = "o" ]; then
 	# Launch OEM Factory Reset mode
-	echo -e "***** Entering OEM Factory Reset mode\n" > /dev/tty0
+	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
 	oem-factory-reset --mode oem
 	# just in case...
 	exit
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
-	echo -e "***** BASIC mode: tamper detection disabled\n" > /dev/tty0
+	echo -e "***** BASIC mode: tamper detection disabled\n" >/dev/tty0
 fi
 
 # export firmware version
@@ -223,11 +214,11 @@ export FW_VER=$(fw_version)
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
 if [ ! -z "$CONFIG_BOOT_DEV" ]; then
-	echo >> /etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
+	echo >>/etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
 fi
 
 # Set the console font if needed
-[ -x /bin/bash ] && setconsolefont.sh
+setconsolefont.sh
 
 if [ "$CONFIG_BASIC" = "y" ]; then
 	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
@@ -257,7 +248,7 @@ else
 				setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
 			done
 		fi
-		
+
 		#Setup a control tty so that all terminals outputs correct tty when tty is called
 		exec cttyhack "$CONFIG_BOOTSCRIPT"
 	else
