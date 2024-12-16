@@ -100,9 +100,9 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#Output all kernel messages to console (8=debug)
 	#DEBUG and TRACE calls will be in dmesg and on console
 	# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
+	TRACE_FUNC
 	dmesg -n 8
 	DEBUG "Full debug output enabled from this point: output both in dmesg and on console (equivalent of passing debug to kernel cmdline)"
-	TRACE_FUNC
 fi
 
 # report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log
@@ -135,7 +135,7 @@ else
 	echo 1 >/proc/sys/vm/panic_on_oom
 fi
 
-# set CONFIG_TPM dynamically before init
+# set CONFIG_TPM dynamically off before init if no TPM device is present
 if [ ! -e /dev/tpm0 ]; then
 	CONFIG_TPM='n'
 	CONFIG_TPM2_TOOLS='n'
@@ -158,6 +158,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 fi
 
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
+	# Initialize the UEFI environment for linuxboot boards
 	/bin/uefi-init
 fi
 
