@@ -101,7 +101,7 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#DEBUG and TRACE calls will be in dmesg and on console
 	# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
 	dmesg -n 8
-	DEBUG "Full debug output enabled from this point. For earlier debug output, enable CONFIG_DEBUG_OUTPUT=y in your board configuration at build time."
+	DEBUG "Full debug output enabled from this point: output both in dmesg and on console (equivalent of passing debug to kernel cmdline)"
 	TRACE_FUNC
 fi
 
@@ -114,7 +114,6 @@ if [ "$CONFIG_QUIET_MODE" = "y" ]; then
 	else
 		echo "Quiet mode enabled at runtime by user configuration: see /tmp/debug.log for additional boot measurements traces past this point" >/dev/tty0
 		echo "To suppress earlier boot measurements traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time." >/dev/tty0
-		" >/dev/tty0
 	fi
 fi
 
