@@ -59,4 +59,6 @@ secret=""
 
 DEBUG "TOTP secret output on screen (both URL and QR code)"
 qrenc "$url"
+
+echo "TOTP secret for manual input (if no mobile phone) is after the 'secret=' part of the URL:"
 echo "$url"
