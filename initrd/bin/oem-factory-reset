@@ -577,6 +577,11 @@ generate_OEM_gpg_keys() {
         echo ${USER_PIN_DEF}     # Default user PIN since we just factory reset
     } | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
         >/tmp/gpg_card_edit_output 2>&1
+	  #This outputs to console \
+	  # "gpg: checking the trustdb"
+	  # "gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model"
+	  # "gpg: depth: 0 valid: 1 signed: 0 trust: 0-, 0q, 0n, 0m, 0f, 1u"
+	  #TODO: Suppress this output to console (stdout shown in DEBUG mode)?
     if [ $? -ne 0 ]; then
         ERROR=$(cat /tmp/gpg_card_edit_output)
         whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
@@ -636,7 +641,7 @@ generate_checksums() {
             tpmr counter_create \
                 -pwdc '' \
                 -la -3135106223 |
-                tee /tmp/counter ||
+                tee /tmp/counter >/dev/null 2>&1 ||
                 whiptail_error_die "Unable to create TPM counter"
             TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 
@@ -682,7 +687,7 @@ generate_checksums() {
     DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
     if sha256sum $param_files 2>/dev/null | DO_WITH_DEBUG --mask-position 4 gpg \
         --pinentry-mode loopback \
-        --passphrase "${USER_PIN}" \
+        --passphrase-file <(echo -n "$USER_PIN") \
         --digest-algo SHA256 \
         --detach-sign \
         -a \
