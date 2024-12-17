@@ -223,7 +223,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 			-n 1 \
 			-p "Do you wish to add a disk encryption key to the TPM [y/N]: " \
 			add_key_confirm
-			#TODO: still not convinced: disk encryption key? decryption key? everywhere TPM Disk Unlock Key. Confusing even more?
+		#TODO: still not convinced: disk encryption key? decryption key? everywhere TPM Disk Unlock Key. Confusing even more?
 		echo
 
 		if [ "$add_key_confirm" = "y" \
@@ -277,9 +277,15 @@ if [ ! -d $paramsdir ]; then
 fi
 
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	sha256sum /tmp/secret/primary.handle >"$PRIMHASH_FILE" >/dev/null 2>&1 ||
-		die "ERROR: Failed to Hash TPM2 primary key handle!"
-	DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
+	if [ -f /tmp/secret/primary.handle ]; then
+		DEBUG "Hashing TPM2 primary key handle..."
+		sha256sum /tmp/secret/primary.handle >"$PRIMHASH_FILE" 2>/dev/null ||
+			die "ERROR: Failed to Hash TPM2 primary key handle!"
+		DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
+		DEBUG "Hash content: $(cat $PRIMHASH_FILE)"
+	else
+		die "ERROR: TPM2 primary key handle file does not exist!"
+	fi
 fi
 
 rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
