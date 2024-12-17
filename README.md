@@ -30,7 +30,16 @@ Contributing
 We welcome contributions to the Heads project! Before contributing, please read our [Contributing Guidelines](CONTRIBUTING.md) for information on how to get started, submit issues, and propose changes.
 
 
-Building heads
+Building heads with prebuilt and versioned docker images
+==
+
+Heads now builds with Nix built docker images since https://github.com/linuxboot/heads/pull/1661.
+
+The short path to build Heads is to do what CircleCI would do (./docker_repro.sh under heads git cloned directory):
+- Install _docker-ce_ for your OS of choice (refer to their documentation)
+- run `./docker_repro.sh make BOARD=XYZ`
+
+Using Nix local dev environement / building docker images with Nix
 ==
 
 Under QubesOS?
