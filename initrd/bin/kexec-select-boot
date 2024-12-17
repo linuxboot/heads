@@ -67,6 +67,8 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 				warn "If you have not intentionally regenerated TPM2 primary key,"
 				warn "your system may have been compromised"
 				DEBUG "Hash of TPM2 primary key handle mismatched for $PRIMHASH_FILE"
+				DEBUG "Contents of $PRIMHASH_FILE:"
+				DEBUG "$(cat $PRIMHASH_FILE)"
 			}
 	else
 		warn "Hash of TPM2 primary key handle does not exist"
