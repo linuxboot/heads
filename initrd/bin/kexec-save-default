@@ -279,10 +279,9 @@ fi
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	if [ -f /tmp/secret/primary.handle ]; then
 		DEBUG "Hashing TPM2 primary key handle..."
-		sha256sum /tmp/secret/primary.handle >"$PRIMHASH_FILE" 2>/dev/null ||
+		sha256sum /tmp/secret/primary.handle > "$PRIMHASH_FILE" ||
 			die "ERROR: Failed to Hash TPM2 primary key handle!"
 		DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
-		DEBUG "Hash content: $(cat $PRIMHASH_FILE)"
 	else
 		die "ERROR: TPM2 primary key handle file does not exist!"
 	fi
