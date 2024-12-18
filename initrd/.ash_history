@@ -4,7 +4,7 @@ mount /boot
 find /boot/kexec*.txt | gpg --verify /boot/kexec.sig -
 #remove invalid kexec_* signed files
 mount /dev/sda1 /boot && mount -o remount,rw /boot && rm /boot/kexec* && mount -o remount,ro /boot
-#Generate keys from GPG smartcard: 
+#Generate keys on OpenPGP smartcard: 
 mount-usb && gpg --home=/.gnupg/ --card-edit
 #Copy generated public key, private_subkey, trustdb and artifacts to external media for backup: 
 mount -o remount,rw /media && mkdir -p /media/gpg_keys; gpg --export-secret-keys --armor email@address.com > /media/gpg_keys/private.key && gpg --export --armor email@address.com  > /media/gpg_keys/public.key && gpg --export-ownertrust > /media/gpg_keys/otrust.txt && cp -r ./.gnupg/* /media/gpg_keys/ 2> /dev/null

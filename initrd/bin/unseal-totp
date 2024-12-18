@@ -9,7 +9,7 @@ TRACE_FUNC
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
-		die "Unable to unseal TOTP secret"
+		die "Unable to unseal TOTP secret from TPM"
 fi
 
 if ! totp -q <"$TOTP_SECRET"; then
