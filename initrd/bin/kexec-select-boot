@@ -60,7 +60,8 @@ paramsdir="${paramsdir%%/}"
 
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ -r "$PRIMHASH_FILE" ]; then
+	if [ -s "$PRIMHASH_FILE" ]; then
+		#PRIMHASH_FILE (normally /boot/kexec_primhdl_hash.txt) exists and is not empty
 		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
 			{
 				echo "FATAL: Hash of TPM2 primary key handle mismatch!"
