@@ -1202,7 +1202,6 @@ fi
 
 # ensure USB Security dongle connected if GPG_GEN_KEY_IN_MEMORY=n or if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD=y
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
-	echo -e "\nChecking for USB Security dongle...\n"
 	enable_usb
 	if ! gpg --card-status >/dev/null 2>&1; then
 		local_whiptail_error "Can't access USB Security dongle; \nPlease remove and reinsert, then press Enter."
