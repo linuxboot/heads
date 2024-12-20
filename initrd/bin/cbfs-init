@@ -6,8 +6,8 @@ set -e -o pipefail
 #  This extraction and measurement cannot be suppressed by quiet mode, since 
 #   config.user is not yet loaded at this point.
 #  To suppress this output, set CONFIG_QUIET_MODE=y needs be be set in /etc/config
-#   which is defined at buiid time under board configuration file to be part of initrd.cpio
-#  This script is called from initrd/init
+#   which is defined at build time under board configuration file to be part of initrd.cpio
+#  This script is called from initrd/init so really early in the boot process to put files in place in initramfs
 
 TRACE_FUNC
 
