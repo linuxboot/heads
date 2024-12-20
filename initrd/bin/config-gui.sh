@@ -80,12 +80,7 @@ while true; do
 
 		# Debugging option always available
 		dynamic_config_options+=(
-			'Z' " $(get_config_display_action "$CONFIG_DEBUG_OUTPUT") $CONFIG_BRAND_NAME debug and function tracing output"
-		)
-
-		# Quiet option always available
-		dynamic_config_options+=(
-			'Q' " $(get_config_display_action "$CONFIG_QUIET_MODE") $CONFIG_BRAND_NAME quiet mode"
+			'Z' " Configure $CONFIG_BRAND_NAME informational / debug output"
 		)
 
 		[ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ] && dynamic_config_options+=(
@@ -553,52 +548,34 @@ while true; do
 		fi
 		;;
 	"Z")
-		if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
-			if (whiptail --title 'Enable Debugging and Tracing output?' \
-				--yesno "This will enable DEBUG and TRACE output from scripts.\n\nDo you want to proceed?" 0 80); then
+		unset output_choice
+		whiptail_type $BG_COLOR_MAIN_MENU --title "Informational / Debug Output" \
+			--menu "$CONFIG_BRAND_NAME can display informational or debug output.\n\nChoose the output level:" 0 80 10 \
+			0 'None - Show no extra output' \
+			1 "Info - Show information about operations in $CONFIG_BRAND_NAME" \
+			2 "Debug - Show detailed information suitable for debugging $CONFIG_BRAND_NAME" \
+			2>/tmp/whiptail || recovery "GUI menu failed"
 
+		output_choice=$(cat /tmp/whiptail)
+		case "$output_choice" in
+			0)
+				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
+				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
+				set_user_config "CONFIG_QUIET_MODE" "y"
+				;;
+			1)
+				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
+				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
+				set_user_config "CONFIG_QUIET_MODE" "n"
+				;;
+			2)
 				set_user_config "CONFIG_DEBUG_OUTPUT" "y"
 				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "y"
-				#DEBUG+TRACE is incompatible with QUIET mode, turn it off
 				set_user_config "CONFIG_QUIET_MODE" "n"
-
-				whiptail --title 'Config change successful' \
-					--msgbox "Debugging and Tracing output enabled;\nsave the config change and reboot for it to go into effect." 0 80
-			fi
-		else
-			if (whiptail --title 'Disable Enable Debugging and Tracing output?' \
-				--yesno "This will disable DEBUG and TRACE output from scripts.\n\nDo you want to proceed?" 0 80); then
-
-				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
-				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
-
-				whiptail --title 'Config change successful' \
-					--msgbox "Debugging and Tracing output disabled;\nsave the config change and reboot for it to go into effect." 0 80
-			fi
-		fi
-		;;
-	"Q")
-		#Quiet mode: turn off/on console technical output
-		if [ "$CONFIG_QUIET_MODE" != "y" ]; then
-			if (whiptail --title 'Enable Quiet mode?' \
-				--yesno "This will enable QUIET mode, which will turn off console technical output.\n\nDo you want to proceed?" 0 80); then
-
-				set_user_config "CONFIG_QUIET_MODE" "y"
-				#DEBUG+TRACE is incompatible with QUIET mode, turn it off
-				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
-				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
-				whiptail --title 'Config change successful' \
-					--msgbox "Quiet mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
-			fi
-		else
-			if (whiptail --title 'Disable Quiet mode?' \
-				--yesno "This will disable QUIET mode, which will turn on console technical output.\n\nDo you want to proceed?" 0 80); then
-
-				set_user_config "CONFIG_QUIET_MODE" "n"
-				whiptail --title 'Config change successful' \
-					--msgbox "Quiet mode disabled;\nsave the config change and reboot for it to go into effect." 0 80
-			fi
-		fi
+				;;
+		esac
+		whiptail --title 'Config change successful' \
+			--msgbox "Output level changed.\nSave the config change and reboot for it to go into effect." 0 80
 		;;
 	esac
 done
