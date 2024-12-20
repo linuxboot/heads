@@ -55,10 +55,9 @@ tpmr seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PAS
 shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 
 url="otpauth://totp/$HOST?secret=$secret"
-secret=""
 
 DEBUG "TOTP secret output on screen (both URL and QR code)"
 qrenc "$url"
 
-echo "TOTP secret for manual input (if no mobile phone) is after the 'secret=' part of the URL:"
-echo "$url"
+echo "TOTP secret for manual input (device without camera): $secret"
+secret=""
