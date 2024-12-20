@@ -1,6 +1,4 @@
 #! /bin/bash
-# Note this is used on legacy-flash boards that lack bash, it runs with busybox
-# ash.  Calls to bash scripts must be guarded by checking config.
 
 mknod /dev/ttyprintk c 5 3
 echo "hello world" >/dev/ttyprintk
