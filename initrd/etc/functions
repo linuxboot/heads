@@ -402,6 +402,15 @@ mask_param() {
 #
 # For example:
 # ls /boot/vmlinux* | SINK_LOG "/boot kernels"
+#
+# To capture stderr:
+# cryptsetup open /dev/sda1 media-crypt 2> >(SINK_LOG "LUKS unlock sda1 errors")
+# (Note: the space between '>' is necessary in '2> >(SINK_LOG ...)')
+#
+# To capture both:
+# tpm reset > >(SINK_LOG "tpm reset") 2>&1
+# (Note: 2>&1 must follow the stdout redirection, and space between '>' is
+# necessary)
 SINK_LOG() {
 	local name="$1"
 	local line haveblank
@@ -413,7 +422,7 @@ SINK_LOG() {
 		cat
 		echo
 	) | while IFS= read -r line; do
-		[[ -n "$haveblank" ]] && DEBUG "$name: " # Emit buffered blank line
+		[[ -n "$haveblank" ]] && LOG "$name: " # Emit buffered blank line
 		if [[ -z "$line" ]]; then
 			haveblank=y
 		else
