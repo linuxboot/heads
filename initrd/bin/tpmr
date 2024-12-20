@@ -611,16 +611,9 @@ tpm2_unseal() {
 	fi
 
 	# tpm2 unseal will write the unsealed data to stdout and any errors to
-	# 	stderr.  We capture the unsealed data to $file, but still log the errors for quiet mode.
-	# In case of unseal error, caller will also report on TOTP not being able to be unsealed.
-	TMP_ERR_FILE=$(mktemp)
+	# stderr; capture stderr to log.
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-		-S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_ERR_FILE"; then
-		# Log the contents of the temporary error file
-		while IFS= read -r line; do
-			LOG "tpm2 stderr: $line"
-		done <"$TMP_ERR_FILE"
-		rm -f "$TMP_ERR_FILE"
+		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
 		LOG "Unable to unseal secret from TPM NVRAM"
 
 		# should succeed, exit if it doesn't
@@ -810,13 +803,9 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		TRACE_FUNC
 		LOG "TPM: Extending PCR[$3] with hash $hash"
 
-		# Redirect the output of DO_WITH_DEBUG to a temporary file so we can LOG it in quiet mode
-		TMP_DEBUG_FILE=$(mktemp)
-		DO_WITH_DEBUG exec tpm "$@" >"$TMP_DEBUG_FILE" 2>&1
-		while IFS= read -r line; do
-			LOG "$line"
-		done <"$TMP_DEBUG_FILE"
-		rm -f "$TMP_DEBUG_FILE"
+		# Silence stdout/stderr, they're only useful for debugging
+		# and DO_WITH_DEBUG captures them
+		DO_WITH_DEBUG exec tpm "$@" &>/dev/null
 		;;
 	seal)
 		shift
