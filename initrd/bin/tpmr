@@ -665,15 +665,15 @@ tpm2_reset() {
 	# output TPM Owner Password to a file to be reused in this boot session until recovery shell/reboot
 	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
 	echo -n "$tpm_owner_password" >"$SECRET_DIR/tpm_owner_password"
-	tpm2 clear -c platform >/dev/null 2>&1 || LOG "Unable to clear TPM on platform hierarchy"
-	tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to change owner password"
-	tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to change endorsement password"
-	tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
-		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to create primary key"
-	tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
-		-P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1 || LOG "Unable to evict primary key"
-	shred -u "$SECRET_DIR/primary.ctx" >/dev/null 2>&1
-	tpm2_startsession >/dev/null 2>&1 || LOG "Unable to start session"
+	DO_WITH_DEBUG tpm2 clear -c platform &>/dev/null
+	DO_WITH_DEBUG tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")" &>/dev/null
+	DO_WITH_DEBUG tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")" &>/dev/null
+	DO_WITH_DEBUG tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
+		-c "$SECRET_DIR/primary.ctx" -P "$(tpm2_password_hex "$tpm_owner_password")" &>/dev/null
+	DO_WITH_DEBUG tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
+		-P "$(tpm2_password_hex "$tpm_owner_password")" &>/dev/null
+	shred -u "$SECRET_DIR/primary.ctx" &>/dev/null
+	DO_WITH_DEBUG tpm2_startsession &>/dev/null
 
 	# Set the dictionary attack parameters.  TPM2 defaults vary widely, we
 	# want consistent behavior on any TPM.
@@ -715,17 +715,17 @@ tpm1_reset() {
 	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
 	echo -n "$tpm_owner_password" >"$SECRET_DIR/tpm_owner_password"
 	# Make sure the TPM is ready to be reset
-	tpm physicalpresence -s >/dev/null 2>&1 || LOG "Unable to assert physical presence"
-	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
-	tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "Unable to deactivate TPM"
-	tpm forceclear >/dev/null 2>&1 || LOG "Unable to clear TPM"
-	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
-	tpm takeown -pwdo "$tpm_owner_password" >/dev/null 2>&1 || LOG "Unable to take ownership of TPM"
+	DO_WITH_DEBUG tpm physicalpresence -s &>/dev/null
+	DO_WITH_DEBUG tpm physicalenable &>/dev/null
+	DO_WITH_DEBUG tpm physicalsetdeactivated -c &>/dev/null
+	DO_WITH_DEBUG tpm forceclear &>/dev/null
+	DO_WITH_DEBUG tpm physicalenable &>/dev/null
+	DO_WITH_DEBUG tpm takeown -pwdo "$tpm_owner_password" &>/dev/null
 
 	# And now turn it all back on
-	tpm physicalpresence -s >/dev/null 2>&1 || LOG "Unable to assert physical presence"
-	tpm physicalenable >/dev/null 2>&1 || LOG "Unable to enable TPM"
-	tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "Unable to deactivate TPM physical presence requirement"
+	DO_WITH_DEBUG tpm physicalpresence -s &>/dev/null
+	DO_WITH_DEBUG tpm physicalenable &>/dev/null
+	DO_WITH_DEBUG tpm physicalsetdeactivated -c &>/dev/null
 }
 
 # Perform final cleanup before boot and lock the platform heirarchy.
