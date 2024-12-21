@@ -108,7 +108,8 @@ if lsusb | grep -q "20a0:42b2"; then
 	admin_pin_retries=$(echo "$hotp_token_info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	prompt_message="Secrets app"
 else
-	admin_pin_retries=$(echo "$hotp_token_info" | grep "Card counters: Admin" | cut -d ':' -f 2 | tr -d ' ')
+	# <nk3
+	admin_pin_retries=$(echo "$hotp_token_info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	prompt_message="GPG Admin"
 fi
 
