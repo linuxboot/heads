@@ -40,7 +40,6 @@ endif
 
 linux_base_dir := linux-$(linux_version)
 
-# TODO: fixup the patch process
 # input file in the heads config/ dir
 # Allow board config to specialize Linux configuration if necessary
 linux_kconfig := $(or $(CONFIG_LINUX_CONFIG),config/linux.config)
