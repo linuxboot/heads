@@ -17,7 +17,7 @@ PCR_SIZE=
 # Export CONFIG_TPM2_CAPTURE_PCAP=y from your board config to capture tpm2 pcaps to
 # /tmp/tpm0.pcap; Wireshark can inspect these.  (This must be enabled at build
 # time so the pcap TCTI driver is included.)
-if [ -n "$CONFIG_TPM2_CAPTURE_PCAP" ]; then
+if [ "$CONFIG_TPM2_CAPTURE_PCAP" == "y" ]; then
 	export TPM2TOOLS_TCTI="pcap:device:/dev/tpmrm0"
 	export TCTI_PCAP_FILE="/tmp/tpm0.pcap"
 fi
