@@ -244,17 +244,24 @@ device_has_partitions() {
 	# to satisfy fdisk.  In that case, fdisk prints a partition table header
 	# but no partitions.
 	#
-	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
-	# In both cases the output is 5 lines: 3 about device info, 1 empty line
-	# and the 5th will be the table header or the invalid message.
+	# busybox's fdisk doesn't support >2TB devices since >2^32 sectors
+	# TODO: this is https://bugs.busybox.net/show_bug.cgi?id=16276
+	# revise logic when this is fixed, otherwise we can't rely on
+	# positional output, we need to force strings match only.
 	local DISK_DATA=$(fdisk -l "$DEVICE")
-	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" || \
-		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
+	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table"; then
 		# No partition table
 		return 1
 	fi
-	# There is a partition table
-	return 0
+
+	# Check for partition entries in the fdisk output
+	if echo "$DISK_DATA" | grep -q "^/dev"; then
+		# There are partitions
+		return 0
+	fi
+
+	# No partitions found
+	return 1
 }
 
 list_usb_storage() {
@@ -661,7 +668,7 @@ is_gpt_bios_grub() {
 
 	# Now we know the device and partition number, get the type.  This is
 	# specific to GPT disks, MBR disks are shown differently by fdisk.
-	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
+	DEBUG "$PART_DEV is partition $NUMBER of $DEVICE"
 	if [ "$(fdisk -l "/dev/$DEVICE" | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
 		return 0
 	fi
