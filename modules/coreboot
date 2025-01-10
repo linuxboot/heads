@@ -94,7 +94,7 @@ $(eval $(call coreboot_module,purism,24.02.01))
 # MSI and NovaCustom NV4xPZ, NS5xPU, V540TU, V560TU boards are based on Dasharo
 # coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
-coreboot-dasharo_commit_hash := 87852b0f89f998ac046e801ae26c6d2cfe85afe7
+coreboot-dasharo_commit_hash := 8adaae026dc055fa8b445fbe32e5146576d56c28
 $(eval $(call coreboot_module,dasharo,24.02.01))
 coreboot-dasharo_patch_version := unreleased
 
