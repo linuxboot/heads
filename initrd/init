@@ -98,9 +98,11 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#Output all kernel messages to console (8=debug)
 	#DEBUG and TRACE calls will be in dmesg and on console
 	# config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
+	# DO_WITH_DEBUG redirects stderr and stdout to /tmp/debug.log to not clog console	
 	TRACE_FUNC
 	dmesg -n 8
 	DEBUG "Full debug output enabled from this point: output both in dmesg and on console (equivalent of passing debug to kernel cmdline)"
+	DEBUG "NOTE: DO_WITH_DEBUG std_err and std_out will be redirected to /tmp/debug.log"
 fi
 
 # report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log

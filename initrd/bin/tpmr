@@ -257,7 +257,7 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	LOG $(tpm2 pcrread "sha256:$index" 2>&1)
+	INFO $(tpm2 pcrread "sha256:$index" 2>&1)
 
 	TRACE_FUNC
 	DEBUG "TPM: Extended PCR[$index] with hash $hash"
@@ -614,7 +614,7 @@ tpm2_unseal() {
 	# stderr; capture stderr to log.
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
 		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
-		LOG "Unable to unseal secret from TPM NVRAM"
+		INFO "Unable to unseal secret from TPM NVRAM"
 
 		# should succeed, exit if it doesn't
 		exit 1
@@ -800,7 +800,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		fi
 
 		TRACE_FUNC
-		LOG "TPM: Extending PCR[$3] with hash $hash"
+		INFO "TPM: Extending PCR[$3] with hash $hash"
 
 		# Silence stdout/stderr, they're only useful for debugging
 		# and DO_WITH_DEBUG captures them
@@ -845,7 +845,7 @@ calcfuturepcr)
 	;;
 extend)
 	TRACE_FUNC
-	LOG "TPM: Extending PCR[$2] with $4"
+	INFO "TPM: Extending PCR[$2] with $4"
 	tpm2_extend "$@"
 	;;
 counter_read)
