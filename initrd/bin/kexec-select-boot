@@ -82,10 +82,10 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 fi
 
 verify_global_hashes() {
-	LOG "+++ Checking verified boot hash file "
+	INFO "+++ Checking verified boot hash file "
 	# Check the hashes of all the files
 	if verify_checksums "$bootdir" "$gui_menu"; then
-		LOG "+++ Verified boot hashes "
+		INFO "+++ Verified boot hashes "
 		valid_hash='y'
 		valid_global_hash='y'
 	else
@@ -208,7 +208,7 @@ parse_option() {
 }
 
 scan_options() {
-	LOG "+++ Scanning for unsigned boot options"
+	INFO "+++ Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
 	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
@@ -272,7 +272,7 @@ default_select() {
 
 	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Enforce that default option hashes are valid
-		LOG "+++ Checking verified default boot hash file "
+		INFO "+++ Checking verified default boot hash file "
 		# Check the hashes of all the files
 		if (cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
 			echo "+++ Verified default boot hashes "
@@ -390,7 +390,7 @@ while true; do
 		if [ ! -r "$TMP_KEY_DEVICES" ]; then
 			# Extend PCR4 as soon as possible
 			TRACE_FUNC
-			LOG "TPM: Extending PCR[4] to prevent further secret unsealing"
+			INFO "TPM: Extending PCR[4] to prevent further secret unsealing"
 			tpmr extend -ix 4 -ic generic ||
 				die "Failed to extend TPM PCR[4]"
 		fi

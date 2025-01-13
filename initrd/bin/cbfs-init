@@ -24,12 +24,12 @@ for cbfsname in `echo $cbfsfiles`; do
 	if [ ! -z "$filename" ]; then
 		mkdir -p `dirname $filename` \
 		|| die "$filename: mkdir failed"
-		LOG "Extracting CBFS file $cbfsname into $filename"
+		INFO "Extracting CBFS file $cbfsname into $filename"
 		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
 		|| die "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TRACE_FUNC
-			LOG "TPM: Extending PCR[$CONFIG_PCR] with filename $filename and then its content"
+			INFO "TPM: Extending PCR[$CONFIG_PCR] with filename $filename and then its content"
 			# Measure both the filename and its content.  This
 			# ensures that renaming files or pivoting file content
 			# will still affect the resulting PCR measurement.

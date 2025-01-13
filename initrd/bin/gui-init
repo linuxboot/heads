@@ -553,7 +553,7 @@ reset_tpm() {
 			mount -o rw,remount /boot
 			#TODO: this is really problematic, we should really remove the primary handle hash
 
-			LOG "Removing rollback and primary handle hash under /boot"
+			INFO "Removing rollback and primary handle hash under /boot"
 			rm -f /boot/kexec_rollback.txt
 			rm -f /boot/kexec_primhdl_hash.txt
 
