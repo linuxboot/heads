@@ -425,6 +425,20 @@ workflows:
             - x230-hotp-maximized
 
       - build:
+          name: t480-maximized
+          target: t480-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
+          name: t480-hotp-maximized
+          target: t480-hotp-maximized
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+
+      - build:
           name: UNTESTED_w541-maximized
           target: UNTESTED_w541-maximized
           subcommand: ""
@@ -556,3 +570,4 @@ workflows:
           subcommand: ""
           requires:
             - librem_l1um
+

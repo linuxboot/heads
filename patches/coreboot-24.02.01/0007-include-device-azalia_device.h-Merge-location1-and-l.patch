@@ -1,0 +1,194 @@
+From 907aa8bfc5d1e87a5c269c34888aecdf4af3d6aa Mon Sep 17 00:00:00 2001
+From: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Date: Sun, 25 Feb 2024 09:32:33 +0900
+Subject: [PATCH 07/11] include/device/azalia_device.h: Merge location1 and
+ location2
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This changes the location to be expressed as a combination of ORs. This
+allows aliases for special locations.
+
+For example, `AZALIA_REAR_PANEL` is easier to read than
+`AZALIA_EXTERNAL_PRIMARY_CHASSIS, AZALIA_SPECIAL7`.
+
+References:
+ - Intel High Definition Audio Specification, rev. 1.0a, page 180,
+   Table 110. Location.
+
+Change-Id: I5a61a37ed70027700f07f1532c500f04d7a16ce1
+Signed-off-by: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/80740
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Michael Niewöhner <foss@mniewoehner.de>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Felix Singer <service+coreboot-gerrit@felixsinger.de>
+---
+ src/include/device/azalia_device.h            | 36 +++++++++++--------
+ .../clevo/tgl-u/variants/l140mu/hda_verb.c    | 17 ++++-----
+ .../siemens/chili/variants/chili/hda_verb.c   | 10 ++----
+ 3 files changed, 32 insertions(+), 31 deletions(-)
+
+diff --git a/src/include/device/azalia_device.h b/src/include/device/azalia_device.h
+index 4d9298cf95..1fc0baf49b 100644
+--- a/src/include/device/azalia_device.h
++++ b/src/include/device/azalia_device.h
+@@ -50,10 +50,10 @@ enum azalia_pin_connection {
+ };
+ 
+ enum azalia_pin_location_gross {
+-	AZALIA_EXTERNAL_PRIMARY_CHASSIS = 0x0,
+-	AZALIA_INTERNAL                 = 0x1,
+-	AZALIA_SEPARATE_CHASSIS         = 0x2,
+-	AZALIA_LOCATION_OTHER           = 0x3,
++	AZALIA_EXTERNAL_PRIMARY_CHASSIS = 0x00,
++	AZALIA_INTERNAL                 = 0x10,
++	AZALIA_SEPARATE_CHASSIS         = 0x20,
++	AZALIA_LOCATION_OTHER           = 0x30,
+ };
+ 
+ enum azalia_pin_location_geometric {
+@@ -69,6 +69,16 @@ enum azalia_pin_location_geometric {
+ 	AZALIA_SPECIAL9       = 0x9,
+ };
+ 
++enum azalia_pin_location_special {
++	AZALIA_REAR_PANEL         = AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_SPECIAL7,
++	AZALIA_DRIVE_BAY          = AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_SPECIAL8,
++	AZALIA_RISER              = AZALIA_INTERNAL                 | AZALIA_SPECIAL7,
++	AZALIA_DIGITAL_DISPLAY    = AZALIA_INTERNAL                 | AZALIA_SPECIAL8,
++	AZALIA_ATAPI              = AZALIA_INTERNAL                 | AZALIA_SPECIAL9,
++	AZALIA_MOBILE_LID_INSIDE  = AZALIA_LOCATION_OTHER           | AZALIA_SPECIAL7,
++	AZALIA_MOBILE_LID_OUTSIDE = AZALIA_LOCATION_OTHER           | AZALIA_SPECIAL8,
++};
++
+ enum azalia_pin_device {
+ 	AZALIA_LINE_OUT           = 0x0,
+ 	AZALIA_SPEAKER            = 0x1,
+@@ -123,16 +133,14 @@ enum azalia_pin_misc {
+ 	AZALIA_NO_JACK_PRESENCE_DETECT = 0x1,
+ };
+ 
+-#define AZALIA_PIN_DESC(conn, location2, location1, dev, type, color, misc,	\
+-	                association, sequence)					\
+-	((((conn)        << 30) & 0xc0000000) |					\
+-	 (((location2)   << 28) & 0x30000000) |					\
+-	 (((location1)   << 24) & 0x0f000000) |					\
+-	 (((dev)         << 20) & 0x00f00000) |					\
+-	 (((type)        << 16) & 0x000f0000) |					\
+-	 (((color)       << 12) & 0x0000f000) |					\
+-	 (((misc)        <<  8) & 0x00000f00) |					\
+-	 (((association) <<  4) & 0x000000f0) |					\
++#define AZALIA_PIN_DESC(conn, location, dev, type, color, misc, association, sequence)	\
++	((((conn)        << 30) & 0xc0000000) |						\
++	 (((location)    << 24) & 0x3f000000) |						\
++	 (((dev)         << 20) & 0x00f00000) |						\
++	 (((type)        << 16) & 0x000f0000) |						\
++	 (((color)       << 12) & 0x0000f000) |						\
++	 (((misc)        <<  8) & 0x00000f00) |						\
++	 (((association) <<  4) & 0x000000f0) |						\
+ 	 (((sequence)    <<  0) & 0x0000000f))
+ 
+ #define AZALIA_ARRAY_SIZES const u32 pc_beep_verbs_size =	\
+diff --git a/src/mainboard/clevo/tgl-u/variants/l140mu/hda_verb.c b/src/mainboard/clevo/tgl-u/variants/l140mu/hda_verb.c
+index 2e1a5799d7..db9da04235 100644
+--- a/src/mainboard/clevo/tgl-u/variants/l140mu/hda_verb.c
++++ b/src/mainboard/clevo/tgl-u/variants/l140mu/hda_verb.c
+@@ -13,8 +13,7 @@ const u32 cim_verb_data[] = {
+ 	/* Microphone (display lid), vendor value: 0x90a60130 */
+ 	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
+ 			AZALIA_INTEGRATED,
+-			AZALIA_LOCATION_OTHER,	/* vendor: AZALIA_SEPARATE_CHASSIS */
+-			AZALIA_SPECIAL7,	/* lid, vendor: AZALIA_GEOLOCATION_NA*/
++			AZALIA_MOBILE_LID_INSIDE,	/* vendor: AZALIA_SEPARATE_CHASSIS */
+ 			AZALIA_MIC_IN,
+ 			AZALIA_OTHER_DIGITAL,
+ 			AZALIA_COLOR_UNKNOWN,
+@@ -25,8 +24,7 @@ const u32 cim_verb_data[] = {
+ 	/* Integrated speakers, vendor value: 0x90170110 */
+ 	AZALIA_PIN_CFG(0, 0x14, AZALIA_PIN_DESC(
+ 			AZALIA_INTEGRATED,
+-			AZALIA_LOCATION_OTHER,	/* vendor: AZALIA_SEPARATE_CHASSIS */
+-			AZALIA_BOTTOM,		/* vendor: AZALIA_GEOLOCATION_NA*/
++			AZALIA_LOCATION_OTHER | AZALIA_BOTTOM,	/* vendor: AZALIA_SEPARATE_CHASSIS */
+ 			AZALIA_SPEAKER,
+ 			AZALIA_OTHER_ANALOG,
+ 			AZALIA_COLOR_UNKNOWN,
+@@ -37,8 +35,8 @@ const u32 cim_verb_data[] = {
+ 	/* Headphones, vendor value: 0x02211020 */
+ 	AZALIA_PIN_CFG(0, 0x15, AZALIA_PIN_DESC(
+ 			AZALIA_JACK,
+-			AZALIA_EXTERNAL_PRIMARY_CHASSIS,
+-			AZALIA_RIGHT,		/* vendor: AZALIA_FRONT */
++			/* vendor: AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_FRONT */
++			AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
+ 			AZALIA_HP_OUT,
+ 			AZALIA_STEREO_MONO_1_8,
+ 			AZALIA_BLACK,
+@@ -49,8 +47,8 @@ const u32 cim_verb_data[] = {
+ 	/* ext. Microphone, vendor value: 0x411111f0, linux override: 0x01a1913c */
+ 	AZALIA_PIN_CFG(0, 0x1a, AZALIA_PIN_DESC(
+ 			AZALIA_JACK,
+-			AZALIA_EXTERNAL_PRIMARY_CHASSIS,
+-			AZALIA_RIGHT,		/* vendor: AZALIA_REAR */
++			/* vendor: AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_REAR */
++			AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
+ 			AZALIA_MIC_IN,
+ 			AZALIA_STEREO_MONO_1_8,
+ 			AZALIA_BLACK,		/* vendor: AZALIA_PINK */
+@@ -61,8 +59,7 @@ const u32 cim_verb_data[] = {
+ 	/* PCBEEP, vendor value: 0x41748245 */
+ 	AZALIA_PIN_CFG(0, 0x1d, AZALIA_PIN_DESC(
+ 			AZALIA_INTEGRATED,			/* vendor: AZALIA_NC */
+-			AZALIA_INTERNAL,			/* vendor: AZALIA_EXTERNAL_PRIMARY_CHASSIS */
+-			AZALIA_GEOLOCATION_NA,			/* vendor: AZALIA_REAR */
++			AZALIA_INTERNAL,			/* vendor: AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_REAR */
+ 			AZALIA_DEVICE_OTHER,			/* vendor: AZALIA_MODEM_HANDSET_SIDE */
+ 			AZALIA_OTHER_ANALOG,			/* vendor: AZALIA_RCA */
+ 			AZALIA_COLOR_UNKNOWN,			/* vendor: AZALIA_PURPLE */
+diff --git a/src/mainboard/siemens/chili/variants/chili/hda_verb.c b/src/mainboard/siemens/chili/variants/chili/hda_verb.c
+index 7fdb884465..b9748612a5 100644
+--- a/src/mainboard/siemens/chili/variants/chili/hda_verb.c
++++ b/src/mainboard/siemens/chili/variants/chili/hda_verb.c
+@@ -17,7 +17,6 @@ const u32 cim_verb_data[] = {
+ 	AZALIA_PIN_CFG(0, 0x14, AZALIA_PIN_DESC( /* 0x14 Speaker OUT */
+ 		AZALIA_INTEGRATED,
+ 		AZALIA_INTERNAL,
+-		AZALIA_GEOLOCATION_NA,
+ 		AZALIA_SPEAKER,
+ 		AZALIA_OTHER_ANALOG,
+ 		AZALIA_COLOR_UNKNOWN,
+@@ -26,8 +25,7 @@ const u32 cim_verb_data[] = {
+ 	)),
+ 	AZALIA_PIN_CFG(0, 0x21, AZALIA_PIN_DESC( /* 0x21 Headphone OUT */
+ 		AZALIA_JACK,
+-		AZALIA_EXTERNAL_PRIMARY_CHASSIS,
+-		AZALIA_FRONT,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_FRONT,
+ 		AZALIA_HP_OUT,
+ 		AZALIA_COMBINATION,
+ 		AZALIA_BLACK,
+@@ -36,8 +34,7 @@ const u32 cim_verb_data[] = {
+ 	)),
+ 	AZALIA_PIN_CFG(0, 0x19, AZALIA_PIN_DESC( /* 0x19 MIC2 */
+ 		AZALIA_JACK,
+-		AZALIA_EXTERNAL_PRIMARY_CHASSIS,
+-		AZALIA_FRONT,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_FRONT,
+ 		AZALIA_MIC_IN,
+ 		AZALIA_COMBINATION,
+ 		AZALIA_BLACK,
+@@ -67,8 +64,7 @@ const u32 cim_verb_data[] = {
+ 	AZALIA_PIN_CFG(2, 0x06, AZALIA_PIN_CFG_NC(1)),
+ 	AZALIA_PIN_CFG(2, 0x07, AZALIA_PIN_DESC(
+ 		AZALIA_JACK,
+-		AZALIA_EXTERNAL_PRIMARY_CHASSIS,
+-		AZALIA_SPECIAL7,
++		AZALIA_REAR_PANEL,
+ 		AZALIA_DIGITAL_OTHER_OUT,
+ 		AZALIA_OTHER_DIGITAL,
+ 		AZALIA_COLOR_UNKNOWN,
+-- 
+2.39.5
+
