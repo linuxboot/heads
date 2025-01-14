@@ -1,0 +1,301 @@
+From 9ed9e8655dde4df0692ca04f550ae2abd81d2b40 Mon Sep 17 00:00:00 2001
+From: Elyes Haouas <ehaouas@noos.fr>
+Date: Wed, 17 Jul 2024 12:22:43 +0200
+Subject: [PATCH 09/11] azalia: Get rid of "return {-1,0}
+
+Use 'enum cb_err' instead of {-1,0}.
+
+Change-Id: Icea33ea3e6a5e3c7bbfedc29045026cd722ac23e
+Signed-off-by: Elyes Haouas <ehaouas@noos.fr>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/83503
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Martin L Roth <gaumless@gmail.com>
+---
+ src/device/azalia_device.c                 | 16 ++++++++--------
+ src/include/device/azalia_device.h         |  7 +++----
+ src/soc/intel/common/hda_verb.c            |  8 ++++----
+ src/southbridge/intel/bd82x6x/azalia.c     |  3 ++-
+ src/southbridge/intel/i82801gx/azalia.c    |  7 ++++---
+ src/southbridge/intel/i82801ix/azalia.c    |  6 ++++--
+ src/southbridge/intel/i82801jx/azalia.c    |  6 ++++--
+ src/southbridge/intel/ibexpeak/azalia.c    |  4 +++-
+ src/southbridge/intel/lynxpoint/hda_verb.c |  7 ++++---
+ 9 files changed, 36 insertions(+), 28 deletions(-)
+
+diff --git a/src/device/azalia_device.c b/src/device/azalia_device.c
+index 8051f2e7ee..e709d9fe20 100644
+--- a/src/device/azalia_device.c
++++ b/src/device/azalia_device.c
+@@ -9,7 +9,7 @@
+ #include <timer.h>
+ #include <types.h>
+ 
+-int azalia_set_bits(void *port, u32 mask, u32 val)
++static enum cb_err azalia_set_bits(void *port, u32 mask, u32 val)
+ {
+ 	struct stopwatch sw;
+ 	u32 reg32;
+@@ -32,17 +32,17 @@ int azalia_set_bits(void *port, u32 mask, u32 val)
+ 
+ 	/* Timeout occurred */
+ 	if (stopwatch_expired(&sw))
+-		return -1;
+-	return 0;
++		return CB_ERR;
++	return CB_SUCCESS;
+ }
+ 
+-int azalia_enter_reset(u8 *base)
++enum cb_err azalia_enter_reset(u8 *base)
+ {
+ 	/* Set bit 0 to 0 to enter reset state (BAR + 0x8)[0] */
+ 	return azalia_set_bits(base + HDA_GCTL_REG, HDA_GCTL_CRST, 0);
+ }
+ 
+-int azalia_exit_reset(u8 *base)
++enum cb_err azalia_exit_reset(u8 *base)
+ {
+ 	/* Set bit 0 to 1 to exit reset state (BAR + 0x8)[0] */
+ 	return azalia_set_bits(base + HDA_GCTL_REG, HDA_GCTL_CRST, HDA_GCTL_CRST);
+@@ -53,7 +53,7 @@ static u16 codec_detect(u8 *base)
+ 	struct stopwatch sw;
+ 	u16 reg16;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	if (CONFIG(AZALIA_LOCK_DOWN_R_WO_GCAP)) {
+@@ -80,10 +80,10 @@ static u16 codec_detect(u8 *base)
+ 	if (stopwatch_expired(&sw))
+ 		goto no_codec;
+ 
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0x0e)[14:0] */
+diff --git a/src/include/device/azalia_device.h b/src/include/device/azalia_device.h
+index 59e7ea2af3..7fe6514ed2 100644
+--- a/src/include/device/azalia_device.h
++++ b/src/include/device/azalia_device.h
+@@ -6,7 +6,7 @@
+ #include <acpi/acpi.h>
+ #include <device/device.h>
+ #include <device/mmio.h>
+-#include <stdint.h>
++#include <types.h>
+ 
+ #define HDA_GCAP_REG		0x00
+ #define HDA_GCTL_REG		0x08
+@@ -20,9 +20,8 @@
+ 
+ #define AZALIA_MAX_CODECS	15
+ 
+-int azalia_set_bits(void *port, u32 mask, u32 val);
+-int azalia_enter_reset(u8 *base);
+-int azalia_exit_reset(u8 *base);
++enum cb_err azalia_enter_reset(u8 *base);
++enum cb_err azalia_exit_reset(u8 *base);
+ u32 azalia_find_verb(const u32 *verb_table, u32 verb_table_bytes, u32 viddid, const u32 **verb);
+ int azalia_program_verb_table(u8 *base, const u32 *verbs, u32 verb_size);
+ void azalia_codec_init(u8 *base, int addr, const u32 *verb_table, u32 verb_table_bytes);
+diff --git a/src/soc/intel/common/hda_verb.c b/src/soc/intel/common/hda_verb.c
+index dceb03183e..67a8f24516 100644
+--- a/src/soc/intel/common/hda_verb.c
++++ b/src/soc/intel/common/hda_verb.c
+@@ -4,7 +4,7 @@
+ #include <delay.h>
+ #include <device/azalia_device.h>
+ #include <device/mmio.h>
+-#include <stdint.h>
++#include <types.h>
+ 
+ #include "hda_verb.h"
+ 
+@@ -13,7 +13,7 @@ int hda_codec_detect(u8 *base)
+ 	u8 reg8;
+ 
+ 	/* Set Bit 0 to 1 to exit reset state (BAR + 0x8)[0] */
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Write back the value once reset bit is set. */
+@@ -26,11 +26,11 @@ int hda_codec_detect(u8 *base)
+ 	write8(base + HDA_STATESTS_REG, 0xf);
+ 
+ 	/* Turn off the link and poll RESET# bit until it reads back as 0 */
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Turn on the link and poll RESET# bit until it reads back as 1 */
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0xe)[2..0] */
+diff --git a/src/southbridge/intel/bd82x6x/azalia.c b/src/southbridge/intel/bd82x6x/azalia.c
+index ddaa8a1bb0..4eeb3b5cf4 100644
+--- a/src/southbridge/intel/bd82x6x/azalia.c
++++ b/src/southbridge/intel/bd82x6x/azalia.c
+@@ -8,6 +8,7 @@
+ #include <device/mmio.h>
+ #include <delay.h>
+ #include <device/azalia_device.h>
++#include <types.h>
+ 
+ #include "chip.h"
+ #include "pch.h"
+@@ -16,7 +17,7 @@ static int codec_detect(u8 *base)
+ {
+ 	u8 reg8;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Write back the value once reset bit is set. */
+diff --git a/src/southbridge/intel/i82801gx/azalia.c b/src/southbridge/intel/i82801gx/azalia.c
+index 31827e6de9..cef3dee191 100644
+--- a/src/southbridge/intel/i82801gx/azalia.c
++++ b/src/southbridge/intel/i82801gx/azalia.c
+@@ -8,7 +8,8 @@
+ #include <device/mmio.h>
+ #include <delay.h>
+ #include <device/azalia_device.h>
+-#include <stdint.h>
++#include <types.h>
++
+ #include "chip.h"
+ #include "i82801gx.h"
+ 
+@@ -16,10 +17,10 @@ static int codec_detect(u8 *base)
+ {
+ 	u32 reg32;
+ 
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0xe)[2..0] */
+diff --git a/src/southbridge/intel/i82801ix/azalia.c b/src/southbridge/intel/i82801ix/azalia.c
+index fdc951472e..228b188f89 100644
+--- a/src/southbridge/intel/i82801ix/azalia.c
++++ b/src/southbridge/intel/i82801ix/azalia.c
+@@ -7,6 +7,8 @@
+ #include <device/pci_ops.h>
+ #include <device/mmio.h>
+ #include <device/azalia_device.h>
++#include <types.h>
++
+ #include "chip.h"
+ #include "i82801ix.h"
+ 
+@@ -14,10 +16,10 @@ static int codec_detect(u8 *base)
+ {
+ 	u32 reg32;
+ 
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0xe)[2..0] */
+diff --git a/src/southbridge/intel/i82801jx/azalia.c b/src/southbridge/intel/i82801jx/azalia.c
+index fa0209ae78..6b840e7d50 100644
+--- a/src/southbridge/intel/i82801jx/azalia.c
++++ b/src/southbridge/intel/i82801jx/azalia.c
+@@ -7,6 +7,8 @@
+ #include <device/pci_ops.h>
+ #include <device/mmio.h>
+ #include <device/azalia_device.h>
++#include <types.h>
++
+ #include "chip.h"
+ #include "i82801jx.h"
+ 
+@@ -14,10 +16,10 @@ static int codec_detect(u8 *base)
+ {
+ 	u32 reg32;
+ 
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0xe)[2..0] */
+diff --git a/src/southbridge/intel/ibexpeak/azalia.c b/src/southbridge/intel/ibexpeak/azalia.c
+index ac950c46df..6196096a14 100644
+--- a/src/southbridge/intel/ibexpeak/azalia.c
++++ b/src/southbridge/intel/ibexpeak/azalia.c
+@@ -8,13 +8,15 @@
+ #include <device/mmio.h>
+ #include <delay.h>
+ #include <device/azalia_device.h>
++#include <types.h>
++
+ #include "pch.h"
+ 
+ static int codec_detect(u8 *base)
+ {
+ 	u8 reg8;
+ 
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Write back the value once reset bit is set. */
+diff --git a/src/southbridge/intel/lynxpoint/hda_verb.c b/src/southbridge/intel/lynxpoint/hda_verb.c
+index 7e9f4d2c48..e79b5d1b20 100644
+--- a/src/southbridge/intel/lynxpoint/hda_verb.c
++++ b/src/southbridge/intel/lynxpoint/hda_verb.c
+@@ -3,6 +3,7 @@
+ #include <console/console.h>
+ #include <device/azalia_device.h>
+ #include <device/mmio.h>
++#include <types.h>
+ 
+ #include "hda_verb.h"
+ 
+@@ -11,7 +12,7 @@ int hda_codec_detect(u8 *base)
+ 	u8 reg8;
+ 
+ 	/* Set Bit 0 to 1 to exit reset state (BAR + 0x8)[0] */
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Write back the value once reset bit is set. */
+@@ -24,11 +25,11 @@ int hda_codec_detect(u8 *base)
+ 	write8(base + HDA_STATESTS_REG, 0xf);
+ 
+ 	/* Turn off the link and poll RESET# bit until it reads back as 0 */
+-	if (azalia_enter_reset(base) < 0)
++	if (azalia_enter_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Turn on the link and poll RESET# bit until it reads back as 1 */
+-	if (azalia_exit_reset(base) < 0)
++	if (azalia_exit_reset(base) != CB_SUCCESS)
+ 		goto no_codec;
+ 
+ 	/* Read in Codec location (BAR + 0xe)[2..0] */
+-- 
+2.39.5
+

@@ -1,0 +1,173 @@
+From 14b83c4c0500db7860f87fa5580accc12fef1110 Mon Sep 17 00:00:00 2001
+From: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Date: Fri, 2 Feb 2024 18:21:34 +0900
+Subject: [PATCH 08/11] device/azalia: Separate codec checking and
+ initialization
+
+This also changes how debug messages will be printed. I focused on
+reducing clutter on the screen and made the style of the messages
+consistent.
+
+Before:
+azalia_audio: Initializing codec #5
+  codec not ready.
+azalia_audio: Initializing codec #4
+  codec not valid.
+azalia_audio: Initializing codec #3
+azalia_audio: viddid: ffffffff
+azalia_audio: verb_size: 4
+azalia_audio: verb loaded.
+
+After:
+azalia_audio: codec #5 not ready
+azalia_audio: codec #4 not valid
+azalia_audio: initializing codec #3...
+azalia_audio:  - vendor/device id: 0xffffffff
+azalia_audio:  - verb size: 4
+azalia_audio:  - verb loaded
+
+Change-Id: I92b6d184abccdbe0e1bfce98a2c959a97a618a29
+Signed-off-by: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/80332
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Reviewed-by: Felix Singer <service+coreboot-gerrit@felixsinger.de>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ src/device/azalia_device.c         | 67 ++++++++++++++++--------------
+ src/include/device/azalia_device.h |  2 +
+ 2 files changed, 37 insertions(+), 32 deletions(-)
+
+diff --git a/src/device/azalia_device.c b/src/device/azalia_device.c
+index 4ac585dac1..8051f2e7ee 100644
+--- a/src/device/azalia_device.c
++++ b/src/device/azalia_device.c
+@@ -7,6 +7,7 @@
+ #include <device/mmio.h>
+ #include <delay.h>
+ #include <timer.h>
++#include <types.h>
+ 
+ int azalia_set_bits(void *port, u32 mask, u32 val)
+ {
+@@ -97,7 +98,7 @@ no_codec:
+ 	/* Codec Not found */
+ 	/* Put HDA back in reset (BAR + 0x8) [0] */
+ 	azalia_set_bits(base + HDA_GCTL_REG, 1, 0);
+-	printk(BIOS_DEBUG, "azalia_audio: No codec!\n");
++	printk(BIOS_DEBUG, "azalia_audio: no codec!\n");
+ 	return 0;
+ }
+ 
+@@ -226,55 +227,57 @@ __weak void mainboard_azalia_program_runtime_verbs(u8 *base, u32 viddid)
+ {
+ }
+ 
+-void azalia_codec_init(u8 *base, int addr, const u32 *verb_table, u32 verb_table_bytes)
++static bool codec_is_operative(u8 *base, const int addr)
+ {
+-	u32 reg32;
+-	const u32 *verb;
+-	u32 verb_size;
+-
+-	printk(BIOS_DEBUG, "azalia_audio: Initializing codec #%d\n", addr);
+-
+-	/* 1 */
+ 	if (wait_for_ready(base) < 0) {
+-		printk(BIOS_DEBUG, "  codec not ready.\n");
+-		return;
++		printk(BIOS_DEBUG, "azalia_audio: codec #%d not ready\n", addr);
++		return false;
+ 	}
+ 
+-	reg32 = (addr << 28) | 0x000f0000;
++	const u32 reg32 = (addr << 28) | 0x000f0000;
+ 	write32(base + HDA_IC_REG, reg32);
+ 
+ 	if (wait_for_valid(base) < 0) {
+-		printk(BIOS_DEBUG, "  codec not valid.\n");
+-		return;
++		printk(BIOS_DEBUG, "azalia_audio: codec #%d not valid\n", addr);
++		return false;
+ 	}
++	return true;
++}
+ 
+-	/* 2 */
+-	reg32 = read32(base + HDA_IR_REG);
+-	printk(BIOS_DEBUG, "azalia_audio: codec viddid: %08x\n", reg32);
+-	verb_size = azalia_find_verb(verb_table, verb_table_bytes, reg32, &verb);
++void azalia_codec_init(u8 *base, int addr, const u32 *verb_table, u32 verb_table_bytes)
++{
++	const u32 viddid = read32(base + HDA_IR_REG);
++	const u32 *verb;
++	u32 verb_size;
++
++	printk(BIOS_DEBUG, "azalia_audio: initializing codec #%d...\n", addr);
++	printk(BIOS_DEBUG, "azalia_audio:  - vendor/device id: 0x%08x\n", viddid);
++
++	verb_size = azalia_find_verb(verb_table, verb_table_bytes, viddid, &verb);
+ 
+-	if (!verb_size) {
+-		printk(BIOS_DEBUG, "azalia_audio: No verb!\n");
++	if (verb_size == 0) {
++		printk(BIOS_DEBUG, "azalia_audio:  - no verb!\n");
+ 		return;
+ 	}
+-	printk(BIOS_DEBUG, "azalia_audio: verb_size: %u\n", verb_size);
++	printk(BIOS_DEBUG, "azalia_audio:  - verb size: %u\n", verb_size);
+ 
+-	/* 3 */
+-	const int rc = azalia_program_verb_table(base, verb, verb_size);
+-	if (rc < 0)
+-		printk(BIOS_DEBUG, "azalia_audio: verb not loaded.\n");
++	if (azalia_program_verb_table(base, verb, verb_size) < 0)
++		printk(BIOS_DEBUG, "azalia_audio:  - verb not loaded\n");
+ 	else
+-		printk(BIOS_DEBUG, "azalia_audio: verb loaded.\n");
++		printk(BIOS_DEBUG, "azalia_audio:  - verb loaded\n");
+ 
+-	mainboard_azalia_program_runtime_verbs(base, reg32);
++	mainboard_azalia_program_runtime_verbs(base, viddid);
+ }
+ 
+-void azalia_codecs_init(u8 *base, u16 codec_mask)
++static bool codec_can_init(const u16 codec_mask, u8 *base, const int addr)
+ {
+-	int i;
++	return codec_mask & (1 << addr) && codec_is_operative(base, addr);
++}
+ 
+-	for (i = 14; i >= 0; i--) {
+-		if (codec_mask & (1 << i))
++void azalia_codecs_init(u8 *base, u16 codec_mask)
++{
++	for (int i = AZALIA_MAX_CODECS - 1; i >= 0; i--) {
++		if (codec_can_init(codec_mask, base, i))
+ 			azalia_codec_init(base, i, cim_verb_data, cim_verb_data_size);
+ 	}
+ 
+@@ -298,7 +301,7 @@ void azalia_audio_init(struct device *dev)
+ 	codec_mask = codec_detect(base);
+ 
+ 	if (codec_mask) {
+-		printk(BIOS_DEBUG, "azalia_audio: codec_mask = %02x\n", codec_mask);
++		printk(BIOS_DEBUG, "azalia_audio: codec_mask = 0x%02x\n", codec_mask);
+ 		azalia_codecs_init(base, codec_mask);
+ 	}
+ }
+diff --git a/src/include/device/azalia_device.h b/src/include/device/azalia_device.h
+index 1fc0baf49b..59e7ea2af3 100644
+--- a/src/include/device/azalia_device.h
++++ b/src/include/device/azalia_device.h
+@@ -18,6 +18,8 @@
+ #define   HDA_ICII_BUSY		(1 << 0)
+ #define   HDA_ICII_VALID	(1 << 1)
+ 
++#define AZALIA_MAX_CODECS	15
++
+ int azalia_set_bits(void *port, u32 mask, u32 val);
+ int azalia_enter_reset(u8 *base);
+ int azalia_exit_reset(u8 *base);
+-- 
+2.39.5
+

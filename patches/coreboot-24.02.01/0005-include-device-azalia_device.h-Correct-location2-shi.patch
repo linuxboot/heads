@@ -1,0 +1,49 @@
+From 65ca3a6cbe80ca66a946491772d0a430d162e71b Mon Sep 17 00:00:00 2001
+From: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Date: Fri, 23 Feb 2024 10:28:08 +0900
+Subject: [PATCH 05/11] include/device/azalia_device.h: Correct location2 shift
+ to 28 bits
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The location is specified to be in range of 29:24, which is further
+divided into upper bits (location2) [5:4] and lower bits (location1)
+[3:0].
+
+This also corrects the resulting values of clevo/l140mu.
+
+References:
+ - Intel High Definition Audio Specification, rev. 1.0a, page 178,
+   Figure 74. Configuration Data Structure.
+
+TEST=Timeless build using AZALIA_PIN_DESC() and without now produce the
+same binary.
+
+Change-Id: Ia5a3431b70783cb88e866d0fd8ea5530100f3d52
+Signed-off-by: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/80727
+Reviewed-by: Felix Singer <service+coreboot-gerrit@felixsinger.de>
+Reviewed-by: Michael Niewöhner <foss@mniewoehner.de>
+Reviewed-by: Nico Huber <nico.h@gmx.de>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ src/include/device/azalia_device.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/include/device/azalia_device.h b/src/include/device/azalia_device.h
+index f7c1448863..42807fdd46 100644
+--- a/src/include/device/azalia_device.h
++++ b/src/include/device/azalia_device.h
+@@ -120,7 +120,7 @@ enum azalia_pin_misc {
+ #define AZALIA_PIN_DESC(conn, location2, location1, dev, type, color, misc, \
+ 			association, sequence) \
+ 	(((conn) << 30) | \
+-	 ((location2) << 27) | \
++	 ((location2) << 28) | \
+ 	 ((location1) << 24) | \
+ 	 ((dev) << 20) | \
+ 	 ((type) << 16) | \
+-- 
+2.39.5
+
