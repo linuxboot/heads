@@ -512,8 +512,8 @@ workflows:
 
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
-          name: nitropad-ns50
-          target: nitropad-ns50
+          name: UNTESTED_nitropad-ns50
+          target: UNTESTED_nitropad-ns50
           subcommand: ""
           requires:
             - novacustom_nv4x_adl
