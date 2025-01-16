@@ -42,6 +42,10 @@ GPG_ALGO="RSA"
 # Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
 RSA_KEY_LENGTH=3072
 
+# If we use complex generated passphrases, we will really try hard to make the
+# user record them
+MAKE_USER_RECORD_PASSPHRASES=
+
 # Function to handle --mode parameter
 handle_mode() {
 	local mode=$1
@@ -52,6 +56,8 @@ handle_mode() {
 		USER_PIN=$CUSTOM_SINGLE_PASS
 		ADMIN_PIN=$CUSTOM_SINGLE_PASS
 		TPM_PASS=$CUSTOM_SINGLE_PASS
+		# User doesn't know this password, really badger them to record it
+		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="OEM Factory Reset Mode"
 		;;
@@ -60,6 +66,8 @@ handle_mode() {
 		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		TPM_PASS=$ADMIN_PIN
+		# User doesn't know this password, really badger them to record it
+		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="User Re-Ownership Mode"
 		;;
@@ -1078,6 +1086,10 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" ]; then
 			luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
 		fi
+
+		# The user knows this password, we don't need to badger them to
+		# record it
+		MAKE_USER_RECORD_PASSPHRASES=
 	else
 		echo -e -n "Would you like to set distinct PINs/passwords to configure previously stated security components? [y/N]: "
 		read -n 1 prompt_output
@@ -1108,6 +1120,9 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 				done
 			fi
 			echo
+			# The user knows these passwords, we don't need to
+			# badger them to record them
+			MAKE_USER_RECORD_PASSPHRASES=
 		fi
 	fi
 
@@ -1429,6 +1444,11 @@ fi
 while true; do
 	whiptail --msgbox "$(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
 		$HEIGHT $WIDTH --title "Configured secrets"
+	if [ "$MAKE_USER_RECORD_PASSPHRASES" != y ]; then
+		# Passwords were user-supplied or not complex, we do not need to
+		# badger the user to record them
+		break
+	fi
 	#Tell user to scan the QR code containing all configured secrets
 	echo -e "\nScan the QR code below to save the secrets to a secure location"
 	qrenc "$(echo -e "$passphrases")"
