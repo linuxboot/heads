@@ -181,7 +181,7 @@ show_system_info()
   kernel=$(uname -s -r)
 
   whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
-    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
+    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
 }
 
 # Get "Enable" or "Disable" to display in the configuration menu, based on a
