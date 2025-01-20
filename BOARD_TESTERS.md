@@ -15,12 +15,12 @@ Laptops
 
 xx20 (Sandy):
 ===
-- [ ] t420 (xx20): @natterangell(iGPU) @alexmaloteaux @akfhasodh @doob85
+- [ ] t420 (xx20): @notgivenby @natterangell(iGPU) @alexmaloteaux @akfhasodh @doob85
 - [ ] x220 (xx20): @srgrint @Thrilleratplay
 
 xx30 (Ivy):
 ===
-- [ ] t430 (xx30): @nestire(t430-legacy, t430-maximized) @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
+- [ ] t430 (xx30): @notgivenby @nestire(t430-legacy, t430-maximized) @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
 - [ ] w530 (xx30): @eganonoa @zifxify @weyounsix (dGPU: w530-k2000m) @jnscmns (dGPU K1000M) @computer-user123 (w530 / & w530 k2000 : prefers iGPU) @tlaurion
 - [ ] x230 (xx30): @nestire(x230-legacy, x230-maximized) @tlaurion(maximized) @osresearch @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns @doob85 @natterangell (x230i variant: irrelevant individual board)
 - [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display)
