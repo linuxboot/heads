@@ -36,7 +36,7 @@ dev_blocks=`cat "$dev_size_file"`
 #
 # Extract the signed file from the hard disk image
 #
-if ! dd if="$dev" of="$cmd_sig" bs=512 skip="`expr $dev_blocks - 1`"; then
+if ! dd if="$dev" of="$cmd_sig" bs=512 skip="`expr $dev_blocks - 1`" > /dev/null 2>&1; then
 	echo >&2 '!!!!!'
 	echo >&2 '!!!!! Boot block extraction failed'
 	echo >&2 '!!!!! Dropping to recovery shell'

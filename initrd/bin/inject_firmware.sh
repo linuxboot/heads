@@ -96,7 +96,7 @@ chmod a+x "$INITRD_ROOT/init"
 # Linux ignores zeros between archive segments, so any extra padding is not
 # harmful.
 FW_INITRD="/tmp/inject_firmware_initrd.cpio.gz"
-dd if="$ORIG_INITRD" of="$FW_INITRD" bs=512 conv=sync status=none
+dd if="$ORIG_INITRD" of="$FW_INITRD" bs=512 conv=sync status=none > /dev/null 2>&1
 # Pack up the new contents and append to the initrd.  Don't spend time
 # compressing this.
 (cd "$INITRD_ROOT"; find . | cpio -o -H newc) >>"$FW_INITRD"
