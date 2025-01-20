@@ -645,7 +645,7 @@ device_has_partitions() {
 	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
 	# In both cases the output is 5 lines: 3 about device info, 1 empty line
 	# and the 5th will be the table header or the invalid message.
-	local DISK_DATA=$(fdisk -l "$DEVICE")
+	local DISK_DATA=$(fdisk -l "$DEVICE" 2>/dev/null)
 	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" ||
 		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
 		# No partition table
@@ -1066,7 +1066,7 @@ is_gpt_bios_grub() {
 	# Now we know the device and partition number, get the type.  This is
 	# specific to GPT disks, MBR disks are shown differently by fdisk.
 	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
-	if [ "$(fdisk -l "/dev/$DEVICE" | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
+	if [ "$(fdisk -l "/dev/$DEVICE" 2>/dev/null | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
 		return 0
 	fi
 	return 1
@@ -1139,7 +1139,7 @@ detect_boot_device() {
 	fi
 
 	# generate list of possible boot devices
-	fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
+	fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
 
 	# Check each possible boot device
 	for i in $(cat /tmp/disklist); do
