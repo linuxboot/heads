@@ -367,7 +367,7 @@ detect_root_device()
   fi
 
   # generate list of possible boot devices
-  fdisk -l | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
+  fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
 
   # filter out extraneous options
   > /tmp_root_device_list

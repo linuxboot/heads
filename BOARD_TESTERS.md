@@ -44,8 +44,8 @@ Librems:
 Clevo:
 ===
 - [ ] Nitropad NS50 (AlderLake) : @daringer
-- [ ] Nitropad NV41 (AlderLake) : @tlaurion @daringer
-
+- [ ] Novacustom NV4x (AlderLake) : @tlaurion @daringer
+- [ ] Novacustom v560tu (MeteorLake) : @tlaurion @daringer @mkopec 
 
 Desktops/Servers
 ==
