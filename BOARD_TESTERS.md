@@ -15,15 +15,15 @@ Laptops
 
 xx20 (Sandy):
 ===
-- [ ] t420 (xx20): @natterangell(iGPU) @alexmaloteaux @akfhasodh @doob85
+- [ ] t420 (xx20): @notgivenby @alexmaloteaux @akfhasodh @doob85
 - [ ] x220 (xx20): @srgrint @Thrilleratplay
 
 xx30 (Ivy):
 ===
-- [ ] t430 (xx30): @nestire(t430-legacy, t430-maximized) @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
+- [ ] t430 (xx30): @notgivenby @nestire(t430-legacy, t430-maximized) @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
 - [ ] w530 (xx30): @eganonoa @zifxify @weyounsix (dGPU: w530-k2000m) @jnscmns (dGPU K1000M) @computer-user123 (w530 / & w530 k2000 : prefers iGPU) @tlaurion
-- [ ] x230 (xx30): @nestire(x230-legacy, x230-maximized) @tlaurion(maximized) @osresearch @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns @doob85 @natterangell (x230i variant: irrelevant individual board)
-- [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display)
+- [ ] x230 (xx30): @nestire(x230-legacy, x230-maximized) @tlaurion(maximized) @osresearch @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns 
+- [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display) @doob85 https://matrix.to/#/@rsabdpy:matrix.org (agan mod board)
 - [ ] x230t : @fhvyhjriur
 - [ ] t530 (xx30): @fhvyhjriur @3hhh (Opportunity to mainstream and close https://github.com/linuxboot/heads/issues/1682)
 
@@ -49,7 +49,7 @@ Clevo:
 
 Desktops/Servers
 ==
-- [ ] kgpe-d16 (AMD fam15h) (dropped in coreboot 4.12): @arhabd @Tonux599 @zifxify @tlaurion
+- [ ] kgpe-d16 (AMD fam15h) (dropped in coreboot 4.12): @arhabd @Tonux599 @zifxify https://matrix.to/#/@rsabdpy:matrix.org
 - [ ] Librem L1UM v1 (Broadwell): @JonathonHall-Purism
 - [ ] Librem L1Um v2 (CoffeeLake): @JonathonHall-Purism
 - [ ] Talos II (PPC64LE, Power9) : @tlaurion (Will become untested, no other known users, not worth my time nor effort even though massive investment of all forms)
