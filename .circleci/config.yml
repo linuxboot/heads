@@ -549,10 +549,10 @@ workflows:
           requires:
             - librem_l1um
 
-      # coreboot 4.11
+      # coreboot 15h
       - build:
           name: UNMAINTAINED_kgpe-d16_server-whiptail
           target: UNMAINTAINED_kgpe-d16_server-whiptail
           subcommand: ""
           requires:
-            - librem_l1um
+            - x86-musl-cross-make

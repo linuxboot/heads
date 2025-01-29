@@ -98,6 +98,15 @@ coreboot-dasharo_commit_hash := 94e5f5d5b808cf8d8fd5c70d4ef6a08a054f8986
 $(eval $(call coreboot_module,dasharo,24.02.01))
 #coreboot-dasharo_patch_version := unreleased
 
+# d16 15h fork could use the 4.15 toolchain, but d16 is alone consuming it, so
+# there is no point preparing another coreboot module that won't be shared with
+# anything.
+# Pointing to https://git.15h.org/mrothfuss/coreboot-15h/src/branch/4.11-tpm-measured-boot latest commit as of 20250129
+coreboot-15h_repo := https://git.15h.org/mrothfuss/coreboot-15h.git
+coreboot-15h_commit_hash := 2b7c566b463737f807a69738163344b41c686ef6
+$(eval $(call coreboot_module,15h,))
+
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
