@@ -1,0 +1,49 @@
+From c8192c52b2bfa93aeb6c6639476ca217e33c4313 Mon Sep 17 00:00:00 2001
+From: Leah Rowe <info@minifree.org>
+Date: Wed, 11 Dec 2024 01:06:01 +0000
+Subject: [PATCH 08/11] dell/3050micro: disable nvme hotplug
+
+in my testing, when running my 3050micro for a few days,
+the nvme would sometimes randomly rename.
+
+e.g. nvme0n1 renamed to nvme0n2
+
+this might cause crashes in linux, if booting only from the
+nvme. in my case, i was booting from mdraid (sata+nvme) and
+every few days, the nvme would rename at least once, causing
+my RAID to become unsynced. since i'm using RAID1, this was
+OK and I could simply re-sync the array, but this is quite
+precarious indeed. if you're using raid0, that will potentially
+corrupt your RAID array indefinitely.
+
+this same issue manifested on the T480/T480 thinkpads, and
+S3 resume would break because of that, when booting from nvme,
+because the nvme would be "unplugged" and appear to linux as a
+new device (the one that you booted from).
+
+the fix there was to disable hotplugging on that pci-e slot
+for the nvme, so apply the same fix here for 3050 micro
+
+Signed-off-by: Leah Rowe <leah@libreboot.org>
+---
+ src/mainboard/dell/optiplex_3050/devicetree.cb | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/mainboard/dell/optiplex_3050/devicetree.cb b/src/mainboard/dell/optiplex_3050/devicetree.cb
+index 039709aa4a..0678ed1765 100644
+--- a/src/mainboard/dell/optiplex_3050/devicetree.cb
++++ b/src/mainboard/dell/optiplex_3050/devicetree.cb
+@@ -45,7 +45,9 @@ chip soc/intel/skylake
+ 			register "PcieRpAdvancedErrorReporting[20]"     = "1"
+ 			register "PcieRpLtrEnable[20]"                  = "1"
+ 			register "PcieRpClkSrcNumber[20]"               = "3"
+-			register "PcieRpHotPlug[20]"                    = "1"
++# disable hotplug on nvme to prevent renaming e.g. nvme0n1 rename to nvme0n2,
++# which could cause crashes in linux if booting from nvme
++			register "PcieRpHotPlug[20]"                    = "0"
+ 		end
+ 
+ 		# Realtek LAN
+-- 
+2.39.5
+

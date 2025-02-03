@@ -1,0 +1,708 @@
+From 2527c4a5131d7b33e43bbc03a94921e7e59b4b02 Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Mon, 30 Sep 2024 20:44:38 -0400
+Subject: [PATCH 04/11] mb/dell: Add Optiplex 780 MT (x4x/ICH10)
+
+Change-Id: Idb45737ce95bfd26e978323c650de7d308b5079c
+Signed-off-by: Nicholas Chin <nic.c3.14@gmail.com>
+---
+ src/mainboard/dell/optiplex_780/Kconfig       |  40 ++++
+ src/mainboard/dell/optiplex_780/Kconfig.name  |   4 +
+ src/mainboard/dell/optiplex_780/Makefile.mk   |  10 +
+ src/mainboard/dell/optiplex_780/acpi/ec.asl   |   5 +
+ .../dell/optiplex_780/acpi/ich10_pci_irqs.asl |  32 ++++
+ .../dell/optiplex_780/acpi/superio.asl        |  18 ++
+ .../dell/optiplex_780/board_info.txt          |   6 +
+ src/mainboard/dell/optiplex_780/cmos.default  |   8 +
+ src/mainboard/dell/optiplex_780/cmos.layout   |  72 ++++++++
+ src/mainboard/dell/optiplex_780/cstates.c     |   8 +
+ src/mainboard/dell/optiplex_780/devicetree.cb |  63 +++++++
+ src/mainboard/dell/optiplex_780/dsdt.asl      |  26 +++
+ .../dell/optiplex_780/gma-mainboard.ads       |  16 ++
+ .../optiplex_780/variants/780_mt/data.vbt     | Bin 0 -> 1917 bytes
+ .../optiplex_780/variants/780_mt/early_init.c |  12 ++
+ .../dell/optiplex_780/variants/780_mt/gpio.c  | 174 ++++++++++++++++++
+ .../optiplex_780/variants/780_mt/hda_verb.c   |  26 +++
+ .../variants/780_mt/overridetree.cb           |  10 +
+ 18 files changed, 530 insertions(+)
+ create mode 100644 src/mainboard/dell/optiplex_780/Kconfig
+ create mode 100644 src/mainboard/dell/optiplex_780/Kconfig.name
+ create mode 100644 src/mainboard/dell/optiplex_780/Makefile.mk
+ create mode 100644 src/mainboard/dell/optiplex_780/acpi/ec.asl
+ create mode 100644 src/mainboard/dell/optiplex_780/acpi/ich10_pci_irqs.asl
+ create mode 100644 src/mainboard/dell/optiplex_780/acpi/superio.asl
+ create mode 100644 src/mainboard/dell/optiplex_780/board_info.txt
+ create mode 100644 src/mainboard/dell/optiplex_780/cmos.default
+ create mode 100644 src/mainboard/dell/optiplex_780/cmos.layout
+ create mode 100644 src/mainboard/dell/optiplex_780/cstates.c
+ create mode 100644 src/mainboard/dell/optiplex_780/devicetree.cb
+ create mode 100644 src/mainboard/dell/optiplex_780/dsdt.asl
+ create mode 100644 src/mainboard/dell/optiplex_780/gma-mainboard.ads
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_mt/data.vbt
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_mt/early_init.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_mt/gpio.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_mt/hda_verb.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_mt/overridetree.cb
+
+diff --git a/src/mainboard/dell/optiplex_780/Kconfig b/src/mainboard/dell/optiplex_780/Kconfig
+new file mode 100644
+index 0000000000..2d06c75c9a
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/Kconfig
+@@ -0,0 +1,40 @@
++## SPDX-License-Identifier: GPL-2.0-only
++
++config BOARD_DELL_OPTIPLEX_780_COMMON
++	def_bool n
++	select BOARD_ROMSIZE_KB_8192
++	select CPU_INTEL_SOCKET_LGA775
++	select DRIVERS_I2C_CK505
++	select HAVE_ACPI_RESUME
++	select HAVE_ACPI_TABLES
++	select HAVE_CMOS_DEFAULT
++	select HAVE_OPTION_TABLE
++	select INTEL_GMA_HAVE_VBT
++	select MAINBOARD_HAS_LIBGFXINIT
++	select MAINBOARD_USES_IFD_GBE_REGION
++	select NORTHBRIDGE_INTEL_X4X
++	select PCIEXP_ASPM
++	select PCIEXP_CLK_PM
++	select SOUTHBRIDGE_INTEL_I82801JX
++
++config BOARD_DELL_OPTIPLEX_780_MT
++	select BOARD_DELL_OPTIPLEX_780_COMMON
++
++if BOARD_DELL_OPTIPLEX_780_COMMON
++
++config VGA_BIOS_ID
++	default "8086,2e22"
++
++config MAINBOARD_DIR
++	default "dell/optiplex_780"
++
++config MAINBOARD_PART_NUMBER
++	default "OptiPlex 780 MT" if BOARD_DELL_OPTIPLEX_780_MT
++
++config OVERRIDE_DEVICETREE
++	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
++
++config VARIANT_DIR
++	default "780_mt" if BOARD_DELL_OPTIPLEX_780_MT
++
++endif # BOARD_DELL_OPTIPLEX_780_COMMON
+diff --git a/src/mainboard/dell/optiplex_780/Kconfig.name b/src/mainboard/dell/optiplex_780/Kconfig.name
+new file mode 100644
+index 0000000000..db7f2e8fe3
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/Kconfig.name
+@@ -0,0 +1,4 @@
++## SPDX-License-Identifier: GPL-2.0-only
++
++config BOARD_DELL_OPTIPLEX_780_MT
++	bool "OptiPlex 780 MT"
+diff --git a/src/mainboard/dell/optiplex_780/Makefile.mk b/src/mainboard/dell/optiplex_780/Makefile.mk
+new file mode 100644
+index 0000000000..d462995d75
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/Makefile.mk
+@@ -0,0 +1,10 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++ramstage-y += cstates.c
++romstage-y += variants/$(VARIANT_DIR)/gpio.c
++
++bootblock-y += variants/$(VARIANT_DIR)/early_init.c
++romstage-y += variants/$(VARIANT_DIR)/early_init.c
++
++ramstage-$(CONFIG_MAINBOARD_USE_LIBGFXINIT) += gma-mainboard.ads
++ramstage-y += variants/$(VARIANT_DIR)/hda_verb.c
+diff --git a/src/mainboard/dell/optiplex_780/acpi/ec.asl b/src/mainboard/dell/optiplex_780/acpi/ec.asl
+new file mode 100644
+index 0000000000..479296cb76
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/acpi/ec.asl
+@@ -0,0 +1,5 @@
++/* SPDX-License-Identifier: CC-PDDC */
++
++/* Please update the license if adding licensable material. */
++
++/* dummy */
+diff --git a/src/mainboard/dell/optiplex_780/acpi/ich10_pci_irqs.asl b/src/mainboard/dell/optiplex_780/acpi/ich10_pci_irqs.asl
+new file mode 100644
+index 0000000000..b7588dcc41
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/acpi/ich10_pci_irqs.asl
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++/* This is board specific information:
++ * IRQ routing for the 0:1e.0 PCI bridge of the ICH10
++ */
++
++If (PICM) {
++	Return (Package() {
++		/* PCI slot */
++		Package() { 0x0001ffff, 0, 0, 0x14},
++		Package() { 0x0001ffff, 1, 0, 0x15},
++		Package() { 0x0001ffff, 2, 0, 0x16},
++		Package() { 0x0001ffff, 3, 0, 0x17},
++
++		Package() { 0x0002ffff, 0, 0, 0x15},
++		Package() { 0x0002ffff, 1, 0, 0x16},
++		Package() { 0x0002ffff, 2, 0, 0x17},
++		Package() { 0x0002ffff, 3, 0, 0x14},
++	})
++} Else {
++	Return (Package() {
++		Package() { 0x0001ffff, 0, \_SB.PCI0.LPCB.LNKE, 0},
++		Package() { 0x0001ffff, 1, \_SB.PCI0.LPCB.LNKF, 0},
++		Package() { 0x0001ffff, 2, \_SB.PCI0.LPCB.LNKG, 0},
++		Package() { 0x0001ffff, 3, \_SB.PCI0.LPCB.LNKH, 0},
++
++		Package() { 0x0002ffff, 0, \_SB.PCI0.LPCB.LNKF, 0},
++		Package() { 0x0002ffff, 1, \_SB.PCI0.LPCB.LNKG, 0},
++		Package() { 0x0002ffff, 2, \_SB.PCI0.LPCB.LNKH, 0},
++		Package() { 0x0002ffff, 3, \_SB.PCI0.LPCB.LNKE, 0},
++	})
++}
+diff --git a/src/mainboard/dell/optiplex_780/acpi/superio.asl b/src/mainboard/dell/optiplex_780/acpi/superio.asl
+new file mode 100644
+index 0000000000..9f3900b86c
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/acpi/superio.asl
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#undef SUPERIO_DEV
++#undef SUPERIO_PNP_BASE
++#undef IT8720F_SHOW_SP1
++#undef IT8720F_SHOW_SP2
++#undef IT8720F_SHOW_EC
++#undef IT8720F_SHOW_KBCK
++#undef IT8720F_SHOW_KBCM
++#undef IT8720F_SHOW_GPIO
++#undef IT8720F_SHOW_CIR
++#define SUPERIO_DEV		SIO0
++#define SUPERIO_PNP_BASE	0x2e
++#define IT8720F_SHOW_EC		1
++#define IT8720F_SHOW_KBCK	1
++#define IT8720F_SHOW_KBCM	1
++#define IT8720F_SHOW_GPIO	1
++#include <superio/ite/it8720f/acpi/superio.asl>
+diff --git a/src/mainboard/dell/optiplex_780/board_info.txt b/src/mainboard/dell/optiplex_780/board_info.txt
+new file mode 100644
+index 0000000000..aaf657b583
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/board_info.txt
+@@ -0,0 +1,6 @@
++Category: desktop
++Board URL: https://www.acer.com/ac/en/GB/content/support-product/1137?b=1
++ROM package: SOIC-8
++ROM protocol: SPI
++ROM socketed: n
++Flashrom support: y
+diff --git a/src/mainboard/dell/optiplex_780/cmos.default b/src/mainboard/dell/optiplex_780/cmos.default
+new file mode 100644
+index 0000000000..23f0e55f3e
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/cmos.default
+@@ -0,0 +1,8 @@
++## SPDX-License-Identifier: GPL-2.0-only
++
++boot_option=Fallback
++debug_level=Debug
++power_on_after_fail=Disable
++nmi=Enable
++sata_mode=AHCI
++gfx_uma_size=64M
+diff --git a/src/mainboard/dell/optiplex_780/cmos.layout b/src/mainboard/dell/optiplex_780/cmos.layout
+new file mode 100644
+index 0000000000..9f5012adb4
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/cmos.layout
+@@ -0,0 +1,72 @@
++## SPDX-License-Identifier: GPL-2.0-only
++
++# -----------------------------------------------------------------
++entries
++
++# -----------------------------------------------------------------
++0	120	r	0	reserved_memory
++
++# -----------------------------------------------------------------
++# RTC_BOOT_BYTE (coreboot hardcoded)
++384	1	e	4	boot_option
++388	4	h	0	reboot_counter
++
++# -----------------------------------------------------------------
++# coreboot config options: console
++395	4	e	6	debug_level
++
++# coreboot config options: southbridge
++408	1	e	10	sata_mode
++409	2	e	7	power_on_after_fail
++411	1	e	1	nmi
++
++# coreboot config options: cpu
++
++# coreboot config options: northbridge
++432	4	e	11	gfx_uma_size
++
++# coreboot config options: check sums
++984	16	h	0	check_sum
++
++# -----------------------------------------------------------------
++
++enumerations
++
++#ID	value	text
++1	0	Disable
++1	1	Enable
++2	0	Enable
++2	1	Disable
++4	0	Fallback
++4	1	Normal
++6	0	Emergency
++6	1	Alert
++6	2	Critical
++6	3	Error
++6	4	Warning
++6	5	Notice
++6	6	Info
++6	7	Debug
++6	8	Spew
++7	0	Disable
++7	1	Enable
++7	2	Keep
++10	0	AHCI
++10	1	Compatible
++11	1	4M
++11	2	8M
++11	3	16M
++11	4	32M
++11	5	48M
++11	6	64M
++11	7	128M
++11	8	256M
++11	9	96M
++11	10	160M
++11	11	224M
++11	12	352M
++
++# -----------------------------------------------------------------
++checksums
++
++checksum 392 983 984
+diff --git a/src/mainboard/dell/optiplex_780/cstates.c b/src/mainboard/dell/optiplex_780/cstates.c
+new file mode 100644
+index 0000000000..4adf0edc63
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/cstates.c
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <acpi/acpigen.h>
++
++int get_cst_entries(const acpi_cstate_t **entries)
++{
++	return 0;
++}
+diff --git a/src/mainboard/dell/optiplex_780/devicetree.cb b/src/mainboard/dell/optiplex_780/devicetree.cb
+new file mode 100644
+index 0000000000..95e3bd517c
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/devicetree.cb
+@@ -0,0 +1,63 @@
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++chip northbridge/intel/x4x
++	device cpu_cluster 0 on ops x4x_cpu_bus_ops end		# APIC cluster
++	device domain 0 on
++		ops x4x_pci_domain_ops		# PCI domain
++		subsystemid 0x8086 0x0028 inherit
++		device pci 0.0 on  end		# Host Bridge
++		device pci 1.0 on  end		# PCIe x16 2.0 slot
++		device pci 2.0 on  end		# Integrated graphics controller
++		device pci 2.1 on  end		# Integrated graphics controller 2
++		device pci 3.0 off end		# ME
++		device pci 3.1 off end		# ME
++		chip southbridge/intel/i82801jx	# ICH10
++			register "gpe0_en" = "0x40"
++
++			# Set AHCI mode.
++			register "sata_port_map"	= "0x3f"
++			register "sata_clock_request"	= "1"
++
++			# Enable PCIe ports 0,1 as slots.
++			register "pcie_slot_implemented" = "0x3"
++
++			device pci 19.0 on  end		# GBE
++			device pci 1a.0 on  end		# USB
++			device pci 1a.1 on  end		# USB
++			device pci 1a.2 on  end		# USB
++			device pci 1a.7 on  end		# USB
++			device pci 1b.0 on  end		# Audio
++			device pci 1c.0 off end		# PCIe 1
++			device pci 1c.1 off end		# PCIe 2
++			device pci 1c.2 off end		# PCIe 3
++			device pci 1c.3 off end		# PCIe 4
++			device pci 1c.4 off end		# PCIe 5
++			device pci 1c.5 off end		# PCIe 6
++			device pci 1d.0 on  end		# USB
++			device pci 1d.1 on  end		# USB
++			device pci 1d.2 on  end		# USB
++			device pci 1d.7 on  end		# USB
++			device pci 1e.0 on  end		# PCI bridge
++			device pci 1f.0 on  end		# LPC bridge
++			device pci 1f.2 on  end		# SATA (IDE: port 0-3, AHCI/RAID: 0-5)
++			device pci 1f.3 on		# SMBus
++				chip drivers/i2c/ck505	# IDT CV194
++					register "mask" = "{ 0xff, 0xff, 0xff, 0xff,
++							     0xff, 0xff, 0xff, 0xff,
++							     0xff, 0xff, 0xff, 0xff,
++							     0xff, 0xff, 0xff, 0xff,
++							     0xff, 0xff, 0xff }"
++					register "regs" = "{ 0x15, 0x82, 0xff, 0xff,
++							     0xff, 0x00, 0x00, 0x95,
++							     0x00, 0x65, 0x7d, 0x56,
++							     0x13, 0xc0, 0x00, 0x07,
++							     0x01, 0x0a, 0x64 }"
++					device i2c 69 on end
++				end
++			end
++			device pci 1f.4 off end
++			device pci 1f.5 off end		# SATA 2 (for port 4-5 in IDE mode)
++			device pci 1f.6 off end		# Thermal Subsystem
++		end
++	end
++end
+diff --git a/src/mainboard/dell/optiplex_780/dsdt.asl b/src/mainboard/dell/optiplex_780/dsdt.asl
+new file mode 100644
+index 0000000000..9ad70469de
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/dsdt.asl
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <acpi/acpi.h>
++DefinitionBlock(
++	"dsdt.aml",
++	"DSDT",
++	ACPI_DSDT_REV_2,
++	OEM_ID,
++	ACPI_TABLE_CREATOR,
++	0x20090811	// OEM revision
++)
++{
++	#include <acpi/dsdt_top.asl>
++
++	OSYS = 2002
++	// global NVS and variables
++	#include <southbridge/intel/common/acpi/platform.asl>
++
++	Device (\_SB.PCI0)
++	{
++		#include <northbridge/intel/x4x/acpi/x4x.asl>
++		#include <southbridge/intel/i82801jx/acpi/ich10.asl>
++	}
++
++	#include <southbridge/intel/common/acpi/sleepstates.asl>
++}
+diff --git a/src/mainboard/dell/optiplex_780/gma-mainboard.ads b/src/mainboard/dell/optiplex_780/gma-mainboard.ads
+new file mode 100644
+index 0000000000..bc81cf4a40
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/gma-mainboard.ads
+@@ -0,0 +1,16 @@
++-- SPDX-License-Identifier: GPL-2.0-or-later
++
++with HW.GFX.GMA;
++with HW.GFX.GMA.Display_Probing;
++
++use HW.GFX.GMA;
++use HW.GFX.GMA.Display_Probing;
++
++private package GMA.Mainboard is
++
++   ports : constant Port_List :=
++     (DP2,
++      Analog,
++      others => Disabled);
++
++end GMA.Mainboard;
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_mt/data.vbt b/src/mainboard/dell/optiplex_780/variants/780_mt/data.vbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..fefda9d6f226b88ab67c5b044de30a707df22fbf
+GIT binary patch
+literal 1917
+zcmd6nO>7%Q6vzLwGv0Mv$FUpJ*ik4iQd_wnX*X`M0y3~p?8a$~>ZXxZMU`4dc9RGb
+zTXq_i1Bwd~aNr{c4i)r(goF^M-nek+sY0sMa}Sk>xFFy_FTEfX^Y+7unt+OgkeJbX
+zznS;`v-5V=o<pVaS;}Q53%NpOI!8{cz{K0eVfK65_|*A}SF)Me%$4!N`H5-z90%~a
+zvGog3fe5LjnM&o#3$<#k{6>{ZwwmnN>gY?}>{`7^JBpP$l`EBIwbi0*k&aU)n@v)E
+znI_A1T57efS5MG<y}m-_+CrVKE#0VADDft%nb#Y<<ao9;Mf?!XvM)_$Xla>NN5_ut
+zt=x`G)EjR#mlhURC^2!A3p33TcBg4-d8JyTiF&hfk}|a#&Dfe2%~V^}=4!QavNzBh
+z0Pae^5`gfb?<R!YN+PQ)U7<%H;73qF3iyQT71$?W2s|f{69_4sRY(x>7Q)c(LsP)8
+zQy)2gw<F#IP`I}U>gG1S^>aw&0D}Z+-SCcJJF;s)yXJeQ|4N{SU?$I`#$HZa<Jq(M
+zbA{r}Z0XY6<@U{Y-d!KWR>9dWBuxA$6X;VK;%W?Y>I;0P`|*vwAK$S(VB2JSq6g4n
+z>oEf8XCt;_Y-iYBWz#<re{?il1^f{S#nht`VW!62^5R*KQ6_?#8e&Qw=9%`og2x!s
+z&J)wlZ=a<yoJkutfwu4%aVXlu?i^8v?R77IyGvKcD|M`CFG$6FUmK8q<|o>3T9EmJ
+z2x?*GPeN%?=Fj3+fv~4%I(nv~XF7VOqi5RsAt%13JtW>q=<<<Gei4)FzWqGEt6P8D
+zA9m}s>;0IkLPSUGL%_1h)2kjaZzuV;`43yCV;I=#Jcyyw@xKE8GGX39@am|0GKhH`
+zawsKv^FvHqm+<DDPT)%}_kZ8^eT88YGmG-#)X3=RRB|L^Uj_{yd%JeO<1HRZVz=Fz
+z+aqUCWdF3_={#Q&&k)eF1i=WV`AbSlzo*bP?x?ir5BVVO`R34f89jWL{Z}or^BwmG
+z-E;A_iWVUUWnWQl3L|~0xA@rHJRA-;7V)Y6B5=@E8R@?(?5{Eh23RefpSOGX_F{8A
+z1PtU+iNng^h#C7J<vufJ9>c8*FfFsu??w)Oed@;Mg~21%rCZ%d{x!>-zmv4AyWL1E
+xfz+CGUnQ7Y^TD}&c_cQRYlBC+`?m?k6Nuw??s04gg4@4`<@FO{XEbO(<xf!`#Pk3F
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_mt/early_init.c b/src/mainboard/dell/optiplex_780/variants/780_mt/early_init.c
+new file mode 100644
+index 0000000000..e2fa05cd8f
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_mt/early_init.c
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <northbridge/intel/x4x/x4x.h>
++
++void mb_get_spd_map(u8 spd_map[4])
++{
++	// BTX form factor
++	spd_map[0] = 0x53;
++	spd_map[1] = 0x52;
++	spd_map[2] = 0x51;
++	spd_map[3] = 0x50;
++}
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_mt/gpio.c b/src/mainboard/dell/optiplex_780/variants/780_mt/gpio.c
+new file mode 100644
+index 0000000000..9993f17c55
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_mt/gpio.c
+@@ -0,0 +1,174 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <southbridge/intel/common/gpio.h>
++
++static const struct pch_gpio_set1 pch_gpio_set1_mode = {
++	.gpio0  = GPIO_MODE_NATIVE,
++	.gpio1  = GPIO_MODE_NATIVE,
++	.gpio2  = GPIO_MODE_GPIO,
++	.gpio3  = GPIO_MODE_GPIO,
++	.gpio4  = GPIO_MODE_GPIO,
++	.gpio5  = GPIO_MODE_GPIO,
++	.gpio6  = GPIO_MODE_GPIO,
++	.gpio7  = GPIO_MODE_NATIVE,
++	.gpio8  = GPIO_MODE_NATIVE,
++	.gpio9  = GPIO_MODE_GPIO,
++	.gpio10 = GPIO_MODE_GPIO,
++	.gpio11 = GPIO_MODE_NATIVE,
++	.gpio12 = GPIO_MODE_NATIVE,
++	.gpio13 = GPIO_MODE_GPIO,
++	.gpio14 = GPIO_MODE_GPIO,
++	.gpio15 = GPIO_MODE_NATIVE,
++	.gpio16 = GPIO_MODE_GPIO,
++	.gpio17 = GPIO_MODE_NATIVE,
++	.gpio18 = GPIO_MODE_GPIO,
++	.gpio19 = GPIO_MODE_GPIO,
++	.gpio20 = GPIO_MODE_GPIO,
++	.gpio21 = GPIO_MODE_GPIO,
++	.gpio22 = GPIO_MODE_GPIO,
++	.gpio23 = GPIO_MODE_NATIVE,
++	.gpio24 = GPIO_MODE_GPIO,
++	.gpio25 = GPIO_MODE_NATIVE,
++	.gpio26 = GPIO_MODE_NATIVE,
++	.gpio27 = GPIO_MODE_GPIO,
++	.gpio28 = GPIO_MODE_GPIO,
++	.gpio29 = GPIO_MODE_GPIO,
++	.gpio30 = GPIO_MODE_GPIO,
++	.gpio31 = GPIO_MODE_GPIO,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_direction = {
++	.gpio2  = GPIO_DIR_INPUT,
++	.gpio3  = GPIO_DIR_INPUT,
++	.gpio4  = GPIO_DIR_INPUT,
++	.gpio5  = GPIO_DIR_INPUT,
++	.gpio6  = GPIO_DIR_INPUT,
++	.gpio9  = GPIO_DIR_OUTPUT,
++	.gpio10 = GPIO_DIR_INPUT,
++	.gpio13 = GPIO_DIR_INPUT,
++	.gpio14 = GPIO_DIR_INPUT,
++	.gpio16 = GPIO_DIR_INPUT,
++	.gpio18 = GPIO_DIR_OUTPUT,
++	.gpio19 = GPIO_DIR_INPUT,
++	.gpio20 = GPIO_DIR_OUTPUT,
++	.gpio21 = GPIO_DIR_INPUT,
++	.gpio22 = GPIO_DIR_INPUT,
++	.gpio24 = GPIO_DIR_INPUT,
++	.gpio27 = GPIO_DIR_INPUT,
++	.gpio28 = GPIO_DIR_OUTPUT,
++	.gpio29 = GPIO_DIR_INPUT,
++	.gpio30 = GPIO_DIR_INPUT,
++	.gpio31 = GPIO_DIR_INPUT,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_level = {
++	.gpio9  = GPIO_LEVEL_HIGH,
++	.gpio18 = GPIO_LEVEL_HIGH,
++	.gpio20 = GPIO_LEVEL_HIGH,
++	.gpio28 = GPIO_LEVEL_LOW,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_blink = {
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_invert = {
++	.gpio13 = GPIO_INVERT,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_mode = {
++	.gpio32 = GPIO_MODE_GPIO,
++	.gpio33 = GPIO_MODE_GPIO,
++	.gpio34 = GPIO_MODE_GPIO,
++	.gpio35 = GPIO_MODE_GPIO,
++	.gpio36 = GPIO_MODE_GPIO,
++	.gpio37 = GPIO_MODE_GPIO,
++	.gpio38 = GPIO_MODE_GPIO,
++	.gpio39 = GPIO_MODE_GPIO,
++	.gpio40 = GPIO_MODE_NATIVE,
++	.gpio41 = GPIO_MODE_NATIVE,
++	.gpio42 = GPIO_MODE_NATIVE,
++	.gpio43 = GPIO_MODE_NATIVE,
++	.gpio44 = GPIO_MODE_NATIVE,
++	.gpio45 = GPIO_MODE_NATIVE,
++	.gpio46 = GPIO_MODE_NATIVE,
++	.gpio47 = GPIO_MODE_NATIVE,
++	.gpio48 = GPIO_MODE_GPIO,
++	.gpio49 = GPIO_MODE_GPIO,
++	.gpio50 = GPIO_MODE_NATIVE,
++	.gpio51 = GPIO_MODE_NATIVE,
++	.gpio52 = GPIO_MODE_NATIVE,
++	.gpio53 = GPIO_MODE_NATIVE,
++	.gpio54 = GPIO_MODE_GPIO,
++	.gpio55 = GPIO_MODE_NATIVE,
++	.gpio56 = GPIO_MODE_GPIO,
++	.gpio57 = GPIO_MODE_GPIO,
++	.gpio58 = GPIO_MODE_NATIVE,
++	.gpio59 = GPIO_MODE_NATIVE,
++	.gpio60 = GPIO_MODE_GPIO,
++	.gpio61 = GPIO_MODE_NATIVE,
++	.gpio62 = GPIO_MODE_NATIVE,
++	.gpio63 = GPIO_MODE_NATIVE,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_direction = {
++	.gpio32 = GPIO_DIR_INPUT,
++	.gpio33 = GPIO_DIR_INPUT,
++	.gpio34 = GPIO_DIR_INPUT,
++	.gpio35 = GPIO_DIR_OUTPUT,
++	.gpio36 = GPIO_DIR_INPUT,
++	.gpio37 = GPIO_DIR_INPUT,
++	.gpio38 = GPIO_DIR_INPUT,
++	.gpio39 = GPIO_DIR_INPUT,
++	.gpio48 = GPIO_DIR_INPUT,
++	.gpio49 = GPIO_DIR_OUTPUT,
++	.gpio54 = GPIO_DIR_INPUT,
++	.gpio56 = GPIO_DIR_OUTPUT,
++	.gpio57 = GPIO_DIR_INPUT,
++	.gpio60 = GPIO_DIR_OUTPUT,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_level = {
++	.gpio35 = GPIO_LEVEL_LOW,
++	.gpio49 = GPIO_LEVEL_HIGH,
++	.gpio56 = GPIO_LEVEL_HIGH,
++	.gpio60 = GPIO_LEVEL_LOW,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_mode = {
++	.gpio64 = GPIO_MODE_NATIVE,
++	.gpio65 = GPIO_MODE_NATIVE,
++	.gpio66 = GPIO_MODE_NATIVE,
++	.gpio67 = GPIO_MODE_NATIVE,
++	.gpio68 = GPIO_MODE_NATIVE,
++	.gpio69 = GPIO_MODE_NATIVE,
++	.gpio70 = GPIO_MODE_NATIVE,
++	.gpio71 = GPIO_MODE_NATIVE,
++	.gpio72 = GPIO_MODE_GPIO,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_direction = {
++	.gpio72 = GPIO_DIR_INPUT,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_level = {
++};
++
++const struct pch_gpio_map mainboard_gpio_map = {
++	.set1 = {
++		.mode      = &pch_gpio_set1_mode,
++		.direction = &pch_gpio_set1_direction,
++		.level     = &pch_gpio_set1_level,
++		.blink     = &pch_gpio_set1_blink,
++		.invert    = &pch_gpio_set1_invert,
++	},
++	.set2 = {
++		.mode      = &pch_gpio_set2_mode,
++		.direction = &pch_gpio_set2_direction,
++		.level     = &pch_gpio_set2_level,
++	},
++	.set3 = {
++		.mode      = &pch_gpio_set3_mode,
++		.direction = &pch_gpio_set3_direction,
++		.level     = &pch_gpio_set3_level,
++	},
++};
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_mt/hda_verb.c b/src/mainboard/dell/optiplex_780/variants/780_mt/hda_verb.c
+new file mode 100644
+index 0000000000..4158bcf899
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_mt/hda_verb.c
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <device/azalia_device.h>
++
++const u32 cim_verb_data[] = {
++	/* coreboot specific header */
++	0x11d4194a, /* Analog Devices AD1984A */
++	0xbfd40000, /*  Subsystem ID */
++	10,         /* Number of entries */
++
++	/* Pin Widget Verb Table */
++	AZALIA_PIN_CFG(0, 0x11, 0x032140f0),
++	AZALIA_PIN_CFG(0, 0x12, 0x21214010),
++	AZALIA_PIN_CFG(0, 0x13, 0x901701f0),
++	AZALIA_PIN_CFG(0, 0x14, 0x03a190f0),
++	AZALIA_PIN_CFG(0, 0x15, 0xb7a70121),
++	AZALIA_PIN_CFG(0, 0x16, 0x9933012e),
++	AZALIA_PIN_CFG(0, 0x17, 0x97a601f0),
++	AZALIA_PIN_CFG(0, 0x1a, 0x90f301f0),
++	AZALIA_PIN_CFG(0, 0x1b, 0x014510f0),
++	AZALIA_PIN_CFG(0, 0x1c, 0x21a19020),
++};
++
++const u32 pc_beep_verbs[0] = {};
++
++AZALIA_ARRAY_SIZES;
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_mt/overridetree.cb b/src/mainboard/dell/optiplex_780/variants/780_mt/overridetree.cb
+new file mode 100644
+index 0000000000..555b1c1f5c
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_mt/overridetree.cb
+@@ -0,0 +1,10 @@
++## SPDX-License-Identifier: GPL-2.0-or-later
++
++chip northbridge/intel/x4x
++	device domain 0 on
++		chip southbridge/intel/i82801jx
++			device pci 1c.0 on  end		# PCIe 1
++			device pci 1c.1 on  end		# PCIe 2
++		end
++	end
++end
+-- 
+2.39.5
+
