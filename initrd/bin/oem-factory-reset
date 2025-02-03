@@ -151,8 +151,9 @@ mount_boot() {
 
 reset_nk3_secret_app() {
 	TRACE_FUNC
+
 	# Reset Nitrokey 3 Secrets app with $ADMIN_PIN (default 12345678, or customised)
-	if lsusb | grep -q "20a0:42b2"; then
+	if lsusb | grep -q "20a0:42b2" && [ -x /bin/hotp_verification ]; then
 		echo
 		warn "Resetting Nitrokey 3's Secrets App with PIN. Physical presence (touch) will be required"
 		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
