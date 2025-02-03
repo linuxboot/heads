@@ -1,0 +1,94 @@
+From 0a28ea805e3dddfaa89e6c4255506a390bc7ce04 Mon Sep 17 00:00:00 2001
+From: Felix Singer <felixsinger@posteo.net>
+Date: Wed, 26 Jun 2024 04:24:31 +0200
+Subject: [PATCH 01/11] soc/intel/skylake: configure usb acpi
+
+Change-Id: I53fc73046e4b107064fa8c3c617ba6d9b807b71d
+Signed-off-by: Felix Singer <felixsinger@posteo.net>
+---
+ src/soc/intel/skylake/Kconfig    |  1 +
+ src/soc/intel/skylake/chipset.cb | 56 +++++++++++++++++++++++++++++++-
+ 2 files changed, 56 insertions(+), 1 deletion(-)
+
+diff --git a/src/soc/intel/skylake/Kconfig b/src/soc/intel/skylake/Kconfig
+index 22017c848b..c24df2ef75 100644
+--- a/src/soc/intel/skylake/Kconfig
++++ b/src/soc/intel/skylake/Kconfig
+@@ -10,6 +10,7 @@ config SOC_INTEL_COMMON_SKYLAKE_BASE
+ 	select CPU_INTEL_COMMON
+ 	select CPU_INTEL_FIRMWARE_INTERFACE_TABLE
+ 	select CPU_SUPPORTS_PM_TIMER_EMULATION
++	select DRIVERS_USB_ACPI
+ 	select EDK2_CPU_TIMER_LIB if PAYLOAD_EDK2
+ 	select FSP_COMPRESS_FSP_S_LZ4
+ 	select FSP_M_XIP
+diff --git a/src/soc/intel/skylake/chipset.cb b/src/soc/intel/skylake/chipset.cb
+index 6538a1475b..dfb81d496e 100644
+--- a/src/soc/intel/skylake/chipset.cb
++++ b/src/soc/intel/skylake/chipset.cb
+@@ -13,7 +13,61 @@ chip soc/intel/skylake
+ 		device pci 07.0 alias chap         off                     end
+ 		device pci 08.0 alias gmm          off                     end # Gaussian Mixture Model
+ 		device pci 13.0 alias ish          off                     end # SensorHub
+-		device pci 14.0 alias south_xhci   off ops usb_xhci_ops    end
++		device pci 14.0 alias south_xhci   off ops usb_xhci_ops
++			chip drivers/usb/acpi
++				register "type" = "UPC_TYPE_HUB"
++				device usb 0.0 alias xhci_root_hub off
++					chip drivers/usb/acpi
++						device usb 2.0 alias usb2_port1 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.1 alias usb2_port2 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.2 alias usb2_port3 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.3 alias usb2_port4 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.4 alias usb2_port5 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.5 alias usb2_port6 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.6 alias usb2_port7 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.7 alias usb2_port8 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.8 alias usb2_port9 off end
++					end
++					chip drivers/usb/acpi
++						device usb 2.9 alias usb2_port10 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.0 alias usb3_port1 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.1 alias usb3_port2 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.2 alias usb3_port3 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.3 alias usb3_port4 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.4 alias usb3_port5 off end
++					end
++					chip drivers/usb/acpi
++						device usb 3.5 alias usb3_port6 off end
++					end
++				end
++			end
++		end
+ 		device pci 14.1 alias south_xdci   off ops usb_xdci_ops    end
+ 		device pci 14.2 alias thermal      off                     end
+ 		device pci 14.3 alias cio          off                     end
+-- 
+2.39.5
+

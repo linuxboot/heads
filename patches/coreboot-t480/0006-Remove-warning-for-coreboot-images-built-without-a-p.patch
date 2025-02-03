@@ -1,0 +1,39 @@
+From 8230acfb9e1f692202b306ffb10fe89f783ab4e8 Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Fri, 12 May 2023 19:55:15 -0600
+Subject: [PATCH 06/11] Remove warning for coreboot images built without a
+ payload
+
+I added this in upstream to prevent people from accidentally flashing
+roms without a payload resulting in a no boot situation, but in
+libreboot lbmk handles the payload and thus this warning always comes
+up. This has caused confusion and concern so just patch it out.
+---
+ payloads/Makefile.mk | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
+
+diff --git a/payloads/Makefile.mk b/payloads/Makefile.mk
+index 5f988dac1b..516133880f 100644
+--- a/payloads/Makefile.mk
++++ b/payloads/Makefile.mk
+@@ -50,16 +50,5 @@ distclean-payloads:
+ print-repo-info-payloads:
+ 	-$(foreach payload, $(PAYLOADS_LIST), $(MAKE) -C $(payload) print-repo-info 2>/dev/null; )
+ 
+-ifeq ($(CONFIG_PAYLOAD_NONE),y)
+-show_notices:: warn_no_payload
+-endif
+-
+-warn_no_payload:
+-	printf "\n\t** WARNING **\n"
+-	printf "coreboot has been built without a payload. Writing\n"
+-	printf "a coreboot image without a payload to your board's\n"
+-	printf "flash chip will result in a non-booting system. You\n"
+-	printf "can use cbfstool to add a payload to the image.\n\n"
+-
+ .PHONY: force-payload coreinfo nvramcui
+-.PHONY: clean-payloads distclean-payloads print-repo-info-payloads warn_no_payload
++.PHONY: clean-payloads distclean-payloads print-repo-info-payloads
+-- 
+2.39.5
+

@@ -1,0 +1,32 @@
+From 916c7b027faba625b922e74e45e50f9ceab64a64 Mon Sep 17 00:00:00 2001
+From: Leah Rowe <leah@libreboot.org>
+Date: Mon, 6 Jan 2025 01:16:01 +0000
+Subject: [PATCH 1/1] ec/dasharo: Comment EC_DASHARO_EC_FLASH_SIZE
+
+We don't use anything dasharo in Libreboot.
+
+This patch prevents the following config item appearing
+in T480 and 3050 Micro configs:
+
+CONFIG_EC_DASHARO_EC_FLASH_SIZE=0x20000
+
+Otherwise, make-oldconfig adds it automatically.
+
+Signed-off-by: Leah Rowe <leah@libreboot.org>
+---
+ src/ec/dasharo/ec/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/ec/dasharo/ec/Kconfig b/src/ec/dasharo/ec/Kconfig
+index 901d3ce514..071e37f95e 100644
+--- a/src/ec/dasharo/ec/Kconfig
++++ b/src/ec/dasharo/ec/Kconfig
+@@ -28,4 +28,4 @@ config EC_DASHARO_EC_UPDATE_FILE
+ 
+ config EC_DASHARO_EC_FLASH_SIZE
+ 	hex
+-	default 0x20000
++	# default 0x20000
+-- 
+2.39.5
+

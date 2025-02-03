@@ -1,0 +1,205 @@
+From 27b2f2bc24e5e860b87119c963e534fb0d3e55f2 Mon Sep 17 00:00:00 2001
+From: Leah Rowe <info@minifree.org>
+Date: Sun, 19 Feb 2023 18:21:43 +0000
+Subject: [PATCH 05/11] util/ifdtool: add --nuke flag (all 0xFF on region)
+
+When this option is used, the region's contents are overwritten
+with all ones (0xFF).
+
+Example:
+
+./ifdtool --nuke gbe coreboot.rom
+./ifdtool --nuke bios coreboot.com
+./ifdtool --nuke me coreboot.com
+
+Rebased since the last revision update in lbmk.
+
+Signed-off-by: Leah Rowe <leah@libreboot.org>
+---
+ util/ifdtool/ifdtool.c | 114 ++++++++++++++++++++++++++++++-----------
+ 1 file changed, 83 insertions(+), 31 deletions(-)
+
+diff --git a/util/ifdtool/ifdtool.c b/util/ifdtool/ifdtool.c
+index 94105efe52..0706496af2 100644
+--- a/util/ifdtool/ifdtool.c
++++ b/util/ifdtool/ifdtool.c
+@@ -2230,6 +2230,7 @@ static void print_usage(const char *name)
+ 	       "                                         tgl    - Tiger Lake\n"
+ 	       "                                         wbg    - Wellsburg\n"
+ 	       "   -S | --setpchstrap                    Write a PCH strap\n"
++	       "   -N | --nuke <region>                  Overwrite the specified region with 0xFF (all ones)\n"
+ 	       "   -V | --newvalue                       The new value to write into PCH strap specified by -S\n"
+ 	       "   -v | --version:                       print the version\n"
+ 	       "   -h | --help:                          print this help\n\n"
+@@ -2238,6 +2239,60 @@ static void print_usage(const char *name)
+ 	       "\n");
+ }
+ 
++static int
++get_region_type_string(const char *region_type_string)
++{
++       if (!strcasecmp("Descriptor", region_type_string))
++               return 0;
++       else if (!strcasecmp("BIOS", region_type_string))
++               return 1;
++       else if (!strcasecmp("ME", region_type_string))
++               return 2;
++       else if (!strcasecmp("GbE", region_type_string))
++               return 3;
++       else if (!strcasecmp("Platform Data", region_type_string))
++               return 4;
++       else if (!strcasecmp("Device Exp1", region_type_string))
++               return 5;
++       else if (!strcasecmp("Secondary BIOS", region_type_string))
++               return 6;
++       else if (!strcasecmp("Reserved", region_type_string))
++               return 7;
++       else if (!strcasecmp("EC", region_type_string))
++               return 8;
++       else if (!strcasecmp("Device Exp2", region_type_string))
++               return 9;
++       else if (!strcasecmp("IE", region_type_string))
++               return 10;
++       else if (!strcasecmp("10GbE_0", region_type_string))
++               return 11;
++       else if (!strcasecmp("10GbE_1", region_type_string))
++               return 12;
++       else if (!strcasecmp("PTT", region_type_string))
++               return 15;
++       return -1;
++}
++
++static void
++nuke(const char *filename, char *image, int size, int region_type)
++{
++       int i;
++       struct region region;
++       const struct frba *frba = find_frba(image, size);
++       if (!frba)
++               exit(EXIT_FAILURE);
++
++       region = get_region(frba, region_type);
++       if (region.size > 0) {
++               for (i = region.base; i <= region.limit; i++) {
++                       if ((i + 1) > (size))
++                               break;
++                       image[i] = 0xFF;
++               }
++               write_image(filename, image, size);
++       }
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	int opt, option_index = 0;
+@@ -2245,6 +2300,7 @@ int main(int argc, char *argv[])
+ 	int mode_em100 = 0, mode_locked = 0, mode_unlocked = 0, mode_validate = 0;
+ 	int mode_layout = 0, mode_newlayout = 0, mode_density = 0, mode_setstrap = 0;
+ 	int mode_read = 0, mode_altmedisable = 0, altmedisable = 0, mode_fmap_template = 0;
++	int mode_nuke = 0;
+ 	int mode_gpr0_disable = 0, mode_gpr0_enable = 0, mode_gpr0_status = 0;
+ 	char *region_type_string = NULL, *region_fname = NULL, *layout_fname = NULL;
+ 	char *new_filename = NULL;
+@@ -2279,6 +2335,7 @@ int main(int argc, char *argv[])
+ 		{"validate", 0, NULL, 't'},
+ 		{"setpchstrap", 1, NULL, 'S'},
+ 		{"newvalue", 1, NULL, 'V'},
++		{"nuke", 1, NULL, 'N'},
+ 		{0, 0, 0, 0}
+ 	};
+ 
+@@ -2328,35 +2385,8 @@ int main(int argc, char *argv[])
+ 			region_fname++;
+ 			// Descriptor, BIOS, ME, GbE, Platform
+ 			// valid type?
+-			if (!strcasecmp("Descriptor", region_type_string))
+-				region_type = 0;
+-			else if (!strcasecmp("BIOS", region_type_string))
+-				region_type = 1;
+-			else if (!strcasecmp("ME", region_type_string))
+-				region_type = 2;
+-			else if (!strcasecmp("GbE", region_type_string))
+-				region_type = 3;
+-			else if (!strcasecmp("Platform Data", region_type_string))
+-				region_type = 4;
+-			else if (!strcasecmp("Device Exp1", region_type_string))
+-				region_type = 5;
+-			else if (!strcasecmp("Secondary BIOS", region_type_string))
+-				region_type = 6;
+-			else if (!strcasecmp("Reserved", region_type_string))
+-				region_type = 7;
+-			else if (!strcasecmp("EC", region_type_string))
+-				region_type = 8;
+-			else if (!strcasecmp("Device Exp2", region_type_string))
+-				region_type = 9;
+-			else if (!strcasecmp("IE", region_type_string))
+-				region_type = 10;
+-			else if (!strcasecmp("10GbE_0", region_type_string))
+-				region_type = 11;
+-			else if (!strcasecmp("10GbE_1", region_type_string))
+-				region_type = 12;
+-			else if (!strcasecmp("PTT", region_type_string))
+-				region_type = 15;
+-			if (region_type == -1) {
++			if ((region_type =
++			    get_region_type_string(region_type_string)) == -1) {
+ 				fprintf(stderr, "No such region type: '%s'\n\n",
+ 					region_type_string);
+ 				fprintf(stderr, "run '%s -h' for usage\n", argv[0]);
+@@ -2533,6 +2563,22 @@ int main(int argc, char *argv[])
+ 		case 't':
+ 			mode_validate = 1;
+ 			break;
++               case 'N':
++                       region_type_string = strdup(optarg);
++                       if (!region_type_string) {
++                               fprintf(stderr, "No region specified\n");
++                               print_usage(argv[0]);
++                               exit(EXIT_FAILURE);
++                       }
++                       if ((region_type =
++                           get_region_type_string(region_type_string)) == -1) {
++                               fprintf(stderr, "No such region type: '%s'\n\n",
++                                       region_type_string);
++                               print_usage(argv[0]);
++                               exit(EXIT_FAILURE);
++                       }
++                       mode_nuke = 1;
++                       break;
+ 		case 'v':
+ 			print_version();
+ 			exit(EXIT_SUCCESS);
+@@ -2552,7 +2598,8 @@ int main(int argc, char *argv[])
+ 	if ((mode_dump + mode_layout + mode_fmap_template + mode_extract + mode_inject +
+ 			mode_setstrap + mode_newlayout + (mode_spifreq | mode_em100 |
+ 			mode_unlocked | mode_locked) + mode_altmedisable + mode_validate +
+-			(mode_gpr0_disable | mode_gpr0_enable) + mode_gpr0_status) > 1) {
++			(mode_gpr0_disable | mode_gpr0_enable) + mode_gpr0_status +
++			mode_nuke) > 1) {
+ 		fprintf(stderr, "You may not specify more than one mode.\n\n");
+ 		fprintf(stderr, "run '%s -h' for usage\n", argv[0]);
+ 		exit(EXIT_FAILURE);
+@@ -2561,7 +2608,8 @@ int main(int argc, char *argv[])
+ 	if ((mode_dump + mode_layout + mode_fmap_template + mode_extract + mode_inject +
+ 			mode_setstrap + mode_newlayout + mode_spifreq + mode_em100 +
+ 			mode_locked + mode_unlocked + mode_density + mode_altmedisable +
+-			mode_validate + (mode_gpr0_disable | mode_gpr0_enable) + mode_gpr0_status) == 0) {
++			mode_validate + (mode_gpr0_disable | mode_gpr0_enable) + mode_gpr0_status +
++			mode_nuke) == 0) {
+ 		fprintf(stderr, "You need to specify a mode.\n\n");
+ 		fprintf(stderr, "run '%s -h' for usage\n", argv[0]);
+ 		exit(EXIT_FAILURE);
+@@ -2674,6 +2722,10 @@ int main(int argc, char *argv[])
+ 		write_image(new_filename, image, size);
+ 	}
+ 
++	if (mode_nuke) {
++		nuke(new_filename, image, size, region_type);
++	}
++
+ 	if (mode_altmedisable) {
+ 		struct fpsba *fpsba = find_fpsba(image, size);
+ 		struct fmsba *fmsba = find_fmsba(image, size);
+-- 
+2.39.5
+
