@@ -98,6 +98,11 @@ coreboot-dasharo_commit_hash := 94e5f5d5b808cf8d8fd5c70d4ef6a08a054f8986
 $(eval $(call coreboot_module,dasharo,24.02.01))
 #coreboot-dasharo_patch_version := unreleased
 
+# T480 may or may not need a specific coreboot rev since it may or may not yet be yet included in the release referenced above
+coreboot-t480_repo := https://review.coreboot.org/coreboot.git
+coreboot-t480_commit_hash := 2f1e4e5e8515dd350cc9d68b48d32a5b6b02ae6a
+$(eval $(call coreboot_module,t480,24.02.01))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
