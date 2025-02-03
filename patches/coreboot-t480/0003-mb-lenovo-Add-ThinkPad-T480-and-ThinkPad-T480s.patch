@@ -1,0 +1,2237 @@
+From 1652c22825d3001e77159aa539dfa49d2389c775 Mon Sep 17 00:00:00 2001
+From: Mate Kukri <km@mkukri.xyz>
+Date: Tue, 31 Dec 2024 22:49:15 +0000
+Subject: [PATCH 03/11] mb/lenovo: Add ThinkPad T480 and ThinkPad T480s
+
+These machine have BootGuard fused and requires deguard to
+boot coreboot.
+
+Known issues:
+- Alpine Ridge Thunderbolt 3 controller does not work
+- Some Fn+F{1-12} keys aren't handled correctly
+- Nvidia dGPU is finicky
+  - Needs option ROM
+  - Power enable code is buggy
+  - Nouveau only works on linux 6.8-6.9
+- Headphone jack isn't detected as plugged in despite correct verbs
+
+Thanks to Leah Rowe for helping with the T480s.
+
+Signed-off-by: Mate Kukri <km@mkukri.xyz>
+Change-Id: I19d421412c771c1f242f6ff39453f824fa866163
+---
+ src/device/pci_rom.c                          |   4 +-
+ src/ec/lenovo/h8/acpi/ec.asl                  |   2 +-
+ src/ec/lenovo/h8/bluetooth.c                  |   6 +-
+ src/ec/lenovo/h8/wwan.c                       |   6 +-
+ src/mainboard/lenovo/sklkbl_thinkpad/Kconfig  |  57 +++++
+ .../lenovo/sklkbl_thinkpad/Kconfig.name       |   7 +
+ .../lenovo/sklkbl_thinkpad/Makefile.mk        |  73 +++++++
+ .../lenovo/sklkbl_thinkpad/acpi/ec.asl        |  12 ++
+ .../lenovo/sklkbl_thinkpad/acpi/superio.asl   |   3 +
+ .../lenovo/sklkbl_thinkpad/bootblock.c        |  60 ++++++
+ .../lenovo/sklkbl_thinkpad/devicetree.cb      |  71 ++++++
+ src/mainboard/lenovo/sklkbl_thinkpad/dsdt.asl |  33 +++
+ src/mainboard/lenovo/sklkbl_thinkpad/ec.c     | 153 +++++++++++++
+ src/mainboard/lenovo/sklkbl_thinkpad/ec.h     |  99 +++++++++
+ src/mainboard/lenovo/sklkbl_thinkpad/gpio.h   |   8 +
+ .../lenovo/sklkbl_thinkpad/ramstage.c         | 105 +++++++++
+ .../sklkbl_thinkpad/variants/t480/data.vbt    | Bin 0 -> 4106 bytes
+ .../variants/t480/gma-mainboard.ads           |  19 ++
+ .../sklkbl_thinkpad/variants/t480/gpio.c      | 203 ++++++++++++++++++
+ .../sklkbl_thinkpad/variants/t480/hda_verb.c  |  90 ++++++++
+ .../variants/t480/memory_init_params.c        |  20 ++
+ .../variants/t480/overridetree.cb             | 103 +++++++++
+ .../sklkbl_thinkpad/variants/t480s/data.vbt   | Bin 0 -> 4106 bytes
+ .../variants/t480s/gma-mainboard.ads          |  19 ++
+ .../sklkbl_thinkpad/variants/t480s/gpio.c     | 199 +++++++++++++++++
+ .../sklkbl_thinkpad/variants/t480s/hda_verb.c |  90 ++++++++
+ .../variants/t480s/memory_init_params.c       |  44 ++++
+ .../variants/t480s/overridetree.cb            | 103 +++++++++
+ .../variants/t480s/spd/spd_0.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_1.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_10.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_11.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_12.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_13.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_14.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_15.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_16.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_17.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_18.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_19.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_2.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_20.bin             | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_3.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_4.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_5.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_6.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_7.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_8.bin              | Bin 0 -> 512 bytes
+ .../variants/t480s/spd/spd_9.bin              | Bin 0 -> 512 bytes
+ 49 files changed, 1583 insertions(+), 6 deletions(-)
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/Kconfig
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/Kconfig.name
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/Makefile.mk
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/acpi/ec.asl
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/acpi/superio.asl
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/bootblock.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/dsdt.asl
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/ec.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/ec.h
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/gpio.h
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/ramstage.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/data.vbt
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gma-mainboard.ads
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/hda_verb.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/memory_init_params.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/data.vbt
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gma-mainboard.ads
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/memory_init_params.c
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_0.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_1.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_10.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_11.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_12.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_13.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_14.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_15.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_16.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_17.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_18.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_19.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_2.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_20.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_3.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_4.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_5.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_6.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_7.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_8.bin
+ create mode 100644 src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_9.bin
+
+diff --git a/src/device/pci_rom.c b/src/device/pci_rom.c
+index d60720eb49..cc6b9b068a 100644
+--- a/src/device/pci_rom.c
++++ b/src/device/pci_rom.c
+@@ -304,11 +304,13 @@ void pci_rom_ssdt(const struct device *device)
+ 		return;
+ 	}
+ 
++#if 0
+ 	const char *scope = acpi_device_path(device);
+ 	if (!scope) {
+ 		printk(BIOS_ERR, "%s: Missing ACPI scope\n", dev_path(device));
+ 		return;
+ 	}
++#endif
+ 
+ 	/* Supports up to four devices. */
+ 	if ((CBMEM_ID_ROM0 + ngfx) > CBMEM_ID_ROM3) {
+@@ -336,7 +338,7 @@ void pci_rom_ssdt(const struct device *device)
+ 	memcpy(cbrom, rom, cbrom_length);
+ 
+ 	/* write _ROM method */
+-	acpigen_write_scope(scope);
++	acpigen_write_scope("\\_SB.PCI0.RP01.PEGP");
+ 	acpigen_write_rom(cbrom, cbrom_length);
+ 	acpigen_pop_len(); /* pop scope */
+ }
+diff --git a/src/ec/lenovo/h8/acpi/ec.asl b/src/ec/lenovo/h8/acpi/ec.asl
+index bc54d3b422..8f4a8e1986 100644
+--- a/src/ec/lenovo/h8/acpi/ec.asl
++++ b/src/ec/lenovo/h8/acpi/ec.asl
+@@ -331,7 +331,7 @@ Device(EC)
+ #include "sleepbutton.asl"
+ #include "lid.asl"
+ #include "beep.asl"
+-#include "thermal.asl"
++//#include "thermal.asl"
+ #include "systemstatus.asl"
+ #include "thinkpad.asl"
+ }
+diff --git a/src/ec/lenovo/h8/bluetooth.c b/src/ec/lenovo/h8/bluetooth.c
+index 16fc8dce39..be71a24ced 100644
+--- a/src/ec/lenovo/h8/bluetooth.c
++++ b/src/ec/lenovo/h8/bluetooth.c
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0-only */
+ 
+-#include <southbridge/intel/common/gpio.h>
++// #include <southbridge/intel/common/gpio.h>
+ #include <console/console.h>
+ #include <device/device.h>
+ #include <ec/acpi/ec.h>
+@@ -28,16 +28,18 @@ bool h8_has_bdc(const struct device *dev)
+ {
+ 	struct ec_lenovo_h8_config *conf = dev->chip_info;
+ 
+-	if (!conf->has_bdc_detection) {
++	if (1 || !conf->has_bdc_detection) {
+ 		printk(BIOS_INFO, "H8: BDC detection not implemented. "
+ 				  "Assuming BDC installed\n");
+ 		return true;
+ 	}
+ 
++#if 0
+ 	if (get_gpio(conf->bdc_gpio_num) == conf->bdc_gpio_lvl) {
+ 		printk(BIOS_INFO, "H8: BDC installed\n");
+ 		return true;
+ 	}
++#endif
+ 
+ 	printk(BIOS_INFO, "H8: BDC not installed\n");
+ 	return false;
+diff --git a/src/ec/lenovo/h8/wwan.c b/src/ec/lenovo/h8/wwan.c
+index 685886fcce..5cdcf77406 100644
+--- a/src/ec/lenovo/h8/wwan.c
++++ b/src/ec/lenovo/h8/wwan.c
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0-only */
+ 
+-#include <southbridge/intel/common/gpio.h>
++// #include <southbridge/intel/common/gpio.h>
+ #include <console/console.h>
+ #include <device/device.h>
+ #include <ec/acpi/ec.h>
+@@ -26,16 +26,18 @@ bool h8_has_wwan(const struct device *dev)
+ {
+ 	struct ec_lenovo_h8_config *conf = dev->chip_info;
+ 
+-	if (!conf->has_wwan_detection) {
++	if (1 || !conf->has_wwan_detection) {
+ 		printk(BIOS_INFO, "H8: WWAN detection not implemented. "
+ 				  "Assuming WWAN installed\n");
+ 		return true;
+ 	}
+ 
++#if 0
+ 	if (get_gpio(conf->wwan_gpio_num) == conf->wwan_gpio_lvl) {
+ 		printk(BIOS_INFO, "H8: WWAN installed\n");
+ 		return true;
+ 	}
++#endif
+ 
+ 	printk(BIOS_INFO, "H8: WWAN not installed\n");
+ 	return false;
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig b/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig
+new file mode 100644
+index 0000000000..4998672943
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig
+@@ -0,0 +1,57 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++config BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++	bool
++	select BOARD_ROMSIZE_KB_16384
++	select EC_LENOVO_H8
++	select EC_LENOVO_PMH7
++	select H8_HAS_BAT_THRESHOLDS_IMPL
++	select H8_HAS_LEDLOGO
++	select H8_HAS_PRIMARY_FN_KEYS
++	select HAVE_ACPI_RESUME
++	select HAVE_ACPI_TABLES
++	select INTEL_GMA_HAVE_VBT
++	select INTEL_INT15
++	select MAINBOARD_HAS_LIBGFXINIT
++	select MAINBOARD_HAS_TPM2
++	select MAINBOARD_USES_IFD_GBE_REGION
++	select MEMORY_MAPPED_TPM
++	select SOC_INTEL_COMMON_BLOCK_HDA_VERB
++	select SOC_INTEL_KABYLAKE
++	select SPD_READ_BY_WORD
++	select SYSTEM_TYPE_LAPTOP
++
++config BOARD_LENOVO_T480
++	bool
++	select BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++
++config BOARD_LENOVO_T480S
++	bool
++	select BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++
++if BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++
++config MAINBOARD_DIR
++	default "lenovo/sklkbl_thinkpad"
++
++config VARIANT_DIR
++	default "t480" if BOARD_LENOVO_T480
++	default "t480s" if BOARD_LENOVO_T480S
++
++config OVERRIDE_DEVICETREE
++	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
++
++config MAINBOARD_PART_NUMBER
++	default "T480" if BOARD_LENOVO_T480
++	default "T480s" if BOARD_LENOVO_T480S
++
++config CBFS_SIZE
++	default 0x900000
++
++config DIMM_MAX
++	default 2
++
++config DIMM_SPD_SIZE
++	default 512	# DDR4
++
++endif
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig.name b/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig.name
+new file mode 100644
+index 0000000000..abc273f387
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/Kconfig.name
+@@ -0,0 +1,7 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++config BOARD_LENOVO_T480
++	bool "ThinkPad T480"
++
++config BOARD_LENOVO_T480S
++	bool "ThinkPad T480s"
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/Makefile.mk b/src/mainboard/lenovo/sklkbl_thinkpad/Makefile.mk
+new file mode 100644
+index 0000000000..c308239177
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/Makefile.mk
+@@ -0,0 +1,73 @@
++## SPDX-License-Identifier: GPL-2.0-only
++
++bootblock-y += bootblock.c ec.c
++
++romstage-y += variants/$(VARIANT_DIR)/memory_init_params.c
++
++ramstage-y += ramstage.c ec.c
++ramstage-y += variants/$(VARIANT_DIR)/gpio.c variants/$(VARIANT_DIR)/hda_verb.c
++ramstage-$(CONFIG_MAINBOARD_USE_LIBGFXINIT) += variants/$(VARIANT_DIR)/gma-mainboard.ads
++
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_0.bin
++spd_0.bin-file := variants/$(VARIANT_DIR)/spd/spd_0.bin
++spd_0.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_1.bin
++spd_1.bin-file := variants/$(VARIANT_DIR)/spd/spd_1.bin
++spd_1.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_2.bin
++spd_2.bin-file := variants/$(VARIANT_DIR)/spd/spd_2.bin
++spd_2.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_3.bin
++spd_3.bin-file := variants/$(VARIANT_DIR)/spd/spd_3.bin
++spd_3.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_4.bin
++spd_4.bin-file := variants/$(VARIANT_DIR)/spd/spd_4.bin
++spd_4.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_5.bin
++spd_5.bin-file := variants/$(VARIANT_DIR)/spd/spd_5.bin
++spd_5.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_6.bin
++spd_6.bin-file := variants/$(VARIANT_DIR)/spd/spd_6.bin
++spd_6.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_7.bin
++spd_7.bin-file := variants/$(VARIANT_DIR)/spd/spd_7.bin
++spd_7.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_8.bin
++spd_8.bin-file := variants/$(VARIANT_DIR)/spd/spd_8.bin
++spd_8.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_9.bin
++spd_9.bin-file := variants/$(VARIANT_DIR)/spd/spd_9.bin
++spd_9.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_10.bin
++spd_10.bin-file := variants/$(VARIANT_DIR)/spd/spd_10.bin
++spd_10.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_11.bin
++spd_11.bin-file := variants/$(VARIANT_DIR)/spd/spd_11.bin
++spd_11.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_12.bin
++spd_12.bin-file := variants/$(VARIANT_DIR)/spd/spd_12.bin
++spd_12.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_13.bin
++spd_13.bin-file := variants/$(VARIANT_DIR)/spd/spd_13.bin
++spd_13.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_14.bin
++spd_14.bin-file := variants/$(VARIANT_DIR)/spd/spd_14.bin
++spd_14.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_15.bin
++spd_15.bin-file := variants/$(VARIANT_DIR)/spd/spd_15.bin
++spd_15.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_16.bin
++spd_16.bin-file := variants/$(VARIANT_DIR)/spd/spd_16.bin
++spd_16.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_17.bin
++spd_17.bin-file := variants/$(VARIANT_DIR)/spd/spd_17.bin
++spd_17.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_18.bin
++spd_18.bin-file := variants/$(VARIANT_DIR)/spd/spd_18.bin
++spd_18.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_19.bin
++spd_19.bin-file := variants/$(VARIANT_DIR)/spd/spd_19.bin
++spd_19.bin-type := raw
++cbfs-files-$(CONFIG_BOARD_LENOVO_T480S) += spd_20.bin
++spd_20.bin-file := variants/$(VARIANT_DIR)/spd/spd_20.bin
++spd_20.bin-type := raw
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/acpi/ec.asl b/src/mainboard/lenovo/sklkbl_thinkpad/acpi/ec.asl
+new file mode 100644
+index 0000000000..3a949a2fca
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/acpi/ec.asl
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#define BRIGHTNESS_UP \_SB.PCI0.GFX0.INCB
++#define BRIGHTNESS_DOWN \_SB.PCI0.GFX0.DECB
++#define THINKPAD_EC_GPE 22
++
++Name(\TCRT, 100)
++Name(\TPSV, 90)
++Name(\FLVL, 0)
++
++#include <ec/lenovo/h8/acpi/ec.asl>
++#include <ec/lenovo/h8/acpi/thinkpad_bat_thresholds_b0.asl>
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/acpi/superio.asl b/src/mainboard/lenovo/sklkbl_thinkpad/acpi/superio.asl
+new file mode 100644
+index 0000000000..55b1db5b11
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/acpi/superio.asl
+@@ -0,0 +1,3 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <drivers/pc80/pc/ps2_controller.asl>
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/bootblock.c b/src/mainboard/lenovo/sklkbl_thinkpad/bootblock.c
+new file mode 100644
+index 0000000000..fb660dbdfa
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/bootblock.c
+@@ -0,0 +1,60 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <arch/io.h>
++#include <bootblock_common.h>
++#include <device/pci.h>
++#include <soc/pci_devs.h>
++#include "ec.h"
++
++static void configure_uart(uint16_t port, uint16_t iobase, uint8_t irqno)
++{
++	microchip_pnp_enter_conf_state(port);
++
++	// Select LPC I/F LDN
++	pnp_write(port, PNP_LDN_SELECT, LDN_LPCIF);
++	// Write UART BAR
++	pnp_write_le32(port, LPCIF_BAR_UART, (uint32_t) iobase << 16 | 0x8707);
++	// Set SIRQ4 to UART
++	pnp_write(port, LPCIF_SIRQ(irqno), LDN_UART);
++
++	// Configure UART LDN
++	pnp_write(port, PNP_LDN_SELECT, LDN_UART);
++	pnp_write(port, UART_ACTIVATE, 0x01);
++	pnp_write(port, UART_CONFIG_SELECT, 0x00);
++
++	microchip_pnp_exit_conf_state(port);
++
++#ifdef CONFIG_BOARD_LENOVO_T480
++	// Supply debug unlock key
++	debug_write_key(DEBUG_RW_KEY_IDX, debug_rw_key);
++
++	// Use debug writes to set UART_TX and UART_RX GPIOs
++	debug_write_dword(0xf0c400 + 0x110, 0x00001000);
++	debug_write_dword(0xf0c400 + 0x114, 0x00001000);
++#endif
++}
++
++
++#define UART_PORT	0x3f8
++#define UART_IRQ	4
++
++void bootblock_mainboard_early_init(void)
++{
++	// Tell EC via BIOS Debug Port 1 that the world isn't on fire
++
++	// Let the EC know that BIOS code is running
++	outb(0x11, 0x86);
++	outb(0x6e, 0x86);
++
++	// Enable accesses to EC1 interface
++	ec0_write(0, ec0_read(0) | 0x20);
++
++	// Reset LEDs to power on state
++	// (Without this warm reboot leaves LEDs off)
++	ec0_write(0x0c, 0x80);
++	ec0_write(0x0c, 0x07);
++	ec0_write(0x0c, 0x8a);
++
++	// Setup debug UART
++	configure_uart(EC_CFG_PORT, UART_PORT, UART_IRQ);
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb b/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
+new file mode 100644
+index 0000000000..c07d4d53ca
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
+@@ -0,0 +1,71 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++chip soc/intel/skylake
++	# IGD Displays
++	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
++
++	register "panel_cfg" = "{
++		.up_delay_ms		= 200,
++		.down_delay_ms		=  50,
++		.cycle_delay_ms		= 600,
++		.backlight_on_delay_ms	=   1,
++		.backlight_off_delay_ms	= 200,
++		.backlight_pwm_hz	= 200,
++	}"
++
++        # Power
++        register "PmConfigSlpS3MinAssert" = "2"         # 50ms
++        register "PmConfigSlpS4MinAssert" = "1"         # 1s
++        register "PmConfigSlpSusMinAssert" = "3"        # 500ms
++        register "PmConfigSlpAMinAssert" = "3"          # 2s
++
++	device domain 0 on
++		device ref igpu on end
++		device ref sa_thermal on end
++		device ref thermal on end
++		device ref south_xhci on end
++		device ref lpc_espi on
++			register "serirq_mode" = "SERIRQ_CONTINUOUS"
++
++			register "gen1_dec" = "0x007c1601"
++			register "gen2_dec" = "0x000c15e1"
++
++			chip ec/lenovo/pmh7
++				register "backlight_enable" = "true"
++				register "dock_event_enable" = "true"
++				device pnp ff.1 on end # dummy
++			end
++
++			chip ec/lenovo/h8
++				register "beepmask0" = "0x00"
++				register "beepmask1" = "0x86"
++				register "config0" = "0xa6"
++				register "config1" = "0x0d"
++				register "config2" = "0xa8"
++				register "config3" = "0xc4"
++				register "has_keyboard_backlight" = "1"
++				register "event2_enable" = "0xff"
++				register "event3_enable" = "0xff"
++				register "event4_enable" = "0xd0"
++				register "event5_enable" = "0x3c"
++				register "event7_enable" = "0x01"
++				register "event8_enable" = "0x7b"
++				register "event9_enable" = "0xff"
++				register "eventc_enable" = "0xff"
++				register "eventd_enable" = "0xff"
++				register "evente_enable" = "0x9d"
++				device pnp ff.2 on # dummy
++					io 0x60 = 0x62
++					io 0x62 = 0x66
++					io 0x64 = 0x1600
++					io 0x66 = 0x1604
++				end
++			end
++
++			chip drivers/pc80/tpm
++				device pnp 0c31.0 on end
++			end
++		end
++		device ref hda on end
++	end
++end
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/dsdt.asl b/src/mainboard/lenovo/sklkbl_thinkpad/dsdt.asl
+new file mode 100644
+index 0000000000..aa4d4de2a6
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/dsdt.asl
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <acpi/acpi.h>
++DefinitionBlock(
++	"dsdt.aml",
++	"DSDT",
++	ACPI_DSDT_REV_2,
++	OEM_ID,
++	ACPI_TABLE_CREATOR,
++	0x20110725
++)
++{
++	#include <acpi/dsdt_top.asl>
++	#include <soc/intel/common/block/acpi/acpi/globalnvs.asl>
++	#include <cpu/intel/common/acpi/cpu.asl>
++
++	Device (\_SB.PCI0)
++	{
++		#include <soc/intel/skylake/acpi/systemagent.asl>
++		#include <soc/intel/skylake/acpi/pch.asl>
++		#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
++	}
++
++	Scope (\_SB.PCI0.RP01)
++	{
++		Device (PEGP)
++		{
++			Name (_ADR, Zero)
++		}
++	}
++
++	#include <southbridge/intel/common/acpi/sleepstates.asl>
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/ec.c b/src/mainboard/lenovo/sklkbl_thinkpad/ec.c
+new file mode 100644
+index 0000000000..adb6a60324
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/ec.c
+@@ -0,0 +1,153 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <arch/io.h>
++#include "ec.h"
++
++#define MICROCHIP_CONFIGURATION_ENTRY_KEY	0x55
++#define MICROCHIP_CONFIGURATION_EXIT_KEY	0xaa
++
++void microchip_pnp_enter_conf_state(uint16_t port)
++{
++	outb(MICROCHIP_CONFIGURATION_ENTRY_KEY, port);
++}
++
++void microchip_pnp_exit_conf_state(uint16_t port)
++{
++	outb(MICROCHIP_CONFIGURATION_EXIT_KEY, port);
++}
++
++uint8_t pnp_read(uint16_t port, uint8_t index)
++{
++	outb(index, port);
++	return inb(port + 1);
++}
++
++uint32_t pnp_read_le32(uint16_t port, uint8_t index)
++{
++	return (uint32_t) pnp_read(port, index) |
++			(uint32_t) pnp_read(port, index + 1) << 8 |
++			(uint32_t) pnp_read(port, index + 2) << 16 |
++			(uint32_t) pnp_read(port, index + 3) << 24;
++}
++
++void pnp_write(uint16_t port, uint8_t index, uint8_t value)
++{
++	outb(index, port);
++	outb(value, port + 1);
++}
++
++void pnp_write_le32(uint16_t port, uint8_t index, uint32_t value)
++{
++	pnp_write(port, index, value & 0xff);
++	pnp_write(port, index + 1, value >> 8 & 0xff);
++	pnp_write(port, index + 2, value >> 16 & 0xff);
++	pnp_write(port, index + 3, value >> 24 & 0xff);
++}
++
++static void ecN_clear_out_queue(uint16_t cmd_port, uint16_t data_port)
++{
++	while (inb(cmd_port) & EC_OBF)
++		inb(data_port);
++}
++
++static void ecN_wait_to_send(uint16_t cmd_port, uint16_t data_port)
++{
++	while (inb(cmd_port) & EC_IBF)
++		;
++}
++
++static void ecN_wait_to_recv(uint16_t cmd_port, uint16_t data_port)
++{
++	while (!(inb(cmd_port) & EC_OBF))
++		;
++}
++
++uint8_t ecN_read(uint16_t cmd_port, uint16_t data_port, uint8_t addr)
++{
++	ecN_clear_out_queue(cmd_port, data_port);
++	ecN_wait_to_send(cmd_port, data_port);
++	outb(EC_READ, cmd_port);
++	ecN_wait_to_send(cmd_port, data_port);
++	outb(addr, data_port);
++	ecN_wait_to_recv(cmd_port, data_port);
++	return inb(data_port);
++}
++
++void ecN_write(uint16_t cmd_port, uint16_t data_port, uint8_t addr, uint8_t val)
++{
++	ecN_clear_out_queue(cmd_port, data_port);
++	ecN_wait_to_send(cmd_port, data_port);
++	outb(EC_WRITE, cmd_port);
++	ecN_wait_to_send(cmd_port, data_port);
++	outb(addr, data_port);
++	ecN_wait_to_send(cmd_port, data_port);
++	outb(val, data_port);
++}
++
++uint8_t eeprom_read(uint16_t addr)
++{
++	ecN_clear_out_queue(EC2_CMD, EC2_DATA);
++	ecN_wait_to_send(EC2_CMD, EC2_DATA);
++	outl(1, EC2_CMD);
++	ecN_wait_to_send(EC2_CMD, EC2_DATA);
++	outl(addr, EC2_DATA);
++	ecN_wait_to_recv(EC2_CMD, EC2_DATA);
++	return inl(EC2_DATA);
++}
++
++void eeprom_write(uint16_t addr, uint8_t val)
++{
++	ecN_clear_out_queue(EC2_CMD, EC2_DATA);
++	ecN_wait_to_send(EC2_CMD, EC2_DATA);
++	outl(2, EC2_CMD);
++	ecN_wait_to_send(EC2_CMD, EC2_DATA);
++	outl((uint32_t) addr | (uint32_t) val << 16, EC2_DATA);
++	ecN_wait_to_recv(EC2_CMD, EC2_DATA);
++	inl(EC2_DATA);
++}
++
++uint16_t debug_loaded_keys(void)
++{
++	return (uint16_t) ec0_read(0x87) << 8 | (uint16_t) ec0_read(0x86);
++}
++
++static void debug_cmd(uint8_t cmd)
++{
++	ec0_write(EC_DEBUG_CMD, cmd);
++	while (ec0_read(EC_DEBUG_CMD) & 0x80)
++		;
++}
++
++void debug_read_key(uint8_t i, uint8_t *key)
++{
++	debug_cmd(0x80 | (i & 0xf));
++	for (int j = 0; j < 8; ++j)
++		key[j] = ec0_read(0x3e + j);
++}
++
++void debug_write_key(uint8_t i, const uint8_t *key)
++{
++	for (int j = 0; j < 8; ++j)
++		ec0_write(0x3e + j, key[j]);
++	debug_cmd(0xc0 |  (i & 0xf));
++}
++
++uint32_t debug_read_dword(uint32_t addr)
++{
++	ecN_clear_out_queue(EC3_CMD, EC3_DATA);
++	ecN_wait_to_send(EC3_CMD, EC3_DATA);
++	outl(addr << 8 | 0xE2, EC3_DATA);
++	ecN_wait_to_recv(EC3_CMD, EC3_DATA);
++	return inl(EC3_DATA);
++}
++
++void debug_write_dword(uint32_t addr, uint32_t val)
++{
++	ecN_clear_out_queue(EC3_CMD, EC3_DATA);
++	ecN_wait_to_send(EC3_CMD, EC3_DATA);
++	outl(addr << 8 | 0xEA, EC3_DATA);
++	ecN_wait_to_send(EC3_CMD, EC3_DATA);
++	outl(val, EC3_DATA);
++}
++
++const uint8_t debug_rw_key[8] = { 0x7a, 0x41, 0xb1, 0x49, 0xfe, 0x21, 0x01, 0xcf };
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/ec.h b/src/mainboard/lenovo/sklkbl_thinkpad/ec.h
+new file mode 100644
+index 0000000000..d2963c8962
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/ec.h
+@@ -0,0 +1,99 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef SKLKBL_THINKPAD_EC_H
++#define SKLKBL_THINKPAD_EC_H
++
++// EC configuration base address
++#define EC_CFG_PORT		0x4e
++
++// Chip global registers
++#define PNP_LDN_SELECT		0x07
++# define LDN_UART		0x07
++# define LDN_LPCIF		0x0c
++#define EC_DEVICE_ID		0x20
++#define EC_DEVICE_REV		0x21
++
++// LPC I/F registers
++#define LPCIF_SIRQ(i)		(0x40 + (i))
++
++#define LPCIF_BAR_CFG		0x60
++#define LPCIF_BAR_MAILBOX	0x64
++#define LPCIF_BAR_8042		0x68
++#define LPCIF_BAR_ACPI_EC0	0x6c
++#define LPCIF_BAR_ACPI_EC1	0x70
++#define LPCIF_BAR_ACPI_EC2	0x74
++#define LPCIF_BAR_ACPI_EC3	0x78
++#define LPCIF_BAR_ACPI_PM0	0x7c
++#define LPCIF_BAR_UART		0x80
++#define LPCIF_BAR_FAST_KYBD	0x84
++#define LPCIF_BAR_EMBED_FLASH	0x88
++#define LPCIF_BAR_GP_SPI	0x8c
++#define LPCIF_BAR_EMI		0x90
++#define LPCIF_BAR_PMH7		0x94
++#define LPCIF_BAR_PORT80_DBG0	0x98
++#define LPCIF_BAR_PORT80_DBG1	0x9c
++#define LPCIF_BAR_RTC		0xa0
++
++// UART registers
++#define UART_ACTIVATE		0x30
++#define UART_CONFIG_SELECT	0xf0
++
++void microchip_pnp_enter_conf_state(uint16_t port);
++void microchip_pnp_exit_conf_state(uint16_t port);
++uint8_t pnp_read(uint16_t port, uint8_t index);
++uint32_t pnp_read_le32(uint16_t port, uint8_t index);
++void pnp_write(uint16_t port, uint8_t index, uint8_t value);
++void pnp_write_le32(uint16_t port, uint8_t index, uint32_t value);
++
++#define EC0_CMD		0x0066
++#define EC0_DATA	0x0062
++#define EC1_CMD		0x1604
++#define EC1_DATA	0x1600
++#define EC2_CMD		0x1634
++#define EC2_DATA	0x1630
++#define EC3_CMD		0x161c
++#define EC3_DATA	0x1618
++
++#define EC_OBF		(1 << 0)
++#define EC_IBF		(1 << 1)
++
++#define EC_READ		0x80
++#define EC_WRITE	0x81
++
++uint8_t ecN_read(uint16_t cmd_port, uint16_t data_port, uint8_t addr);
++
++void ecN_write(uint16_t cmd_port, uint16_t data_port, uint8_t addr, uint8_t val);
++
++// EC0 and EC1 mostly are useful with the READ/WRITE commands
++#define ec0_read(addr) ecN_read(EC0_CMD, EC0_DATA, addr)
++#define ec0_write(addr, val) ecN_write(EC0_CMD, EC0_DATA, addr, val)
++#define ec1_read(addr) ecN_read(EC1_CMD, EC1_DATA, addr)
++#define ec1_write(addr, val) ecN_write(EC1_CMD, EC1_DATA, addr, val)
++
++// Read from the emulated EEPROM
++uint8_t eeprom_read(uint16_t addr);
++
++// Write to the emulated EEPROM
++void eeprom_write(uint16_t addr, uint8_t val);
++
++// Read loaded debug key mask
++uint16_t debug_loaded_keys(void);
++
++// The following location (via either EC0 or EC1) can be used to interact with the debug interface
++#define EC_DEBUG_CMD 0x3d
++
++void debug_read_key(uint8_t i, uint8_t *key);
++
++void debug_write_key(uint8_t i, const uint8_t *key);
++
++uint32_t debug_read_dword(uint32_t addr);
++
++void debug_write_dword(uint32_t addr, uint32_t val);
++
++// RW unlock key index
++#define DEBUG_RW_KEY_IDX 1
++
++// RW unlock key for EC version N24HT37W
++extern const uint8_t debug_rw_key[8];
++
++#endif
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/gpio.h b/src/mainboard/lenovo/sklkbl_thinkpad/gpio.h
+new file mode 100644
+index 0000000000..d89ed712d4
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/gpio.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef GPIO_H
++#define GPIO_H
++
++void variant_config_gpios(void);
++
++#endif
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/ramstage.c b/src/mainboard/lenovo/sklkbl_thinkpad/ramstage.c
+new file mode 100644
+index 0000000000..44c8578852
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/ramstage.c
+@@ -0,0 +1,105 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <arch/io.h>
++#include <device/device.h>
++#include <drivers/intel/gma/int15.h>
++#include <option.h>
++#include <soc/ramstage.h>
++#include "ec.h"
++#include "gpio.h"
++
++#define GPIO_GPU_RST		GPP_E22 // active low
++#define GPIO_1R8VIDEO_AON_ON	GPP_E23
++
++#define GPIO_DGFX_PWRGD		GPP_F3
++
++#define GPIO_DISCRETE_PRESENCE	GPP_D9	// active low
++#define GPIO_DGFX_VRAM_ID0	GPP_D11
++#define GPIO_DGFX_VRAM_ID1	GPP_D12
++
++void mainboard_silicon_init_params(FSP_SIL_UPD *params)
++{
++	static const char * const dgfx_vram_id_str[] = { "1GB", "2GB", "4GB", "N/A" };
++
++	int dgfx_vram_id;
++
++	// Setup GPIOs
++	variant_config_gpios();
++
++	// Detect and enable dGPU
++	if (gpio_get(GPIO_DISCRETE_PRESENCE) == 0) { // active low
++		dgfx_vram_id = gpio_get(GPIO_DGFX_VRAM_ID0) | gpio_get(GPIO_DGFX_VRAM_ID1) << 1;
++		printk(BIOS_DEBUG, "Discrete GPU present with %s VRAM\n", dgfx_vram_id_str[dgfx_vram_id]);
++
++		// NOTE: i pulled this GPU enable sequence from thin air
++		// it sometimes works but is buggy and the GPU disappears in some cases so disabling it by default.
++		// also unrelated to this enable sequence the nouveau driver only works on 6.8-6.9 kernels
++		if (get_uint_option("dgpu_enable", 0)) {
++			printk(BIOS_DEBUG, "Enabling discrete GPU\n");
++			gpio_set(GPIO_1R8VIDEO_AON_ON, 1);	// Enable GPU power rail
++			while (!gpio_get(GPIO_DGFX_PWRGD))	// Wait for power good signal from GPU
++				;
++			gpio_set(GPIO_GPU_RST, 1);		// Release GPU from reset
++		} else {
++			printk(BIOS_DEBUG, "Discrete GPU will remain disabled\n");
++		}
++
++	} else {
++		printk(BIOS_DEBUG, "Discrete GPU not present\n");
++	}
++}
++
++static void dump_ec_cfg(uint16_t port)
++{
++	microchip_pnp_enter_conf_state(port);
++
++	// Device info
++	printk(BIOS_DEBUG, "Device id  %02x\n", pnp_read(port, EC_DEVICE_ID));
++	printk(BIOS_DEBUG, "Device rev %02x\n", pnp_read(port, EC_DEVICE_REV));
++
++	// Switch to LPCIF LDN
++	pnp_write(port, PNP_LDN_SELECT, LDN_LPCIF);
++
++	// Dump SIRQs
++	for (int i = 0; i <= 15; i += 1)
++		printk(BIOS_DEBUG, "SIRQ%d = %02x\n", i, pnp_read(port, LPCIF_SIRQ(i)));
++
++	// Dump BARs
++	printk(BIOS_DEBUG, "BAR CFG = %08x\n", pnp_read_le32(port, LPCIF_BAR_CFG));
++	printk(BIOS_DEBUG, "BAR MAILBOX = %08x\n", pnp_read_le32(port, LPCIF_BAR_MAILBOX));
++	printk(BIOS_DEBUG, "BAR 8042 = %08x\n", pnp_read_le32(port, LPCIF_BAR_8042));
++	printk(BIOS_DEBUG, "BAR ACPI_EC0 = %08x\n", pnp_read_le32(port, LPCIF_BAR_ACPI_EC0));
++	printk(BIOS_DEBUG, "BAR ACPI_EC1 = %08x\n", pnp_read_le32(port, LPCIF_BAR_ACPI_EC1));
++	printk(BIOS_DEBUG, "BAR ACPI_EC2 = %08x\n", pnp_read_le32(port, LPCIF_BAR_ACPI_EC2));
++	printk(BIOS_DEBUG, "BAR ACPI_EC3 = %08x\n", pnp_read_le32(port, LPCIF_BAR_ACPI_EC3));
++	printk(BIOS_DEBUG, "BAR ACPI_PM0 = %08x\n", pnp_read_le32(port, LPCIF_BAR_ACPI_PM0));
++	printk(BIOS_DEBUG, "BAR UART = %08x\n", pnp_read_le32(port, LPCIF_BAR_UART));
++	printk(BIOS_DEBUG, "BAR FAST_KYBD = %08x\n", pnp_read_le32(port, LPCIF_BAR_FAST_KYBD));
++	printk(BIOS_DEBUG, "BAR EMBED_FLASH = %08x\n", pnp_read_le32(port, LPCIF_BAR_EMBED_FLASH));
++	printk(BIOS_DEBUG, "BAR GP_SPI = %08x\n", pnp_read_le32(port, LPCIF_BAR_GP_SPI));
++	printk(BIOS_DEBUG, "BAR EMI = %08x\n", pnp_read_le32(port, LPCIF_BAR_EMI));
++	printk(BIOS_DEBUG, "BAR PMH7 = %08x\n", pnp_read_le32(port, LPCIF_BAR_PMH7));
++	printk(BIOS_DEBUG, "BAR PORT80_DBG0 = %08x\n", pnp_read_le32(port, LPCIF_BAR_PORT80_DBG0));
++	printk(BIOS_DEBUG, "BAR PORT80_DBG1 = %08x\n", pnp_read_le32(port, LPCIF_BAR_PORT80_DBG1));
++	printk(BIOS_DEBUG, "BAR RTC = %08x\n", pnp_read_le32(port, LPCIF_BAR_RTC));
++
++	microchip_pnp_exit_conf_state(port);
++}
++
++static void mainboard_enable(struct device *dev)
++{
++	if (CONFIG(VGA_ROM_RUN))
++		install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_EDP,
++						GMA_INT15_PANEL_FIT_DEFAULT,
++						GMA_INT15_BOOT_DISPLAY_DEFAULT, 0);
++}
++
++static void mainboard_init(void *chip_info)
++{
++	dump_ec_cfg(EC_CFG_PORT);
++}
++
++struct chip_operations mainboard_ops = {
++	.enable_dev = mainboard_enable,
++	.init = mainboard_init,
++};
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/data.vbt b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/data.vbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4db4202961d0be67b75f52b28f2111d5655595c3
+GIT binary patch
+literal 4106
+zcmeHJU2GIp6h5=FKeKmc=rAo()>4l^U|XP_ZDGYy!|YE>mu}hZ4|PdQy1<TF-O}0?
+zDF)LeX(GlTYoZ2xkUp4bc(Fbi;|s>bV0gipVB&+pHzmFpc`=IXxii}qiqH*)7}PU+
+z?woV)x!<09?wNbfhQa6n_IK}3M!Gw&OgS)sY2Q$LJ4F+z{-JneATkt9refXr6+8sr
+zR{e1eASVcGl#mf_O&p%I^1;3af=xDeN0ZnydT=;zHOH-q=O;(UFda)^<j^52Z;c<A
+zv~t)#xI2OzS7p&7!}%QUJu-688gD}mM%EbG*3`NU(Fiq%!p$v4=y8%;+qQ?>LXW8|
+z-Vsanq!Y==Kq9plQ+*gu^hf&pJ9?tY{h01cbtR&SfsVM!_*!D4W5>papLuo?gRur|
+zF$`lX;f2t48Dpd4V@(*z=dq95OkkfiVU53N<(gE+=U)KHEdU4}@R=aMjTTTOcb8-a
+zC9IXSxZB*|#u~SlHnpsY25L#Sxy6ljl16gI)H0f>for?qaszCX;ESpG=pqROFWR~Z
+zTqQzcH(berra`9K(R~0OJ_eeA<Ovbd&vdN3&y}qtJ`q3y6wpP2V}*{Dbi8b357>=>
+z&R-)LYP^U3@%6h}+0)7m-mEOhOM92<j^WbYrTU_kNXz~GCDNT`I|IC3AsFzURKM6k
+zQdYbOof5*Zq``6G)5LxcgKFZn#G8mi#5;*Qh*QM-i4PHv5FaHzLHru=Tg2yx{aFHb
+z(R2S=c8RBfL#5J#E-BTphw@OA+GpyZ;G1*r11OzSMVJD%l2Wuxx^l~w*1QYefHUN4
+zpSM~1{wGHQJOdv7$#vPs;Ii+!aI*SVDadZ``zyQq-N$35E%P{WT}(AcpKmkH*)gyF
+z|NhTLpsow9_zOk6x>l32>zpvu-&@ZkPf<>~Bsv&Oy1O(`pbLUf3vt*0HIRk0U3EzI
+zIeSaIE9*jps%6qP7$EQo8=K#f^K_mFpy5prkNNSOU;oI@KK0}Ge*G6eyWz+6OyADf
+zE`}D<k1}?G;rmSggt5;V{>b#-81u-uS=OJB*=`v}WPMs@ugdtLtbZo6OEUf}>!QL`
+z1zQ!pLt!Zek0|;p3VTDrj}`q(g?+8yuZk|KY?X>TRlP@LPpbH`s-ITbSygS+Jq6cQ
+zp|Em=T_#B53Y|R}mtw!K3mUyWRhytxx_wi^(}HurDkx@L%OlKIA%rq@7%bE{p{Wl~
+zJJ%lV6&>fxBjnbA8G(&P?a8o%P#c~Wo$7|%1UE-$r;6jwt1uejOfMLwF-BDgC-Q+N
+za!Hx;1S&$9!rlNCTsI*IMZ0#Y5aEO7sjIz#jb`S|q7OpRYx`h&=PK}_YnN#poNF=7
+z3yTO|pc0N&G3cozl21Q6c)l0vjm~0uFL)%2_T5RYR1$~dO~u)4px!jFycZNnchPVA
+z!0+Vc_afL{m>rv2PY8{Cma`W{yG~JNJu?;L!#fSLmwRW{8R@gD7Z5~{xvZGpN)U`j
+z^I~=;XVmtVzgSv@Na@HC?lC8A1l2+CU<IqV7J%6_t~L}S#%I}a5R3FZk`D#n4m*-O
+z$?u%iuC_w$3p=)&nXQX^AwrdnK*hRu`Mqc`AzOgztfsBxvm77j5G7KQo#~<Ufx}jQ
+z?|~8PU!d?s-JLd{0Ph}c6J*Zsxd^=dPINEGPS4+NOQoUG&E#4_TUNoTPI5CrmHR%r
+VymGKbcpH8Yo8|ycF3<xZ{s}94r0@U$
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gma-mainboard.ads b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gma-mainboard.ads
+new file mode 100644
+index 0000000000..fcfbd75a92
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gma-mainboard.ads
+@@ -0,0 +1,19 @@
++-- SPDX-License-Identifier: GPL-2.0-or-later
++
++with HW.GFX.GMA;
++with HW.GFX.GMA.Display_Probing;
++
++use HW.GFX.GMA;
++use HW.GFX.GMA.Display_Probing;
++
++private package GMA.Mainboard is
++
++   ports : constant Port_List :=
++     (eDP,
++      DP1,
++      DP2,
++      HDMI1,
++      HDMI2,
++      others => Disabled);
++
++end GMA.Mainboard;
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
+new file mode 100644
+index 0000000000..f7c29e1f39
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
+@@ -0,0 +1,203 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <soc/gpio.h>
++#include "../../gpio.h"
++
++/* FIXME: There are multiple GPIOs here that should be locked to prevent "TPM GPIO fail" style
++ * attacks. Unfortunately SKL/KBL GPIO locking *does not* work currently. */
++
++static const struct pad_config gpio_table[] = {
++
++	/* ------- GPIO Community 0 ------- */
++
++	/* ------- GPIO Group GPP_A ------- */
++	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
++	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
++	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
++	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
++	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
++	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
++	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
++	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
++	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
++	PAD_CFG_NF(GPP_A9, NATIVE, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF(GPP_A10, NATIVE, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
++	PAD_NC(GPP_A11, NONE),
++	PAD_NC(GPP_A12, NONE),
++	PAD_CFG_NF(GPP_A13, NATIVE, DEEP, NF1),				/* -SUSWARN */
++	PAD_CFG_NF(GPP_A14, NATIVE, DEEP, NF1),				/* -SUS_STAT */
++	PAD_CFG_NF(GPP_A15, NATIVE, DEEP, NF1),				/* -SUSWARN */
++	PAD_NC(GPP_A16, NONE),
++	PAD_NC(GPP_A17, NONE),
++	PAD_NC(GPP_A18, NONE),
++	PAD_NC(GPP_A19, NONE),
++	PAD_NC(GPP_A20, NONE),
++	PAD_NC(GPP_A21, NONE),
++	PAD_NC(GPP_A22, NONE),
++	PAD_NC(GPP_A23, NONE),
++
++	/* ------- GPIO Group GPP_B ------- */
++	PAD_NC(GPP_B0, NONE),
++	PAD_NC(GPP_B1, NONE),
++	PAD_NC(GPP_B2, NONE),
++	PAD_NC(GPP_B3, NONE),
++	PAD_CFG_GPI_SCI(GPP_B4, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -TBT_PLUG_EVENT */
++	PAD_CFG_NF(GPP_B5, NONE, DEEP, NF1),				/* -CLKREQ_PCIE0 */
++	PAD_CFG_NF(GPP_B6, NONE, DEEP, NF1),				/* -CLKREQ_PCIE4 */
++	PAD_CFG_NF(GPP_B7, NONE, DEEP, NF1),				/* -CLKREQ_PCIE5 */
++	PAD_CFG_NF(GPP_B8, NONE, DEEP, NF1),				/* -CLKREQ_PCIE6 */
++	PAD_CFG_NF(GPP_B9, NONE, DEEP, NF1),				/* -CLKREQ_PCIE8 */
++	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE10 */
++	PAD_NC(GPP_B11, NONE),
++	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
++	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF(GPP_B14, NATIVE, DEEP, NF1),				/* PCH_SPKR */
++	PAD_CFG_GPO(GPP_B15, 1, DEEP),					/* NFC_DLREQ */
++	PAD_NC(GPP_B16, NONE),
++	PAD_NC(GPP_B17, NONE),
++	PAD_NC(GPP_B18, NONE),
++	PAD_NC(GPP_B19, NONE),
++	PAD_NC(GPP_B20, NONE),
++	PAD_NC(GPP_B21, NONE),
++	PAD_NC(GPP_B22, NONE),
++	PAD_NC(GPP_B23, NONE),
++
++	/* ------- GPIO Community 1 ------- */
++
++	/* ------- GPIO Group GPP_C ------- */
++	PAD_CFG_NF(GPP_C0, NONE, DEEP, NF1),				/* SMB_CLK */
++	PAD_CFG_NF(GPP_C1, NONE, DEEP, NF1),				/* SMB_DATA */
++	PAD_NC(GPP_C2, NONE),
++	PAD_CFG_NF(GPP_C3, NONE, DEEP, NF1),				/* SML0_CLK */
++	PAD_CFG_NF(GPP_C4, NONE, DEEP, NF1),				/* SML0_DATA */
++	PAD_NC(GPP_C5, NONE),
++	PAD_CFG_NF(GPP_C6, NONE, DEEP, NF1),				/* EC_SCL2 */
++	PAD_CFG_NF(GPP_C7, NONE, DEEP, NF1),				/* EC_SDA2 */
++	PAD_NC(GPP_C8, NONE),
++	PAD_NC(GPP_C9, NONE),
++	PAD_NC(GPP_C10, NONE),
++	PAD_NC(GPP_C11, NONE),
++	PAD_NC(GPP_C12, NONE),
++	PAD_NC(GPP_C13, NONE),
++	PAD_NC(GPP_C14, NONE),
++	PAD_NC(GPP_C15, NONE),
++	PAD_CFG_NF(GPP_C16, NONE, DEEP, NF1),				/* I2C0_DATA */
++	PAD_CFG_NF(GPP_C17, NONE, DEEP, NF1),				/* I2C0_CLK */
++	PAD_NC(GPP_C18, NONE),
++	PAD_NC(GPP_C19, NONE),
++	PAD_CFG_GPO(GPP_C20, 0, DEEP),					/* EPRIVACY_ON */
++	PAD_CFG_GPO(GPP_C21, 0, DEEP),					/* TBT_FORCE_PWR */
++	PAD_CFG_GPI_SCI(GPP_C22, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -EC_SCI */
++	PAD_CFG_GPI_SCI(GPP_C23, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -EC_WAKE */
++
++	/* ------- GPIO Group GPP_D ------- */
++	PAD_NC(GPP_D0, NONE),
++	PAD_NC(GPP_D1, NONE),
++	PAD_NC(GPP_D2, NONE),
++	PAD_NC(GPP_D3, NONE),
++	PAD_NC(GPP_D4, NONE),
++	PAD_NC(GPP_D5, NONE),
++	PAD_NC(GPP_D6, NONE),
++	PAD_NC(GPP_D7, NONE),
++	PAD_NC(GPP_D8, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D9, UP_20K, DEEP, OFF, ACPI),		/* -DISCRETE_PRESENCE */
++	PAD_NC(GPP_D10, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D11, UP_20K, DEEP, OFF, ACPI),		/* DGFX_VRAM_ID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_D12, UP_20K, DEEP, OFF, ACPI),		/* DGFX_VRAM_ID1 */
++	PAD_NC(GPP_D13, NONE),
++	PAD_NC(GPP_D14, NONE),
++	PAD_NC(GPP_D15, NONE),
++	PAD_NC(GPP_D16, NONE),
++	PAD_CFG_GPO(GPP_D17, 0, DEEP),					/* DDI_PRIORITY1 */
++	PAD_NC(GPP_D18, NONE),
++	PAD_NC(GPP_D19, NONE),
++	PAD_NC(GPP_D20, NONE),
++	PAD_NC(GPP_D21, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D22, UP_20K, DEEP, OFF, ACPI),		/* -NFC_DTCT */
++	PAD_NC(GPP_D23, NONE),
++
++	/* ------- GPIO Group GPP_E ------- */
++	PAD_NC(GPP_E0, NONE),
++	PAD_CFG_NF(GPP_E1, NONE, DEEP, NF1),				/* -WWAN_SATA_DTCT (always HIGH) */
++	PAD_CFG_NF(GPP_E2, NONE, DEEP, NF1),				/* -PE_DTCT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_E3, NONE, DEEP, EDGE_SINGLE, ACPI),	/* -TBT_PLUG_EVENT */
++	PAD_CFG_GPO(GPP_E4, 1, DEEP),					/* NFC_ON */
++	PAD_NC(GPP_E5, NONE),
++	PAD_CFG_NF(GPP_E6, NONE, RSMRST, NF1),				/* SATA2_DEVSLP */
++	PAD_NC(GPP_E7, NONE),
++	PAD_NC(GPP_E8, NONE),
++	PAD_CFG_NF(GPP_E9, NONE, DEEP, NF1),				/* -USB_PORT0_OC0 (AON port) */
++	PAD_CFG_NF(GPP_E10, NONE, DEEP, NF1),				/* -USB_PORT1_OC1 (regular port) */
++	PAD_NC(GPP_E11, NONE),
++	PAD_CFG_GPI_APIC_HIGH(GPP_E12, NONE, DEEP),			/* NFC_INT */
++	PAD_CFG_NF(GPP_E13, NONE, DEEP, NF1),				/* DDIP1_HPD */
++	PAD_CFG_NF(GPP_E14, NONE, DEEP, NF1),				/* DDIP2_HPD */
++	PAD_NC(GPP_E15, NONE),
++	PAD_NC(GPP_E16, NONE),
++	PAD_CFG_NF(GPP_E17, NONE, DEEP, NF1),				/* EDP_HPD */
++	PAD_NC(GPP_E18, NONE),
++	PAD_NC(GPP_E19, NONE),
++	PAD_CFG_NF(GPP_E20, NONE, DEEP, NF1),				/* DDIP2_CTRLCLK */
++	PAD_CFG_NF(GPP_E21, NONE, DEEP, NF1),				/* DDIP2_CTRLDATA */
++	PAD_CFG_TERM_GPO(GPP_E22, 0, UP_20K, RSMRST),			/* -GPU_RST */
++	PAD_CFG_TERM_GPO(GPP_E23, 0, UP_20K, RSMRST),			/* 1R8VIDEO_AON_ON */
++
++	/* ------- GPIO Community 2 ------- */
++
++	/* -------- GPIO Group GPD -------- */
++	PAD_CFG_NF(GPD0, NONE, PWROK, NF1),				/* -BATLOW */
++	PAD_CFG_NF(GPD1, NATIVE, PWROK, NF1),				/* AC_PRESENT */
++	PAD_CFG_NF(GPD2, NATIVE, PWROK, NF1),				/* -LANWAKE */
++	PAD_CFG_NF(GPD3, UP_20K, PWROK, NF1),				/* -PWRSW_EC */
++	PAD_CFG_NF(GPD4, NONE, PWROK, NF1),				/* -PCH_SLP_S3 */
++	PAD_CFG_NF(GPD5, NONE, PWROK, NF1),				/* -PCH_SLP_S4 */
++	PAD_CFG_NF(GPD6, NONE, PWROK, NF1),				/* -PCH_SLP_M */
++	PAD_NC(GPD7, NONE),
++	PAD_CFG_NF(GPD8, NONE, PWROK, NF1),				/* SUSCLK_32K */
++	PAD_CFG_NF(GPD9, NONE, PWROK, NF1),				/* -PCH_SLP_WLAN */
++	PAD_CFG_NF(GPD10, NONE, PWROK, NF1),				/* -PCH_SLP_S5 */
++	PAD_CFG_NF(GPD11, NONE, PWROK, NF1),				/* LANPHYPC */
++
++	/* ------- GPIO Community 3 ------- */
++
++	/* ------- GPIO Group GPP_F ------- */
++	PAD_NC(GPP_F0, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F1, NONE, DEEP, OFF, ACPI),		/* GC6_FB_EN */
++	PAD_CFG_GPO(GPP_F2, 1, DEEP),					/* -GPU_EVENT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F3, NONE, DEEP, OFF, ACPI),		/* DGFX_PWRGD */
++	PAD_CFG_GPO(GPP_F4, 1, DEEP),					/* -WWAN_RESET */
++	PAD_NC(GPP_F5, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F6, UP_20K, DEEP, OFF, ACPI),		/* -MIC_HW_EN (R961 to GND) */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F7, UP_20K, DEEP, OFF, ACPI),		/* -INT_MIC_DTCT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F8, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F9, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F10, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F11, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG3 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F12, UP_20K, DEEP, OFF, ACPI),		/* PLANARID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F13, UP_20K, DEEP, OFF, ACPI),		/* PLANARID1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F14, UP_20K, DEEP, OFF, ACPI),		/* PLANARID2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F15, UP_20K, DEEP, OFF, ACPI),		/* PLANARID3 */
++	PAD_NC(GPP_F16, NONE),
++	PAD_NC(GPP_F17, NONE),
++	PAD_NC(GPP_F18, NONE),
++	PAD_NC(GPP_F19, NONE),
++	PAD_NC(GPP_F20, NONE),
++	PAD_NC(GPP_F21, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F22, UP_20K, DEEP, OFF, ACPI),		/* -INTRUDER_PCH */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F23, UP_20K, DEEP, OFF, ACPI),		/* -SC_DTCT */
++
++	/* ------- GPIO Group GPP_G ------- */
++	PAD_NC(GPP_G0, NONE),
++	PAD_NC(GPP_G1, NONE),
++	PAD_NC(GPP_G2, NONE),
++	PAD_NC(GPP_G3, NONE),
++	PAD_CFG_GPO(GPP_G4, 0, DEEP),					/* TBT_RTD3_PWR_EN */
++	PAD_CFG_GPO(GPP_G5, 0, DEEP),					/* TBT_FORCE_USB_PWR */
++	PAD_CFG_GPO(GPP_G6, 0, DEEP),					/* -TBT_PERST */
++	PAD_CFG_GPI_SCI(GPP_G7, NONE, DEEP, LEVEL, INVERT),		/* -TBT_PCIE_WAKE */
++};
++
++void variant_config_gpios(void)
++{
++	gpio_configure_pads(gpio_table, ARRAY_SIZE(gpio_table));
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/hda_verb.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/hda_verb.c
+new file mode 100644
+index 0000000000..3a951ce0da
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/hda_verb.c
+@@ -0,0 +1,90 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <device/azalia_device.h>
++
++const u32 cim_verb_data[] = {
++	0x10ec0257, // Vendor/Device ID: Realtek ALC257
++	0x17aa225d, // Subsystem ID
++	11,
++	AZALIA_SUBVENDOR(0, 0x17aa225d),
++
++	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
++		AZALIA_INTEGRATED,
++		AZALIA_INTERNAL,
++		AZALIA_MIC_IN,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_NO_JACK_PRESENCE_DETECT,
++		2, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x13, 0x40000000), // does not describe a jack or internal device
++	AZALIA_PIN_CFG(0, 0x14, AZALIA_PIN_DESC(
++		AZALIA_INTEGRATED,
++		AZALIA_INTERNAL,
++		AZALIA_SPEAKER,
++		AZALIA_OTHER_ANALOG,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_NO_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x18, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x19, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
++		AZALIA_MIC_IN,
++		AZALIA_STEREO_MONO_1_8,
++		AZALIA_BLACK,
++		AZALIA_JACK_PRESENCE_DETECT,
++		3, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x1a, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x1b, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x1d, 0x40661b45), // does not describe a jack or internal device
++	AZALIA_PIN_CFG(0, 0x1e, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x21, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
++		AZALIA_HP_OUT,
++		AZALIA_STEREO_MONO_1_8,
++		AZALIA_BLACK,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 15
++	)),
++
++	0x8086280b, // Vendor/Device ID: Intel Kabylake HDMI
++	0x80860101, // Subsystem ID
++	4,
++	AZALIA_SUBVENDOR(2, 0x80860101),
++
++	AZALIA_PIN_CFG(2, 0x05, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++	AZALIA_PIN_CFG(2, 0x06, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		2, 0
++	)),
++	AZALIA_PIN_CFG(2, 0x07, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		3, 0
++	)),
++};
++
++const u32 pc_beep_verbs[] = {};
++
++AZALIA_ARRAY_SIZES;
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/memory_init_params.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/memory_init_params.c
+new file mode 100644
+index 0000000000..5252a402f9
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/memory_init_params.c
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <soc/romstage.h>
++#include <spd_bin.h>
++
++void mainboard_memory_init_params(FSPM_UPD *mupd)
++{
++	FSP_M_CONFIG *mem_cfg = &mupd->FspmConfig;
++	mem_cfg->DqPinsInterleaved = true;			/* DDR_DQ in interleave mode */
++	mem_cfg->CaVrefConfig      = 2;				/* VREF_CA to CH_A and VREF_DQ_B to CH_B */
++	mem_cfg->MemorySpdDataLen  = CONFIG_DIMM_SPD_SIZE;
++
++	/* Get SPD for memory slots */
++	struct spd_block blk = { .addr_map = { 0x50, 0x51, } };
++	get_spd_smbus(&blk);
++	dump_spd_info(&blk);
++
++	mem_cfg->MemorySpdPtr00    = (uintptr_t)blk.spd_array[0];
++	mem_cfg->MemorySpdPtr10    = (uintptr_t)blk.spd_array[1];
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb
+new file mode 100644
+index 0000000000..bf66bd3a69
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb
+@@ -0,0 +1,103 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++chip soc/intel/skylake
++	device domain 0 on
++		device ref south_xhci on
++			register "usb2_ports" = "{
++				[0] = USB2_PORT_MID(OC1),		// USB-A
++				[1] = USB2_PORT_MID(OC0),		// USB-A (always on)
++				[2] = USB2_PORT_MID(OC_SKIP),		// JSC-1 (smartcard slot)
++				[3] = USB2_PORT_MID(OC_SKIP),		// USB-C (charging port)
++				[4] = USB2_PORT_MID(OC_SKIP),		// JCAM1 (IR camera)
++				[5] = USB2_PORT_MID(OC_SKIP),		// JWWAN1 (M.2 WWAN USB)
++				[6] = USB2_PORT_MID(OC_SKIP),		// JWLAN1 (M.2 WLAN USB)
++				[7] = USB2_PORT_MID(OC_SKIP),		// JCAM1 (webcam)
++				[8] = USB2_PORT_MID(OC_SKIP),		// JFPR1 (fingerprint reader)
++				[9] = USB2_PORT_MID(OC_SKIP),		// JLCD1 (touch panel)
++			}"
++			register "usb3_ports" = "{
++				[0] = USB3_PORT_DEFAULT(OC1),		// USB-A
++				[1] = USB3_PORT_DEFAULT(OC0),		// USB-A (always on)
++				[2] = USB3_PORT_DEFAULT(OC_SKIP),	// RTS5344S (SD card reader)
++				[3] = USB3_PORT_DEFAULT(OC_SKIP),	// USB-C (charging port)
++			}"
++		end
++
++		device ref sata on
++			# SATA_2 - JHDD1 SATA SSD
++			register "SataPortsEnable[2]" = "1"
++			register "SataPortsDevSlp[2]" = "1"
++		end
++
++		# PCIe controller 1 - 1x4
++		#   PCIE 1-4   - RP1  - dGPU - CLKOUT0 - CLKREQ0
++		#
++		# PCIe controller 2 - 2x1+1x2 (lane reversal)
++		#   PCIE 5     - GBE  - GBE  - CLKOUT1 - CLKREQ1 (clobbers RP8)
++		#   PCIE 6     - RP7  - WLAN - CLKOUT2 - CLKREQ2
++		#   PCIE 7-8   - RP5  - WWAN - CLKOUT3 - CLKREQ3
++		#
++		# PCIe controller 3 - 2x2
++		#   PCIE 9-10  - RP9  - TB3  - CLKOUT4 - CLKREQ4
++		#   PCIE 11-12 - RP11 - SSD  - CLKOUT5 - CLKREQ5
++
++		# dGPU - x4
++		device ref pcie_rp1 on
++			register "PcieRpEnable[0]"			= "1"
++			register "PcieRpClkReqSupport[0]"		= "1"
++			register "PcieRpClkReqNumber[0]"		= "0"
++			register "PcieRpClkSrcNumber[0]"		= "0"
++			register "PcieRpAdvancedErrorReporting[0]"	= "1"
++			register "PcieRpLtrEnable[0]"			= "1"
++		end
++
++		# Ethernet (clobbers RP8)
++		device ref gbe on
++			register "LanClkReqSupported"			= "1"
++			register "LanClkReqNumber"			= "1"
++			register "EnableLanLtr"				= "1"
++			register "EnableLanK1Off"			= "1"
++		end
++
++		# M.2 WLAN - x1
++		device ref pcie_rp7 on
++			register "PcieRpEnable[6]"			= "1"
++			register "PcieRpClkReqSupport[6]"		= "1"
++			register "PcieRpClkReqNumber[6]"		= "2"
++			register "PcieRpClkSrcNumber[6]"		= "2"
++			register "PcieRpAdvancedErrorReporting[6]"	= "1"
++			register "PcieRpLtrEnable[6]"			= "1"
++		end
++
++		# M.2 WWAN - x2
++		device ref pcie_rp5 on
++			register "PcieRpEnable[4]"			= "1"
++			register "PcieRpClkReqSupport[4]"		= "1"
++			register "PcieRpClkReqNumber[4]"		= "3"
++			register "PcieRpClkSrcNumber[4]"		= "3"
++			register "PcieRpAdvancedErrorReporting[4]"	= "1"
++			register "PcieRpLtrEnable[4]"			= "1"
++		end
++
++		# TB3 (Alpine Ridge LP) - x2
++		device ref pcie_rp9 on
++			register "PcieRpEnable[8]"			= "1"
++			register "PcieRpClkReqSupport[8]"		= "1"
++			register "PcieRpClkReqNumber[8]"		= "4"
++			register "PcieRpClkSrcNumber[8]"		= "4"
++			register "PcieRpAdvancedErrorReporting[8]"	= "1"
++			register "PcieRpLtrEnable[8]"			= "1"
++			register "PcieRpHotPlug[8]"			= "1"
++		end
++
++		# M.2 2280 caddy - x2
++		device ref pcie_rp11 on
++			register "PcieRpEnable[10]"			= "1"
++			register "PcieRpClkReqSupport[10]"		= "1"
++			register "PcieRpClkReqNumber[10]"		= "5"
++			register "PcieRpClkSrcNumber[10]"		= "5"
++			register "PcieRpAdvancedErrorReporting[10]"	= "1"
++			register "PcieRpLtrEnable[10]"			= "1"
++		end
++	end
++end
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/data.vbt b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/data.vbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..47732e37d5b2bad4e674fd10eafa605d26f97840
+GIT binary patch
+literal 4106
+zcmeHJUu+a*5TCu>yW9JAmoD2P<t%lC2CfC#y%tU^HSGOq>9tqx`iFWXCLD09R<E?S
+zMT)`nNScT-%9*GEA8a2?G`v`!jPV6yVlcd5OnC6Y;F}U&jJz1db9VRID@E)DLk#NN
+z&9^i2&Hiq_`R2ZF8ipf7IM{nI5$^585@kULrrx0OPKv~ngNI__q41$dA{p()ui+v1
+zw(9rm09lUPAP4nOTm0CRnF|aw5^SQSH<G}<u_Gfnvn6IuK0h@!j;UxI!$*&rIdkIh
+zl$piB;eBDWa1|CgK9bAg{^O%Z%!ziiz{neeJDb~fBI?1GV5p^44?a$ETl=n1d+;%Z
+z#X6(OzEnIB9*QUTV{!mv@xk!mU}s+>aS&4j$?kY0KGYdgn6;MZ*!anbk!PNr!a%eU
+zTXkLEL3ly5L&oUX#CS7?b2%Kad?s<goHQq1G_%bLv);c5qQC)gZtxnw!L3%1MWI_X
+z0wUImYD_R11gsI%l%Zw})KN_c#&!YgM3v;Up{7+s1=lXlB>-#@;mhg8>>>#S&)d2I
+zmP&-g0$k02szSQj(Y*j}YYtQnDH0;2ui<!ko-28Y){6ilAcrmz951v4RTWQ_ye!or
+z4xOJya#Sr7{o)%XFUfJCndM%KM(c^ol_hzlb*1h&uC%Vy%U(P!_qUfwcb4r;SmPQ_
+zhxf($vVo)we+jxogb`7NQ^aS9eQpNT#2bmX5(kO*5O)$Mi4PJVB_1U{L42C{HR894
+z=ZJk70(Q~o{*COiRR#_fix0XaS3?igAuo2!)<NF8ARGWF&M7=h16xZaS|UxpZA)w3
+z1CQUC@^&oxtbG2HGk&WA9=_qa;$?8fdy_j;eY+H3ciR5U?|$2?oT;mPoV=Dx&CwUf
+zv~zYWs{cR#vl*!ChO54O0k3UT#mpur4fXeCdE_aoNtZ|mgF!ck3Nmy<0BRuy4NwCa
+zNZDP7XrHsU<-0NyB2=wXwgEqZPukelExAY+hyWVj0{)~A=X~17KK7XpzxQcB``9fX
+zZf4pp#`ZEanRbG)(+odg+NX?t!SF|>{mPhI!flfFgv9nqI4Wr~5_?s`k0kALiCvcP
+zCrRUFrpVYPYn?Jn%6MGXUXj_GGJYa!U&-tn8Gn&ANnz_0+@olH3VTw)mlf@-!p<v7
+zljhF5u5tObYwR{boRI14NxNkGd6QG=>8{!e#p0ct5}M(h16D>p?OGjSz6v3juERjS
+z#z{?mXvVqrXs_rvUmYR40gNzg(QD6y9E94?4DWO|6eb83LI-smcVC6x1n2reH}rAp
+zLM);f=tWDCr``UF5T>!;PYu^H1g>EBP8A}2*fM>s-@nC3pDV|}6+CtfhG(II7`pcw
+z`jLfJ!?;*R@Bp=Nw2EPOC7FEs(cugIP_K6tN_$~tvS8nx6iOv|IMrO3&-m*N9ZP#b
+znG^~>I|l1cUVSeD9r^k3h0TP}WWD9=MZxY<<azgO1@-W5<NTHW*-d)t{Q4yX9_+?a
+zHawLe=uO6@%xqS#?JxafX%#$`BhkIqq>Z3B2yU!k71#YRpThOJtVheMDA50rV#s@U
+z+nKbA{O(olYR}icuzQD*-cjBQ9;%!eMDVP>7mWsF@=%>o)wSgq=n%DHNOYwRr4Ao6
+zbNdgEn*RdDS>Rud+fIY0N8JkP3q6;>8o%R(CE2n3?Xg%qP+U%~6|{XFyxv7Y#;J2Z
+XK$lk*wsY^m4}9|iz?mg_AjCfat$CyH
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gma-mainboard.ads b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gma-mainboard.ads
+new file mode 100644
+index 0000000000..fcfbd75a92
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gma-mainboard.ads
+@@ -0,0 +1,19 @@
++-- SPDX-License-Identifier: GPL-2.0-or-later
++
++with HW.GFX.GMA;
++with HW.GFX.GMA.Display_Probing;
++
++use HW.GFX.GMA;
++use HW.GFX.GMA.Display_Probing;
++
++private package GMA.Mainboard is
++
++   ports : constant Port_List :=
++     (eDP,
++      DP1,
++      DP2,
++      HDMI1,
++      HDMI2,
++      others => Disabled);
++
++end GMA.Mainboard;
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
+new file mode 100644
+index 0000000000..a98dd2bc4e
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
+@@ -0,0 +1,199 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <soc/gpio.h>
++#include "../../gpio.h"
++
++static const struct pad_config gpio_table[] = {
++	/* ------- GPIO Community 0 ------- */
++
++	/* ------- GPIO Group GPP_A ------- */
++	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
++	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
++	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
++	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
++	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
++	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
++	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
++	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
++	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
++	PAD_CFG_NF(GPP_A9, DN_20K, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF(GPP_A10, DN_20K, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
++	PAD_NC(GPP_A11, NONE),
++	PAD_NC(GPP_A12, NONE),
++	PAD_CFG_NF(GPP_A13, NONE, DEEP, NF1),				/* -SUSWARN */
++	PAD_CFG_NF(GPP_A14, NONE, DEEP, NF1),				/* -SUS_STAT */
++	PAD_CFG_NF(GPP_A15, UP_20K, DEEP, NF1),				/* -SUSWARN */
++	PAD_NC(GPP_A16, NONE),
++	PAD_NC(GPP_A17, NONE),
++	PAD_NC(GPP_A18, NONE),
++	PAD_NC(GPP_A19, NONE),
++	PAD_NC(GPP_A20, NONE),
++	PAD_NC(GPP_A21, NONE),
++	PAD_NC(GPP_A22, NONE),
++	PAD_NC(GPP_A23, NONE),
++
++	/* ------- GPIO Group GPP_B ------- */
++	PAD_CFG_NF(GPP_B0, NONE, DEEP, NF1),
++	PAD_CFG_NF(GPP_B1, NONE, DEEP, NF1),
++	PAD_NC(GPP_B2, NONE),
++	PAD_NC(GPP_B3, NONE),
++	PAD_CFG_GPI_SCI(GPP_B4, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -TBT_PLUG_EVENT */
++	PAD_CFG_NF(GPP_B5, NONE, DEEP, NF1),				/* -CLKREQ_PCIE0 (dGPU) */
++	PAD_CFG_NF(GPP_B6, NONE, DEEP, NF1),				/* -CLKREQ_PCIE3 (WWAN) */
++	PAD_CFG_NF(GPP_B7, NONE, DEEP, NF1),				/* -CLKREQ_PCIE4 (GBE) */
++	PAD_CFG_NF(GPP_B8, NONE, DEEP, NF1),				/* -CLKREQ_PCIE5 (WLAN) */
++	PAD_CFG_NF(GPP_B9, NONE, DEEP, NF1),				/* -CLKREQ_PCIE6 (TB3) */
++	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE8 (SSD) */
++	PAD_NC(GPP_B11, NONE),
++	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
++	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF(GPP_B14, NONE, DEEP, NF1),				/* PCH_SPKR */
++	PAD_CFG_GPO(GPP_B15, 0, DEEP),					/* NFC_DLREQ */
++	PAD_NC(GPP_B16, NONE),
++	PAD_NC(GPP_B17, NONE),
++	PAD_NC(GPP_B18, NONE),
++	PAD_NC(GPP_B19, NONE),
++	PAD_NC(GPP_B20, NONE),
++	PAD_NC(GPP_B21, NONE),
++	PAD_NC(GPP_B22, NONE),
++	PAD_NC(GPP_B23, NONE),
++
++	/* ------- GPIO Community 1 ------- */
++
++	/* ------- GPIO Group GPP_C ------- */
++	PAD_CFG_NF(GPP_C0, NONE, DEEP, NF1),				/* SMB_CLK */
++	PAD_CFG_NF(GPP_C1, NONE, DEEP, NF1),				/* SMB_DATA */
++	PAD_CFG_GPO(GPP_C2, 1, DEEP),
++	PAD_CFG_NF(GPP_C3, NONE, DEEP, NF1),				/* SML0_CLK */
++	PAD_CFG_NF(GPP_C4, NONE, DEEP, NF1),				/* SML0_DATA */
++	PAD_NC(GPP_C5, NONE),
++	PAD_CFG_NF(GPP_C6, NONE, DEEP, NF1),				/* EC_SCL2 */
++	PAD_CFG_NF(GPP_C7, NONE, DEEP, NF1),				/* EC_SDA2 */
++	PAD_NC(GPP_C8, NONE),
++	PAD_NC(GPP_C9, NONE),
++	PAD_NC(GPP_C10, NONE),
++	PAD_NC(GPP_C11, NONE),
++	PAD_NC(GPP_C12, NONE),
++	PAD_NC(GPP_C13, NONE),
++	PAD_NC(GPP_C14, NONE),
++	PAD_NC(GPP_C15, NONE),
++	PAD_CFG_NF(GPP_C16, NONE, DEEP, NF1),				/* I2C0_DATA */
++	PAD_CFG_NF(GPP_C17, NONE, DEEP, NF1),				/* I2C0_CLK */
++	PAD_NC(GPP_C18, NONE),
++	PAD_NC(GPP_C19, NONE),
++	PAD_CFG_GPO(GPP_C20, 0, DEEP),					/* EPRIVACY_ON */
++	PAD_CFG_GPO(GPP_C21, 0, DEEP),					/* TBT_FORCE_PWR */
++	PAD_CFG_GPI_SCI(GPP_C22, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -EC_SCI */
++	PAD_CFG_GPI_SCI(GPP_C23, NONE, DEEP, EDGE_SINGLE, INVERT),	/* -EC_WAKE */
++
++	/* ------- GPIO Group GPP_D ------- */
++	PAD_NC(GPP_D0, NONE),
++	PAD_NC(GPP_D1, NONE),
++	PAD_NC(GPP_D2, NONE),
++	PAD_NC(GPP_D3, NONE),
++	PAD_NC(GPP_D4, NONE),
++	PAD_NC(GPP_D5, NONE),
++	PAD_NC(GPP_D6, NONE),
++	PAD_NC(GPP_D7, NONE),
++	PAD_NC(GPP_D8, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D9, UP_20K, DEEP, OFF, ACPI),		/* -DISCRETE_PRESENCE */
++	PAD_NC(GPP_D10, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D11, UP_20K, DEEP, OFF, ACPI),		/* DGFX_VRAM_ID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_D12, UP_20K, DEEP, OFF, ACPI),		/* DGFX_VRAM_ID1 */
++	PAD_NC(GPP_D13, NONE),
++	PAD_NC(GPP_D14, NONE),
++	PAD_NC(GPP_D15, NONE),
++	PAD_NC(GPP_D16, NONE),
++	PAD_CFG_GPO(GPP_D17, 0, DEEP),					/* DDI_PRIORITY */
++	PAD_NC(GPP_D18, NONE),
++	PAD_NC(GPP_D19, NONE),
++	PAD_NC(GPP_D20, NONE),
++	PAD_NC(GPP_D21, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_D22, UP_20K, DEEP, OFF, ACPI),		/* -NFC_DTCT */
++	PAD_NC(GPP_D23, NONE),
++
++	/* ------- GPIO Group GPP_E ------- */
++	PAD_CFG_GPO(GPP_E0, 1, DEEP),					/* BDC_ON */
++	PAD_NC(GPP_E1, NONE),
++	PAD_CFG_NF(GPP_E2, NONE, DEEP, NF1),				/* -SATA2_DTCT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_E3, NONE, DEEP, EDGE_SINGLE, ACPI),	/* -TBT_PLUG_EVENT */
++	PAD_CFG_GPO(GPP_E4, 1, DEEP),					/* NFC_ON */
++	PAD_NC(GPP_E5, NONE),
++	PAD_CFG_NF(GPP_E6, NONE, RSMRST, NF1),				/* SATA2_DEVSLP */
++	PAD_NC(GPP_E7, NONE),
++	PAD_NC(GPP_E8, NONE),
++	PAD_CFG_NF(GPP_E9, NONE, DEEP, NF1),				/* -USB_PORT0_OC0 */
++	PAD_CFG_NF(GPP_E10, NONE, DEEP, NF1),				/* -USB_PORT1_OC1 */
++	PAD_NC(GPP_E11, NONE),
++	PAD_CFG_GPI_APIC_HIGH(GPP_E12, NONE, DEEP),			/* NFC_INT */
++	PAD_CFG_NF(GPP_E13, NONE, DEEP, NF1),				/* DDIP1_HPD */
++	PAD_CFG_NF(GPP_E14, NONE, DEEP, NF1),				/* DDIP2_HPD */
++	PAD_NC(GPP_E15, NONE),
++	PAD_NC(GPP_E16, NONE),
++	PAD_CFG_NF(GPP_E17, NONE, DEEP, NF1),				/* EDP_HPD */
++	PAD_NC(GPP_E18, NONE),
++	PAD_CFG_GPO(GPP_E19, 0, DEEP),
++	PAD_CFG_NF(GPP_E20, NONE, DEEP, NF1),				/* DDIP2_CTRLCLK */
++	PAD_CFG_NF(GPP_E21, NONE, DEEP, NF1),				/* DDIP2_CTRLDATA */
++	PAD_CFG_TERM_GPO(GPP_E22, 0, UP_20K, RSMRST),			/* -GPU_RST */
++	PAD_CFG_TERM_GPO(GPP_E23, 0, UP_20K, RSMRST),			/* 1R8VIDEO_AON_ON */
++
++	/* ------- GPIO Community 2 ------- */
++
++	/* -------- GPIO Group GPD -------- */
++	PAD_CFG_NF(GPD0, NONE, PWROK, NF1),				/* -BATLOW */
++	PAD_CFG_NF(GPD1, NATIVE, PWROK, NF1),				/* AC_PRESENT */
++	PAD_CFG_NF(GPD2, NATIVE, PWROK, NF1),				/* -LANWAKE */
++	PAD_CFG_NF(GPD3, UP_20K, PWROK, NF1),				/* -PWRSW_EC */
++	PAD_CFG_NF(GPD4, NONE, PWROK, NF1),				/* -PCH_SLP_S3 */
++	PAD_CFG_NF(GPD5, NONE, PWROK, NF1),				/* -PCH_SLP_S4 */
++	PAD_CFG_NF(GPD6, NONE, PWROK, NF1),				/* -PCH_SLP_M */
++	PAD_NC(GPD7, NONE),
++	PAD_CFG_NF(GPD8, NONE, PWROK, NF1),				/* SUSCLK_32K */
++	PAD_CFG_NF(GPD9, NONE, PWROK, NF1),				/* -PCH_SLP_WLAN */
++	PAD_CFG_NF(GPD10, NONE, PWROK, NF1),				/* -PCH_SLP_S5 */
++	PAD_CFG_NF(GPD11, NONE, PWROK, NF1),				/* LANPHYPC */
++
++	/* ------- GPIO Community 3 ------- */
++
++	/* ------- GPIO Group GPP_F ------- */
++	PAD_CFG_GPO(GPP_F0, 0, DEEP),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F1, NONE, DEEP, OFF, ACPI),		/* GC6_FB_EN */
++	PAD_CFG_GPO(GPP_F2, 1, DEEP),					/* -GPU_EVENT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F3, NONE, PLTRST, OFF, ACPI),		/* DGFX_PWRGD */
++	PAD_NC(GPP_F4, NONE),						/* -WWAN_RESET */
++	PAD_NC(GPP_F5, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F6, UP_20K, DEEP, OFF, ACPI),		/* -MIC_HW_EN (R37 to GND) */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F7, UP_20K, DEEP, OFF, ACPI),		/* -INT_MIC_DTCT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F8, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F9, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F10, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F11, UP_20K, DEEP, OFF, ACPI),		/* WWAN_CFG3 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F12, UP_20K, DEEP, OFF, ACPI),		/* PLANARID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F13, UP_20K, DEEP, OFF, ACPI),		/* PLANARID1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F14, UP_20K, DEEP, OFF, ACPI),		/* PLANARID2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F15, UP_20K, DEEP, OFF, ACPI),		/* PLANARID3 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F16, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F17, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F18, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F19, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID3 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F20, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID4 */
++	PAD_NC(GPP_F21, NONE),
++	PAD_CFG_GPI_TRIG_OWN(GPP_F22, UP_20K, DEEP, OFF, ACPI),		/* -TAMPER_SW_DTCT */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F23, UP_20K, DEEP, OFF, ACPI),		/* -SC_DTCT */
++
++	/* ------- GPIO Group GPP_G ------- */
++	PAD_NC(GPP_G0, NONE),
++	PAD_NC(GPP_G1, NONE),
++	PAD_NC(GPP_G2, NONE),
++	PAD_NC(GPP_G3, NONE),
++	PAD_CFG_GPO(GPP_G4, 0, DEEP),					/* TBT_RTD3_PWR_EN */
++	PAD_CFG_GPO(GPP_G5, 0, DEEP),					/* TBT_FORCE_USB_PWR */
++	PAD_CFG_GPO(GPP_G6, 0, DEEP),					/* -TBT_PERST */
++	PAD_CFG_GPI_SCI(GPP_G7, NONE, DEEP, LEVEL, INVERT),		/* -TBT_PCIE_WAKE */
++};
++
++void variant_config_gpios(void)
++{
++	gpio_configure_pads(gpio_table, ARRAY_SIZE(gpio_table));
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
+new file mode 100644
+index 0000000000..b1d96c5a76
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
+@@ -0,0 +1,90 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <device/azalia_device.h>
++
++const u32 cim_verb_data[] = {
++	0x10ec0257, // Vendor/Device ID: Realtek ALC257
++	0x17aa2258, // Subsystem ID
++	11,
++	AZALIA_SUBVENDOR(0, 0x17aa2258),
++
++	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
++		AZALIA_INTEGRATED,
++		AZALIA_INTERNAL,
++		AZALIA_MIC_IN,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_NO_JACK_PRESENCE_DETECT,
++		2, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x13, 0x40000000), // does not describe a jack or internal device
++	AZALIA_PIN_CFG(0, 0x14, AZALIA_PIN_DESC(
++		AZALIA_INTEGRATED,
++		AZALIA_INTERNAL,
++		AZALIA_SPEAKER,
++		AZALIA_OTHER_ANALOG,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_NO_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x18, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x19, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
++		AZALIA_MIC_IN,
++		AZALIA_STEREO_MONO_1_8,
++		AZALIA_BLACK,
++		AZALIA_JACK_PRESENCE_DETECT,
++		3, 0
++	)),
++	AZALIA_PIN_CFG(0, 0x1a, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x1b, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x1d, 0x40661b45), // does not describe a jack or internal device
++	AZALIA_PIN_CFG(0, 0x1e, AZALIA_PIN_CFG_NC(0)),
++	AZALIA_PIN_CFG(0, 0x21, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_EXTERNAL_PRIMARY_CHASSIS | AZALIA_RIGHT,
++		AZALIA_HP_OUT,
++		AZALIA_STEREO_MONO_1_8,
++		AZALIA_BLACK,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 15
++	)),
++
++	0x8086280b, // Vendor/Device ID: Intel Kabylake HDMI
++	0x80860101, // Subsystem ID
++	4,
++	AZALIA_SUBVENDOR(2, 0x80860101),
++
++	AZALIA_PIN_CFG(2, 0x05, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++	AZALIA_PIN_CFG(2, 0x06, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++	AZALIA_PIN_CFG(2, 0x07, AZALIA_PIN_DESC(
++		AZALIA_JACK,
++		AZALIA_DIGITAL_DISPLAY,
++		AZALIA_DIGITAL_OTHER_OUT,
++		AZALIA_OTHER_DIGITAL,
++		AZALIA_COLOR_UNKNOWN,
++		AZALIA_JACK_PRESENCE_DETECT,
++		1, 0
++	)),
++};
++
++const u32 pc_beep_verbs[] = {};
++
++AZALIA_ARRAY_SIZES;
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/memory_init_params.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/memory_init_params.c
+new file mode 100644
+index 0000000000..001e934b3a
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/memory_init_params.c
+@@ -0,0 +1,44 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <cbfs.h>
++#include <gpio.h>
++#include <soc/gpio.h>
++#include <soc/romstage.h>
++#include <spd_bin.h>
++#include <stdio.h>
++
++static const struct pad_config memory_id_gpio_table[] = {
++	PAD_CFG_GPI_TRIG_OWN(GPP_F16, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID0 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F17, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID1 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F18, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID2 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F19, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID3 */
++	PAD_CFG_GPI_TRIG_OWN(GPP_F20, UP_20K, DEEP, OFF, ACPI),		/* MEMORYID4 */
++};
++
++void mainboard_memory_init_params(FSPM_UPD *mupd)
++{
++	int spd_idx;
++	char spd_name[20];
++	size_t spd_size;
++
++	FSP_M_CONFIG *mem_cfg = &mupd->FspmConfig;
++	mem_cfg->DqPinsInterleaved = true;			/* DDR_DQ in interleave mode */
++	mem_cfg->CaVrefConfig      = 2;				/* VREF_CA to CH_A and VREF_DQ_B to CH_B */
++	mem_cfg->MemorySpdDataLen  = CONFIG_DIMM_SPD_SIZE;
++
++	/* Get SPD for soldered RAM SPD (CH A) */
++	gpio_configure_pads(memory_id_gpio_table, ARRAY_SIZE(memory_id_gpio_table));
++
++	spd_idx = gpio_get(GPP_F16) | gpio_get(GPP_F17) << 1 | gpio_get(GPP_F18) << 2 |
++		  gpio_get(GPP_F19) << 3 | gpio_get(GPP_F20) << 4;
++	printk(BIOS_DEBUG, "Detected MEMORY_ID = %d\n", spd_idx);
++	snprintf(spd_name, sizeof(spd_name), "spd_%d.bin", spd_idx);
++	mem_cfg->MemorySpdPtr00    = (uintptr_t)cbfs_map(spd_name, &spd_size);
++
++	/* Get SPD for memory slot (CH B) */
++	struct spd_block blk = { .addr_map = { [1] = 0x51, } };
++	get_spd_smbus(&blk);
++	dump_spd_info(&blk);
++
++	mem_cfg->MemorySpdPtr10    = (uintptr_t)blk.spd_array[1];
++}
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb
+new file mode 100644
+index 0000000000..d4afca20c4
+--- /dev/null
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb
+@@ -0,0 +1,103 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++chip soc/intel/skylake
++	device domain 0 on
++		device ref south_xhci on
++			register "usb2_ports" = "{
++				[0] = USB2_PORT_MID(OC0),		// JUSB1 (USB-A always on)
++				[1] = USB2_PORT_MID(OC1),		// JUSB2 (USB-A)
++				[2] = USB2_PORT_MID(OC_SKIP),		// JFPR (smartcard slot)
++				[3] = USB2_PORT_MID(OC_SKIP),		// JUSBC (USB-C)
++				[4] = USB2_PORT_MID(OC_SKIP),		// JCAM (IR camera)
++				[5] = USB2_PORT_MID(OC_SKIP),		// JWWAN (M.2 WWAN USB)
++				[6] = USB2_PORT_MID(OC_SKIP),		// JWLAN (M.2 WLAN USB)
++				[7] = USB2_PORT_MID(OC_SKIP),		// JCAM (webcam)
++				[8] = USB2_PORT_MID(OC_SKIP),		// JFPR (fingerprint reader)
++				[9] = USB2_PORT_MID(OC_SKIP),		// JLCD (touch panel)
++			}"
++			register "usb3_ports" = "{
++				[0] = USB3_PORT_DEFAULT(OC0),		// JUSB1 (USB-A always on)
++				[1] = USB3_PORT_DEFAULT(OC1),		// JUSB2 (USB-A)
++				[2] = USB3_PORT_DEFAULT(OC_SKIP),	// JSD (SD card reader)
++				[3] = USB3_PORT_DEFAULT(OC_SKIP),	// JUSBC (USB-C)
++			}"
++		end
++
++		device ref sata on
++			# SATA_2 - Main M.2 SATA SSD
++			register "SataPortsEnable[2]" = "1"
++			register "SataPortsDevSlp[2]" = "1"
++		end
++
++		# PCIe controller 1 - 1x2+2x1
++		#   PCIE 1-2   - RP1  - dGPU - CLKOUT0 - CLKREQ0
++		#   PCIE 4     - RP4  - WWAN - CLKOUT1 - CLKREQ1
++		#
++		# PCIe controller 2 - 2x1+1x2 (lane reversal)
++		#   PCIE 5     - GBE  - GBE  - CLKOUT2 - CLKREQ2 (clobbers RP8)
++		#   PCIE 6     - RP7  - WLAN - CLKOUT3 - CLKREQ3
++		#   PCIE 7-8   - RP5  - TB3  - CLKOUT4 - CLKREQ4
++		#
++		# PCIe controller 3 - 1x4 (lane reversal)
++		#   PCIE 9-12  - RP9  - SSD  - CLKOUT5 - CLKREQ5
++
++		# dGPU - x2
++		device ref pcie_rp1 on
++			register "PcieRpEnable[0]"			= "1"
++			register "PcieRpClkReqSupport[0]"		= "1"
++			register "PcieRpClkReqNumber[0]"		= "0"
++			register "PcieRpClkSrcNumber[0]"		= "0"
++			register "PcieRpAdvancedErrorReporting[0]"	= "1"
++			register "PcieRpLtrEnable[0]"			= "1"
++		end
++
++		# M.2 WWAN - x1
++		device ref pcie_rp4 on
++			register "PcieRpEnable[3]"			= "1"
++			register "PcieRpClkReqSupport[3]"		= "1"
++			register "PcieRpClkReqNumber[3]"		= "1"
++			register "PcieRpClkSrcNumber[3]"		= "1"
++			register "PcieRpAdvancedErrorReporting[3]"	= "1"
++			register "PcieRpLtrEnable[3]"			= "1"
++		end
++
++		# Ethernet (clobbers RP8)
++		device ref gbe on
++			register "LanClkReqSupported"			= "1"
++			register "LanClkReqNumber"			= "2"
++			register "EnableLanLtr"				= "1"
++			register "EnableLanK1Off"			= "1"
++		end
++
++		# M.2 WLAN - x1
++		device ref pcie_rp7 on
++			register "PcieRpEnable[6]"			= "1"
++			register "PcieRpClkReqSupport[6]"		= "1"
++			register "PcieRpClkReqNumber[6]"		= "3"
++			register "PcieRpClkSrcNumber[6]"		= "3"
++			register "PcieRpAdvancedErrorReporting[6]"	= "1"
++			register "PcieRpLtrEnable[6]"			= "1"
++		end
++
++		# TB3 (Alpine Ridge LP) - x2
++		device ref pcie_rp5 on
++			register "PcieRpEnable[4]"			= "1"
++			register "PcieRpClkReqSupport[4]"		= "1"
++			register "PcieRpClkReqNumber[4]"		= "4"
++			register "PcieRpClkSrcNumber[4]"		= "4"
++			register "PcieRpAdvancedErrorReporting[4]"	= "1"
++			register "PcieRpLtrEnable[4]"			= "1"
++			register "PcieRpHotPlug[4]"			= "1"
++		end
++
++		# M.2 2280 SSD - x2
++		device ref pcie_rp9 on
++			register "PcieRpEnable[8]"			= "1"
++			register "PcieRpClkReqSupport[8]"		= "1"
++			register "PcieRpClkReqNumber[8]"		= "5"
++			register "PcieRpClkSrcNumber[8]"		= "5"
++			register "PcieRpAdvancedErrorReporting[8]"	= "1"
++			register "PcieRpLtrEnable[8]"			= "1"
++		end
++	end
++end
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_0.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_0.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..86f39ddb55ea9fb58d5e5699637636ef597c734e
+GIT binary patch
+literal 512
+zcmY!u;9+)EWZ+<6U|?oq29gXMJYRrxPEL*>N67~+1r7#Qh7a1t+8`-(puhlu3{YAD
+YT>%dM8_BI;nL`dsaHtp+rc($20I8n}l>h($
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_1.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_1.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..df0f6e58b79286a4aeb690c5027adf7a1f5f668b
+GIT binary patch
+literal 512
+zcmY!u;9+i6oWQ}rz`)GN3?vyic)kGXoSYm%j*<^t3LFfq3@hZcwLwzoK!E`Q8KATR
+Yx&j>hH(SqvWezd%<4`dwOs5b40B_I==>Px#
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_10.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_10.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..24f0d8992bc5244c62488da9633e4885f52f3e22
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i?q-XHu740(BZf(&^dxD+@TSQ$QOn`kgpFo@WI<Pkv3
+zjN25185j^Oge*SRoUI_)=hwI&^9wTJQ%GaE+Z>cy&~OfFg0G3Wp`)phiHWn5fv$6q
+PvjPw>z-1}5hGzN!nb#F$
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_11.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_11.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..59b6b9e78263c42aae367ab7d4a784d888f30efe
+GIT binary patch
+literal 512
+zcmY!u<Y8`AWZ+;(U|?osW&i?q-XHu740(BZf(&^dxD+@TSQ%DGYiKZ3Fo@WI<Pm^J
+zTbD)5RGF87L5G`J#gvCx7a@nAHD@bG{`ob#fBb?9_?6OB_I)U&#y6aUn&4|<Zs=&}
+YZDQ=?WT@*L<g5S$3~*UWt)ZEI0F{0fq5uE@
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_12.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_12.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..93be0ac94fc57222cd29e34eee11042d7842ac25
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i?q-XHu740(BZf(&^dxD+@TSQ$QOn`kgpFo@WI<Pkv3
+zjN25185j^Oge*SRoUI_)=hwI&^9wTJQ%GaE+Z>cy(6E*fVuXjUqlKwqu$iM<keQ!u
+VsD}a&Ff^?FkI#a;_$28g2LQ`x7jOUo
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_13.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_13.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..171a272bc734b72395622bf889d24972ef2d14f7
+GIT binary patch
+literal 512
+zcmY!u<Y8`AWZ+;(U|?osW&i?q-XHu740(BZf(&^dxD+@TSQ%DGYiKZ3Fo@WI<Pkv3
+zjN25185j^Oge*SRoUI_)=hr%!_!*h-DWtL7fk%{D(6E*fVuXjUqob)|u$iN8keQ!u
+VsD}a&Ff^?FkI#a;_$28g2LP>g7pDLK
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_14.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_14.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a2a64a5e1adada3fc00b2e4edc60c77e610881a9
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i><-XH%N8S?V-1R3%^a4B#wurhqmHql_HU=XnZ$x{Q&
+z*$Oh{IYWaWKO+-03?$Qx1CPkm2-nu217(^xhPas;8kw1RMCls2o4FbS#SI&DT;VDQ
+GCj$V){1T)9
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_15.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_15.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a2a64a5e1adada3fc00b2e4edc60c77e610881a9
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i><-XH%N8S?V-1R3%^a4B#wurhqmHql_HU=XnZ$x{Q&
+z*$Oh{IYWaWKO+-03?$Qx1CPkm2-nu217(^xhPas;8kw1RMCls2o4FbS#SI&DT;VDQ
+GCj$V){1T)9
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_16.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_16.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a64a5a93fb4aef4d5f63d79cb2582731b9ac5063
+GIT binary patch
+literal 512
+NcmZQz7zHCa1ONg600961
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_17.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_17.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..5f23e86606094d3e5d2011db902ebd4a500bbffa
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i><-XHc140(BZf(&^dxD+@TSQ$QOn`kgpFo@WI<Pkv3
+zjN25185j^Oge*SRoUI_)=M3$7{ESTa6w+Akz#~d6Xjsb#F~Y;w(ZbX)*v#20$jnbS
+V%v%8n7#i08$7jJ^e3JB$0{}ZV7fApB
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_18.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_18.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..05633943eb5af166da66a2e1f4e74948f75782fb
+GIT binary patch
+literal 512
+zcmY!u<Y9JIoXEkDz`)GN%m4&zyg%$281nM+1R3%^a4B#wurhqmHql_HU=XnZ$s>T6
+z8Mi42GcX`n2w8lrIa@)p&l&!{<7bq|r;x^SwThHl(6E*fVuXjUqobjFu$i-OkeQ!u
+Vn70BDFf^?FkI#a;_$28g2LNS*7)Ag9
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_19.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_19.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..857da9c9828cdac842329f6cef4539283777268b
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i?K-XH(98S?V-1R3%^a4B#wurhqmHql_HU=XnZ$x{Q&
+z*$Oh{Il~1>enuv07)YiW2Og2B5w5L42g)>Y3~@6xG%_>sh|)E7H}WzBiW@fQc)?W;
+GP6hy+m=i1j
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_2.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_2.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5b14cf2dfa06ae183b0379da4dc825129e1589f
+GIT binary patch
+literal 512
+zcmY!u;9+)EWZ+<6U|?oq29gXMJU@VRUS6IcN7)B11r7#Qh7a1tdLSuupuhlu3{YAD
+XT>%b$v*cE=%%S%6I8=-Z(<uZ1pPdSg
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_20.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_20.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a64a5a93fb4aef4d5f63d79cb2582731b9ac5063
+GIT binary patch
+literal 512
+NcmZQz7zHCa1ONg600961
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_3.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_3.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..d73736008af1eb67456b2fd66f7dec3b6669a442
+GIT binary patch
+literal 512
+zcmY!u;9+i&oWQ}rz`)GN3?vyic)kGXoSYm%juHh92G#;*h81$!dLSuupuhlu3{YAD
+YT>%b$+tzbnnL|62aHtp+rc($20QGqazW@LL
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_4.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_4.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..829f149547bc24859646c33d5926938d7a1b90cb
+GIT binary patch
+literal 512
+zcmY!u;9+)EWZ+<6U|?oq29gXMJYRrxPEL*>N67~+1r7#Qh7a1tdLSuupuhlu3{YAD
+XT>%b$o8(ro%%OI594bbI=@bG0z{d&v
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_5.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_5.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a64a5a93fb4aef4d5f63d79cb2582731b9ac5063
+GIT binary patch
+literal 512
+NcmZQz7zHCa1ONg600961
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_6.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_6.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..a64a5a93fb4aef4d5f63d79cb2582731b9ac5063
+GIT binary patch
+literal 512
+NcmZQz7zHCa1ONg600961
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_7.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_7.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..940f1e3cd8e5bd9ea32a82a14edcdcbc8132d8c7
+GIT binary patch
+literal 512
+zcmY!u<Y8`AWZ+;(U|?osW&i><-XH%N8S?V-1R3%^a4B#wurjQW(9mG0U=XnZ$x{Q&
+z0UPq1A)%L_QJxwGl4(Y*BAFWD+8T7AOcTeDU_*B^6OSleBX=`bLy)jxgN`d)<=|uh
+E020*^DF6Tf
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_8.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_8.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..30c84410d417ef7afa8705c93cdb64a9f4e915a0
+GIT binary patch
+literal 512
+zcmY!u<Y9JIWZ+;(U|?oqW&i?q-XHZ040(BZf(&^dxD+@TSQ$QOn`kgpFo@WI<f#GX
+zYz3L}{MzzRenxp}7)YiWinU~FgllWifig`TL)=Uajm%6uqI8Yijh&1X6cmgabe!NS
+H2PXpn6CD!Q
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_9.bin b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/spd/spd_9.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..7facef55b93fe1f67411c00bab84862769461f63
+GIT binary patch
+literal 512
+zcmY!u<Y8`AWZ+;(U|?osW&i?q-XHZ040(BZf(&^dxD+@TSQ%DGYiKZ3Fo@WI<f#GX
+zYz3L}{F>W!enxp}7)YiWinU~FgllWifig`TLxK(6%}hL^bdB7N9Ss$Lz^FmT39fQ*
+FG5`?&65ap+
+
+literal 0
+HcmV?d00001
+
+-- 
+2.39.5
+

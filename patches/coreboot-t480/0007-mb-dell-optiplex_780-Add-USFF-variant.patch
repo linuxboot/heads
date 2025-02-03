@@ -1,0 +1,326 @@
+From 41b93b8786ba14830648cd166f86b6317d655359 Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Wed, 30 Oct 2024 20:55:25 -0600
+Subject: [PATCH 07/11] mb/dell/optiplex_780: Add USFF variant
+
+Change-Id: I3aa21c743749f4a11a2501f4c121316bd2f1a103
+Signed-off-by: Nicholas Chin <nic.c3.14@gmail.com>
+---
+ src/mainboard/dell/optiplex_780/Kconfig       |   5 +
+ src/mainboard/dell/optiplex_780/Kconfig.name  |   3 +
+ .../optiplex_780/variants/780_usff/data.vbt   | Bin 0 -> 1917 bytes
+ .../variants/780_usff/early_init.c            |   9 +
+ .../optiplex_780/variants/780_usff/gpio.c     | 166 ++++++++++++++++++
+ .../optiplex_780/variants/780_usff/hda_verb.c |  26 +++
+ .../variants/780_usff/overridetree.cb         |  10 ++
+ 7 files changed, 219 insertions(+)
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_usff/data.vbt
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_usff/early_init.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_usff/gpio.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_usff/hda_verb.c
+ create mode 100644 src/mainboard/dell/optiplex_780/variants/780_usff/overridetree.cb
+
+diff --git a/src/mainboard/dell/optiplex_780/Kconfig b/src/mainboard/dell/optiplex_780/Kconfig
+index 2d06c75c9a..fc649e35d5 100644
+--- a/src/mainboard/dell/optiplex_780/Kconfig
++++ b/src/mainboard/dell/optiplex_780/Kconfig
+@@ -20,6 +20,9 @@ config BOARD_DELL_OPTIPLEX_780_COMMON
+ config BOARD_DELL_OPTIPLEX_780_MT
+ 	select BOARD_DELL_OPTIPLEX_780_COMMON
+ 
++config BOARD_DELL_OPTIPLEX_780_USFF
++	select BOARD_DELL_OPTIPLEX_780_COMMON
++
+ if BOARD_DELL_OPTIPLEX_780_COMMON
+ 
+ config VGA_BIOS_ID
+@@ -30,11 +33,13 @@ config MAINBOARD_DIR
+ 
+ config MAINBOARD_PART_NUMBER
+ 	default "OptiPlex 780 MT" if BOARD_DELL_OPTIPLEX_780_MT
++	default "OptiPlex 780 USFF" if BOARD_DELL_OPTIPLEX_780_USFF
+ 
+ config OVERRIDE_DEVICETREE
+ 	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
+ 
+ config VARIANT_DIR
+ 	default "780_mt" if BOARD_DELL_OPTIPLEX_780_MT
++	default "780_usff" if BOARD_DELL_OPTIPLEX_780_USFF
+ 
+ endif # BOARD_DELL_OPTIPLEX_780_COMMON
+diff --git a/src/mainboard/dell/optiplex_780/Kconfig.name b/src/mainboard/dell/optiplex_780/Kconfig.name
+index db7f2e8fe3..bc84c82a79 100644
+--- a/src/mainboard/dell/optiplex_780/Kconfig.name
++++ b/src/mainboard/dell/optiplex_780/Kconfig.name
+@@ -2,3 +2,6 @@
+ 
+ config BOARD_DELL_OPTIPLEX_780_MT
+ 	bool "OptiPlex 780 MT"
++
++config BOARD_DELL_OPTIPLEX_780_USFF
++	bool "OptiPlex 780 USFF"
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_usff/data.vbt b/src/mainboard/dell/optiplex_780/variants/780_usff/data.vbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbd764f285ed18f7ee9c54bc777560138bd9b5f7
+GIT binary patch
+literal 1917
+zcmd6nO>7%Q6vzLwGv3{}j$^l`v7@w1q*9sEq+2(b3K>`@c5#TSx@i<uQKf!)+gO;|
+zveT#>P+W+B10OwbsGtX=N(gc4jSGjKDkP+yIUo^nsel8$^ny^9H?td8Ra=EiCEn=G
+z@6DV4?!2AdojnUv^Rirgvs$heXUkGs9S+{Jc2WPhP0buTak^BTFP@&N9-E$(UtuSX
+zS{r`=b+EX|Ig`2a*^5oDdG>8jE-1BBxs`*jgrf_sj_fP;%L|PwURRcCFBMCroNRQv
+zmp$2TUhc}qJMB(u#jDG@x6(N85thC4%Z=8hiN}lj&zb2~``u3C;?lCrPQOTnInFqB
+zhvdwqWv?lxTb=fVEH;~RPHDPw&g*&|s$pU<Iv53Rb6YTgMPOY8;~P1Yglh^6Fgt1^
+zCTz|SVPcSpZ44F@&oNPUMO@&BE3y(57YP_Y!4SZhE?GXYa7k+b0(X|s7u3GDRf^1#
+zOd2ZCCPO|I&sHEt;p8UshhHtYQ>7!7x2m<d`Gu2<r+Qc4|6pwd8&zFboH_W7XE7uU
+zWW-@Cim&mdY2!O{JANR)OTJG2z>LBtAF!g>K`zPnkx!DpPHuk6{_zc*0qi7)Aet$T
+z1ks@8hWS#+6cI5)j1oD86{5PX8Zu2(^OC6M`<pE+J?KFZ=&_JVP1YL=#z<-Q*24K4
+zn+$YxrHNJJc`k?_8N=Kres26_#E8GLn2{jfW5P%ge`kL(Btkt=>xo)V)Ow=U6P12c
+z=U0uNC9T9v{)-|#h(mSX*hSA8)ZeocL7l4J&!{RSO{6~oTtyn535j!RQh#GA*wTF8
+zvasRbO~d!?*FbM3K`W?lHx=v*(jiARIhWyh4^io|;n?@1H>uqJy>0sjV-Dt)_=%bE
+zgNO3D@uE5m+7aqi?Y8b+inye%Z=HUmgBtaZ3Lc%OLt+bo+)5BjVwT<{mxT`nde$vb
+zV99s{>`r76L#Hr6XW6r|<iq#4Jr?XsxKyeJKEj7;e4SZ^1B12u&iV_9M0*Kem@fmn
+z1C>>HT47I`**Q#Vu0QW!^VP-9S{xXzpq_zS#9k-;aXz?b+S!Ne$Kkk6dq<Gj{q2D(
+z>&Hj-x+kx1W-4#E&beDT*S)=&NoSE?<-w!G@~aW()0ZN4O&=Q+nZa)p%Vd$k-_$a=
+T#w3FFBiyj<XAh$hb(enud`r7S
+
+literal 0
+HcmV?d00001
+
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_usff/early_init.c b/src/mainboard/dell/optiplex_780/variants/780_usff/early_init.c
+new file mode 100644
+index 0000000000..2a55fc3a6e
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_usff/early_init.c
+@@ -0,0 +1,9 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <northbridge/intel/x4x/x4x.h>
++
++void mb_get_spd_map(u8 spd_map[4])
++{
++	spd_map[0] = 0x50;
++	spd_map[2] = 0x52;
++}
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_usff/gpio.c b/src/mainboard/dell/optiplex_780/variants/780_usff/gpio.c
+new file mode 100644
+index 0000000000..389f4077d7
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_usff/gpio.c
+@@ -0,0 +1,166 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <southbridge/intel/common/gpio.h>
++
++static const struct pch_gpio_set1 pch_gpio_set1_mode = {
++	.gpio0  = GPIO_MODE_NATIVE,
++	.gpio1  = GPIO_MODE_NATIVE,
++	.gpio2  = GPIO_MODE_GPIO,
++	.gpio3  = GPIO_MODE_GPIO,
++	.gpio4  = GPIO_MODE_GPIO,
++	.gpio5  = GPIO_MODE_GPIO,
++	.gpio6  = GPIO_MODE_GPIO,
++	.gpio7  = GPIO_MODE_NATIVE,
++	.gpio8  = GPIO_MODE_NATIVE,
++	.gpio9  = GPIO_MODE_GPIO,
++	.gpio10 = GPIO_MODE_GPIO,
++	.gpio11 = GPIO_MODE_NATIVE,
++	.gpio12 = GPIO_MODE_NATIVE,
++	.gpio13 = GPIO_MODE_GPIO,
++	.gpio14 = GPIO_MODE_GPIO,
++	.gpio15 = GPIO_MODE_NATIVE,
++	.gpio16 = GPIO_MODE_GPIO,
++	.gpio17 = GPIO_MODE_NATIVE,
++	.gpio18 = GPIO_MODE_GPIO,
++	.gpio19 = GPIO_MODE_GPIO,
++	.gpio20 = GPIO_MODE_GPIO,
++	.gpio21 = GPIO_MODE_GPIO,
++	.gpio22 = GPIO_MODE_GPIO,
++	.gpio23 = GPIO_MODE_NATIVE,
++	.gpio24 = GPIO_MODE_GPIO,
++	.gpio25 = GPIO_MODE_NATIVE,
++	.gpio26 = GPIO_MODE_NATIVE,
++	.gpio27 = GPIO_MODE_GPIO,
++	.gpio28 = GPIO_MODE_GPIO,
++	.gpio29 = GPIO_MODE_GPIO,
++	.gpio30 = GPIO_MODE_GPIO,
++	.gpio31 = GPIO_MODE_GPIO,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_direction = {
++	.gpio2  = GPIO_DIR_INPUT,
++	.gpio3  = GPIO_DIR_INPUT,
++	.gpio4  = GPIO_DIR_INPUT,
++	.gpio5  = GPIO_DIR_INPUT,
++	.gpio6  = GPIO_DIR_INPUT,
++	.gpio9  = GPIO_DIR_OUTPUT,
++	.gpio10 = GPIO_DIR_INPUT,
++	.gpio13 = GPIO_DIR_INPUT,
++	.gpio14 = GPIO_DIR_INPUT,
++	.gpio16 = GPIO_DIR_INPUT,
++	.gpio18 = GPIO_DIR_OUTPUT,
++	.gpio19 = GPIO_DIR_INPUT,
++	.gpio20 = GPIO_DIR_OUTPUT,
++	.gpio21 = GPIO_DIR_INPUT,
++	.gpio22 = GPIO_DIR_INPUT,
++	.gpio24 = GPIO_DIR_INPUT,
++	.gpio27 = GPIO_DIR_INPUT,
++	.gpio28 = GPIO_DIR_OUTPUT,
++	.gpio29 = GPIO_DIR_INPUT,
++	.gpio30 = GPIO_DIR_INPUT,
++	.gpio31 = GPIO_DIR_INPUT,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_level = {
++	.gpio9  = GPIO_LEVEL_HIGH,
++	.gpio18 = GPIO_LEVEL_HIGH,
++	.gpio20 = GPIO_LEVEL_HIGH,
++	.gpio28 = GPIO_LEVEL_HIGH,
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_blink = {
++};
++
++static const struct pch_gpio_set1 pch_gpio_set1_invert = {
++	.gpio13 = GPIO_INVERT,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_mode = {
++	.gpio32 = GPIO_MODE_GPIO,
++	.gpio33 = GPIO_MODE_GPIO,
++	.gpio34 = GPIO_MODE_GPIO,
++	.gpio35 = GPIO_MODE_GPIO,
++	.gpio36 = GPIO_MODE_GPIO,
++	.gpio37 = GPIO_MODE_GPIO,
++	.gpio38 = GPIO_MODE_GPIO,
++	.gpio39 = GPIO_MODE_GPIO,
++	.gpio40 = GPIO_MODE_NATIVE,
++	.gpio41 = GPIO_MODE_NATIVE,
++	.gpio42 = GPIO_MODE_NATIVE,
++	.gpio43 = GPIO_MODE_NATIVE,
++	.gpio44 = GPIO_MODE_NATIVE,
++	.gpio45 = GPIO_MODE_NATIVE,
++	.gpio46 = GPIO_MODE_NATIVE,
++	.gpio47 = GPIO_MODE_NATIVE,
++	.gpio48 = GPIO_MODE_GPIO,
++	.gpio49 = GPIO_MODE_GPIO,
++	.gpio50 = GPIO_MODE_NATIVE,
++	.gpio51 = GPIO_MODE_NATIVE,
++	.gpio52 = GPIO_MODE_NATIVE,
++	.gpio53 = GPIO_MODE_NATIVE,
++	.gpio54 = GPIO_MODE_GPIO,
++	.gpio55 = GPIO_MODE_NATIVE,
++	.gpio56 = GPIO_MODE_GPIO,
++	.gpio57 = GPIO_MODE_GPIO,
++	.gpio58 = GPIO_MODE_NATIVE,
++	.gpio59 = GPIO_MODE_NATIVE,
++	.gpio60 = GPIO_MODE_GPIO,
++	.gpio61 = GPIO_MODE_NATIVE,
++	.gpio62 = GPIO_MODE_NATIVE,
++	.gpio63 = GPIO_MODE_NATIVE,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_direction = {
++	.gpio32 = GPIO_DIR_INPUT,
++	.gpio33 = GPIO_DIR_INPUT,
++	.gpio34 = GPIO_DIR_INPUT,
++	.gpio35 = GPIO_DIR_OUTPUT,
++	.gpio36 = GPIO_DIR_INPUT,
++	.gpio37 = GPIO_DIR_INPUT,
++	.gpio38 = GPIO_DIR_INPUT,
++	.gpio39 = GPIO_DIR_INPUT,
++	.gpio48 = GPIO_DIR_INPUT,
++	.gpio49 = GPIO_DIR_OUTPUT,
++	.gpio54 = GPIO_DIR_INPUT,
++	.gpio56 = GPIO_DIR_OUTPUT,
++	.gpio57 = GPIO_DIR_INPUT,
++	.gpio60 = GPIO_DIR_OUTPUT,
++};
++
++static const struct pch_gpio_set2 pch_gpio_set2_level = {
++	.gpio35 = GPIO_LEVEL_LOW,
++	.gpio49 = GPIO_LEVEL_HIGH,
++	.gpio56 = GPIO_LEVEL_HIGH,
++	.gpio60 = GPIO_LEVEL_LOW,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_mode = {
++	.gpio72 = GPIO_MODE_GPIO,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_direction = {
++	.gpio72 = GPIO_DIR_INPUT,
++};
++
++static const struct pch_gpio_set3 pch_gpio_set3_level = {
++};
++
++const struct pch_gpio_map mainboard_gpio_map = {
++	.set1 = {
++		.mode      = &pch_gpio_set1_mode,
++		.direction = &pch_gpio_set1_direction,
++		.level     = &pch_gpio_set1_level,
++		.blink     = &pch_gpio_set1_blink,
++		.invert    = &pch_gpio_set1_invert,
++	},
++	.set2 = {
++		.mode      = &pch_gpio_set2_mode,
++		.direction = &pch_gpio_set2_direction,
++		.level     = &pch_gpio_set2_level,
++	},
++	.set3 = {
++		.mode      = &pch_gpio_set3_mode,
++		.direction = &pch_gpio_set3_direction,
++		.level     = &pch_gpio_set3_level,
++	},
++};
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_usff/hda_verb.c b/src/mainboard/dell/optiplex_780/variants/780_usff/hda_verb.c
+new file mode 100644
+index 0000000000..c94e06b156
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_usff/hda_verb.c
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <device/azalia_device.h>
++
++const u32 cim_verb_data[] = {
++	/* coreboot specific header */
++	0x11d4194a, /* Analog Devices AD1984A */
++	0x10280420, /*  Subsystem ID */
++	10,         /* Number of entries */
++
++	/* Pin Widget Verb Table */
++	AZALIA_PIN_CFG(0, 0x11, 0x02214040),
++	AZALIA_PIN_CFG(0, 0x12, 0x01014010),
++	AZALIA_PIN_CFG(0, 0x13, 0x991301f0),
++	AZALIA_PIN_CFG(0, 0x14, 0x02a19020),
++	AZALIA_PIN_CFG(0, 0x15, 0x01813030),
++	AZALIA_PIN_CFG(0, 0x16, 0x413301f0),
++	AZALIA_PIN_CFG(0, 0x17, 0x41a601f0),
++	AZALIA_PIN_CFG(0, 0x1a, 0x41f301f0),
++	AZALIA_PIN_CFG(0, 0x1b, 0x414501f0),
++	AZALIA_PIN_CFG(0, 0x1c, 0x413301f0),
++};
++
++const u32 pc_beep_verbs[0] = {};
++
++AZALIA_ARRAY_SIZES;
+diff --git a/src/mainboard/dell/optiplex_780/variants/780_usff/overridetree.cb b/src/mainboard/dell/optiplex_780/variants/780_usff/overridetree.cb
+new file mode 100644
+index 0000000000..555b1c1f5c
+--- /dev/null
++++ b/src/mainboard/dell/optiplex_780/variants/780_usff/overridetree.cb
+@@ -0,0 +1,10 @@
++## SPDX-License-Identifier: GPL-2.0-or-later
++
++chip northbridge/intel/x4x
++	device domain 0 on
++		chip southbridge/intel/i82801jx
++			device pci 1c.0 on  end		# PCIe 1
++			device pci 1c.1 on  end		# PCIe 2
++		end
++	end
++end
+-- 
+2.39.5
+

@@ -1,0 +1,78 @@
+From 35295d97b08ee659b6770ce39003732a4bdfb6a0 Mon Sep 17 00:00:00 2001
+From: Leah Rowe <info@minifree.org>
+Date: Wed, 18 Dec 2024 02:06:18 +0000
+Subject: [PATCH 09/11] lenovo: Add Kconfig option CONFIG_LENOVO_TBFW_BIN
+
+This is used by lbmk to know where a tb.bin file goes,
+when extracting and padding TBT.bin from Lenovo ThunderBolt
+firmware updates on T480/T480s and other machines, grabbing
+Lenovo update files.
+
+Not used in any builds, so it's not relevant for ./mk inject
+
+However, the ThunderBolt firmware is now auto-downloaded on
+T480/T480s. This is not inserted, because it doesn't go in
+the main flash, but the resulting ROM image can be flashed
+on the TB controller's separate flash chip.
+
+Locations are as follows:
+
+vendorfiles/t480s/tb.bin
+vendorfiles/t480/tb.bin
+
+This can be used for other affected ThinkPads when they're
+added to Libreboot, but note that Lenovo provides different
+TB firmware files for each machine.
+
+Since I assume it's the same TB controller on all of those
+machines, I have to wonder: what difference is there between
+the various TBT.bin files provided by Lenovo, and how do they
+differ in terms of actual flashed configuration?
+
+We simply flash the padded TBT.bin when updating the firmware,
+flashing externally. That's what this patch is for, so that
+lbmk can auto-download them.
+
+Signed-off-by: Leah Rowe <info@minifree.org>
+---
+ src/mainboard/lenovo/Kconfig | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/src/mainboard/lenovo/Kconfig b/src/mainboard/lenovo/Kconfig
+index 2ffbaab85f..512b326381 100644
+--- a/src/mainboard/lenovo/Kconfig
++++ b/src/mainboard/lenovo/Kconfig
+@@ -18,4 +18,30 @@ config MAINBOARD_FAMILY
+ 	string
+ 	default MAINBOARD_PART_NUMBER
+ 
++config LENOVO_TBFW_BIN
++	string "Lenovo ThunderBolt firmware bin file"
++	default ""
++	help
++	  ThunderBolt firmware for certain ThinkPad models e.g. T480.
++	  Not used in the actual build. Libreboot's build system uses this
++	  along with config/vendor/*/pkg.cfg entries defining a URL to the
++	  Lenovo download link and hash. The resulting file when processed by
++	  lbmk can be flashed to the ThunderBolt firmware's 25XX NOR device.
++	  Earlier versions of this firmware had debug commands enabled that
++	  sent logs to said flash IC, and it would quickly fill up, bricking
++	  the ThunderBolt controller. With these updates, flashed externally,
++	  you can fix the issue if present or otherwise prevent it. The benefit
++	  here is that you then don't need to use Windows or a boot disk. You
++	  can flash the TB firmware while flashing Libreboot firmware. Easy!
++	  Look for these variables in lbmk:
++	  TBFW_url TBFW_url_bkup TBFW_hash and look at how it handles that and
++	  CONFIG_LENOVO_TBFW_BIN, in lbmk's include/vendor.sh file.
++	  The path set by CONFIG_LENOVO_TBFW_BIN is used by lbmk when extracting
++	  the firmware, putting it at that desired location. In this way, lbmk
++	  can auto-download such firmware. E.g. ./mk -d coreboot t480_fsp_16mb
++	  and it appears at vendorfiles/t480/tb.bin fully padded and everything!
++
++	  Just leave this blank if you don't care about this option. It's not
++	  useful for every ThinkPad, only certain models.
++
+ endif # VENDOR_LENOVO
+-- 
+2.39.5
+
