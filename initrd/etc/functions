@@ -8,7 +8,10 @@ die() {
 	else
 		echo -e "!!! ERROR: $* !!!" >&2
 	fi
-	sleep 2
+
+	# ask user to press any key prior to exit
+	read -n 1 -s -r -p $'Press Enter to continue...\n\n'
+
 	exit 1
 }
 
@@ -194,7 +197,7 @@ confirm_gpg_card() {
 	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
 	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
 	echo ""
-	warn "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	warn "Your GPG User PIN, followed by Enter will be required for input at: 'Please unlock the card' next prompt"
 	echo ""
 }
 
@@ -512,14 +515,33 @@ DO_WITH_DEBUG() {
 	return "$exit_status"
 }
 
-# Trace the current script and function.
+# TRACE_FUNC outputs the function call stack in a readable format.
+# It helps debug the execution path leading to the current function.
+#
+# The format of the output is:
+#	main(/path/to/script:line) -> function1(/path/to/file:line) -> function2(/path/to/file:line)
+#
+# Usage:
+#	Call TRACE_FUNC within any function to print the call hierarchy.
 TRACE_FUNC() {
 	# Index [1] for BASH_SOURCE and FUNCNAME give us the caller location.
 	# FUNCNAME is 'main' if called from a script outside any function.
 	# BASH_LINENO is offset by 1, it provides the line that the
 	# corresponding FUNCNAME was _called from_, so BASH_LINENO[0] is the
 	# location of the caller.
-	TRACE "${BASH_SOURCE[1]}(${BASH_LINENO[0]}): ${FUNCNAME[1]}"
+
+	local i stack_trace=""
+
+	# Traverse the call stack from the earliest caller to the direct caller of TRACE_FUNC
+	for ((i = ${#FUNCNAME[@]} - 1; i > 1; i--)); do
+		stack_trace+="${FUNCNAME[i]}(${BASH_SOURCE[i]}:${BASH_LINENO[i - 1]}) -> "
+	done
+
+	# Append the direct caller (without extra " -> " at the end)
+	stack_trace+="${FUNCNAME[1]}(${BASH_SOURCE[1]}:${BASH_LINENO[0]})"
+
+	# Print the final trace output
+	TRACE "${stack_trace}"
 }
 
 # Show the entire current call stack in debug output - useful if a catastrophic
@@ -750,7 +772,7 @@ prompt_new_owner_password() {
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
 }
 
 check_tpm_counter() {
@@ -780,16 +802,21 @@ check_tpm_counter() {
 # Read the TPM counter value from the TPM.
 read_tpm_counter() {
 	TRACE_FUNC
-	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" >/dev/null 2>&1 ||
-		die "Counter read failed"
+	if [ ! -e /tmp/counter-"$1" ]; then
+		DEBUG "Counter file /tmp/counter-$1 not found. Attempting to read from TPM."
+		DO_WITH_DEBUG tpmr counter_read -ix "$1" | tee /tmp/counter-"$1" >/dev/null 2>&1 ||
+			die "Counter read failed for index $1"
+	fi
+	DEBUG "Counter file /tmp/counter-$1 read successfully."
 }
 
 # Increment the TPM counter value in the TPM.
 increment_tpm_counter() {
 	TRACE_FUNC
-	tpmr counter_increment -ix "$1" -pwdc '' |
-		tee /tmp/counter-$1 >/dev/null 2>&1 ||
-		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
+	DO_WITH_DEBUG tpmr counter_increment -ix "$1" -pwdc '' |
+		tee /tmp/counter-"$1" >/dev/null 2>&1 ||
+		die "TPM counter increment failed for rollback prevention. Please reset the TPM."
+	DEBUG "TPM counter incremented successfully for index $1"
 }
 
 # Check detached signature on kexec boot params
@@ -804,14 +831,17 @@ check_config() {
 	fi
 
 	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
+		DEBUG "No $1/kexec.sig found"
 		return
 	fi
 
 	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
+		DEBUG "No $1/kexec*.txt found"
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
+		DEBUG "second param: $2 != force"
 		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
 		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig -; then
 			die 'Invalid signature on kexec boot params'
@@ -885,10 +915,11 @@ update_checksums() {
 	extparam=
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			DEBUG "add -r to kexec-sign-config since CONFIG_IGNORE_ROLLBACK is not set"
 			extparam=-r
 		fi
 	fi
-	if ! kexec-sign-config -p /boot -u $extparam; then
+	if ! DO_WITH_DEBUG kexec-sign-config -p /boot -u $extparam; then
 		rv=1
 	else
 		rv=0
@@ -996,12 +1027,12 @@ verify_checksums() {
 		set +e -o pipefail
 		local ret=0
 		cd "$boot_dir" || ret=1
-		sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output || ret=1
+		sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output 2>/dev/null || ret=1
 
 		# also make sure that the file & directory structure didn't change
 		# (sha256sum won't detect added files)
 		print_tree >/tmp/tree_output || ret=1
-		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output &>/dev/null; then
+		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output 2>/dev/null; then
 			ret=1
 			[[ "$gui" != "y" ]] && exit "$ret"
 			# produce a diff that can safely be presented to the user
@@ -1190,7 +1221,6 @@ scan_boot_options() {
 	fi
 }
 
-
 # truncate a file to a size only if it is longer (busybox truncate lacks '<' and
 # always sets the file size)
 truncate_max_bytes() {
@@ -1220,13 +1250,13 @@ fromhex_plain() {
 print_battery_charge() {
 	local battery
 	battery="$1"
-	echo "$((100*$(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")))"
+	echo "$((100 * $(cat "${battery}/charge_now") / $(cat "${battery}/charge_full")))"
 }
 
 print_battery_health() {
 	local battery
 	battery="$1"
-	echo "$((100*$(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")))"
+	echo "$((100 * $(cat "${battery}/charge_full") / $(cat "${battery}/charge_full_design")))"
 }
 
 print_battery_name() {
