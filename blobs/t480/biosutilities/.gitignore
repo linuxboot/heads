@@ -1,0 +1,5 @@
+# Skip all external files
+external/*
+
+# Keep external > requirements file
+!external/requirements.txt
