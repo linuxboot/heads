@@ -79,7 +79,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
             ME11sku="2M"
             ME11pch="LP"
 
-            ./finalimage.py --delta "data/delta/$ME11delta" \
+            python ./finalimage.py --delta "data/delta/$ME11delta" \
                 --version "$ME11version" \
                 --pch "$ME11pch" --sku "$ME11sku" --fake-fpfs data/fpfs/zero \
                 --input "${temp_path}/me_cleaned.bin" \
