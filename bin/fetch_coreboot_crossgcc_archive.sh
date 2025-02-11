@@ -105,7 +105,7 @@ case "$PKG_NAME" in
 	acpica)
 		# Original acpica sources are gone.  Most of the older releases
 		# can be found here
-		PKG_BASEURL="https://distfiles.macports.org/acpica/"
+		PKG_BASEURL="https://mirror.math.princeton.edu/pub/libreboot/misc/acpica/"
 		# Version 20220331 (currently used by talos_2) isn't there, but
 		# there is an old link from Intel that is still up.  This is
 		# specific to this release.
