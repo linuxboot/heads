@@ -101,7 +101,7 @@ $(eval $(call coreboot_module,dasharo,24.02.01))
 # T480 may or may not need a specific coreboot rev since it may or may not yet be yet included in the release referenced above
 coreboot-t480_repo := https://review.coreboot.org/coreboot.git
 coreboot-t480_commit_hash := 2f1e4e5e8515dd350cc9d68b48d32a5b6b02ae6a
-$(eval $(call coreboot_module,t480,))
+$(eval $(call coreboot_module,t480,24.02.01))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
