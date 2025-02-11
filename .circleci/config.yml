@@ -510,6 +510,14 @@ workflows:
           requires:
             - librem_14
 
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build:
+          name: t480-maximized
+          target: t480-maximized
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
           name: UNTESTED_nitropad-ns50
