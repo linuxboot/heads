@@ -424,54 +424,6 @@ index cd02745a9e..158b2fb691 100644
  	tbt_finalize();
  	if (CONFIG(DISABLE_HECI1_AT_PRE_BOOT))
  		heci1_disable();
-diff --git a/src/soc/intel/xeon_sp/finalize.c b/src/soc/intel/xeon_sp/finalize.c
-index a7b3602744..f0cd8a1998 100644
---- a/src/soc/intel/xeon_sp/finalize.c
-+++ b/src/soc/intel/xeon_sp/finalize.c
-@@ -59,7 +59,8 @@ static void soc_finalize(void *unused)
- 	if (!CONFIG(USE_PM_ACPI_TIMER))
- 		setbits8(pmc_mmio_regs() + PCH_PWRM_ACPI_TMR_CTL, ACPI_TIM_DIS);
- 
--	apm_control(APM_CNT_FINALIZE);
-+	if (CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3())
-+		apm_control(APM_CNT_FINALIZE);
- 
- 	if (CONFIG_MAX_SOCKET > 1) {
- 		/* This MSR is package scope but run for all cpus for code simplicity */
-diff --git a/src/soc/intel/xeon_sp/lockdown.c b/src/soc/intel/xeon_sp/lockdown.c
-index a3d17b46c3..51a5cf5431 100644
---- a/src/soc/intel/xeon_sp/lockdown.c
-+++ b/src/soc/intel/xeon_sp/lockdown.c
-@@ -6,25 +6,15 @@
- #include <soc/lockdown.h>
- #include <soc/pm.h>
- 
--static void lpc_lockdown_config(void)
--{
--	/* Set BIOS Interface Lock, BIOS Lock */
--	lpc_set_bios_interface_lock_down();
--
--	/* Only allow writes in SMM */
--	if (CONFIG(BOOTMEDIA_SMM_BWP)) {
--		lpc_set_eiss();
--		lpc_enable_wp();
--	}
--	lpc_set_lock_enable();
--}
--
- void soc_lockdown_config(int chipset_lockdown)
- {
- 	if (chipset_lockdown == CHIPSET_LOCKDOWN_FSP)
- 		return;
- 
--	lpc_lockdown_config();
-+	if (!CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
-+		/* LPC/eSPI lock down configuration */
-+		lpc_lockdown_config(chipset_lockdown);
-+
- 	pmc_lockdown_config();
- 	sata_lockdown_config(chipset_lockdown);
- 	spi_lockdown_config(chipset_lockdown);
 -- 
 2.39.5
 
