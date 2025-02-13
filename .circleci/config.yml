@@ -244,6 +244,14 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build_and_persist:
+          name: t480-hotp
+          target: t480-hotp
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
       # coreboot nitropad
       # Nitropads depending on x230-hotp-maximized cache since kernel is 6.x and coreboot is git is unshared
       # We use nitropad's coreboot's fork crossgcc
@@ -509,14 +517,6 @@ workflows:
           subcommand: ""
           requires:
             - librem_14
-
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
-      - build:
-          name: t480-hotp
-          target: t480-hotp
-          subcommand: ""
-          requires:
-            - x86-musl-cross-make
 
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build:
