@@ -250,8 +250,8 @@ workflows:
       # No need to wait further for other board's cache
       # We reuse built modules from x230-hotp-maximized cache only
       - build_and_persist:
-          name: novacustom_nv4x_adl
-          target: novacustom_nv4x_adl
+          name: novacustom-nv4x_adl
+          target: novacustom-nv4x_adl
           subcommand: ""
           requires:
             - x230-hotp-maximized
@@ -516,7 +516,7 @@ workflows:
           target: UNTESTED_nitropad-ns50
           subcommand: ""
           requires:
-            - novacustom_nv4x_adl
+            - novacustom-nv4x_adl
 
       - build:
           name: novacustom-v560tu
