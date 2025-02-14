@@ -20,7 +20,8 @@ Download Intel ME firmware from Dell, neutralize and shrink keeping the MFS.
 }
 
 function chk_sha256sum() {
-	sha256_hash="$1"; filename="$2"
+	sha256_hash="$1"
+	filename="$2"
 	echo "$sha256_hash" "$filename" "$(pwd)"
 	sha256sum "$filename"
 	if ! echo "${sha256_hash} ${filename}" | sha256sum --check; then
@@ -42,8 +43,8 @@ function chk_exists() {
 }
 
 function download_and_clean() {
-    me_output="$(realpath "${1}")"
-	
+	me_output="$(realpath "${1}")"
+
 	# Download and unpack the Dell installer into a temporary directory and
 	# extract the deguardable Intel ME blob.
 	pushd "$(mktemp -d)" || exit
@@ -81,26 +82,26 @@ function download_and_clean() {
 }
 
 function deguard() {
-    me_input="$(realpath "${1}")"
-    me_output="$(realpath "${2}")"
+	me_input="$(realpath "${1}")"
+	me_output="$(realpath "${2}")"
 
-    # Download the deguard tool into a temporary directory and apply the patch to the cleaned ME blob.
+	# Download the deguard tool into a temporary directory and apply the patch to the cleaned ME blob.
 	pushd "$(mktemp -d)" || exit
-    git clone https://review.coreboot.org/deguard.git
-    pushd deguard || exit
-    git checkout 0ed3e4ff824fc42f71ee22907d0594ded38ba7b2
+	git clone https://review.coreboot.org/deguard.git
+	pushd deguard || exit
+	git checkout 0ed3e4ff824fc42f71ee22907d0594ded38ba7b2
 
-    python ./finalimage.py \
-        --delta "data/delta/$ME_delta" \
-	    --version "$ME_version" \
-        --pch "$ME_pch" \
-	    --sku "$ME_sku" \
-        --fake-fpfs data/fpfs/zero \
-	    --input "$me_input" \
-        --output "$me_output"
+	python ./finalimage.py \
+		--delta "data/delta/$ME_delta" \
+		--version "$ME_version" \
+		--pch "$ME_pch" \
+		--sku "$ME_sku" \
+		--fake-fpfs data/fpfs/zero \
+		--input "$me_input" \
+		--output "$me_output"
 
-    popd || exit
-    #Cleanup
+	popd || exit
+	#Cleanup
 	rm -rf ./*
 	popd || exit
 }
@@ -119,7 +120,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 			echo "ERROR: No COREBOOT_DIR variable defined."
 			exit 1
 		fi
-		
+
 		if [[ ! -f "$me_deguarded" ]] || [ "$retry" = "y" ]; then
 			download_and_clean "$me_cleaned"
 			deguard "$me_cleaned" "$me_deguarded"
