@@ -246,8 +246,8 @@ workflows:
 
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
-          name: t480-hotp
-          target: t480-hotp
+          name: t480-hotp-maximized
+          target: t480-hotp-maximized
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -520,11 +520,11 @@ workflows:
 
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build:
-          name: t480
-          target: t480
+          name: t480-maximized
+          target: t480-maximized
           subcommand: ""
           requires:
-            - t480-hotp
+            - t480-hotp-maximized
 
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
