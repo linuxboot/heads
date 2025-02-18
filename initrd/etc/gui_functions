@@ -4,8 +4,7 @@
 
 # Pause for the configured timeout before booting automatically.  Returns 0 to
 # continue with automatic boot, nonzero if user interrupted.
-pause_automatic_boot()
-{
+pause_automatic_boot() {
 	if IFS= read -t "$CONFIG_AUTO_BOOT_TIMEOUT" -s -n 1 -r -p \
 		$'Automatic boot in '"$CONFIG_AUTO_BOOT_TIMEOUT"$' seconds unless interrupted by keypress...\n'; then
 		return 1 # Interrupt automatic boot
@@ -13,61 +12,60 @@ pause_automatic_boot()
 	return 0 # Continue with automatic boot
 }
 
-mount_usb()
-{
-  TRACE_FUNC
-  # Unmount any previous USB device
-  if grep -q /media /proc/mounts ; then
-    umount /media || die "Unable to unmount /media"
-  fi
-  # Mount the USB boot device
-  mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
-  if [ $USB_FAILED -ne 0 ]; then
-    whiptail_error --title 'USB Drive Missing' \
-      --msgbox "Insert your USB drive and press Enter to continue." 0 80
-    mount-usb && USB_FAILED=0 || ( [ $? -eq 5 ] && exit 1 || USB_FAILED=1 )
-    if [ $USB_FAILED -ne 0 ]; then
-      whiptail_error --title 'ERROR: Mounting /media Failed' \
-        --msgbox "Unable to mount USB device" 0 80
-      exit 1
-    fi
-  fi
+mount_usb() {
+	TRACE_FUNC
+	# Unmount any previous USB device
+	if grep -q /media /proc/mounts; then
+		umount /media || die "Unable to unmount /media"
+	fi
+	# Mount the USB boot device
+	mount-usb && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+	if [ $USB_FAILED -ne 0 ]; then
+		whiptail_error --title 'USB Drive Missing' \
+			--msgbox "Insert your USB drive and press Enter to continue." 0 80
+		mount-usb && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+		if [ $USB_FAILED -ne 0 ]; then
+			whiptail_error --title 'ERROR: Mounting /media Failed' \
+				--msgbox "Unable to mount USB device" 0 80
+			exit 1
+		fi
+	fi
 }
 
 # -- Display related functions --
 # Produce a whiptail prompt with 'warning' background, works for fbwhiptail and newt
 whiptail_warning() {
-    if [ -x /bin/fbwhiptail ]; then
-        whiptail $BG_COLOR_WARNING "$@"
-    else
-        env NEWT_COLORS="root=,$TEXT_BG_COLOR_WARNING" whiptail "$@"
-    fi
+	if [ -x /bin/fbwhiptail ]; then
+		whiptail $BG_COLOR_WARNING "$@"
+	else
+		env NEWT_COLORS="root=,$TEXT_BG_COLOR_WARNING" whiptail "$@"
+	fi
 }
 
 # Produce a whiptail prompt with 'error' background, works for fbwhiptail and newt
 whiptail_error() {
-    if [ -x /bin/fbwhiptail ]; then
-        whiptail $BG_COLOR_ERROR "$@"
-    else
-        env NEWT_COLORS="root=,$TEXT_BG_COLOR_ERROR" whiptail "$@"
-    fi
+	if [ -x /bin/fbwhiptail ]; then
+		whiptail $BG_COLOR_ERROR "$@"
+	else
+		env NEWT_COLORS="root=,$TEXT_BG_COLOR_ERROR" whiptail "$@"
+	fi
 }
 
 # Produce a whiptail prompt of the given type - 'error', 'warning', or 'normal'
 whiptail_type() {
-    local TYPE="$1"
-    shift
-    case "$TYPE" in
-        error)
-            whiptail_error "$@"
-	    ;;
-        warning)
-            whiptail_warning "$@"
-	    ;;
-        normal)
-	    whiptail "$@"
-	    ;;
-    esac
+	local TYPE="$1"
+	shift
+	case "$TYPE" in
+	error)
+		whiptail_error "$@"
+		;;
+	warning)
+		whiptail_warning "$@"
+		;;
+	normal)
+		whiptail "$@"
+		;;
+	esac
 }
 
 # Create display text for a size in bytes in either MB or GB, unit selected
@@ -77,16 +75,16 @@ display_size() {
 	size_bytes="$1"
 
 	# If it's less than 1 GB, display MB
-	if [ "$((size_bytes))" -lt "$((1024*1024*1024))" ]; then
-		unit_divisor=$((1024*1024))
+	if [ "$((size_bytes))" -lt "$((1024 * 1024 * 1024))" ]; then
+		unit_divisor=$((1024 * 1024))
 		unit_symbol="MB"
 	else
-		unit_divisor=$((1024*1024*1024))
+		unit_divisor=$((1024 * 1024 * 1024))
 		unit_symbol="GB"
 	fi
 
 	# Divide by the unit divisor and round to nearest
-	echo "$(( (size_bytes + unit_divisor/2) / unit_divisor )) $unit_symbol"
+	echo "$(((size_bytes + unit_divisor / 2) / unit_divisor)) $unit_symbol"
 }
 
 # Create display text for the size of a block device using MB or GB, rounded to
@@ -114,8 +112,7 @@ display_block_device_size() {
 # Success: Sets FILE with the selected file
 # User aborted: Exits successfully with FILE empty
 # No entries in list: Displays error and exits unsuccessfully
-file_selector()
-{
+file_selector() {
 	TRACE_FUNC
 
 	local FILE_LIST MENU_MSG MENU_TITLE CHOICE_ARGS SHOW_SIZE OPTION_SIZE option_index
@@ -140,7 +137,7 @@ file_selector()
 			option="$option - $OPTION_SIZE"
 		fi
 		CHOICE_ARGS+=("$n" "$option")
-	done < "$FILE_LIST"
+	done <"$FILE_LIST"
 
 	if [ "${#CHOICE_ARGS[@]}" -eq 0 ]; then
 		whiptail_error --title 'ERROR: No Files Found' \
@@ -166,40 +163,36 @@ file_selector()
 	done
 }
 
-show_system_info()
-{
-  TRACE_FUNC
-  battery_charge="$(print_battery_charge)"
-  battery_health="$(print_battery_health)"
-  if [ -n $battery_charge -a -n $battery_health ];then
-	  battery_status="\nBattery charge: $battery_charge%\nBattery health: $battery_health%\n"
-  fi
+show_system_info() {
+	TRACE_FUNC
+	battery_charge="$(print_battery_charge)"
+	battery_health="$(print_battery_health)"
+	if [ -n "$battery_charge" ] && [ -n "$battery_health" ]; then
+		battery_status="\nBattery charge: $battery_charge%\nBattery health: $battery_health%\n"
+	fi
 
-  memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
-  memtotal=$((${memtotal} / 1024 / 1024 + 1))
-  cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
-  kernel=$(uname -s -r)
+	memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
+	memtotal=$((${memtotal} / 1024 / 1024 + 1))
+	cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
+	kernel=$(uname -s -r)
 
-  whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
-    --msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
+	whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
+		--msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
 }
 
 # Get "Enable" or "Disable" to display in the configuration menu, based on a
 # setting value
-get_config_display_action()
-{
-  [ "$1" = "y" ] && echo "Disable" || echo "Enable"
+get_config_display_action() {
+	[ "$1" = "y" ] && echo "Disable" || echo "Enable"
 }
 
 # Invert a config value
-invert_config()
-{
-  [ "$1" = "y" ] && echo "n" || echo "y"
+invert_config() {
+	[ "$1" = "y" ] && echo "n" || echo "y"
 }
 
 # Get "Enable" or "Disable" for a config that internally is inverted (because it
 # disables a behavior that is on by default).
-get_inverted_config_display_action()
-{
-  get_config_display_action "$(invert_config "$1")"
+get_inverted_config_display_action() {
+	get_config_display_action "$(invert_config "$1")"
 }
