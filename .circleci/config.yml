@@ -525,6 +525,13 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      - build:
+          name: novacustom-v540tu
+          target: novacustom-v540tu
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
+            
       # coreboot 4.11
       - build:
           name: UNMAINTAINED_kgpe-d16_workstation
