@@ -16,7 +16,8 @@ commands:
             echo "Sourcing /devenv.sh since docker entrypoint doesn't do it as expected"
             source /devenv.sh
             rm -rf build/<< parameters.arch >>/<< parameters.target >>/* build/<< parameters.arch >>/log/*
-            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >>  | ts || touch ./tmpDir/failed_build
+            #Force -j8 so that each make subtask consumes 1gb max and force respect of minimal requirements of CircleCI which otherwise randomly fails
+            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -188,6 +189,7 @@ jobs:
             - build/ppc64/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
+            - build/x86/coreboot-24.12
             - build/x86/coreboot-dasharo
             - build/x86/coreboot-purism
             - build/x86/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
@@ -243,6 +245,14 @@ workflows:
           subcommand: ""
           requires:
             - x230-hotp-maximized
+
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build_and_persist:
+          name: t480-hotp-maximized
+          target: t480-hotp-maximized
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
 
       # coreboot nitropad
       # Nitropads depending on x230-hotp-maximized cache since kernel is 6.x and coreboot is git is unshared
@@ -510,6 +520,14 @@ workflows:
           requires:
             - librem_14
 
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build:
+          name: t480-maximized
+          target: t480-maximized
+          subcommand: ""
+          requires:
+            - t480-hotp-maximized
+
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
           name: UNTESTED_nitropad-ns50
@@ -525,34 +543,3 @@ workflows:
           requires:
             - x230-hotp-maximized
 
-      # coreboot 4.11
-      - build:
-          name: UNMAINTAINED_kgpe-d16_workstation
-          target: UNMAINTAINED_kgpe-d16_workstation
-          subcommand: ""
-          requires:
-            - librem_l1um
-
-      # coreboot 4.11
-      - build:
-          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
-          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
-          subcommand: ""
-          requires:
-            - librem_l1um
-
-      # coreboot 4.11
-      - build:
-          name: UNMAINTAINED_kgpe-d16_server
-          target: UNMAINTAINED_kgpe-d16_server
-          subcommand: ""
-          requires:
-            - librem_l1um
-
-      # coreboot 4.11
-      - build:
-          name: UNMAINTAINED_kgpe-d16_server-whiptail
-          target: UNMAINTAINED_kgpe-d16_server-whiptail
-          subcommand: ""
-          requires:
-            - librem_l1um

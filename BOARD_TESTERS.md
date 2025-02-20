@@ -32,6 +32,10 @@ xx4x(Haswell):
 - [ ] t440p: @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
 - [ ] w541 (similar to t440p): @ResendeGHF @gaspar-ilom (Always tested late: Needs more responsive board testers or risk to become unmaintained.)
 
+xx8x(Kaby Lake Refresh):
+===
+- [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76
+
 Librems:
 ===
 - [ ] Librem 11(JasperLake): @JonathonHall-Purism
