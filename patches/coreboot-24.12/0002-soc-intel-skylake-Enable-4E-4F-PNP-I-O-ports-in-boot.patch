@@ -1,0 +1,30 @@
+From aa6dd7aa4693bd9ce1fe7f35b9532e5411fc1098 Mon Sep 17 00:00:00 2001
+From: Mate Kukri <km@mkukri.xyz>
+Date: Fri, 22 Nov 2024 21:26:48 +0000
+Subject: [PATCH 02/11] soc/intel/skylake: Enable 4E/4F PNP I/O ports in
+ bootblock
+
+Change-Id: I57c9d8a9513a268e2ca6a0abd1306cd038598173
+Signed-off-by: Mate Kukri <km@mkukri.xyz>
+---
+ src/soc/intel/skylake/bootblock/pch.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/soc/intel/skylake/bootblock/pch.c b/src/soc/intel/skylake/bootblock/pch.c
+index df00bb85a9..beaece960b 100644
+--- a/src/soc/intel/skylake/bootblock/pch.c
++++ b/src/soc/intel/skylake/bootblock/pch.c
+@@ -100,8 +100,8 @@ static void soc_config_pwrmbase(void)
+ 
+ void pch_early_iorange_init(void)
+ {
+-	uint16_t io_enables = LPC_IOE_SUPERIO_2E_2F | LPC_IOE_KBC_60_64 |
+-			LPC_IOE_EC_62_66;
++	uint16_t io_enables = LPC_IOE_EC_4E_4F | LPC_IOE_SUPERIO_2E_2F |
++			LPC_IOE_KBC_60_64 | LPC_IOE_EC_62_66;
+ 
+ 	const config_t *config = config_of_soc();
+ 
+-- 
+2.39.5
+
