@@ -92,11 +92,15 @@ jobs:
           name: Download Optiplex 7010/9010 blobs
           command: |
             ./blobs/xx30/optiplex_7010_9010.sh ./blobs/xx30
+      # me_cleaner.py present under heads blobs/utils/me_cleaner dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
       - run:
-          # me_cleaner.py present under heads blobs/utils/me_cleaner dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py)
+      - run:
+          name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx80/download_clean_deguard_me.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
