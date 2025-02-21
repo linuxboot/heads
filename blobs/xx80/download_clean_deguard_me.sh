@@ -14,7 +14,7 @@ DEGUARDED_ME_BIN_HASH="1990b42df67ba70292f4f6e2660efb909917452dcb9bd4b65ea2f8640
 
 function usage() {
 	echo -n \
-		"Usage: $(basename "$0") path_to_output_directory
+		"Usage: $(basename "$0") -m <me_cleaner>(optional) path_to_output_directory
 Download Intel ME firmware from Dell, neutralize and shrink keeping the MFS.
 "
 }
@@ -43,7 +43,8 @@ function chk_exists() {
 }
 
 function download_and_clean() {
-	me_output="$(realpath "${1}")"
+	me_cleaner="$(realpath "${1}")"
+	me_output="$(realpath "${2}")"
 
 	# Download and unpack the Dell installer into a temporary directory and
 	# extract the deguardable Intel ME blob.
@@ -63,21 +64,16 @@ function download_and_clean() {
 
 	extracted_me_filename="1 Inspiron_5468_1.3.0 -- 3 Intel Management Engine (Non-VPro) Update v${ME_version}.bin"
 
-	mv "${me_installer_filename}_extracted/Firmware/${extracted_me_filename}" "${COREBOOT_DIR}/util/me_cleaner"
-	rm -rf ./*
-	popd || exit
-
 	# Neutralize and shrink Intel ME. Note that this doesn't include
 	# --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
 	# High Assurance Program) bits, as they are defined within the Flash
 	# Descriptor.
 	# However, the HAP bit must be enabled to make the deguarded ME work. We only clean the ME in this function.
 	# https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
-	pushd "${COREBOOT_DIR}/util/me_cleaner" || exit
 
 	# MFS is needed for deguard so we whitelist it here and also do not relocate the FTPR partition
-	python me_cleaner.py --whitelist MFS -t -O "$me_output" "$extracted_me_filename"
-	rm -f "$extracted_me_filename"
+	python "$me_cleaner" --whitelist MFS -t -O "$me_output" "${me_installer_filename}_extracted/Firmware/${extracted_me_filename}"
+	rm -rf ./*
 	popd || exit
 }
 
@@ -106,27 +102,59 @@ function deguard() {
 	popd || exit
 }
 
+function usage_err() {
+	echo "$1"
+	usage
+	exit 1
+}
+
+function parse_params() {
+	while getopts ":m:" opt; do
+		case $opt in
+		m)
+			if [[ -x "$OPTARG" ]]; then
+				me_cleaner="$OPTARG"
+			fi
+			;;
+		?)
+			usage_err "Invalid Option: -$OPTARG"
+			;;
+		esac
+	done
+
+	if [[ -z "${me_cleaner}" ]]; then
+		if [[ -z "${COREBOOT_DIR}" ]]; then
+			usage_err "ERROR: me_cleaner.py not found. Set path with -m parameter or define the COREBOOT_DIR variable."
+		else
+			me_cleaner="${COREBOOT_DIR}/util/me_cleaner/me_cleaner.py"
+		fi
+	fi
+	echo "Using me_cleaner from ${me_cleaner}"
+
+	shift $(($OPTIND - 1))
+	output_dir="$(realpath "${1:-./}")"
+	if [[ ! -d "${output_dir}" ]]; then
+		usage_err "No valid output dir found"
+	fi
+	me_cleaned="${output_dir}/me_cleaned.bin"
+	me_deguarded="${output_dir}/me.bin"
+	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 	if [[ "${1:-}" == "--help" ]]; then
 		usage
-	else
-
-		output_dir="$(realpath "${1:-./}")"
-		me_cleaned="${output_dir}/me_cleaned.bin"
-		me_deguarded="${output_dir}/me.bin"
-		chk_exists
-
-		if [[ -z "${COREBOOT_DIR}" ]]; then
-			echo "ERROR: No COREBOOT_DIR variable defined."
-			exit 1
-		fi
-
-		if [[ ! -f "$me_deguarded" ]] || [ "$retry" = "y" ]; then
-			download_and_clean "$me_cleaned"
-			deguard "$me_cleaned" "$me_deguarded"
-			rm -f "$me_cleaned"
-		fi
-
-		chk_sha256sum "$DEGUARDED_ME_BIN_HASH" "$me_deguarded"
+		exit 0
 	fi
+
+	parse_params "$@"
+	chk_exists
+
+	if [[ ! -f "$me_deguarded" ]] || [ "$retry" = "y" ]; then
+		download_and_clean "$me_cleaner" "$me_cleaned"
+		deguard "$me_cleaned" "$me_deguarded"
+		rm -f "$me_cleaned"
+	fi
+
+	chk_sha256sum "$DEGUARDED_ME_BIN_HASH" "$me_deguarded"
 fi
