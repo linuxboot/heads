@@ -1221,17 +1221,21 @@ fromhex_plain() {
 }
 
 print_battery_health() {
-	if [ -d /sys/class/power_supply/BAT* ]; then
-		battery_health=$(awk "BEGIN {printf \"%d\", ($(cat /sys/class/power_supply/BAT*/charge_full)/$(cat /sys/class/power_supply/BAT*/charge_full_design)*100)}")
-		echo "$battery_health"
-	fi
+	for battery in /sys/class/power_supply/BAT*; do
+		if [[ -d "${battery}" ]]; then
+			battery_health=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")*100)}")
+			echo "$(basename "${battery}") ${battery_health}"
+		fi
+	done
 }
 
 print_battery_charge() {
-	if [ -d /sys/class/power_supply/BAT* ]; then
-		battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat /sys/class/power_supply/BAT*/charge_now)/$(cat /sys/class/power_supply/BAT*/charge_full)*100)}")
-		echo "$battery_charge"
-	fi
+	for battery in /sys/class/power_supply/BAT*; do
+		if [[ -d "${battery}" ]]; then
+			battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")*100)}")
+			echo "$(basename "${battery}") ${battery_charge}"
+		fi
+	done	
 }
 
 generate_random_mac_address() {
