@@ -1220,22 +1220,11 @@ fromhex_plain() {
 	fold -w 60 | xxd -p -r
 }
 
-print_battery_health() {
-	for battery in /sys/class/power_supply/BAT*; do
-		if [[ -d "${battery}" ]]; then
-			battery_health=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")*100)}")
-			echo "$(basename "${battery}") ${battery_health}"
-		fi
-	done
-}
-
-print_battery_charge() {
-	for battery in /sys/class/power_supply/BAT*; do
-		if [[ -d "${battery}" ]]; then
-			battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")*100)}")
-			echo "$(basename "${battery}") ${battery_charge}"
-		fi
-	done	
+print_battery_state() {
+	battery="$1"
+	battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")*100)}")
+	battery_health=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")*100)}")
+	echo "$(basename "${battery}") ${battery_charge} ${battery_health}"
 }
 
 generate_random_mac_address() {
