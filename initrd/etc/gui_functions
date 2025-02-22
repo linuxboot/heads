@@ -164,8 +164,13 @@ file_selector() {
 }
 
 show_system_info() {
-	TRACE_FUNC
-	battery_status=$(paste <(print_battery_charge) <(print_battery_health) | awk '{printf "\\nBattery %s charge: %s%\\nBattery %s health: %s%", substr($1,4), $2, substr($3,4), $4}; END { if (NR!=0) printf "\\n"}')
+	battery_status=""
+	for battery in /sys/class/power_supply/BAT*; do
+		if [[ -d "${battery}" ]]; then
+			battery_status+="$(awk '{printf "\\nBattery %s charge: %s%\\nBattery %s health: %s%", substr($1,4), $2, substr($1,4), $3}' <<< "$(print_battery_state "${battery}")")"
+		fi
+	done
+	battery_status="${battery_status:+${battery_status}\n}"
 
 	memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
 	memtotal=$((${memtotal} / 1024 / 1024 + 1))
