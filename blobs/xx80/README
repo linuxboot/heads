@@ -23,7 +23,7 @@ sha256sum:
 f2f6d5fb0a5e02964b494862032fd93f1f88e2febd9904b936083600645c7fdf  ifd.bin
 
 sha256sum:
-6b7f3912995fb87ae62956e009470b35b72b5b9a4bfd7bed48da429af9804866  gbe.bin
+d3af2dfbf128bcddfc8c5810a11478697312e5701668f719f80f3f6322db5642  gbe.bin
 ------------------------
 
 Notes: as specified in first link, this ME can be deployed to:
