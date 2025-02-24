@@ -164,6 +164,7 @@ file_selector() {
 }
 
 show_system_info() {
+	TRACE_FUNC
 	battery_status=""
 	for battery in /sys/class/power_supply/BAT*; do
 		if [[ -d "${battery}" ]]; then
