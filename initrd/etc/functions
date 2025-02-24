@@ -1190,9 +1190,6 @@ scan_boot_options() {
 	fi
 }
 
-calc() {
-	awk "BEGIN { print "$*" }"
-}
 
 # truncate a file to a size only if it is longer (busybox truncate lacks '<' and
 # always sets the file size)
@@ -1221,7 +1218,9 @@ fromhex_plain() {
 }
 
 print_battery_state() {
+  TRACE_FUNC
 	battery="$1"
+	DEBUG "Battery: $1"
 	battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")*100)}")
 	battery_health=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")*100)}")
 	echo "$(basename "${battery}") ${battery_charge} ${battery_health}"
