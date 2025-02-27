@@ -7,15 +7,23 @@ ME_version="11.6.0.1126"
 ME_sku="2M"
 ME_pch="LP"
 
+# Thunderbolt firmware offset in bytes to pad to 1M
+TBFW_SIZE=1048575
+
 # Integrity checks for the vendor provided ME blob...
 ME_DOWNLOAD_HASH="ddfbc51430699e0dfcb24a60bcb5b6e5481b325ebecf1ac177e069013189e4b0"
 # ...and the cleaned and deguarded version from that blob.
 DEGUARDED_ME_BIN_HASH="1990b42df67ba70292f4f6e2660efb909917452dcb9bd4b65ea2f86402cfa16b"
+# Integrity checks for the vendor provided Thunderbolt blob...
+TB_DOWNLOAD_HASH="a500a93fe6a3728aa6676c70f98cf46785ef15da7c5b1ccd7d3a478d190a28a8"
+# ...and the padded and flashable version from that blob.
+TB_BIN_HASH="3903a93df700dee46ca2ccbb9e70e09f25f372fcfc1d5df7338640748117b964"
 
 function usage() {
 	echo -n \
 		"Usage: $(basename "$0") -m <me_cleaner>(optional) path_to_output_directory
 Download Intel ME firmware from Dell, neutralize and shrink keeping the MFS.
+Download Thunderbolt firmware from Lenovo and pad it for flashing externally.
 "
 }
 
@@ -30,15 +38,14 @@ function chk_sha256sum() {
 	fi
 }
 
-function chk_exists() {
-	if [ -e "$me_deguarded" ]; then
-		echo "me.bin already exists"
-		if echo "${DEGUARDED_ME_BIN_HASH} $me_deguarded" | sha256sum --check; then
-			echo "SKIPPING: SHA256 checksum for me.bin matches."
-			exit 0
+function chk_exists_and_matches() {
+	if [[ -f "$1" ]]; then
+		if echo "${2} ${1}" | sha256sum --check; then
+			echo "SKIPPING: SHA256 checksum for $1 matches."
+			[[ "$3" = ME ]] && me_exists="y"
+			[[ "$3" = TB ]] && tb_exists="y"
 		fi
-		retry="y"
-		echo "me.bin exists but checksum doesn't match. Continuing..."
+		echo "$1 exists but checksum doesn't match. Continuing..."
 	fi
 }
 
@@ -102,6 +109,30 @@ function deguard() {
 	popd || exit
 }
 
+function download_and_pad_tb() {
+	tb_output="$(realpath "${1}")"
+
+	# Download and unpack the Lenovo installer into a temporary directory and
+	# extract the TB blob.
+	pushd "$(mktemp -d)" || exit
+
+	# Download the installer that contains the TB blob
+	tb_installer_filename=""n24th13w.exe""
+	user_agent="Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0"
+	curl -A "$user_agent" -s -O "https://download.lenovo.com/pccbbs/mobiles/${tb_installer_filename}"
+	chk_sha256sum "$TB_DOWNLOAD_HASH" "$tb_installer_filename"
+
+	# https://www.reddit.com/r/thinkpad/comments/9rnimi/ladies_and_gentlemen_i_present_to_you_the/
+	7z e n24th13w.exe \[0\]
+	mv \[0\] tb.bin
+	# pad with zeros
+	dd if=/dev/zero of=tb.bin bs=1 seek="$TBFW_SIZE" count=1
+	mv "tb.bin" "$tb_output"
+
+	rm -rf ./*
+	popd || exit
+}
+
 function usage_err() {
 	echo "$1"
 	usage
@@ -138,7 +169,9 @@ function parse_params() {
 	fi
 	me_cleaned="${output_dir}/me_cleaned.bin"
 	me_deguarded="${output_dir}/me.bin"
+	tb_flashable="${output_dir}/tb.bin"
 	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
+	echo "Writing flashable TB to ${tb_flashable}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
@@ -148,13 +181,19 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 	fi
 
 	parse_params "$@"
-	chk_exists
+	chk_exists_and_matches "$me_deguarded" "$DEGUARDED_ME_BIN_HASH" ME
+	chk_exists_and_matches "$tb_flashable" "$TB_BIN_HASH" TB
 
-	if [[ ! -f "$me_deguarded" ]] || [ "$retry" = "y" ]; then
+	if [[ -z "$me_exists" ]]; then
 		download_and_clean "$me_cleaner" "$me_cleaned"
 		deguard "$me_cleaned" "$me_deguarded"
 		rm -f "$me_cleaned"
 	fi
-
+	
+	if [[ -z "$tb_exists" ]]; then
+		download_and_pad_tb "$tb_flashable"
+	fi
+	
 	chk_sha256sum "$DEGUARDED_ME_BIN_HASH" "$me_deguarded"
+	chk_sha256sum "$TB_BIN_HASH" "$tb_flashable"
 fi
