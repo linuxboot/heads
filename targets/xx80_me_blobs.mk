@@ -6,14 +6,17 @@
 #  following to have gbe.bin ifd.bin and me.bin
 #  - blobs/xx80/download_clean_me_and_deguard.sh
 #     To download Lenovo original ME binary, neuter+deactivate ME, produce
-#      reduced IFD ME region and expanded BIOS IFD region.
-#  - blobs/xx80/extract_and_deguard.sh
-#     To extract ME binary, GBE and IFD blobs and apply the deguard exploit to the the ME binary.
+#     reduced IFD ME region and expanded BIOS IFD region.
+#	  Also creates the tb.bin blob to flash the Thunderbolt SPI.
 
 # Make the Coreboot build depend on the following 3rd party blobs:
 $(build)/coreboot-$(CONFIG_COREBOOT_VERSION)/$(BOARD)/.build: \
-    $(pwd)/blobs/xx80/me.bin	
+    $(pwd)/blobs/xx80/me.bin $(pwd)/blobs/xx80/tb.bin	
 
 $(pwd)/blobs/xx80/me.bin:
-	COREBOOT_DIR="$(build)/$(coreboot_base_dir)" \
-		$(pwd)/blobs/xx80/download_clean_deguard_me.sh $(pwd)/blobs/xx80
+	$(pwd)/blobs/xx80/download_clean_deguard_me_pad_tb.sh \ 
+		-m $(pwd)/blobs/utils/me_cleaner/me_cleaner.py $(pwd)/blobs/xx80
+
+$(pwd)/blobs/xx80/tb.bin: \ 
+	$(pwd)/blobs/xx80/me.bin
+	cp $(pwd)/blobs/xx80/tb.bin $(build)/$(BOARD)/
