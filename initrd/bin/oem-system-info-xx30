@@ -12,13 +12,7 @@ export BG_COLOR_MAIN_MENU="normal"
 
 TRACE_FUNC
 
-battery_status=""
-for battery in /sys/class/power_supply/BAT*; do
-	if [[ -d "${battery}" ]]; then
-		battery_status+="$(awk '{printf "\\nBattery %s charge: %s%%\\nBattery %s health: %s%%", substr($1,4), $2, substr($1,4), $3}' <<< "$(print_battery_state "${battery}")")"
-	fi
-done
-battery_status="${battery_status:+${battery_status}\n}"
+battery_status="$(print_battery_state)"
 
 usb="$(lsusb)"
 pci="$(lspci)"
