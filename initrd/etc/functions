@@ -1217,13 +1217,42 @@ fromhex_plain() {
 	fold -w 60 | xxd -p -r
 }
 
-print_battery_state() {
-  TRACE_FUNC
+print_battery_charge() {
+	local battery
 	battery="$1"
-	DEBUG "Battery: $1"
-	battery_charge=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")*100)}")
-	battery_health=$(awk "BEGIN {printf \"%d\", ($(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")*100)}")
-	echo "$(basename "${battery}") ${battery_charge} ${battery_health}"
+	echo "$((100*$(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")))"
+}
+
+print_battery_health() {
+	local battery
+	battery="$1"
+	echo "$((100*$(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")))"
+}
+
+print_battery_name() {
+	local battery
+	battery="$1"
+	echo "$(cat "${battery}/manufacturer") $(cat "${battery}/model_name")"
+}
+
+# Print the charging and health state for all batteries
+# Print the maufacturer and model name for each battery if more than 1
+# The printed string contains the full formatting including leading an trailing "\n" strings
+print_battery_state() {
+	local battery_status
+	battery_status=""
+	all_batteries=(/sys/class/power_supply/BAT*)
+	for battery in "${all_batteries[@]}"; do
+		if [[ -d "${battery}" ]]; then
+			battery_name="Battery"
+			if [ "${#all_batteries[@]}" -gt 1 ]; then
+				battery_name+=" $(print_battery_name "${battery}")"
+			fi
+			battery_status+="\n${battery_name} charge: $(print_battery_charge "${battery}")%"
+			battery_status+="\n${battery_name} health: $(print_battery_health "${battery}")%"
+		fi
+	done
+	echo "${battery_status:+${battery_status}\n}"
 }
 
 generate_random_mac_address() {
