@@ -32,9 +32,11 @@ if [[ ! -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin" ]] || [[ ! -f "${output_dir
     mv IVB_BIOSAC_PRODUCTION.bin "${output_dir}/"
 
     #Download sinit
-    wget https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip
+    # Original URL got rid of needed file, keeping original URL. Let's use archive.org
+    #wget https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip
+    wget http://web.archive.org/web/20230712081031/https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip
     unzip sinit.zip
-    mv 630744_003/SNB_IVB_SINIT_20190708_PW.bin "${output_dir}/" 
+    mv 630744_002/SNB_IVB_SINIT_20190708_PW.bin "${output_dir}/" 
     
     popd || exit
 fi
