@@ -94,6 +94,7 @@ jobs:
             ./blobs/xx30/optiplex_7010_9010.sh ./blobs/xx30
       # me_cleaner.py present under heads blobs/utils/me_cleaner dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
       - run:
+          # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
             ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py)
@@ -540,6 +541,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
+      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on x230
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
@@ -547,3 +549,9 @@ workflows:
           requires:
             - x230-hotp-maximized
 
+      - build:
+          name: novacustom-v540tu
+          target: novacustom-v540tu
+          subcommand: ""
+          requires:
+            - x230-hotp-maximized
