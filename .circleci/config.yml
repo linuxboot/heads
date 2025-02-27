@@ -101,7 +101,7 @@ jobs:
       - run:
           name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx80/download_clean_deguard_me.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
