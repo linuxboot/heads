@@ -5,6 +5,7 @@ The following blobs are needed:
 * `ifd.bin`
 * `gbe.bin`
 * `me.bin`
+* `tb.bin` (optional but recommended flashing this blob to the separate Thunderbolt SPI chip to fix a bug in the original firmware)
 
 ## me.bin: automatically extract, neuter and deguard
 
@@ -27,6 +28,11 @@ Both blobs were taken from libreboot: https://codeberg.org/libreboot/lbmk/src/co
 
 The GBE MAC address was forged to: `00:DE:AD:C0:FF:EE MAC`
 
+## tb.bin
+
+This blob was extracted from https://download.lenovo.com/pccbbs/mobiles/n24th13w.exe
+It is zero-padded to 1MB and should be flashed to the Thunderbolt SPI chip, which is not the same as the 16MB chip to which the heads rom is flashed. External flashing is recommended as the only way to reliably fix a bug in the original Thunderbolt software on the SPI chip. You can find a guide here: https://osresearch.net/T430-maximized-flashing/
+
 ## Integrity
 
 Sha256sums: `blobs/xx80/hashes.txt`
@@ -40,3 +46,8 @@ See the board configs `boards/t480-[hotp-]maximized/t480-[hotp-]maximized.config
 > Also it can be used to extract FDE keys from a TPM.
 > The related coreboot issue contains more information: https://ticket.coreboot.org/issues/576
 > Make sure you understand the implications of the attack for your threat model before using this board.
+
+# Documentation
+
+A guide on how to flash this board (both the Heads rom and the Thunderbolt `tb.bin` blob) can be found here:
+https://osresearch.net/T430-maximized-flashing/
