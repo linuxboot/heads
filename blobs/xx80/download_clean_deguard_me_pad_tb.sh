@@ -17,7 +17,7 @@ DEGUARDED_ME_BIN_HASH="1990b42df67ba70292f4f6e2660efb909917452dcb9bd4b65ea2f8640
 # Integrity checks for the vendor provided Thunderbolt blob...
 TB_DOWNLOAD_HASH="a500a93fe6a3728aa6676c70f98cf46785ef15da7c5b1ccd7d3a478d190a28a8"
 # ...and the padded and flashable version from that blob.
-TB_BIN_HASH="3903a93df700dee46ca2ccbb9e70e09f25f372fcfc1d5df7338640748117b964"
+TB_BIN_HASH="fc9c47ff4b16f036a7f49900f9da1983a5db44ca46156238b7b42e636d317388"
 
 function usage() {
 	echo -n \
@@ -123,8 +123,8 @@ function download_and_pad_tb() {
 	chk_sha256sum "$TB_DOWNLOAD_HASH" "$tb_installer_filename"
 
 	# https://www.reddit.com/r/thinkpad/comments/9rnimi/ladies_and_gentlemen_i_present_to_you_the/
-	7z e n24th13w.exe \[0\]
-	mv \[0\] tb.bin
+	innoextract n24th13w.exe -d .
+	mv ./code\$GetExtractPath\$/TBT.bin tb.bin
 	# pad with zeros
 	dd if=/dev/zero of=tb.bin bs=1 seek="$TBFW_SIZE" count=1
 	mv "tb.bin" "$tb_output"
