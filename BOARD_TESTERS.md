@@ -34,7 +34,7 @@ xx4x(Haswell):
 
 xx8x(Kaby Lake Refresh):
 ===
-- [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76
+- [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76 @notgivenby @akunterkontrolle
 
 Librems:
 ===
