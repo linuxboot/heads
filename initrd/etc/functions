@@ -1190,9 +1190,6 @@ scan_boot_options() {
 	fi
 }
 
-calc() {
-	awk "BEGIN { print "$*" }"
-}
 
 # truncate a file to a size only if it is longer (busybox truncate lacks '<' and
 # always sets the file size)
@@ -1220,38 +1217,42 @@ fromhex_plain() {
 	fold -w 60 | xxd -p -r
 }
 
-print_battery_health() {
-	TRACE_FUNC
-	if ls /sys/class/power_supply/BAT* 1>/dev/null 2>&1; then
-		for battery in /sys/class/power_supply/BAT*; do
-			if [ -d "$battery" ]; then
-				charge_full=$(cat "$battery/charge_full")
-				charge_full_design=$(cat "$battery/charge_full_design")
-				battery_health=$(calc "$charge_full / $charge_full_design * 100" | awk -F "." '{print $1}')
-				DEBUG "Battery $battery health: $battery_health%"
-				echo "$battery_health"
-			fi
-		done
-	else
-		DEBUG "No battery found in /sys/class/power_supply/"
-	fi
+print_battery_charge() {
+	local battery
+	battery="$1"
+	echo "$((100*$(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")))"
 }
 
-print_battery_charge() {
-	TRACE_FUNC
-	if ls /sys/class/power_supply/BAT* 1>/dev/null 2>&1; then
-		for battery in /sys/class/power_supply/BAT*; do
-			if [ -d "$battery" ]; then
-				charge_now=$(cat "$battery/charge_now")
-				charge_full=$(cat "$battery/charge_full")
-				battery_charge=$(calc "$charge_now / $charge_full * 100" | awk -F "." '{print $1}')
-				DEBUG "Battery $battery charge: $battery_charge%"
-				echo "$battery_charge"
+print_battery_health() {
+	local battery
+	battery="$1"
+	echo "$((100*$(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")))"
+}
+
+print_battery_name() {
+	local battery
+	battery="$1"
+	echo "$(cat "${battery}/manufacturer") $(cat "${battery}/model_name")"
+}
+
+# Print the charging and health state for all batteries
+# Print the maufacturer and model name for each battery if more than 1
+# The printed string contains the full formatting including leading an trailing "\n" strings
+print_battery_state() {
+	local battery_status
+	battery_status=""
+	all_batteries=(/sys/class/power_supply/BAT*)
+	for battery in "${all_batteries[@]}"; do
+		if [[ -d "${battery}" ]]; then
+			battery_name="Battery"
+			if [ "${#all_batteries[@]}" -gt 1 ]; then
+				battery_name+=" $(print_battery_name "${battery}")"
 			fi
-		done
-	else
-		DEBUG "No battery found in /sys/class/power_supply/"
-	fi
+			battery_status+="\n${battery_name} charge: $(print_battery_charge "${battery}")%"
+			battery_status+="\n${battery_name} health: $(print_battery_health "${battery}")%"
+		fi
+	done
+	echo "${battery_status:+${battery_status}\n}"
 }
 
 generate_random_mac_address() {

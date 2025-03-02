@@ -92,11 +92,15 @@ jobs:
           name: Download Optiplex 7010/9010 blobs
           command: |
             ./blobs/xx30/optiplex_7010_9010.sh ./blobs/xx30
+      # me_cleaner.py present under heads blobs/utils/me_cleaner dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
       - run:
-          # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py)
+      - run:
+          name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx80/download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
@@ -230,7 +234,7 @@ workflows:
       # Below, sequentially build one board for each coreboot version.
       # The last board in the sequence is the dependency for the parallel boards built at the end, and also save_cache.
 
-      # coreboot 24.02.01, base layer cache to be built and reused by all 24.02.01 boards
+      # coreboot 24.02.01
       - build_and_persist:
           name: novacustom-nv4x_adl
           target: novacustom-nv4x_adl
@@ -238,7 +242,7 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # coreboot purism
+      # coreboot purism: based on coreboot 24.02.01, reuse dasharo 24.02.01 crossgcc
       - build_and_persist:
           name: librem_14
           target: librem_14
@@ -507,6 +511,14 @@ workflows:
           requires:
             - librem_14
 
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build:
+          name: t480-maximized
+          target: t480-maximized
+          subcommand: ""
+          requires:
+            - t480-hotp-maximized
+
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
           name: UNTESTED_nitropad-ns50
@@ -515,6 +527,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
+      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on x230
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
