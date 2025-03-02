@@ -165,11 +165,7 @@ file_selector() {
 
 show_system_info() {
 	TRACE_FUNC
-	battery_charge="$(print_battery_charge)"
-	battery_health="$(print_battery_health)"
-	if [ -n "$battery_charge" ] && [ -n "$battery_health" ]; then
-		battery_status="\nBattery charge: $battery_charge%\nBattery health: $battery_health%\n"
-	fi
+	battery_status="$(print_battery_state)"
 
 	memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
 	memtotal=$((${memtotal} / 1024 / 1024 + 1))
