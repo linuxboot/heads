@@ -1,4 +1,4 @@
-From efc90be24c861f5f83309006e7fdbf3e3504534f Mon Sep 17 00:00:00 2001
+From d2188ab8134a6a9c67e64dda643b770221dba648 Mon Sep 17 00:00:00 2001
 From: gaspar-ilom <gasparilom@riseup.net>
 Date: Thu, 6 Mar 2025 23:00:00 +0000
 Subject: [PATCH] do not break building other thinkpads with the hacks for the
@@ -17,7 +17,7 @@ Signed-off-by: gaspar-ilom <gasparilom@riseup.net>
  4 files changed, 28 insertions(+), 13 deletions(-)
 
 diff --git a/src/device/pci_rom.c b/src/device/pci_rom.c
-index cc6b9b068a..f47300faaa 100644
+index cc6b9b068a..7d4b52ba30 100644
 --- a/src/device/pci_rom.c
 +++ b/src/device/pci_rom.c
 @@ -304,13 +304,15 @@ void pci_rom_ssdt(const struct device *device)
@@ -25,7 +25,7 @@ index cc6b9b068a..f47300faaa 100644
  	}
  
 -#if 0
-+	#ifdef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++	#if CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +	const char *scope = "\\_SB.PCI0.RP01.PEGP";
 +	#else
  	const char *scope = acpi_device_path(device);
@@ -48,7 +48,7 @@ index cc6b9b068a..f47300faaa 100644
  	acpigen_pop_len(); /* pop scope */
  }
 diff --git a/src/ec/lenovo/h8/acpi/ec.asl b/src/ec/lenovo/h8/acpi/ec.asl
-index 8f4a8e1986..0159753f86 100644
+index 8f4a8e1986..f80c15106c 100644
 --- a/src/ec/lenovo/h8/acpi/ec.asl
 +++ b/src/ec/lenovo/h8/acpi/ec.asl
 @@ -331,7 +331,9 @@ Device(EC)
@@ -56,21 +56,21 @@ index 8f4a8e1986..0159753f86 100644
  #include "lid.asl"
  #include "beep.asl"
 -//#include "thermal.asl"
-+#ifndef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++#if !CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +#include "thermal.asl"
 +#endif
  #include "systemstatus.asl"
  #include "thinkpad.asl"
  }
 diff --git a/src/ec/lenovo/h8/bluetooth.c b/src/ec/lenovo/h8/bluetooth.c
-index be71a24ced..94dd52d87e 100644
+index be71a24ced..0b729bd819 100644
 --- a/src/ec/lenovo/h8/bluetooth.c
 +++ b/src/ec/lenovo/h8/bluetooth.c
 @@ -1,6 +1,7 @@
  /* SPDX-License-Identifier: GPL-2.0-only */
 -
 -// #include <southbridge/intel/common/gpio.h>
-+#ifndef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++#if !CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +#include <southbridge/intel/common/gpio.h>
 +#endif
  #include <console/console.h>
@@ -80,7 +80,7 @@ index be71a24ced..94dd52d87e 100644
   */
  bool h8_has_bdc(const struct device *dev)
  {
-+	#ifdef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++	#if CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +	printk(BIOS_INFO, "H8: BDC detection not implemented. "
 +			"Assuming BDC installed\n");
 +	return true;
@@ -108,14 +108,14 @@ index be71a24ced..94dd52d87e 100644
  
  /*
 diff --git a/src/ec/lenovo/h8/wwan.c b/src/ec/lenovo/h8/wwan.c
-index 5cdcf77406..183e1a2cf9 100644
+index 5cdcf77406..0a62583c56 100644
 --- a/src/ec/lenovo/h8/wwan.c
 +++ b/src/ec/lenovo/h8/wwan.c
 @@ -1,6 +1,8 @@
  /* SPDX-License-Identifier: GPL-2.0-only */
  
 -// #include <southbridge/intel/common/gpio.h>
-+#ifndef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++#if !CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +#include <southbridge/intel/common/gpio.h>
 +#endif
  #include <console/console.h>
@@ -125,7 +125,7 @@ index 5cdcf77406..183e1a2cf9 100644
   */
  bool h8_has_wwan(const struct device *dev)
  {
-+	#ifdef CONFIG_BOARD_LENOVO_SKLKBL_THINKPAD_COMMON
++	#if CONFIG(BOARD_LENOVO_SKLKBL_THINKPAD_COMMON)
 +	printk(BIOS_INFO, "H8: WWAN detection not implemented. "
 +			"Assuming WWAN installed\n");
 +	return true;
