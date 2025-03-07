@@ -143,6 +143,19 @@ index d60720eb49..cc6b9b068a 100644
  	acpigen_write_rom(cbrom, cbrom_length);
  	acpigen_pop_len(); /* pop scope */
  }
+diff --git a/src/ec/lenovo/h8/acpi/ec.asl b/src/ec/lenovo/h8/acpi/ec.asl
+index bc54d3b422..8f4a8e1986 100644
+--- a/src/ec/lenovo/h8/acpi/ec.asl
++++ b/src/ec/lenovo/h8/acpi/ec.asl
+@@ -331,7 +331,7 @@ Device(EC)
+ #include "sleepbutton.asl"
+ #include "lid.asl"
+ #include "beep.asl"
+-#include "thermal.asl"
++//#include "thermal.asl"
+ #include "systemstatus.asl"
+ #include "thinkpad.asl"
+ }
 diff --git a/src/ec/lenovo/h8/bluetooth.c b/src/ec/lenovo/h8/bluetooth.c
 index 16fc8dce39..be71a24ced 100644
 --- a/src/ec/lenovo/h8/bluetooth.c
