@@ -1,0 +1,226 @@
+From b1ec1bee7e469eaad764419a781982c0a4e4a68f Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sun, 8 May 2022 00:56:00 +0200
+Subject: [PATCH 16/24] haswell NRI: Add range tracking library
+
+Implement a small library used to keep track of passing ranges. This
+will be used by 1D training algorithms when margining some parameter.
+
+Change-Id: I8718e85165160afd7c0c8e730b5ce6c9c00f8a60
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64192
+Reviewed-by: Alicja Michalska <ahplka19@gmail.com>
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   1 +
+ .../intel/haswell/native_raminit/ranges.c     | 109 ++++++++++++++++++
+ .../intel/haswell/native_raminit/ranges.h     |  68 +++++++++++
+ 3 files changed, 178 insertions(+)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/ranges.c
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/ranges.h
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index 6e1b365602..2da950771d 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -9,6 +9,7 @@ romstage-y += io_comp_control.c
+ romstage-y += memory_map.c
+ romstage-y += raminit_main.c
+ romstage-y += raminit_native.c
++romstage-y += ranges.c
+ romstage-y += reut.c
+ romstage-y += setup_wdb.c
+ romstage-y += spd_bitmunching.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/ranges.c b/src/northbridge/intel/haswell/native_raminit/ranges.c
+new file mode 100644
+index 0000000000..cdebc1fa66
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/ranges.c
+@@ -0,0 +1,109 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <types.h>
++
++#include "ranges.h"
++
++void linear_record_pass(
++	struct linear_train_data *const data,
++	const bool pass,
++	const int32_t value,
++	const int32_t start,
++	const int32_t step)
++{
++	/* If this is the first time, initialize all values */
++	if (value == start) {
++		/*
++		 * If value passed, create a zero-length region for the current value,
++		 * which may be extended as long as the successive values are passing.
++		 *
++		 * Otherwise, create a zero-length range for the preceding value. This
++		 * range cannot be extended by other passing values, which is desired.
++		 */
++		data->current.start = start - (pass ? 0 : step);
++		data->current.end   = data->current.start;
++		data->largest       = data->current;
++	} else if (pass) {
++		/* If this pass is not contiguous, it belongs to a new region */
++		if (data->current.end != (value - step))
++			data->current.start = value;
++
++		/* Update end of current region */
++		data->current.end = value;
++
++		/* Update largest region */
++		if (range_width(data->current) > range_width(data->largest))
++			data->largest = data->current;
++	}
++}
++
++void phase_record_pass(
++	struct phase_train_data *const data,
++	const bool pass,
++	const int32_t value,
++	const int32_t start,
++	const int32_t step)
++{
++	/* If this is the first time, initialize all values */
++	if (value == start) {
++		/*
++		 * If value passed, create a zero-length region for the current value,
++		 * which may be extended as long as the successive values are passing.
++		 *
++		 * Otherwise, create a zero-length range for the preceding value. This
++		 * range cannot be extended by other passing values, which is desired.
++		 */
++		data->current.start = start - (pass ? 0 : step);
++		data->current.end   = data->current.start;
++		data->largest       = data->current;
++		data->initial       = data->current;
++		return;
++	}
++	if (!pass)
++		return;
++
++	/* Update initial region */
++	if (data->initial.end == (value - step))
++		data->initial.end = value;
++
++	/* If this pass is not contiguous, it belongs to a new region */
++	if (data->current.end != (value - step))
++		data->current.start = value;
++
++	/* Update end of current region */
++	data->current.end = value;
++
++	/* Update largest region */
++	if (range_width(data->current) > range_width(data->largest))
++		data->largest = data->current;
++}
++
++void phase_append_initial_to_current(
++	struct phase_train_data *const data,
++	const int32_t start,
++	const int32_t step)
++{
++	/* If initial region is valid and does not overlap, append it */
++	if (data->initial.start == start && data->initial.end != data->current.end)
++		data->current.end += step + range_width(data->initial);
++
++	/* Update largest region */
++	if (range_width(data->current) > range_width(data->largest))
++		data->largest = data->current;
++}
++
++void phase_append_current_to_initial(
++	struct phase_train_data *const data,
++	const int32_t start,
++	const int32_t step)
++{
++	/* If initial region is valid and does not overlap, append it */
++	if (data->initial.start == start && data->initial.end != data->current.end) {
++		data->initial.start -= (step + range_width(data->current));
++		data->current = data->initial;
++	}
++
++	/* Update largest region */
++	if (range_width(data->current) > range_width(data->largest))
++		data->largest = data->current;
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/ranges.h b/src/northbridge/intel/haswell/native_raminit/ranges.h
+new file mode 100644
+index 0000000000..235392df96
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/ranges.h
+@@ -0,0 +1,68 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#ifndef HASWELL_RAMINIT_RANGES_H
++#define HASWELL_RAMINIT_RANGES_H
++
++#include <types.h>
++
++/*
++ * Many algorithms shmoo some parameter to determine the largest passing
++ * range. Provide a common implementation to avoid redundant boilerplate.
++ */
++struct passing_range {
++	int32_t start;
++	int32_t end;
++};
++
++/* Structure for linear parameters, such as roundtrip delays */
++struct linear_train_data {
++	struct passing_range current;
++	struct passing_range largest;
++};
++
++/*
++ * Phase ranges are "circular": the first and last indices are contiguous.
++ * To correctly determine the largest passing range, one has to combine
++ * the initial range and the current range when processing the last index.
++ */
++struct phase_train_data {
++	struct passing_range initial;
++	struct passing_range current;
++	struct passing_range largest;
++};
++
++static inline int32_t range_width(const struct passing_range range)
++{
++	return range.end - range.start;
++}
++
++static inline int32_t range_center(const struct passing_range range)
++{
++	return range.start + range_width(range) / 2;
++}
++
++void linear_record_pass(
++	struct linear_train_data *data,
++	bool pass,
++	int32_t value,
++	int32_t start,
++	int32_t step);
++
++void phase_record_pass(
++	struct phase_train_data *data,
++	bool pass,
++	int32_t value,
++	int32_t start,
++	int32_t step);
++
++void phase_append_initial_to_current(
++	struct phase_train_data *data,
++	int32_t start,
++	int32_t step);
++
++void phase_append_current_to_initial(
++	struct phase_train_data *data,
++	int32_t start,
++	int32_t step);
++
++#endif
+-- 
+2.39.5
+

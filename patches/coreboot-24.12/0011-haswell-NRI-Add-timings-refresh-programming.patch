@@ -1,0 +1,545 @@
+From fdb57ee43dc47908b16823aa6ed4d6c08c8d6a48 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sat, 7 May 2022 20:59:58 +0200
+Subject: [PATCH 11/24] haswell NRI: Add timings/refresh programming
+
+Program the registers with timing and refresh parameters.
+
+Change-Id: Id2ea339d2c9ea8b56c71d6e88ec76949653ff5c2
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64187
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Reviewed-by: Alicja Michalska <ahplka19@gmail.com>
+---
+ .../haswell/native_raminit/lookup_timings.c   | 102 ++++++++
+ .../haswell/native_raminit/raminit_native.h   |  14 ++
+ .../haswell/native_raminit/reg_structs.h      |  93 +++++++
+ .../haswell/native_raminit/timings_refresh.c  | 233 +++++++++++++++++-
+ .../intel/haswell/registers/mchbar.h          |  12 +
+ 5 files changed, 452 insertions(+), 2 deletions(-)
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/lookup_timings.c b/src/northbridge/intel/haswell/native_raminit/lookup_timings.c
+index 8b81c7c341..b8d6c1ef40 100644
+--- a/src/northbridge/intel/haswell/native_raminit/lookup_timings.c
++++ b/src/northbridge/intel/haswell/native_raminit/lookup_timings.c
+@@ -60,3 +60,105 @@ uint32_t get_tXP(const uint32_t mem_clock_mhz)
+ 	};
+ 	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
+ }
++
++static uint32_t get_lpddr_tCKE(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  533,  4 },
++		{  666,  5 },
++		{ fmax,  6 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++static uint32_t get_ddr_tCKE(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  533,  3 },
++		{  800,  4 },
++		{  933,  5 },
++		{ 1200,  6 },
++		{ fmax,  7 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++uint32_t get_tCKE(const uint32_t mem_clock_mhz, const bool lpddr)
++{
++	return lpddr ? get_lpddr_tCKE(mem_clock_mhz) : get_ddr_tCKE(mem_clock_mhz);
++}
++
++uint32_t get_tXPDLL(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  400, 10 },
++		{  533, 13 },
++		{  666, 16 },
++		{  800, 20 },
++		{  933, 23 },
++		{ 1066, 26 },
++		{ 1200, 29 },
++		{ fmax, 32 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++uint32_t get_tAONPD(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  400,  4 },
++		{  533,  5 },
++		{  666,  6 },
++		{  800,  7 }, /* SNB had 8 */
++		{  933,  8 },
++		{ 1066, 10 },
++		{ 1200, 11 },
++		{ fmax, 12 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++uint32_t get_tMOD(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  800, 12 },
++		{  933, 14 },
++		{ 1066, 16 },
++		{ 1200, 18 },
++		{ fmax, 20 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++uint32_t get_tXS_offset(const uint32_t mem_clock_mhz)
++{
++	return DIV_ROUND_UP(mem_clock_mhz, 100);
++}
++
++static uint32_t get_lpddr_tZQOPER(const uint32_t mem_clock_mhz)
++{
++	return (mem_clock_mhz * 360) / 1000;
++}
++
++static uint32_t get_ddr_tZQOPER(const uint32_t mem_clock_mhz)
++{
++	const struct timing_lookup lut[] = {
++		{  800, 256 },
++		{  933, 299 },
++		{ 1066, 342 },
++		{ 1200, 384 },
++		{ fmax, 427 },
++	};
++	return lookup_timing(mem_clock_mhz, lut, ARRAY_SIZE(lut));
++}
++
++/* tZQOPER defines the period required for ZQCL after SR exit */
++uint32_t get_tZQOPER(const uint32_t mem_clock_mhz, const bool lpddr)
++{
++	return lpddr ? get_lpddr_tZQOPER(mem_clock_mhz) : get_ddr_tZQOPER(mem_clock_mhz);
++}
++
++uint32_t get_tZQCS(const uint32_t mem_clock_mhz, const bool lpddr)
++{
++	return DIV_ROUND_UP(get_tZQOPER(mem_clock_mhz, lpddr), 4);
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index fffa6d5450..5915a2bab0 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -156,6 +156,12 @@ struct sysinfo {
+ 	uint8_t cke_cmd_pi_code[NUM_CHANNELS][NUM_GROUPS];
+ 	uint8_t cmd_north_pi_code[NUM_CHANNELS][NUM_GROUPS];
+ 	uint8_t cmd_south_pi_code[NUM_CHANNELS][NUM_GROUPS];
++
++	union tc_bank_reg tc_bank[NUM_CHANNELS];
++	union tc_bank_rank_a_reg tc_bankrank_a[NUM_CHANNELS];
++	union tc_bank_rank_b_reg tc_bankrank_b[NUM_CHANNELS];
++	union tc_bank_rank_c_reg tc_bankrank_c[NUM_CHANNELS];
++	union tc_bank_rank_d_reg tc_bankrank_d[NUM_CHANNELS];
+ };
+ 
+ static inline bool is_hsw_ult(void)
+@@ -201,6 +207,14 @@ enum raminit_status configure_mc(struct sysinfo *ctrl);
+ void configure_timings(struct sysinfo *ctrl);
+ void configure_refresh(struct sysinfo *ctrl);
+ 
++uint32_t get_tCKE(uint32_t mem_clock_mhz, bool lpddr);
++uint32_t get_tXPDLL(uint32_t mem_clock_mhz);
++uint32_t get_tAONPD(uint32_t mem_clock_mhz);
++uint32_t get_tMOD(uint32_t mem_clock_mhz);
++uint32_t get_tXS_offset(uint32_t mem_clock_mhz);
++uint32_t get_tZQOPER(uint32_t mem_clock_mhz, bool lpddr);
++uint32_t get_tZQCS(uint32_t mem_clock_mhz, bool lpddr);
++
+ enum raminit_status wait_for_first_rcomp(void);
+ 
+ uint8_t get_rx_bias(const struct sysinfo *ctrl);
+diff --git a/src/northbridge/intel/haswell/native_raminit/reg_structs.h b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+index d11cda4b3d..70487e1640 100644
+--- a/src/northbridge/intel/haswell/native_raminit/reg_structs.h
++++ b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+@@ -335,6 +335,99 @@ union mcscheds_cbit_reg {
+ 	uint32_t raw;
+ };
+ 
++union tc_bank_reg {
++	struct __packed {
++		uint32_t tRCD      : 5; // Bits  4:0
++		uint32_t tRP       : 5; // Bits  9:5
++		uint32_t tRAS      : 6; // Bits 15:10
++		uint32_t tRDPRE    : 4; // Bits 19:16
++		uint32_t tWRPRE    : 6; // Bits 25:20
++		uint32_t tRRD      : 4; // Bits 29:26
++		uint32_t tRPab_ext : 2; // Bits 31:30
++	};
++	uint32_t raw;
++};
++
++union tc_bank_rank_a_reg {
++	struct __packed {
++		uint32_t tCKE        : 4; // Bits  3:0
++		uint32_t tFAW        : 8; // Bits 11:4
++		uint32_t tRDRD_sr    : 3; // Bits 14:12
++		uint32_t tRDRD_dr    : 4; // Bits 18:15
++		uint32_t tRDRD_dd    : 4; // Bits 22:19
++		uint32_t tRDPDEN     : 5; // Bits 27:23
++		uint32_t             : 1; // Bits 28:28
++		uint32_t cmd_3st_dis : 1; // Bits 29:29
++		uint32_t cmd_stretch : 2; // Bits 31:30
++	};
++	uint32_t raw;
++};
++
++union tc_bank_rank_b_reg {
++	struct __packed {
++		uint32_t tWRRD_sr : 6; // Bits  5:0
++		uint32_t tWRRD_dr : 4; // Bits  9:6
++		uint32_t tWRRD_dd : 4; // Bits 13:10
++		uint32_t tWRWR_sr : 3; // Bits 16:14
++		uint32_t tWRWR_dr : 4; // Bits 20:17
++		uint32_t tWRWR_dd : 4; // Bits 24:21
++		uint32_t tWRPDEN  : 6; // Bits 30:25
++		uint32_t dec_wrd  : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union tc_bank_rank_c_reg {
++	struct __packed {
++		uint32_t tXPDLL   : 6; // Bits  5:0
++		uint32_t tXP      : 4; // Bits  9:6
++		uint32_t tAONPD   : 4; // Bits 13:10
++		uint32_t tRDWR_sr : 5; // Bits 18:14
++		uint32_t tRDWR_dr : 5; // Bits 23:19
++		uint32_t tRDWR_dd : 5; // Bits 28:24
++		uint32_t          : 3; // Bits 31:29
++	};
++	uint32_t raw;
++};
++
++/* NOTE: Non-ULT only implements the lower 21 bits (odt_write_delay is 2 bits) */
++union tc_bank_rank_d_reg {
++	struct __packed {
++		uint32_t tAA                : 5; // Bits  4:0
++		uint32_t tCWL               : 5; // Bits  9:5
++		uint32_t tCPDED             : 2; // Bits 11:10
++		uint32_t tPRPDEN            : 2; // Bits 13:12
++		uint32_t odt_read_delay     : 3; // Bits 16:14
++		uint32_t odt_read_duration  : 2; // Bits 18:17
++		uint32_t odt_write_duration : 3; // Bits 21:19
++		uint32_t odt_write_delay    : 3; // Bits 24:22
++		uint32_t odt_always_rank_0  : 1; // Bits 25:25
++		uint32_t cmd_delay          : 2; // Bits 27:26
++		uint32_t                    : 4; // Bits 31:28
++	};
++	uint32_t raw;
++};
++
++union tc_rftp_reg {
++	struct __packed {
++		uint32_t tREFI   : 16; // Bits 15:0
++		uint32_t tRFC    :  9; // Bits 24:16
++		uint32_t tREFIx9 :  7; // Bits 31:25
++	};
++	uint32_t raw;
++};
++
++union tc_srftp_reg {
++	struct __packed {
++		uint32_t tXSDLL     : 12; // Bits 11:0
++		uint32_t tXS_offset :  4; // Bits 15:12
++		uint32_t tZQOPER    : 10; // Bits 25:16
++		uint32_t            :  2; // Bits 27:26
++		uint32_t tMOD       :  4; // Bits 31:28
++	};
++	uint32_t raw;
++};
++
+ union mcmain_command_rate_limit_reg {
+ 	struct __packed {
+ 		uint32_t enable_cmd_limit :  1; // Bits  0:0
+diff --git a/src/northbridge/intel/haswell/native_raminit/timings_refresh.c b/src/northbridge/intel/haswell/native_raminit/timings_refresh.c
+index a9d960f31b..54fee0121d 100644
+--- a/src/northbridge/intel/haswell/native_raminit/timings_refresh.c
++++ b/src/northbridge/intel/haswell/native_raminit/timings_refresh.c
+@@ -1,13 +1,242 @@
+ /* SPDX-License-Identifier: GPL-2.0-or-later */
+ 
++#include <assert.h>
++#include <commonlib/bsd/clamp.h>
++#include <console/console.h>
++#include <delay.h>
++#include <device/pci_ops.h>
++#include <northbridge/intel/haswell/haswell.h>
++
+ #include "raminit_native.h"
+ 
++#define BL		8	/* Burst length */
++#define tCCD		4
++#define tRPRE		1
++#define tWPRE		1
++#define tDLLK		512
++
++static bool is_sodimm(const enum spd_dimm_type_ddr3 type)
++{
++	return type == SPD_DDR3_DIMM_TYPE_SO_DIMM || type == SPD_DDR3_DIMM_TYPE_72B_SO_UDIMM;
++}
++
++static uint8_t get_odt_stretch(const struct sysinfo *const ctrl)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		/* Only stretch with 2 DIMMs per channel */
++		if (ctrl->dpc[channel] != 2)
++			continue;
++
++		const struct raminit_dimm_info *dimms = ctrl->dimms[channel];
++
++		/* Only stretch when using SO-DIMMs */
++		if (!is_sodimm(dimms[0].data.dimm_type) || !is_sodimm(dimms[1].data.dimm_type))
++			continue;
++
++		/* Only stretch with mismatched card types */
++		if (dimms[0].data.reference_card == dimms[1].data.reference_card)
++			continue;
++
++		/* Stretch if one SO-DIMM is card F */
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (dimms[slot].data.reference_card == 5)
++				return 1;
++		}
++	}
++	return 0;
++}
++
++static union tc_bank_reg make_tc_bank(struct sysinfo *const ctrl)
++{
++	return (union tc_bank_reg) {
++		.tRCD      = ctrl->tRCD,
++		.tRP       = ctrl->tRP,
++		.tRAS      = ctrl->tRAS,
++		.tRDPRE    = ctrl->tRTP,
++		.tWRPRE    = 4 + ctrl->tCWL + ctrl->tWR,
++		.tRRD      = ctrl->tRRD,
++		.tRPab_ext = 0,	/** TODO: For LPDDR, this is ctrl->tRPab - ctrl->tRP **/
++	};
++}
++
++static union tc_bank_rank_a_reg make_tc_bankrank_a(struct sysinfo *ctrl, uint8_t odt_stretch)
++{
++	/* Use 3N mode for DDR during training, but always use 1N mode for LPDDR */
++	const uint32_t tCMD = ctrl->lpddr ? 0 : 3;
++	const uint32_t tRDRD_drdd = BL / 2 + 1 + tRPRE + odt_stretch + !!ctrl->lpddr;
++
++	return (union tc_bank_rank_a_reg) {
++		.tCKE        = get_tCKE(ctrl->mem_clock_mhz, ctrl->lpddr),
++		.tFAW        = ctrl->tFAW,
++		.tRDRD_sr    = tCCD,
++		.tRDRD_dr    = tRDRD_drdd,
++		.tRDRD_dd    = tRDRD_drdd,
++		.tRDPDEN     = ctrl->tAA + BL / 2 + 1,
++		.cmd_3st_dis = 1,	/* Disable command tri-state before training */
++		.cmd_stretch = tCMD,
++	};
++}
++
++static union tc_bank_rank_b_reg make_tc_bankrank_b(struct sysinfo *const ctrl)
++{
++	const uint8_t tWRRD_drdd = ctrl->tCWL - ctrl->tAA + BL / 2 + 2 + tRPRE;
++	const uint8_t tWRWR_drdd = BL / 2 + 2 + tWPRE;
++
++	return (union tc_bank_rank_b_reg) {
++		.tWRRD_sr = tCCD + ctrl->tCWL + ctrl->tWTR + 2,
++		.tWRRD_dr = ctrl->lpddr ? 8 : tWRRD_drdd,
++		.tWRRD_dd = ctrl->lpddr ? 8 : tWRRD_drdd,
++		.tWRWR_sr = tCCD,
++		.tWRWR_dr = tWRWR_drdd,
++		.tWRWR_dd = tWRWR_drdd,
++		.tWRPDEN  = ctrl->tWR + ctrl->tCWL + BL / 2,
++		.dec_wrd  = ctrl->tCWL >= 6,
++	};
++}
++
++static uint32_t get_tRDWR_sr(const struct sysinfo *ctrl)
++{
++	if (ctrl->lpddr) {
++		const uint32_t tdqsck_max = DIV_ROUND_UP(5500, ctrl->qclkps * 2);
++		return ctrl->tAA - ctrl->tCWL + tCCD + tWPRE + tdqsck_max + 1;
++	} else {
++		const bool fast_clock = ctrl->mem_clock_mhz > 666;
++		return ctrl->tAA - ctrl->tCWL + tCCD + tWPRE + 2 + fast_clock;
++	}
++}
++
++static union tc_bank_rank_c_reg make_tc_bankrank_c(struct sysinfo *ctrl, uint8_t odt_stretch)
++{
++	const uint32_t tRDWR_sr = get_tRDWR_sr(ctrl);
++	const uint32_t tRDWR_drdd = tRDWR_sr + odt_stretch;
++
++	return (union tc_bank_rank_c_reg) {
++		.tXPDLL   = get_tXPDLL(ctrl->mem_clock_mhz),
++		.tXP      = MAX(ctrl->tXP, 7),	/* Use a higher tXP for training */
++		.tAONPD   = get_tAONPD(ctrl->mem_clock_mhz),
++		.tRDWR_sr = tRDWR_sr,
++		.tRDWR_dr = tRDWR_drdd,
++		.tRDWR_dd = tRDWR_drdd,
++	};
++}
++
++static union tc_bank_rank_d_reg make_tc_bankrank_d(struct sysinfo *ctrl, uint8_t odt_stretch)
++{
++	const uint32_t odt_rd_delay = ctrl->tAA - ctrl->tCWL;
++	if (!ctrl->lpddr) {
++		return (union tc_bank_rank_d_reg) {
++			.tAA               = ctrl->tAA,
++			.tCWL              = ctrl->tCWL,
++			.tCPDED            = 1,
++			.tPRPDEN           = 1,
++			.odt_read_delay    = odt_rd_delay,
++			.odt_read_duration = odt_stretch,
++		};
++	}
++
++	/* tCWL has 1 extra clock because of tDQSS, subtract it here */
++	const uint32_t tCWL_lpddr = ctrl->tCWL - 1;
++	const uint32_t odt_wr_delay = tCWL_lpddr + DIV_ROUND_UP(3500, ctrl->qclkps * 2);
++	const uint32_t odt_wr_duration = DIV_ROUND_UP(3500 - 1750, ctrl->qclkps * 2) + 1;
++
++	return (union tc_bank_rank_d_reg) {
++		.tAA                = ctrl->tAA,
++		.tCWL               = tCWL_lpddr,
++		.tCPDED             = 2,	/* Required by JEDEC LPDDR3 spec */
++		.tPRPDEN            = 1,
++		.odt_read_delay     = odt_rd_delay,
++		.odt_read_duration  = odt_stretch,
++		.odt_write_delay    = odt_wr_delay,
++		.odt_write_duration = odt_wr_duration,
++		.odt_always_rank_0  = ctrl->lpddr_dram_odt
++	};
++}
++
++/* ZQCS period values, in (tREFI * 128) units */
++#define ZQCS_PERIOD_DDR3	128	/* tREFI * 128 = 7.8 us * 128 = 1ms */
++#define ZQCS_PERIOD_LPDDR3	256	/* tREFI * 128 = 3.9 us * 128 = 0.5ms */
++
++static uint32_t make_tc_zqcal(const struct sysinfo *const ctrl)
++{
++	const uint32_t zqcs_period = ctrl->lpddr ? ZQCS_PERIOD_LPDDR3 : ZQCS_PERIOD_DDR3;
++	const uint32_t tZQCS = get_tZQCS(ctrl->mem_clock_mhz, ctrl->lpddr);
++	return tZQCS << (is_hsw_ult() ? 10 : 8) | zqcs_period;
++}
++
++static union tc_rftp_reg make_tc_rftp(const struct sysinfo *const ctrl)
++{
++	/*
++	 * The tREFIx9 field should be programmed to minimum of 8.9 * tREFI (to allow
++	 * for possible delays from ZQ or isoc) and tRASmax (70us) divided by 1024.
++	 */
++	return (union tc_rftp_reg) {
++		.tREFI   = ctrl->tREFI,
++		.tRFC    = ctrl->tRFC,
++		.tREFIx9 = ctrl->tREFI * 89 / 10240,
++	};
++}
++
++static union tc_srftp_reg make_tc_srftp(const struct sysinfo *const ctrl)
++{
++	return (union tc_srftp_reg) {
++		.tXSDLL     = tDLLK,
++		.tXS_offset = get_tXS_offset(ctrl->mem_clock_mhz),
++		.tZQOPER    = get_tZQOPER(ctrl->mem_clock_mhz, ctrl->lpddr),
++		.tMOD       = get_tMOD(ctrl->mem_clock_mhz) - 8,
++	};
++}
++
+ void configure_timings(struct sysinfo *ctrl)
+ {
+-	/** TODO: Stub **/
++	if (ctrl->lpddr)
++		die("%s: Missing support for LPDDR\n", __func__);
++
++	const uint8_t odt_stretch = get_odt_stretch(ctrl);
++	const union tc_bank_reg tc_bank = make_tc_bank(ctrl);
++	const union tc_bank_rank_a_reg tc_bank_rank_a = make_tc_bankrank_a(ctrl, odt_stretch);
++	const union tc_bank_rank_b_reg tc_bank_rank_b = make_tc_bankrank_b(ctrl);
++	const union tc_bank_rank_c_reg tc_bank_rank_c = make_tc_bankrank_c(ctrl, odt_stretch);
++	const union tc_bank_rank_d_reg tc_bank_rank_d = make_tc_bankrank_d(ctrl, odt_stretch);
++
++	const uint8_t wr_delay = tc_bank_rank_b.dec_wrd + 1;
++	uint8_t sc_wr_add_delay = 0;
++	sc_wr_add_delay |= wr_delay << 0;
++	sc_wr_add_delay |= wr_delay << 2;
++	sc_wr_add_delay |= wr_delay << 4;
++	sc_wr_add_delay |= wr_delay << 6;
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		ctrl->tc_bank[channel] = tc_bank;
++		ctrl->tc_bankrank_a[channel] = tc_bank_rank_a;
++		ctrl->tc_bankrank_b[channel] = tc_bank_rank_b;
++		ctrl->tc_bankrank_c[channel] = tc_bank_rank_c;
++		ctrl->tc_bankrank_d[channel] = tc_bank_rank_d;
++
++		mchbar_write32(TC_BANK_ch(channel), ctrl->tc_bank[channel].raw);
++		mchbar_write32(TC_BANK_RANK_A_ch(channel), ctrl->tc_bankrank_a[channel].raw);
++		mchbar_write32(TC_BANK_RANK_B_ch(channel), ctrl->tc_bankrank_b[channel].raw);
++		mchbar_write32(TC_BANK_RANK_C_ch(channel), ctrl->tc_bankrank_c[channel].raw);
++		mchbar_write32(TC_BANK_RANK_D_ch(channel), ctrl->tc_bankrank_d[channel].raw);
++		mchbar_write8(SC_WR_ADD_DELAY_ch(channel), sc_wr_add_delay);
++	}
+ }
+ 
+ void configure_refresh(struct sysinfo *ctrl)
+ {
+-	/** TODO: Stub **/
++	const union tc_srftp_reg tc_srftp = make_tc_srftp(ctrl);
++	const union tc_rftp_reg  tc_rftp  = make_tc_rftp(ctrl);
++	const uint32_t tc_zqcal = make_tc_zqcal(ctrl);
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		mchbar_setbits32(TC_RFP_ch(channel), 0xff);
++		mchbar_write32(TC_RFTP_ch(channel),  tc_rftp.raw);
++		mchbar_write32(TC_SRFTP_ch(channel), tc_srftp.raw);
++		mchbar_write32(TC_ZQCAL_ch(channel), tc_zqcal);
++	}
+ }
+diff --git a/src/northbridge/intel/haswell/registers/mchbar.h b/src/northbridge/intel/haswell/registers/mchbar.h
+index 4c3f399b5d..2acc5cbbc8 100644
+--- a/src/northbridge/intel/haswell/registers/mchbar.h
++++ b/src/northbridge/intel/haswell/registers/mchbar.h
+@@ -86,9 +86,21 @@
+ #define DDR_COMP_VSSHI_CONTROL			0x3a24
+ 
+ /* MCMAIN per-channel */
++#define TC_BANK_ch(ch)				_MCMAIN_C(0x4000, ch)
++#define TC_BANK_RANK_A_ch(ch)			_MCMAIN_C(0x4004, ch)
++#define TC_BANK_RANK_B_ch(ch)			_MCMAIN_C(0x4008, ch)
++#define TC_BANK_RANK_C_ch(ch)			_MCMAIN_C(0x400c, ch)
+ #define COMMAND_RATE_LIMIT_ch(ch)		_MCMAIN_C(0x4010, ch)
++#define TC_BANK_RANK_D_ch(ch)			_MCMAIN_C(0x4014, ch)
++#define SC_ROUNDT_LAT_ch(ch)			_MCMAIN_C(0x4024, ch)
+ 
++#define SC_WR_ADD_DELAY_ch(ch)			_MCMAIN_C(0x40d0, ch)
++
++#define TC_ZQCAL_ch(ch)				_MCMAIN_C(0x4290, ch)
++#define TC_RFP_ch(ch)				_MCMAIN_C(0x4294, ch)
++#define TC_RFTP_ch(ch)				_MCMAIN_C(0x4298, ch)
+ #define MC_INIT_STATE_ch(ch)			_MCMAIN_C(0x42a0, ch)
++#define TC_SRFTP_ch(ch)				_MCMAIN_C(0x42a4, ch)
+ 
+ /* MCMAIN broadcast */
+ #define MCSCHEDS_CBIT		0x4c20
+-- 
+2.39.5
+

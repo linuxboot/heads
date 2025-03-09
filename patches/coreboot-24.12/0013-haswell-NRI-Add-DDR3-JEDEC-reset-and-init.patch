@@ -1,0 +1,1039 @@
+From 06d0ee4372c7aa993eb7c1a531f363d12c41f218 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sat, 7 May 2022 21:49:40 +0200
+Subject: [PATCH 13/24] haswell NRI: Add DDR3 JEDEC reset and init
+
+Implement JEDEC reset and init sequence for DDR3. The MRS commands are
+issued through the REUT (Robust Electrical Unified Testing) hardware.
+
+Change-Id: I2a0c066537021b587599228086727cb1e041bff5
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64189
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   3 +
+ .../intel/haswell/native_raminit/ddr3.c       | 217 ++++++++++++++++++
+ .../haswell/native_raminit/io_comp_control.c  |  19 ++
+ .../haswell/native_raminit/jedec_reset.c      | 120 ++++++++++
+ .../haswell/native_raminit/raminit_main.c     |   2 +
+ .../haswell/native_raminit/raminit_native.h   |  99 ++++++++
+ .../haswell/native_raminit/reg_structs.h      | 154 +++++++++++++
+ .../intel/haswell/native_raminit/reut.c       | 196 ++++++++++++++++
+ .../intel/haswell/registers/mchbar.h          |  21 ++
+ src/southbridge/intel/lynxpoint/pch.h         |   2 +
+ 10 files changed, 833 insertions(+)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/ddr3.c
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/jedec_reset.c
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/reut.c
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index 37d527e972..e9212df9e6 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -1,11 +1,14 @@
+ ## SPDX-License-Identifier: GPL-2.0-or-later
+ 
+ romstage-y += configure_mc.c
++romstage-y += ddr3.c
++romstage-y += jedec_reset.c
+ romstage-y += lookup_timings.c
+ romstage-y += init_mpll.c
+ romstage-y += io_comp_control.c
+ romstage-y += memory_map.c
+ romstage-y += raminit_main.c
+ romstage-y += raminit_native.c
++romstage-y += reut.c
+ romstage-y += spd_bitmunching.c
+ romstage-y += timings_refresh.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/ddr3.c b/src/northbridge/intel/haswell/native_raminit/ddr3.c
+new file mode 100644
+index 0000000000..6ddb11488b
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/ddr3.c
+@@ -0,0 +1,217 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <assert.h>
++#include <console/console.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <types.h>
++
++#include "raminit_native.h"
++
++#define DDR3_RTTNOM(a, b, c) (((a) << 9) | ((b) << 6) | ((c) << 2))
++
++uint16_t encode_ddr3_rttnom(const uint32_t rttnom)
++{
++	switch (rttnom) {
++	case 0:		return DDR3_RTTNOM(0, 0, 0);	/* RttNom is disabled */
++	case 20:	return DDR3_RTTNOM(1, 0, 0);	/* RZQ/12 */
++	case 30:	return DDR3_RTTNOM(1, 0, 1);	/* RZQ/8 */
++	case 40:	return DDR3_RTTNOM(0, 1, 1);	/* RZQ/6 */
++	case 60:	return DDR3_RTTNOM(0, 0, 1);	/* RZQ/4 */
++	case 120:	return DDR3_RTTNOM(0, 1, 0);	/* RZQ/2 */
++	}
++	printk(BIOS_ERR, "%s: Invalid rtt_nom value %u\n", __func__, rttnom);
++	return 0;
++}
++
++static const uint8_t jedec_wr_t[12] = { 1, 2, 3, 4, 5, 5, 6, 6, 7, 7, 0, 0 };
++
++static void ddr3_program_mr0(struct sysinfo *ctrl, const uint8_t dll_reset)
++{
++	assert(ctrl->tWR >= 5 && ctrl->tWR <= 16);
++	assert(ctrl->tAA >= 4);
++	const uint8_t jedec_cas = ctrl->tAA - 4;
++	const union {
++		struct __packed {
++			uint16_t burst_length     : 2; // Bits  1:0
++			uint16_t cas_latency_msb  : 1; // Bits  2:2
++			uint16_t read_burst_type  : 1; // Bits  3:3
++			uint16_t cas_latency_low  : 3; // Bits  6:4
++			uint16_t test_mode        : 1; // Bits  7:7
++			uint16_t dll_reset        : 1; // Bits  8:8
++			uint16_t write_recovery   : 3; // Bits 11:9
++			uint16_t precharge_pd_dll : 1; // Bits 12:12
++			uint16_t                  : 3; // Bits 15:13
++		};
++		uint16_t raw;
++	} mr0reg = {
++		.burst_length     = 0,
++		.cas_latency_msb  = !!(jedec_cas & BIT(3)),
++		.read_burst_type  = 0,
++		.cas_latency_low  = jedec_cas & 0x7,
++		.dll_reset        = 1,
++		.write_recovery   = jedec_wr_t[ctrl->tWR - 5],
++		.precharge_pd_dll = 0,
++	};
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (!rank_in_ch(ctrl, slot + slot, channel))
++				continue;
++
++			if (!ctrl->restore_mrs)
++				ctrl->mr0[channel][slot] = mr0reg.raw;
++		}
++		reut_issue_mrs_all(ctrl, channel, 0, ctrl->mr0[channel]);
++	}
++}
++
++void ddr3_program_mr1(struct sysinfo *ctrl, const uint8_t wl_mode, const uint8_t q_off)
++{
++	/*
++	 * JESD79-3F (JEDEC DDR3 spec) refers to bit 0 of MR1 as 'DLL Enable'.
++	 * However, its encoding is weird, and 'DLL Disable' makes more sense.
++	 *
++	 * Moreover, bit 5 is part of ODIC (Output Driver Impedance Control),
++	 * but all encodings where MR1 bit 5 is 1 are reserved. Thus, omit it.
++	 */
++	union {
++		struct __packed {
++			uint16_t dll_disable      : 1; // Bits  0:0
++			uint16_t od_impedance_ctl : 1; // Bits  1:1
++			uint16_t odt_rtt_nom_low  : 1; // Bits  2:2
++			uint16_t additive_latency : 2; // Bits  4:3
++			uint16_t                  : 1; // Bits  5:5
++			uint16_t odt_rtt_nom_mid  : 1; // Bits  6:6
++			uint16_t write_level_mode : 1; // Bits  7:7
++			uint16_t                  : 1; // Bits  8:8
++			uint16_t odt_rtt_nom_high : 1; // Bits  9:9
++			uint16_t                  : 1; // Bits 10:10
++			uint16_t t_dqs            : 1; // Bits 11:11
++			uint16_t q_off            : 1; // Bits 12:12
++			uint16_t                  : 3; // Bits 15:13
++		};
++		uint16_t raw;
++	} mr1reg = {
++		.dll_disable      = 0,
++		.od_impedance_ctl = 1,	/* RZQ/7 */
++		.additive_latency = 0,
++		.write_level_mode = wl_mode,
++		.t_dqs            = 0,
++		.q_off            = q_off,
++	};
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		mr1reg.raw &= ~RTTNOM_MASK;
++		mr1reg.raw |= encode_ddr3_rttnom(ctrl->dpc[channel] == 2 ? 60 : 0);
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (!rank_in_ch(ctrl, slot + slot, channel))
++				continue;
++
++			if (!ctrl->restore_mrs)
++				ctrl->mr1[channel][slot] = mr1reg.raw;
++		}
++		reut_issue_mrs_all(ctrl, channel, 1, ctrl->mr1[channel]);
++	}
++}
++
++enum {
++	RTT_WR_OFF = 0,
++	RTT_WR_60  = 1,
++	RTT_WR_120 = 2,
++};
++
++static void ddr3_program_mr2(struct sysinfo *ctrl)
++{
++	assert(ctrl->tCWL >= 5);
++	const bool dimm_srt = ctrl->flags.ext_temp_refresh && !ctrl->flags.asr;
++
++	const union {
++		struct __packed {
++			uint16_t partial_array_sr  : 3; // Bits  0:2
++			uint16_t cas_write_latency : 3; // Bits  5:3
++			uint16_t auto_self_refresh : 1; // Bits  6:6
++			uint16_t self_refresh_temp : 1; // Bits  7:7
++			uint16_t                   : 1; // Bits  8:8
++			uint16_t odt_rtt_wr        : 2; // Bits 10:9
++			uint16_t                   : 5; // Bits 15:11
++		};
++		uint16_t raw;
++	} mr2reg = {
++		.partial_array_sr  = 0,
++		.cas_write_latency = ctrl->tCWL - 5,
++		.auto_self_refresh = ctrl->flags.asr,
++		.self_refresh_temp = dimm_srt,
++		.odt_rtt_wr        = is_hsw_ult() ? RTT_WR_120 : RTT_WR_60,
++	};
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (!rank_in_ch(ctrl, slot + slot, channel))
++				continue;
++
++			if (!ctrl->restore_mrs)
++				ctrl->mr2[channel][slot] = mr2reg.raw;
++		}
++		/* MR2 shadow register is similar but not identical to MR2 */
++		if (!ctrl->restore_mrs) {
++			union tc_mr2_shadow_reg tc_mr2_shadow = {
++				.raw = mr2reg.raw & 0x073f,
++			};
++			for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++				if (!rank_in_ch(ctrl, slot + slot, channel))
++					continue;
++
++				if (dimm_srt)
++					tc_mr2_shadow.srt_available |= BIT(slot);
++
++				if (ctrl->rank_mirrored[channel] & BIT(slot + slot + 1))
++					tc_mr2_shadow.addr_bit_swizzle |= BIT(slot);
++			}
++			mchbar_write32(TC_MR2_SHADOW_ch(channel), tc_mr2_shadow.raw);
++		}
++		reut_issue_mrs_all(ctrl, channel, 2, ctrl->mr2[channel]);
++	}
++}
++
++static void ddr3_program_mr3(struct sysinfo *ctrl, const uint8_t mpr_mode)
++{
++	const union {
++		struct __packed {
++			uint16_t mpr_loc  :  2; // Bits  1:0
++			uint16_t mpr_mode :  1; // Bits  2:2
++			uint16_t          : 13; // Bits 15:3
++		};
++		uint16_t raw;
++	} mr3reg = {
++		.mpr_loc  = 0,
++		.mpr_mode = mpr_mode,
++	};
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (!rank_in_ch(ctrl, slot + slot, channel))
++				continue;
++
++			if (!ctrl->restore_mrs)
++				ctrl->mr3[channel][slot] = mr3reg.raw;
++		}
++		reut_issue_mrs_all(ctrl, channel, 3, ctrl->mr3[channel]);
++	}
++}
++
++enum raminit_status ddr3_jedec_init(struct sysinfo *ctrl)
++{
++	ddr3_program_mr2(ctrl);
++	ddr3_program_mr3(ctrl, 0);
++	ddr3_program_mr1(ctrl, 0, 0);
++	ddr3_program_mr0(ctrl, 1);
++	return reut_issue_zq(ctrl, ctrl->chanmap, ZQ_INIT);
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/io_comp_control.c b/src/northbridge/intel/haswell/native_raminit/io_comp_control.c
+index d45b608dd3..8a55fd81b2 100644
+--- a/src/northbridge/intel/haswell/native_raminit/io_comp_control.c
++++ b/src/northbridge/intel/haswell/native_raminit/io_comp_control.c
+@@ -8,6 +8,25 @@
+ 
+ #include "raminit_native.h"
+ 
++enum raminit_status io_reset(void)
++{
++	union mc_init_state_g_reg mc_init_state_g = {
++		.raw = mchbar_read32(MC_INIT_STATE_G),
++	};
++	mc_init_state_g.reset_io = 1;
++	mchbar_write32(MC_INIT_STATE_G, mc_init_state_g.raw);
++	struct stopwatch timer;
++	stopwatch_init_msecs_expire(&timer, 2000);
++	do {
++		mc_init_state_g.raw = mchbar_read32(MC_INIT_STATE_G);
++		if (mc_init_state_g.reset_io == 0)
++			return RAMINIT_STATUS_SUCCESS;
++
++	} while (!stopwatch_expired(&timer));
++	printk(BIOS_ERR, "Timed out waiting for DDR I/O reset to complete\n");
++	return RAMINIT_STATUS_POLL_TIMEOUT;
++}
++
+ enum raminit_status wait_for_first_rcomp(void)
+ {
+ 	struct stopwatch timer;
+diff --git a/src/northbridge/intel/haswell/native_raminit/jedec_reset.c b/src/northbridge/intel/haswell/native_raminit/jedec_reset.c
+new file mode 100644
+index 0000000000..de0f676758
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/jedec_reset.c
+@@ -0,0 +1,120 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <console/console.h>
++#include <delay.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <southbridge/intel/lynxpoint/pch.h>
++#include <types.h>
++#include <timer.h>
++
++#include "raminit_native.h"
++
++static void assert_reset(const bool do_reset)
++{
++	if (is_hsw_ult()) {
++		uint32_t pm_cfg2 = RCBA32(PM_CFG2);
++		if (do_reset)
++			pm_cfg2 &= ~PM_CFG2_DRAM_RESET_CTL;
++		else
++			pm_cfg2 |= PM_CFG2_DRAM_RESET_CTL;
++		RCBA32(PM_CFG2) = pm_cfg2;
++	} else {
++		union mc_init_state_g_reg mc_init_state_g = {
++			.raw = mchbar_read32(MC_INIT_STATE_G),
++		};
++		mc_init_state_g.ddr_not_reset = !do_reset;
++		mchbar_write32(MC_INIT_STATE_G, mc_init_state_g.raw);
++	}
++}
++
++/*
++ * Perform JEDEC reset.
++ *
++ * If RTT_NOM is to be enabled in MR1, the ODT input signal must be
++ * statically held low in our system since RTT_NOM is always enabled.
++ */
++static void jedec_reset(struct sysinfo *ctrl)
++{
++	if (is_hsw_ult())
++		assert_reset(false);
++
++	union mc_init_state_g_reg mc_init_state_g = {
++		.ddr_not_reset     = 1,
++		.safe_self_refresh = 1,
++	};
++	mchbar_write32(MC_INIT_STATE_G, mc_init_state_g.raw);
++
++	union reut_misc_cke_ctrl_reg reut_misc_cke_ctrl = {
++		.cke_override = 0xf,
++		.cke_on       = 0,
++	};
++	mchbar_write32(REUT_MISC_CKE_CTRL, reut_misc_cke_ctrl.raw);
++
++	assert_reset(true);
++
++	/** TODO: check and switch DDR3 voltage here (mainboard-specific) **/
++
++	udelay(200);
++
++	assert_reset(false);
++
++	udelay(500);
++
++	mc_init_state_g.dclk_enable = 1;
++	mchbar_write32(MC_INIT_STATE_G, mc_init_state_g.raw);
++
++	/* Delay at least 20 nanoseconds for tCKSRX */
++	tick_delay(1);
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		reut_misc_cke_ctrl.cke_on = ctrl->rankmap[channel];
++		mchbar_write32(REUT_ch_MISC_CKE_CTRL(channel), reut_misc_cke_ctrl.raw);
++	}
++
++	/*
++	 * Wait minimum of reset CKE exit time, tXPR.
++	 * Spec says MAX(tXS, 5 tCK). 5 tCK is 10 ns.
++	 */
++	tick_delay(1);
++}
++
++enum raminit_status do_jedec_init(struct sysinfo *ctrl)
++{
++	/* Never do a JEDEC reset in S3 resume */
++	if (ctrl->bootmode == BOOTMODE_S3)
++		return RAMINIT_STATUS_SUCCESS;
++
++	enum raminit_status status = io_reset();
++	if (status)
++		return status;
++
++	status = wait_for_first_rcomp();
++	if (status)
++		return status;
++
++	/* Force ODT low (JEDEC spec) */
++	const union reut_misc_odt_ctrl_reg reut_misc_odt_ctrl = {
++		.odt_override = 0xf,
++		.odt_on       = 0,
++	};
++	mchbar_write32(REUT_MISC_ODT_CTRL, reut_misc_odt_ctrl.raw);
++
++	/*
++	 * Note: Haswell MRC does not clear ODT override for LPDDR3. However,
++	 * Broadwell MRC does. Hell suspects this difference is important, as
++	 * there is an erratum in the specification update for Broadwell:
++	 *
++	 * Erratum BDM74: LPDDR3 Memory Training May Cause Platform Boot Failure
++	 */
++	if (ctrl->lpddr)
++		die("%s: LPDDR-specific JEDEC init not implemented\n", __func__);
++
++	jedec_reset(ctrl);
++	status = ddr3_jedec_init(ctrl);
++	if (!status)
++		ctrl->restore_mrs = true;
++
++	/* Release ODT override */
++	mchbar_write32(REUT_MISC_ODT_CTRL, 0);
++	return status;
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_main.c b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+index a697343ef9..137a45007d 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_main.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+@@ -25,6 +25,7 @@ static const struct task_entry cold_boot[] = {
+ 	{ convert_timings,                                        true, "CONVTIM",    },
+ 	{ configure_mc,                                           true, "CONFMC",     },
+ 	{ configure_memory_map,                                   true, "MEMMAP",     },
++	{ do_jedec_init,                                          true, "JEDECINIT",  },
+ };
+ 
+ /* Return a generic stepping value to make stepping checks simpler */
+@@ -58,6 +59,7 @@ static void initialize_ctrl(struct sysinfo *ctrl)
+ 	ctrl->stepping = get_stepping(ctrl->cpu);
+ 	ctrl->vdd_mv = is_hsw_ult() ? 1350 : 1500; /** FIXME: Hardcoded, does it matter? **/
+ 	ctrl->dq_pins_interleaved = cfg->dq_pins_interleaved;
++	ctrl->restore_mrs = false;
+ 	ctrl->bootmode = bootmode;
+ }
+ 
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index 8f937c4ccd..759d755d6d 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -28,6 +28,30 @@
+ /* Always use 12 legs for emphasis (not trained) */
+ #define TXEQFULLDRV		(3 << 4)
+ 
++/* DDR3 mode register bits */
++#define MR0_DLL_RESET		BIT(8)
++
++#define MR1_WL_ENABLE		BIT(7)
++#define MR1_QOFF_ENABLE		BIT(12) /* If set, output buffers disabled */
++
++#define RTTNOM_MASK		(BIT(9) | BIT(6) | BIT(2))
++
++/* ZQ calibration types */
++enum {
++	ZQ_INIT,	/* DDR3: ZQCL with tZQinit, LPDDR3: ZQ Init  with tZQinit  */
++	ZQ_LONG,	/* DDR3: ZQCL with tZQoper, LPDDR3: ZQ Long  with tZQCL    */
++	ZQ_SHORT,	/* DDR3: ZQCS with tZQCS,   LPDDR3: ZQ Short with tZQCS    */
++	ZQ_RESET,	/* DDR3: not used,          LPDDR3: ZQ Reset with tZQreset */
++};
++
++/* REUT initialisation modes */
++enum {
++	REUT_MODE_IDLE = 0,
++	REUT_MODE_TEST = 1,
++	REUT_MODE_MRS  = 2,
++	REUT_MODE_NOP  = 3, /* Normal operation mode */
++};
++
+ enum command_training_iteration {
+ 	CT_ITERATION_CLOCK = 0,
+ 	CT_ITERATION_CMD_NORTH,
+@@ -51,6 +75,7 @@ enum raminit_status {
+ 	RAMINIT_STATUS_UNSUPPORTED_MEMORY,
+ 	RAMINIT_STATUS_MPLL_INIT_FAILURE,
+ 	RAMINIT_STATUS_POLL_TIMEOUT,
++	RAMINIT_STATUS_REUT_ERROR,
+ 	RAMINIT_STATUS_UNSPECIFIED_ERROR, /** TODO: Deprecated in favor of specific values **/
+ };
+ 
+@@ -73,6 +98,7 @@ struct sysinfo {
+ 	uint32_t cpu;		/* CPUID value */
+ 
+ 	bool dq_pins_interleaved;
++	bool restore_mrs;
+ 
+ 	/** TODO: ECC support untested **/
+ 	bool is_ecc;
+@@ -162,6 +188,11 @@ struct sysinfo {
+ 	union tc_bank_rank_b_reg tc_bankrank_b[NUM_CHANNELS];
+ 	union tc_bank_rank_c_reg tc_bankrank_c[NUM_CHANNELS];
+ 	union tc_bank_rank_d_reg tc_bankrank_d[NUM_CHANNELS];
++
++	uint16_t mr0[NUM_CHANNELS][NUM_SLOTS];
++	uint16_t mr1[NUM_CHANNELS][NUM_SLOTS];
++	uint16_t mr2[NUM_CHANNELS][NUM_SLOTS];
++	uint16_t mr3[NUM_CHANNELS][NUM_SLOTS];
+ };
+ 
+ static inline bool is_hsw_ult(void)
+@@ -197,6 +228,53 @@ static inline void clear_data_offset_train_all(struct sysinfo *ctrl)
+ 	memset(ctrl->data_offset_train, 0, sizeof(ctrl->data_offset_train));
+ }
+ 
++/* Number of ticks to wait in units of 69.841279 ns (citation needed) */
++static inline void tick_delay(const uint32_t delay)
++{
++	/* Just perform reads to a random register */
++	for (uint32_t start = 0; start <= delay; start++)
++		mchbar_read32(REUT_ERR_DATA_STATUS);
++}
++
++/*
++ * 64-bit MCHBAR registers need to be accessed atomically. If one uses
++ * two 32-bit ops instead, there will be problems with the REUT's CADB
++ * (Command Address Data Buffer): hardware automatically advances the
++ * pointer into the register file after a write to the input register.
++ */
++static inline uint64_t mchbar_read64(const uintptr_t x)
++{
++	const uint64_t *offset = (uint64_t *)(CONFIG_FIXED_MCHBAR_MMIO_BASE + x);
++	uint64_t mmxsave, v;
++	asm volatile (
++		"\n\t movq %%mm0, %0"
++		"\n\t movq %2, %%mm0"
++		"\n\t movq %%mm0, %1"
++		"\n\t movq %3, %%mm0"
++		"\n\t emms"
++		: "=m"(mmxsave),
++		  "=m"(v)
++		: "m"(offset[0]),
++		  "m"(mmxsave));
++	return v;
++}
++
++static inline void mchbar_write64(const uintptr_t x, const uint64_t v)
++{
++	const uint64_t *offset = (uint64_t *)(CONFIG_FIXED_MCHBAR_MMIO_BASE + x);
++	uint64_t mmxsave;
++	asm volatile (
++		"\n\t movq %%mm0, %0"
++		"\n\t movq %2, %%mm0"
++		"\n\t movq %%mm0, %1"
++		"\n\t movq %3, %%mm0"
++		"\n\t emms"
++		: "=m"(mmxsave)
++		: "m"(offset[0]),
++		  "m"(v),
++		  "m"(mmxsave));
++}
++
+ void raminit_main(enum raminit_boot_mode bootmode);
+ 
+ enum raminit_status collect_spd_info(struct sysinfo *ctrl);
+@@ -204,6 +282,7 @@ enum raminit_status initialise_mpll(struct sysinfo *ctrl);
+ enum raminit_status convert_timings(struct sysinfo *ctrl);
+ enum raminit_status configure_mc(struct sysinfo *ctrl);
+ enum raminit_status configure_memory_map(struct sysinfo *ctrl);
++enum raminit_status do_jedec_init(struct sysinfo *ctrl);
+ 
+ void configure_timings(struct sysinfo *ctrl);
+ void configure_refresh(struct sysinfo *ctrl);
+@@ -216,8 +295,28 @@ uint32_t get_tXS_offset(uint32_t mem_clock_mhz);
+ uint32_t get_tZQOPER(uint32_t mem_clock_mhz, bool lpddr);
+ uint32_t get_tZQCS(uint32_t mem_clock_mhz, bool lpddr);
+ 
++enum raminit_status io_reset(void);
+ enum raminit_status wait_for_first_rcomp(void);
+ 
++uint16_t encode_ddr3_rttnom(uint32_t rttnom);
++void ddr3_program_mr1(struct sysinfo *ctrl, uint8_t wl_mode, uint8_t q_off);
++enum raminit_status ddr3_jedec_init(struct sysinfo *ctrl);
++
++void reut_issue_mrs(
++	struct sysinfo *ctrl,
++	uint8_t channel,
++	uint8_t rankmask,
++	uint8_t mr,
++	uint16_t val);
++
++void reut_issue_mrs_all(
++	struct sysinfo *ctrl,
++	uint8_t channel,
++	uint8_t mr,
++	const uint16_t val[NUM_SLOTS]);
++
++enum raminit_status reut_issue_zq(struct sysinfo *ctrl, uint8_t chanmask, uint8_t zq_type);
++
+ uint8_t get_rx_bias(const struct sysinfo *ctrl);
+ 
+ uint8_t get_tCWL(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/native_raminit/reg_structs.h b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+index 70487e1640..9929f617fe 100644
+--- a/src/northbridge/intel/haswell/native_raminit/reg_structs.h
++++ b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+@@ -335,6 +335,127 @@ union mcscheds_cbit_reg {
+ 	uint32_t raw;
+ };
+ 
++union reut_pat_cadb_prog_reg {
++	struct __packed {
++		uint32_t addr : 16; // Bits 15:0
++		uint32_t      :  8; // Bits 23:16
++		uint32_t bank :  3; // Bits 26:24
++		uint32_t      :  5; // Bits 31:27
++		uint32_t cs   :  4; // Bits 35:32
++		uint32_t      :  4; // Bits 39:36
++		uint32_t cmd  :  3; // Bits 42:40
++		uint32_t      :  5; // Bits 47:43
++		uint32_t odt  :  4; // Bits 51:48
++		uint32_t      :  4; // Bits 55:52
++		uint32_t cke  :  4; // Bits 59:56
++		uint32_t      :  4; // Bits 63:60
++	};
++	uint64_t raw;
++	uint32_t raw32[2];
++};
++
++union reut_pat_cadb_mrs_reg {
++	struct __packed {
++		uint32_t delay_gap : 3; // Bits  2:0
++		uint32_t           : 5; // Bits  7:3
++		uint32_t start_ptr : 3; // Bits 10:8
++		uint32_t           : 5; // Bits 15:11
++		uint32_t end_ptr   : 3; // Bits 18:16
++		uint32_t           : 5; // Bits 23:19
++		uint32_t curr_ptr  : 3; // Bits 26:24
++		uint32_t           : 5; // Bits 31:27
++	};
++	uint32_t raw;
++};
++
++union reut_seq_cfg_reg {
++	struct __packed {
++		uint32_t                               :  3; // Bits  2:0
++		uint32_t stop_base_seq_on_wrap_trigger :  1; // Bits  3:3
++		uint32_t                               :  1; // Bits  4:4
++		uint32_t address_update_rate_mode      :  1; // Bits  5:5
++		uint32_t                               :  1; // Bits  6:6
++		uint32_t enable_dummy_reads            :  1; // Bits  7:7
++		uint32_t                               :  2; // Bits  9:8
++		uint32_t enable_constant_write_strobe  :  1; // Bits 10:10
++		uint32_t global_control                :  1; // Bits 11:11
++		uint32_t initialization_mode           :  2; // Bits 13:12
++		uint32_t                               :  2; // Bits 15:14
++		uint32_t early_steppings_loop_count    :  5; // Bits 20:16   *** Not on C0 ***
++		uint32_t                               :  3; // Bits 23:21
++		uint32_t subsequence_start_pointer     :  3; // Bits 26:24
++		uint32_t                               :  1; // Bits 27:27
++		uint32_t subsequence_end_pointer       :  3; // Bits 30:28
++		uint32_t                               :  1; // Bits 31:31
++		uint32_t start_test_delay              : 10; // Bits 41:32
++		uint32_t                               : 22; // Bits 63:42
++	};
++	uint64_t raw;
++	uint32_t raw32[2];
++};
++
++union reut_seq_ctl_reg {
++	struct __packed {
++		uint32_t start_test    :  1; // Bits  0:0
++		uint32_t stop_test     :  1; // Bits  1:1
++		uint32_t clear_errors  :  1; // Bits  2:2
++		uint32_t               :  1; // Bits  3:3
++		uint32_t stop_on_error :  1; // Bits  4:4
++		uint32_t               : 27; // Bits 31:5
++	};
++	uint32_t raw;
++};
++
++union reut_global_err_reg {
++	struct __packed {
++		uint32_t ch_error     :  2; // Bits  1:0
++		uint32_t              : 14; // Bits 15:2
++		uint32_t ch_test_done :  2; // Bits 17:16
++		uint32_t              : 14; // Bits 31:18
++	};
++	uint32_t raw;
++};
++
++union reut_misc_cke_ctrl_reg {
++	struct __packed {
++		uint32_t cke_override           :  4; // Bits  3:0
++		uint32_t                        :  4; // Bits  7:4
++		uint32_t cke_en_start_test_sync :  1; // Bits  8:8
++		uint32_t                        :  7; // Bits 15:9
++		uint32_t cke_on                 :  4; // Bits 19:16
++		uint32_t                        : 12; // Bits 31:20
++	};
++	uint32_t raw;
++};
++
++union reut_misc_odt_ctrl_reg {
++	struct __packed {
++		uint32_t odt_override     :  4; // Bits  3:0
++		uint32_t                  : 12; // Bits 15:4
++		uint32_t odt_on           :  4; // Bits 19:16
++		uint32_t                  : 11; // Bits 30:20
++		uint32_t mpr_train_ddr_on :  1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union mcscheds_dft_misc_reg {
++	struct __packed {
++		uint32_t wdar                 :  1; // Bits  0:0
++		uint32_t safe_mask_sel        :  3; // Bits  3:1
++		uint32_t force_rcv_en         :  1; // Bits  4:4
++		uint32_t                      :  3; // Bits  7:5
++		uint32_t ddr_qualifier        :  2; // Bits  9:8
++		uint32_t qualifier_length     :  2; // Bits 11:10
++		uint32_t wdb_block_en         :  1; // Bits 12:12
++		uint32_t rt_dft_read_ptr      :  4; // Bits 16:13
++		uint32_t rt_dft_read_enable   :  1; // Bits 17:17
++		uint32_t rt_dft_read_sel_addr :  1; // Bits 18:18
++		uint32_t                      : 13; // Bits 31:19
++	};
++	uint32_t raw;
++};
++
+ union tc_bank_reg {
+ 	struct __packed {
+ 		uint32_t tRCD      : 5; // Bits  4:0
+@@ -428,6 +549,18 @@ union tc_srftp_reg {
+ 	uint32_t raw;
+ };
+ 
++union tc_mr2_shadow_reg {
++	struct __packed {
++		uint32_t mr2_shadow_low   :  6; // Bits  5:0
++		uint32_t srt_available    :  2; // Bits  7:6
++		uint32_t mr2_shadow_high  :  3; // Bits 10:8
++		uint32_t                  :  3; // Bits 13:11
++		uint32_t addr_bit_swizzle :  2; // Bits 15:14
++		uint32_t                  : 16; // Bits 31:16
++	};
++	uint32_t raw;
++};
++
+ union mcmain_command_rate_limit_reg {
+ 	struct __packed {
+ 		uint32_t enable_cmd_limit :  1; // Bits  0:0
+@@ -483,6 +616,27 @@ union mad_zr_reg {
+ 	uint32_t raw;
+ };
+ 
++union mc_init_state_g_reg {
++	struct __packed {
++		uint32_t pu_mrc_done        :  1; // Bits  0:0
++		uint32_t ddr_not_reset      :  1; // Bits  1:1
++		uint32_t                    :  1; // Bits  2:2
++		uint32_t refresh_enable     :  1; // Bits  3:3
++		uint32_t                    :  1; // Bits  4:4
++		uint32_t mc_init_done_ack   :  1; // Bits  5:5
++		uint32_t                    :  1; // Bits  6:6
++		uint32_t mrc_done           :  1; // Bits  7:7
++		uint32_t safe_self_refresh  :  1; // Bits  8:8
++		uint32_t                    :  1; // Bits  9:9
++		uint32_t hvm_gate_ddr_reset :  1; // Bits 10:10
++		uint32_t                    : 11; // Bits 21:11
++		uint32_t dclk_enable        :  1; // Bits 22:22
++		uint32_t reset_io           :  1; // Bits 23:23
++		uint32_t                    :  8; // Bits 31:24
++	};
++	uint32_t raw;
++};
++
+ /* Same definition for P_COMP, M_COMP, D_COMP */
+ union pcu_comp_reg {
+ 	struct __packed {
+diff --git a/src/northbridge/intel/haswell/native_raminit/reut.c b/src/northbridge/intel/haswell/native_raminit/reut.c
+new file mode 100644
+index 0000000000..31019f74a1
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/reut.c
+@@ -0,0 +1,196 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <console/console.h>
++#include <delay.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <timer.h>
++#include <types.h>
++
++#include "raminit_native.h"
++
++enum {
++	CADB_CMD_MRS = 0,
++	CADB_CMD_REF = 1,
++	CADB_CMD_PRE = 2,
++	CADB_CMD_ACT = 3,
++	CADB_CMD_WR  = 4,
++	CADB_CMD_RD  = 5,
++	CADB_CMD_ZQ  = 6,
++	CADB_CMD_NOP = 7,
++};
++
++/*
++ * DDR3 rank mirror swaps the following pins: A3<->A4, A5<->A6, A7<->A8, BA0<->BA1
++ *
++ * Note that the swapped bits are contiguous. We can use some XOR magic to swap the bits.
++ * Address lanes are at bits 0..15 and bank selects are at bits 24..26 on the REUT register.
++ */
++#define MIRROR_BITS	(BIT(24) | BIT(7) | BIT(5) | BIT(3))
++static uint64_t cadb_prog_rank_mirror(const uint64_t cadb_prog)
++{
++	/* First XOR: find which pairs of bits are different (need swapping) */
++	const uint64_t tmp64 = (cadb_prog ^ (cadb_prog >> 1)) & MIRROR_BITS;
++
++	/* Second XOR: invert the pairs of bits that have different values */
++	return cadb_prog ^ (tmp64 | tmp64 << 1);
++}
++
++static enum raminit_status reut_write_cadb_cmd(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t rankmask,
++	const uint8_t cmd,
++	const uint8_t bank,
++	const uint16_t valarr[NUM_SLOTRANKS],
++	const uint8_t delay)
++{
++	union mcscheds_dft_misc_reg dft_misc = {
++		.raw = mchbar_read32(MCSCHEDS_DFT_MISC),
++	};
++	dft_misc.ddr_qualifier = 0;
++	mchbar_write32(MCSCHEDS_DFT_MISC, dft_misc.raw);
++
++	/* Pointer will be dynamically incremented after a write to CADB_PROG register */
++	mchbar_write8(REUT_ch_PAT_CADB_WRITE_PTR(channel), 0);
++
++	uint8_t count = 0;
++	for (uint8_t rank = 0; rank < NUM_SLOTRANKS; rank++) {
++		if (!(ctrl->rankmap[channel] & BIT(rank) & rankmask))
++			continue;
++
++		union reut_pat_cadb_prog_reg reut_cadb_prog = {
++			.addr = valarr[rank],
++			.bank = bank,
++			.cs   = ~BIT(rank), /* CS is active low */
++			.cmd  = cmd,
++			.cke  = 0xf,
++		};
++		if (ctrl->rank_mirrored[channel] & BIT(rank))
++			reut_cadb_prog.raw = cadb_prog_rank_mirror(reut_cadb_prog.raw);
++
++		mchbar_write64(REUT_ch_PAT_CADB_PROG(channel), reut_cadb_prog.raw);
++		count++;
++	}
++	if (!count) {
++		printk(BIOS_ERR, "%s: rankmask is invalid\n", __func__);
++		return RAMINIT_STATUS_UNSPECIFIED_ERROR;	/** FIXME: Is this needed? **/
++	}
++	const union reut_pat_cadb_mrs_reg reut_cadb_mrs = {
++		.delay_gap = delay ? delay : 3,
++		.end_ptr   = count - 1,
++	};
++	mchbar_write32(REUT_ch_PAT_CADB_MRS(channel), reut_cadb_mrs.raw);
++
++	const uint32_t reut_seq_cfg_save = mchbar_read32(REUT_ch_SEQ_CFG(channel));
++	union reut_seq_cfg_reg reut_seq_cfg = {
++		.raw = reut_seq_cfg_save,
++	};
++	reut_seq_cfg.global_control = 0;
++	reut_seq_cfg.initialization_mode = REUT_MODE_MRS;
++	mchbar_write32(REUT_ch_SEQ_CFG(channel), reut_seq_cfg.raw);
++	mchbar_write32(REUT_ch_SEQ_CTL(channel), (union reut_seq_ctl_reg) {
++		.start_test   = 1,
++		.clear_errors = 1,
++	}.raw);
++	enum raminit_status status = RAMINIT_STATUS_SUCCESS;
++	union reut_global_err_reg reut_global_err;
++	struct stopwatch timer;
++	stopwatch_init_msecs_expire(&timer, 100);
++	do {
++		reut_global_err.raw = mchbar_read32(REUT_GLOBAL_ERR);
++		if (reut_global_err.ch_error & BIT(channel)) {
++			printk(BIOS_ERR, "Unexpected REUT error for channel %u\n", channel);
++			status = RAMINIT_STATUS_REUT_ERROR;
++			break;
++		}
++		if (stopwatch_expired(&timer)) {
++			printk(BIOS_ERR, "%s: REUT timed out!\n", __func__);
++			status = RAMINIT_STATUS_POLL_TIMEOUT;
++			break;
++		}
++	} while (!(reut_global_err.ch_test_done & BIT(channel)));
++	mchbar_write32(REUT_ch_SEQ_CTL(channel), (union reut_seq_ctl_reg) {
++		.clear_errors = 1,
++	}.raw);
++	mchbar_write32(REUT_ch_SEQ_CFG(channel), reut_seq_cfg_save);
++	return status;
++}
++
++static enum raminit_status reut_write_cadb_cmd_all(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t rankmask,
++	const uint8_t cmd,
++	const uint8_t bank,
++	const uint16_t val,
++	const uint8_t delay)
++{
++	const uint16_t valarr[NUM_SLOTRANKS] = { val, val, val, val };
++	return reut_write_cadb_cmd(ctrl, channel, rankmask, cmd, bank, valarr, delay);
++}
++
++void reut_issue_mrs(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t rankmask,
++	const uint8_t mr,
++	const uint16_t val)
++{
++	reut_write_cadb_cmd_all(ctrl, channel, rankmask, CADB_CMD_MRS, mr, val, 0);
++}
++
++void reut_issue_mrs_all(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t mr,
++	const uint16_t val[NUM_SLOTS])
++{
++	const uint16_t valarr[NUM_SLOTRANKS] = { val[0], val[0], val[1], val[1] };
++	reut_write_cadb_cmd(ctrl, channel, 0xf, CADB_CMD_MRS, mr, valarr, 0);
++}
++
++enum raminit_status reut_issue_zq(struct sysinfo *ctrl, uint8_t chanmask, uint8_t zq_type)
++{
++	/** TODO: Issuing ZQ commands differs for LPDDR **/
++	if (ctrl->lpddr)
++		die("%s: LPDDR not yet supported in ZQ calibration\n", __func__);
++
++	__maybe_unused uint8_t opcode; /* NOTE: Only used for LPDDR */
++	uint16_t zq = 0;
++	switch (zq_type) {
++	case ZQ_INIT:
++		zq = BIT(10);
++		opcode = 0xff;
++		break;
++	case ZQ_LONG:
++		zq = BIT(10);
++		opcode = 0xab;
++		break;
++	case ZQ_SHORT:
++		opcode = 0x56;
++		break;
++	case ZQ_RESET:
++		opcode = 0xc3;
++		break;
++	default:
++		die("%s: ZQ type %u is invalid\n", __func__, zq_type);
++	}
++
++	/* ZQCS on single-channel needs a longer delay */
++	const uint8_t delay = zq_type == ZQ_SHORT && (!ctrl->dpc[0] || !ctrl->dpc[1]) ? 7 : 1;
++	enum raminit_status status = RAMINIT_STATUS_SUCCESS;
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!(BIT(channel) & chanmask) || !does_ch_exist(ctrl, channel))
++			continue;
++
++		status = reut_write_cadb_cmd_all(ctrl, channel, 0xf, CADB_CMD_ZQ, 0, zq, delay);
++		if (status)
++			break;
++	}
++
++	/* Wait a bit after ZQ INIT and ZQCL commands */
++	if (zq)
++		udelay(1);
++
++	return status;
++}
+diff --git a/src/northbridge/intel/haswell/registers/mchbar.h b/src/northbridge/intel/haswell/registers/mchbar.h
+index 2acc5cbbc8..4fc78a7f43 100644
+--- a/src/northbridge/intel/haswell/registers/mchbar.h
++++ b/src/northbridge/intel/haswell/registers/mchbar.h
+@@ -96,15 +96,36 @@
+ 
+ #define SC_WR_ADD_DELAY_ch(ch)			_MCMAIN_C(0x40d0, ch)
+ 
++#define REUT_ch_MISC_CKE_CTRL(ch)		_MCMAIN_C(0x4190, ch)
++
++#define REUT_ch_PAT_CADB_MRS(ch)		_MCMAIN_C(0x419c, ch)
++
++#define REUT_ch_PAT_CADB_WRITE_PTR(ch)		_MCMAIN_C(0x41bc, ch)
++#define REUT_ch_PAT_CADB_PROG(ch)		_MCMAIN_C(0x41c0, ch)
++
+ #define TC_ZQCAL_ch(ch)				_MCMAIN_C(0x4290, ch)
+ #define TC_RFP_ch(ch)				_MCMAIN_C(0x4294, ch)
+ #define TC_RFTP_ch(ch)				_MCMAIN_C(0x4298, ch)
++#define TC_MR2_SHADOW_ch(ch)			_MCMAIN_C(0x429c, ch)
+ #define MC_INIT_STATE_ch(ch)			_MCMAIN_C(0x42a0, ch)
+ #define TC_SRFTP_ch(ch)				_MCMAIN_C(0x42a4, ch)
+ 
++#define REUT_GLOBAL_ERR				0x4804
++
++#define REUT_ch_SEQ_CFG(ch)			(0x48a8 + 8 * (ch))
++
++#define REUT_ch_SEQ_CTL(ch)			(0x48b8 + 4 * (ch))
++
+ /* MCMAIN broadcast */
+ #define MCSCHEDS_CBIT		0x4c20
+ 
++#define MCSCHEDS_DFT_MISC	0x4c30
++
++#define REUT_ERR_DATA_STATUS	0x4ce0
++
++#define REUT_MISC_CKE_CTRL	0x4d90
++#define REUT_MISC_ODT_CTRL	0x4d94
++
+ #define MCMNTS_SC_WDBWM		0x4f8c
+ 
+ /* MCDECS */
+diff --git a/src/southbridge/intel/lynxpoint/pch.h b/src/southbridge/intel/lynxpoint/pch.h
+index c64b3e3e10..3abca6ec9d 100644
+--- a/src/southbridge/intel/lynxpoint/pch.h
++++ b/src/southbridge/intel/lynxpoint/pch.h
+@@ -586,6 +586,8 @@ void mainboard_config_rcba(void);
+ #define ACPIIRQEN	0x31e0	/* 32bit */
+ #define OIC		0x31fe	/* 16bit */
+ #define PRSTS		0x3310	/* 32bit */
++#define PM_CFG2		0x333c	/* 32bit */
++#define  PM_CFG2_DRAM_RESET_CTL	(1 << 26)	/* ULT only */
+ #define PMSYNC_CONFIG	0x33c4	/* 32bit */
+ #define PMSYNC_CONFIG2	0x33cc	/* 32bit */
+ #define SOFT_RESET_CTRL 0x38f4
+-- 
+2.39.5
+

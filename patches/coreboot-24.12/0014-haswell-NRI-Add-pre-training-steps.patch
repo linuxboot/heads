@@ -1,0 +1,396 @@
+From 9d0897a0bc98e8b400c88b2a099c2ffe8d21b8e6 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sat, 7 May 2022 23:12:18 +0200
+Subject: [PATCH 14/24] haswell NRI: Add pre-training steps
+
+Implement pre-training steps, which consist of enabling ECC I/O and
+filling the WDB (Write Data Buffer, stores test patterns) through a
+magic LDAT port.
+
+Change-Id: Ie2e09e3b218c4569ed8de5c5e1b05d491032e0f1
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64190
+Reviewed-by: Alicja Michalska <ahplka19@gmail.com>
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   1 +
+ .../haswell/native_raminit/raminit_main.c     |  35 ++++
+ .../haswell/native_raminit/raminit_native.h   |  24 +++
+ .../haswell/native_raminit/reg_structs.h      |  45 +++++
+ .../intel/haswell/native_raminit/setup_wdb.c  | 159 ++++++++++++++++++
+ .../intel/haswell/registers/mchbar.h          |   9 +
+ 6 files changed, 273 insertions(+)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/setup_wdb.c
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index e9212df9e6..8d7d4e4db0 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -10,5 +10,6 @@ romstage-y += memory_map.c
+ romstage-y += raminit_main.c
+ romstage-y += raminit_native.c
+ romstage-y += reut.c
++romstage-y += setup_wdb.c
+ romstage-y += spd_bitmunching.c
+ romstage-y += timings_refresh.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_main.c b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+index 137a45007d..cbc64315cd 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_main.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+@@ -3,6 +3,7 @@
+ #include <assert.h>
+ #include <console/console.h>
+ #include <cpu/intel/haswell/haswell.h>
++#include <delay.h>
+ #include <device/pci_ops.h>
+ #include <northbridge/intel/haswell/chip.h>
+ #include <northbridge/intel/haswell/haswell.h>
+@@ -13,6 +14,39 @@
+ 
+ #include "raminit_native.h"
+ 
++static enum raminit_status pre_training(struct sysinfo *ctrl)
++{
++	/* Skip on S3 resume */
++	if (ctrl->bootmode == BOOTMODE_S3)
++		return RAMINIT_STATUS_SUCCESS;
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			if (!rank_in_ch(ctrl, slot + slot, channel))
++				continue;
++
++			printk(RAM_DEBUG, "C%uS%u:\n", channel, slot);
++			printk(RAM_DEBUG, "\tMR0: 0x%04x\n", ctrl->mr0[channel][slot]);
++			printk(RAM_DEBUG, "\tMR1: 0x%04x\n", ctrl->mr1[channel][slot]);
++			printk(RAM_DEBUG, "\tMR2: 0x%04x\n", ctrl->mr2[channel][slot]);
++			printk(RAM_DEBUG, "\tMR3: 0x%04x\n", ctrl->mr3[channel][slot]);
++			printk(RAM_DEBUG, "\n");
++		}
++		if (ctrl->is_ecc) {
++			union mad_dimm_reg mad_dimm = {
++				.raw = mchbar_read32(MAD_DIMM(channel)),
++			};
++			/* Enable ECC I/O */
++			mad_dimm.ecc_mode = 1;
++			mchbar_write32(MAD_DIMM(channel), mad_dimm.raw);
++			/* Wait 4 usec after enabling the ECC I/O, needed by HW */
++			udelay(4);
++		}
++	}
++	setup_wdb(ctrl);
++	return RAMINIT_STATUS_SUCCESS;
++}
++
+ struct task_entry {
+ 	enum raminit_status (*task)(struct sysinfo *);
+ 	bool is_enabled;
+@@ -26,6 +60,7 @@ static const struct task_entry cold_boot[] = {
+ 	{ configure_mc,                                           true, "CONFMC",     },
+ 	{ configure_memory_map,                                   true, "MEMMAP",     },
+ 	{ do_jedec_init,                                          true, "JEDECINIT",  },
++	{ pre_training,                                           true, "PRETRAIN",   },
+ };
+ 
+ /* Return a generic stepping value to make stepping checks simpler */
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index 759d755d6d..4d9487d79c 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -36,6 +36,13 @@
+ 
+ #define RTTNOM_MASK		(BIT(9) | BIT(6) | BIT(2))
+ 
++#define BASIC_VA_PAT_SPREAD_8	0x01010101
++
++#define WDB_CACHE_LINE_SIZE	8
++
++#define NUM_WDB_CL_MUX_SEEDS	3
++#define NUM_CADB_MUX_SEEDS	3
++
+ /* ZQ calibration types */
+ enum {
+ 	ZQ_INIT,	/* DDR3: ZQCL with tZQinit, LPDDR3: ZQ Init  with tZQinit  */
+@@ -317,6 +324,23 @@ void reut_issue_mrs_all(
+ 
+ enum raminit_status reut_issue_zq(struct sysinfo *ctrl, uint8_t chanmask, uint8_t zq_type);
+ 
++void write_wdb_fixed_pat(
++	const struct sysinfo *ctrl,
++	const uint8_t patterns[],
++	const uint8_t pat_mask[],
++	uint8_t spread,
++	uint16_t start);
++
++void write_wdb_va_pat(
++	const struct sysinfo *ctrl,
++	uint32_t agg_mask,
++	uint32_t vic_mask,
++	uint8_t vic_rot,
++	uint16_t start);
++
++void program_wdb_lfsr(const struct sysinfo *ctrl, bool cleanup);
++void setup_wdb(const struct sysinfo *ctrl);
++
+ uint8_t get_rx_bias(const struct sysinfo *ctrl);
+ 
+ uint8_t get_tCWL(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/native_raminit/reg_structs.h b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+index 9929f617fe..7aa8d8c8b2 100644
+--- a/src/northbridge/intel/haswell/native_raminit/reg_structs.h
++++ b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+@@ -335,6 +335,18 @@ union mcscheds_cbit_reg {
+ 	uint32_t raw;
+ };
+ 
++union reut_pat_cl_mux_lmn_reg {
++	struct __packed {
++		uint32_t l_data_select : 1; // Bits  0:0
++		uint32_t en_sweep_freq : 1; // Bits  1:1
++		uint32_t               : 6; // Bits  7:2
++		uint32_t l_counter     : 8; // Bits 15:8
++		uint32_t m_counter     : 8; // Bits 23:16
++		uint32_t n_counter     : 8; // Bits 31:24
++	};
++	uint32_t raw;
++};
++
+ union reut_pat_cadb_prog_reg {
+ 	struct __packed {
+ 		uint32_t addr : 16; // Bits 15:0
+@@ -439,6 +451,39 @@ union reut_misc_odt_ctrl_reg {
+ 	uint32_t raw;
+ };
+ 
++union ldat_pdat_reg {
++	struct __packed {
++		uint32_t fast_addr : 12; // Bits 11:0
++		uint32_t           :  4; // Bits 15:12
++		uint32_t addr_en   :  1; // Bits 16:16
++		uint32_t seq_en    :  1; // Bits 17:17
++		uint32_t pol_0     :  1; // Bits 18:18
++		uint32_t pol_1     :  1; // Bits 19:19
++		uint32_t cmd_a     :  4; // Bits 23:20
++		uint32_t cmd_b     :  4; // Bits 27:24
++		uint32_t cmd_c     :  4; // Bits 31:28
++	};
++	uint32_t raw;
++};
++
++union ldat_sdat_reg {
++	struct __packed {
++		uint32_t bank_sel   : 4; // Bits  3:0
++		uint32_t            : 1; // Bits  4:4
++		uint32_t array_sel  : 5; // Bits  9:5
++		uint32_t cmp        : 1; // Bits 10:10
++		uint32_t replicate  : 1; // Bits 11:11
++		uint32_t dword      : 4; // Bits 15:12
++		uint32_t mode       : 2; // Bits 17:16
++		uint32_t mpmap      : 6; // Bits 23:18
++		uint32_t mpb_offset : 4; // Bits 27:24
++		uint32_t stage_en   : 1; // Bits 28:28
++		uint32_t shadow     : 2; // Bits 30:29
++		uint32_t            : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
+ union mcscheds_dft_misc_reg {
+ 	struct __packed {
+ 		uint32_t wdar                 :  1; // Bits  0:0
+diff --git a/src/northbridge/intel/haswell/native_raminit/setup_wdb.c b/src/northbridge/intel/haswell/native_raminit/setup_wdb.c
+new file mode 100644
+index 0000000000..ec37c48415
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/setup_wdb.c
+@@ -0,0 +1,159 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <northbridge/intel/haswell/haswell.h>
++#include <types.h>
++
++#include "raminit_native.h"
++
++static void ldat_write_cacheline(
++	const struct sysinfo *const ctrl,
++	const uint8_t chunk,
++	const uint16_t start,
++	const uint64_t data)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		/*
++		 * Do not do a 64-bit write here. The register is not aligned
++		 * to a 64-bit boundary, which could potentially cause issues.
++		 */
++		mchbar_write32(QCLK_ch_LDAT_DATA_IN_x(channel, 0), data & UINT32_MAX);
++		mchbar_write32(QCLK_ch_LDAT_DATA_IN_x(channel, 1), data >> 32);
++		/*
++		 * Set REPLICATE = 0 as you don't want to replicate the data.
++		 * Set BANK_SEL to the chunk you want to write the 64 bits to.
++		 * Set ARRAY_SEL = 0 (the MC WDB) and MODE = 1.
++		 */
++		const union ldat_sdat_reg ldat_sdat = {
++			.bank_sel = chunk,
++			.mode     = 1,
++		};
++		mchbar_write32(QCLK_ch_LDAT_SDAT(channel), ldat_sdat.raw);
++		/*
++		 * Finally, write the PDAT register indicating which cacheline
++		 * of the WDB you want to write to by setting FAST_ADDR field
++		 * to one of the 64 cache lines. Also set CMD_B in the PDAT
++		 * register to 4'b1000, indicating that this is a LDAT write.
++		 */
++		const union ldat_pdat_reg ldat_pdat = {
++			.fast_addr = MIN(start, 0xfff),
++			.cmd_b     = 8,
++		};
++		mchbar_write32(QCLK_ch_LDAT_PDAT(channel), ldat_pdat.raw);
++	}
++}
++
++static void clear_ldat_mode(const struct sysinfo *const ctrl)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++)
++		mchbar_write32(QCLK_ch_LDAT_SDAT(channel), 0);
++}
++
++void write_wdb_fixed_pat(
++	const struct sysinfo *const ctrl,
++	const uint8_t patterns[],
++	const uint8_t pat_mask[],
++	const uint8_t spread,
++	const uint16_t start)
++{
++	for (uint8_t chunk = 0; chunk < WDB_CACHE_LINE_SIZE; chunk++) {
++		uint64_t data = 0;
++		for (uint8_t b = 0; b < 64; b++) {
++			const uint8_t beff  = b % spread;
++			const uint8_t burst = patterns[pat_mask[beff]];
++			if (burst & BIT(chunk))
++				data |= 1ULL << b;
++		}
++		ldat_write_cacheline(ctrl, chunk, start, data);
++	}
++	clear_ldat_mode(ctrl);
++}
++
++static inline uint32_t rol_u32(const uint32_t val)
++{
++	return (val << 1) | ((val >> 31) & 1);
++}
++
++void write_wdb_va_pat(
++	const struct sysinfo *const ctrl,
++	const uint32_t agg_mask,
++	const uint32_t vic_mask,
++	const uint8_t vic_rot,
++	const uint16_t start)
++{
++	static const uint8_t va_mask_to_compressed[4] = {0xaa, 0xc0, 0xcc, 0xf0};
++	uint32_t v_mask = vic_mask;
++	uint32_t a_mask = agg_mask;
++	for (uint8_t v = 0; v < vic_rot; v++) {
++		uint8_t compressed[32] = {0};
++		/* Iterate through all 32 bits and create a compressed version of cacheline */
++		for (uint8_t b = 0; b < ARRAY_SIZE(compressed); b++) {
++			const uint8_t vic = !!(v_mask & BIT(b));
++			const uint8_t agg = !!(a_mask & BIT(b));
++			const uint8_t index = !vic << 1 | agg << 0;
++			compressed[b] = va_mask_to_compressed[index];
++		}
++		for (uint8_t chunk = 0; chunk < WDB_CACHE_LINE_SIZE; chunk++) {
++			uint32_t data = 0;
++			for (uint8_t b = 0; b < ARRAY_SIZE(compressed); b++)
++				data |= !!(compressed[b] & BIT(chunk)) << b;
++
++			const uint64_t data64 = (uint64_t)data << 32 | data;
++			ldat_write_cacheline(ctrl, chunk, start + v, data64);
++		}
++		v_mask = rol_u32(v_mask);
++		a_mask = rol_u32(a_mask);
++	}
++	clear_ldat_mode(ctrl);
++}
++
++void program_wdb_lfsr(const struct sysinfo *ctrl, const bool cleanup)
++{
++	/* Cleanup LFSR seeds are sequential */
++	const uint32_t cleanup_seeds[NUM_WDB_CL_MUX_SEEDS] = { 0xaaaaaa, 0xcccccc, 0xf0f0f0 };
++	const uint32_t regular_seeds[NUM_WDB_CL_MUX_SEEDS] = { 0xa10ca1, 0xef0d08, 0xad0a1e };
++	const uint32_t *seeds = cleanup ? cleanup_seeds : regular_seeds;
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		for (uint8_t i = 0; i < NUM_WDB_CL_MUX_SEEDS; i++) {
++			mchbar_write32(REUT_ch_PAT_WDB_CL_MUX_RD_x(channel, i), seeds[i]);
++			mchbar_write32(REUT_ch_PAT_WDB_CL_MUX_WR_x(channel, i), seeds[i]);
++		}
++	}
++}
++
++void setup_wdb(const struct sysinfo *ctrl)
++{
++	const uint32_t amask[9] = {
++		0x86186186, 0x18618618, 0x30c30c30,
++		0xa28a28a2, 0x8a28a28a, 0x14514514,
++		0x28a28a28, 0x92492492, 0x24924924,
++	};
++	const uint32_t vmask = 0x41041041;
++
++	/* Fill first 8 entries with simple 2-LFSR VA pattern */
++	write_wdb_va_pat(ctrl, 0, BASIC_VA_PAT_SPREAD_8, 8, 0);
++
++	/* Fill next 54 entries with 3-LFSR VA pattern */
++	for (uint8_t a = 0; a < ARRAY_SIZE(amask); a++)
++		write_wdb_va_pat(ctrl, amask[a], vmask, 6, 8 + a * 6);
++
++	program_wdb_lfsr(ctrl, false);
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		const union reut_pat_cl_mux_lmn_reg wdb_cl_mux_lmn = {
++			.en_sweep_freq = 1,
++			.l_counter     = 1,
++			.m_counter     = 1,
++			.n_counter     = 10,
++		};
++		mchbar_write32(REUT_ch_PAT_WDB_CL_MUX_LMN(channel), wdb_cl_mux_lmn.raw);
++	}
++}
+diff --git a/src/northbridge/intel/haswell/registers/mchbar.h b/src/northbridge/intel/haswell/registers/mchbar.h
+index 4fc78a7f43..f8408e51a0 100644
+--- a/src/northbridge/intel/haswell/registers/mchbar.h
++++ b/src/northbridge/intel/haswell/registers/mchbar.h
+@@ -94,6 +94,11 @@
+ #define TC_BANK_RANK_D_ch(ch)			_MCMAIN_C(0x4014, ch)
+ #define SC_ROUNDT_LAT_ch(ch)			_MCMAIN_C(0x4024, ch)
+ 
++#define REUT_ch_PAT_WDB_CL_MUX_WR_x(ch, x)	_MCMAIN_C_X(0x4048, ch, x) /* x in 0 .. 2 */
++#define REUT_ch_PAT_WDB_CL_MUX_RD_x(ch, x)	_MCMAIN_C_X(0x4054, ch, x) /* x in 0 .. 2 */
++
++#define REUT_ch_PAT_WDB_CL_MUX_LMN(ch)		_MCMAIN_C(0x4078, ch)
++
+ #define SC_WR_ADD_DELAY_ch(ch)			_MCMAIN_C(0x40d0, ch)
+ 
+ #define REUT_ch_MISC_CKE_CTRL(ch)		_MCMAIN_C(0x4190, ch)
+@@ -110,6 +115,10 @@
+ #define MC_INIT_STATE_ch(ch)			_MCMAIN_C(0x42a0, ch)
+ #define TC_SRFTP_ch(ch)				_MCMAIN_C(0x42a4, ch)
+ 
++#define QCLK_ch_LDAT_PDAT(ch)			_MCMAIN_C(0x42d0, ch)
++#define QCLK_ch_LDAT_SDAT(ch)			_MCMAIN_C(0x42d4, ch)
++#define QCLK_ch_LDAT_DATA_IN_x(ch, x)		_MCMAIN_C_X(0x42dc, ch, x) /* x in 0 .. 1 */
++
+ #define REUT_GLOBAL_ERR				0x4804
+ 
+ #define REUT_ch_SEQ_CFG(ch)			(0x48a8 + 8 * (ch))
+-- 
+2.39.5
+

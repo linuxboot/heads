@@ -1,0 +1,725 @@
+From b6d3af1361681d91d157ba42cfe25232a267aa0b Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sat, 13 Apr 2024 01:16:30 +0200
+Subject: [PATCH 23/24] haswell NRI: Implement fast boot path
+
+When the memory configuration hasn't changed, there is no need to do
+full memory training. Instead, boot firmware can use saved training
+data to reinitialise the memory controller and memory.
+
+Unlike native RAM init for other platforms, Haswell does not save the
+main structure (the "mighty ctrl" struct) to flash. Instead, separate
+structures define the data to be saved, which can be smaller than the
+main structure.
+
+This makes S3 suspend and resume work: RAM contents MUST be preserved
+for a S3 resume to succeed, but RAM training destroys RAM contents.
+
+Change-Id: I06f6cd39ceecdca104fae89159f28e85cf7ff4e6
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/81897
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   1 +
+ .../haswell/native_raminit/activate_mc.c      |  17 +
+ .../intel/haswell/native_raminit/ddr3.c       |  41 ++
+ .../haswell/native_raminit/raminit_main.c     |  34 +-
+ .../haswell/native_raminit/raminit_native.c   |  30 +-
+ .../haswell/native_raminit/raminit_native.h   |  18 +
+ .../haswell/native_raminit/save_restore.c     | 387 ++++++++++++++++++
+ 7 files changed, 504 insertions(+), 24 deletions(-)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/save_restore.c
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index d97da72890..8fdd17c542 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -13,6 +13,7 @@ romstage-y += raminit_main.c
+ romstage-y += raminit_native.c
+ romstage-y += ranges.c
+ romstage-y += reut.c
++romstage-y += save_restore.c
+ romstage-y += setup_wdb.c
+ romstage-y += spd_bitmunching.c
+ romstage-y += testing_io.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/activate_mc.c b/src/northbridge/intel/haswell/native_raminit/activate_mc.c
+index 78a7ad27ef..0b3eb917da 100644
+--- a/src/northbridge/intel/haswell/native_raminit/activate_mc.c
++++ b/src/northbridge/intel/haswell/native_raminit/activate_mc.c
+@@ -333,6 +333,23 @@ enum raminit_status activate_mc(struct sysinfo *ctrl)
+ 	return RAMINIT_STATUS_SUCCESS;
+ }
+ 
++enum raminit_status normal_state(struct sysinfo *ctrl)
++{
++	/* Enable periodic COMP */
++	mchbar_write32(M_COMP, (union pcu_comp_reg) {
++		.comp_interval = COMP_INT,
++	}.raw);
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		/* Set MC to normal mode and clean the ODT and CKE */
++		mchbar_write32(REUT_ch_SEQ_CFG(channel), REUT_MODE_NOP << 12);
++	}
++	power_down_config(ctrl);
++	return RAMINIT_STATUS_SUCCESS;
++}
++
+ static void mc_lockdown(void)
+ {
+ 	/* Lock memory controller registers */
+diff --git a/src/northbridge/intel/haswell/native_raminit/ddr3.c b/src/northbridge/intel/haswell/native_raminit/ddr3.c
+index 6ddb11488b..9b6368edb1 100644
+--- a/src/northbridge/intel/haswell/native_raminit/ddr3.c
++++ b/src/northbridge/intel/haswell/native_raminit/ddr3.c
+@@ -2,6 +2,7 @@
+ 
+ #include <assert.h>
+ #include <console/console.h>
++#include <delay.h>
+ #include <northbridge/intel/haswell/haswell.h>
+ #include <types.h>
+ 
+@@ -215,3 +216,43 @@ enum raminit_status ddr3_jedec_init(struct sysinfo *ctrl)
+ 	ddr3_program_mr0(ctrl, 1);
+ 	return reut_issue_zq(ctrl, ctrl->chanmap, ZQ_INIT);
+ }
++
++enum raminit_status exit_selfrefresh(struct sysinfo *ctrl)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		/* Fields in ctrl aren't populated on a warm boot */
++		union ddr_data_control_0_reg data_control_0 = {
++			.raw = mchbar_read32(DQ_CONTROL_0(channel, 0)),
++		};
++		data_control_0.read_rf_rd = 1;
++		for (uint8_t rank = 0; rank < NUM_SLOTRANKS; rank++) {
++			if (!rank_in_ch(ctrl, rank, channel))
++				continue;
++
++			data_control_0.read_rf_rank = rank;
++			mchbar_write32(DDR_DATA_ch_CONTROL_0(channel), data_control_0.raw);
++		}
++	}
++
++	/* Time needed to stabilize the DCLK (~6 us) */
++	udelay(6);
++
++	/* Pull the DIMMs out of self refresh by asserting CKE high */
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		const union reut_misc_cke_ctrl_reg reut_misc_cke_ctrl = {
++			.cke_on = ctrl->rankmap[channel],
++		};
++		mchbar_write32(REUT_ch_MISC_CKE_CTRL(channel), reut_misc_cke_ctrl.raw);
++	}
++	mchbar_write32(REUT_MISC_ODT_CTRL, 0);
++
++	const enum raminit_status status = reut_issue_zq(ctrl, ctrl->chanmap, ZQ_LONG);
++	if (status) {
++		/* ZQCL errors don't seem to be a fatal problem here */
++		printk(BIOS_ERR, "ZQ Long failed during S3 resume or warm reset flow\n");
++	}
++	return RAMINIT_STATUS_SUCCESS;
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_main.c b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+index 2073b54782..b6f3144529 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_main.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+@@ -65,6 +65,22 @@ static const struct task_entry cold_boot[] = {
+ 	{ train_read_mpr,                                         true, "RDMPRT",     },
+ 	{ train_jedec_write_leveling,                             true, "JWRL",       },
+ 	{ activate_mc,                                            true, "ACTIVATE",   },
++	{ save_training_values,                                   true, "SAVE_TRAIN", },
++	{ save_non_training,                                      true, "SAVE_NONT",  },
++	{ raminit_done,                                           true, "RAMINITEND", },
++};
++
++static const struct task_entry fast_boot[] = {
++	{ collect_spd_info,                                       true, "PROCSPD",    },
++	{ restore_non_training,                                   true, "RST_NONT",   },
++	{ initialise_mpll,                                        true, "INITMPLL",   },
++	{ configure_mc,                                           true, "CONFMC",     },
++	{ configure_memory_map,                                   true, "MEMMAP",     },
++	{ do_jedec_init,                                          true, "JEDECINIT",  },
++	{ pre_training,                                           true, "PRETRAIN",   },
++	{ restore_training_values,                                true, "RST_TRAIN",  },
++	{ exit_selfrefresh,                                       true, "EXIT_SR",    },
++	{ normal_state,                                           true, "NORMALMODE", },
+ 	{ raminit_done,                                           true, "RAMINITEND", },
+ };
+ 
+@@ -103,11 +119,11 @@ static void initialize_ctrl(struct sysinfo *ctrl)
+ 	ctrl->bootmode = bootmode;
+ }
+ 
+-static enum raminit_status try_raminit(struct sysinfo *ctrl)
++static enum raminit_status try_raminit(
++	struct sysinfo *ctrl,
++	const struct task_entry *const schedule,
++	const size_t length)
+ {
+-	const struct task_entry *const schedule = cold_boot;
+-	const size_t length = ARRAY_SIZE(cold_boot);
+-
+ 	enum raminit_status status = RAMINIT_STATUS_UNSPECIFIED_ERROR;
+ 
+ 	for (size_t i = 0; i < length; i++) {
+@@ -141,8 +157,16 @@ void raminit_main(const enum raminit_boot_mode bootmode)
+ 	mighty_ctrl.bootmode = bootmode;
+ 	initialize_ctrl(&mighty_ctrl);
+ 
++	enum raminit_status status = RAMINIT_STATUS_UNSPECIFIED_ERROR;
++
++	if (bootmode != BOOTMODE_COLD) {
++		status = try_raminit(&mighty_ctrl, fast_boot, ARRAY_SIZE(fast_boot));
++		if (status == RAMINIT_STATUS_SUCCESS)
++			return;
++	}
++
+ 	/** TODO: Try more than once **/
+-	enum raminit_status status = try_raminit(&mighty_ctrl);
++	status = try_raminit(&mighty_ctrl, cold_boot, ARRAY_SIZE(cold_boot));
+ 
+ 	if (status != RAMINIT_STATUS_SUCCESS)
+ 		die("Memory initialization was met with utmost failure and misery\n");
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.c b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+index 5f7ceec222..3ad8ce29e7 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+@@ -54,23 +54,17 @@ static bool early_init_native(enum raminit_boot_mode bootmode)
+ 	return cpu_replaced;
+ }
+ 
+-#define MRC_CACHE_VERSION 1
+-
+-struct mrc_data {
+-	const void *buffer;
+-	size_t buffer_len;
+-};
+-
+-static void save_mrc_data(struct mrc_data *md)
++static void save_mrc_data(void)
+ {
+-	mrc_cache_stash_data(MRC_TRAINING_DATA, MRC_CACHE_VERSION, md->buffer, md->buffer_len);
++	mrc_cache_stash_data(MRC_TRAINING_DATA, reg_frame_rev(),
++			     reg_frame_ptr(), reg_frame_size());
+ }
+ 
+ static struct mrc_data prepare_mrc_cache(void)
+ {
+ 	struct mrc_data md = {0};
+ 	md.buffer = mrc_cache_current_mmap_leak(MRC_TRAINING_DATA,
+-						MRC_CACHE_VERSION,
++						reg_frame_rev(),
+ 						&md.buffer_len);
+ 	return md;
+ }
+@@ -94,14 +88,15 @@ static void raminit_reset(void)
+ }
+ 
+ static enum raminit_boot_mode do_actual_raminit(
+-	struct mrc_data *md,
+ 	const bool s3resume,
+ 	const bool cpu_replaced,
+ 	const enum raminit_boot_mode orig_bootmode)
+ {
++	struct mrc_data md = prepare_mrc_cache();
++
+ 	enum raminit_boot_mode bootmode = orig_bootmode;
+ 
+-	bool save_data_valid = md->buffer && md->buffer_len == USHRT_MAX; /** TODO: sizeof() **/
++	bool save_data_valid = md.buffer && md.buffer_len == reg_frame_size();
+ 
+ 	if (s3resume) {
+ 		if (bootmode == BOOTMODE_COLD) {
+@@ -154,7 +149,7 @@ static enum raminit_boot_mode do_actual_raminit(
+ 	assert(save_data_valid != (bootmode == BOOTMODE_COLD));
+ 	if (save_data_valid) {
+ 		printk(BIOS_INFO, "Using cached memory parameters\n");
+-		die("RAMINIT: Fast boot is not yet implemented\n");
++		memcpy(reg_frame_ptr(), md.buffer, reg_frame_size());
+ 	}
+ 	printk(RAM_DEBUG, "Initial bootmode: %s\n", bm_names[orig_bootmode]);
+ 	printk(RAM_DEBUG, "Current bootmode: %s\n", bm_names[bootmode]);
+@@ -181,10 +176,8 @@ void perform_raminit(const int s3resume)
+ 	wait_txt_clear();
+ 	wrmsr(0x2e6, (msr_t) {.lo = 0, .hi = 0});
+ 
+-	struct mrc_data md = prepare_mrc_cache();
+-
+ 	const enum raminit_boot_mode bootmode =
+-			do_actual_raminit(&md, s3resume, cpu_replaced, orig_bootmode);
++			do_actual_raminit(s3resume, cpu_replaced, orig_bootmode);
+ 
+ 	/** TODO: report_memory_config **/
+ 
+@@ -212,9 +205,8 @@ void perform_raminit(const int s3resume)
+ 	}
+ 
+ 	/* Save training data on non-S3 resumes */
+-	/** TODO: Enable this once training data is populated **/
+-	if (0 && !s3resume)
+-		save_mrc_data(&md);
++	if (!s3resume)
++		save_mrc_data();
+ 
+ 	/** TODO: setup_sdram_meminfo **/
+ }
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index a0a913f926..2ac16eaad3 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -170,6 +170,8 @@ enum regfile_mode {
+ 	REG_FILE_USE_CURRENT,	/* Used when changing parameters after the test */
+ };
+ 
++struct register_save_frame;
++
+ struct wdb_pat {
+ 	uint32_t start_ptr;	/* Starting pointer in WDB */
+ 	uint32_t stop_ptr;	/* Stopping pointer in WDB */
+@@ -220,6 +222,7 @@ enum raminit_status {
+ 	RAMINIT_STATUS_RCVEN_FAILURE,
+ 	RAMINIT_STATUS_RMPR_FAILURE,
+ 	RAMINIT_STATUS_JWRL_FAILURE,
++	RAMINIT_STATUS_INVALID_CACHE,
+ 	RAMINIT_STATUS_UNSPECIFIED_ERROR, /** TODO: Deprecated in favor of specific values **/
+ };
+ 
+@@ -229,6 +232,11 @@ enum generic_stepping {
+ 	STEPPING_C0 = 3,
+ };
+ 
++struct mrc_data {
++	const void *buffer;
++	size_t buffer_len;
++};
++
+ struct raminit_dimm_info {
+ 	spd_ddr3_raw_data raw_spd;
+ 	struct dimm_attr_ddr3_st data;
+@@ -448,12 +456,22 @@ enum raminit_status do_jedec_init(struct sysinfo *ctrl);
+ enum raminit_status train_receive_enable(struct sysinfo *ctrl);
+ enum raminit_status train_read_mpr(struct sysinfo *ctrl);
+ enum raminit_status train_jedec_write_leveling(struct sysinfo *ctrl);
++enum raminit_status save_training_values(struct sysinfo *ctrl);
++enum raminit_status restore_training_values(struct sysinfo *ctrl);
++enum raminit_status save_non_training(struct sysinfo *ctrl);
++enum raminit_status restore_non_training(struct sysinfo *ctrl);
++enum raminit_status exit_selfrefresh(struct sysinfo *ctrl);
++enum raminit_status normal_state(struct sysinfo *ctrl);
+ enum raminit_status activate_mc(struct sysinfo *ctrl);
+ enum raminit_status raminit_done(struct sysinfo *ctrl);
+ 
+ void configure_timings(struct sysinfo *ctrl);
+ void configure_refresh(struct sysinfo *ctrl);
+ 
++struct register_save_frame *reg_frame_ptr(void);
++size_t reg_frame_size(void);
++uint32_t reg_frame_rev(void);
++
+ uint32_t get_tCKE(uint32_t mem_clock_mhz, bool lpddr);
+ uint32_t get_tXPDLL(uint32_t mem_clock_mhz);
+ uint32_t get_tAONPD(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/native_raminit/save_restore.c b/src/northbridge/intel/haswell/native_raminit/save_restore.c
+new file mode 100644
+index 0000000000..f1f50e3ff8
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/save_restore.c
+@@ -0,0 +1,387 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <assert.h>
++#include <console/console.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <types.h>
++
++#include "raminit_native.h"
++
++uint32_t reg_frame_rev(void)
++{
++	/*
++	 * Equivalent to MRC_CACHE_REVISION, but hidden via abstraction.
++	 * The structures that get saved to flash are contained within
++	 * this translation unit, so changes outside this file shouldn't
++	 * require invalidating the cache.
++	 */
++	return 1;
++}
++
++struct register_save {
++	uint16_t lower;
++	uint16_t upper;
++};
++
++/** TODO: Haswell DDRIO aliases writes: 0x80 .. 0xff => 0x00 .. 0x7f **/
++static const struct register_save ddrio_per_byte_list[] = {
++	{0x0000, 0x003c}, /* 16 registers */
++//	{0x0048, 0x0084}, /* 16 registers */	/** TODO: BDW support **/
++	{0x0048, 0x004c}, /*  2 registers */
++	{0x005c, 0x0078}, /*  8 registers */
++};
++#define DDRIO_PER_BYTE_REGISTER_COUNT	(16 + 2 + 8)
++
++static const struct register_save ddrio_per_ch_list[] = {
++	/* CKE */
++	{0x1204, 0x1208}, /* 2 registers */
++	{0x1214, 0x121c}, /* 3 registers */
++	/* CMD North */
++	{0x1404, 0x140c}, /* 3 registers */
++	/* CLK */
++	{0x1808, 0x1810}, /* 3 registers */
++	/* CMD South */
++	{0x1a04, 0x1a0c}, /* 3 registers */
++	/* CTL */
++	{0x1c14, 0x1c1c}, /* 3 registers */
++};
++#define DDRIO_PER_CH_REGISTER_COUNT	(2 + 3 * 5)
++
++static const struct register_save ddrio_common_list[] = {
++	{0x2000, 0x2008}, /* 3 registers */
++	{0x3a14, 0x3a1c}, /* 3 registers */
++	{0x3a24, 0x3a24}, /* 1 registers */
++};
++
++#define DDRIO_COMMON_REGISTER_COUNT	(3 + 3 + 1)
++
++static const struct register_save mcmain_per_ch_list[] = {
++	{0x4000, 0x4014}, /* 6 registers */
++	{0x4024, 0x4028}, /* 2 registers */
++	{0x40d0, 0x40d0}, /* 1 registers */
++	{0x4220, 0x4224}, /* 2 registers */
++	{0x4294, 0x4294}, /* 1 registers */
++	{0x429c, 0x42a0}, /* 2 registers */
++	{0x42ec, 0x42fc}, /* 5 registers */
++	{0x4328, 0x4328}, /* 1 registers */
++	{0x438c, 0x4390}, /* 2 registers */
++};
++#define MCMAIN_PER_CH_REGISTER_COUNT	(6 + 2 + 1 + 2 + 1 + 2 + 5 + 1 + 2)
++
++static const struct register_save misc_common_list[] = {
++	{0x5884, 0x5888}, /*  2 registers */
++	{0x5890, 0x589c}, /*  4 registers */
++	{0x58a4, 0x58a4}, /*  1 registers */
++	{0x58d0, 0x58e4}, /*  6 registers */
++	{0x5880, 0x5880}, /*  1 registers */
++	{0x5000, 0x50dc}, /* 56 registers */
++	{0x59b8, 0x59b8}  /*  1 registers */
++};
++#define MISC_COMMON_REGISTER_COUNT	(2 + 4 + 1 + 6 + 1 + 56 + 1)
++
++struct save_params {
++	bool is_initialised;
++
++	/* Memory base frequency, either 100 or 133 MHz */
++	uint8_t base_freq;
++
++	/* Multiplier */
++	uint32_t multiplier;
++
++	/* Memory clock in MHz */
++	uint32_t mem_clock_mhz;
++
++	/* Memory clock in femtoseconds */
++	uint32_t mem_clock_fs;
++
++	/* Quadrature clock in picoseconds */
++	uint16_t qclkps;
++
++	/* Bitfield of supported CAS latencies */
++	uint16_t cas_supported;
++
++	/* CPUID value */
++	uint32_t cpu;
++
++	/* Cached CPU stepping value */
++	uint8_t stepping;
++
++	uint16_t vdd_mv;
++
++	union dimm_flags_ddr3_st flags;
++
++	/* Except for tCK, everything is stored in DCLKs */
++	uint32_t tCK;
++	uint32_t tAA;
++	uint32_t tWR;
++	uint32_t tRCD;
++	uint32_t tRRD;
++	uint32_t tRP;
++	uint32_t tRAS;
++	uint32_t tRC;
++	uint32_t tRFC;
++	uint32_t tWTR;
++	uint32_t tRTP;
++	uint32_t tFAW;
++	uint32_t tCWL;
++	uint32_t tCMD;
++
++	uint32_t tREFI;
++	uint32_t tXP;
++
++	uint8_t lpddr_cke_rank_map[NUM_CHANNELS];
++
++	struct raminit_dimm_info dimms[NUM_CHANNELS][NUM_SLOTS];
++
++	uint8_t chanmap;
++
++	uint32_t channel_size_mb[NUM_CHANNELS];
++
++	/* DIMMs per channel */
++	uint8_t dpc[NUM_CHANNELS];
++
++	uint8_t rankmap[NUM_CHANNELS];
++
++	/* Whether a rank is mirrored or not (only rank 1 of each DIMM can be) */
++	uint8_t rank_mirrored[NUM_CHANNELS];
++
++	/*
++	 * FIXME: LPDDR support is incomplete. The largest chunks are missing,
++	 * but some LPDDR-specific variations in algorithms have been handled.
++	 * LPDDR-specific functions have stubs which will halt upon execution.
++	 */
++	bool lpddr;
++
++	uint8_t lanes;
++
++	/* FIXME: ECC support missing */
++	bool is_ecc;
++};
++
++struct register_save_frame {
++	uint32_t ddrio_per_byte[NUM_CHANNELS][NUM_LANES][DDRIO_PER_BYTE_REGISTER_COUNT];
++	uint32_t ddrio_per_ch[NUM_CHANNELS][DDRIO_PER_CH_REGISTER_COUNT];
++	uint32_t ddrio_common[DDRIO_COMMON_REGISTER_COUNT];
++	uint32_t mcmain_per_ch[NUM_CHANNELS][MCMAIN_PER_CH_REGISTER_COUNT];
++	uint32_t misc_common[MISC_COMMON_REGISTER_COUNT];
++	struct save_params params;
++};
++
++struct register_save_frame *reg_frame_ptr(void)
++{
++	/* The chonky register save frame struct, used for fast boot and S3 resume */
++	static struct register_save_frame register_frame = { 0 };
++	return &register_frame;
++}
++
++size_t reg_frame_size(void)
++{
++	return sizeof(struct register_save_frame);
++}
++
++typedef void (*reg_func_t)(const uint16_t offset, uint32_t *const value);
++
++static void save_value(const uint16_t offset, uint32_t *const value)
++{
++	*value = mchbar_read32(offset);
++}
++
++static void restore_value(const uint16_t offset, uint32_t *const value)
++{
++	mchbar_write32(offset, *value);
++}
++
++static void save_restore(
++	uint32_t *reg_frame,
++	const uint16_t g_offset,
++	const struct register_save *reg_save_list,
++	const size_t reg_save_length,
++	reg_func_t handle_reg)
++{
++	for (size_t i = 0; i < reg_save_length; i++) {
++		const struct register_save *entry = &reg_save_list[i];
++		for (uint16_t offset = entry->lower; offset <= entry->upper; offset += 4) {
++			handle_reg(offset + g_offset, reg_frame++);
++		}
++	}
++}
++
++static void save_restore_all(struct register_save_frame *reg_frame, reg_func_t handle_reg)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		for (uint8_t byte = 0; byte < NUM_LANES; byte++) {
++			const uint16_t g_offset = _DDRIO_C_R_B(0, channel, 0, byte);
++			save_restore(
++				reg_frame->ddrio_per_byte[channel][byte],
++				g_offset,
++				ddrio_per_byte_list,
++				ARRAY_SIZE(ddrio_per_byte_list),
++				handle_reg);
++		}
++	}
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		const uint16_t g_offset = _DDRIO_C_R_B(0, channel, 0, 0);
++		save_restore(
++			reg_frame->ddrio_per_ch[channel],
++			g_offset,
++			ddrio_per_ch_list,
++			ARRAY_SIZE(ddrio_per_ch_list),
++			handle_reg);
++	}
++	save_restore(
++		reg_frame->ddrio_common,
++		0,
++		ddrio_common_list,
++		ARRAY_SIZE(ddrio_common_list),
++		handle_reg);
++
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		const uint16_t g_offset = _MCMAIN_C(0, channel);
++		save_restore(
++			reg_frame->mcmain_per_ch[channel],
++			g_offset,
++			mcmain_per_ch_list,
++			ARRAY_SIZE(mcmain_per_ch_list),
++			handle_reg);
++	}
++	save_restore(
++		reg_frame->misc_common,
++		0,
++		misc_common_list,
++		ARRAY_SIZE(misc_common_list),
++		handle_reg);
++}
++
++enum raminit_status save_training_values(struct sysinfo *ctrl)
++{
++	save_restore_all(reg_frame_ptr(), save_value);
++	return RAMINIT_STATUS_SUCCESS;
++}
++
++enum raminit_status restore_training_values(struct sysinfo *ctrl)
++{
++	save_restore_all(reg_frame_ptr(), restore_value);
++	return RAMINIT_STATUS_SUCCESS;
++}
++
++enum raminit_status save_non_training(struct sysinfo *ctrl)
++{
++	struct register_save_frame *reg_frame = reg_frame_ptr();
++	struct save_params *params = &reg_frame->params;
++
++	params->is_initialised = true;
++
++	params->base_freq     = ctrl->base_freq;
++	params->multiplier    = ctrl->multiplier;
++	params->mem_clock_mhz = ctrl->mem_clock_mhz;
++	params->mem_clock_fs  = ctrl->mem_clock_fs;
++	params->qclkps        = ctrl->qclkps;
++	params->cas_supported = ctrl->cas_supported;
++	params->cpu           = ctrl->cpu;
++	params->stepping      = ctrl->stepping;
++	params->vdd_mv        = ctrl->vdd_mv;
++	params->flags         = ctrl->flags;
++
++	params->tCK       = ctrl->tCK;
++	params->tAA       = ctrl->tAA;
++	params->tWR       = ctrl->tWR;
++	params->tRCD      = ctrl->tRCD;
++	params->tRRD      = ctrl->tRRD;
++	params->tRP       = ctrl->tRP;
++	params->tRAS      = ctrl->tRAS;
++	params->tRC       = ctrl->tRC;
++	params->tRFC      = ctrl->tRFC;
++	params->tWTR      = ctrl->tWTR;
++	params->tRTP      = ctrl->tRTP;
++	params->tFAW      = ctrl->tFAW;
++	params->tCWL      = ctrl->tCWL;
++	params->tCMD      = ctrl->tCMD;
++	params->tREFI     = ctrl->tREFI;
++	params->tXP       = ctrl->tXP;
++
++	params->chanmap = ctrl->chanmap;
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		params->lpddr_cke_rank_map[channel] = ctrl->lpddr_cke_rank_map[channel];
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++)
++			params->dimms[channel][slot] = ctrl->dimms[channel][slot];
++	}
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		params->dpc[channel] = ctrl->dpc[channel];
++		params->rankmap[channel] = ctrl->rankmap[channel];
++		params->rank_mirrored[channel] = ctrl->rank_mirrored[channel];
++		params->channel_size_mb[channel] = ctrl->channel_size_mb[channel];
++	}
++	params->lpddr = ctrl->lpddr;
++	params->lanes = ctrl->lanes;
++	params->is_ecc = ctrl->is_ecc;
++	return RAMINIT_STATUS_SUCCESS;
++}
++
++#define RAMINIT_COMPARE(_s1, _s2) \
++	((sizeof(_s1) == sizeof(_s2)) && !memcmp(_s1, _s2, sizeof(_s1)))
++
++enum raminit_status restore_non_training(struct sysinfo *ctrl)
++{
++	struct register_save_frame *reg_frame = reg_frame_ptr();
++	struct save_params *params = &reg_frame->params;
++
++	if (!params->is_initialised) {
++		printk(BIOS_WARNING, "Cannot fast boot: saved data is invalid\n");
++		return RAMINIT_STATUS_INVALID_CACHE;
++	}
++
++	if (!RAMINIT_COMPARE(ctrl->dimms, params->dimms)) {
++		printk(BIOS_WARNING, "Cannot fast boot: DIMMs have changed\n");
++		return RAMINIT_STATUS_INVALID_CACHE;
++	}
++
++	if (ctrl->cpu != params->cpu) {
++		printk(BIOS_WARNING, "Cannot fast boot: CPU has changed\n");
++		return RAMINIT_STATUS_INVALID_CACHE;
++	}
++
++	ctrl->base_freq     = params->base_freq;
++	ctrl->multiplier    = params->multiplier;
++	ctrl->mem_clock_mhz = params->mem_clock_mhz;
++	ctrl->mem_clock_fs  = params->mem_clock_fs;
++	ctrl->qclkps        = params->qclkps;
++	ctrl->cas_supported = params->cas_supported;
++	ctrl->cpu           = params->cpu;
++	ctrl->stepping      = params->stepping;
++	ctrl->vdd_mv        = params->vdd_mv;
++	ctrl->flags         = params->flags;
++
++	ctrl->tCK       = params->tCK;
++	ctrl->tAA       = params->tAA;
++	ctrl->tWR       = params->tWR;
++	ctrl->tRCD      = params->tRCD;
++	ctrl->tRRD      = params->tRRD;
++	ctrl->tRP       = params->tRP;
++	ctrl->tRAS      = params->tRAS;
++	ctrl->tRC       = params->tRC;
++	ctrl->tRFC      = params->tRFC;
++	ctrl->tWTR      = params->tWTR;
++	ctrl->tRTP      = params->tRTP;
++	ctrl->tFAW      = params->tFAW;
++	ctrl->tCWL      = params->tCWL;
++	ctrl->tCMD      = params->tCMD;
++	ctrl->tREFI     = params->tREFI;
++	ctrl->tXP       = params->tXP;
++
++	ctrl->chanmap = params->chanmap;
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		ctrl->lpddr_cke_rank_map[channel] = params->lpddr_cke_rank_map[channel];
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++)
++			ctrl->dimms[channel][slot] = params->dimms[channel][slot];
++	}
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		ctrl->dpc[channel] = params->dpc[channel];
++		ctrl->rankmap[channel] = params->rankmap[channel];
++		ctrl->rank_mirrored[channel] = params->rank_mirrored[channel];
++		ctrl->channel_size_mb[channel] = params->channel_size_mb[channel];
++	}
++	ctrl->lpddr = params->lpddr;
++	ctrl->lanes = params->lanes;
++	ctrl->is_ecc = params->is_ecc;
++	return RAMINIT_STATUS_SUCCESS;
++}
+-- 
+2.39.5
+
