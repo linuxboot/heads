@@ -1,0 +1,1610 @@
+From aadf6d59b2db77fe293bb303960dba8b093177b1 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sat, 7 May 2022 17:22:07 +0200
+Subject: [PATCH 10/24] haswell NRI: Configure initial MC settings
+
+Program initial memory controller settings. Many of these values will be
+adjusted later during training.
+
+Change-Id: If33846b51cb1bab5d0458fe626e13afb1bdc900e
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64186
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   2 +
+ .../haswell/native_raminit/configure_mc.c     | 835 ++++++++++++++++++
+ .../haswell/native_raminit/raminit_main.c     |   2 +
+ .../haswell/native_raminit/raminit_native.h   | 101 +++
+ .../haswell/native_raminit/reg_structs.h      | 405 +++++++++
+ .../haswell/native_raminit/timings_refresh.c  |  13 +
+ .../intel/haswell/registers/mchbar.h          |  94 ++
+ 7 files changed, 1452 insertions(+)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/configure_mc.c
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/reg_structs.h
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/timings_refresh.c
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index 2769e0bbb4..fc55277a65 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -1,8 +1,10 @@
+ ## SPDX-License-Identifier: GPL-2.0-or-later
+ 
++romstage-y += configure_mc.c
+ romstage-y += lookup_timings.c
+ romstage-y += init_mpll.c
+ romstage-y += io_comp_control.c
+ romstage-y += raminit_main.c
+ romstage-y += raminit_native.c
+ romstage-y += spd_bitmunching.c
++romstage-y += timings_refresh.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/configure_mc.c b/src/northbridge/intel/haswell/native_raminit/configure_mc.c
+new file mode 100644
+index 0000000000..5562dbdf2e
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/configure_mc.c
+@@ -0,0 +1,835 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <assert.h>
++#include <commonlib/bsd/clamp.h>
++#include <console/console.h>
++#include <delay.h>
++#include <lib.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <string.h>
++#include <types.h>
++
++#include "raminit_native.h"
++
++static void program_misc_control(struct sysinfo *ctrl)
++{
++	if (!is_hsw_ult())
++		return;
++
++	const union ddr_scram_misc_control_reg ddr_scram_misc_ctrl = {
++		.ddr_no_ch_interleave = !ctrl->dq_pins_interleaved,
++		.lpddr_mode           = ctrl->lpddr,
++		.cke_mapping_ch0      = ctrl->lpddr ? ctrl->lpddr_cke_rank_map[0] : 0,
++		.cke_mapping_ch1      = ctrl->lpddr ? ctrl->lpddr_cke_rank_map[1] : 0,
++	};
++	mchbar_write32(DDR_SCRAM_MISC_CONTROL, ddr_scram_misc_ctrl.raw);
++}
++
++static void program_mrc_revision(void)
++{
++	mchbar_write32(MRC_REVISION, 0x01090000);	/* MRC 1.9.0 Build 0 */
++}
++
++static void program_ranks_used(struct sysinfo *ctrl)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		mchbar_write8(MC_INIT_STATE_ch(channel), ctrl->rankmap[channel]);
++		if (!does_ch_exist(ctrl, channel)) {
++			mchbar_write32(DDR_CLK_ch_RANKS_USED(channel), 0);
++			mchbar_write32(DDR_CTL_ch_CTL_RANKS_USED(channel), 0);
++			mchbar_write32(DDR_CKE_ch_CTL_RANKS_USED(channel), 0);
++			continue;
++		}
++		uint32_t clk_ranks_used = ctrl->rankmap[channel];
++		if (ctrl->lpddr) {
++			/* With LPDDR, the clock usage goes by group instead */
++			clk_ranks_used = 0;
++			for (uint8_t group = 0; group < NUM_GROUPS; group++) {
++				if (ctrl->dq_byte_map[channel][CT_ITERATION_CLOCK][group])
++					clk_ranks_used |= BIT(group);
++			}
++		}
++		mchbar_write32(DDR_CLK_ch_RANKS_USED(channel), clk_ranks_used);
++
++		uint32_t ctl_ranks_used = ctrl->rankmap[channel];
++		if (is_hsw_ult()) {
++			/* Set ODT disable bits */
++			/** TODO: May need to do this after JEDEC reset/init **/
++			if (ctrl->lpddr && ctrl->lpddr_dram_odt)
++				ctl_ranks_used |= 2 << 4;	/* ODT is used on rank 0 */
++			else
++				ctl_ranks_used |= 3 << 4;
++		}
++		mchbar_write32(DDR_CTL_ch_CTL_RANKS_USED(channel), ctl_ranks_used);
++
++		uint32_t cke_ranks_used = ctrl->rankmap[channel];
++		if (ctrl->lpddr) {
++			/* Use CKE-to-rank mapping for LPDDR */
++			const uint8_t cke_rank_map = ctrl->lpddr_cke_rank_map[channel];
++			cke_ranks_used = 0;
++			for (uint8_t rank = 0; rank < NUM_SLOTRANKS; rank++) {
++				/* ULT only has 2 ranks per channel */
++				if (rank >= 2)
++					break;
++
++				if (!rank_in_ch(ctrl, rank, channel))
++					continue;
++
++				for (uint8_t cke = 0; cke < 4; cke++) {
++					if (rank == ((cke_rank_map >> cke) & 1))
++						cke_ranks_used |= BIT(cke);
++				}
++			}
++		}
++		mchbar_write32(DDR_CKE_ch_CTL_RANKS_USED(channel), cke_ranks_used);
++	}
++}
++
++static const uint8_t rxb_trad[2][5][4] = {
++	{	/* Vdd low */
++		/* 1067 MT/s,    1333 MT/s,    1600 MT/s,    1867 MT/s,    2133 MT/s, */
++		{4, 3, 3, 2}, {4, 4, 3, 2}, {5, 4, 3, 3}, {5, 4, 4, 3}, {5, 4, 4, 3},
++	},
++	{	/* Vdd hi */
++		/* 1067 MT/s,    1333 MT/s,    1600 MT/s,    1867 MT/s,    2133 MT/s, */
++		{4, 3, 3, 2}, {4, 4, 3, 2}, {5, 4, 3, 3}, {5, 4, 4, 3}, {4, 4, 3, 3},
++	},
++};
++
++static const uint8_t rxb_ultx[2][3][4] = {
++	{	/* Vdd low */
++		/* 1067 MT/s,    1333 MT/s,    1600 MT/s, */
++		{5, 6, 6, 5}, {5, 6, 6, 5}, {4, 6, 6, 6},
++	},
++	{	/* Vdd hi */
++		/* 1067 MT/s,    1333 MT/s,    1600 MT/s, */
++		{7, 6, 6, 5}, {7, 6, 6, 5}, {7, 6, 6, 6},
++	},
++};
++
++uint8_t get_rx_bias(const struct sysinfo *ctrl)
++{
++	const bool is_ult = is_hsw_ult();
++	const bool vddhi  = ctrl->vdd_mv > 1350;
++	const uint8_t max_rxf = is_ult ? ARRAY_SIZE(rxb_ultx[0]) : ARRAY_SIZE(rxb_trad[0]);
++	const uint8_t ref_clk = ctrl->base_freq == 133 ? 4 : 6;
++	const uint8_t rx_f    = clamp_s8(0, ctrl->multiplier - ref_clk, max_rxf - 1);
++	const uint8_t rx_cb   = mchbar_read32(DDR_CLK_CB_STATUS) & 0x3;
++	if (is_ult)
++		return rxb_ultx[vddhi][rx_f][rx_cb];
++	else
++		return rxb_trad[vddhi][rx_f][rx_cb];
++}
++
++static void program_ddr_data(struct sysinfo *ctrl, const bool dis_odt_static, const bool vddhi)
++{
++	const bool is_ult = is_hsw_ult();
++
++	for (uint8_t rank = 0; rank < NUM_SLOTRANKS; rank++) {
++		if (!does_rank_exist(ctrl, rank))
++			continue;
++
++		const union ddr_data_rx_train_rank_reg rx_train = {
++			.rcven = 64,
++			.dqs_p = 32,
++			.dqs_n = 32,
++		};
++		mchbar_write32(DDR_DATA_RX_TRAIN_RANK(rank), rx_train.raw);
++		mchbar_write32(DDR_DATA_RX_PER_BIT_RANK(rank), 0x88888888);
++
++		const union ddr_data_tx_train_rank_reg tx_train = {
++			.tx_eq     = TXEQFULLDRV | 11,
++			.dq_delay  = 96,
++			.dqs_delay = 64,
++		};
++		mchbar_write32(DDR_DATA_TX_TRAIN_RANK(rank), tx_train.raw);
++		mchbar_write32(DDR_DATA_TX_PER_BIT_RANK(rank), 0x88888888);
++
++		for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++			for (uint8_t byte = 0; byte < ctrl->lanes; byte++) {
++				ctrl->tx_dq[channel][rank][byte] = tx_train.dq_delay;
++				ctrl->txdqs[channel][rank][byte] = tx_train.dqs_delay;
++				ctrl->tx_eq[channel][rank][byte] = tx_train.tx_eq;
++
++				ctrl->rcven[channel][rank][byte]  = rx_train.rcven;
++				ctrl->rxdqsp[channel][rank][byte] = rx_train.dqs_p;
++				ctrl->rxdqsn[channel][rank][byte] = rx_train.dqs_n;
++				ctrl->rx_eq[channel][rank][byte]  = rx_train.rx_eq;
++			}
++		}
++	}
++	mchbar_write32(DDR_DATA_TX_XTALK, 0);
++	mchbar_write32(DDR_DATA_RX_OFFSET_VDQ, 0x88888888);
++	mchbar_write32(DDR_DATA_OFFSET_TRAIN, 0);
++	mchbar_write32(DDR_DATA_OFFSET_COMP, 0);
++
++	const union ddr_data_control_0_reg data_control_0 = {
++		.internal_clocks_on = !is_ult,
++		.data_vccddq_hi     = vddhi,
++		.disable_odt_static = dis_odt_static,
++		.lpddr_mode         = ctrl->lpddr,
++		.odt_samp_extend_en = ctrl->lpddr,
++		.early_rleak_en     = ctrl->lpddr && ctrl->stepping >= STEPPING_C0,
++	};
++	mchbar_write32(DDR_DATA_CONTROL_0, data_control_0.raw);
++
++	const union ddr_data_control_1_reg data_control_1 = {
++		.dll_mask             = 1,
++		.rx_bias_ctl          = get_rx_bias(ctrl),
++		.odt_delay            = -2,
++		.odt_duration         = 7,
++		.sense_amp_delay      = -2,
++		.sense_amp_duration   = 7,
++	};
++	mchbar_write32(DDR_DATA_CONTROL_1, data_control_1.raw);
++
++	clear_data_offset_train_all(ctrl);
++
++	/* Stagger byte turn-on to reduce dI/dT */
++	const uint8_t byte_stagger[] = { 0, 4, 1, 5, 2, 6, 3, 7, 8 };
++	const uint8_t latency = 2 * ctrl->tAA - 6;
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		union ddr_data_control_2_reg data_control_2 = {
++			.raw = 0,
++		};
++		if (is_ult) {
++			data_control_2.rx_dqs_amp_offset = 8;
++			data_control_2.rx_clk_stg_num    = 0x1f;
++			data_control_2.leaker_comp       = ctrl->lpddr ? 3 : 0;
++		}
++		for (uint8_t byte = 0; byte < ctrl->lanes; byte++) {
++			const uint8_t stg = latency * byte_stagger[byte] / ctrl->lanes;
++			data_control_2.rx_stagger_ctl = stg & 0x1f;
++			mchbar_write32(DQ_CONTROL_2(channel, byte), data_control_2.raw);
++			ctrl->data_offset_comp[channel][byte] = 0;
++			ctrl->dq_control_1[channel][byte] = data_control_1.raw;
++			ctrl->dq_control_2[channel][byte] = data_control_2.raw;
++		}
++		ctrl->dq_control_0[channel] = data_control_0.raw;
++	}
++}
++
++static void program_vsshi_control(struct sysinfo *ctrl, const uint16_t vsshi_mv)
++{
++	const uint32_t vsshi_control_reg = is_hsw_ult() ? 0x366c : 0x306c;
++	const union ddr_comp_vsshi_control_reg ddr_vsshi_control = {
++		.vsshi_target    = (vsshi_mv * 192) / ctrl->vdd_mv - 20,
++		.hi_bw_divider   = 1,
++		.lo_bw_divider   = 1,
++		.bw_error        = 2,
++		.panic_driver_en = 1,
++		.panic_voltage   = 24 / 8, /* Voltage in 8mV steps */
++		.gain_boost      = 1,
++	};
++	mchbar_write32(vsshi_control_reg, ddr_vsshi_control.raw);
++	mchbar_write32(DDR_COMP_VSSHI_CONTROL, ddr_vsshi_control.raw);
++}
++
++static void calc_vt_slope_code(const uint16_t slope, uint8_t *best_a, uint8_t *best_b)
++{
++	const int16_t coding[] = {0, -125, -62, -31, 250, 125, 62, 31};
++	*best_a = 0;
++	*best_b = 0;
++	int16_t best_err = slope;
++	for (uint8_t b = 0; b < ARRAY_SIZE(coding); b++) {
++		for (uint8_t a = b; a < ARRAY_SIZE(coding); a++) {
++			int16_t	error = slope - (coding[a] + coding[b]);
++			if (error < 0)
++				error = -error;
++
++			if (error < best_err) {
++				best_err = error;
++				*best_a = a;
++				*best_b = b;
++			}
++		}
++	}
++}
++
++static void program_dimm_vref(struct sysinfo *ctrl, const uint16_t vccio_mv, const bool vddhi)
++{
++	const bool is_ult = is_hsw_ult();
++
++	/* Static values for ULT */
++	uint8_t vt_slope_a = 4;
++	uint8_t vt_slope_b = 0;
++	if (!is_ult) {
++		/* On non-ULT, compute best slope code */
++		const uint16_t vt_slope = 1500 * vccio_mv / ctrl->vdd_mv - 1000;
++		calc_vt_slope_code(vt_slope, &vt_slope_a, &vt_slope_b);
++	}
++	const union ddr_data_vref_control_reg ddr_vref_control = {
++		.hi_bw_divider  = is_ult ? 0 : 3,
++		.lo_bw_divider  = 3,
++		.sample_divider = is_ult ? 1 : 3,
++		.slow_bw_error  = 1,
++		.hi_bw_enable   = 1,
++		.vt_slope_b     = vt_slope_b,
++		.vt_slope_a     = vt_slope_a,
++		.vt_offset      = 0,
++	};
++	mchbar_write32(is_ult ? 0xf68 : 0xf6c, ddr_vref_control.raw); /* Use CH1 byte 7 */
++
++	const union ddr_data_vref_adjust_reg ddr_vref_adjust = {
++		.en_dimm_vref_ca  = 1,
++		.en_dimm_vref_ch0 = 1,
++		.en_dimm_vref_ch1 = 1,
++		.vccddq_hi_qnnn_h = vddhi,
++		.hi_z_timer_ctrl  = 3,
++	};
++	ctrl->dimm_vref = ddr_vref_adjust;
++	mchbar_write32(DDR_DATA_VREF_ADJUST, ddr_vref_adjust.raw);
++}
++
++static uint32_t pi_code(const uint32_t code)
++{
++	return code << 21 | code << 14 | code << 7 | code << 0;
++}
++
++static void program_ddr_ca(struct sysinfo *ctrl, const bool vddhi)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel))
++			continue;
++
++		const union ddr_clk_controls_reg ddr_clk_controls = {
++			.dll_mask   = 1,
++			.vccddq_hi  = vddhi,
++			.lpddr_mode = ctrl->lpddr,
++		};
++		mchbar_write32(DDR_CLK_ch_CONTROLS(channel), ddr_clk_controls.raw);
++
++		const union ddr_cmd_controls_reg ddr_cmd_controls = {
++			.dll_mask         = 1,
++			.vccddq_hi        = vddhi,
++			.lpddr_mode       = ctrl->lpddr,
++			.early_weak_drive = 3,
++			.cmd_tx_eq        = 1,
++		};
++		mchbar_write32(DDR_CMD_ch_CONTROLS(channel), ddr_cmd_controls.raw);
++
++		const union ddr_cke_ctl_controls_reg ddr_cke_controls = {
++			.dll_mask         = 1,
++			.vccddq_hi        = vddhi,
++			.lpddr_mode       = ctrl->lpddr,
++			.early_weak_drive = 3,
++			.cmd_tx_eq        = 1,
++			.ctl_tx_eq        = 1,
++			.ctl_sr_drv       = 2,
++		};
++		mchbar_write32(DDR_CKE_ch_CTL_CONTROLS(channel), ddr_cke_controls.raw);
++
++		const union ddr_cke_ctl_controls_reg ddr_ctl_controls = {
++			.dll_mask       = 1,
++			.vccddq_hi      = vddhi,
++			.lpddr_mode     = ctrl->lpddr,
++			.ctl_tx_eq      = 1,
++			.ctl_sr_drv     = 2,
++			.la_drv_en_ovrd = 1,	/* Must be set on ULT */
++		};
++		mchbar_write32(DDR_CTL_ch_CTL_CONTROLS(channel), ddr_ctl_controls.raw);
++
++		const uint8_t cmd_pi = ctrl->lpddr ? 96 : 64;
++		mchbar_write32(DDR_CMD_ch_PI_CODING(channel), pi_code(cmd_pi));
++		mchbar_write32(DDR_CKE_ch_CMD_PI_CODING(channel), pi_code(cmd_pi));
++		mchbar_write32(DDR_CKE_CTL_ch_CTL_PI_CODING(channel), pi_code(64));
++		mchbar_write32(DDR_CLK_ch_PI_CODING(channel), pi_code(64));
++
++		mchbar_write32(DDR_CMD_ch_COMP_OFFSET(channel), 0);
++		mchbar_write32(DDR_CLK_ch_COMP_OFFSET(channel), 0);
++		mchbar_write32(DDR_CKE_CTL_ch_CTL_COMP_OFFSET(channel), 0);
++
++		for (uint8_t group = 0; group < NUM_GROUPS; group++) {
++			ctrl->cke_cmd_pi_code[channel][group] = cmd_pi;
++			ctrl->cmd_north_pi_code[channel][group] = cmd_pi;
++			ctrl->cmd_south_pi_code[channel][group] = cmd_pi;
++		}
++		for (uint8_t rank = 0; rank < NUM_SLOTRANKS; rank++) {
++			ctrl->clk_pi_code[channel][rank] = 64;
++			ctrl->ctl_pi_code[channel][rank] = 64;
++		}
++	}
++}
++
++enum {
++	RCOMP_RD_ODT = 0,
++	RCOMP_WR_DS_DQ,
++	RCOMP_WR_DS_CMD,
++	RCOMP_WR_DS_CTL,
++	RCOMP_WR_DS_CLK,
++	RCOMP_MAX_CODES,
++};
++
++struct rcomp_info {
++	uint8_t resistor;
++	uint8_t sz_steps;
++	uint8_t target_r;
++	int8_t result;
++};
++
++static void program_rcomp_vref(struct sysinfo *ctrl, const bool dis_odt_static)
++{
++	const bool is_ult = is_hsw_ult();
++	/*
++	 * +-------------------------------+
++	 * | Rcomp resistor values in ohms |
++	 * +-----------+------+------+-----+
++	 * | Ball name | Trad | ULTX | Use |
++	 * +-----------+------+------+-----+
++	 * | SM_RCOMP0 | 100  | 200  | CMD |
++	 * | SM_RCOMP1 |  75  | 120  | DQ  |
++	 * | SM_RCOMP2 | 100  | 100  | ODT |
++	 * +-----------+------+------+-----+
++	 */
++	struct rcomp_info rcomp_cfg[RCOMP_MAX_CODES] = {
++		[RCOMP_RD_ODT] = {
++			.resistor = 50,
++			.sz_steps = 96,
++			.target_r = 50,
++		},
++		[RCOMP_WR_DS_DQ] = {
++			.resistor = 25,
++			.sz_steps = 64,
++			.target_r = 33,
++		},
++		[RCOMP_WR_DS_CMD] = {
++			.resistor = 20,
++			.sz_steps = 64,
++			.target_r = 20,
++		},
++		[RCOMP_WR_DS_CTL] = {
++			.resistor = 20,
++			.sz_steps = 64,
++			.target_r = 20,
++		},
++		[RCOMP_WR_DS_CLK] = {
++			.resistor = 25,
++			.sz_steps = 64,
++			.target_r = 29,
++		},
++	};
++	if (is_ult) {
++		rcomp_cfg[RCOMP_WR_DS_DQ].resistor = 40;
++		rcomp_cfg[RCOMP_WR_DS_DQ].target_r = 40;
++		rcomp_cfg[RCOMP_WR_DS_CLK].resistor = 40;
++	} else if (ctrl->dpc[0] == 2 || ctrl->dpc[1] == 2) {
++		rcomp_cfg[RCOMP_RD_ODT].target_r = 60;
++	}
++	for (uint8_t i = 0; i < RCOMP_MAX_CODES; i++) {
++		struct rcomp_info *const r = &rcomp_cfg[i];
++		const int32_t div = 2 * (r->resistor + r->target_r);
++		assert(div);
++		const int32_t vref = (r->sz_steps * (r->resistor - r->target_r)) / div;
++
++		/* DqOdt is 5 bits wide, the other Rcomp targets are 4 bits wide */
++		const int8_t comp_limit = i == RCOMP_RD_ODT ? 16 : 8;
++		r->result = clamp_s32(-comp_limit, vref, comp_limit - 1);
++	}
++	const union ddr_comp_ctl_0_reg ddr_comp_ctl_0 = {
++		.disable_odt_static = dis_odt_static,
++		.dq_drv_vref        = rcomp_cfg[RCOMP_WR_DS_DQ].result,
++		.dq_odt_vref        = rcomp_cfg[RCOMP_RD_ODT].result,
++		.cmd_drv_vref       = rcomp_cfg[RCOMP_WR_DS_CMD].result,
++		.ctl_drv_vref       = rcomp_cfg[RCOMP_WR_DS_CTL].result,
++		.clk_drv_vref       = rcomp_cfg[RCOMP_WR_DS_CLK].result,
++	};
++	ctrl->comp_ctl_0 = ddr_comp_ctl_0;
++	mchbar_write32(DDR_COMP_CTL_0, ctrl->comp_ctl_0.raw);
++}
++
++enum {
++	SCOMP_DQ = 0,
++	SCOMP_CMD,
++	SCOMP_CTL,
++	SCOMP_CLK,
++	SCOMP_MAX_CODES,
++};
++
++static void program_slew_rates(struct sysinfo *ctrl, const bool vddhi)
++{
++	const uint8_t min_cycle_delay[SCOMP_MAX_CODES] = { 46, 70, 70, 46 };
++	uint8_t buffer_stage_delay_ps[SCOMP_MAX_CODES] = { 59, 53, 53, 53 };
++	uint16_t comp_slew_rate_codes[SCOMP_MAX_CODES];
++
++	/* CMD Slew Rate = 1.8 for 2N */
++	if (ctrl->tCMD == 2)
++		buffer_stage_delay_ps[SCOMP_CMD] = 89;
++
++	/* CMD Slew Rate = 4 V/ns for double-pumped CMD bus */
++	if (ctrl->lpddr)
++		buffer_stage_delay_ps[SCOMP_CMD] = 63;
++
++	for (uint8_t i = 0; i < SCOMP_MAX_CODES; i++) {
++		uint16_t stages = DIV_ROUND_CLOSEST(ctrl->qclkps, buffer_stage_delay_ps[i]);
++		if (stages < 5)
++			stages = 5;
++
++		bool dll_pc = buffer_stage_delay_ps[i] < min_cycle_delay[i] || stages > 16;
++
++		/* Lock DLL... */
++		if (dll_pc)
++			comp_slew_rate_codes[i] = stages / 2 - 1;        /* to a phase */
++		else
++			comp_slew_rate_codes[i] = (stages - 1) | BIT(4); /* to a cycle */
++	}
++	union ddr_comp_ctl_1_reg ddr_comp_ctl_1 = {
++		.dq_scomp       = comp_slew_rate_codes[SCOMP_DQ],
++		.cmd_scomp      = comp_slew_rate_codes[SCOMP_CMD],
++		.ctl_scomp      = comp_slew_rate_codes[SCOMP_CTL],
++		.clk_scomp      = comp_slew_rate_codes[SCOMP_CLK],
++		.vccddq_hi      = vddhi,
++	};
++	ctrl->comp_ctl_1 = ddr_comp_ctl_1;
++	mchbar_write32(DDR_COMP_CTL_1, ctrl->comp_ctl_1.raw);
++}
++
++static uint32_t ln_x100(const uint32_t input_x100)
++{
++	uint32_t val = input_x100;
++	uint32_t ret = 0;
++	while (val > 271) {
++		val = (val * 1000) / 2718;
++		ret += 100;
++	}
++	return ret + (-16 * val * val + 11578 * val - 978860) / 10000;
++}
++
++static uint32_t compute_vsshi_vref(struct sysinfo *ctrl, const uint32_t vsshi_tgt, bool up)
++{
++	const uint32_t delta = 15;
++	const uint32_t c_die_vsshi = 2000;
++	const uint32_t r_cmd_ref = 100 * 10;
++	const uint32_t offset = up ? 64 : 0;
++	const uint32_t ln_vsshi = ln_x100((100 * vsshi_tgt) / (vsshi_tgt - delta));
++	const uint32_t r_target = (ctrl->qclkps * 2000) / (c_die_vsshi * ln_vsshi);
++	const uint32_t r_dividend = 128 * (up ? r_cmd_ref : r_target);
++	return r_dividend / (r_cmd_ref + r_target) - offset;
++}
++
++static void program_vsshi(struct sysinfo *ctrl, const uint16_t vccio_mv, const uint16_t vsshi)
++{
++	const uint16_t vsshi_down = vsshi + 24; /* Panic threshold of 24 mV */
++	const uint16_t vsshi_up = vccio_mv - vsshi_down;
++	const union ddr_comp_vsshi_reg ddr_comp_vsshi = {
++		.panic_drv_down_vref = compute_vsshi_vref(ctrl, vsshi_down, false),
++		.panic_drv_up_vref   = compute_vsshi_vref(ctrl, vsshi_up, true),
++		.vt_offset           = 128 * 450 / vccio_mv / 2,
++		.vt_slope_a          = 4,
++	};
++	mchbar_write32(DDR_COMP_VSSHI, ddr_comp_vsshi.raw);
++}
++
++static void program_misc(struct sysinfo *ctrl)
++{
++	ctrl->misc_control_0.raw = mchbar_read32(DDR_SCRAM_MISC_CONTROL);
++	ctrl->misc_control_0.weaklock_latency = 12;
++	ctrl->misc_control_0.wl_sleep_cycles  =  5;
++	ctrl->misc_control_0.wl_wake_cycles   =  2;
++	mchbar_write32(DDR_SCRAM_MISC_CONTROL, ctrl->misc_control_0.raw);
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		/* Keep scrambling disabled for training */
++		mchbar_write32(DDR_SCRAMBLE_ch(channel), 0);
++	}
++}
++
++/* Very weird, application-specific function */
++static void override_comp(uint32_t value, uint32_t width, uint32_t shift, uint32_t offset)
++{
++	const uint32_t mask = (1 << width) - 1;
++	uint32_t reg32 = mchbar_read32(offset);
++	reg32 &= ~(mask << shift);
++	reg32 |= (value << shift);
++	mchbar_write32(offset, reg32);
++}
++
++static void program_ls_comp(struct sysinfo *ctrl)
++{
++	/* Disable periodic COMP */
++	const union pcu_comp_reg m_comp = {
++		.comp_disable  = 1,
++		.comp_interval = COMP_INT,
++		.comp_force    = 1,
++	};
++	mchbar_write32(M_COMP, m_comp.raw);
++	udelay(10);
++
++	/* Override level shifter compensation */
++	const uint32_t ls_comp = 2;
++	override_comp(ls_comp, 3, 28, DDR_DATA_RCOMP_DATA_1);
++	override_comp(ls_comp, 3, 24, DDR_CMD_COMP);
++	override_comp(ls_comp, 3, 24, DDR_CKE_CTL_COMP);
++	override_comp(ls_comp, 3, 23, DDR_CLK_COMP);
++	override_comp(ls_comp, 3, 28, DDR_COMP_DATA_COMP_1);
++	override_comp(ls_comp, 3, 24, DDR_COMP_CMD_COMP);
++	override_comp(ls_comp, 4, 24, DDR_COMP_CTL_COMP);
++	override_comp(ls_comp, 4, 23, DDR_COMP_CLK_COMP);
++	override_comp(ls_comp, 3, 24, DDR_COMP_OVERRIDE);
++
++	/* Manually update the COMP values */
++	union ddr_scram_misc_control_reg ddr_scram_misc_ctrl = ctrl->misc_control_0;
++	ddr_scram_misc_ctrl.force_comp_update = 1;
++	mchbar_write32(DDR_SCRAM_MISC_CONTROL, ddr_scram_misc_ctrl.raw);
++
++	/* Use a fixed offset between ODT Up/Dn */
++	const union ddr_comp_data_comp_1_reg data_comp_1 = {
++		.raw = mchbar_read32(DDR_COMP_DATA_COMP_1),
++	};
++	const uint32_t odt_offset = data_comp_1.rcomp_odt_down - data_comp_1.rcomp_odt_up;
++	ctrl->comp_ctl_0.odt_up_down_off  = odt_offset;
++	ctrl->comp_ctl_0.fixed_odt_offset = 1;
++	mchbar_write32(DDR_COMP_CTL_0, ctrl->comp_ctl_0.raw);
++}
++
++/** TODO: Deduplicate PCODE stuff, it's already implemented in CPU code **/
++static bool pcode_ready(void)
++{
++	const unsigned int delay_step = 10;
++	for (unsigned int i = 0; i < 1000; i += delay_step) {
++		if (!(mchbar_read32(BIOS_MAILBOX_INTERFACE) & MAILBOX_RUN_BUSY))
++			return true;
++
++		udelay(delay_step);
++	};
++	return false;
++}
++
++static uint32_t pcode_mailbox_read(const uint32_t command)
++{
++	if (!pcode_ready()) {
++		printk(BIOS_ERR, "PCODE: mailbox timeout on wait ready\n");
++		return 0;
++	}
++	mchbar_write32(BIOS_MAILBOX_INTERFACE, command | MAILBOX_RUN_BUSY);
++	if (!pcode_ready()) {
++		printk(BIOS_ERR, "PCODE: mailbox timeout on completion\n");
++		return 0;
++	}
++	return mchbar_read32(BIOS_MAILBOX_DATA);
++}
++
++static int pcode_mailbox_write(const uint32_t command, const uint32_t data)
++{
++	if (!pcode_ready()) {
++		printk(BIOS_ERR, "PCODE: mailbox timeout on wait ready\n");
++		return -1;
++	}
++	mchbar_write32(BIOS_MAILBOX_DATA, data);
++	mchbar_write32(BIOS_MAILBOX_INTERFACE, command | MAILBOX_RUN_BUSY);
++	if (!pcode_ready()) {
++		printk(BIOS_ERR, "PCODE: mailbox timeout on completion\n");
++		return -1;
++	}
++	return 0;
++}
++
++static void enable_2x_refresh(struct sysinfo *ctrl)
++{
++	if (!CONFIG(ENABLE_DDR_2X_REFRESH)) {
++		return;
++	}
++
++	printk(BIOS_DEBUG, "Enabling 2x Refresh\n");
++	const bool asr = ctrl->flags.asr;
++	const bool lpddr = ctrl->lpddr;
++
++	/* Mutually exclusive */
++	assert(!asr || !lpddr);
++	if (!asr) {
++		uint32_t desired_cfg = 0;
++		desired_cfg |= BIT(0);	/* Enable 2x refresh */
++		desired_cfg |= BIT(31);	/* Lock */
++		if (lpddr) {
++			desired_cfg |= 4 << 1;	/* LPDDR MR4 1/2 tREFI */
++		}
++		uint32_t reg32 = pcode_mailbox_read(MAILBOX_BIOS_CMD_READ_DDR_2X_REFRESH);
++		if (reg32 & BIT(31)) {
++			/* Locked, check if programmed correctly */
++			const uint32_t current_cfg = reg32;
++			if (current_cfg != desired_cfg) {
++				printk(BIOS_ERR,
++					"Mailbox 2x Refresh locked with wrong values: %x != %x",
++					current_cfg, desired_cfg);
++			}
++		} else {
++			/* Not locked, program desired value */
++			reg32 |= desired_cfg;
++			if (pcode_mailbox_write(MAILBOX_BIOS_CMD_WRITE_DDR_2X_REFRESH, reg32)) {
++				printk(BIOS_ERR, "Could not enable Mailbox 2x Refresh\n");
++			}
++		}
++		if (!lpddr) {
++			return;
++		}
++	}
++	assert(asr || lpddr);
++	uint16_t refi_reduction = 50;
++	if (lpddr) {
++		refi_reduction = 97;
++		mchbar_clrbits32(PCU_DDR_PTM_CTL, 1 << 7); /* DISABLE_DRAM_TS */
++	}
++	/* tREFI is saved in cache, so only update it in cold boots */
++	if (ctrl->bootmode == BOOTMODE_COLD) {
++		ctrl->tREFI *= refi_reduction;
++		ctrl->tREFI /= 100;
++	}
++}
++
++static void set_pcu_ddr_voltage(const uint16_t vdd_mv)
++{
++	/** TODO: Handle other voltages? **/
++	uint32_t pcu_ddr_voltage;
++	switch (vdd_mv) {
++	case 1200:
++		pcu_ddr_voltage = 3;
++		break;
++	case 1350:
++		pcu_ddr_voltage = 1;
++		break;
++	default:
++	case 1500:
++		pcu_ddr_voltage = 0;
++		break;
++	}
++	/* Set bits 0..2 */
++	mchbar_write32(PCU_DDR_VOLTAGE, pcu_ddr_voltage);
++}
++
++static void program_scheduler(struct sysinfo *ctrl)
++{
++	/*
++	 * ZQ calibration needs to be serialized for LPDDR3. Otherwise,
++	 * the processor issues LPDDR3 ZQ calibration in parallel when
++	 * exiting Package C7 or deeper. This causes problems for dual
++	 * and quad die packages since all ranks share the same ZQ pin.
++	 *
++	 * Erratum HSM94: LPDDR3 ZQ Calibration Following Deep Package
++	 * C-state Exit May Lead to Unpredictable System Behavior
++	 */
++	const union mcscheds_cbit_reg mcscheds_cbit = {
++		.dis_write_gap = 1,
++		.dis_odt       = is_hsw_ult() && !(ctrl->lpddr && ctrl->lpddr_dram_odt),
++		.serialize_zq  = ctrl->lpddr,
++	};
++	mchbar_write32(MCSCHEDS_CBIT, mcscheds_cbit.raw);
++	mchbar_write32(MCMNTS_SC_WDBWM, 0x553c3038);
++	if (ctrl->lpddr) {
++		for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++			if (!does_ch_exist(ctrl, channel))
++				continue;
++
++			union mcmain_command_rate_limit_reg cmd_rate_limit = {
++				.raw = mchbar_read32(COMMAND_RATE_LIMIT_ch(channel)),
++			};
++			cmd_rate_limit.enable_cmd_limit = 1;
++			cmd_rate_limit.cmd_rate_limit   = 3;
++			mchbar_write32(COMMAND_RATE_LIMIT_ch(channel), cmd_rate_limit.raw);
++		}
++	}
++}
++
++static uint8_t biggest_channel(const struct sysinfo *const ctrl)
++{
++	_Static_assert(NUM_CHANNELS == 2, "Code assumes exactly two channels");
++	return !!(ctrl->channel_size_mb[0] < ctrl->channel_size_mb[1]);
++}
++
++static void dram_zones(struct sysinfo *ctrl)
++{
++	/** TODO: Activate channel hash here, if enabled **/
++	const uint8_t biggest = biggest_channel(ctrl);
++	const uint8_t smaller = !biggest;
++
++	/** TODO: Use stacked mode if Memory Trace is enabled **/
++	const union mad_chnl_reg mad_channel = {
++		.ch_a       = biggest,
++		.ch_b       = smaller,
++		.ch_c       = 2,
++		.lpddr_mode = ctrl->lpddr,
++	};
++	mchbar_write32(MAD_CHNL, mad_channel.raw);
++
++	const uint8_t channel_b_zone_size = ctrl->channel_size_mb[smaller] / 256;
++	const union mad_zr_reg mad_zr = {
++		.ch_b_double = channel_b_zone_size * 2,
++		.ch_b_single = channel_b_zone_size,
++	};
++	mchbar_write32(MAD_ZR, mad_zr.raw);
++}
++
++static uint8_t biggest_dimm(const struct raminit_dimm_info *dimms)
++{
++	_Static_assert(NUM_SLOTS <= 2, "Code assumes at most two DIMMs per channel.");
++	if (NUM_SLOTS == 1)
++		return 0;
++
++	return !!(dimms[0].data.size_mb < dimms[1].data.size_mb);
++}
++
++static void dram_dimm_mapping(struct sysinfo *ctrl)
++{
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		if (!does_ch_exist(ctrl, channel)) {
++			const union mad_dimm_reg mad_dimm = {
++				.rank_interleave = 1,
++				.enh_interleave  = 1,
++			};
++			mchbar_write32(MAD_DIMM(channel), mad_dimm.raw);
++			continue;
++		}
++		const uint8_t biggest = biggest_dimm(ctrl->dimms[channel]);
++		const uint8_t smaller = !biggest;
++		const struct dimm_attr_ddr3_st *dimm_a = &ctrl->dimms[channel][biggest].data;
++		const struct dimm_attr_ddr3_st *dimm_b = &ctrl->dimms[channel][smaller].data;
++		union mad_dimm_reg mad_dimm = {
++			.dimm_a_size     = dimm_a->size_mb / 256,
++			.dimm_b_size     = dimm_b->size_mb / 256,
++			.dimm_a_sel      = biggest,
++			.dimm_a_ranks    = dimm_a->ranks == 2,
++			.dimm_b_ranks    = dimm_b->ranks == 2,
++			.dimm_a_width    = dimm_a->width == 16,
++			.dimm_b_width    = dimm_b->width == 16,
++			.rank_interleave = 1,
++			.enh_interleave  = 1,
++			.ecc_mode        = 0,	/* Do not enable ECC yet */
++		};
++		if (is_hsw_ult())
++			mad_dimm.dimm_b_width = mad_dimm.dimm_a_width;
++
++		mchbar_write32(MAD_DIMM(channel), mad_dimm.raw);
++		if (ctrl->lpddr)
++			die("%s: Missing LPDDR support (LPDDR_MR_PARAMS)\n", __func__);
++	}
++}
++
++enum raminit_status configure_mc(struct sysinfo *ctrl)
++{
++	const uint16_t vccio_mv = 1000;
++	const uint16_t vsshi_mv = ctrl->vdd_mv - 950;
++	const bool dis_odt_static = is_hsw_ult(); /* Disable static ODT legs on ULT */
++	const bool vddhi = ctrl->vdd_mv > 1350;
++
++	program_misc_control(ctrl);
++	program_mrc_revision();
++	program_ranks_used(ctrl);
++	program_ddr_data(ctrl, dis_odt_static, vddhi);
++	program_vsshi_control(ctrl, vsshi_mv);
++	program_dimm_vref(ctrl, vccio_mv, vddhi);
++	program_ddr_ca(ctrl, vddhi);
++	program_rcomp_vref(ctrl, dis_odt_static);
++	program_slew_rates(ctrl, vddhi);
++	program_vsshi(ctrl, vccio_mv, vsshi_mv);
++	program_misc(ctrl);
++	program_ls_comp(ctrl);
++	enable_2x_refresh(ctrl);
++	set_pcu_ddr_voltage(ctrl->vdd_mv);
++	configure_timings(ctrl);
++	configure_refresh(ctrl);
++	program_scheduler(ctrl);
++	dram_zones(ctrl);
++	dram_dimm_mapping(ctrl);
++
++	return RAMINIT_STATUS_SUCCESS;
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_main.c b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+index 28a7895ce3..a13ae5641e 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_main.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+@@ -23,6 +23,7 @@ static const struct task_entry cold_boot[] = {
+ 	{ collect_spd_info,                                       true, "PROCSPD",    },
+ 	{ initialise_mpll,                                        true, "INITMPLL",   },
+ 	{ convert_timings,                                        true, "CONVTIM",    },
++	{ configure_mc,                                           true, "CONFMC",     },
+ };
+ 
+ /* Return a generic stepping value to make stepping checks simpler */
+@@ -54,6 +55,7 @@ static void initialize_ctrl(struct sysinfo *ctrl)
+ 
+ 	ctrl->cpu = cpu_get_cpuid();
+ 	ctrl->stepping = get_stepping(ctrl->cpu);
++	ctrl->vdd_mv = is_hsw_ult() ? 1350 : 1500; /** FIXME: Hardcoded, does it matter? **/
+ 	ctrl->dq_pins_interleaved = cfg->dq_pins_interleaved;
+ 	ctrl->bootmode = bootmode;
+ }
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index e0ebd3a2a7..fffa6d5450 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -3,16 +3,41 @@
+ #ifndef HASWELL_RAMINIT_NATIVE_H
+ #define HASWELL_RAMINIT_NATIVE_H
+ 
++#include <assert.h>
+ #include <device/dram/ddr3.h>
+ #include <northbridge/intel/haswell/haswell.h>
++#include <string.h>
++#include <types.h>
++
++#include "reg_structs.h"
+ 
+ /** TODO (Angel): Remove this after in-review patches are submitted **/
+ #define SPD_LEN SPD_SIZE_MAX_DDR3
+ 
++/* Each channel has 4 ranks, spread across 2 slots */
++#define NUM_SLOTRANKS		4
++
++#define NUM_GROUPS		2
++
+ /* 8 data lanes + 1 ECC lane */
+ #define NUM_LANES		9
+ #define NUM_LANES_NO_ECC	8
+ 
++#define COMP_INT		10
++
++/* Always use 12 legs for emphasis (not trained) */
++#define TXEQFULLDRV		(3 << 4)
++
++enum command_training_iteration {
++	CT_ITERATION_CLOCK = 0,
++	CT_ITERATION_CMD_NORTH,
++	CT_ITERATION_CMD_SOUTH,
++	CT_ITERATION_CKE,
++	CT_ITERATION_CTL,
++	CT_ITERATION_CMD_VREF,
++	MAX_CT_ITERATION,
++};
++
+ enum raminit_boot_mode {
+ 	BOOTMODE_COLD,
+ 	BOOTMODE_WARM,
+@@ -58,6 +83,9 @@ struct sysinfo {
+ 	 * LPDDR-specific functions have stubs which will halt upon execution.
+ 	 */
+ 	bool lpddr;
++	bool lpddr_dram_odt;
++	uint8_t lpddr_cke_rank_map[NUM_CHANNELS];
++	uint8_t dq_byte_map[NUM_CHANNELS][MAX_CT_ITERATION][2];
+ 
+ 	struct raminit_dimm_info dimms[NUM_CHANNELS][NUM_SLOTS];
+ 	union dimm_flags_ddr3_st flags;
+@@ -94,16 +122,89 @@ struct sysinfo {
+ 	uint32_t mem_clock_mhz;
+ 	uint32_t mem_clock_fs;		/* Memory clock period in femtoseconds */
+ 	uint32_t qclkps;		/* Quadrature clock period in picoseconds */
++
++	uint16_t vdd_mv;
++
++	union ddr_scram_misc_control_reg misc_control_0;
++
++	union ddr_comp_ctl_0_reg comp_ctl_0;
++	union ddr_comp_ctl_1_reg comp_ctl_1;
++
++	union ddr_data_vref_adjust_reg dimm_vref;
++
++	uint32_t data_offset_train[NUM_CHANNELS][NUM_LANES];
++	uint32_t data_offset_comp[NUM_CHANNELS][NUM_LANES];
++
++	uint32_t dq_control_0[NUM_CHANNELS];
++	uint32_t dq_control_1[NUM_CHANNELS][NUM_LANES];
++	uint32_t dq_control_2[NUM_CHANNELS][NUM_LANES];
++
++	uint16_t tx_dq[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	uint16_t txdqs[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	uint8_t  tx_eq[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++
++	uint16_t rcven[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	uint8_t  rx_eq[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	uint8_t rxdqsp[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	uint8_t rxdqsn[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++	int8_t  rxvref[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
++
++	uint8_t clk_pi_code[NUM_CHANNELS][NUM_SLOTRANKS];
++	uint8_t ctl_pi_code[NUM_CHANNELS][NUM_SLOTRANKS];
++	uint8_t cke_pi_code[NUM_CHANNELS][NUM_SLOTRANKS];
++
++	uint8_t cke_cmd_pi_code[NUM_CHANNELS][NUM_GROUPS];
++	uint8_t cmd_north_pi_code[NUM_CHANNELS][NUM_GROUPS];
++	uint8_t cmd_south_pi_code[NUM_CHANNELS][NUM_GROUPS];
+ };
+ 
++static inline bool is_hsw_ult(void)
++{
++	return CONFIG(INTEL_LYNXPOINT_LP);
++}
++
++static inline bool rank_in_mask(uint8_t rank, uint8_t rankmask)
++{
++	assert(rank < NUM_SLOTRANKS);
++	return !!(BIT(rank) & rankmask);
++}
++
++static inline bool does_ch_exist(const struct sysinfo *ctrl, uint8_t channel)
++{
++	return !!ctrl->dpc[channel];
++}
++
++static inline bool does_rank_exist(const struct sysinfo *ctrl, uint8_t rank)
++{
++	return rank_in_mask(rank, ctrl->rankmap[0] | ctrl->rankmap[1]);
++}
++
++static inline bool rank_in_ch(const struct sysinfo *ctrl, uint8_t rank, uint8_t channel)
++{
++	assert(channel < NUM_CHANNELS);
++	return rank_in_mask(rank, ctrl->rankmap[channel]);
++}
++
++/** TODO: Handling of data_offset_train could be improved, also coupled with reg updates **/
++static inline void clear_data_offset_train_all(struct sysinfo *ctrl)
++{
++	memset(ctrl->data_offset_train, 0, sizeof(ctrl->data_offset_train));
++}
++
+ void raminit_main(enum raminit_boot_mode bootmode);
+ 
+ enum raminit_status collect_spd_info(struct sysinfo *ctrl);
+ enum raminit_status initialise_mpll(struct sysinfo *ctrl);
+ enum raminit_status convert_timings(struct sysinfo *ctrl);
++enum raminit_status configure_mc(struct sysinfo *ctrl);
++
++void configure_timings(struct sysinfo *ctrl);
++void configure_refresh(struct sysinfo *ctrl);
+ 
+ enum raminit_status wait_for_first_rcomp(void);
+ 
++uint8_t get_rx_bias(const struct sysinfo *ctrl);
++
+ uint8_t get_tCWL(uint32_t mem_clock_mhz);
+ uint32_t get_tREFI(uint32_t mem_clock_mhz);
+ uint32_t get_tXP(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/native_raminit/reg_structs.h b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+new file mode 100644
+index 0000000000..d11cda4b3d
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/reg_structs.h
+@@ -0,0 +1,405 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#ifndef HASWELL_RAMINIT_REG_STRUCTS_H
++#define HASWELL_RAMINIT_REG_STRUCTS_H
++
++union ddr_data_rx_train_rank_reg {
++	struct __packed {
++		uint32_t rcven : 9; // Bits  8:0
++		uint32_t dqs_p : 6; // Bits 14:9
++		uint32_t rx_eq : 5; // Bits 19:15
++		uint32_t dqs_n : 6; // Bits 25:20
++		int32_t  vref  : 6; // Bits 31:26
++	};
++	uint32_t raw;
++};
++
++union ddr_data_tx_train_rank_reg {
++	struct __packed {
++		uint32_t dq_delay  : 9; // Bits  8:0
++		uint32_t dqs_delay : 9; // Bits 17:9
++		uint32_t           : 2; // Bits 19:18
++		uint32_t tx_eq     : 6; // Bits 25:20
++		uint32_t           : 6; // Bits 31:26
++	};
++	uint32_t raw;
++};
++
++union ddr_data_control_0_reg {
++	struct __packed {
++		uint32_t rx_training_mode      : 1; // Bits  0:0
++		uint32_t wl_training_mode      : 1; // Bits  1:1
++		uint32_t rl_training_mode      : 1; // Bits  2:2
++		uint32_t samp_train_mode       : 1; // Bits  3:3
++		uint32_t tx_on                 : 1; // Bits  4:4
++		uint32_t rf_on                 : 1; // Bits  5:5
++		uint32_t rx_pi_on              : 1; // Bits  6:6
++		uint32_t tx_pi_on              : 1; // Bits  7:7
++		uint32_t internal_clocks_on    : 1; // Bits  8:8
++		uint32_t repeater_clocks_on    : 1; // Bits  9:9
++		uint32_t tx_disable            : 1; // Bits 10:10
++		uint32_t rx_disable            : 1; // Bits 11:11
++		uint32_t tx_long               : 1; // Bits 12:12
++		uint32_t rx_dqs_ctle           : 2; // Bits 14:13
++		uint32_t rx_read_pointer       : 3; // Bits 17:15
++		uint32_t driver_segment_enable : 1; // Bits 18:18
++		uint32_t data_vccddq_hi        : 1; // Bits 19:19
++		uint32_t read_rf_rd            : 1; // Bits 20:20
++		uint32_t read_rf_wr            : 1; // Bits 21:21
++		uint32_t read_rf_rank          : 2; // Bits 23:22
++		uint32_t force_odt_on          : 1; // Bits 24:24
++		uint32_t odt_samp_off          : 1; // Bits 25:25
++		uint32_t disable_odt_static    : 1; // Bits 26:26
++		uint32_t ddr_cr_force_odt_on   : 1; // Bits 27:27
++		uint32_t lpddr_mode            : 1; // Bits 28:28
++		uint32_t en_read_preamble      : 1; // Bits 29:29
++		uint32_t odt_samp_extend_en    : 1; // Bits 30:30
++		uint32_t early_rleak_en        : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_data_control_1_reg {
++	struct __packed {
++		int32_t  ref_pi               : 4; // Bits 3:0
++		uint32_t dll_mask             : 2; // Bits 5:4
++		uint32_t dll_weaklock         : 1; // Bits 6:6
++		uint32_t sdll_segment_disable : 3; // Bits 9:7
++		uint32_t rx_bias_ctl          : 3; // Bits 12:10
++		int32_t  odt_delay            : 4; // Bits 16:13
++		uint32_t odt_duration         : 3; // Bits 19:17
++		int32_t  sense_amp_delay      : 4; // Bits 23:20
++		uint32_t sense_amp_duration   : 3; // Bits 26:24
++		uint32_t burst_end_odt_delay  : 3; // Bits 29:27   *** TODO: Check Broadwell ***
++		uint32_t lpddr_long_odt_en    : 1; // Bits 30:30
++		uint32_t                      : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++/* NOTE: Bits 31:19 are only valid for Broadwell onwards */
++union ddr_data_control_2_reg {
++	struct __packed {
++		uint32_t rx_stagger_ctl    : 5; // Bits  4:0
++		uint32_t force_bias_on     : 1; // Bits  5:5
++		uint32_t force_rx_on       : 1; // Bits  6:6
++		uint32_t leaker_comp       : 2; // Bits  8:7
++		uint32_t rx_dqs_amp_offset : 4; // Bits 12:9
++		uint32_t rx_clk_stg_num    : 5; // Bits 17:13
++		uint32_t wl_long_delay     : 1; // Bits 18:18
++		uint32_t enable_vref_pwrdn : 1; // Bits 19:19
++		uint32_t ddr4_mode         : 1; // Bits 20:20
++		uint32_t en_vddq_odt       : 1; // Bits 21:21
++		uint32_t en_vtt_odt        : 1; // Bits 22:22
++		uint32_t en_const_z_eq_tx  : 1; // Bits 23:23
++		uint32_t tx_eq_dis         : 1; // Bits 24:24
++		uint32_t rx_vref_prog_mfc  : 1; // Bits 25:25
++		uint32_t cben              : 3; // Bits 28:26
++		uint32_t tx_deskew_disable : 1; // Bits 29:29
++		uint32_t rx_deskew_disable : 1; // Bits 30:30
++		uint32_t dq_slew_dly_byp   : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_comp_data_comp_1_reg {
++	struct __packed {
++		uint32_t rcomp_odt_up   : 6; // Bits  5:0
++		uint32_t                : 3; // Bits  8:6
++		uint32_t rcomp_odt_down : 6; // Bits 14:9
++		uint32_t                : 1; // Bits 15:15
++		uint32_t panic_drv_down : 6; // Bits 21:16
++		uint32_t panic_drv_up   : 6; // Bits 27:22
++		uint32_t ls_comp        : 3; // Bits 30:28
++		uint32_t                : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_comp_ctl_0_reg {
++	struct __packed {
++		uint32_t                    : 3; // Bits  2:0
++		uint32_t disable_odt_static : 1; // Bits  3:3
++		uint32_t odt_up_down_off    : 6; // Bits  9:4
++		uint32_t fixed_odt_offset   : 1; // Bits 10:10
++		int32_t  dq_drv_vref        : 4; // Bits 14:11
++		int32_t  dq_odt_vref        : 5; // Bits 19:15
++		int32_t  cmd_drv_vref       : 4; // Bits 23:20
++		int32_t  ctl_drv_vref       : 4; // Bits 27:24
++		int32_t  clk_drv_vref       : 4; // Bits 31:28
++	};
++	uint32_t raw;
++};
++
++union ddr_comp_ctl_1_reg {
++	struct __packed {
++		uint32_t dq_scomp       : 5; // Bits  4:0
++		uint32_t cmd_scomp      : 5; // Bits  9:5
++		uint32_t ctl_scomp      : 5; // Bits 14:10
++		uint32_t clk_scomp      : 5; // Bits 19:15
++		uint32_t tco_cmd_offset : 4; // Bits 23:20
++		uint32_t comp_clk_on    : 1; // Bits 24:24
++		uint32_t vccddq_hi      : 1; // Bits 25:25
++		uint32_t                : 3; // Bits 28:26
++		uint32_t dis_quick_comp : 1; // Bits 29:29
++		uint32_t sin_step       : 1; // Bits 30:30
++		uint32_t sin_step_adv   : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_data_vref_adjust_reg {
++	struct __packed {
++		int32_t  ca_vref_ctrl     : 7;// Bits  6:0
++		int32_t  ch1_vref_ctrl    : 7;// Bits 13:7
++		int32_t  ch0_vref_ctrl    : 7;// Bits 20:14
++		uint32_t en_dimm_vref_ca  : 1;// Bits 21:21
++		uint32_t en_dimm_vref_ch1 : 1;// Bits 22:22
++		uint32_t en_dimm_vref_ch0 : 1;// Bits 23:23
++		uint32_t hi_z_timer_ctrl  : 2;// Bits 25:24
++		uint32_t vccddq_hi_qnnn_h : 1;// Bits 26:26
++		uint32_t                  : 2;// Bits 28:27
++		uint32_t ca_slow_bw       : 1;// Bits 29:29
++		uint32_t ch0_slow_bw      : 1;// Bits 30:30
++		uint32_t ch1_slow_bw      : 1;// Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_data_vref_control_reg {
++	struct __packed {
++		uint32_t hi_bw_divider   : 2; // Bits  1:0
++		uint32_t lo_bw_divider   : 2; // Bits  3:2
++		uint32_t sample_divider  : 3; // Bits  6:4
++		uint32_t open_loop       : 1; // Bits  7:7
++		uint32_t slow_bw_error   : 2; // Bits  9:8
++		uint32_t hi_bw_enable    : 1; // Bits 10:10
++		uint32_t                 : 1; // Bits 11:11
++		uint32_t vt_slope_b      : 3; // Bits 14:12
++		uint32_t vt_slope_a      : 3; // Bits 17:15
++		uint32_t vt_offset       : 3; // Bits 20:18
++		uint32_t sel_code        : 3; // Bits 23:21
++		uint32_t output_code     : 8; // Bits 31:24
++	};
++	uint32_t raw;
++};
++
++union ddr_comp_vsshi_reg {
++	struct __packed {
++		uint32_t panic_drv_down_vref : 6; // Bits  5:0
++		uint32_t panic_drv_up_vref   : 6; // Bits 11:6
++		uint32_t vt_offset           : 5; // Bits 16:12
++		uint32_t vt_slope_a          : 3; // Bits 19:17
++		uint32_t vt_slope_b          : 3; // Bits 22:20
++		uint32_t                     : 9; // Bits 31:23
++	};
++	uint32_t raw;
++};
++
++union ddr_comp_vsshi_control_reg {
++	struct __packed {
++		uint32_t vsshi_target    : 6; // Bits  5:0
++		uint32_t hi_bw_divider   : 2; // Bits  7:6
++		uint32_t lo_bw_divider   : 2; // Bits  9:8
++		uint32_t sample_divider  : 3; // Bits 12:10
++		uint32_t open_loop       : 1; // Bits 13:13
++		uint32_t bw_error        : 2; // Bits 15:14
++		uint32_t panic_driver_en : 1; // Bits 16:16
++		uint32_t                 : 1; // Bits 17:17
++		uint32_t panic_voltage   : 4; // Bits 21:18
++		uint32_t gain_boost      : 1; // Bits 22:22
++		uint32_t sel_code        : 1; // Bits 23:23
++		uint32_t output_code     : 8; // Bits 31:24
++	};
++	uint32_t raw;
++};
++
++union ddr_clk_controls_reg {
++	struct __packed {
++		uint32_t ref_pi             : 4; // Bits  3:0
++		uint32_t dll_mask           : 2; // Bits  5:4
++		uint32_t                    : 1; // Bits  6:6
++		uint32_t tx_on              : 1; // Bits  7:7
++		uint32_t internal_clocks_on : 1; // Bits  8:8
++		uint32_t repeater_clocks_on : 1; // Bits  9:9
++		uint32_t io_lb_ctl          : 2; // Bits 11:10
++		uint32_t odt_mode           : 1; // Bits 12:12
++		uint32_t                    : 8; // Bits 20:13
++		uint32_t rx_vref            : 6; // Bits 26:21
++		uint32_t vccddq_hi          : 1; // Bits 27:27
++		uint32_t dll_weaklock       : 1; // Bits 28:28
++		uint32_t lpddr_mode         : 1; // Bits 29:29
++		uint32_t                    : 2; // Bits 31:30
++	};
++	uint32_t raw;
++};
++
++union ddr_cmd_controls_reg {
++	struct __packed {
++		int32_t  ref_pi             : 4; // Bits  3:0
++		uint32_t dll_mask           : 2; // Bits  5:4
++		uint32_t                    : 1; // Bits  6:6
++		uint32_t tx_on              : 1; // Bits  7:7
++		uint32_t internal_clocks_on : 1; // Bits  8:8
++		uint32_t repeater_clocks_on : 1; // Bits  9:9
++		uint32_t io_lb_ctl          : 2; // Bits 11:10
++		uint32_t odt_mode           : 1; // Bits 12:12
++		uint32_t cmd_tx_eq          : 2; // Bits 14:13
++		uint32_t early_weak_drive   : 2; // Bits 16:15
++		uint32_t                    : 4; // Bits 20:17
++		int32_t  rx_vref            : 6; // Bits 26:21
++		uint32_t vccddq_hi          : 1; // Bits 27:27
++		uint32_t dll_weaklock       : 1; // Bits 28:28
++		uint32_t lpddr_mode         : 1; // Bits 29:29
++		uint32_t lpddr_ca_a_dis     : 1; // Bits 30:30
++		uint32_t lpddr_ca_b_dis     : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++/* Same register definition for CKE and CTL fubs */
++union ddr_cke_ctl_controls_reg {
++	struct __packed {
++		int32_t  ref_pi             : 4; // Bits  3:0
++		uint32_t dll_mask           : 2; // Bits  5:4
++		uint32_t                    : 1; // Bits  6:6
++		uint32_t tx_on              : 1; // Bits  7:7
++		uint32_t internal_clocks_on : 1; // Bits  8:8
++		uint32_t repeater_clocks_on : 1; // Bits  9:9
++		uint32_t io_lb_ctl          : 2; // Bits 11:10
++		uint32_t odt_mode           : 1; // Bits 12:12
++		uint32_t cmd_tx_eq          : 2; // Bits 14:13
++		uint32_t early_weak_drive   : 2; // Bits 16:15
++		uint32_t ctl_tx_eq          : 2; // Bits 18:17
++		uint32_t ctl_sr_drv         : 2; // Bits 20:19
++		int32_t  rx_vref            : 6; // Bits 26:21
++		uint32_t vccddq_hi          : 1; // Bits 27:27
++		uint32_t dll_weaklock       : 1; // Bits 28:28
++		uint32_t lpddr_mode         : 1; // Bits 29:29
++		uint32_t la_drv_en_ovrd     : 1; // Bits 30:30
++		uint32_t lpddr_ca_a_dis     : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union ddr_scram_misc_control_reg {
++	struct __packed {
++		uint32_t wl_wake_cycles       :  2; // Bits  1:0
++		uint32_t wl_sleep_cycles      :  3; // Bits  4:2
++		uint32_t force_comp_update    :  1; // Bits  5:5
++		uint32_t weaklock_latency     :  4; // Bits  9:6
++		uint32_t ddr_no_ch_interleave :  1; // Bits 10:10
++		uint32_t lpddr_mode           :  1; // Bits 11:11
++		uint32_t cke_mapping_ch0      :  4; // Bits 15:12
++		uint32_t cke_mapping_ch1      :  4; // Bits 19:16
++		uint32_t                      : 12; // Bits 31:20
++	};
++	uint32_t raw;
++};
++
++union mcscheds_cbit_reg {
++	struct __packed {
++		uint32_t dis_opp_cas    : 1; // Bits  0:0
++		uint32_t dis_opp_is_cas : 1; // Bits  1:1
++		uint32_t dis_opp_ras    : 1; // Bits  2:2
++		uint32_t dis_opp_is_ras : 1; // Bits  3:3
++		uint32_t dis_1c_byp     : 1; // Bits  4:4
++		uint32_t dis_2c_byp     : 1; // Bits  5:5
++		uint32_t dis_deprd_opt  : 1; // Bits  6:6
++		uint32_t dis_pt_it      : 1; // Bits  7:7
++		uint32_t dis_prcnt_ring : 1; // Bits  8:8
++		uint32_t dis_prcnt_sa   : 1; // Bits  9:9
++		uint32_t dis_blkr_ph    : 1; // Bits 10:10
++		uint32_t dis_blkr_pe    : 1; // Bits 11:11
++		uint32_t dis_blkr_pm    : 1; // Bits 12:12
++		uint32_t dis_odt        : 1; // Bits 13:13
++		uint32_t oe_always_off  : 1; // Bits 14:14
++		uint32_t                : 1; // Bits 15:15
++		uint32_t dis_aom        : 1; // Bits 16:16
++		uint32_t block_rpq      : 1; // Bits 17:17
++		uint32_t block_wpq      : 1; // Bits 18:18
++		uint32_t invert_align   : 1; // Bits 19:19
++		uint32_t dis_write_gap  : 1; // Bits 20:20
++		uint32_t dis_zq         : 1; // Bits 21:21
++		uint32_t dis_tt         : 1; // Bits 22:22
++		uint32_t dis_opp_ref    : 1; // Bits 23:23
++		uint32_t long_zq        : 1; // Bits 24:24
++		uint32_t dis_srx_zq     : 1; // Bits 25:25
++		uint32_t serialize_zq   : 1; // Bits 26:26
++		uint32_t zq_fast_exec   : 1; // Bits 27:27
++		uint32_t dis_drive_nop  : 1; // Bits 28:28
++		uint32_t pres_wdb_ent   : 1; // Bits 29:29
++		uint32_t dis_clk_gate   : 1; // Bits 30:30
++		uint32_t                : 1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union mcmain_command_rate_limit_reg {
++	struct __packed {
++		uint32_t enable_cmd_limit :  1; // Bits  0:0
++		uint32_t cmd_rate_limit   :  3; // Bits  3:1
++		uint32_t reset_on_command :  4; // Bits  7:4
++		uint32_t reset_delay      :  4; // Bits 11:8
++		uint32_t ck_to_cke_delay  :  2; // Bits 13:12
++		uint32_t                  : 17; // Bits 30:14
++		uint32_t init_mrw_2n_cs   :  1; // Bits 31:31
++	};
++	uint32_t raw;
++};
++
++union mad_chnl_reg {
++	struct __packed {
++		uint32_t ch_a           :  2; // Bits  1:0
++		uint32_t ch_b           :  2; // Bits  3:2
++		uint32_t ch_c           :  2; // Bits  5:4
++		uint32_t stacked_mode   :  1; // Bits  6:6
++		uint32_t stkd_mode_bits :  3; // Bits  9:7
++		uint32_t lpddr_mode     :  1; // Bits 10:10
++		uint32_t                : 21; // Bits 31:11
++	};
++	uint32_t raw;
++};
++
++union mad_dimm_reg {
++	struct __packed {
++		uint32_t dimm_a_size     :  8;  // Bits  7:0
++		uint32_t dimm_b_size     :  8;  // Bits 15:8
++		uint32_t dimm_a_sel      :  1;  // Bits 16:16
++		uint32_t dimm_a_ranks    :  1;  // Bits 17:17
++		uint32_t dimm_b_ranks    :  1;  // Bits 18:18
++		uint32_t dimm_a_width    :  1;  // Bits 19:19
++		uint32_t dimm_b_width    :  1;  // Bits 20:20
++		uint32_t rank_interleave :  1;  // Bits 21:21
++		uint32_t enh_interleave  :  1;  // Bits 22:22
++		uint32_t                 :  1;  // Bits 23:23
++		uint32_t ecc_mode        :  2;  // Bits 25:24
++		uint32_t hori_mode       :  1;  // Bits 26:26
++		uint32_t hori_address    :  3;  // Bits 29:27
++		uint32_t                 :  2;  // Bits 31:30
++	};
++	uint32_t raw;
++};
++
++union mad_zr_reg {
++	struct __packed {
++		uint32_t             : 16; // Bits 15:0
++		uint32_t ch_b_double :  8; // Bits 23:16
++		uint32_t ch_b_single :  8; // Bits 31:24
++	};
++	uint32_t raw;
++};
++
++/* Same definition for P_COMP, M_COMP, D_COMP */
++union pcu_comp_reg {
++	struct __packed {
++		uint32_t comp_disable  :  1; // Bits  0:0
++		uint32_t comp_interval :  4; // Bits  4:1
++		uint32_t               :  3; // Bits  7:5
++		uint32_t comp_force    :  1; // Bits  8:8
++		uint32_t               : 23; // Bits 31:9
++	};
++	uint32_t raw;
++};
++
++#endif
+diff --git a/src/northbridge/intel/haswell/native_raminit/timings_refresh.c b/src/northbridge/intel/haswell/native_raminit/timings_refresh.c
+new file mode 100644
+index 0000000000..a9d960f31b
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/timings_refresh.c
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include "raminit_native.h"
++
++void configure_timings(struct sysinfo *ctrl)
++{
++	/** TODO: Stub **/
++}
++
++void configure_refresh(struct sysinfo *ctrl)
++{
++	/** TODO: Stub **/
++}
+diff --git a/src/northbridge/intel/haswell/registers/mchbar.h b/src/northbridge/intel/haswell/registers/mchbar.h
+index 45f8174995..4c3f399b5d 100644
+--- a/src/northbridge/intel/haswell/registers/mchbar.h
++++ b/src/northbridge/intel/haswell/registers/mchbar.h
+@@ -7,9 +7,98 @@
+ #define NUM_CHANNELS	2
+ #define NUM_SLOTS	2
+ 
++/* Indexed register helper macros */
++#define _DDRIO_C_R_B(r, ch, rank, byte)	((r) + 0x100 * (ch) + 0x4 * (rank) + 0x200 * (byte))
++#define _MCMAIN_C_X(r, ch, x)		((r) + 0x400 * (ch) + 0x4 * (x))
++#define _MCMAIN_C(r, ch)		((r) + 0x400 * (ch))
++
+ /* Register definitions */
++
++/* DDR DATA per-channel per-bytelane */
++#define DQ_CONTROL_2(ch, byte)			_DDRIO_C_R_B(0x0064, ch, 0, byte)
++
++/* DDR CKE per-channel */
++#define DDR_CKE_ch_CMD_COMP_OFFSET(ch)		_DDRIO_C_R_B(0x1204, ch, 0, 0)
++#define DDR_CKE_ch_CMD_PI_CODING(ch)		_DDRIO_C_R_B(0x1208, ch, 0, 0)
++
++#define DDR_CKE_ch_CTL_CONTROLS(ch)		_DDRIO_C_R_B(0x121c, ch, 0, 0)
++#define DDR_CKE_ch_CTL_RANKS_USED(ch)		_DDRIO_C_R_B(0x1220, ch, 0, 0)
++
++/* DDR CTL per-channel */
++#define DDR_CTL_ch_CTL_CONTROLS(ch)		_DDRIO_C_R_B(0x1c1c, ch, 0, 0)
++#define DDR_CTL_ch_CTL_RANKS_USED(ch)		_DDRIO_C_R_B(0x1c20, ch, 0, 0)
++
++/* DDR CLK per-channel */
++#define DDR_CLK_ch_RANKS_USED(ch)		_DDRIO_C_R_B(0x1800, ch, 0, 0)
++#define DDR_CLK_ch_COMP_OFFSET(ch)		_DDRIO_C_R_B(0x1808, ch, 0, 0)
++#define DDR_CLK_ch_PI_CODING(ch)		_DDRIO_C_R_B(0x180c, ch, 0, 0)
++#define DDR_CLK_ch_CONTROLS(ch)			_DDRIO_C_R_B(0x1810, ch, 0, 0)
++
++/* DDR Scrambler */
++#define DDR_SCRAMBLE_ch(ch)			(0x2000 + 4 * (ch))
++#define DDR_SCRAM_MISC_CONTROL			0x2008
++
++/* DDR CMDN/CMDS per-channel (writes go to both CMDN and CMDS fubs) */
++#define DDR_CMD_ch_COMP_OFFSET(ch)		_DDRIO_C_R_B(0x3204, ch, 0, 0)
++#define DDR_CMD_ch_PI_CODING(ch)		_DDRIO_C_R_B(0x3208, ch, 0, 0)
++#define DDR_CMD_ch_CONTROLS(ch)			_DDRIO_C_R_B(0x320c, ch, 0, 0)
++
++/* DDR CKE/CTL per-channel (writes go to both CKE and CTL fubs) */
++#define DDR_CKE_CTL_ch_CTL_COMP_OFFSET(ch)	_DDRIO_C_R_B(0x3414, ch, 0, 0)
++#define DDR_CKE_CTL_ch_CTL_PI_CODING(ch)	_DDRIO_C_R_B(0x3418, ch, 0, 0)
++
++/* DDR DATA broadcast */
++#define DDR_DATA_RX_TRAIN_RANK(rank)		_DDRIO_C_R_B(0x3600, 0, rank, 0)
++#define DDR_DATA_RX_PER_BIT_RANK(rank)		_DDRIO_C_R_B(0x3610, 0, rank, 0)
++#define DDR_DATA_TX_TRAIN_RANK(rank)		_DDRIO_C_R_B(0x3620, 0, rank, 0)
++#define DDR_DATA_TX_PER_BIT_RANK(rank)		_DDRIO_C_R_B(0x3630, 0, rank, 0)
++
++#define DDR_DATA_RCOMP_DATA_1			0x3644
++#define DDR_DATA_TX_XTALK			0x3648
++#define DDR_DATA_RX_OFFSET_VDQ			0x364c
++#define DDR_DATA_OFFSET_COMP			0x365c
++#define DDR_DATA_CONTROL_1			0x3660
++
++#define DDR_DATA_OFFSET_TRAIN			0x3670
++#define DDR_DATA_CONTROL_0			0x3674
++#define DDR_DATA_VREF_ADJUST			0x3678
++
++/* DDR CMD broadcast */
++#define DDR_CMD_COMP				0x3700
++
++/* DDR CKE/CTL broadcast */
++#define DDR_CKE_CTL_COMP			0x3810
++
++/* DDR CLK broadcast */
++#define DDR_CLK_COMP				0x3904
++#define DDR_CLK_CONTROLS			0x3910
++#define DDR_CLK_CB_STATUS			0x3918
++
++/* DDR COMP (global) */
++#define DDR_COMP_DATA_COMP_1			0x3a04
++#define DDR_COMP_CMD_COMP			0x3a08
++#define DDR_COMP_CTL_COMP			0x3a0c
++#define DDR_COMP_CLK_COMP			0x3a10
++#define DDR_COMP_CTL_0				0x3a14
++#define DDR_COMP_CTL_1				0x3a18
++#define DDR_COMP_VSSHI				0x3a1c
++#define DDR_COMP_OVERRIDE			0x3a20
++#define DDR_COMP_VSSHI_CONTROL			0x3a24
++
++/* MCMAIN per-channel */
++#define COMMAND_RATE_LIMIT_ch(ch)		_MCMAIN_C(0x4010, ch)
++
++#define MC_INIT_STATE_ch(ch)			_MCMAIN_C(0x42a0, ch)
++
++/* MCMAIN broadcast */
++#define MCSCHEDS_CBIT		0x4c20
++
++#define MCMNTS_SC_WDBWM		0x4f8c
++
++/* MCDECS */
+ #define MAD_CHNL		0x5000 /* Address Decoder Channel Configuration */
+ #define MAD_DIMM(ch)		(0x5004 + (ch) * 4)
++#define MAD_ZR			0x5014
+ #define MC_INIT_STATE_G		0x5030
+ #define MRC_REVISION		0x5034 /* MRC Revision */
+ 
+@@ -28,6 +117,8 @@
+ 
+ #define PCU_DDR_PTM_CTL		0x5880
+ 
++#define PCU_DDR_VOLTAGE		0x58a4
++
+ /* Some power MSRs are also represented in MCHBAR */
+ #define MCH_PKG_POWER_LIMIT_LO	0x59a0
+ #define MCH_PKG_POWER_LIMIT_HI	0x59a4
+@@ -48,6 +139,8 @@
+ #define  MAILBOX_BIOS_CMD_FSM_MEASURE_INTVL	0x909
+ #define  MAILBOX_BIOS_CMD_READ_PCH_POWER	0xa
+ #define  MAILBOX_BIOS_CMD_READ_PCH_POWER_EXT	0xb
++#define  MAILBOX_BIOS_CMD_READ_DDR_2X_REFRESH	0x17
++#define  MAILBOX_BIOS_CMD_WRITE_DDR_2X_REFRESH	0x18
+ #define  MAILBOX_BIOS_CMD_READ_C9C10_VOLTAGE	0x26
+ #define  MAILBOX_BIOS_CMD_WRITE_C9C10_VOLTAGE	0x27
+ 
+@@ -66,6 +159,7 @@
+ #define MC_BIOS_REQ		0x5e00 /* Memory frequency request register */
+ #define MC_BIOS_DATA		0x5e04 /* Miscellaneous information for BIOS */
+ #define SAPMCTL			0x5f00
++#define M_COMP			0x5f08
+ 
+ #define HDAUDRID		0x6008
+ #define UMAGFXCTL		0x6020
+-- 
+2.39.5
+
