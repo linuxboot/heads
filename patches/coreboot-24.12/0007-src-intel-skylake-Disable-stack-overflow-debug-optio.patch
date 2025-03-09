@@ -1,0 +1,61 @@
+From 00b6459a9b360b16529036d9b1e10c977228a7ff Mon Sep 17 00:00:00 2001
+From: Leah Rowe <leah@libreboot.org>
+Date: Mon, 6 Jan 2025 01:36:23 +0000
+Subject: [PATCH 1/1] src/intel/skylake: Disable stack overflow debug options
+
+The option was appearing in T480/3050micro configs of lbmk,
+after updating on the coreboot/next uprev for 20241206 rev8:
+
+CONFIG_DEBUG_STACK_OVERFLOW_BREAKPOINTS=y
+
+I did some digging. See coreboot commit:
+
+commit 51cc2bacb6b07279b97e9934d079060475481fb6
+Author: Subrata Banik <subratabanik@google.com>
+Date:   Fri Dec 13 13:07:28 2024 +0530
+
+    soc/intel/pantherlake: Disable stack overflow debug options
+
+Well now:
+
+I'm disabling this behaviour on Skylake, for the same
+behaviour, because I want as few behaviour changes in general,
+as possible, for the rev8 release.
+
+According to Subrata's patch, which was for Pantherlake,
+without this change, stack corruption can occur on verstage
+and romstage early on. Please look at that coreboot patch,
+referenced above, for clarity.
+
+I see no harm in disabling this option for Skylake, since
+the behaviour that it otherwise enables was not present
+before.
+
+Signed-off-by: Leah Rowe <leah@libreboot.org>
+---
+ src/soc/intel/skylake/Kconfig | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/soc/intel/skylake/Kconfig b/src/soc/intel/skylake/Kconfig
+index 8e25f796ed..7d324e15ea 100644
+--- a/src/soc/intel/skylake/Kconfig
++++ b/src/soc/intel/skylake/Kconfig
+@@ -130,6 +130,15 @@ config DCACHE_RAM_SIZE
+ 	  The size of the cache-as-ram region required during bootblock
+ 	  and/or romstage.
+ 
++# Override DEBUG Kconfig to avoid false alarm about stack overflow.
++config DEBUG_STACK_OVERFLOW_BREAKPOINTS
++	bool
++	default n
++
++config DEBUG_STACK_OVERFLOW_BREAKPOINTS_IN_ALL_STAGES
++	bool
++	default n
++
+ config DCACHE_BSP_STACK_SIZE
+ 	hex
+ 	default 0x20400 if FSP_USES_CB_STACK
+-- 
+2.39.5
+
