@@ -447,15 +447,15 @@ workflows:
             - t480-hotp-maximized
 
       - build:
-          name: z220-cmt-maximized
-          target: z220-cmt-maximized
+          name: UNTESTED_z220-cmt-maximized
+          target: UNTESTED_z220-cmt-maximized
           subcommand: ""
           requires:
             - t480-hotp-maximized
 
       - build:
-          name: z220-cmt-hotp-maximized
-          target: z220-cmt-hotp-maximized
+          name: UNTESTED_z220-cmt-hotp-maximized
+          target: UNTESTED_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
             - t480-hotp-maximized
