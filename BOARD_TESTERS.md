@@ -26,11 +26,16 @@ xx30 (Ivy):
 - [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display) @doob85 https://matrix.to/#/@rsabdpy:matrix.org (agan mod board)
 - [ ] x230t : @fhvyhjriur
 - [ ] t530 (xx30): @fhvyhjriur @3hhh (Opportunity to mainstream and close https://github.com/linuxboot/heads/issues/1682)
+- [ ] Optiplex 7010/9010 SFF/DT: @tlaurion (owns DT variant)
 
 xx4x(Haswell):
 ===
 - [ ] t440p: @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
 - [ ] w541 (similar to t440p): @ResendeGHF @gaspar-ilom (Always tested late: Needs more responsive board testers or risk to become unmaintained.)
+
+xx8x(Kaby Lake Refresh):
+===
+- [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76 @notgivenby @akunterkontrolle
 
 Librems:
 ===

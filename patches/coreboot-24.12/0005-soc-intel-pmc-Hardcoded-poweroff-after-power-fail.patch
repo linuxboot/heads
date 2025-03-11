@@ -1,0 +1,82 @@
+From 12ff6e798d1cefc5b888e6035e52bf6d70c9ca47 Mon Sep 17 00:00:00 2001
+From: Leah Rowe <info@minifree.org>
+Date: Tue, 31 Dec 2024 01:40:42 +0000
+Subject: [PATCH 11/11] soc/intel/pmc: Hardcoded poweroff after power fail
+
+Coreboot can set the power state for power on after previous
+power failure, based on the option table. On the ThinkPad T480,
+we have no nvram and, due to coreboot's design, we therefore
+have no option table, so the default setting is enabled.
+
+In my testing, this seems to be that the system will turn on
+after a power failure. If your ThinkPad was previously in a state
+where it wouldn't turn on when plugging in the power, it'd be fine.
+
+If your battery ran out later on, this would be triggered and
+your ThinkPad would permanently turn on, when plugging in a charger,
+and there is currently no way to configure this behaviour.
+
+We currently only use the common SoC PMC code on the ThinkPad
+T480, T480s and the Dell OptiPlex 3050 Micro, at the time of
+this patch, and it is desirable that the system be set to power
+off after power fail anyway.
+
+In some cases, you might want the opposite, for example if you're
+running a server. This will be documented on the website, for that
+reason.
+
+Signed-off-by: Leah Rowe <info@minifree.org>
+---
+ src/soc/intel/common/block/pmc/pmclib.c | 36 +++----------------------
+ 1 file changed, 4 insertions(+), 32 deletions(-)
+
+diff --git a/src/soc/intel/common/block/pmc/pmclib.c b/src/soc/intel/common/block/pmc/pmclib.c
+index 0fadd6e409..843581b285 100644
+--- a/src/soc/intel/common/block/pmc/pmclib.c
++++ b/src/soc/intel/common/block/pmc/pmclib.c
+@@ -760,38 +760,10 @@ void pmc_clear_pmcon_sts(void)
+ 
+ void pmc_set_power_failure_state(const bool target_on)
+ {
+-	const unsigned int state = get_uint_option("power_on_after_fail",
+-					 CONFIG_MAINBOARD_POWER_FAILURE_STATE);
+-
+-	/*
+-	 * On the shutdown path (target_on == false), we only need to
+-	 * update the register for MAINBOARD_POWER_STATE_PREVIOUS. For
+-	 * all other cases, we don't write the register to avoid clob-
+-	 * bering the value set on the boot path. This is necessary,
+-	 * for instance, when we can't access the option backend in SMM.
+-	 */
+-
+-	switch (state) {
+-	case MAINBOARD_POWER_STATE_OFF:
+-		if (!target_on)
+-			break;
+-		printk(BIOS_INFO, "Set power off after power failure.\n");
+-		pmc_soc_set_afterg3_en(false);
+-		break;
+-	case MAINBOARD_POWER_STATE_ON:
+-		if (!target_on)
+-			break;
+-		printk(BIOS_INFO, "Set power on after power failure.\n");
+-		pmc_soc_set_afterg3_en(true);
+-		break;
+-	case MAINBOARD_POWER_STATE_PREVIOUS:
+-		printk(BIOS_INFO, "Keep power state after power failure.\n");
+-		pmc_soc_set_afterg3_en(target_on);
+-		break;
+-	default:
+-		printk(BIOS_WARNING, "Unknown power-failure state: %d\n", state);
+-		break;
+-	}
++	if (!target_on)
++		return;
++	printk(BIOS_INFO, "Set power off after power failure.\n");
++	pmc_soc_set_afterg3_en(false);
+ }
+ 
+ /* This function returns the highest assertion duration of the SLP_Sx assertion widths */
+-- 
+2.39.5
+
