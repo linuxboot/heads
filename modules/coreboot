@@ -117,6 +117,7 @@ coreboot-15h_repo := https://git.15h.org/mrothfuss/coreboot-15h.git
 coreboot-15h_commit_hash := 1c529657c0c1221f1c63dd8cd1fd096c7821de9c
 $(eval $(call coreboot_module,15h,))
 
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
