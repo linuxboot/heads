@@ -546,29 +546,29 @@ workflows:
 
       # coreboot fam15h
       - build:
-          name: UNMAINTAINED_kgpe-d16_workstation
-          target: UNMAINTAINED_kgpe-d16_workstation
+          name: kgpe-d16_workstation
+          target: kgpe-d16_workstation
           subcommand: ""
           requires:
             - x86-musl-cross-make
 
       - build:
-          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
-          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
+          name: kgpe-d16_workstation-usb_keyboard
+          target: kgpe-d16_workstation-usb_keyboard
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - kgpe-d16_workstation
 
       - build:
           name: UNMAINTAINED_kgpe-d16_server
           target: UNMAINTAINED_kgpe-d16_server
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - kgpe-d16_workstation
 
       - build:
           name: UNMAINTAINED_kgpe-d16_server-whiptail
           target: UNMAINTAINED_kgpe-d16_server-whiptail
           subcommand: ""
           requires:
-            - UNMAINTAINED_kgpe-d16_workstation
+            - kgpe-d16_workstation
