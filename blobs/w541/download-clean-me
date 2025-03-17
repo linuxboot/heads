@@ -5,11 +5,11 @@ set -e
 function usage() {
     echo -n \
         "Usage: $(basename "$0") path_to_output_directory
-Download Intel ME firmware from Lenovo.
+Download Intel ME firmware from Lenovo, neutralize, and shrink.
 "
 }
 
-ME_BIN_HASH="2cb8dd18b18b6af0d09365fe7734f5b27dda85fb508960bcf0a32d52bdc96d60"
+ME_BIN_HASH="b7cf4c0cf514bbf279d9fddb12c34fca5c1c23e94b000c26275369b924ab9c25"
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     if [[ "${1:-}" == "--help" ]]; then
@@ -41,7 +41,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
             # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
             pushd "${COREBOOT_DIR}/util/me_cleaner"
 
-            python me_cleaner.py -t -k -O me_shrinked.bin ME9.1_5M_Production.bin
+            python me_cleaner.py -r -t -O me_shrinked.bin ME9.1_5M_Production.bin
 
             mv me_shrinked.bin "${output_dir}/me.bin"
             rm ./*.bin
