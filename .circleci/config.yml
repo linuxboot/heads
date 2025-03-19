@@ -550,7 +550,7 @@ workflows:
           target: kgpe-d16_workstation
           subcommand: ""
           requires:
-            - x86-musl-cross-make
+            - librem_l1um
 
       - build:
           name: kgpe-d16_workstation-usb_keyboard
