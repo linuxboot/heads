@@ -315,13 +315,6 @@ workflows:
             - t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized_usb-kb
-          target: x230-hotp-maximized_usb-kb
-          subcommand: ""
-          requires:
-            - t480-hotp-maximized
-
-      - build:
           name: t430-hotp-maximized
           target: t430-hotp-maximized
           subcommand: ""
@@ -335,7 +328,6 @@ workflows:
           requires:
             - t480-hotp-maximized
 
-      #TODO: move away of 24.02.01 coreboot and depend on optiplex specific dasharo commit
       - build:
           name: optiplex-7010_9010-maximized
           target: optiplex-7010_9010-maximized
@@ -360,6 +352,20 @@ workflows:
       - build:
           name: optiplex-7010_9010_TXT-hotp-maximized
           target: optiplex-7010_9010_TXT-hotp-maximized
+          subcommand: ""
+          requires:
+            - t480-hotp-maximized
+
+      - build:
+          name: x230-hotp-maximized
+          target: x230-hotp-maximized
+          subcommand: ""
+          requires:
+            - t480-hotp-maximized
+
+      - build:
+          name: x230-hotp-maximized_usb-kb
+          target: x230-hotp-maximized_usb-kb
           subcommand: ""
           requires:
             - t480-hotp-maximized
