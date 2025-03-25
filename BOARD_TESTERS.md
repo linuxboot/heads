@@ -54,7 +54,7 @@ Clevo:
 
 Desktops/Servers
 ==
-- [ ] kgpe-d16 (AMD fam15h) (dropped in coreboot 4.12): @arhabd @Tonux599 @zifxify https://matrix.to/#/@rsabdpy:matrix.org
+- [ ] kgpe-d16 (AMD fam15h) (dropped in coreboot 4.12: brought back in 15h fork): @arhabd @zifxify https://matrix.to/#/@rsabdpy:matrix.org
 - [ ] Librem L1UM v1 (Broadwell): @JonathonHall-Purism
 - [ ] Librem L1Um v2 (CoffeeLake): @JonathonHall-Purism
 - [ ] Talos II (PPC64LE, Power9) : @tlaurion (Will become untested, no other known users, not worth my time nor effort even though massive investment of all forms)
