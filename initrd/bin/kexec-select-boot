@@ -20,25 +20,25 @@ force_boot="n"
 skip_confirm="n"
 while getopts "b:d:p:a:r:c:uimgfs" arg; do
 	case $arg in
-	b) bootdir="$OPTARG" ;;
-	d) paramsdev="$OPTARG" ;;
-	p) paramsdir="$OPTARG" ;;
-	a) add="$OPTARG" ;;
-	r) remove="$OPTARG" ;;
-	c) config="$OPTARG" ;;
-	u) unique="y" ;;
-	m) force_menu="y" ;;
-	i)
-		valid_hash="y"
-		valid_rollback="y"
-		;;
-	g) gui_menu="y" ;;
-	f)
-		force_boot="y"
-		valid_hash="y"
-		valid_rollback="y"
-		;;
-	s) skip_confirm="y" ;;
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		a) add="$OPTARG" ;;
+		r) remove="$OPTARG" ;;
+		c) config="$OPTARG" ;;
+		u) unique="y" ;;
+		m) force_menu="y" ;;
+		i)
+			valid_hash="y"
+			valid_rollback="y"
+			;;
+		g) gui_menu="y" ;;
+		f)
+			force_boot="y"
+			valid_hash="y"
+			valid_rollback="y"
+			;;
+		s) skip_confirm="y" ;;
 	esac
 done
 
@@ -120,14 +120,14 @@ verify_rollback_counter() {
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 
 	if [ -z "$TPM_COUNTER" ]; then
-		die "$TMP_ROLLBACK_FILE: TPM counter not found?"
+		die "$TMP_ROLLBACK_FILE: TPM counter not found. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 	fi
 
 	read_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-		die "Failed to read TPM counter"
+		die "Failed to read TPM counter. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 
 	sha256sum -c $TMP_ROLLBACK_FILE >/dev/null 2>&1 ||
-		die "Invalid TPM counter state. TPM Reset required"
+		die "Invalid TPM counter state. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 
 	valid_rollback="y"
 }
@@ -361,9 +361,9 @@ do_boot() {
 
 while true; do
 	if [ "$force_boot" = "y" -o "$CONFIG_BASIC" = "y" ]; then
-		check_config $paramsdir force
+		DO_WITH_DEBUG check_config $paramsdir force
 	else
-		check_config $paramsdir
+		DO_WITH_DEBUG check_config $paramsdir
 	fi
 	TMP_DEFAULT_FILE=$(find /tmp/kexec/kexec_default.*.txt 2>/dev/null | head -1) || true
 	TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
