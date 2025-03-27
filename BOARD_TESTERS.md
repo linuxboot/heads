@@ -30,7 +30,7 @@ xx30 (Ivy):
 
 xx4x(Haswell):
 ===
-- [ ] t440p: @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
+- [ ] t440p: @MattClifton76 @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
 - [ ] w541 (similar to t440p): @ResendeGHF @gaspar-ilom (Always tested late: Needs more responsive board testers or risk to become unmaintained.)
 
 xx8x(Kaby Lake Refresh):
