@@ -577,7 +577,8 @@ reset_tpm() {
 						--msgbox "Failed to update checksums / sign default config" 0 80
 				fi
 			else
-				die "TPM reset successful, but user chose not to update checksums"
+				warn "TPM reset successful, but user chose not to update+sign /boot checksums. Rebooting"
+				reboot
 			fi
 			mount -o ro,remount /boot
 
