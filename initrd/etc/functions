@@ -3,6 +3,8 @@
 # ------- Start of functions coming from /etc/ash_functions
 
 die() {
+	TRACE_FUNC
+	#TODO: add colors to output, here red for ERROR?
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
@@ -16,6 +18,8 @@ die() {
 }
 
 warn() {
+	TRACE_FUNC
+	#TODO: add colors to output, here yellow for WARNING?
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
@@ -41,6 +45,7 @@ TRACE() {
 
 # Function to manage information output level to the console/debug.log
 INFO() {
+	TRACE_FUNC
 	#TODO: add colors to output, here green for INFO?
 
 	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
