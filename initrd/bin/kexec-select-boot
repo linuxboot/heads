@@ -314,17 +314,7 @@ user_select() {
 			# continue below to boot the new default option
 			true
 		else
-			echo "+++ Rebooting to start the new default option"
-			sleep 2
-			if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
-				reboot ||
-					die "!!! Failed to reboot system"
-			else
-				DEBUG "Rebooting is required prior of booting default boot entry"
-				# Instead of rebooting, drop to a recovery shell
-				# for a chance to inspect debug output
-				recovery "Entering recovery to permit inspection of /tmp/debug.log output, reboot to continue"
-			fi
+			warn "Rebooting to start the new default option"
 		fi
 	fi
 
