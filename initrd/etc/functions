@@ -169,6 +169,9 @@ confirm_gpg_card() {
 	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
 	enable_usb
 
+	#TODO: remove this comment: we moved the sleep to enable_usb here
+	sleep 2
+
 	echo -e "\nVerifying presence of GPG card...\n"
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
@@ -187,13 +190,10 @@ confirm_gpg_card() {
 		gpg_output=$(gpg --card-status 2>&1) ||
 			die "gpg card read failed"
 	fi
-	# restore prev errexit state
-	if [ "$errexit" = "on" ]; then
-		set -e
-	fi
 
 	# Extract and display GPG PIN retry counters
 	# output excerpt: "PIN retry counter : 3 0 3"
+	gpg_output=$(gpg --card-status 2>&1)
 	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
 	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
@@ -204,6 +204,11 @@ confirm_gpg_card() {
 	echo ""
 	warn "Your GPG User PIN, followed by Enter will be required for input at: 'Please unlock the card' next prompt"
 	echo ""
+
+	# restore prev errexit state
+	if [ "$errexit" = "on" ]; then
+		set -e
+	fi
 }
 
 gpg_auth() {
@@ -295,8 +300,17 @@ recovery() {
 		#Going to recovery shell should be authenticated if supported
 		gpg_auth
 
+		#if we have DEBUG_OUTPUT=y, we instruct users to use the debug log
+		if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+			cat /etc/DEBUG_LOG_COPY_INSTRUCTIONS
+		fi
+
+		#Guide user into enabling debug output in case of a discovered bug
+		if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
+			#User can enable DEBUG_OUTPUT=y and TRACE_FUNCTION_TRACING_OUTPUT=y from Configuration Options
+			warn "If you want to file a bug, please enable Debug mode through 'Options --> Change configuration settings > Configure Heads informational'"
+		fi
 		echo >&2 "!!!!! Starting recovery shell"
-		sleep 1
 
 		if [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/bash
@@ -381,7 +395,8 @@ enable_usb() {
 	insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
 	insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
 	insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
-	sleep 2
+	#TODO: get rid of this sleep of 2 seconds each time we call enable_usb!!!
+	#sleep 2
 
 	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
 	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
@@ -631,8 +646,13 @@ reseal_tpm_disk_decryption_key() {
 		done
 		warn "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
+		attempt=1
 		while ! update_checksums; do
-			warn "Checksums were not signed. Preceding errors should explain possible causes"
+			warn "Attempt $attempt: Checksums were not signed. Preceding errors should explain possible causes"
+			if [ "$attempt" -ge 3 ]; then
+				die "Failed to sign checksums after 3 attempts"
+			fi
+			attempt=$((attempt + 1))
 		done
 		warn "Rebooting in 3 seconds to enable booting default boot option"
 		sleep 3

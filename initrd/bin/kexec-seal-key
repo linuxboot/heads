@@ -81,6 +81,7 @@ for dev in $key_devices	; do
 			echo "++++++ $dev: LUKS device unlocked successfully with the DRK passphrase"
 			luks_drk_passphrase_valid=1
 			break
+			#TODO: when multiple LUKS devices are tested, new DUK passphrase prompt interferes with previous echo. FIXME
 		else
 			attempts=$((attempts + 1))
 			if [ "$attempts" == "3" ] && [ "$luks_drk_passphrase_valid" == "0" ]; then
