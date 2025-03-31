@@ -29,9 +29,6 @@ paramsdir="${paramsdir%%/}"
 assert_signable
 TRACE_FUNC
 
-confirm_gpg_card
-TRACE_FUNC
-
 # remount /boot as rw
 mount -o remount,rw /boot
 
@@ -122,11 +119,10 @@ if [ -z "$param_files" ]; then
 fi
 
 for tries in 1 2 3; do
-	if DO_WITH_DEBUG sha256sum $param_files | gpg \
-		--detach-sign \
-		-a \
-		>$paramsdir/kexec.sig \
-		; then
+	confirm_gpg_card
+	TRACE_FUNC
+
+	if DO_WITH_DEBUG sha256sum $param_files | gpg --detach-sign -a >$paramsdir/kexec.sig; then
 		# successful - update the validated params
 		check_config $paramsdir
 

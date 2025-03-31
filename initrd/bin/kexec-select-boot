@@ -239,7 +239,7 @@ save_default_option() {
 			-i "$option_index" \
 			; then
 			echo "+++ Saved defaults to device"
-			sleep 2
+
 			default_failed="n"
 			force_menu="n"
 			return
