@@ -315,6 +315,7 @@ user_select() {
 			true
 		else
 			warn "Rebooting to start the new default option"
+			reboot
 		fi
 	fi
 
