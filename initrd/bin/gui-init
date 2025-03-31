@@ -150,16 +150,21 @@ generate_totp_hotp() {
 	TRACE_FUNC
 	tpm_owner_password="$1" # May be empty, will prompt if needed and empty
 	if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
+		# If we don't have a TPM, but we have a HOTP USB Security dongle
+		TRACE_FUNC
 		echo "Generating new HOTP secret"
-		/bin/seal-hotpkey
+		/bin/seal-hotpkey ||
+			die "Failed to generate HOTP secret"
 	elif echo -e "Generating new TOTP secret...\n\n" && /bin/seal-totp "$BOARD_NAME" "$tpm_owner_password"; then
 		echo
 		if [ -x /bin/hotp_verification ]; then
+			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
 				echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
 				read
 			fi
-			/bin/seal-hotpkey
+			TRACE_FUNC
+			/bin/seal-hotpkey || die "Failed to generate HOTP secret"
 		else
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
 				echo "Once you have scanned the QR code, hit Enter to continue"

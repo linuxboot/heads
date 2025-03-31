@@ -8,7 +8,6 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	read -r -n 1 -s -p "Press Enter to continue reboot or 'r' to go to recovery shell: " REPLY 
 	echo 
 	if [ "$REPLY" = "r" ] || [ "$REPLY" = "R" ]; then
-		warn "Use 'less /tmp/debug.log' to see the debug log content"
 		recovery "Reboot call bypassed to go into recovery shell to debug"
 	fi 
 fi
