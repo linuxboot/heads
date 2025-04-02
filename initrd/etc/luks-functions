@@ -14,7 +14,9 @@ list_local_luks_devices() {
 		if cryptsetup isLuks "$device"; then
 			DEBUG "Device $device is a LUKS device"
 			dev_name=$(basename "$device")
-			parent_dev_name=$(echo "$dev_name" | sed 's/[0-9]*$//')
+			# Dynamically determine parent device name
+			parent_dev_name=$(echo "$dev_name" | sed -E 's/(p?[0-9]+)$//') # Handles both NVMe (pX) and non-NVMe (X)
+			DEBUG "Derived parent device name: $parent_dev_name"
 			if [ -e "/sys/block/$parent_dev_name" ]; then
 				DEBUG "Device $device exists in /sys/block"
 				if ! stat -c %N "/sys/block/$parent_dev_name" 2>/dev/null | grep -q "usb"; then
@@ -50,7 +52,7 @@ prompt_luks_passphrase() {
 # Test LUKS passphrase against all found LUKS containers that are not USB
 test_luks_passphrase() {
 	TRACE_FUNC
-
+	DEBUG "Testing LUKS passphrase against all found LUKS containers"
 	list_local_luks_devices >/tmp/luks_devices.txt
 	if [ ! -s /tmp/luks_devices.txt ]; then
 		warn "No LUKS devices found"
@@ -59,7 +61,7 @@ test_luks_passphrase() {
 
 	valid_luks_devices=()
 	while read -r luks_device; do
-		DEBUG "Testing passphrase on $luks_device"
+		DEBUG "Testing passphrase on device: $luks_device"
 		if cryptsetup open --test-passphrase "$luks_device" --key-file /tmp/secret/luks_current_Disk_Recovery_Key_passphrase; then
 			DEBUG "Passphrase valid for $luks_device"
 			valid_luks_devices+=("$luks_device")
@@ -69,10 +71,11 @@ test_luks_passphrase() {
 	done </tmp/luks_devices.txt
 
 	if [ ${#valid_luks_devices[@]} -eq 0 ]; then
+		DEBUG "No valid LUKS devices found with the provided passphrase"
 		return 1
 	fi
 
-	# Export the valid LUKS devices
+	DEBUG "Valid LUKS devices found: ${valid_luks_devices[*]}"
 	export LUKS="${valid_luks_devices[*]}"
 	return 0
 }
@@ -80,6 +83,7 @@ test_luks_passphrase() {
 # Confirm with the user to use all unlockable LUKS partitions
 confirm_luks_partitions() {
 	TRACE_FUNC
+	DEBUG "Confirming with the user to use all unlockable LUKS partitions"
 	MSG="The following LUKS partitions can be unlocked:\n\n${LUKS}\n\nDo you want to use all of these partitions?"
 	if [ -x /bin/whiptail ]; then
 		if ! whiptail --title "Confirm LUKS Partitions" --yesno "$MSG" 0 80; then
@@ -92,6 +96,7 @@ confirm_luks_partitions() {
 			die "User aborted the operation"
 		fi
 	fi
+	DEBUG "User confirmed LUKS partitions: $LUKS"
 }
 
 # Main function to prompt for passphrase, test it, and confirm partitions
