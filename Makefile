@@ -400,27 +400,33 @@ define define_module =
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
+		echo "INFO: .canary file not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)"; \
 		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
+		echo "INFO: Creating .canary file with repo and commit hash"; \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
+		echo "INFO: Canary file differs. Switching $1 to $($1_repo) at $($1_commit_hash)"; \
 		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		echo "git fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no" && \
+		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)"; \
 		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
-		echo "git reset --hard $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
-		echo "git clean" && \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
+		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)"; \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
-		echo "git submodule sync" && \
+		echo "INFO: Synchronizing submodules"; \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
-		echo "git submodule update" && \
+		echo "INFO: Updating submodules (init and checkout)"; \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
+		echo "INFO: Updating .canary file with new repo info"; \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .patched file not found. Beginning patch application for $1"; \
 		if [ -r patches/$($1_patch_name).patch ]; then \
+			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..."; \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 				< patches/$($1_patch_name).patch \
 				|| exit 1 ; \
@@ -434,6 +440,7 @@ define define_module =
 					|| exit 1 ; \
 			done ; \
 		fi && \
+		echo "INFO: Patches applied successfully. Creating .patched file"; \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
@@ -887,8 +894,25 @@ $(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPU
 		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
 
 
+
 #Dev cycles helpers:
+
+# Helper function to overwrite coreboot git repo's .canary file with a bogus commit (.canary checked for matching commit on build)
+#  TODO: Implement a cleaner solution to ensure files created by patches are properly deleted instead of requiring manual intervention.
+define overwrite_canary_if_coreboot_git
+	@echo "Checking for coreboot directory: build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)"
+	if [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)" ] && \
+	   [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.git" ]; then \
+		echo "INFO: Recreating .canary file for 'build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)' with placeholder."; \
+		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary"; \
+		echo "NOTE: If a patch fails to apply, some files might need to be deleted manually to resolve conflicts."; \
+	else \
+		echo "INFO: Coreboot directory or .git not found, skipping .canary overwrite."; \
+	fi
+endef
+
 real.clean:
+	@echo "Cleaning build artifacts and install directories, leaving crossgcc intact."
 	for dir in \
 		$(module_dirs) \
 		$(kernel_headers) \
@@ -898,15 +922,19 @@ real.clean:
 		fi; \
 	done
 	cd install && rm -rf -- *
+	$(call overwrite_canary_if_coreboot_git)
+
 real.gitclean:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep downloaded coreboot forks (detected as Git repos)."
 	git clean -fxd
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' directory."
 	git clean -fxd -e "packages"
+	$(call overwrite_canary_if_coreboot_git)
 
 real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "Removing 'canary' files to force Heads to restart building board configurations..."
@@ -918,9 +946,11 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "Only a minimal time is needed for rebuilding, which is also good for your SSD."
 	@echo "*** USE THIS APPROACH FIRST ***"
 	find ./build/ -type f -name ".canary" -print -delete
-	find ./install/*/* -print -exec rm -rf {} +
+	find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages_and_build:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' and 'build' directories."
 	git clean -fxd -e "packages" -e "build"
+	$(call overwrite_canary_if_coreboot_git)
