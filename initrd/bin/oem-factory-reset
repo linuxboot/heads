@@ -1284,6 +1284,8 @@ gpg --list-keys >/dev/null 2>&1
 
 #Generate keys in memory and copy to smartcard
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
+	# Reset Nitrokey 3 Secrets app before generating keys in memory
+	reset_nk3_secret_app
 	if [ "$GPG_ALGO" == "RSA" ]; then
 		# Generate GPG master key
 		generate_inmemory_RSA_master_and_subkeys
