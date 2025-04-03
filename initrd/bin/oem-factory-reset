@@ -1164,13 +1164,13 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			}
 		done
 
-		echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-		read -r GPG_USER_COMMENT
-		while [[ ${#GPG_USER_COMMENT} -gt 60 ]]; do
-			{
-				echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-				read -r GPG_USER_COMMENT
-			}
+		echo -e "\nEnter Comment (Required: Use this to distinguish this key from others, e.g., its purpose or usage context. Must be 1-60 characters):"
+		while true; do
+			read -r GPG_USER_COMMENT
+			if [[ ${#GPG_USER_COMMENT} -ge 1 && ${#GPG_USER_COMMENT} -le 60 ]]; then
+				break
+			fi
+			echo -e "\nComment must be 1-60 characters long. Please try again:"
 		done
 	fi
 
