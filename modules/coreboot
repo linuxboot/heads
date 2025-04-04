@@ -109,6 +109,17 @@ coreboot-24.12_commit_hash := 2f1e4e5e8515dd350cc9d68b48d32a5b6b02ae6a
 #Don't reuse any coreboot buildstack for now since nothing else is based on 24.12
 $(eval $(call coreboot_module,24.12,))
 
+# 15h fork is based on 4.11. So crossgcc buildstack could be reused for librem_l1um here once more.
+# Advantages of using 15h.org 4.11 fork includes
+#  - improved ram init
+#  - support for up to 256gb
+#  - high quality fan contol
+# Pointing to https://git.15h.org/mrothfuss/coreboot-15h/src/branch/4.11-tpm-measured-boot latest commit as of 20250316
+coreboot-15h_repo := https://git.15h.org/mrothfuss/coreboot-15h.git
+coreboot-15h_commit_hash := 1c529657c0c1221f1c63dd8cd1fd096c7821de9c
+$(eval $(call coreboot_module,15h,4.11))
+
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
