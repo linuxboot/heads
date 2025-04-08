@@ -150,6 +150,7 @@ endif
 
 $(coreboot_module)_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)"; \
+	rm -rf $(build)/$(coreboot_dir)/*; \
 	$(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config); \
 	sed -i '/^CONFIG_LOCALVERSION/d' $(build)/$(coreboot_dir)/.config; \
 	echo 'CONFIG_LOCALVERSION=$(CONFIG_COREBOOT_LOCALVERSION)' >> $(build)/$(coreboot_dir)/.config; \
