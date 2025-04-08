@@ -427,17 +427,21 @@ define define_module =
 		echo "INFO: .patched file not found. Beginning patch application for $1"; \
 		if [ -r patches/$($1_patch_name).patch ]; then \
 			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..."; \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< patches/$($1_patch_name).patch \
-				|| exit 1 ; \
+			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
+				echo "ERROR: Failed to apply patch patches/$($1_patch_name).patch. Reversing and reapplying."; \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true; \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1; \
+			fi; \
 		fi && \
 		if [ -d patches/$($1_patch_name) ] && \
-		   [ -r patches/$($1_patch_name) ] ; then \
+		   [ -r patches/$($1_patch_name) ] || [ -n "$$(ls patches/$($1_patch_name)/*.patch 2>/dev/null)" ]; then \
 			for patch in patches/$($1_patch_name)/*.patch ; do \
 				echo "Applying patch file : $$$$patch " ;  \
-				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-					< $$$$patch \
-					|| exit 1 ; \
+				if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
+					echo "ERROR: Failed to apply patch $$$$patch. Reversing and reapplying."; \
+					( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true; \
+					( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1; \
+				fi; \
 			done ; \
 		fi && \
 		echo "INFO: Patches applied successfully. Creating .patched file"; \
@@ -465,20 +469,42 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-			< patches/$($1_patch_name).patch \
-			|| exit 1 ; \
+		echo "INFO: Applying single patch file patches/$($1_patch_name).patch"; \
+		if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
+			echo "ERROR: Failed to apply patch patches/$($1_patch_name).patch. Reversing and reapplying."; \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true; \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1; \
+		fi; \
 	fi
-	if [ -d patches/$($1_patch_name) ] && \
-	   [ -r patches/$($1_patch_name) ] ; then \
-		for patch in patches/$($1_patch_name)/*.patch ; do \
-			echo "Applying patch file : $$$$patch " ;  \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< $$$$patch \
-				|| exit 1 ; \
-		done ; \
+	if [ -d patches/$($1_patch_name) ]; then \
+		for patch in patches/$($1_patch_name)/*.patch; do \
+			echo "INFO: Applying patch file: $$$$patch"; \
+			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
+				echo "ERROR: Failed to apply patch $$$$patch. Reversing and reapplying."; \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true; \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1; \
+			fi; \
+		done; \
 	fi
-	@touch "$$@"
+	if [ ! -e "$$@" ] && [ -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .canary file not found but .patched exists. Reversing and reapplying patches for $1"; \
+		if [ -r patches/$($1_patch_name).patch ]; then \
+			echo "INFO: Reversing single patch file patches/$($1_patch_name).patch."; \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true; \
+			echo "INFO: Reapplying single patch file patches/$($1_patch_name).patch."; \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1; \
+		fi; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "INFO: Reversing patch file: $$$$patch"; \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true; \
+				echo "INFO: Reapplying patch file: $$$$patch"; \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1; \
+			done; \
+		fi; \
+		rm -f "$(build)/$($1_base_dir)/.patched"; \
+	fi
+	touch "$$@"
   endif
 
   # Allow the module to override the destination configuration file
@@ -907,25 +933,13 @@ define overwrite_canary_if_coreboot_git
 		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary"; \
 		echo "NOTE: If a patch fails to apply, some files might need to be deleted manually to resolve conflicts."; \
 		echo "INFO: Reversing patches dynamically in reverse order."; \
-		failed_patches=""; \
-		for patch in $(shell ls patches/coreboot-$(CONFIG_COREBOOT_VERSION)/*.patch | sort -r); do \
+		for patch in $$(ls patches/coreboot-$(CONFIG_COREBOOT_VERSION)/*.patch 2>/dev/null | sort -r); do \
 			echo "INFO: Reversing patch file: $$patch"; \
-			if ! ( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < $$patch ); then \
-				echo "WARNING: Failed to reverse patch file: $$patch"; \
-				failed_patches="$$failed_patches $$patch"; \
-			fi; \
+			( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < $$patch ) || true; \
 		done; \
 		if [ -r patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ]; then \
 			echo "INFO: Reversing main patch file patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch."; \
-			if ! ( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ); then \
-				echo "WARNING: Failed to reverse main patch file patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch"; \
-				failed_patches="$$failed_patches patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch"; \
-			fi; \
-		fi; \
-		if [ -n "$$failed_patches" ]; then \
-			echo "WARNING: The following patches failed to reverse: $$failed_patches"; \
-		else \
-			echo "INFO: All patches reversed successfully."; \
+			( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ) || true; \
 		fi; \
 		echo "INFO: Removing .patched file to allow reapplication of patches."; \
 		rm -f "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.patched"; \
