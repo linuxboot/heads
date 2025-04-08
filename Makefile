@@ -906,6 +906,29 @@ define overwrite_canary_if_coreboot_git
 		echo "INFO: Recreating .canary file for 'build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)' with placeholder."; \
 		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary"; \
 		echo "NOTE: If a patch fails to apply, some files might need to be deleted manually to resolve conflicts."; \
+		echo "INFO: Reversing patches dynamically in reverse order."; \
+		failed_patches=""; \
+		for patch in $(shell ls patches/coreboot-$(CONFIG_COREBOOT_VERSION)/*.patch | sort -r); do \
+			echo "INFO: Reversing patch file: $$patch"; \
+			if ! ( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < $$patch ); then \
+				echo "WARNING: Failed to reverse patch file: $$patch"; \
+				failed_patches="$$failed_patches $$patch"; \
+			fi; \
+		done; \
+		if [ -r patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ]; then \
+			echo "INFO: Reversing main patch file patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch."; \
+			if ! ( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ); then \
+				echo "WARNING: Failed to reverse main patch file patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch"; \
+				failed_patches="$$failed_patches patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch"; \
+			fi; \
+		fi; \
+		if [ -n "$$failed_patches" ]; then \
+			echo "WARNING: The following patches failed to reverse: $$failed_patches"; \
+		else \
+			echo "INFO: All patches reversed successfully."; \
+		fi; \
+		echo "INFO: Removing .patched file to allow reapplication of patches."; \
+		rm -f "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.patched"; \
 	else \
 		echo "INFO: Coreboot directory or .git not found, skipping .canary overwrite."; \
 	fi
