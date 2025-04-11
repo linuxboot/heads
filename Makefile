@@ -427,25 +427,24 @@ define define_module =
 		echo "INFO: .patched file not found. Beginning patch application for $1" && \
 		if [ -r patches/$($1_patch_name).patch ]; then \
 			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..." && \
-			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
+			if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch; then \
 				echo "ERROR: Failed to apply patch patches/$($1_patch_name).patch. Reversing and reapplying." && \
-				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
-				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
-			fi ; \
-		fi && \
-		if [ -d patches/$($1_patch_name) ] && \
-		   [ -r patches/$($1_patch_name) ] || [ -n "$$(ls patches/$($1_patch_name)/*.patch 2>/dev/null)" ]; then \
-			for patch in patches/$($1_patch_name)/*.patch ; do \
-				echo "Applying patch file : $$$$patch " &&  \
-				if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
+				git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || true && \
+				git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || exit 1; \
+			fi; \
+		fi; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "Applying patch file: $$$$patch" && \
+				if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch"; then \
 					echo "ERROR: Failed to apply patch $$$$patch. Reversing and reapplying." && \
-					( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
-					( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
-				fi ; \
-			done ; \
-		fi && \
+					git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || true && \
+					git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || exit 1; \
+				fi; \
+			done; \
+		fi; \
 		echo "INFO: Patches applied successfully. Creating .patched file" && \
-		touch "$(build)/$($1_base_dir)/.patched" ; \
+		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
     # Versioned modules (each version a separate module) don't need to include
