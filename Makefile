@@ -400,27 +400,33 @@ define define_module =
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
+		echo "INFO: .canary file not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)"; \
 		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
+		echo "INFO: Creating .canary file with repo and commit hash"; \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
+		echo "INFO: Canary file differs. Switching $1 to $($1_repo) at $($1_commit_hash)"; \
 		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		echo "git fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no" && \
+		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)"; \
 		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
-		echo "git reset --hard $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
-		echo "git clean" && \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
+		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)"; \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
-		echo "git submodule sync" && \
+		echo "INFO: Synchronizing submodules"; \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
-		echo "git submodule update" && \
+		echo "INFO: Updating submodules (init and checkout)"; \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
+		echo "INFO: Updating .canary file with new repo info"; \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
 	fi
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .patched file not found. Beginning patch application for $1"; \
 		if [ -r patches/$($1_patch_name).patch ]; then \
+			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..."; \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
 				< patches/$($1_patch_name).patch \
 				|| exit 1 ; \
@@ -434,6 +440,7 @@ define define_module =
 					|| exit 1 ; \
 			done ; \
 		fi && \
+		echo "INFO: Patches applied successfully. Creating .patched file"; \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
