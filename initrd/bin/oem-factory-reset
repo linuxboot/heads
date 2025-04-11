@@ -152,13 +152,13 @@ mount_boot() {
 reset_nk3_secret_app() {
 	TRACE_FUNC
 
-	# Reset Nitrokey 3 Secrets app with $ADMIN_PIN (default 12345678, or customised)
+	# Reset Nitrokey 3 Secrets app PIN with $ADMIN_PIN (default 12345678, or customised)
 	if lsusb | grep -q "20a0:42b2" && [ -x /bin/hotp_verification ]; then
 		echo
-		warn "Resetting Nitrokey 3's Secrets App with PIN. Physical presence (touch) will be required"
+		warn "Resetting Nitrokey 3's Secrets app with PIN. Physical presence (touch) will be required"
 		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
-		# Do 3 attempts to reset Nitrokey 3 Secrets App if return code is 3 (no touch)
+		# Do 3 attempts to reset Nitrokey 3 Secrets app if return code is 3 (no touch)
 		for attempt in 1 2 3; do
 			if /bin/hotp_verification reset "${ADMIN_PIN}"; then
 				echo
@@ -168,7 +168,7 @@ reset_nk3_secret_app() {
 				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
 					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 cecrets app reset attempt: $attempt/3"
 				else
-					whiptail_error_die "Nitrokey 3's secrets app reset failed with error:$error_code. Contact Nitrokey support"
+					whiptail_error_die "Nitrokey 3's Secrets app reset failed with error:$error_code. Contact Nitrokey support"
 				fi
 			fi
 		done
@@ -1164,13 +1164,13 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			}
 		done
 
-		echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-		read -r GPG_USER_COMMENT
-		while [[ ${#GPG_USER_COMMENT} -gt 60 ]]; do
-			{
-				echo -e "\nEnter Comment (Optional, to distinguish this key from others with same previous attributes. Must be smaller then 60 characters):"
-				read -r GPG_USER_COMMENT
-			}
+		echo -e "\nEnter Comment (Required: Use this to distinguish this key from others, e.g., its purpose or usage context. Must be 1-60 characters):"
+		while true; do
+			read -r GPG_USER_COMMENT
+			if [[ ${#GPG_USER_COMMENT} -ge 1 && ${#GPG_USER_COMMENT} -le 60 ]]; then
+				break
+			fi
+			echo -e "\nComment must be 1-60 characters long. Please try again:"
 		done
 	fi
 
@@ -1284,6 +1284,8 @@ gpg --list-keys >/dev/null 2>&1
 
 #Generate keys in memory and copy to smartcard
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
+	# Reset Nitrokey 3 Secrets app before generating keys in memory
+	reset_nk3_secret_app
 	if [ "$GPG_ALGO" == "RSA" ]; then
 		# Generate GPG master key
 		generate_inmemory_RSA_master_and_subkeys
