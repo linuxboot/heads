@@ -426,24 +426,25 @@ define define_module =
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
 		echo "INFO: .patched file not found. Beginning patch application for $1" && \
 		if [ -r patches/$($1_patch_name).patch ]; then \
-			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..." && \
+			echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
 			if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch; then \
-				echo "ERROR: Failed to apply patch patches/$($1_patch_name).patch. Reversing and reapplying." && \
+				echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
 				git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || true && \
 				git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || exit 1; \
 			fi; \
 		fi; \
 		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
 			for patch in patches/$($1_patch_name)/*.patch; do \
-				echo "Applying patch file: $$$$patch" && \
+				echo "INFO: Applying patch file: $$$$patch" && \
 				if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch"; then \
-					echo "ERROR: Failed to apply patch $$$$patch. Reversing and reapplying." && \
+					echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
 					git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || true && \
 					git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || exit 1; \
 				fi; \
 			done; \
 		fi; \
-		echo "INFO: Patches applied successfully. Creating .patched file" && \
+		echo "INFO: Patches applied successfully. Creating .patched file." && \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
@@ -468,19 +469,21 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		echo "INFO: Applying single patch file patches/$($1_patch_name).patch" && \
+		echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
 		if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
-			echo "ERROR: Failed to apply patch patches/$($1_patch_name).patch. Reversing and reapplying." && \
+			echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
 			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
 		fi ; \
 	fi ; \
 	if [ -d patches/$($1_patch_name) ]; then \
+		echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
 		for patch in patches/$($1_patch_name)/*.patch; do \
 			echo "INFO: Applying patch file: $$$$patch" && \
 			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
-				echo "ERROR: Failed to apply patch $$$$patch. Reversing and reapplying." && \
+				echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
 				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
+				echo "INFO: Reapplying patch file: $$$$patch" && \
 				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
 			fi ; \
 		done ; \
@@ -488,12 +491,13 @@ define define_module =
 	if [ ! -e "$$@" ] && [ -e "$(build)/$($1_base_dir)/.patched" ]; then \
 		echo "INFO: .canary file not found but .patched exists. Reversing and reapplying patches for $1" && \
 		if [ -r patches/$($1_patch_name).patch ]; then \
-			echo "INFO: Reversing single patch file patches/$($1_patch_name).patch." && \
+			echo "INFO: Reversing single patch file: patches/$($1_patch_name).patch." && \
 			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
-			echo "INFO: Reapplying single patch file patches/$($1_patch_name).patch." && \
+			echo "INFO: Reapplying single patch file: patches/$($1_patch_name).patch." && \
 			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
 		fi ; \
 		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Reversing and reapplying multiple patch files from directory: patches/$($1_patch_name)" && \
 			for patch in patches/$($1_patch_name)/*.patch; do \
 				echo "INFO: Reversing patch file: $$$$patch" && \
 				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
