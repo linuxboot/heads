@@ -931,18 +931,7 @@ define overwrite_canary_if_coreboot_git
 	   [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.git" ]; then \
 		echo "INFO: Recreating .canary file for 'build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)' with placeholder." && \
 		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary" && \
-		echo "NOTE: If a patch fails to apply, some files might need to be deleted manually to resolve conflicts." && \
-		echo "INFO: Reversing patches dynamically in reverse order." && \
-		for patch in $$(ls patches/coreboot-$(CONFIG_COREBOOT_VERSION)/*.patch 2>/dev/null | sort -r); do \
-			echo "INFO: Reversing patch file: $$patch" && \
-			( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < $$patch ) || true ; \
-		done && \
-		if [ -r patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ]; then \
-			echo "INFO: Reversing main patch file patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch." && \
-			( git apply --reverse --verbose --reject --binary --directory build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION) < patches/coreboot-$(CONFIG_COREBOOT_VERSION).patch ) || true ; \
-		fi && \
-		echo "INFO: Removing .patched file to allow reapplication of patches." && \
-		rm -f "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.patched" ; \
+		echo "INFO: .canary file has been recreated." ; \
 	else \
 		echo "INFO: Coreboot directory or .git not found, skipping .canary overwrite." ; \
 	fi
