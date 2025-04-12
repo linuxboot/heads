@@ -974,8 +974,14 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "This approach economizes time since most build artifacts do not need to be rebuilt, as the file dates should be the same as when you originally built them."
 	@echo "Only a minimal time is needed for rebuilding, which is also good for your SSD."
 	@echo "*** USE THIS APPROACH FIRST ***"
-	find ./build/ -type f -name ".canary" -print -delete
-	find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
+	@echo "Removing ./build .canary files..."
+	@find ./build/ -type f -name ".canary" -print -delete || true
+	@echo "Removing install/*/* content..."
+	@find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
+	@echo "Removing coreboot board related artifact directory: $(build)/$(coreboot_dir)"
+	rm -rf "$(build)/$(coreboot_dir)"
+	@echo "Removing coreboot board related artifacts directory $(board_build)"
+	rm -rf "$(board_build)"
 	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages_and_build:
