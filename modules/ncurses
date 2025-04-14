@@ -1,4 +1,4 @@
-modules-y += ncurses
+modules-$(CONFIG_NEWT) += ncurses
 
 ncurses_depends := $(musl_dep)
 
@@ -18,12 +18,11 @@ ncurses_configure := \
 	--without-manpages \
 	--without-shared
 
-#build hack: we cp installed terminfo dir back into build dir to pack terminfo in initrd
+# Build and install ncurses data
 ncurses_target := $(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
-	install.data && \
-	cp -vpr $(INSTALL)/usr/share/terminfo "$(build)/$(ncurses_dir)"
+	install.data
 
-ncurses_data := \
-	terminfo/l/linux
+# Specify terminfo file for data.cpio if ncurses is enabled
+ncurses_data += $(INSTALL)/usr/lib/terminfo/l/linux|etc/terminfo/l/linux
