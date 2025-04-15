@@ -400,47 +400,51 @@ define define_module =
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ]; then \
-		echo "INFO: .canary file not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)"; \
-		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
-		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
-		echo "INFO: Creating .canary file with repo and commit hash"; \
-		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
+		echo "INFO: .canary file not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
+		git clone $($1_repo) "$(build)/$($1_base_dir)" && \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "INFO: Creating .canary file with repo and commit hash" && \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
 	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "INFO: Canary file differs. Switching $1 to $($1_repo) at $($1_commit_hash)"; \
+		echo "INFO: Canary file differs. Switching $1 to $($1_repo) at $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)"; \
+		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)" && \
 		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
-		echo "INFO: Resetting repository to commit $($1_commit_hash)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
-		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)"; \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)" && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
-		echo "INFO: Synchronizing submodules"; \
+		echo "INFO: Synchronizing submodules" && \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
-		echo "INFO: Updating submodules (init and checkout)"; \
+		echo "INFO: Updating submodules (init and checkout)" && \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
-		echo "INFO: Updating .canary file with new repo info"; \
-		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
+		echo "INFO: Updating .canary file with new repo info" && \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
 	fi
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
-		echo "INFO: .patched file not found. Beginning patch application for $1"; \
+		echo "INFO: .patched file not found. Beginning patch application for $1" && \
 		if [ -r patches/$($1_patch_name).patch ]; then \
-			echo "INFO: Found patch file patches/$($1_patch_name).patch. Applying patch..."; \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< patches/$($1_patch_name).patch \
-				|| exit 1 ; \
-		fi && \
-		if [ -d patches/$($1_patch_name) ] && \
-		   [ -r patches/$($1_patch_name) ] ; then \
-			for patch in patches/$($1_patch_name)/*.patch ; do \
-				echo "Applying patch file : $$$$patch " ;  \
-				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-					< $$$$patch \
-					|| exit 1 ; \
-			done ; \
-		fi && \
-		echo "INFO: Patches applied successfully. Creating .patched file"; \
+			echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
+			if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch; then \
+				echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
+				git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || true && \
+				git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || exit 1; \
+			fi; \
+		fi; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "INFO: Applying patch file: $$$$patch" && \
+				if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch"; then \
+					echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
+					git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || true && \
+					git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || exit 1; \
+				fi; \
+			done; \
+		fi; \
+		echo "INFO: Patches applied successfully. Creating .patched file." && \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
@@ -465,20 +469,45 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-			< patches/$($1_patch_name).patch \
-			|| exit 1 ; \
-	fi
-	if [ -d patches/$($1_patch_name) ] && \
-	   [ -r patches/$($1_patch_name) ] ; then \
-		for patch in patches/$($1_patch_name)/*.patch ; do \
-			echo "Applying patch file : $$$$patch " ;  \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< $$$$patch \
-				|| exit 1 ; \
+		echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
+		if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
+			echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
+		fi ; \
+	fi ; \
+	if [ -d patches/$($1_patch_name) ]; then \
+		echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
+		for patch in patches/$($1_patch_name)/*.patch; do \
+			echo "INFO: Applying patch file: $$$$patch" && \
+			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
+				echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
+				echo "INFO: Reapplying patch file: $$$$patch" && \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
+			fi ; \
 		done ; \
 	fi
-	@touch "$$@"
+	if [ ! -e "$$@" ] && [ -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .canary file not found but .patched exists. Reversing and reapplying patches for $1" && \
+		if [ -r patches/$($1_patch_name).patch ]; then \
+			echo "INFO: Reversing single patch file: patches/$($1_patch_name).patch." && \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
+			echo "INFO: Reapplying single patch file: patches/$($1_patch_name).patch." && \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
+		fi ; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Reversing and reapplying multiple patch files from directory: patches/$($1_patch_name)" && \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "INFO: Reversing patch file: $$$$patch" && \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
+				echo "INFO: Reapplying patch file: $$$$patch" && \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
+			done ; \
+		fi ; \
+		rm -f "$(build)/$($1_base_dir)/.patched" ; \
+	fi
+	touch "$$@"
   endif
 
   # Allow the module to override the destination configuration file
@@ -894,26 +923,47 @@ $(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPU
 		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
 
 
+
 #Dev cycles helpers:
+
+# Helper function to overwrite coreboot git repo's .canary file with a bogus commit (.canary checked for matching commit on build)
+#  TODO: Implement a cleaner solution to ensure files created by patches are properly deleted instead of requiring manual intervention.
+define overwrite_canary_if_coreboot_git
+	@echo "Checking for coreboot directory: build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)"
+	if [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)" ] && \
+	   [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.git" ]; then \
+		echo "INFO: Recreating .canary file for 'build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)' with placeholder." && \
+		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary" && \
+		echo "INFO: .canary file has been recreated." ; \
+	else \
+		echo "INFO: Coreboot directory or .git not found, skipping .canary overwrite." ; \
+	fi
+endef
+
 real.clean:
+	@echo "Cleaning build artifacts and install directories, leaving crossgcc intact."
 	for dir in \
 		$(module_dirs) \
 		$(kernel_headers) \
 	; do \
 		if [ ! -z "$$dir" ]; then \
-			rm -rf "build/${CONFIG_TARGET_ARCH}/$$dir"; \
-		fi; \
+			rm -rf "build/${CONFIG_TARGET_ARCH}/$$dir" ; \
+		fi ; \
 	done
 	cd install && rm -rf -- *
+	$(call overwrite_canary_if_coreboot_git)
+
 real.gitclean:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep downloaded coreboot forks (detected as Git repos)."
 	git clean -fxd
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' directory."
 	git clean -fxd -e "packages"
+	$(call overwrite_canary_if_coreboot_git)
 
 real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "Removing 'canary' files to force Heads to restart building board configurations..."
@@ -924,10 +974,18 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "This approach economizes time since most build artifacts do not need to be rebuilt, as the file dates should be the same as when you originally built them."
 	@echo "Only a minimal time is needed for rebuilding, which is also good for your SSD."
 	@echo "*** USE THIS APPROACH FIRST ***"
-	find ./build/ -type f -name ".canary" -print -delete
-	find ./install/*/* -print -exec rm -rf {} +
+	@echo "Removing ./build .canary files..."
+	@find ./build/ -type f -name ".canary" -print -delete || true
+	@echo "Removing install/*/* content..."
+	@find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
+	@echo "Removing coreboot board related artifact directory: $(build)/$(coreboot_dir)"
+	rm -rf "$(build)/$(coreboot_dir)"
+	@echo "Removing coreboot board related artifacts directory $(board_build)"
+	rm -rf "$(board_build)"
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages_and_build:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' and 'build' directories."
 	git clean -fxd -e "packages" -e "build"
+	$(call overwrite_canary_if_coreboot_git)
