@@ -28,7 +28,7 @@ mobile_tethering()
 		echo "* Linux: Set the wired connection's IPv4 method on the mobile phone to 'Shared to other computers'."
 		echo "Heads supports CDC-NCM and CDC-EEM.  Android phones using RNDIS and Apple phones are not supported."
 		echo ""
-		read -p "Press Enter to continue..." -n 1 -r
+		read -p "Press Enter to continue..." -r
 
 		network_modules="mii usbnet cdc_ether cdc_ncm cdc_eem"
 		for module in $(echo $network_modules); do
@@ -44,7 +44,7 @@ mobile_tethering()
 			echo "* Android phones requiring RNDIS and Apple phones are not supported."
 			echo "* Make sure the cable used works with data and that the phone has tethering enabled."
 			echo ""
-			read -p "Press Enter to continue..." -n 1 -r
+			read -p "Press Enter to continue..." -r
 		fi
 	fi
 }

@@ -11,8 +11,8 @@ die() {
 		echo -e "!!! ERROR: $* !!!" >&2
 	fi
 
-	# ask user to press any key prior to exit
-	read -n 1 -s -r -p $'Press Enter to continue...\n\n'
+	# ask user to press Enter prior to exit
+	read -r -p $'Press Enter to continue...\n\n'
 
 	exit 1
 }
