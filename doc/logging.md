@@ -9,7 +9,7 @@ Users can set an _output level_ that controls how much output they see on the sc
 
 In order from "most verbose" to "least verbose":
 
-LOG > TRACE > DEBUG > INFO > console > warn
+LOG > TRACE > DEBUG > INFO > (console) > NOTE > warn
 
 ("console" level output is historical and should be replaced with INFO.)
 
@@ -90,6 +90,19 @@ The intent is the same as INFO.
 
 Avoid using this, and change existing console output to INFO or another level.
 
+## NOTE
+
+NOTE is for contextual information explaining something that is _likely_ to be unexpected or confusing to users new to Heads.
+
+Unlike INFO, it cannot be hidden.  Use this only if the behavior is likely to be unexpected or confusing to many users.  If it is only possibly unexpected or uncommon that it is confusing, consider INFO instead.
+
+Do not overuse this above INFO.  Adding too much output at NOTE causes users to ignore it, as there is too much output.
+
+For example:
+
+* "Rebooting in 3 seconds to enable booting default boot option".  Users probably don't expect the firmware to reboot to accomplish this behavior, this is unique to Heads.  Without a message justifying the reboot, it would likely appear that the firmware faulted and reset unexpectedly.
+* "Your GPG User PIN, followed by Enter key will be required [...]".  GPG prompts are very confusing to users unfamiliar with GPG (which is most users).
+
 ## warn
 
 warn is for output that indicates a problem.  We think the user should act on it, but we are able to continue, possibly with degraded functionality.
@@ -97,9 +110,9 @@ warn is for output that indicates a problem.  We think the user should act on it
 
 This is apppriate when _all_ of the following are true:
 
-- there is a likely problem
+- there is a _likely_ problem
 - we are able to continue, possibly with degraded functionality
-- there is a reasonable change that could silence the warning if this is intentional
+- the warning is _actionable_ - there is a reasonable change that could silence the warning if this is intentional
 
 **Do not overuse this.** Overuse of this level causes user to become accustomed to ignoring warnings.
 This level only has value as long as it does not occur frequently, so users will notice warnings.
@@ -110,7 +123,7 @@ Warnings must indicate a _likely_ problem.
 Warnings are only appropriate if we're able to continue operating.
 If we can't, consider prompting the user instead, since we cannot do what they asked.
 
-Warnings are only appropriate if there is a reasonable change the user can make to avoid the warning.
+Warnings must be _actionable_.  Only warn if there is a reasonable change the user can make to avoid the warning.
 
 For example:
 * Warning when using default passphrases that are completely insecure is reasonable - the user has no security, and if they want that, they should use Basic mode.
@@ -131,10 +144,10 @@ TODO: Document the variables that control these levels
 
 ## None - no extra output
 
-| Sink                    | LOG | TRACE | DEBUG | INFO | console | warn |
-|-------------------------|-----|-------|-------|------|---------|------|
-| Console (via /dev/kmsg) |     |       |       |      | Yes*    | Yes  |
-| /tmp/debug.log          |     |       |       |      |         |      |
+| Sink                    | LOG | TRACE | DEBUG | INFO | console | NOTE | warn |
+|-------------------------|-----|-------|-------|------|---------|------|------|
+| Console (via /dev/kmsg) |     |       |       |      | Yes*    | Yes  | Yes  |
+| /tmp/debug.log          | Yes |       |       |      |         |      |      |
 
 * Most 'console' output should be changed to INFO, that content isn't intended to be displayed in quiet mode
 
@@ -148,10 +161,10 @@ CONFIG_QUIET_MODE=y
 
 ## Info
 
-| Sink                    | LOG | TRACE | DEBUG | INFO | console | warn |
-|-------------------------|-----|-------|-------|------|---------|------|
-| Console (via /dev/kmsg) |     |       |       | Yes  | Yes     | Yes  |
-| /tmp/debug.log          |     |       |       |      |         |      |
+| Sink                    | LOG | TRACE | DEBUG | INFO | console | NOTE | warn |
+|-------------------------|-----|-------|-------|------|---------|------|------|
+| Console (via /dev/kmsg) |     |       |       | Yes  | Yes     | Yes  | Yes  |
+| /tmp/debug.log          | Yes |       |       |      |         |      |      |
 
 Info output is enabled with:
 
@@ -163,10 +176,10 @@ CONFIG_QUIET_MODE=n
 
 ## Debug
 
-| Sink                    | LOG | TRACE | DEBUG | INFO | console | warn |
-|-------------------------|-----|-------|-------|------|---------|------|
-| Console (via /dev/kmsg) |     | Yes   | Yes   | Yes  | Yes     | Yes  |
-| /tmp/debug.log          | Yes | Yes   | Yes   | Yes  | Yes     | Yes  |
+| Sink                    | LOG | TRACE | DEBUG | INFO | console | NOTE | warn |
+|-------------------------|-----|-------|-------|------|---------|------|------|
+| Console (via /dev/kmsg) |     | Yes   | Yes   | Yes  | Yes     | Yes  | Yes  |
+| /tmp/debug.log          | Yes | Yes   | Yes   | Yes  | Yes     | Yes  | Yes  |
 
 Debug output is enabled with:
 
