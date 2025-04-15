@@ -218,7 +218,7 @@ confirm_gpg_card() {
 	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
 	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
 	echo ""
-	warn "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	NOTE "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
 	echo ""
 }
 
@@ -621,17 +621,17 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-		warn "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
+		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
 		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
 			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
 		done
-		warn "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
+		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
 		while ! update_checksums; do
 			warn "Checksums were not signed. Preceding errors should explain possible causes"
 		done
-		warn "Rebooting in 3 seconds to enable booting default boot option"
+		NOTE "Rebooting in 3 seconds to enable booting default boot option"
 		sleep 3
 		reboot
 	else
