@@ -68,7 +68,7 @@ jobs:
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find .circleci/config.yml ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
+            find .circleci/config.yml ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
