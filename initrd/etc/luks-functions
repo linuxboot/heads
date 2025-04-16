@@ -8,7 +8,7 @@
 # List all LUKS devices on the system that are not USB
 list_local_luks_devices() {
 	TRACE_FUNC
-	lvm vgscan || true
+	lvm vgscan 2>/dev/null || true
 	blkid | cut -d ':' -f 1 | while read -r device; do
 		DEBUG "Checking device: $device"
 		if cryptsetup isLuks "$device"; then
