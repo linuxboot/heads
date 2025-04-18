@@ -5,7 +5,7 @@ TRACE_FUNC
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then 
 	#Generalize user prompt to continue reboot or go to recovery shell 
-	read -r -n 1 -s -p "Press any key to continue reboot or 'r' to go to recovery shell: " REPLY 
+	read -r -n 1 -s -p "Press Enter to continue reboot or 'r' to go to recovery shell: " REPLY 
 	echo 
 	if [ "$REPLY" = "r" ] || [ "$REPLY" = "R" ]; then 
 		recovery "Reboot call bypassed to go into recovery shell to debug"
