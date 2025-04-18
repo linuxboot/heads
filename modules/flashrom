@@ -15,7 +15,7 @@ flashrom_cfg := \
 	CONFIG_INTERNAL=yes \
 	CONFIG_INTERNAL_X86=yes \
 
-ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+ifneq "$(CONFIG_TARGET_ARCH)" "x86"
 flashrom_cfg := \
 	WARNERROR=no \
 	CONFIG_NOTHING=yes \
@@ -43,4 +43,4 @@ flashrom_output := \
 
 flashrom_libraries := \
 
-flashrom_configure := 
+flashrom_configure :=

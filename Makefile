@@ -126,6 +126,8 @@ ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 MUSL_ARCH := x86_64
 else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 MUSL_ARCH := powerpc64le
+else ifeq "$(CONFIG_TARGET_ARCH)" "arm64"
+MUSL_ARCH := aarch64
 else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
 endif
