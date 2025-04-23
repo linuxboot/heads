@@ -78,6 +78,11 @@ while true; do
 			'K' " $(get_config_display_action "$CONFIG_USER_USB_KEYBOARD") USB keyboard"
 		)
 
+		 # Add keyboard keymap selection option
+		dynamic_config_options+=(
+			'k' ' Change Keyboard Keymap'
+		)
+
 		# Debugging option always available
 		dynamic_config_options+=(
 			'Z' " Configure $CONFIG_BRAND_NAME informational / debug output"
@@ -546,6 +551,80 @@ while true; do
 					--msgbox "USB Keyboard support has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
+		;;
+	"k")
+		KEYMAP_ROOT="/usr/lib/kbd/keymaps"
+		DEFAULT_KEYMAP="$KEYMAP_ROOT/i386/qwerty/us.map"
+		CURRENT_KEYMAP="$(load_config_value KEYBOARD_KEYMAP)"
+		[ -z "$CURRENT_KEYMAP" ] && CURRENT_KEYMAP="$DEFAULT_KEYMAP"
+		BROWSE_DIR="$KEYMAP_ROOT"
+		while true; do
+			menu_entries=()
+			# List directories (if they contain .map or subdirs) and .map files, skip "include"
+			for entry in "$BROWSE_DIR"/*; do
+				[ "$(basename "$entry")" = "include" ] && continue
+				if [ -d "$entry" ]; then
+					has_content=0
+					for sub in "$entry"/*; do
+						[ -d "$sub" ] && has_content=1 && break
+						[[ "$sub" == *.map ]] && has_content=1 && break
+					done
+					if [ $has_content -eq 1 ]; then
+						menu_entries+=("$(basename "$entry")/" "$(basename "$entry")/")
+					fi
+				elif [[ "$entry" == *.map ]]; then
+					menu_entries+=("$(basename "$entry")" "$(basename "$entry")")
+				fi
+			done
+
+			final_entries=()
+			[ "$BROWSE_DIR" != "$KEYMAP_ROOT" ] && final_entries+=(".." "..")
+			for ((i=0; i<${#menu_entries[@]}; i+=2)); do
+				final_entries+=("${menu_entries[i]}" "${menu_entries[i+1]}")
+			done
+			final_entries+=("Cancel" "Cancel")
+
+			if [ ${#final_entries[@]} -le 2 ]; then
+				whiptail --title "No keymaps" --msgbox "No keymaps or directories found here." 0 60
+				break
+			fi
+
+			whiptail --title "Select Keymap" \
+				--menu "Browse to select a keymap file.\n\n(Current: ${CURRENT_KEYMAP:-none})" 0 80 18 \
+				"${final_entries[@]}" 2>/tmp/whiptail || break
+
+			choice=$(cat /tmp/whiptail)
+			if [ "$choice" = "Cancel" ]; then
+				loadkeys "$CURRENT_KEYMAP"
+				break
+			fi
+			if [ "$choice" = ".." ]; then
+				BROWSE_DIR="$(dirname "$BROWSE_DIR")"
+				[ "$BROWSE_DIR" = "/" ] && BROWSE_DIR="$KEYMAP_ROOT"
+				continue
+			elif [[ "$choice" == */ ]]; then
+				BROWSE_DIR="$BROWSE_DIR/${choice%/}"
+				continue
+			elif [[ "$choice" == *.map ]]; then
+				SELECTED_KEYMAP="$BROWSE_DIR/$choice"
+				loadkeys "$SELECTED_KEYMAP"
+				echo
+				echo "------------------------------------------------------------"
+				echo "Keymap loaded: $SELECTED_KEYMAP"
+				echo
+				echo "You can now test your keyboard layout in this shell."
+				echo "Press Enter when done testing to continue..."
+				echo "------------------------------------------------------------"
+				read -p $'\nTest your keymap now. Press Enter to continue:\n' dummy
+				if whiptail --title "Keep this keymap?" \
+					--yesno "Do you want to use this keymap?\n\n$SELECTED_KEYMAP" 0 70; then
+					set_user_config "KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"
+					whiptail --title "Keymap set" --msgbox "Keymap set to:\n\n$SELECTED_KEYMAP\n\nSave the config change and reboot for it to go into effect." 0 70
+					break
+				fi
+				loadkeys "$CURRENT_KEYMAP"
+			fi
+		done
 		;;
 	"Z")
 		unset output_choice
