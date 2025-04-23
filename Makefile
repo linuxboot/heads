@@ -109,6 +109,12 @@ CONFIG_HEADS	?= y
 # Unless otherwise specified, we are building bash to have non-interactive shell for scripts (arrays and bashisms)
 CONFIG_BASH	?= y
 
+# Unless otherwise specified, we build kbd to have setfont, loadkeys and keymaps
+CONFIG_KBD	?= y
+#loadkeys permits to load .map source files directly
+CONFIG_KBD_LOADKEYS ?= y
+
+
 # USB keyboards can be ignored, optionally supported, or required.
 #
 # To optionally support USB keyboards, export CONFIG_SUPPORT_USB_KEYBOARD=y.  To
