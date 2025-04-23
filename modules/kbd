@@ -40,4 +40,4 @@ endif
 kbd_depends := $(musl_dep)
 
 kbd_data += \
-	$(build)/$(kbd_dir)/data/keymaps|etc/keymaps
+	$(build)/$(kbd_dir)/data/keymaps|usr/lib/kbd/keymaps
