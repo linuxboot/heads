@@ -557,7 +557,7 @@ while true; do
 	"k")
 		KEYMAP_ROOT="/usr/lib/kbd/keymaps"
 		DEFAULT_KEYMAP="$KEYMAP_ROOT/i386/qwerty/us.map"
-		CURRENT_KEYMAP="$(load_config_value KEYBOARD_KEYMAP)"
+		CURRENT_KEYMAP="$(load_config_value CONFIG_KEYBOARD_KEYMAP)"
 		[ -z "$CURRENT_KEYMAP" ] && CURRENT_KEYMAP="$DEFAULT_KEYMAP"
 
 		while true; do
@@ -625,7 +625,7 @@ while true; do
 					read -p $'\nTest your keymap now. Press Enter to continue:\n' dummy
 					if whiptail --title "Keep this keymap?" \
 						--yesno "Do you want to use this keymap?\n\n$SELECTED_KEYMAP" 0 70; then
-						set_user_config "KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"
+						set_user_config "CONFIG_KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"
 						whiptail --title "Keymap set" --msgbox "Keymap set to:\n\n$SELECTED_KEYMAP\n\nSave the config change and reboot for it to go into effect." 0 70
 						break 2
 					fi
