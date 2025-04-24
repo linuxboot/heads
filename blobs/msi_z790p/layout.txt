@@ -1,4 +1,0 @@
-00000000:00000fff fd
-00400000:01ffffff bios
-00001000:003d8fff me
-003d9000:003fffff devexp2
