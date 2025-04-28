@@ -62,6 +62,7 @@ TRACE() {
 # doc/logging.md.
 NOTE() {
 	echo "NOTE:" "$@" | tee -a /tmp/debug.log
+	sleep 1
 }
 
 # Use INFO for contextual information that might make sense to non-developers,
