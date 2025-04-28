@@ -314,7 +314,7 @@ user_select() {
 			# continue below to boot the new default option
 			true
 		else
-			warn "Rebooting to start the new default option"
+			NOTE "Rebooting to start the new default option"
 			reboot
 		fi
 	fi
