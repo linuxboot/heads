@@ -38,7 +38,7 @@ PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
-lvm_suggest=$(lvm vgscan | awk -F '"' {'print $1'} | tail -n +2)
+lvm_suggest=$(lvm vgscan 2>/dev/null | awk -F '"' {'print $1'} | tail -n +2)
 num_lvm=$(echo "$lvm_suggest" | wc -l)
 if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
 	lvm_volume_group="$lvm_suggest"
