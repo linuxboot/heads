@@ -104,7 +104,7 @@ $(eval $(call coreboot_module,dasharo,24.02.01))
 # Therefore, patches/coreboot-2412 includes libreboot patches applied to 24.12 release
 #  patches/coreboot-2412 also includes PR0 patchset, minus xeon support which don't apply to 24.12 as per https://review.coreboot.org/c/coreboot/+/85278
 #   TODO: @miczyg1 rebase of patchset so that doenstream don't have to maintain, adapt work
-coreboot-24.12_repo := https://review.coreboot.org/coreboot.git
+coreboot-24.12_repo := https://github.com/coreboot/coreboot
 coreboot-24.12_commit_hash := 2f1e4e5e8515dd350cc9d68b48d32a5b6b02ae6a
 #Don't reuse any coreboot buildstack for now since nothing else is based on 24.12
 $(eval $(call coreboot_module,24.12,))
