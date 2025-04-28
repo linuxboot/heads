@@ -65,12 +65,12 @@ DEBUG "$(pcrs)"
 
 
 luks_drk_passphrase_valid=0
-for dev in $key_devices	; do
+for dev in $key_devices; do
 	attempts=0
 	while [ $attempts -lt 3 ]; do
 		if [ "$luks_drk_passphrase_valid" == "0" ]; then
 			# Ask for the passphrase only once
-			read -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices: "$'\n' disk_recovery_key_passphrase
+			read -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"':\n' disk_recovery_key_passphrase
 			# Using the provided passphrase as the DRK "keyfile" for unattended operations
 			echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 		fi
@@ -80,36 +80,45 @@ for dev in $key_devices	; do
 			echo "++++++ $dev: LUKS device unlocked successfully with the DRK passphrase"
 			luks_drk_passphrase_valid=1
 			break
-			#TODO: when multiple LUKS devices are tested, new DUK passphrase prompt interferes with previous echo. FIXME
 		else
 			attempts=$((attempts + 1))
-			if [ "$attempts" == "3" ] && [ "$luks_drk_passphrase_valid" == "0" ]; then
+			if [ "$attempts" == "3" ]; then
 				die "Failed to unlock LUKS device $dev with the provided passphrase. Exiting..."
-			elif [ "$attempts" != "3" ] && [ "$luks_drk_passphrase_valid" == "1" ]; then
-				#We failed unlocking with DRK passphrase another LUKS container
-				die "LUKS device $key_devices cannot all be unlocked with same passphrase. Please make $key_devices devices unlockable with the same passphrase. Exiting"
 			else
 				warn "Failed to unlock LUKS device $dev with the provided passphrase. Please try again."
 			fi
 		fi
 	done
+
+	# Ensure the loop blocks and completes testing for the current device before moving to the next
+	if [ "$luks_drk_passphrase_valid" == "0" ]; then
+		die "Unable to unlock all LUKS devices with the provided passphrase. Exiting..."
+	fi
 done
 
+MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
-	read -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting:\n' key_password
+	#TODO: race condition fix for multiple LUKS devices
+	read -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters):\n' key_password
+	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
+		attempts=$((attempts + 1))
+		warn "Disk Unlock Key (DUK) passphrase is too short. Please try again."
+		continue
+	fi
+
 	read -s -p $'\nRepeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting:\n' key_password2
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))
-		if [ "$attempts" == "3" ]; then
-			die "Disk Unlock Key (DUK) passphrases do not match. Exiting..."
-		else
-			warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
-		fi
+		warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
 	else
 		break
 	fi
 done
+
+if [ $attempts -ge 3 ]; then
+	die "Failed to set a valid Disk Unlock Key (DUK) passphrase after 3 attempts. Exiting..."
+fi
 
 # Generate key file
 echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by LUKS TPM Disk Unlock Key passphrase"
