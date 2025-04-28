@@ -90,7 +90,7 @@ function deguard() {
 
 	# Download the deguard tool into a temporary directory and apply the patch to the cleaned ME blob.
 	pushd "$(mktemp -d)" || exit
-	git clone https://review.coreboot.org/deguard.git
+	git clone https://github.com/coreboot/deguard
 	pushd deguard || exit
 	git checkout 0ed3e4ff824fc42f71ee22907d0594ded38ba7b2
 
