@@ -70,7 +70,9 @@ for dev in $key_devices; do
 	while [ $attempts -lt 3 ]; do
 		if [ "$luks_drk_passphrase_valid" == "0" ]; then
 			# Ask for the passphrase only once
-			read -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"':\n' disk_recovery_key_passphrase
+			echo ""
+			read -s -p "Enter LUKS Disk Recovery Key (DRK) passphrase that can unlock $key_devices: " disk_recovery_key_passphrase
+			echo ""
 			# Using the provided passphrase as the DRK "keyfile" for unattended operations
 			echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 		fi
@@ -100,14 +102,19 @@ MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
 	#TODO: race condition fix for multiple LUKS devices
-	read -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters):\n' key_password
+	echo ""
+	read -s -p "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum $MIN_PASSPHRASE_LENGTH characters): " key_password
+	echo ""
 	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
 		attempts=$((attempts + 1))
 		warn "Disk Unlock Key (DUK) passphrase is too short. Please try again."
 		continue
 	fi
 
-	read -s -p $'\nRepeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting:\n' key_password2
+	echo ""
+	read -s -p "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: " key_password2
+	echo ""
+	echo ""
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))
 		warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
@@ -188,7 +195,9 @@ for dev in $key_devices; do
 				# Heads expects key slot LUKSv1:7 or LUKSv2:31 to be used for TPM DUK setup.
 				#  Ask user to confirm otherwise
 				warn "LUKS key slot $keyslot is not typical ($duk_keyslot expected) for TPM Disk Unlock Key setup"
-				read -p $'\nAre you sure you want to wipe it? [y/N]\n' -n 1 -r
+				echo ""
+				read -p "Are you sure you want to wipe it? [y/N] " -n 1 -r
+				echo ""
 				# If user does not confirm, skip this slot
 				if [[ $REPLY =~ ^[Yy]$ ]]; then
 					wipe_desired="yes"
