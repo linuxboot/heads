@@ -858,10 +858,32 @@ read_tpm_counter() {
 # Increment the TPM counter value in the TPM.
 increment_tpm_counter() {
 	TRACE_FUNC
-	DO_WITH_DEBUG tpmr counter_increment -ix "$1" -pwdc '' |
-		tee /tmp/counter-"$1" >/dev/null 2>&1 ||
-		die "TPM counter increment failed for rollback prevention. Please reset the TPM."
-	DEBUG "TPM counter incremented successfully for index $1"
+	local counter_id="$1"
+	
+	# Check if counter exists by reading it first
+	if ! DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
+		DEBUG "TPM counter $counter_id could not be read before incrementing"
+		# Continue with increment attempt anyway to get detailed error messages
+	else
+		DEBUG "TPM counter $counter_id exists and was read successfully"
+	fi
+
+	# Try to increment the counter
+	if ! DO_WITH_DEBUG tpmr counter_increment -ix "$counter_id" -pwdc '' |
+		tee /tmp/counter-"$counter_id" >/dev/null 2>&1; then
+		
+		# Check if we need to create a new counter
+		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
+		
+		if DO_WITH_DEBUG tpmr counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter)
+			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
+		fi
+		
+		die "TPM counter increment failed for rollback prevention. Please reset the TPM or update kexec_rollback.txt with a new counter."
+	fi
+	
+	DEBUG "TPM counter incremented successfully for index $counter_id"
 }
 
 # Check detached signature on kexec boot params
