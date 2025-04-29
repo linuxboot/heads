@@ -61,7 +61,14 @@ TRACE() {
 # Don't overuse this - too much NOTE output will cause users to ignore it.  See
 # doc/logging.md.
 NOTE() {
+	#TODO: add colors to output, here blue for NOTE?
+
+	# Make sure the user sees this message: seperate it from the rest of the output
+	echo
 	echo "NOTE:" "$@" | tee -a /tmp/debug.log
+	echo
+
+	# Sleep for a second to give the user time to read the message
 	sleep 1
 }
 
