@@ -102,7 +102,8 @@ jobs:
       - run:
           name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx80/download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
@@ -526,6 +527,22 @@ workflows:
           subcommand: ""
           requires:
             - t480-hotp-maximized
+
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build:
+          name: t480s-hotp-maximized
+          target: t480s-hotp-maximized
+          subcommand: ""
+          requires:
+            - t480-hotp-maximized
+
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      - build:
+          name: t480s-maximized
+          target: t480s-maximized
+          subcommand: ""
+          requires:
+            - t480s-hotp-maximized
 
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
