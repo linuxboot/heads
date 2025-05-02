@@ -192,11 +192,7 @@ if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y
 fi
 
 # Set the keyboard keymap if defined, file exists, and loadkeys is available
-if [ -n "$CONFIG_KEYBOARD_KEYMAP" ] && [ -f "$CONFIG_KEYBOARD_KEYMAP" ] && [ -x /bin/loadkeys ]; then
-	TRACE_FUNC
-	DEBUG "Loading keyboard keymap: $CONFIG_KEYBOARD_KEYMAP"
-	DO_WITH_DEBUG loadkeys "$CONFIG_KEYBOARD_KEYMAP"
-fi
+load_keymap "$CONFIG_KEYBOARD_KEYMAP"
 
 # If the user has been holding down r, enter a recovery shell
 # otherwise immediately start the configured boot script.
