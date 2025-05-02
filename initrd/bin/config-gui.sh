@@ -556,9 +556,7 @@ while true; do
 		;;
 	"k")
 		KEYMAP_ROOT="/usr/lib/kbd/keymaps"
-		DEFAULT_KEYMAP="$KEYMAP_ROOT/i386/qwerty/us.map"
 		CURRENT_KEYMAP="$(load_config_value CONFIG_KEYBOARD_KEYMAP)"
-		[ -z "$CURRENT_KEYMAP" ] && CURRENT_KEYMAP="$DEFAULT_KEYMAP"
 
 		while true; do
 			# Guide user into finding which keyboard type he has
@@ -573,7 +571,6 @@ while true; do
 			layout_choice=$(cat /tmp/whiptail)
 			case "$layout_choice" in
 				"Cancel"|"")
-					loadkeys "$CURRENT_KEYMAP"
 					break
 					;;
 				"qwerty"|"qwertz"|"azerty")
@@ -606,7 +603,6 @@ while true; do
 
 				choice=$(cat /tmp/whiptail)
 				if [ "$choice" = "Cancel" ]; then
-					loadkeys "$CURRENT_KEYMAP"
 					break 2
 				fi
 				if [ "$choice" = ".." ]; then
@@ -614,7 +610,7 @@ while true; do
 					break
 				elif [[ "$choice" == *.map ]]; then
 					SELECTED_KEYMAP="$BROWSE_DIR/$choice"
-					loadkeys "$SELECTED_KEYMAP"
+					load_keymap "$SELECTED_KEYMAP"
 					echo
 					echo "------------------------------------------------------------"
 					echo "Keymap loaded: $SELECTED_KEYMAP"
@@ -629,7 +625,7 @@ while true; do
 						whiptail --title "Keymap set" --msgbox "Keymap set to:\n\n$SELECTED_KEYMAP\n\nSave the config change and reboot for it to go into effect." 0 70
 						break 2
 					fi
-					loadkeys "$CURRENT_KEYMAP"
+					load_keymap "$CURRENT_KEYMAP"
 				fi
 			done
 		done
