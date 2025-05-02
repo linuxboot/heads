@@ -81,7 +81,7 @@ while true; do
 		# Add keyboard keymap selection option only if loadkeys and keymaps exist
 		if [ -x /bin/loadkeys ] && [ -d /usr/lib/kbd/keymaps ]; then
 			dynamic_config_options+=(
-				'k' ' Change Keyboard Keymap'
+				'k' ' Change Keyboard Layout'
 			)
 		fi
 
