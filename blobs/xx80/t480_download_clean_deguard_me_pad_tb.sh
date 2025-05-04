@@ -168,8 +168,8 @@ function parse_params() {
 		usage_err "No valid output dir found"
 	fi
 	me_cleaned="${output_dir}/me_cleaned.bin"
-	me_deguarded="${output_dir}/me.bin"
-	tb_flashable="${output_dir}/tb.bin"
+	me_deguarded="${output_dir}/t480_me.bin"
+	tb_flashable="${output_dir}/t480_tb.bin"
 	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
 	echo "Writing flashable TB to ${tb_flashable}"
 }
