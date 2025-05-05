@@ -48,7 +48,7 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      - image: tlaurion/heads-dev-env:v0.2.5
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -122,7 +122,7 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      - image: tlaurion/heads-dev-env:v0.2.5
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -150,7 +150,7 @@ jobs:
 
   build:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      - image: tlaurion/heads-dev-env:v0.2.5
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -171,7 +171,7 @@ jobs:
 
   save_cache:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      - image: tlaurion/heads-dev-env:v0.2.5
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -219,7 +219,7 @@ workflows:
       # This step builds musl-cross-make for x86 architecture, which will be used by subsequent x86 board builds
       - build_and_persist:
           name: x86-musl-cross-make
-          target: x230-hotp-maximized
+          target: t480-hotp-maximized
           subcommand: "musl-cross-make"
           requires:
             - prep_env
