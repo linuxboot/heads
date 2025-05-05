@@ -1410,14 +1410,14 @@ load_keymap() {
 		return 0
 	fi
 
-	DEBUG "Loading keyboard keymap: $1"
-
 	# Reset the keymap
+	DEBUG "Loading linux kernel shipped keyboard layout keymap: share/keymaps/defkeymap.map"
 	DO_WITH_DEBUG loadkeys --default
 
 	# Load the specified keymap, if given
 	if [ -n "$1" ]; then
 		if [ -f "$1" ]; then
+			DEBUG "Loading keyboard keymap: $1"
 			DO_WITH_DEBUG loadkeys "$1"
 		else
 			# We can continue by ignoring the specified keymap, but
