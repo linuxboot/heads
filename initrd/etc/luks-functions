@@ -519,24 +519,26 @@ luks_change_passphrase() {
 	luks_containers=($LUKS)
 	TRACE_FUNC
 	DEBUG "luks_containers: ${luks_containers[@]}"
+	# unset new passphrase to make sure the user enters it and knows what they are setting as the new passphrase!
+	unset luks_new_Disk_Recovery_Key_passphrase
 
 	for luks_container in "${luks_containers[@]}"; do
-		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ] || [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+		if [ -z "$luks_current_Disk_Recovery_Key_passphrase" ]; then
 			if [ -f /tmp/secret/luks_current_Disk_Recovery_Key_passphrase ]; then
 				luks_current_Disk_Recovery_Key_passphrase=$(cat /tmp/secret/luks_current_Disk_Recovery_Key_passphrase)
 			else
-				whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
-					"Please enter the current LUKS Disk Recovery Key passphrase (slot 0).\nThen choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nHit Enter to continue" 0 80
-
-				echo -e "\nEnter your desired replacement for the actual LUKS Disk Recovery Key passphrase (At least 8 characters long):"
-				while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
-					read -r luks_new_Disk_Recovery_Key_passphrase
-				done
-
 				TRACE_FUNC
 				echo -e "\nEnter the current LUKS Disk Recovery Key passphrase (Configured at OS installation or by OEM):"
 				read -r luks_current_Disk_Recovery_Key_passphrase
 			fi
+		elif [ -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
+			whiptail --title 'Changing LUKS Disk Recovery Key passphrase' --msgbox \
+				"Please choose a strong passphrase of your own.\n\n**DICEWARE passphrase methodology is STRONGLY ADVISED.**\n\nHit Enter to continue" 0 80
+
+			echo -e "\nEnter your desired replacement for the actual LUKS Disk Recovery Key passphrase (At least 8 characters long):"
+			while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
+				read -r luks_new_Disk_Recovery_Key_passphrase
+			done
 		fi
 
 		echo -n "$luks_current_Disk_Recovery_Key_passphrase" >/tmp/secret/luks_current_Disk_Recovery_Key_passphrase
