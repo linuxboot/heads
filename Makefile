@@ -109,6 +109,12 @@ CONFIG_HEADS	?= y
 # Unless otherwise specified, we are building bash to have non-interactive shell for scripts (arrays and bashisms)
 CONFIG_BASH	?= y
 
+# Unless otherwise specified, we build kbd to have setfont, loadkeys and keymaps
+CONFIG_KBD	?= y
+#loadkeys permits to load .map source files directly
+CONFIG_KBD_LOADKEYS ?= y
+
+
 # USB keyboards can be ignored, optionally supported, or required.
 #
 # To optionally support USB keyboards, export CONFIG_SUPPORT_USB_KEYBOARD=y.  To
@@ -175,9 +181,9 @@ endif
 # Create a temporary directory for the initrd
 initrd_dir	:= $(BOARD)
 initrd_tmp_dir	:= $(shell mktemp -d)
-initrd_data_dir	:= $(initrd_tmp_dir)/etc/terminfo/l
 initrd_lib_dir	:= $(initrd_tmp_dir)/lib
 initrd_bin_dir	:= $(initrd_tmp_dir)/bin
+initrd_data_dir	:= $(initrd_tmp_dir)/data
 modules-y += initrd
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
@@ -291,10 +297,22 @@ define map =
 $(foreach _,$2,$(eval $(call $1,$_)))
 endef
 
+# Data files can be specified in modules/* to be added into data.cpio.
+# Each module should set <modulename>_data += src|dst
+# Example (in modules/ncurses):
+#   ncurses_data += $(INSTALL)/usr/lib/terminfo/l/linux|etc/terminfo/l/linux
+#
+# The main Makefile will collect all data files from enabled modules:
+#   $(call data,$(modules-y))
+
 # Bring in all of the module definitions;
 # these are the external pieces that will be downloaded and built
 # as part of creating the Heads firmware image.
 include modules/*
+
+# Collect all data files from enabled modules
+data_files :=
+$(foreach m,$(modules-y),$(eval data_files += $($(m)_data)))
 
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
@@ -309,7 +327,6 @@ endef
 define outputs =
 $(foreach m,$1,\
 	$(call bins,$m)\
-	$(call data,$m)\
 	$(call libs,$m)\
 )
 endef
@@ -567,7 +584,8 @@ define define_module =
 	stat $(call outputs,$1) >/dev/null 2>/dev/null || echo FORCE \
   ))
 
-  $(build)/$($1_dir)/.build: $($1.force) \
+  #TODO: something better then removing .build: $($1.force) so that newt/ncurses are not rebuilt inconditionally?
+  $(build)/$($1_dir)/.build: \
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
@@ -618,7 +636,7 @@ endef
 
 #
 # Files that should be copied into the initrd
-# THis should probably be done in a more scalable manner
+# This should probably be done in a more scalable manner
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
@@ -628,10 +646,19 @@ initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 define initrd_data_add =
-$(initrd_data_dir)/$(notdir $1): $1
-	$(call do,INSTALL-DATA,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
-initrd_data += $(initrd_data_dir)/$(notdir $1)
+$(initrd_data_dir)/$(2): $(1)
+	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $(2),\
+		mkdir -p "$(dir $(initrd_data_dir)/$(2))"; \
+		cp -a --remove-destination "$(1)" "$(initrd_data_dir)/$(2)"; \
+	)
 endef
+
+# Register all data_files for installation
+$(foreach entry,$(data_files),\
+  $(eval src := $(word 1,$(subst |, ,$(entry)))) \
+  $(eval dst := $(word 2,$(subst |, ,$(entry)))) \
+  $(eval $(call initrd_data_add,$(src),$(dst))) \
+)
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
@@ -735,7 +762,21 @@ initrd-y += $(build)/$(initrd_dir)/tools.cpio
 initrd-y += $(build)/$(initrd_dir)/board.cpio
 initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
-#$(build)/$(initrd_dir)/.build: $(build)/$(initrd_dir)/initrd.cpio.xz
+# Only build data.cpio if there are data files
+ifneq ($(strip $(data_files)),)
+
+# Build data.cpio for data files only
+$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
+	@mkdir -p "$(initrd_data_dir)"
+	$(call do-cpio,$@,$(initrd_data_dir))
+
+# Ensure data.cpio is included in initrd.cpio.xz
+initrd-y += $(build)/$(initrd_dir)/data.cpio
+
+# Ensure data.cpio is always built as part of the main build
+all: $(build)/$(initrd_dir)/data.cpio
+
+endif
 
 $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 	$(call do,CPIO-XZ  ,$@,\
@@ -765,11 +806,10 @@ all: $(bundle-y)
 # The board.cpio is built from the board's initrd/ directory.  It contains
 # board-specific support scripts.
 
+$(build)/$(initrd_dir)/board.cpio: FORCE
 ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
-$(build)/$(initrd_dir)/board.cpio:
 	cpio -H newc -o </dev/null >"$@"
 else
-$(build)/$(initrd_dir)/board.cpio: FORCE
 	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
 endif
 
@@ -784,14 +824,12 @@ $(build)/$(initrd_dir)/heads.cpio: FORCE
 #
 # The tools initrd is made from all of the things that we've
 # created during the submodule build.
-#
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
-	$(initrd_data) \
 	$(initrd_libs) \
 	$(initrd_tmp_dir)/etc/config \
+	FORCE
 
-	$(info Used **BINS**: $(initrd_bins))
 	$(call do-cpio,$@,$(initrd_tmp_dir))
 	@$(RM) -rf "$(initrd_tmp_dir)"
 
@@ -814,6 +852,25 @@ $(initrd_tmp_dir)/etc/config: FORCE
 		echo export CONFIG_BRAND_NAME=$(BRAND_NAME) \
 		>> $@ ; \
 	)
+
+# List of all installed DATA files (for cpio input and hash logging)
+data_initrd_files := $(foreach entry,$(data_files),$(initrd_data_dir)/$(word 2,$(subst |, ,$(entry))))
+
+# Only build data.cpio if there are data files
+ifneq ($(strip $(data_files)),)
+
+# Build data.cpio for data files only
+$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
+	@mkdir -p "$(initrd_data_dir)"
+	$(call do-cpio,$@,$(initrd_data_dir))
+
+# Ensure data.cpio is included in initrd.cpio.xz
+initrd-y += $(build)/$(initrd_dir)/data.cpio
+
+# Ensure data.cpio is always built as part of the main build
+all: $(build)/$(initrd_dir)/data.cpio
+
+endif
 
 # Ensure that the initrd depends on all of the modules that produce
 # binaries for it
