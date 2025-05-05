@@ -416,15 +416,15 @@ define define_module =
     # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
-	if [ ! -e "$$@" ]; then \
-		echo "INFO: .canary file not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
+	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
+		echo "INFO: .canary file and directory not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
 		git clone $($1_repo) "$(build)/$($1_base_dir)" && \
 		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
 		echo "INFO: Creating .canary file with repo and commit hash" && \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
-	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "INFO: Canary file differs. Switching $1 to $($1_repo) at $($1_commit_hash)" && \
+	elif [ ! -e "$$@" ] || [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
+		echo "INFO: .canary file missing or differs. Resetting $1 to $($1_repo) at $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
 		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)" && \
 		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
