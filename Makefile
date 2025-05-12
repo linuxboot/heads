@@ -645,21 +645,6 @@ $(initrd_bin_dir)/$(notdir $1): $1
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
-define initrd_data_add =
-$(initrd_data_dir)/$(2): $(1)
-	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $(2),\
-		mkdir -p "$(dir $(initrd_data_dir)/$(2))"; \
-		cp -a --remove-destination "$(1)" "$(initrd_data_dir)/$(2)"; \
-	)
-endef
-
-# Register all data_files for installation
-$(foreach entry,$(data_files),\
-  $(eval src := $(word 1,$(subst |, ,$(entry)))) \
-  $(eval dst := $(word 2,$(subst |, ,$(entry)))) \
-  $(eval $(call initrd_data_add,$(src),$(dst))) \
-)
-
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
 	$(call do,INSTALL-LIB,$(1:$(pwd)/%=%),\
@@ -740,7 +725,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 	$(build)/$(pciutils_dir)/.build \
 
 #
-# initrd image creation
+# --- INITRD IMAGE CREATION ---
 #
 # The initrd is constructed from various bits and pieces
 # The cpio-clean program is used ensure that the files
@@ -762,77 +747,68 @@ initrd-y += $(build)/$(initrd_dir)/tools.cpio
 initrd-y += $(build)/$(initrd_dir)/board.cpio
 initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
-# Only build data.cpio if there are data files
-ifneq ($(strip $(data_files)),)
+# --- DATA.CPIO STAGING AND CREATION ---
 
-# Build data.cpio for data files only
-$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
-	@mkdir -p "$(initrd_data_dir)"
-	$(call do-cpio,$@,$(initrd_data_dir))
-
-# Ensure data.cpio is included in initrd.cpio.xz
-initrd-y += $(build)/$(initrd_dir)/data.cpio
-
-# Ensure data.cpio is always built as part of the main build
-all: $(build)/$(initrd_dir)/data.cpio
-
-endif
-
-$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
-	$(call do,CPIO-XZ  ,$@,\
-	$(pwd)/bin/cpio-clean \
-		$^ \
-	| xz \
-		--check=crc32 \
-		--lzma2=dict=1MiB \
-		-9 \
-	| dd bs=512 conv=sync status=none > "$@.tmp" \
+# Macro to handle staging of data files into the initrd temporary directory
+# Arguments:
+#   1: Source file path
+#   2: Destination path inside the initrd
+define stage_data_file =
+$(initrd_tmp_dir)/data/$2: $1
+	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $2,\
+		mkdir -p "$(dir $(initrd_tmp_dir)/data/$2)"; \
+		cp -a --remove-destination "$1" "$(initrd_tmp_dir)/data/$2"; \
 	)
-	@if ! cmp --quiet "$@.tmp" "$@" ; then \
-		mv "$@.tmp" "$@" ; \
-	else \
-		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
-		rm "$@.tmp" ; \
-	fi
-	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
+data_initrd_files += $(initrd_tmp_dir)/data/$2
+endef
 
-#
-# At the moment PowerPC can only load initrd bundled with the kernel.
-#
-bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
-all: $(bundle-y)
+# Iterate over each data_files entry: format is "src_path|dest_path"
+# If src_path is a directory, all regular files within are staged individually
+# to preserve file-level tracking and incremental rebuilds.
+# If src_path is a single file, it's staged directly.
+$(foreach entry,$(data_files),\
+  $(eval src := $(word 1,$(subst |, ,$(entry)))) \
+  $(eval dst := $(word 2,$(subst |, ,$(entry)))) \
+  $(if $(shell [ -d "$(src)" ] && echo yes),\
+    $(foreach f,$(shell find $(src) -type f),\
+      $(eval rel := $(subst $(src)/,,$(f))) \
+      $(eval $(call stage_data_file,$(f),$(dst)/$(rel))) \
+    ),\
+    $(eval $(call stage_data_file,$(src),$(dst))) \
+  ) \
+)
 
-# The board.cpio is built from the board's initrd/ directory.  It contains
-# board-specific support scripts.
-
-$(build)/$(initrd_dir)/board.cpio: FORCE
-ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
-	cpio -H newc -o </dev/null >"$@"
-else
-	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
+# Unified data.cpio rule: build all data files, then create cpio archive, then cleanup
+ifneq ($(strip $(data_files)),)
+$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
+	@mkdir -p "$(initrd_tmp_dir)/data"
+	$(call do-cpio,$@,$(initrd_tmp_dir)/data)
+	@$(RM) -rf "$(initrd_tmp_dir)/data"
+initrd-y += $(build)/$(initrd_dir)/data.cpio
 endif
 
-#
-# The heads.cpio is built from the initrd directory in the
-# Heads tree.
-#
-$(build)/$(initrd_dir)/heads.cpio: FORCE
-	$(call do-cpio,$@,$(pwd)/initrd)
+# --- MODULES.CPIO ---
 
+# modules.cpio is built from kernel modules staged in a temp dir by modules/linux
+# The temp dir is cleaned up after cpio creation.
+# (see modules/linux for details)
 
-#
-# The tools initrd is made from all of the things that we've
-# created during the submodule build.
+# --- TOOLS.CPIO ---
+
+# tools.cpio is built from all binaries, libraries, and config staged in initrd_tmp_dir
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
 	$(initrd_tmp_dir)/etc/config \
 	FORCE
-
 	$(call do-cpio,$@,$(initrd_tmp_dir))
 	@$(RM) -rf "$(initrd_tmp_dir)"
 
+# --- TOOLS.CPIO'S ETC/CONFIG  ---
+#	This is board's config provided defaults (at compilation time)
+#  Those defaults can be overriden by cbfs' config.user applied at init through cbfs-init.
+#   To view overriden exports at runtime, simply run 'env' and review CONFIG_ exported variables
+#   To view compilation time board's config; check /etc/config under recovery shell.
 $(initrd_tmp_dir)/etc/config: FORCE
 	@mkdir -p $(dir $@)
 	$(call do,INSTALL,$(CONFIG), \
@@ -853,24 +829,51 @@ $(initrd_tmp_dir)/etc/config: FORCE
 		>> $@ ; \
 	)
 
-# List of all installed DATA files (for cpio input and hash logging)
-data_initrd_files := $(foreach entry,$(data_files),$(initrd_data_dir)/$(word 2,$(subst |, ,$(entry))))
+# --- BOARD.CPIO ---
 
-# Only build data.cpio if there are data files
-ifneq ($(strip $(data_files)),)
-
-# Build data.cpio for data files only
-$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
-	@mkdir -p "$(initrd_data_dir)"
-	$(call do-cpio,$@,$(initrd_data_dir))
-
-# Ensure data.cpio is included in initrd.cpio.xz
-initrd-y += $(build)/$(initrd_dir)/data.cpio
-
-# Ensure data.cpio is always built as part of the main build
-all: $(build)/$(initrd_dir)/data.cpio
-
+# board.cpio is built from the board's initrd/ directory and contains 
+#  board-specific support scripts.
+ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
+$(build)/$(initrd_dir)/board.cpio:
+	# Only create a board.cpio if the board has a initrd directory
+	cpio -H newc -o </dev/null >"$@"
+else
+$(build)/$(initrd_dir)/board.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
 endif
+
+# --- HEADS.CPIO ---
+
+# heads.cpio is built from the initrd directory in the Heads tree
+#  This is heads security policies, executed by board's CONFIG_BOOTSCRIPT at init
+$(build)/$(initrd_dir)/heads.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/initrd)
+
+# --- FINAL INITRD PACKAGING ---
+
+$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
+	$(call do,CPIO-XZ  ,$@,\
+	$(pwd)/bin/cpio-clean \
+		$^ \
+	| xz \
+		--check=crc32 \
+		--lzma2=dict=1MiB \
+		-9 \
+	| dd bs=512 conv=sync status=none > "$@.tmp" \
+	)
+	@if ! cmp --quiet "$@.tmp" "$@" ; then \
+		mv "$@.tmp" "$@" ; \
+	else \
+		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
+		rm "$@.tmp" ; \
+	fi
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
+
+# --- BUNDLED INITRD FOR POWERPC ---
+
+bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
+all: $(bundle-y)
 
 # Ensure that the initrd depends on all of the modules that produce
 # binaries for it
@@ -890,6 +893,26 @@ modules.clean:
 		$(MAKE) -C "build/${CONFIG_TARGET_ARCH}/$$dir" clean ; \
 		rm -f "build/${CONFIG_TARGET_ARCH}/$$dir/.configured" ; \
 	done
+
+# Inject a GPG key into the image - this is most useful when testing in qemu,
+# since we can't reflash the firmware in qemu to update the keychain.  Instead,
+# inject the public key ahead of time.  Specify the location of the key with
+# PUBKEY_ASC.
+inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
+
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
+	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
+	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
+		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
+
+
+
+
+
+
+# --- Development helpers ---
+# Development targets for moving boards between states
 
 board.move_untested_to_tested:
 	@echo "Moving $(BOARD) from UNTESTED to tested status"
@@ -942,7 +965,7 @@ board.move_tested_to_untested:
 	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
 	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
-	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
 board.move_tested_to_unmaintained:
@@ -966,20 +989,6 @@ board.move_tested_to_unmaintained:
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
 	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"; \
 	echo "Please manually review and remove any unnecessary entries in .circleci/config.yml"
-
-# Inject a GPG key into the image - this is most useful when testing in qemu,
-# since we can't reflash the firmware in qemu to update the keychain.  Instead,
-# inject the public key ahead of time.  Specify the location of the key with
-# PUBKEY_ASC.
-inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
-
-$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
-	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
-	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
-
-
 
 #Dev cycles helpers:
 
