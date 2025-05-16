@@ -549,3 +549,32 @@ workflows:
           subcommand: ""
           requires:
             - novacustom-nv4x_adl
+
+      # coreboot fam15h
+      - build:
+          name: kgpe-d16_workstation
+          target: kgpe-d16_workstation
+          subcommand: ""
+          requires:
+            - librem_l1um
+
+      - build:
+          name: kgpe-d16_workstation-usb_keyboard
+          target: kgpe-d16_workstation-usb_keyboard
+          subcommand: ""
+          requires:
+            - kgpe-d16_workstation
+
+      - build:
+          name: UNMAINTAINED_kgpe-d16_server
+          target: UNMAINTAINED_kgpe-d16_server
+          subcommand: ""
+          requires:
+            - kgpe-d16_workstation
+
+      - build:
+          name: UNMAINTAINED_kgpe-d16_server-whiptail
+          target: UNMAINTAINED_kgpe-d16_server-whiptail
+          subcommand: ""
+          requires:
+            - kgpe-d16_workstation
