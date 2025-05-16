@@ -179,11 +179,12 @@ endif
 
 
 # Create a temporary directory for the initrd
-initrd_dir	:= $(BOARD)
-initrd_tmp_dir	:= $(shell mktemp -d)
-initrd_lib_dir	:= $(initrd_tmp_dir)/lib
-initrd_bin_dir	:= $(initrd_tmp_dir)/bin
-initrd_data_dir	:= $(initrd_tmp_dir)/data
+initrd_dir		:= $(BOARD)
+initrd_tmp_dir		:= $(shell mktemp -d)
+initrd_tools_dir	:= $(initrd_tmp_dir)/tools
+initrd_lib_dir		:= $(initrd_tools_dir)/lib
+initrd_bin_dir		:= $(initrd_tools_dir)/bin
+initrd_data_dir		:= $(initrd_tmp_dir)/data
 modules-y += initrd
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
@@ -754,12 +755,12 @@ initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 #   1: Source file path
 #   2: Destination path inside the initrd
 define stage_data_file =
-$(initrd_tmp_dir)/data/$2: $1
+$(initrd_data_dir)/$2: $1
 	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $2,\
-		mkdir -p "$(dir $(initrd_tmp_dir)/data/$2)"; \
-		cp -a --remove-destination "$1" "$(initrd_tmp_dir)/data/$2"; \
+		mkdir -p "$(dir $(initrd_data_dir)/$2)"; \
+		cp -a --remove-destination "$1" "$(initrd_data_dir)/$2"; \
 	)
-data_initrd_files += $(initrd_tmp_dir)/data/$2
+data_initrd_files += $(initrd_data_dir)/$2
 endef
 
 # Iterate over each data_files entry: format is "src_path|dest_path"
@@ -781,9 +782,8 @@ $(foreach entry,$(data_files),\
 # Unified data.cpio rule: build all data files, then create cpio archive, then cleanup
 ifneq ($(strip $(data_files)),)
 $(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
-	@mkdir -p "$(initrd_tmp_dir)/data"
-	$(call do-cpio,$@,$(initrd_tmp_dir)/data)
-	@$(RM) -rf "$(initrd_tmp_dir)/data"
+	$(call do-cpio,$@,$(initrd_data_dir))
+	@$(RM) -rf "$(initrd_data_dir)"
 initrd-y += $(build)/$(initrd_dir)/data.cpio
 endif
 
@@ -795,21 +795,21 @@ endif
 
 # --- TOOLS.CPIO ---
 
-# tools.cpio is built from all binaries, libraries, and config staged in initrd_tmp_dir
+# tools.cpio is built from all binaries, libraries, and config staged in initrd_tools_dir
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
-	$(initrd_tmp_dir)/etc/config \
+	$(initrd_tools_dir)/etc/config \
 	FORCE
-	$(call do-cpio,$@,$(initrd_tmp_dir))
-	@$(RM) -rf "$(initrd_tmp_dir)"
+	$(call do-cpio,$@,$(initrd_tools_dir))
+	@$(RM) -rf "$(initrd_tools_dir)"
 
 # --- TOOLS.CPIO'S ETC/CONFIG  ---
 #	This is board's config provided defaults (at compilation time)
 #  Those defaults can be overriden by cbfs' config.user applied at init through cbfs-init.
 #   To view overriden exports at runtime, simply run 'env' and review CONFIG_ exported variables
 #   To view compilation time board's config; check /etc/config under recovery shell.
-$(initrd_tmp_dir)/etc/config: FORCE
+$(initrd_tools_dir)/etc/config: FORCE
 	@mkdir -p $(dir $@)
 	$(call do,INSTALL,$(CONFIG), \
 		export \
