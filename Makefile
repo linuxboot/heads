@@ -750,36 +750,27 @@ initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
 # --- DATA.CPIO STAGING AND CREATION ---
 
-# Macro to handle staging of data files into the initrd temporary directory
+# Macro to handle staging of data files into the initrd temporary data directory
 # Arguments:
-#   1: Source file path
-#   2: Destination path inside the initrd
+#   1: Source path (file or directory)
+#   2: Destination path inside initrd (relative path inside archive)
 define stage_data_file =
 $(initrd_data_dir)/$2: $1
 	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $2,\
 		mkdir -p "$(dir $(initrd_data_dir)/$2)"; \
-		cp -a --remove-destination "$1" "$(initrd_data_dir)/$2"; \
+		cp -R "$1" "$(initrd_data_dir)/$2"; \
 	)
 data_initrd_files += $(initrd_data_dir)/$2
 endef
 
-# Iterate over each data_files entry: format is "src_path|dest_path"
-# If src_path is a directory, all regular files within are staged individually
-# to preserve file-level tracking and incremental rebuilds.
-# If src_path is a single file, it's staged directly.
+# Expand all data_files entries. Each entry: "src_path|dest_path"
 $(foreach entry,$(data_files),\
   $(eval src := $(word 1,$(subst |, ,$(entry)))) \
   $(eval dst := $(word 2,$(subst |, ,$(entry)))) \
-  $(if $(shell [ -d "$(src)" ] && echo yes),\
-    $(foreach f,$(shell find $(src) -type f),\
-      $(eval rel := $(subst $(src)/,,$(f))) \
-      $(eval $(call stage_data_file,$(f),$(dst)/$(rel))) \
-    ),\
-    $(eval $(call stage_data_file,$(src),$(dst))) \
-  ) \
+  $(eval $(call stage_data_file,$(src),$(dst))) \
 )
 
-# Unified data.cpio rule: build all data files, then create cpio archive, then cleanup
+# Rule to build final data.cpio archive from staged files
 ifneq ($(strip $(data_files)),)
 $(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
 	$(call do-cpio,$@,$(initrd_data_dir))
