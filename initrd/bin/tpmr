@@ -589,7 +589,7 @@ tpm2_unseal() {
 	# can't do anything without a primary handle.
 	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
 		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
-		warn "No TPM primary handle. You must reset TPM to seal secret to TPM NVRAM"
+		warn "No TPM primary handle. You must reset the TPM to seal secret to TPM NVRAM"
 		exit 1
 	fi
 
@@ -639,7 +639,7 @@ tpm1_unseal() {
 
 	rm -f "$sealed_file"
 
-	tpm nv_readvalue \
+	DO_WITH_DEBUG tpm nv_readvalue \
 		-in "$index" \
 		-sz "$sealed_size" \
 		-of "$sealed_file" ||
@@ -719,7 +719,7 @@ tpm1_reset() {
 	DO_WITH_DEBUG tpm physicalsetdeactivated -c &>/dev/null
 	DO_WITH_DEBUG tpm forceclear &>/dev/null
 	DO_WITH_DEBUG tpm physicalenable &>/dev/null
-	DO_WITH_DEBUG tpm takeown -pwdo "$tpm_owner_password" &>/dev/null
+	DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_password" &>/dev/null
 
 	# And now turn it all back on
 	DO_WITH_DEBUG tpm physicalpresence -s &>/dev/null
