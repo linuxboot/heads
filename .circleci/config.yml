@@ -364,22 +364,22 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_EOL_x230-hotp-maximized_usb-kb
-          target: EOL_EOL_x230-hotp-maximized_usb-kb
+          name: EOL_x230-hotp-maximized_usb-kb
+          target: EOL_x230-hotp-maximized_usb-kb
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_EOL_x230-maximized-fhd_edp
-          target: EOL_EOL_x230-maximized-fhd_edp
+          name: EOL_x230-maximized-fhd_edp
+          target: EOL_x230-maximized-fhd_edp
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_EOL_x230-hotp-maximized-fhd_edp
-          target: EOL_EOL_x230-hotp-maximized-fhd_edp
+          name: EOL_x230-hotp-maximized-fhd_edp
+          target: EOL_x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -427,8 +427,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t440p-hotp-maximized
-          target: UNTESTED_t440p-hotp-maximized
+          name: EOL_UNTESTED_t440p-hotp-maximized
+          target: EOL_UNTESTED_t440p-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -441,8 +441,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-hotp-maximized
-          target: UNTESTED_w541-hotp-maximized
+          name: EOL_UNTESTED_w541-hotp-maximized
+          target: EOL_UNTESTED_w541-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -462,8 +462,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_z220-cmt-hotp-maximized
-          target: UNTESTED_z220-cmt-hotp-maximized
+          name: EOL_UNTESTED_z220-cmt-hotp-maximized
+          target: EOL_UNTESTED_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
