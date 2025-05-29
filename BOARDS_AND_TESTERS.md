@@ -13,6 +13,15 @@ General information
 
 While software-based mitigations like Retpoline can reduce exposure to certain speculative execution attacks, their effectiveness is limited without corresponding microcode updates.  Therefore, systems utilizing these older CPUs should be considered inherently vulnerable to Spectre Variant 2 and similar threats.
 
+Only mitigation is to make sure no secret is present in memory (trusted workflow) in parallel of untrusted workflows.
+- This implies a single trusted workflow per boot session, ideally without any secrets remaining in memory—for example, running Tails from a live CD without providing it with any disk decryption passphrase.
+  - Poper OPSEC when running Tails: https://www.anarsec.guide/posts/tails
+    - The moment a secret resides in memory (e.g., a passphrase or private document), minimize its exposure by limiting its duration—reboot before switching tasks.
+    - Always prioritize security over convenience. When in doubt, reboot.
+  - Proper OPSEC for Memory use on QubesOS: https://www.anarsec.guide/posts/qubes/#appendix-opsec-for-memory-use
+    - Use disposable qubes as if you were running Tails: use distinct disposable qubes and for really short lived tasks: always consider disk decryption key in memory at risk!
+**On systems affected by QSB-107 and lacking updated microcode, [any untrusted application running in a qube could potentially exfiltrate sensitive memory content at a rate of as fast as 5.6 KiB/s.](https://comsec.ethz.ch/research/microarch/branch-privilege-injection)**
+
 
 Live list of community supported platform testers per last coreboot/linux version bump
 ==
