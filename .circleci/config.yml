@@ -196,6 +196,7 @@ jobs:
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
             - build/x86/coreboot-24.12
+            - build/x86/coreboot-25.03
             - build/x86/coreboot-dasharo
             - build/x86/coreboot-purism
             - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
@@ -256,6 +257,14 @@ workflows:
       - build_and_persist:
           name: EOL_t480-hotp-maximized
           target: EOL_t480-hotp-maximized
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
+      # coreboot 25.03
+      - build_and_persist:
+          name: msi_z790p_ddr5
+          target: msi_z790p_ddr5
           subcommand: ""
           requires:
             - x86-musl-cross-make
