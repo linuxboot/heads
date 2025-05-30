@@ -914,9 +914,9 @@ board.move_untested_to_tested:
 	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
 	sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
 	echo "Renaming config file to $${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming board directory to $${NEW_BOARD}"; \
-	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
 	echo "Updating .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
 	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"
@@ -925,10 +925,10 @@ board.move_unmaintained_to_tested:
 	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
 	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNMAINTAINED_//'); \
 	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
-	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	git mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
 	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
 	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD boards/$$NEW_BOARD; \
+	git mv boards/$$BOARD boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml; \
 	echo "Board $$BOARD has been moved to tested status as $$NEW_BOARD"; \
@@ -939,10 +939,10 @@ board.move_untested_to_unmaintained:
 	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_/UNMAINTAINED_/g'); \
 	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
 	mkdir -p unmaintained_boards; \
-	mv boards/$$BOARD/$$BOARD.config unmaintained_boards/$$BOARD/$$NEW_BOARD.config; \
+	git mv boards/$$BOARD/$$BOARD.config unmaintained_boards/$$BOARD/$$NEW_BOARD.config; \
 	echo "Renaming boards/$$BOARD to unmaintainted_boards/$$NEW_BOARD"; \
 	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
+	git mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml. Delete manually entries"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
 
@@ -950,12 +950,21 @@ board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
 	@NEW_BOARD=UNTESTED_$(BOARD); \
 	rm -rf boards/$${NEW_BOARD}; \
-	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
-	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
 	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
-	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
+
+board.move_tested_to_EOL:
+	@echo "NEW_BOARD variable will EOL_$(BOARD)"
+	@NEW_BOARD=EOL_$(BOARD); \
+	rm -rf boards/$${NEW_BOARD}; \
+	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
 	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
@@ -972,9 +981,9 @@ board.move_tested_to_unmaintained:
 	echo "Creating unmaintained_boards directory if it doesn't exist"; \
 	mkdir -p unmaintained_boards/$${NEW_BOARD}; \
 	echo "Moving and renaming config file to unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
 	echo "Moving board directory contents to unmaintained_boards/$${NEW_BOARD}"; \
-	mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
+	git mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
 	rmdir boards/$(BOARD); \
 	echo "Updating .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
