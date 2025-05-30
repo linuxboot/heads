@@ -219,7 +219,7 @@ workflows:
       # This step builds musl-cross-make for x86 architecture, which will be used by subsequent x86 board builds
       - build_and_persist:
           name: x86-musl-cross-make
-          target: t480-hotp-maximized
+          target: EOL_t480-hotp-maximized
           subcommand: "musl-cross-make"
           requires:
             - prep_env
@@ -254,8 +254,8 @@ workflows:
 
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
-          name: t480-hotp-maximized
-          target: t480-hotp-maximized
+          name: EOL_t480-hotp-maximized
+          target: EOL_t480-hotp-maximized
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -271,8 +271,8 @@ workflows:
 
       # coreboot 4.11
       - build_and_persist:
-          name: librem_l1um
-          target: librem_l1um
+          name: EOL_librem_l1um
+          target: EOL_librem_l1um
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -282,218 +282,218 @@ workflows:
       - save_cache:
           requires:
             - UNTESTED_talos-2
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       # Those onboarding new boards should add their entries below.
       # coreboot 24.12 boards
       - build:
-          name: x220-hotp-maximized
-          target: x220-hotp-maximized
+          name: EOL_x220-hotp-maximized
+          target: EOL_x220-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x220-maximized
-          target: x220-maximized
+          name: EOL_x220-maximized
+          target: EOL_x220-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t420-hotp-maximized
-          target: t420-hotp-maximized
+          name: EOL_t420-hotp-maximized
+          target: EOL_t420-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t420-maximized
-          target: t420-maximized
+          name: EOL_t420-maximized
+          target: EOL_t420-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t430-hotp-maximized
-          target: t430-hotp-maximized
+          name: EOL_t430-hotp-maximized
+          target: EOL_t430-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-maximized
-          target: x230-maximized
+          name: EOL_x230-maximized
+          target: EOL_x230-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010-maximized
-          target: optiplex-7010_9010-maximized
+          name: EOL_optiplex-7010_9010-maximized
+          target: EOL_optiplex-7010_9010-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010-hotp-maximized
-          target: optiplex-7010_9010-hotp-maximized
+          name: EOL_optiplex-7010_9010-hotp-maximized
+          target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010_TXT-maximized
-          target: optiplex-7010_9010_TXT-maximized
+          name: EOL_optiplex-7010_9010_TXT-maximized
+          target: EOL_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010_TXT-hotp-maximized
-          target: optiplex-7010_9010_TXT-hotp-maximized
+          name: EOL_optiplex-7010_9010_TXT-hotp-maximized
+          target: EOL_optiplex-7010_9010_TXT-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized
-          target: x230-hotp-maximized
+          name: EOL_x230-hotp-maximized
+          target: EOL_x230-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized_usb-kb
-          target: x230-hotp-maximized_usb-kb
+          name: EOL_x230-hotp-maximized_usb-kb
+          target: EOL_x230-hotp-maximized_usb-kb
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-maximized-fhd_edp
-          target: x230-maximized-fhd_edp
+          name: EOL_x230-maximized-fhd_edp
+          target: EOL_x230-maximized-fhd_edp
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized-fhd_edp
-          target: x230-hotp-maximized-fhd_edp
+          name: EOL_x230-hotp-maximized-fhd_edp
+          target: EOL_x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: w530-hotp-maximized
-          target: w530-hotp-maximized
+          name: EOL_w530-hotp-maximized
+          target: EOL_w530-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t430-maximized
-          target: t430-maximized
+          name: EOL_t430-maximized
+          target: EOL_t430-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: w530-maximized
-          target: w530-maximized
+          name: EOL_w530-maximized
+          target: EOL_w530-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t530-maximized
-          target: UNTESTED_t530-maximized
+          name: EOL_UNTESTED_t530-maximized
+          target: EOL_UNTESTED_t530-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t530-hotp-maximized
-          target: UNTESTED_t530-hotp-maximized
+          name: EOL_UNTESTED_t530-hotp-maximized
+          target: EOL_UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t440p-maximized
-          target: UNTESTED_t440p-maximized
+          name: EOL_UNTESTED_t440p-maximized
+          target: EOL_UNTESTED_t440p-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t440p-hotp-maximized
-          target: UNTESTED_t440p-hotp-maximized
+          name: EOL_UNTESTED_t440p-hotp-maximized
+          target: EOL_UNTESTED_t440p-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-maximized
-          target: UNTESTED_w541-maximized
+          name: EOL_UNTESTED_w541-maximized
+          target: EOL_UNTESTED_w541-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-hotp-maximized
-          target: UNTESTED_w541-hotp-maximized
+          name: EOL_UNTESTED_w541-hotp-maximized
+          target: EOL_UNTESTED_w541-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
           name: qemu-coreboot-fbwhiptail-tpm2-hotp
           target: qemu-coreboot-fbwhiptail-tpm2-hotp
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_z220-cmt-maximized
-          target: UNTESTED_z220-cmt-maximized
+          name: EOL_UNTESTED_z220-cmt-maximized
+          target: EOL_UNTESTED_z220-cmt-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_z220-cmt-hotp-maximized
-          target: UNTESTED_z220-cmt-hotp-maximized
+          name: EOL_UNTESTED_z220-cmt-hotp-maximized
+          target: EOL_UNTESTED_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       # coreboot purism
       # librem boards
       - build:
-          name: librem_13v2
-          target: librem_13v2
+          name: EOL_librem_13v2
+          target: EOL_librem_13v2
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_15v3
-          target: librem_15v3
+          name: EOL_librem_15v3
+          target: EOL_librem_15v3
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_13v4
-          target: librem_13v4
+          name: EOL_librem_13v4
+          target: EOL_librem_13v4
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_15v4
-          target: librem_15v4
+          name: EOL_librem_15v4
+          target: EOL_librem_15v4
           subcommand: ""
           requires:
             - librem_14
@@ -521,11 +521,11 @@ workflows:
 
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build:
-          name: t480-maximized
-          target: t480-maximized
+          name: EOL_t480-maximized
+          target: EOL_t480-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
