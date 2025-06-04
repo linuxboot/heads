@@ -519,6 +519,13 @@ workflows:
           requires:
             - librem_14
 
+      - build:
+          name: librem_l1um_v2
+          target: librem_l1um_v2
+          subcommand: ""
+          requires:
+            - librem_14
+
       # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build:
           name: EOL_t480-maximized
