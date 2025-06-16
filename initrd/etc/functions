@@ -12,6 +12,9 @@ die() {
 	exit 1
 }
 
+# Use warn only for output that indicates a _likely_ problem, is _actionable_ to
+# correct, and when we are able to continue with degraded functionalty.
+# Do not overuse this!  See doc/logging.md.
 warn() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
@@ -21,6 +24,10 @@ warn() {
 	sleep 1
 }
 
+# Use DEBUG to track decisions made in script/function logic and the context
+# relating to those decisions.  Generally, focus on decision points, because
+# straight-line execution can usually be followed without further tracing.  See
+# doc/logging.md.
 DEBUG() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
@@ -30,13 +37,30 @@ DEBUG() {
 	fi
 }
 
+# Use TRACE to trace control flow through Heads.  This is usually called by
+# TRACE_FUNC, but you can use it to additionally trace parameter values, etc.
+# Usually, use this to display unprocessed parameters that your script or
+# function received.  For information about the logic occurring in your script
+# or function, use DEBUG.  See doc/logging.md.
 TRACE() {
 	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ]; then
 		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	fi
 }
 
-# Function to manage information output level to the console/debug.log
+# Use NOTE to explain behaviors that are _likely_ to be unexpected or confusing.
+# Unlike INFO, this cannot be hidden, as the explained behavior would be too
+# confusing without this output.
+# Don't overuse this - too much NOTE output will cause users to ignore it.  See
+# doc/logging.md.
+NOTE() {
+	echo "NOTE:" "$@" | tee -a /tmp/debug.log
+}
+
+# Use INFO for contextual information that might make sense to non-developers,
+# but that isn't generally needed to use Heads.  Non-developers might use this
+# level to troubleshoot basic problems, so it must make sense without deep
+# knowledge of how Heads works.  See doc/logging.md.
 INFO() {
 	#TODO: add colors to output, here green for INFO?
 
@@ -83,7 +107,7 @@ confirm_gpg_card() {
 
 	#TODO: ideally, we ask for confirmation only once per boot session
 	#TODO: even change logic here to try first and then ask user to confirm if not found
-	#TODO: or ask GPG user PIN once and cache it for the rest of the boot session for reusal
+	#TODO: or ask GPG User PIN once and cache it for the rest of the boot session for reusal
 	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
 
 	TRACE_FUNC
@@ -194,7 +218,7 @@ confirm_gpg_card() {
 	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
 	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
 	echo ""
-	warn "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	NOTE "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
 	echo ""
 }
 
@@ -597,17 +621,17 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-		warn "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
+		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
 		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
 			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
 		done
-		warn "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
+		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
 		while ! update_checksums; do
 			warn "Checksums were not signed. Preceding errors should explain possible causes"
 		done
-		warn "Rebooting in 3 seconds to enable booting default boot option"
+		NOTE "Rebooting in 3 seconds to enable booting default boot option"
 		sleep 3
 		reboot
 	else
@@ -1389,4 +1413,48 @@ generate_passphrase() {
 	passphrase=${passphrase% }
 	echo "$passphrase"
 	return 0
+}
+
+# Load a keymap.  Normally used to load the configured keymap, also used in
+# config to test a keymap.
+#
+# This always resets the keymap before loading, so the result is the same even
+# if other keymaps had been loaded before, and even if the new keymap doesn't
+# define all keys (or if none was given).
+#
+# If the board defines an override keymap, it is always loaded after the keymap.
+# (For example, tablets map volume up/down and power to up/down/enter, and we
+# do not want a custom keymap to override that.)
+#
+# If the board didn't include loadkeys, this is a no-op.
+load_keymap() {
+	TRACE_FUNC
+
+	if ! [ -x /bin/loadkeys ]; then
+		return 0
+	fi
+
+	# Reset the keymap
+	DEBUG "Loading linux kernel shipped keyboard layout keymap: share/keymaps/defkeymap.map"
+	DO_WITH_DEBUG loadkeys --default
+
+	# Load the specified keymap, if given
+	if [ -n "$1" ]; then
+		if [ -f "$1" ]; then
+			DEBUG "Loading keyboard keymap: $1"
+			DO_WITH_DEBUG loadkeys "$1"
+		else
+			# We can continue by ignoring the specified keymap, but
+			# this might mean keys map unexpectedly.  If this is
+			# desired, update or clear the keymap setting to silence
+			# the warning.
+			warn "Keymap $1 does not exist, continuing without keymap"
+		fi
+	fi
+
+	# Load the board keymap.  These only define the keys that must always
+	# have a specific function on that board.
+	if [ -f /etc/board_keys.map ]; then
+		DO_WITH_DEBUG loadkeys /etc/board_keys.map
+	fi
 }
