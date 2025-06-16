@@ -1,0 +1,140 @@
+From ab29f52ee2c816c62edc0eff2df576370abe3a09 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sun, 25 May 2025 13:03:04 +0200
+Subject: [PATCH] Haswell NRI: Measure per-task execution time
+
+Add some simple execution time measurement code. It only logs execution
+times if `DEBUG_RAM_SETUP` is selected. Note that this will fill things
+like pre-RAM CBMEM console, but NRI's debug output is already extremely
+verbose, and will become even more verbose as additional training steps
+get added.
+
+Future plans include measuring the time spent waiting for REUT hardware
+to finish testing, as that is what takes most time for complex training
+algorithms (which are yet to be published).
+
+Tested on Asrock B85M Pro4, still boots to Arch Linux. Output example:
+
+    +------------------+------------+
+    | Task             |      msecs |
+    +------------------+------------+
+    | PROCSPD          |        503 |
+    | INITMPLL         |         33 |
+    | CONVTIM          |         43 |
+    | CONFMC           |          1 |
+    | MEMMAP           |         39 |
+    | JEDECINIT        |          1 |
+    | PRETRAIN         |         23 |
+    | SOT              |        394 |
+    | RCVET            |       1448 |
+    | RDMPRT           |       1088 |
+    | JWRL             |       1975 |
+    | OPTCOMP          |          0 |
+    | POSTTRAIN        |          0 |
+    | ACTIVATE         |          0 |
+    | SAVE_TRAIN       |          0 |
+    | SAVE_NONT        |          0 |
+    | RAMINITEND       |          4 |
+    +------------------+------------+
+    | Total            |       5558 |
+    +------------------+------------+
+
+Note: the board had 4x dual-rank DIMMs installed, which gives the worst
+possible boot time (more ranks to train, and that means more log output
+to push through 115200 baud serial). Without debug logging, training is
+substantially faster.
+
+Change-Id: Ie4b6f6246e54f23d03babdb6fa0271538f69984e
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/87830
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../haswell/native_raminit/raminit_main.c     | 35 ++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_main.c b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+index 21c953b332..d211bfb20a 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_main.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_main.c
+@@ -10,6 +10,7 @@
+ #include <northbridge/intel/haswell/raminit.h>
+ #include <static.h>
+ #include <string.h>
++#include <timer.h>
+ #include <types.h>
+ 
+ #include "raminit_native.h"
+@@ -85,6 +86,9 @@ static const struct task_entry fast_boot[] = {
+ 	{ raminit_done,                                           true, "RAMINITEND", },
+ };
+ 
++_Static_assert(ARRAY_SIZE(cold_boot) >= ARRAY_SIZE(fast_boot),
++		"Code assumes cold boot task list is the longest one");
++
+ /* Return a generic stepping value to make stepping checks simpler */
+ static enum generic_stepping get_stepping(const uint32_t cpuid)
+ {
+@@ -120,6 +124,9 @@ static void initialize_ctrl(struct sysinfo *ctrl)
+ 	ctrl->bootmode = bootmode;
+ }
+ 
++/** TODO: Adjust unit scale dynamically? **/
++#define T_SCALE 1000 /* 1 = usecs, 1000 = msecs */
++
+ static enum raminit_status try_raminit(
+ 	struct sysinfo *ctrl,
+ 	const struct task_entry *const schedule,
+@@ -127,7 +134,11 @@ static enum raminit_status try_raminit(
+ {
+ 	enum raminit_status status = RAMINIT_STATUS_UNSPECIFIED_ERROR;
+ 
+-	for (size_t i = 0; i < length; i++) {
++	long spent_time[ARRAY_SIZE(cold_boot)] = { 0 };
++	long total = 0;
++
++	size_t i;
++	for (i = 0; i < length; i++) {
+ 		const struct task_entry *const entry = &schedule[i];
+ 		assert(entry);
+ 		assert(entry->name);
+@@ -136,14 +147,36 @@ static enum raminit_status try_raminit(
+ 
+ 		assert(entry->task);
+ 		printk(RAM_DEBUG, "\nExecuting raminit task %s\n", entry->name);
++		struct mono_time prev, curr;
++		timer_monotonic_get(&prev);
+ 		status = entry->task(ctrl);
++		timer_monotonic_get(&curr);
++		spent_time[i] = mono_time_diff_microseconds(&prev, &curr);
+ 		printk(RAM_DEBUG, "\n");
+ 		if (status) {
++			i++;
+ 			printk(BIOS_ERR, "raminit failed on step %s\n", entry->name);
+ 			break;
+ 		}
+ 	}
+ 
++	if (CONFIG(DEBUG_RAM_SETUP)) {
++		const char unit_multiplier = T_SCALE == 1 ? 'u' : 'm';
++		printk(RAM_DEBUG, "+------------------+------------+\n");
++		printk(RAM_DEBUG, "| Task             |      %csecs |\n", unit_multiplier);
++		printk(RAM_DEBUG, "+------------------+------------+\n");
++		assert(i <= length);
++		for (size_t j = 0; j < i; j++) {
++			char buf[] = "                ";
++			strncpy(buf, schedule[j].name, strlen(schedule[j].name));
++			printk(RAM_DEBUG, "| %s | % 10ld |\n", buf, spent_time[j] / T_SCALE);
++			total += spent_time[j];
++		}
++		printk(RAM_DEBUG, "+------------------+------------+\n");
++		printk(RAM_DEBUG, "| Total            | % 10ld |\n", total / T_SCALE);
++		printk(RAM_DEBUG, "+------------------+------------+\n");
++	}
++
+ 	return status;
+ }
+ 
+-- 
+2.39.5
+
