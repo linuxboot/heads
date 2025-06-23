@@ -828,6 +828,7 @@ prompt_new_owner_password() {
 }
 
 check_tpm_counter() {
+	# $1: rollback file path
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
@@ -835,7 +836,19 @@ check_tpm_counter() {
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
-		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
+		# Robustly extract the first hex string after 'counter-' on any line
+		TPM_COUNTER=$(grep -Eo 'counter-[0-9a-fA-F]+' "$1" | sed -n 's/counter-//p' | head -n1 | tr -d '\n')
+		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
+		if [ -z "$TPM_COUNTER" ]; then
+			INFO "$1 exists but no valid TPM counter found; creating new TPM counter"
+			tpmr counter_create \
+				-pwdc '' \
+				-la $LABEL |
+				tee /tmp/counter >/dev/null 2>&1 ||
+				die "Unable to create TPM counter"
+			TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
+			DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
+		fi
 	else
 		INFO "$1 does not exist; creating new TPM counter"
 		tpmr counter_create \
@@ -843,29 +856,32 @@ check_tpm_counter() {
 			-la $LABEL |
 			tee /tmp/counter >/dev/null 2>&1 ||
 			die "Unable to create TPM counter"
-		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
+		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
+		DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
 	fi
 
 	if [ -z "$TPM_COUNTER" ]; then
-		die "$1: TPM Counter not found?"
+		die "No TPM counter could be found or created."
 	fi
 }
 
 # Read the TPM counter value from the TPM.
 read_tpm_counter() {
 	TRACE_FUNC
-	if [ ! -e /tmp/counter-"$1" ]; then
-		DEBUG "Counter file /tmp/counter-$1 not found. Attempting to read from TPM."
-		DO_WITH_DEBUG tpmr counter_read -ix "$1" | tee /tmp/counter-"$1" >/dev/null 2>&1 ||
-			die "Counter read failed for index $1"
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
+	if [ ! -e /tmp/counter-"$counter_id" ]; then
+		DEBUG "Counter file /tmp/counter-$counter_id not found. Attempting to read from TPM."
+		DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" | tee /tmp/counter-"$counter_id" >/dev/null 2>&1 ||
+			die "Counter read failed for index $counter_id"
 	fi
-	DEBUG "Counter file /tmp/counter-$1 read successfully."
+	DEBUG "Counter file /tmp/counter-$counter_id read successfully."
 }
 
-# Increment the TPM counter value in the TPM.
 increment_tpm_counter() {
 	TRACE_FUNC
-	local counter_id="$1"
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
 	
 	# Check if counter exists by reading it first
 	if ! DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
@@ -883,7 +899,7 @@ increment_tpm_counter() {
 		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
 		
 		if DO_WITH_DEBUG tpmr counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
-			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter)
+			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
 			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
 		fi
 		
