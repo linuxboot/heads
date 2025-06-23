@@ -21,7 +21,7 @@ ifeq "$(CONFIG_BUSYBOX)" "y"
 initrd_bins += $(initrd_bin_dir)/busybox
 endif
 
-$(initrd_tmp_dir)/bin/busybox: $(build)/$(busybox_dir)/.build
+$(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/.build
 	$(call do,SYMLINK,bin/busybox,\
 		$(MAKE) \
 			-C $(build)/$(busybox_dir) \

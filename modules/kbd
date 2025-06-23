@@ -38,3 +38,6 @@ ifeq "$(CONFIG_KBD_EXTRATOOLS)" "y"
 endif
 
 kbd_depends := $(musl_dep)
+
+kbd_data += \
+	$(build)/$(kbd_dir)/data/keymaps|usr/lib/kbd/keymaps
