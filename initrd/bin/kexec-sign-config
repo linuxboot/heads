@@ -85,7 +85,7 @@ if [ "$rollback" = "y" ]; then
 				die "$paramsdir: Unable to find/create tpm counter"
 
 			TRACE_FUNC
-			TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
+			TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
 			DEBUG "rollback=y: Created new TPM counter $TPM_COUNTER"
 		fi
 	fi
