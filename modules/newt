@@ -1,6 +1,6 @@
 modules-$(CONFIG_NEWT) += newt
 
-newt_depends := popt slang $(musl_dep)
+newt_depends := popt slang ncurses $(musl_dep)
 
 newt_version := 0.52.24
 newt_dir := newt-$(newt_version)
