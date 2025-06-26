@@ -2,6 +2,7 @@
 # Boot from signed ISO
 set -e -o pipefail
 . /etc/functions
+. /etc/gui_functions
 . /tmp/config
 
 TRACE_FUNC
@@ -19,8 +20,32 @@ fi
 
 ISO_PATH="${ISO_PATH##/}"
 
-gpgv --homedir=/etc/distro/ "$ISOSIG" "$MOUNTED_ISO_PATH" \
-	|| die 'ISO signature failed'
+if [ -r "$ISOSIG" ]; then
+	# Signature found, verify it
+	gpgv --homedir=/etc/distro/ "$ISOSIG" "$MOUNTED_ISO_PATH" \
+		|| die 'ISO signature failed'
+	echo '+++ ISO signature verified'
+else
+	# No signature found, prompt user with warning
+	echo '+++ WARNING: No signature found for ISO'
+	if [ -x /bin/whiptail ]; then
+		if ! whiptail_warning --title 'UNSIGNED ISO WARNING' --yesno \
+			"WARNING: UNSIGNED ISO DETECTED\n\nThe selected ISO file:\n$MOUNTED_ISO_PATH\n\nDoes not have a detached signature (.sig or .asc file).\n\n\nThis means the integrity and authenticity of the ISO cannot be verified.\nBooting unsigned ISOs is potentially unsafe.\n\nDo you want to proceed with booting this unsigned ISO?" \
+			0 80; then
+			die "Unsigned ISO boot cancelled by user"
+		fi
+	else
+		echo "WARNING: The selected ISO file does not have a detached signature"
+		echo "This means the integrity and authenticity cannot be verified"
+		echo "Booting unsigned ISOs is potentially unsafe"
+		read -n1 -p "Do you want to proceed anyway? (y/N): " response
+		echo
+		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
+			die "Unsigned ISO boot cancelled by user"
+		fi
+	fi
+	echo '+++ Proceeding with unsigned ISO boot'
+fi
 
 echo '+++ Mounting ISO and booting'
 mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot \
