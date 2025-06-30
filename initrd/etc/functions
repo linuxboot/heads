@@ -1128,9 +1128,17 @@ verify_checksums() {
 			# produce a diff that can safely be presented to the user
 			# this is relatively hard as file names may e.g. contain backslashes etc.,
 			# which are interpreted by whiptail, less, ...
-			escape_zero "(new) " <"$TMP_TREE_FILE" >"${TMP_TREE_FILE}.user"
-			escape_zero "(new) " </tmp/tree_output >/tmp/tree_output.user
-			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >>/tmp/hash_output
+			if [ -r "$TMP_TREE_FILE" ]; then
+				escape_zero "(new) " <"$TMP_TREE_FILE" >"${TMP_TREE_FILE}.user" 2>/dev/null
+			else
+				touch "${TMP_TREE_FILE}.user"
+			fi
+			if [ -r /tmp/tree_output ]; then
+				escape_zero "(new) " </tmp/tree_output >/tmp/tree_output.user 2>/dev/null
+			else
+				touch /tmp/tree_output.user
+			fi
+			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user 2>/dev/null | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >>/tmp/hash_output 2>/dev/null
 			rm -f "${TMP_TREE_FILE}.user"
 			rm -f /tmp/tree_output.user
 		fi
