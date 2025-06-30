@@ -839,18 +839,13 @@ check_tpm_counter() {
 		# Robustly extract the first hex string after 'counter-' on any line
 		TPM_COUNTER=$(grep -Eo 'counter-[0-9a-fA-F]+' "$1" | sed -n 's/counter-//p' | head -n1 | tr -d '\n')
 		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
-		if [ -z "$TPM_COUNTER" ]; then
-			INFO "$1 exists but no valid TPM counter found; creating new TPM counter"
-			tpmr counter_create \
-				-pwdc '' \
-				-la $LABEL |
-				tee /tmp/counter >/dev/null 2>&1 ||
-				die "Unable to create TPM counter"
-			TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
-			DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
-		fi
 	else
 		INFO "$1 does not exist; creating new TPM counter"
+		# Warn user: TPM Owner Password is required to create a new TPM counter
+		if [ ! -s /tmp/secret/tpm_owner_password ]; then
+			warn "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+		fi
+
 		tpmr counter_create \
 			-pwdc '' \
 			-la $LABEL |
