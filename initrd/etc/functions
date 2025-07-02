@@ -142,10 +142,7 @@ confirm_gpg_card() {
 		message="Please confirm that your GPG card is inserted [Y/n]: "
 	fi
 
-	read \
-		-n 1 \
-		-p "$message" \
-		card_confirm
+	read -r -n 1 -p $'\n'"$message" card_confirm
 	echo
 
 	if [ "$card_confirm" != "y" \
@@ -167,10 +164,10 @@ confirm_gpg_card() {
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 
 			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
-			echo
 			gpg_admin_pin=""
 			while [ -z "$gpg_admin_pin" ]; do
 				read -r -s -p $'\nPlease enter GPG Admin PIN needed to use the GPG backup thumb drive: ' gpg_admin_pin
+				echo
 			done
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
 			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
@@ -789,6 +786,7 @@ prompt_tpm_owner_password() {
 	fi
 
 	read -r -s -p $'\nTPM Owner Password: ' tpm_owner_password
+	echo
 
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
@@ -807,14 +805,13 @@ prompt_new_owner_password() {
 	tpm_owner_password2=2
 	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
 		read -r -s -p $'\nNew TPM Owner Password (2 words suggested, 1-32 characters max): ' tpm_owner_password
-
 		read -r -s -p $'\nRepeat chosen TPM Owner Password: ' tpm_owner_password2
-		echo
 
 		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
-			echo "Passphrases entered do not match. Try again!"
 			echo
+			echo "Passphrases entered do not match. Try again!"
 		fi
+		echo
 	done
 
 	# Cache the password externally to be reused by who needs it

@@ -158,7 +158,7 @@ DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null \
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 	#Ask user if they want to continue booting without echoing back the input (-s)
-	read -r -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
+	read -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
 	echo
 	if [ "${debug_boot_confirm^^}" = N ]; then
 		# abort
