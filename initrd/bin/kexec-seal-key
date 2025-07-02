@@ -70,6 +70,7 @@ attempts=0
 # Ask for the DRK passphrase first, before testing any devices
 while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
 	read -r -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"': ' disk_recovery_key_passphrase
+	echo
 	echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 
 	# Test the passphrase against ALL devices before deciding if it's valid
@@ -103,6 +104,7 @@ MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
 	read -r -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters): ' key_password
+	echo
 	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
 		attempts=$((attempts + 1))
 		warn "Disk Unlock Key (DUK) passphrase is too short. Please try again."
@@ -110,6 +112,7 @@ while [ $attempts -lt 3 ]; do
 	fi
 
 	read -r -s -p $'\nRepeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: ' key_password2
+	echo
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))
 		warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
@@ -123,6 +126,7 @@ if [ $attempts -ge 3 ]; then
 fi
 
 # Generate key file
+echo
 echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by LUKS TPM Disk Unlock Key passphrase"
 dd \
 	if=/dev/urandom \
