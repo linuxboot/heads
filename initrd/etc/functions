@@ -171,8 +171,7 @@ confirm_gpg_card() {
 			gpg_admin_pin=""
 			while [ -z "$gpg_admin_pin" ]; do
 				#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
-				read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
-				echo
+				read -r -s -p $'\nPlease enter GPG Admin PIN needed to use the GPG backup thumb drive: ' gpg_admin_pin
 			done
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
 			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
@@ -790,8 +789,7 @@ prompt_tpm_owner_password() {
 		return 0
 	fi
 
-	read -s -p "TPM Owner Password: " tpm_owner_password
-	echo # new line after password prompt
+	read -s -p $'\nTPM Owner Password: ' tpm_owner_password
 
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
@@ -809,10 +807,9 @@ prompt_new_owner_password() {
 	tpm_owner_password=1
 	tpm_owner_password2=2
 	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
-		read -s -p "New TPM Owner Password (2 words suggested, 1-32 characters max): " tpm_owner_password
-		echo
+		read -s -p $'\nNew TPM Owner Password (2 words suggested, 1-32 characters max): ' tpm_owner_password
 
-		read -s -p "Repeat chosen TPM Owner Password: " tpm_owner_password2
+		read -s -p $'\nRepeat chosen TPM Owner Password: ' tpm_owner_password2
 		echo
 
 		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then

@@ -144,15 +144,11 @@ fi
 if [ "$admin_pin_status" -ne 0 ]; then
 
 	# prompt user for PIN and retry
-	echo ""
-	read -s -p "Enter your $HOTPKEY_BRANDING $prompt_message PIN: " admin_pin
-	echo -e "\n"
+	read -s -p $'\nEnter your '"$HOTPKEY_BRANDING $prompt_message"' PIN: ' admin_pin
 
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
 	if [ $? -ne 0 ]; then
-		echo -e "\n"
-		read -s -p "Error setting HOTP secret, re-enter $prompt_message PIN and try again: " admin_pin
-		echo -e "\n"
+		read -s -p $'\nError setting HOTP secret, re-enter '"$prompt_message"' PIN and try again: ' admin_pin
 		if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
 			# don't leak key on failure
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
