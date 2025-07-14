@@ -3,12 +3,17 @@
 # ------- Start of functions coming from /etc/ash_functions
 
 die() {
+	TRACE_FUNC
+	#TODO: add colors to output, here red for ERROR?
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
 		echo -e "!!! ERROR: $* !!!" >&2
 	fi
-	sleep 2
+
+	# ask user to press Enter prior to exit
+	read -r -p $'Press Enter to continue...\n\n'
+
 	exit 1
 }
 
@@ -16,6 +21,8 @@ die() {
 # correct, and when we are able to continue with degraded functionalty.
 # Do not overuse this!  See doc/logging.md.
 warn() {
+	TRACE_FUNC
+	#TODO: add colors to output, here yellow for WARNING?
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 	else
@@ -54,7 +61,15 @@ TRACE() {
 # Don't overuse this - too much NOTE output will cause users to ignore it.  See
 # doc/logging.md.
 NOTE() {
+	#TODO: add colors to output, here blue for NOTE?
+
+	# Make sure the user sees this message: seperate it from the rest of the output
+	echo
 	echo "NOTE:" "$@" | tee -a /tmp/debug.log
+	echo
+
+	# Sleep for a second to give the user time to read the message
+	sleep 1
 }
 
 # Use INFO for contextual information that might make sense to non-developers,
@@ -62,6 +77,7 @@ NOTE() {
 # level to troubleshoot basic problems, so it must make sense without deep
 # knowledge of how Heads works.  See doc/logging.md.
 INFO() {
+	TRACE_FUNC
 	#TODO: add colors to output, here green for INFO?
 
 	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
@@ -126,10 +142,7 @@ confirm_gpg_card() {
 		message="Please confirm that your GPG card is inserted [Y/n]: "
 	fi
 
-	read \
-		-n 1 \
-		-p "$message" \
-		card_confirm
+	read -r -n 1 -p $'\n'"$message" card_confirm
 	echo
 
 	if [ "$card_confirm" != "y" \
@@ -151,11 +164,9 @@ confirm_gpg_card() {
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 
 			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
-			echo
 			gpg_admin_pin=""
 			while [ -z "$gpg_admin_pin" ]; do
-				#TODO: change all passphrase prompts in codebase to include -r to prevent backslash escapes
-				read -r -s -p "Please enter GPG Admin PIN needed to use the GPG backup thumb drive: " gpg_admin_pin
+				read -r -s -p $'\nPlease enter GPG Admin PIN needed to use the GPG backup thumb drive: ' gpg_admin_pin
 				echo
 			done
 			#prompt user to select the proper encrypted partition, which should the first one on next prompt
@@ -203,13 +214,10 @@ confirm_gpg_card() {
 		gpg_output=$(gpg --card-status 2>&1) ||
 			die "gpg card read failed"
 	fi
-	# restore prev errexit state
-	if [ "$errexit" = "on" ]; then
-		set -e
-	fi
 
 	# Extract and display GPG PIN retry counters
 	# output excerpt: "PIN retry counter : 3 0 3"
+	gpg_output=$(gpg --card-status 2>&1)
 	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
 	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
@@ -220,6 +228,11 @@ confirm_gpg_card() {
 	echo ""
 	NOTE "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
 	echo ""
+
+	# restore prev errexit state
+	if [ "$errexit" = "on" ]; then
+		set -e
+	fi
 }
 
 gpg_auth() {
@@ -311,8 +324,17 @@ recovery() {
 		#Going to recovery shell should be authenticated if supported
 		gpg_auth
 
+		#if we have DEBUG_OUTPUT=y, we instruct users to use the debug log
+		if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+			cat /etc/DEBUG_LOG_COPY_INSTRUCTIONS
+		fi
+
+		#Guide user into enabling debug output in case of a discovered bug
+		if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
+			#User can enable DEBUG_OUTPUT=y and TRACE_FUNCTION_TRACING_OUTPUT=y from Configuration Options
+			NOTE "If you want to file a bug, please enable Debug mode through 'Options --> Change configuration settings > Configure Heads informational'"
+		fi
 		echo >&2 "!!!!! Starting recovery shell"
-		sleep 1
 
 		if [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/bash
@@ -397,7 +419,6 @@ enable_usb() {
 	insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
 	insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
 	insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
-	sleep 2
 
 	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
 	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
@@ -536,14 +557,33 @@ DO_WITH_DEBUG() {
 	return "$exit_status"
 }
 
-# Trace the current script and function.
+# TRACE_FUNC outputs the function call stack in a readable format.
+# It helps debug the execution path leading to the current function.
+#
+# The format of the output is:
+#	main(/path/to/script:line) -> function1(/path/to/file:line) -> function2(/path/to/file:line)
+#
+# Usage:
+#	Call TRACE_FUNC within any function to print the call hierarchy.
 TRACE_FUNC() {
 	# Index [1] for BASH_SOURCE and FUNCNAME give us the caller location.
 	# FUNCNAME is 'main' if called from a script outside any function.
 	# BASH_LINENO is offset by 1, it provides the line that the
 	# corresponding FUNCNAME was _called from_, so BASH_LINENO[0] is the
 	# location of the caller.
-	TRACE "${BASH_SOURCE[1]}(${BASH_LINENO[0]}): ${FUNCNAME[1]}"
+
+	local i stack_trace=""
+
+	# Traverse the call stack from the earliest caller to the direct caller of TRACE_FUNC
+	for ((i = ${#FUNCNAME[@]} - 1; i > 1; i--)); do
+		stack_trace+="${FUNCNAME[i]}(${BASH_SOURCE[i]}:${BASH_LINENO[i - 1]}) -> "
+	done
+
+	# Append the direct caller (without extra " -> " at the end)
+	stack_trace+="${FUNCNAME[1]}(${BASH_SOURCE[1]}:${BASH_LINENO[0]})"
+
+	# Print the final trace output
+	TRACE "${stack_trace}"
 }
 
 # Show the entire current call stack in debug output - useful if a catastrophic
@@ -628,8 +668,13 @@ reseal_tpm_disk_decryption_key() {
 		done
 		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
+		attempt=1
 		while ! update_checksums; do
-			warn "Checksums were not signed. Preceding errors should explain possible causes"
+			warn "Attempt $attempt: Checksums were not signed. Preceding errors should explain possible causes"
+			if [ "$attempt" -ge 3 ]; then
+				die "Failed to sign checksums after 3 attempts"
+			fi
+			attempt=$((attempt + 1))
 		done
 		NOTE "Rebooting in 3 seconds to enable booting default boot option"
 		sleep 3
@@ -740,8 +785,8 @@ prompt_tpm_owner_password() {
 		return 0
 	fi
 
-	read -s -p "TPM Owner Password: " tpm_owner_password
-	echo # new line after password prompt
+	read -r -s -p $'\nTPM Owner Password: ' tpm_owner_password
+	echo
 
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
@@ -759,25 +804,24 @@ prompt_new_owner_password() {
 	tpm_owner_password=1
 	tpm_owner_password2=2
 	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
-		read -s -p "New TPM Owner Password (2 words suggested, 1-32 characters max): " tpm_owner_password
-		echo
-
-		read -s -p "Repeat chosen TPM Owner Password: " tpm_owner_password2
-		echo
+		read -r -s -p $'\nNew TPM Owner Password (2 words suggested, 1-32 characters max): ' tpm_owner_password
+		read -r -s -p $'\nRepeat chosen TPM Owner Password: ' tpm_owner_password2
 
 		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
-			echo "Passphrases entered do not match. Try again!"
 			echo
+			echo "Passphrases entered do not match. Try again!"
 		fi
+		echo
 	done
 
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
 }
 
 check_tpm_counter() {
+	# $1: rollback file path
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
@@ -785,35 +829,72 @@ check_tpm_counter() {
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
-		TPM_COUNTER=$(grep counter- "$1" | cut -d- -f2)
+		# Robustly extract the first hex string after 'counter-' on any line
+		TPM_COUNTER=$(grep -Eo 'counter-[0-9a-fA-F]+' "$1" | sed -n 's/counter-//p' | head -n1 | tr -d '\n')
+		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
 	else
 		INFO "$1 does not exist; creating new TPM counter"
+		# Warn user: TPM Owner Password is required to create a new TPM counter
+		if [ ! -s /tmp/secret/tpm_owner_password ]; then
+			warn "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+		fi
+
 		tpmr counter_create \
 			-pwdc '' \
 			-la $LABEL |
 			tee /tmp/counter >/dev/null 2>&1 ||
 			die "Unable to create TPM counter"
-		TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
+		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
+		DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
 	fi
 
 	if [ -z "$TPM_COUNTER" ]; then
-		die "$1: TPM Counter not found?"
+		die "No TPM counter could be found or created."
 	fi
 }
 
 # Read the TPM counter value from the TPM.
 read_tpm_counter() {
 	TRACE_FUNC
-	tpmr counter_read -ix "$1" | tee "/tmp/counter-$1" >/dev/null 2>&1 ||
-		die "Counter read failed"
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
+	if [ ! -e /tmp/counter-"$counter_id" ]; then
+		DEBUG "Counter file /tmp/counter-$counter_id not found. Attempting to read from TPM."
+		DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" | tee /tmp/counter-"$counter_id" >/dev/null 2>&1 ||
+			die "Counter read failed for index $counter_id"
+	fi
+	DEBUG "Counter file /tmp/counter-$counter_id read successfully."
 }
 
-# Increment the TPM counter value in the TPM.
 increment_tpm_counter() {
 	TRACE_FUNC
-	tpmr counter_increment -ix "$1" -pwdc '' |
-		tee /tmp/counter-$1 >/dev/null 2>&1 ||
-		die "TPM counter increment failed for rollback prevention. Please reset the TPM"
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
+	
+	# Check if counter exists by reading it first
+	if ! DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
+		DEBUG "TPM counter $counter_id could not be read before incrementing"
+		# Continue with increment attempt anyway to get detailed error messages
+	else
+		DEBUG "TPM counter $counter_id exists and was read successfully"
+	fi
+
+	# Try to increment the counter
+	if ! DO_WITH_DEBUG tpmr counter_increment -ix "$counter_id" -pwdc '' |
+		tee /tmp/counter-"$counter_id" >/dev/null 2>&1; then
+		
+		# Check if we need to create a new counter
+		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
+		
+		if DO_WITH_DEBUG tpmr counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
+			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
+		fi
+		
+		die "TPM counter increment failed for rollback prevention. Please reset the TPM or update kexec_rollback.txt with a new counter."
+	fi
+	
+	DEBUG "TPM counter incremented successfully for index $counter_id"
 }
 
 # Check detached signature on kexec boot params
@@ -828,14 +909,17 @@ check_config() {
 	fi
 
 	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
+		DEBUG "No $1/kexec.sig found"
 		return
 	fi
 
 	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
+		DEBUG "No $1/kexec*.txt found"
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
+		DEBUG "second param: $2 != force"
 		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
 		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig -; then
 			die 'Invalid signature on kexec boot params'
@@ -909,10 +993,11 @@ update_checksums() {
 	extparam=
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			DEBUG "add -r to kexec-sign-config since CONFIG_IGNORE_ROLLBACK is not set"
 			extparam=-r
 		fi
 	fi
-	if ! kexec-sign-config -p /boot -u $extparam; then
+	if ! DO_WITH_DEBUG kexec-sign-config -p /boot -u $extparam; then
 		rv=1
 	else
 		rv=0
@@ -1020,20 +1105,28 @@ verify_checksums() {
 		set +e -o pipefail
 		local ret=0
 		cd "$boot_dir" || ret=1
-		sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output || ret=1
+		sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output 2>/dev/null || ret=1
 
 		# also make sure that the file & directory structure didn't change
 		# (sha256sum won't detect added files)
 		print_tree >/tmp/tree_output || ret=1
-		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output &>/dev/null; then
+		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output 2>/dev/null; then
 			ret=1
 			[[ "$gui" != "y" ]] && exit "$ret"
 			# produce a diff that can safely be presented to the user
 			# this is relatively hard as file names may e.g. contain backslashes etc.,
 			# which are interpreted by whiptail, less, ...
-			escape_zero "(new) " <"$TMP_TREE_FILE" >"${TMP_TREE_FILE}.user"
-			escape_zero "(new) " </tmp/tree_output >/tmp/tree_output.user
-			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >>/tmp/hash_output
+			if [ -r "$TMP_TREE_FILE" ]; then
+				escape_zero "(new) " <"$TMP_TREE_FILE" >"${TMP_TREE_FILE}.user" 2>/dev/null
+			else
+				touch "${TMP_TREE_FILE}.user"
+			fi
+			if [ -r /tmp/tree_output ]; then
+				escape_zero "(new) " </tmp/tree_output >/tmp/tree_output.user 2>/dev/null
+			else
+				touch /tmp/tree_output.user
+			fi
+			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user 2>/dev/null | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >>/tmp/hash_output 2>/dev/null
 			rm -f "${TMP_TREE_FILE}.user"
 			rm -f /tmp/tree_output.user
 		fi
@@ -1214,7 +1307,6 @@ scan_boot_options() {
 	fi
 }
 
-
 # truncate a file to a size only if it is longer (busybox truncate lacks '<' and
 # always sets the file size)
 truncate_max_bytes() {
@@ -1244,13 +1336,13 @@ fromhex_plain() {
 print_battery_charge() {
 	local battery
 	battery="$1"
-	echo "$((100*$(cat "${battery}/charge_now")/$(cat "${battery}/charge_full")))"
+	echo "$((100 * $(cat "${battery}/charge_now") / $(cat "${battery}/charge_full")))"
 }
 
 print_battery_health() {
 	local battery
 	battery="$1"
-	echo "$((100*$(cat "${battery}/charge_full")/$(cat "${battery}/charge_full_design")))"
+	echo "$((100 * $(cat "${battery}/charge_full") / $(cat "${battery}/charge_full_design")))"
 }
 
 print_battery_name() {

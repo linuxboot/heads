@@ -8,10 +8,10 @@ TRACE_FUNC
 
 while getopts "b:d:p:i:" arg; do
 	case $arg in
-	b) bootdir="$OPTARG" ;;
-	d) paramsdev="$OPTARG" ;;
-	p) paramsdir="$OPTARG" ;;
-	i) index="$OPTARG" ;;
+		b) bootdir="$OPTARG" ;;
+		d) paramsdev="$OPTARG" ;;
+		p) paramsdir="$OPTARG" ;;
+		i) index="$OPTARG" ;;
 	esac
 done
 
@@ -354,7 +354,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	fi
 fi
 if [ "$CONFIG_BASIC" != "y" ]; then
-	kexec-sign-config -p $paramsdir $extparam ||
+	DO_WITH_DEBUG kexec-sign-config -p $paramsdir $extparam ||
 		die "Failed to sign default config"
 fi
 # switch back to ro mode
