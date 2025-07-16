@@ -32,6 +32,11 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/.build
 		| tee -a $(build)/log/busybox.log \
 		$(VERBOSE_REDIRECT) \
 	)
+	# Remove busybox's reboot symlink that conflicts with our custom script
+	$(call do,RM-SYMLINKS,bin/busybox,\
+		rm -f $(initrd_bin_dir)/../sbin/reboot \
+		$(VERBOSE_REDIRECT) \
+	)
 	@touch $< # ensure that our build file is still newer
 
 
