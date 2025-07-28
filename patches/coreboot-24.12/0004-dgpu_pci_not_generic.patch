@@ -1,0 +1,22 @@
+--- ./src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb	2025-07-21 12:24:16.195649042 -0400
++++ ./src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/overridetree.cb	2025-07-21 12:25:06.039308454 -0400
+@@ -42,7 +42,7 @@
+ 			register "PcieRpClkSrcNumber[0]"		= "0"
+ 			register "PcieRpAdvancedErrorReporting[0]"	= "1"
+ 			register "PcieRpLtrEnable[0]"			= "1"
+-			device generic 0 alias dgpu on end
++			device pci 0.0 alias dgpu on end
+ 		end
+ 
+ 		# Ethernet (clobbers RP8)
+--- ./src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb	2025-07-21 12:24:16.196320778 -0400
++++ ./src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/overridetree.cb	2025-07-21 12:24:52.290367004 -0400
+@@ -42,7 +42,7 @@
+ 			register "PcieRpClkSrcNumber[0]"		= "0"
+ 			register "PcieRpAdvancedErrorReporting[0]"	= "1"
+ 			register "PcieRpLtrEnable[0]"			= "1"
+-			device generic 0 alias dgpu on end
++			device pci 0.0 alias dgpu on end
+ 		end
+ 
+ 		# M.2 WWAN - x1
