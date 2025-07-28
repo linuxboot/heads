@@ -1,0 +1,297 @@
+From fc72b9f3d93781c5ccb958e870e49773be92b759 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Sun, 8 May 2022 01:11:03 +0200
+Subject: [PATCH 17/24] haswell NRI: Add library to change margins
+
+Implement a library to change Rx/Tx margins. It will be expanded later.
+
+Change-Id: I0b55aba428d8b4d4e16d2fbdec57235ce3ce8adf
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/64193
+Reviewed-by: Maximilian Brune <maximilian.brune@9elements.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/native_raminit/Makefile.mk  |   1 +
+ .../haswell/native_raminit/change_margin.c    | 154 ++++++++++++++++++
+ .../haswell/native_raminit/raminit_native.h   |  50 ++++++
+ .../intel/haswell/registers/mchbar.h          |   9 +
+ 4 files changed, 214 insertions(+)
+ create mode 100644 src/northbridge/intel/haswell/native_raminit/change_margin.c
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/Makefile.mk b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+index 2da950771d..ebe9e9b762 100644
+--- a/src/northbridge/intel/haswell/native_raminit/Makefile.mk
++++ b/src/northbridge/intel/haswell/native_raminit/Makefile.mk
+@@ -1,5 +1,6 @@
+ ## SPDX-License-Identifier: GPL-2.0-or-later
+ 
++romstage-y += change_margin.c
+ romstage-y += configure_mc.c
+ romstage-y += ddr3.c
+ romstage-y += jedec_reset.c
+diff --git a/src/northbridge/intel/haswell/native_raminit/change_margin.c b/src/northbridge/intel/haswell/native_raminit/change_margin.c
+new file mode 100644
+index 0000000000..055c666eee
+--- /dev/null
++++ b/src/northbridge/intel/haswell/native_raminit/change_margin.c
+@@ -0,0 +1,154 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#include <commonlib/bsd/clamp.h>
++#include <console/console.h>
++#include <delay.h>
++#include <northbridge/intel/haswell/haswell.h>
++#include <timer.h>
++
++#include "raminit_native.h"
++
++void update_rxt(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t rank,
++	const uint8_t byte,
++	const enum rxt_subfield subfield,
++	const int32_t value)
++{
++	union ddr_data_rx_train_rank_reg rxt = {
++		.rcven =  ctrl->rcven[channel][rank][byte],
++		.dqs_p = ctrl->rxdqsp[channel][rank][byte],
++		.rx_eq =  ctrl->rx_eq[channel][rank][byte],
++		.dqs_n = ctrl->rxdqsn[channel][rank][byte],
++		.vref  = ctrl->rxvref[channel][rank][byte],
++	};
++	int32_t new_value;
++	switch (subfield) {
++	case RXT_RCVEN:
++		new_value = clamp_s32(0, value, 511);
++		rxt.rcven = new_value;
++		break;
++	case RXT_RXDQS_P:
++		new_value = clamp_s32(0, value, 63);
++		rxt.dqs_p = new_value;
++		break;
++	case RXT_RX_EQ:
++		new_value = clamp_s32(0, value, 31);
++		rxt.rx_eq = new_value;
++		break;
++	case RXT_RXDQS_N:
++		new_value = clamp_s32(0, value, 63);
++		rxt.dqs_n = new_value;
++		break;
++	case RXT_RX_VREF:
++		new_value = clamp_s32(-32, value, 31);
++		rxt.vref = new_value;
++		break;
++	case RXT_RXDQS_BOTH:
++		new_value = clamp_s32(0, value, 63);
++		rxt.dqs_p = new_value;
++		rxt.dqs_n = new_value;
++		break;
++	case RXT_RESTORE:
++		new_value = value;
++		break;
++	default:
++		die("%s: Unhandled subfield index %u\n", __func__, subfield);
++	}
++
++	if (new_value != value) {
++		printk(BIOS_ERR, "%s: Overflow for subfield %u: %d ---> %d\n",
++			__func__, subfield, value, new_value);
++	}
++	mchbar_write32(RX_TRAIN_ch_r_b(channel, rank, byte), rxt.raw);
++	download_regfile(ctrl, channel, false, rank, REG_FILE_USE_RANK, byte, true, false);
++}
++
++void update_txt(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const uint8_t rank,
++	const uint8_t byte,
++	const enum txt_subfield subfield,
++	const int32_t value)
++{
++	union ddr_data_tx_train_rank_reg txt = {
++		.dq_delay  = ctrl->tx_dq[channel][rank][byte],
++		.dqs_delay = ctrl->txdqs[channel][rank][byte],
++		.tx_eq     = ctrl->tx_eq[channel][rank][byte],
++	};
++	int32_t new_value;
++	switch (subfield) {
++	case TXT_TX_DQ:
++		new_value = clamp_s32(0, value, 511);
++		txt.dq_delay = new_value;
++		break;
++	case TXT_TXDQS:
++		new_value = clamp_s32(0, value, 511);
++		txt.dqs_delay = new_value;
++		break;
++	case TXT_TX_EQ:
++		new_value = clamp_s32(0, value, 63);
++		txt.tx_eq = new_value;
++		break;
++	case TXT_DQDQS_OFF:
++		new_value = value;
++		txt.dqs_delay += new_value;
++		txt.dq_delay  += new_value;
++		break;
++	case TXT_RESTORE:
++		new_value = value;
++		break;
++	default:
++		die("%s: Unhandled subfield index %u\n", __func__, subfield);
++	}
++	if (new_value != value) {
++		printk(BIOS_ERR, "%s: Overflow for subfield %u: %d ---> %d\n",
++			__func__, subfield, value, new_value);
++	}
++	mchbar_write32(TX_TRAIN_ch_r_b(channel, rank, byte), txt.raw);
++	download_regfile(ctrl, channel, false, rank, REG_FILE_USE_RANK, byte, false, true);
++}
++
++void download_regfile(
++	struct sysinfo *ctrl,
++	const uint8_t channel,
++	const bool multicast,
++	const uint8_t rank,
++	const enum regfile_mode regfile,
++	const uint8_t byte,
++	const bool read_rf_rd,
++	const bool read_rf_wr)
++{
++	union reut_seq_base_addr_reg reut_seq_base_addr;
++	switch (regfile) {
++	case REG_FILE_USE_START:
++		reut_seq_base_addr.raw = mchbar_read64(REUT_ch_SEQ_ADDR_START(channel));
++		break;
++	case REG_FILE_USE_CURRENT:
++		reut_seq_base_addr.raw = mchbar_read64(REUT_ch_SEQ_ADDR_CURRENT(channel));
++		break;
++	case REG_FILE_USE_RANK:
++		reut_seq_base_addr.raw = 0;
++		if (rank >= NUM_SLOTRANKS)
++			die("%s: bad rank %u\n", __func__, rank);
++		break;
++	default:
++		die("%s: Invalid regfile param %u\n", __func__, regfile);
++	}
++	uint8_t phys_rank = rank;
++	if (reut_seq_base_addr.raw != 0) {
++		/* Map REUT logical rank to physical rank */
++		const uint32_t log_to_phys = mchbar_read32(REUT_ch_RANK_LOG_TO_PHYS(channel));
++		phys_rank = log_to_phys >> (reut_seq_base_addr.rank_addr * 4) & 0x3;
++	}
++	uint32_t reg = multicast ? DDR_DATA_ch_CONTROL_0(channel) : DQ_CONTROL_0(channel, byte);
++	union ddr_data_control_0_reg ddr_data_control_0 = {
++		.raw = mchbar_read32(reg),
++	};
++	ddr_data_control_0.read_rf_rd   = read_rf_rd;
++	ddr_data_control_0.read_rf_wr   = read_rf_wr;
++	ddr_data_control_0.read_rf_rank = phys_rank;
++	mchbar_write32(reg, ddr_data_control_0.raw);
++}
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index f029e7f076..8707257b27 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -118,6 +118,30 @@ enum test_stop {
+ 	ALSOE  = 3,	/* Stop on all lanes error */
+ };
+ 
++enum rxt_subfield {
++	RXT_RCVEN	= 0,
++	RXT_RXDQS_P	= 1,
++	RXT_RX_EQ	= 2,
++	RXT_RXDQS_N	= 3,
++	RXT_RX_VREF	= 4,
++	RXT_RXDQS_BOTH	= 5,
++	RXT_RESTORE	= 255,
++};
++
++enum txt_subfield {
++	TXT_TX_DQ	= 0,
++	TXT_TXDQS	= 1,
++	TXT_TX_EQ	= 2,
++	TXT_DQDQS_OFF	= 3,
++	TXT_RESTORE	= 255,
++};
++
++enum regfile_mode {
++	REG_FILE_USE_RANK,	/* Used when changing parameters for each rank */
++	REG_FILE_USE_START,	/* Used when changing parameters before the test */
++	REG_FILE_USE_CURRENT,	/* Used when changing parameters after the test */
++};
++
+ struct wdb_pat {
+ 	uint32_t start_ptr;	/* Starting pointer in WDB */
+ 	uint32_t stop_ptr;	/* Stopping pointer in WDB */
+@@ -451,6 +475,32 @@ uint8_t select_reut_ranks(struct sysinfo *ctrl, uint8_t channel, uint8_t rankmas
+ void run_mpr_io_test(bool clear_errors);
+ uint8_t run_io_test(struct sysinfo *ctrl, uint8_t chanmask, uint8_t dq_pat, bool clear_errors);
+ 
++void update_rxt(
++	struct sysinfo *ctrl,
++	uint8_t channel,
++	uint8_t rank,
++	uint8_t byte,
++	enum rxt_subfield subfield,
++	int32_t value);
++
++void update_txt(
++	struct sysinfo *ctrl,
++	uint8_t channel,
++	uint8_t rank,
++	uint8_t byte,
++	enum txt_subfield subfield,
++	int32_t value);
++
++void download_regfile(
++	struct sysinfo *ctrl,
++	uint8_t channel,
++	bool multicast,
++	uint8_t rank,
++	enum regfile_mode regfile,
++	uint8_t byte,
++	bool read_rf_rd,
++	bool read_rf_wr);
++
+ uint8_t get_rx_bias(const struct sysinfo *ctrl);
+ 
+ uint8_t get_tCWL(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/registers/mchbar.h b/src/northbridge/intel/haswell/registers/mchbar.h
+index 817a9f8bf8..a81559bb1e 100644
+--- a/src/northbridge/intel/haswell/registers/mchbar.h
++++ b/src/northbridge/intel/haswell/registers/mchbar.h
+@@ -15,7 +15,11 @@
+ /* Register definitions */
+ 
+ /* DDR DATA per-channel per-bytelane */
++#define RX_TRAIN_ch_r_b(ch, rank, byte)		_DDRIO_C_R_B(0x0000, ch, rank, byte)
++#define TX_TRAIN_ch_r_b(ch, rank, byte)		_DDRIO_C_R_B(0x0020, ch, rank, byte)
++
+ #define DQ_CONTROL_2(ch, byte)			_DDRIO_C_R_B(0x0064, ch, 0, byte)
++#define DQ_CONTROL_0(ch, byte)			_DDRIO_C_R_B(0x0074, ch, 0, byte)
+ 
+ /* DDR CKE per-channel */
+ #define DDR_CKE_ch_CMD_COMP_OFFSET(ch)		_DDRIO_C_R_B(0x1204, ch, 0, 0)
+@@ -38,6 +42,9 @@
+ #define DDR_SCRAMBLE_ch(ch)			(0x2000 + 4 * (ch))
+ #define DDR_SCRAM_MISC_CONTROL			0x2008
+ 
++/* DDR DATA per-channel multicast */
++#define DDR_DATA_ch_CONTROL_0(ch)		_DDRIO_C_R_B(0x3074, ch, 0, 0)
++
+ /* DDR CMDN/CMDS per-channel (writes go to both CMDN and CMDS fubs) */
+ #define DDR_CMD_ch_COMP_OFFSET(ch)		_DDRIO_C_R_B(0x3204, ch, 0, 0)
+ #define DDR_CMD_ch_PI_CODING(ch)		_DDRIO_C_R_B(0x3208, ch, 0, 0)
+@@ -147,6 +154,8 @@
+ 
+ #define REUT_ch_SEQ_ADDR_WRAP(ch)		(0x48e8 + 8 * (ch))
+ 
++#define REUT_ch_SEQ_ADDR_CURRENT(ch)		(0x48f8 + 8 * (ch))
++
+ #define REUT_ch_SEQ_MISC_CTL(ch)		(0x4908 + 4 * (ch))
+ 
+ #define REUT_ch_SEQ_ADDR_INC_CTL(ch)		(0x4910 + 8 * (ch))
+-- 
+2.39.5
+
