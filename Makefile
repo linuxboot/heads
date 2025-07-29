@@ -696,7 +696,7 @@ endef
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
 #bin_modules-$(CONFIG_MUSL) += musl-cross-make
-bin_modules-$(CONFIG_KEXEC) += kexec
+bin_modules-$(CONFIG_KEXEC) += kexec-tools
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom

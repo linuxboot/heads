@@ -1,0 +1,17 @@
+--- a/Makefile.in	2025-08-11 16:40:00.000000000 +0000
++++ b/Makefile.in	2025-08-11 16:40:00.000000000 +0000
+@@ -167,12 +167,12 @@ include $(srcdir)/kexec/Makefile
+ 
+ # vmcore-dmesg (read dmesg from a vmcore)
+ #
+-include $(srcdir)/vmcore-dmesg/Makefile
++#include $(srcdir)/vmcore-dmesg/Makefile
+ 
+ #
+ # kexec_test (test program)
+ #
+-include $(srcdir)/kexec_test/Makefile
++#include $(srcdir)/kexec_test/Makefile
+ 
+ SPEC=$(PACKAGE_NAME).spec
+ GENERATED_SRCS:= $(SPEC)

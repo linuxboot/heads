@@ -1,0 +1,28 @@
+modules-$(CONFIG_KEXEC) += kexec-tools
+
+# Bump to latest stable (Oct 2025). Previous 2.0.31 patches carried forward.
+kexec-tools_version := 2.0.32
+kexec-tools_dir := kexec-tools-$(kexec-tools_version)
+kexec-tools_tar := kexec-tools-$(kexec-tools_version).tar.gz
+kexec-tools_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec-tools_tar)
+kexec-tools_hash := 41c427651269cba7ecb0a3a537403076c5694949783b5cc3ae046223bc962087
+
+kexec-tools_configure := \
+	CFLAGS="-g -Oz -fno-strict-aliasing -Wall -Wstrict-prototypes" \
+	./configure \
+	$(CROSS_TOOLS) \
+	--host $(MUSL_ARCH)-elf-linux \
+	--target $(MUSL_ARCH) \
+	--prefix="/" \
+	--without-lzma \
+	&& $(MAKE) clean
+
+kexec-tools_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+kexec-tools_output := build/sbin/kexec
+
+kexec-tools_depends := zlib $(musl_dep)
