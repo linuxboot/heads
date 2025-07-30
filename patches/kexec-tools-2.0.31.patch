@@ -159,3 +159,32 @@ index 948ee63..833a897 100644
  
  $(BIN_TO_HEX): CC=$(BUILD_CC)
  $(BIN_TO_HEX): CFLAGS=$(BUILD_CFLAGS)
+From 14f48ea80e510e5af79ca6c46fa28e99a3695d1c Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Thu, 17 Apr 2025 09:31:40 +0100
+Subject: [PATCH] x86_64: Use the x86-64 level for purgatory
+
+The compiler may be configured by default to use a newer
+microarchitecture level such as x86-64-v3. Set purgatory to compile
+using the baseline x86-64 level since the environment isn't set up
+correctly to use SSE and AVX instructions.  At the same time, be a bit
+paranoid and add some additional flags to ensure that the compiler
+doesn't use any such instructions.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+Signed-off-by: Simon Horman <horms@kernel.org>
+---
+ purgatory/arch/x86_64/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/purgatory/arch/x86_64/Makefile b/purgatory/arch/x86_64/Makefile
+index b0e277a3..fd19229a 100644
+--- a/purgatory/arch/x86_64/Makefile
++++ b/purgatory/arch/x86_64/Makefile
+@@ -24,5 +24,5 @@ x86_64_PURGATORY_SRCS += purgatory/arch/i386/vga.c
+ x86_64_PURGATORY_SRCS += purgatory/arch/i386/pic.c
+ 
+ ifneq ($(SUBARCH),x32)
+-x86_64_PURGATORY_EXTRA_CFLAGS = -mcmodel=large
++x86_64_PURGATORY_EXTRA_CFLAGS = -mcmodel=large -march=x86-64 -mno-mmx -mno-sse -mno-sse2 -mno-avx
+ endif

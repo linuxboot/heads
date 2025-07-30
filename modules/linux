@@ -138,7 +138,8 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+#TODO: remove -std=gnu11 when bumping linux version (current 6.1.8 has C23 compatibility issues with GCC 15.1.0 bool/false conflicts)
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -std=gnu11
 
 ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 EXTRA_FLAGS += -Wno-cast-function-type

@@ -9,7 +9,7 @@ powerpc-utils_hash := 77efe3978ac9c251c4728a35b9aebd6076583939a8e26cc7f07ffa8643
 powerpc-utils_configure := \
 	./autogen.sh && \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

@@ -13,9 +13,11 @@ e2fsprogs_hash := 144af53f2bbd921cef6f8bea88bb9faddca865da3fbc657cc9b4d2001097d5
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
+#TODO_GCC_15_E2FSPROGS: Added -std=gnu11 for C23 compatibility (bool keyword redefinition conflicts)
+# Remove this TODO when e2fsprogs is updated for GCC 15.1.0 compatibility
 e2fsprogs_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz -std=gnu11"  \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "" \

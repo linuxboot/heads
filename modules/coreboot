@@ -1,5 +1,13 @@
 ifeq "$(CONFIG_COREBOOT)" "y"
 
+# TODO_GCC_15_COREBOOT: Consider refactoring coreboot module to use standard module patterns
+# The coreboot module currently doesn't follow the standard module pattern used by other 
+# modules (with _configure, _target variables, etc.). This makes it difficult to apply
+# per-module compiler flags like those needed for GCC 15.1.0 compatibility.
+# Current workaround: cbmem utility build in main Makefile uses CC override with 
+# -Wno-unterminated-string-initialization flag.
+# Future: Refactor to use standard module pattern or implement per-module heads_cc extension.
+
 CONFIG_COREBOOT_ROM			?= coreboot.rom
 CONFIG_COREBOOT_BOOTBLOCK	?=
 
