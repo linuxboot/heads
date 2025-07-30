@@ -11,7 +11,7 @@ openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 # and SM3.
 openssl_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./Configure \
 		--prefix="/" \
 		linux-$(strip $(arch)) \

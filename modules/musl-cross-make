@@ -1,5 +1,10 @@
 CONFIG_MUSL ?= y
 
+# GCC 15.1.0 Upgrade Notes:
+# - Upgraded from GCC 9.4.0 to 15.1.0 for improved -Oz optimization support
+# - Multiple modules required C23 compatibility fixes (see individual module TODOs)
+# - Systematic conversion from -Os to -Oz optimization across 33+ modules
+# - Key compatibility issues resolved: bool/false conflicts, basename function, true keyword, inlining
 ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 modules-$(CONFIG_MUSL) += musl-cross-make
