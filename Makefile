@@ -682,14 +682,14 @@ endef
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
 	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
-	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
+	@$(CROSS)strip --preserve-dates --strip-all "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
 	$(call do,INSTALL-LIB,$(1:$(pwd)/%=%),\
-		$(CROSS)strip --preserve-dates -o "$$@" "$$<")
+		$(CROSS)strip --preserve-dates --strip-all -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
