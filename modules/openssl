@@ -25,9 +25,14 @@ openssl_configure := \
 		no-des \
 		no-dh \
 		no-dsa \
+		no-dtls \
+		no-ec2m \
 		no-ecdh \
 		no-ecdsa \
+		no-engine \
+		no-gost \
 		no-idea \
+		no-md2 \
 		no-md4 \
 		no-mdc2 \
 		no-ocb \
@@ -41,7 +46,11 @@ openssl_configure := \
 		no-siv \
 		no-sm2 \
 		no-sm4 \
+		no-srp \
+		no-ssl3 \
 		no-tests \
+		no-tls1 \
+		no-tls1_1 \
 		no-whirlpool \
 
 openssl_target := $(MAKE_JOBS) \
