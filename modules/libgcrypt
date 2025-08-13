@@ -14,6 +14,7 @@ libgcrypt_configure := \
 	--prefix "/" \
 	--disable-doc \
 	--disable-static \
+	--disable-jent-support \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libgcrypt_target := $(MAKE_JOBS) \
