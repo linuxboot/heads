@@ -15,9 +15,6 @@ libgcrypt_configure := \
 	--disable-doc \
 	--disable-static \
 	--disable-jent-support \
-	--enable-ciphers="aes des chacha20" \
-	--enable-pubkey-ciphers="rsa ecc" \
-	--enable-digests="sha1 sha256 sha512 blake2" \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libgcrypt_target := $(MAKE_JOBS) \
