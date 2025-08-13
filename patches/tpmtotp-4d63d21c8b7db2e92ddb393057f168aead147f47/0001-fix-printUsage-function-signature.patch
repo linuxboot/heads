@@ -1,0 +1,56 @@
+--- a/util/getpubkey.c	2025-08-11 12:21:30.324353017 -0400
++++ b/util/getpubkey.c	2025-08-11 12:21:30.346684920 -0400
+@@ -42,10 +42,10 @@
+ 
+ #include "tpmfunc.h"
+ 
+-static void printUsage(const char *prg)
++static void printUsage(void)
+ {
+     printf("\n");
+-    printf("%s -ha <key handle> -pwdk keypassword\n", prg);
++    printf("getpubkey -ha <key handle> -pwdk keypassword\n");
+     printf("\n");
+     printf("\n");
+ }
+@@ -70,7 +70,7 @@
+                 keypass = argv[i];
+             } else {
+                 printf("Missing parameter to -pwdk\n");
+-	        printUsage(argv[0]);
++	        printUsage();
+ 	        exit(1);
+ 	    }
+         }
+@@ -83,12 +83,12 @@
+                 }
+ 	    } else {
+ 	        printf("Missing parameter to -ha\n");
+-	        printUsage(argv[0]);
++	        printUsage();
+ 	        exit(1);
+ 	    }
+         }
+         else if (!strcmp(argv[i], "-h")) {
+-            printUsage(argv[0]);
++            printUsage();
+             exit(0);
+         }
+         else if (!strcmp(argv[i], "-v")) {
+@@ -96,14 +96,14 @@
+         }
+         else {
+             printf("\n%s is not a valid option\n", argv[i]);
+-            printUsage(argv[0]);
++            printUsage();
+             exit(1);
+         }
+     }
+ 
+     if (keyHandle == 0) {
+         printf("Missing key handle.\n");
+-        printUsage(argv[0]);
++        printUsage();
+         exit(1);
+     }
+ 

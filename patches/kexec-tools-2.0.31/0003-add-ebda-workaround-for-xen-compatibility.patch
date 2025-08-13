@@ -1,0 +1,30 @@
+--- a/kexec/kexec.c	2025-08-11 16:40:00.000000000 +0000
++++ b/kexec/kexec.c	2025-08-11 16:40:00.000000000 +0000
+@@ -807,6 +807,27 @@ static int my_load(const char *type, int fileind, int argc, char **argv,
+ 	if (sort_segments(&info) < 0) {
+ 		return -1;
+ 	}
++
++#if 1
++	// force segment 0 to have memsz == bufsz
++	// so that it won't overwrite EBDA
++	if (info.segment[0].mem == 0)
++	{
++		if (kexec_debug)
++			printf("hack ebda into segment 0!\n");
++
++		uint8_t * ebda = calloc(1, info.segment[0].memsz);
++		memcpy(ebda, info.segment[0].buf, info.segment[0].bufsz);
++		info.segment[0].bufsz = info.segment[0].memsz;
++		info.segment[0].buf = ebda;
++
++		// install some default EBDA values that are off scale,
++		// which will force Xen to use the multiboot info
++		*(uint16_t*)(ebda + 0x40e) = 0xFFFF; // segment
++		*(uint16_t*)(ebda + 0x413) = 0xFFFF; // size
++	}
++#endif
++
+ 	/* if purgatory is loaded update it */
+ 	update_purgatory(&info);
+ 	if (entry)

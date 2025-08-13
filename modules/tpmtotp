@@ -11,7 +11,7 @@ tpmtotp_hash := eaac1e8f652f1da7f5a1ed6a8cfefb6511f1e5e1dabf93b44db3b29c18c5ae53
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-I$(INSTALL)/include -Os" \
+	CFLAGS="-I$(INSTALL)/include -Oz" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 
 tpmtotp_output := \

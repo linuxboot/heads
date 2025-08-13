@@ -8,7 +8,7 @@ libgpg-error_hash := b7e11a64246bbe5ef37748de43b245abd72cfcd53c9ae5e7fc5ca59f1c8
 
 libgpg-error_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host=$(MUSL_ARCH)-linux-musl \
 	--prefix "/" \

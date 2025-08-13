@@ -6,6 +6,7 @@ lvm2_tar := LVM2.$(lvm2_version).tgz
 lvm2_url := https://mirrors.kernel.org/sourceware/lvm2/$(lvm2_tar)
 lvm2_hash := 74e794a9e9dee1bcf8a2065f65b9196c44fdf321e22d63b98ed7de8c9aa17a5d
 
+#TODO: remove libgen.h patch when bumping lvm2 version (current 2.03.23 needs libgen.h include for basename function with GCC 15.1.0)
 # cross compiling test assumes malloc/realloc aren't glibc compat
 # so we force it via the configure cache.
 lvm2_configure := \
@@ -19,7 +20,7 @@ lvm2_configure := \
 	--with-default-pid-dir=/run \
 	--with-default-dm-run-dir=/run \
 	--with-default-run-dir=/run/lvm \
-	--with-optimisation=-Os \
+	--with-optimisation=-Oz \
 	--enable-devmapper \
 	--disable-selinux \
 	--without-systemd \

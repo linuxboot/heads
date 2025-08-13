@@ -8,7 +8,7 @@ util-linux_hash := 32b30a336cda903182ed61feb3e9b908b762a5e66fe14e43efb88d3716207
 
 util-linux_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
