@@ -38,7 +38,26 @@ lvm2_configure := \
 	--disable-cmirrord \
 	--disable-cache_check_needs_check \
 	--disable-thin_check_needs_check \
+	--disable-systemd-journal \
+	--disable-app-machineid \
+	--disable-blkid_wiping \
+	--disable-o_direct \
+	--disable-fsadm \
+	--disable-blkdeactivate \
+	--disable-blkzeroout \
+	--without-blkid \
+	--without-udev \
 	--with-cluster=none \
+	--with-thin=none \
+	--with-cache=none \
+	--with-vdo=none \
+	--with-writecache=none \
+	--with-integrity=none \
+	--with-snapshots=none \
+	--with-mirrors=none \
+	--disable-udev_rules \
+	--disable-pkgconfig \
+	--disable-nls \
 	--with-thin-check= \
 
 # not sure why LIB_SUFFIX is not defined in the cross build
