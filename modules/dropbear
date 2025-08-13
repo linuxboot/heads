@@ -1,11 +1,11 @@
 # dropbear is a tiny ssh client
 modules-$(CONFIG_DROPBEAR) += dropbear
 
-dropbear_version := 2016.74
+dropbear_version := 2025.88
 dropbear_dir := dropbear-$(dropbear_version)
 dropbear_tar := dropbear-$(dropbear_version).tar.bz2
-dropbear_url := https://mirror.dropbear.nl/mirror/releases/$(dropbear_tar)
-dropbear_hash := 2720ea54ed009af812701bcc290a2a601d5c107d12993e5d92c0f5f81f718891
+dropbear_url := https://matt.ucc.asn.au/dropbear/releases/$(dropbear_tar)
+dropbear_hash := 783f50ea27b17c16da89578fafdb6decfa44bb8f6590e5698a4e4d3672dc53d4
 
 dropbear_configure := ./configure \
 	$(CROSS_TOOLS) \
@@ -17,7 +17,12 @@ dropbear_configure := ./configure \
 	--disable-utmpx \
 	--disable-wtmp \
 	--disable-wtmpx \
-	
+	--disable-loginfunc \
+	--disable-pututline \
+	--disable-pututxline \
+	--disable-openpty \
+	--disable-shadow \
+
 dropbear_output := ssh scp dropbear
 dropbear_target := \
 	$(MAKE_JOBS) \
