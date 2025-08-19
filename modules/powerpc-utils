@@ -1,5 +1,16 @@
 modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
 
+# GCC_15_POWERPC_UTILS: Function pointer signature compatibility for GCC 15.1
+# powerpc-utils 1.3.5 uses generic void (*)() function pointers for RTAS calls
+# but passes functions with specific signatures. GCC 15.1 C23 standard compliance
+# rejects these implicit conversions as incompatible function pointer types.
+# Fixed via patches/powerpc-utils-1.3.5/0001-fix-rtas-function-pointer-signatures-gcc15.patch
+# - Converts void (*)() to properly typed function pointers:
+#   * int (*)(int, int, ...) for variadic RTAS calls  
+#   * int (*)(int, int, int, int *, int *, int *) for specific RTAS calls
+# Critical for PowerPC hardware abstraction (RTAS runtime services).
+# Monitor upstream powerpc-utils for similar fixes that could replace this patch.
+
 powerpc-utils_version := 1.3.5
 powerpc-utils_dir := powerpc-utils-$(powerpc-utils_version)
 powerpc-utils_tar := powerpc-utils-$(powerpc-utils_version).tar.gz
