@@ -8,7 +8,7 @@ libksba_hash := 3f72c68db30971ebbf14367527719423f0a4d5f8103fc9f4a1c01a9fa440de5c
 
 libksba_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \

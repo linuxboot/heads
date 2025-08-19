@@ -11,7 +11,7 @@ io386_hash := 874898af57d86dc057cea39b4a7e0621fc64aa4fb777dfb1eeb11e9134bc9a06
 io386_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	SHARED=yes \
 	PREFIX="/" \
 	&& \

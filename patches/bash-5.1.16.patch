@@ -9,3 +9,13 @@
  		&& mv newversion.h version.h
  
  bashversion$(EXEEXT): buildversion.o $(SUPPORT_SRC)bashversion.c
+--- clean/bash-5.1.16/lib/termcap/tparam.c	2018-12-20 14:47:44.000000000 -0600
++++ bash-5.1.16/lib/termcap/tparam.c	2025-07-30 15:40:00.000000000 +0000
+@@ -33,6 +33,7 @@
+ 
+ #if defined (HAVE_STRING_H)
+ #include <string.h>
++#include <unistd.h>
+ #endif
+ 
+ #if !defined (HAVE_BCOPY) && (defined (HAVE_STRING_H) || defined (STDC_HEADERS))

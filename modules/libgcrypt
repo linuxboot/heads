@@ -8,12 +8,13 @@ libgcrypt_hash := ef14ae546b0084cd84259f61a55e07a38c3b53afc0f546bffcef2f01baffe9
 
 libgcrypt_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host=$(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-doc \
 	--disable-static \
+	--disable-jent-support \
 	--with-gpg-error-prefix="$(INSTALL)" \
 
 libgcrypt_target := $(MAKE_JOBS) \
