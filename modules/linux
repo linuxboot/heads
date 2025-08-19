@@ -145,6 +145,18 @@ ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 EXTRA_FLAGS += -Wno-cast-function-type
 endif
 
+# PowerPC specific alignment fixes for GCC 15.1.0
+ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+# Comprehensive GCC 15.1.0 PowerPC compatibility flags
+EXTRA_FLAGS += -fno-stack-protector
+EXTRA_FLAGS += -O1
+EXTRA_FLAGS += -fno-schedule-insns -fno-schedule-insns2
+EXTRA_FLAGS += -fno-reorder-blocks
+EXTRA_FLAGS += -fno-tree-vectorize
+# Force GNU C11 for PowerPC boot code to avoid C23 bool keyword conflicts
+EXTRA_FLAGS += -std=gnu11
+endif
+
 linux_target := \
 	O="$(build)/$(linux_dir)" \
 	ARCH="$(LINUX_ARCH)" \
