@@ -90,6 +90,18 @@ $(eval $(call coreboot_module,24.02.01,))
 # talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 fork, so
 # there is no point preparing another coreboot module that won't be shared with
 # anything.
+
+# GCC_15_PPC64_COREBOOT: PowerPC64 dual-compiler architecture GCC 15.1 compatibility
+# PowerPC64 builds use two different compilers:
+# 1. Coreboot components (bootblock/romstage/ramstage): Big-endian, coreboot's GCC 11.2.0 - no issues
+# 2. Skiboot payload: Little-endian, Heads' GCC 15.1 musl cross-compiler - requires patches
+# Skiboot compilation fixes applied via patches/coreboot-talos_2/0003-ugly_skiboot-patch_fix_for_newer_gcc_from_musl_125.patch
+# - Adds -Wno-error=unterminated-string-initialization for hardware definition arrays
+# - Adds -Wno-error=misleading-indentation for conditional statement formatting
+# - Maintains existing -Wno-error=address-of-packed-member and -Wno-error=format-overflow
+# Rationale: Third-party skiboot firmware has minimal upstream maintenance, warning suppressions
+# more maintainable than invasive code changes. Monitor for additional GCC 16+ warnings.
+
 coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
