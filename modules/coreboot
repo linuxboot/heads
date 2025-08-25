@@ -91,12 +91,18 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,24.02.01))
 
-# MSI and NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
+# NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
 # coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := 94e5f5d5b808cf8d8fd5c70d4ef6a08a054f8986
 $(eval $(call coreboot_module,dasharo,24.02.01))
 #coreboot-dasharo_patch_version := unreleased
+
+# MSI boards are based on Dasharo, this commit hash should be pinned to
+# the most recent MSI release.
+coreboot-dasharo_msi_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_msi_commit_hash := b9d6d8c7c2435cd38622de20ede649426d9ce6ce # This is msi release v1.1.4 and v0.9.2
+$(eval $(call coreboot_module,dasharo_msi,24.02.01))
 
 # T480 is based on coreboot ~24.12 release
 #  coreboot 24.12 doesn't include t480 support which is still under review at https://review.coreboot.org/c/coreboot/+/83274
