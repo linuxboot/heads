@@ -279,8 +279,8 @@ workflows:
 
       # dasharo_msi
       - build_and_persist:
-          name: msi_z690a_ddr4
-          target: msi_z690a_ddr4
+          name: UNTESTED_msi_z690a_ddr4
+          target: UNTESTED_msi_z690a_ddr4
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -567,22 +567,22 @@ workflows:
 
       # dasharo_msi
       - build:
-          name: msi_z690a_ddr5
-          target: msi_z690a_ddr5
+          name: UNTESTED_msi_z690a_ddr5
+          target: UNTESTED_msi_z690a_ddr5
           subcommand: ""
           requires:
-            - msi_z690a_ddr4
+            - UNTESTED_msi_z690a_ddr4
 
       - build:
-          name: msi_z790p_ddr4
-          target: msi_z790p_ddr4
+          name: UNTESTED_msi_z790p_ddr4
+          target: UNTESTED_msi_z790p_ddr4
           subcommand: ""
           requires:
-            - msi_z690a_ddr4
+            - UNTESTED_msi_z690a_ddr4
 
       - build:
           name: msi_z790p_ddr5
           target: msi_z790p_ddr5
           subcommand: ""
           requires:
-            - msi_z690a_ddr4
+            - UNTESTED_msi_z690a_ddr4
