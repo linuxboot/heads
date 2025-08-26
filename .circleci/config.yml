@@ -277,6 +277,14 @@ workflows:
           requires:
             - x86-musl-cross-make
 
+      # dasharo_msi
+      - build_and_persist:
+          name: msi_z690a_ddr4
+          target: msi_z690a_ddr4
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
       # Cache one workspace per architecture
       # Make sure workspace caches are chainloaded and the last in chain for an arch is saved
       - save_cache:
@@ -556,3 +564,25 @@ workflows:
           subcommand: ""
           requires:
             - novacustom-nv4x_adl
+
+      # dasharo_msi
+      - build:
+          name: msi_z690a_ddr5
+          target: msi_z690a_ddr5
+          subcommand: ""
+          requires:
+            - msi_z690a_ddr4
+
+      - build:
+          name: msi_z790p_ddr4
+          target: msi_z790p_ddr4
+          subcommand: ""
+          requires:
+            - msi_z690a_ddr4
+
+      - build:
+          name: msi_z790p_ddr5
+          target: msi_z790p_ddr5
+          subcommand: ""
+          requires:
+            - msi_z690a_ddr4
