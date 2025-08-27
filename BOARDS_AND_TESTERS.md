@@ -88,3 +88,10 @@ Desktops / Servers
 - [ ] Librem mini v1 (Whiskey Lake: Intel 8th Gen CPU : ESU ends 03/31/2026): @JonathonHall-Purism
 - [ ] Librem mini v2 (Comet Lake: Intel 10th Gen CPU): @JonathonHall-Purism
 - [ ] Talos II (Power9, PPC64LE): @tlaurion (became untested, low community interest despite large investment)
+
+MSI
+---
+- [ ] MSI PRO Z690-A (WIFI) (DDR4): **None** - Board is untested.
+- [ ] MSI PRO Z690-A (WIFI) (DDR5): **None** - Board is untested.
+- [ ] MSI PRO Z790-P (WIFI) (DDR4): **None** - Board is untested.
+- [ ] MSI PRO Z790-P (WIFI) (DDR5): @Tonux599
