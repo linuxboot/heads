@@ -191,6 +191,9 @@ if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y
 	enable_usb
 fi
 
+# Set the keyboard keymap if defined, file exists, and loadkeys is available
+load_keymap "$CONFIG_KEYBOARD_KEYMAP"
+
 # If the user has been holding down r, enter a recovery shell
 # otherwise immediately start the configured boot script.
 # We don't print a prompt, since this is a near instant timeout.
