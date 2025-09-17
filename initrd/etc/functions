@@ -1414,3 +1414,47 @@ generate_passphrase() {
 	echo "$passphrase"
 	return 0
 }
+
+# Load a keymap.  Normally used to load the configured keymap, also used in
+# config to test a keymap.
+#
+# This always resets the keymap before loading, so the result is the same even
+# if other keymaps had been loaded before, and even if the new keymap doesn't
+# define all keys (or if none was given).
+#
+# If the board defines an override keymap, it is always loaded after the keymap.
+# (For example, tablets map volume up/down and power to up/down/enter, and we
+# do not want a custom keymap to override that.)
+#
+# If the board didn't include loadkeys, this is a no-op.
+load_keymap() {
+	TRACE_FUNC
+
+	if ! [ -x /bin/loadkeys ]; then
+		return 0
+	fi
+
+	# Reset the keymap
+	DEBUG "Loading linux kernel shipped keyboard layout keymap: share/keymaps/defkeymap.map"
+	DO_WITH_DEBUG loadkeys --default
+
+	# Load the specified keymap, if given
+	if [ -n "$1" ]; then
+		if [ -f "$1" ]; then
+			DEBUG "Loading keyboard keymap: $1"
+			DO_WITH_DEBUG loadkeys "$1"
+		else
+			# We can continue by ignoring the specified keymap, but
+			# this might mean keys map unexpectedly.  If this is
+			# desired, update or clear the keymap setting to silence
+			# the warning.
+			warn "Keymap $1 does not exist, continuing without keymap"
+		fi
+	fi
+
+	# Load the board keymap.  These only define the keys that must always
+	# have a specific function on that board.
+	if [ -f /etc/board_keys.map ]; then
+		DO_WITH_DEBUG loadkeys /etc/board_keys.map
+	fi
+}
