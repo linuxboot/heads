@@ -253,7 +253,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build_and_persist:
           name: EOL_t480-hotp-maximized
           target: EOL_t480-hotp-maximized
@@ -527,7 +527,7 @@ workflows:
           requires:
             - librem_14
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
@@ -535,21 +535,21 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
-          name: t480s-hotp-maximized
-          target: t480s-hotp-maximized
+          name: EOL_t480s-hotp-maximized
+          target: EOL_t480s-hotp-maximized
           subcommand: ""
           requires:
-            - t480-hotp-maximized
+            - EOL_t480-hotp-maximized
 
-      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
-          name: t480s-maximized
-          target: t480s-maximized
+          name: EOL_t480s-maximized
+          target: EOL_t480s-maximized
           subcommand: ""
           requires:
-            - t480s-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
