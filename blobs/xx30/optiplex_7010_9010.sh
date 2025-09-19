@@ -34,11 +34,17 @@ if [[ ! -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin" ]] || [[ ! -f "${output_dir
     #Download sinit
     # Original URL got rid of needed file, keeping original URL. Let's use archive.org
     #wget https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip
-    wget http://web.archive.org/web/20230712081031/https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip
-    unzip sinit.zip
-    mv 630744_002/SNB_IVB_SINIT_20190708_PW.bin "${output_dir}/" 
-    
-    popd || exit
+    if wget http://web.archive.org/web/20230712081031/https://cdrdv2.intel.com/v1/dl/getContent/630744 -O sinit.zip; then
+      unzip sinit.zip
+      mv 630744_002/SNB_IVB_SINIT_20190708_PW.bin "${output_dir}/"
+      popd || exit
+    elif wget https://dl.3mdeb.com/mirror/intel/acm/SNB_IVB_SINIT_20190708_PW.bin -O "${output_dir}/SNB_IVB_SINIT_20190708_PW.bin"; then
+      # As per https://github.com/Dasharo/dasharo-issues/issues/1283#issuecomment-3178940096 : use 3mdeb's intel mirror for sinit blob
+      popd || exit
+    else
+      echo "Can't download sinit blob, failing"
+      exit 1
+    fi
 fi
 
 if ! echo "${EC_BLOB_HASH} ${output_dir}/sch5545_ecfw.bin" | sha256sum --check; then
