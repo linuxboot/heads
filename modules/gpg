@@ -2,11 +2,11 @@ modules-$(CONFIG_GPG) += gpg
 
 # we install gpgv 1.4, which is an older version that has fewer
 # dependencies.  This may need to be revisted later.
-gpg_version := 1.4.21
+gpg_version := 1.4.23
 gpg_dir := gnupg-$(gpg_version)
 gpg_tar := gnupg-$(gpg_version).tar.bz2
 gpg_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg_tar)
-gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
+gpg_hash := c9462f17e651b6507848c08c430c791287cd75491f8b5a8b50c6ed46b12678ba
 
 # For reproducibility reasons we have to override the exec_prefix
 # and datarootdir on the configure line so that the Makefiles will
