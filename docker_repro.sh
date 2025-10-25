@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Extract the Docker image version from the CircleCI config file
-DOCKER_IMAGE=$(grep -oP '^\s*-?\s*image:\s*\K(tlaurion/heads-dev-env:[^\s]+)' .circleci/config.yml | head -n 1)
+DOCKER_IMAGE=$(grep -oP '^\s*-?\s*image:\s*\K(tlaurion/heads-dev-env@[^\s]+)' .circleci/config.yml | head -n 1)
 
 # Check if the Docker image was found
 if [ -z "$DOCKER_IMAGE" ]; then
