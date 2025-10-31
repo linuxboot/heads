@@ -7,9 +7,10 @@ The following blobs are needed:
 * `me.bin`
 * `tb.bin` (optional but recommended flashing this blob to the separate Thunderbolt SPI chip to fix a bug in the original firmware)
 
-## me.bin: automatically extract, neuter and deguard
+## me.bin: automatically extract, deactivate, partially neuter and deguard
 
-download_clean_me.sh : Download vulnerable ME from Dell, verify checksum, extract ME, neuter ME and trim it, then apply the deguard patch and place it into me.bin
+download_clean_deguard_me_pad_tb.sh : Download vulnerable ME from Dell, verify checksum, extract ME, deactivate ME and paritally neuter it, then apply the deguard patch and place it into me.bin.
+For the technical details please read the documentation in the script itself, as removing modules is limited on th platform.
 
 The ME blob dumped in this directory comes from the following link: https://dl.dell.com/FOLDER04573471M/1/Inspiron_5468_1.3.0.exe
 
