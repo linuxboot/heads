@@ -102,7 +102,8 @@ jobs:
       - run:
           name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx80/download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
@@ -253,7 +254,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build_and_persist:
           name: EOL_t480-hotp-maximized
           target: EOL_t480-hotp-maximized
@@ -527,10 +528,26 @@ workflows:
           requires:
             - librem_14
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
+      - build:
+          name: EOL_t480s-hotp-maximized
+          target: EOL_t480s-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
+      - build:
+          name: EOL_t480s-maximized
+          target: EOL_t480s-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
