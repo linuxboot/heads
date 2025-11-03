@@ -10,7 +10,7 @@ The following blobs are needed:
 ## me.bin: automatically extract, deactivate, partially neuter and deguard
 
 download_clean_deguard_me_pad_tb.sh : Download vulnerable ME from Dell, verify checksum, extract ME, deactivate ME and paritally neuter it, then apply the deguard patch and place it into me.bin.
-For the technical details please read the documentation in the script itself, as removing modules is limited on th platform.
+For the technical details please read the documentation in the script itself, as removing modules is limited on the platform.
 
 The ME blob dumped in this directory comes from the following link: https://dl.dell.com/FOLDER04573471M/1/Inspiron_5468_1.3.0.exe
 
