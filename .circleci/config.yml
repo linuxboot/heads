@@ -455,15 +455,15 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_z220-cmt-maximized
-          target: EOL_UNTESTED_z220-cmt-maximized
+          name: EOL_z220-cmt-maximized
+          target: EOL_z220-cmt-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_z220-cmt-hotp-maximized
-          target: EOL_UNTESTED_z220-cmt-hotp-maximized
+          name: EOL_z220-cmt-hotp-maximized
+          target: EOL_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
