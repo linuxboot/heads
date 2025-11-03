@@ -442,8 +442,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_w541-hotp-maximized
-          target: EOL_UNTESTED_w541-hotp-maximized
+          name: EOL_w541-hotp-maximized
+          target: EOL_w541-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
