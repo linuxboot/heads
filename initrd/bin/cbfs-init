@@ -16,7 +16,7 @@ if [ -z "$CONFIG_PCR" ]; then
 	CONFIG_PCR=7
 fi
 
-if [ "$CONFIG_CBFS_VIA_FLASHROM" = "y" ]; then
+if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
 	# Use flashrom directly, because we don't have /tmp/config with params for flash.sh yet
 	/bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom \
 		&& CBFS_ARG=" -o /tmp/cbfs-init.rom" \
