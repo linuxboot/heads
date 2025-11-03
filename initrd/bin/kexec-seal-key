@@ -70,7 +70,7 @@ for dev in $key_devices	; do
 	while [ $attempts -lt 3 ]; do
 		if [ "$luks_drk_passphrase_valid" == "0" ]; then
 			# Ask for the passphrase only once
-			read -s -p "Enter LUKS Disk Recovery Key (DRK) passphrase that can unlock: $key_devices: " disk_recovery_key_passphrase
+			read -s -p "Enter LUKS Disk Recovery Key (DRK) passphrase that can unlock $key_devices: " disk_recovery_key_passphrase
 			#Using he provided passphrase as the DRK "keyfile" for unattended operations
 			echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 			echo
