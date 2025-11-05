@@ -26,6 +26,11 @@ DEBUG "Show PCRs"
 DEBUG "$(pcrs)"
 
 for tries in 1 2 3; do
+	# Show updating timestamp/TOTP until user presses Esc to continue to the
+	# passphrase prompt. This gives the user context while they prepare to
+	# type the LUKS passphrase.
+	show_totp_until_esc
+
 	read -r -s -p $'\nEnter LUKS TPM Disk Unlock Key passphrase (blank to abort): ' tpm_password
 	echo
 	if [ -z "$tpm_password" ]; then
