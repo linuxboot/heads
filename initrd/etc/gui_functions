@@ -5,11 +5,39 @@
 # Pause for the configured timeout before booting automatically.  Returns 0 to
 # continue with automatic boot, nonzero if user interrupted.
 pause_automatic_boot() {
-	if IFS= read -t "$CONFIG_AUTO_BOOT_TIMEOUT" -s -n 1 -r -p \
-		$'Automatic boot in '"$CONFIG_AUTO_BOOT_TIMEOUT"$' seconds unless interrupted by keypress...\n'; then
-		return 1 # Interrupt automatic boot
-	fi
-	return 0 # Continue with automatic boot
+	local target now remaining now_str status_line current_totp
+
+	# Compute absolute target time so remaining is accurate regardless of
+	# per-iteration processing time. This keeps the visible timestamp/TOTP
+	# updated each second while the countdown decrements correctly.
+	target=$(( $(date +%s) + CONFIG_AUTO_BOOT_TIMEOUT ))
+	printf "\n" # Reserve space for the updating line
+	while :; do
+		now=$(date +%s)
+		remaining=$((target - now))
+		if [ "$remaining" -le 0 ]; then
+			break
+		fi
+
+		now_str=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+		status_line="$now_str | Booting in $remaining seconds..."
+		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+			if current_totp=$(unseal-totp 2>/dev/null); then
+				status_line="$status_line | TOTP: $current_totp"
+			fi
+		fi
+
+		# Print status on single refreshed line and wait up to 1s for a key
+		# (any key, no Enter required). Use a throwaway var to avoid linter
+		# warnings about an unused variable.
+		printf "\r%s\033[K" "$status_line"
+		if IFS= read -r -t 1 -n 1 _; then
+			printf "\n"
+			return 1
+		fi
+	done
+	printf "\n"
+	return 0
 }
 
 mount_usb() {
