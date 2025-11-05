@@ -1550,3 +1550,67 @@ load_keymap() {
 		DO_WITH_DEBUG loadkeys /etc/board_keys.map
 	fi
 }
+
+# Show an updating UTC timestamp and optional TOTP on a single refreshed line
+# until the user presses the Escape key. Returns 0 after ESC pressed.
+# Function name: show_totp_until_esc - clearly indicates this displays the
+# TOTP code and waits for the user to press Escape to continue.
+show_totp_until_esc() {
+	local now_str status_line current_totp ch
+	local last_totp_time=0 last_totp=""
+	printf "\n" # reserve a line for updates
+
+	# Poll frequently (200ms) for responsiveness, but only refresh the
+	# displayed timestamp/TOTP when the displayed second changes. Cache
+	# the TOTP for a short interval to avoid repeated unseal calls.
+	local last_sec=0
+	while :; do
+		now_str=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+		local now_epoch
+		now_epoch=$(date +%s)
+		local now_sec=$now_epoch
+
+		# Refresh TOTP at most once every 1 second
+		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+			if [ $((now_epoch - last_totp_time)) -ge 1 ] || [ -z "$last_totp" ]; then
+				if current_totp=$(unseal-totp 2>/dev/null); then
+					last_totp="$current_totp"
+					last_totp_time=$now_epoch
+				else
+					# If unseal fails, clear cached value so we retry later
+					last_totp=""
+					last_totp_time=0
+				fi
+			fi
+		fi
+
+		# Only update display when the second changes to avoid flicker
+		if [ "$now_sec" -ne "$last_sec" ]; then
+			last_sec=$now_sec
+			# Build an explicit TOTP field so it's clear when no code is
+			# available (initial state or unseal failure).
+			local totp_field=""
+			if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+				if [ -n "$last_totp" ]; then
+					totp_field=" | TOTP code: $last_totp"
+				else
+					totp_field=" | TOTP unavailable"
+				fi
+			fi
+			status_line="[$now_str]${totp_field} | Press Esc to continue..."
+			printf "\r%s\033[K" "$status_line"
+		fi
+
+		# Short poll for keypress (200ms). If ESC pressed, exit and return 0.
+		if IFS= read -r -t 0.2 -n 1 ch; then
+			if [ "$ch" = $'\e' ]; then
+				# Print an extra blank line so the next prompt appears after
+				# an empty line (better UX before the passphrase prompt).
+				printf "\n\n"
+				return 0
+			fi
+			# Ignore other keys and continue polling
+		fi
+	done
+}
+
