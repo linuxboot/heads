@@ -1,0 +1,84 @@
+version: 2.1
+
+commands:
+  build_board:
+    parameters:
+      arch:
+        type: string
+      target:
+        type: string
+      subcommand:
+        type: string
+    steps:
+      - run:
+          name: test
+          command: |
+            echo "Hello World"
+
+jobs:
+  prep_env:
+    docker:
+      - image: cimg/base:2025.11
+    resource_class: small
+    working_directory: ~/heads
+    steps:
+      - run:
+          name: test
+          command: |
+            echo "Hello World"
+
+  build_and_persist:
+    docker:
+      - image: cimg/base:2025.11
+    resource_class: small
+    working_directory: ~/heads
+    parameters:
+      arch:
+        type: string
+        default: x86
+      target:
+        type: string
+      subcommand:
+        type: string
+    steps:
+      - build_board:
+          arch: << parameters.arch >>
+          target: << parameters.target >>
+          subcommand: << parameters.subcommand >>
+
+  build:
+    docker:
+      - image: cimg/base:2025.11
+    resource_class: small
+    working_directory: ~/heads
+    parameters:
+      arch:
+        type: string
+        default: x86
+      target:
+        type: string
+      subcommand:
+        type: string
+    steps:
+      - build_board:
+          arch: <<parameters.arch>>
+          target: <<parameters.target>>
+          subcommand: <<parameters.subcommand>>
+
+  save_cache:
+    docker:
+      - image: cimg/base:2025.11
+    resource_class: small
+    working_directory: ~/heads
+    steps:
+      - run:
+          name: test
+          command: |
+            echo "Hello World"
+
+workflows:
+  version: 2
+  build_and_test:
+    max_auto_reruns: 3
+    jobs:
+      - prep_env
