@@ -71,7 +71,7 @@ function download_and_clean() {
 
 	extracted_me_filename="1 Inspiron_5468_1.3.0 -- 3 Intel Management Engine (Non-VPro) Update v${ME_version}.bin"
 
-	# Deactivate, paritally neuter and shrink Intel ME. Note that this doesn't include
+	# Deactivate, partially neuter and shrink Intel ME. Note that this doesn't include
 	# --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
 	# High Assurance Program) bits, as they are defined within the Flash
 	# Descriptor.
