@@ -330,29 +330,29 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_optiplex-7010_9010-maximized
-          target: EOL_optiplex-7010_9010-maximized
+          name: EOL_UNTESTED_optiplex-7010_9010-maximized
+          target: EOL_UNTESTED_optiplex-7010_9010-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_optiplex-7010_9010-hotp-maximized
-          target: EOL_optiplex-7010_9010-hotp-maximized
+          name: EOL_UNTESTED_optiplex-7010_9010-hotp-maximized
+          target: EOL_UNTESTED_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_optiplex-7010_9010_TXT-maximized
-          target: EOL_optiplex-7010_9010_TXT-maximized
+          name: EOL_UNTESTED_optiplex-7010_9010_TXT-maximized
+          target: EOL_UNTESTED_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_optiplex-7010_9010_TXT-hotp-maximized
-          target: EOL_optiplex-7010_9010_TXT-hotp-maximized
+          name: EOL_UNTESTED_optiplex-7010_9010_TXT-hotp-maximized
+          target: EOL_UNTESTED_optiplex-7010_9010_TXT-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
