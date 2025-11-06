@@ -386,8 +386,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_w530-hotp-maximized
-          target: EOL_w530-hotp-maximized
+          name: EOL_UNTESTED_w530-hotp-maximized
+          target: EOL_UNTESTED_w530-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -400,8 +400,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_w530-maximized
-          target: EOL_w530-maximized
+          name: EOL_UNTESTED_w530-maximized
+          target: EOL_UNTESTED_w530-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
