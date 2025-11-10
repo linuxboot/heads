@@ -1,7 +1,7 @@
-From b83a7607203d285b76e94ffd2013c55b184f5d42 Mon Sep 17 00:00:00 2001
+From 75fd76064b2c4a9319c4e63301b04eed5627b292 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
 Date: Wed, 30 Oct 2024 10:50:37 +0100
-Subject: [PATCH] security/tpm/tspi/log-tpm1.c: Clear whole log area on
+Subject: [PATCH 4/5] security/tpm/tspi/log-tpm1.c: Clear whole log area on
  creation
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
