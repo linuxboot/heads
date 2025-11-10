@@ -72,7 +72,12 @@ $(info !!!!!! Build starts !!!!!!)
 DATE=`date --rfc-3339=seconds`
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
+
+ifeq "y" "$(shell [[ $(BOARD) =~ (^EOL_|^)UNMAINTAINED_.* ]] && echo y)""
+CONFIG		:= $(pwd)/unmaintained_boards/$(BOARD)/$(BOARD).config
+else
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
+endif
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
@@ -907,7 +912,7 @@ $(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPU
 
 board.move_untested_to_tested:
 	@echo "Moving $(BOARD) from UNTESTED to tested status"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNTESTED_/\1/'); \
 	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
 	NEW_INCLUDE_BOARD=$$(echo $$INCLUDE_BOARD | sed 's/^UNTESTED_//'); \
 	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
@@ -923,11 +928,12 @@ board.move_untested_to_tested:
 
 board.move_unmaintained_to_tested:
 	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNMAINTAINED_//'); \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
-	git mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNMAINTAINED_/\1/'); \
+	echo "Renaming unmaintained_boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mkdir -p boards/$$BOARD; \
+	git mv unmaintained_boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
 	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
-	rm -rf boards/$$NEW_BOARD; \
+	rm -rf boards/$$NEW_BOARD unmaintained_boards/$$BOARD; \
 	git mv boards/$$BOARD boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml; \
@@ -936,19 +942,19 @@ board.move_unmaintained_to_tested:
 
 board.move_untested_to_unmaintained:
 	@echo "NEW_BOARD variable will move from UNTESTED_ to UNMAINTAINED_ from $(BOARD)"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_/UNMAINTAINED_/g'); \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNTESTED_/\1UNMAINTAINED_/'); \
+	echo "Renaming boards/$$BOARD to unmaintained_boards/$$NEW_BOARD"; \
 	mkdir -p unmaintained_boards; \
-	git mv boards/$$BOARD/$$BOARD.config unmaintained_boards/$$BOARD/$$NEW_BOARD.config; \
-	echo "Renaming boards/$$BOARD to unmaintainted_boards/$$NEW_BOARD"; \
-	rm -rf boards/$$NEW_BOARD; \
 	git mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
+	echo "Renaming unmaintained_boards/$$NEW_BOARD/$$BOARD.config to unmaintained_boards/$$NEW_BOARD/$$NEW_BOARD.config"; \
+	rm -rf boards/$$NEW_BOARD; \
+	git mv unmaintained_boards/$$NEW_BOARD/$$BOARD.config unmaintained_boards/$$NEW_BOARD/$$NEW_BOARD.config; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml. Delete manually entries"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
 
 board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
-	@NEW_BOARD=UNTESTED_$(BOARD); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)/\1UNTESTED_/'); \
 	rm -rf boards/$${NEW_BOARD}; \
 	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
 	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
@@ -970,7 +976,7 @@ board.move_tested_to_EOL:
 
 board.move_tested_to_unmaintained:
 	@echo "Moving $(BOARD) from tested to unmaintained status"
-	@NEW_BOARD=UNMAINTAINED_$(BOARD); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)/\1UNMAINTAINED_/'); \
 	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
 	NEW_INCLUDE_BOARD=UNMAINTAINED_$${INCLUDE_BOARD}; \
 	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
