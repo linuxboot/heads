@@ -1,0 +1,26 @@
+From e0b2d04a00f727a8e468dbb2fe29235680f58ce6 Mon Sep 17 00:00:00 2001
+From: gaspar-ilom <gasparilom@riseup.net>
+Date: Sat, 18 Oct 2025 00:47:38 +0200
+Subject: [PATCH 5/5] Fix local build issues
+
+Change-Id: I31e570e742f64850ef5bfba2c8b859cb1efbff6c
+Signed-off-by: gaspar-ilom <gasparilom@riseup.net>
+---
+ util/cbmem/cbmem.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/util/cbmem/cbmem.c b/util/cbmem/cbmem.c
+index 018ea871f9..dcdc3aab6a 100644
+--- a/util/cbmem/cbmem.c
++++ b/util/cbmem/cbmem.c
+@@ -3,6 +3,7 @@
+ #include <inttypes.h>
+ #include <stdbool.h>
+ #include <stdio.h>
++#include <endian.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <strings.h>
+-- 
+2.39.5
+
