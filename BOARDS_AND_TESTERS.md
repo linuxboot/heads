@@ -54,7 +54,7 @@ xx30 (Ivy Bridge: Intel 3rd Gen CPU)
 
 xx4x (Haswell: Intel 4th Gen CPU)
 ===
-- [ ] t440p: @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
+- [ ] t440p: @MattClifton76 @fhvyhjriur @ThePlexus @srgrint @akunterkontrolle @rbreslow
 - [ ] w541 (similar of t440p): @ResendeGHF @gaspar-ilom (Late tested; at risk of deprecation)
 
 xx8x (Kaby Lake Refresh: Intel 8th Gen Mobile : ESU ended 12/31/2024)
