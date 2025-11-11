@@ -1,0 +1,211 @@
+From 1730d05ec3ede0e878029cef82049d1d073db543 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Wed, 15 Oct 2025 17:10:30 +0200
+Subject: [PATCH 10/11] nb/intel/haswell: Factor out `report_memory_config()`
+
+Move the `report_memory_config()` function to shared raminit code, both
+to deduplicate the code and to allow native raminit to make use of it.
+
+Change-Id: I8b3c695c0a266634a42b0303e4f1ea699301c26b
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/89599
+Reviewed-by: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Reviewed-by: Alicja Michalska <ahplka19@gmail.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/broadwell_mrc/raminit.c     | 50 -------------------
+ .../intel/haswell/haswell_mrc/raminit.c       | 47 -----------------
+ src/northbridge/intel/haswell/raminit.h       |  1 +
+ .../intel/haswell/raminit_shared.c            | 45 +++++++++++++++++
+ 4 files changed, 46 insertions(+), 97 deletions(-)
+
+diff --git a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+index 98cfdcf412..8c0f5422df 100644
+--- a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+@@ -40,56 +40,6 @@ static void save_mrc_data(struct pei_data *pei_data)
+ 					pei_data->data_to_save_size);
+ }
+ 
+-static const char *const ecc_decoder[] = {
+-	"inactive",
+-	"active on IO",
+-	"disabled on IO",
+-	"active",
+-};
+-
+-/*
+- * Dump in the log memory controller configuration as read from the memory
+- * controller registers.
+- */
+-static void report_memory_config(void)
+-{
+-	int i;
+-
+-	const u32 addr_decoder_common = mchbar_read32(MAD_CHNL);
+-
+-	printk(BIOS_DEBUG, "memcfg DDR3 clock %d MHz\n",
+-	       (mchbar_read32(MC_BIOS_DATA) * 13333 * 2 + 50) / 100);
+-
+-	printk(BIOS_DEBUG, "memcfg channel assignment: A: %d, B % d, C % d\n",
+-	       (addr_decoder_common >> 0) & 3,
+-	       (addr_decoder_common >> 2) & 3,
+-	       (addr_decoder_common >> 4) & 3);
+-
+-	for (i = 0; i < NUM_CHANNELS; i++) {
+-		const u32 ch_conf = mchbar_read32(MAD_DIMM(i));
+-
+-		printk(BIOS_DEBUG, "memcfg channel[%d] config (%8.8x):\n", i, ch_conf);
+-		printk(BIOS_DEBUG, "   ECC %s\n", ecc_decoder[(ch_conf >> 24) & 3]);
+-		printk(BIOS_DEBUG, "   enhanced interleave mode %s\n",
+-		       ((ch_conf >> 22) & 1) ? "on" : "off");
+-
+-		printk(BIOS_DEBUG, "   rank interleave %s\n",
+-		       ((ch_conf >> 21) & 1) ? "on" : "off");
+-
+-		printk(BIOS_DEBUG, "   DIMMA %d MB width %s %s rank%s\n",
+-		       ((ch_conf >> 0) & 0xff) * 256,
+-		       ((ch_conf >> 19) & 1) ? "x16" : "x8 or x32",
+-		       ((ch_conf >> 17) & 1) ? "dual" : "single",
+-		       ((ch_conf >> 16) & 1) ? "" : ", selected");
+-
+-		printk(BIOS_DEBUG, "   DIMMB %d MB width %s %s rank%s\n",
+-		       ((ch_conf >> 8) & 0xff) * 256,
+-		       ((ch_conf >> 20) & 1) ? "x16" : "x8 or x32",
+-		       ((ch_conf >> 18) & 1) ? "dual" : "single",
+-		       ((ch_conf >> 16) & 1) ? ", selected" : "");
+-	}
+-}
+-
+ typedef int ABI_X86(*pei_wrapper_entry_t)(struct pei_data *pei_data);
+ 
+ static void ABI_X86 send_to_console(unsigned char b)
+diff --git a/src/northbridge/intel/haswell/haswell_mrc/raminit.c b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+index 7db6a1397f..d7439ca7b1 100644
+--- a/src/northbridge/intel/haswell/haswell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+@@ -58,53 +58,6 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
+ 	       pei_data->mrc_input, mrc_size);
+ }
+ 
+-static const char *const ecc_decoder[] = {
+-	"inactive",
+-	"active on IO",
+-	"disabled on IO",
+-	"active",
+-};
+-
+-/* Print out the memory controller configuration, as per the values in its registers. */
+-static void report_memory_config(void)
+-{
+-	int i;
+-
+-	const u32 addr_decoder_common = mchbar_read32(MAD_CHNL);
+-
+-	printk(BIOS_DEBUG, "memcfg DDR3 clock %d MHz\n",
+-	       DIV_ROUND_CLOSEST(mchbar_read32(MC_BIOS_DATA) * 13333 * 2, 100));
+-
+-	printk(BIOS_DEBUG, "memcfg channel assignment: A: %d, B % d, C % d\n",
+-	       (addr_decoder_common >> 0) & 3,
+-	       (addr_decoder_common >> 2) & 3,
+-	       (addr_decoder_common >> 4) & 3);
+-
+-	for (i = 0; i < NUM_CHANNELS; i++) {
+-		const u32 ch_conf = mchbar_read32(MAD_DIMM(i));
+-
+-		printk(BIOS_DEBUG, "memcfg channel[%d] config (%8.8x):\n", i, ch_conf);
+-		printk(BIOS_DEBUG, "   ECC %s\n", ecc_decoder[(ch_conf >> 24) & 3]);
+-		printk(BIOS_DEBUG, "   enhanced interleave mode %s\n",
+-		       ((ch_conf >> 22) & 1) ? "on" : "off");
+-
+-		printk(BIOS_DEBUG, "   rank interleave %s\n",
+-		       ((ch_conf >> 21) & 1) ? "on" : "off");
+-
+-		printk(BIOS_DEBUG, "   DIMMA %d MB width %s %s rank%s\n",
+-		       ((ch_conf >> 0) & 0xff) * 256,
+-		       ((ch_conf >> 19) & 1) ? "x16" : "x8 or x32",
+-		       ((ch_conf >> 17) & 1) ? "dual" : "single",
+-		       ((ch_conf >> 16) & 1) ? "" : ", selected");
+-
+-		printk(BIOS_DEBUG, "   DIMMB %d MB width %s %s rank%s\n",
+-		       ((ch_conf >> 8) & 0xff) * 256,
+-		       ((ch_conf >> 20) & 1) ? "x16" : "x8 or x32",
+-		       ((ch_conf >> 18) & 1) ? "dual" : "single",
+-		       ((ch_conf >> 16) & 1) ? ", selected" : "");
+-	}
+-}
+-
+ /**
+  * Find PEI executable in coreboot filesystem and execute it.
+  *
+diff --git a/src/northbridge/intel/haswell/raminit.h b/src/northbridge/intel/haswell/raminit.h
+index 2b80c24aba..e1b67e71d7 100644
+--- a/src/northbridge/intel/haswell/raminit.h
++++ b/src/northbridge/intel/haswell/raminit.h
+@@ -19,6 +19,7 @@ struct spd_info {
+ void mb_get_spd_map(struct spd_info *spdi);
+ 
+ void get_spd_info(struct spd_info *spdi, const struct northbridge_intel_haswell_config *cfg);
++void report_memory_config(void);
+ void setup_sdram_meminfo(const uint8_t *spd_data[NUM_CHANNELS][NUM_SLOTS]);
+ 
+ void perform_raminit(const bool s3resume);
+diff --git a/src/northbridge/intel/haswell/raminit_shared.c b/src/northbridge/intel/haswell/raminit_shared.c
+index 7a87359b63..6fcb0ec98a 100644
+--- a/src/northbridge/intel/haswell/raminit_shared.c
++++ b/src/northbridge/intel/haswell/raminit_shared.c
+@@ -21,6 +21,51 @@ void get_spd_info(struct spd_info *spdi, const struct northbridge_intel_haswell_
+ 	}
+ }
+ 
++static const char *const ecc_decoder[] = {
++	"inactive",
++	"active on IO",
++	"disabled on IO",
++	"active",
++};
++
++/* Print out the memory controller configuration, as per the values in its registers. */
++void report_memory_config(void)
++{
++	const uint32_t addr_decoder_common = mchbar_read32(MAD_CHNL);
++
++	printk(BIOS_DEBUG, "memcfg DDR3 clock %d MHz\n",
++	       DIV_ROUND_CLOSEST(mchbar_read32(MC_BIOS_DATA) * 13333 * 2, 100));
++
++	printk(BIOS_DEBUG, "memcfg channel assignment: A: %d, B % d, C % d\n",
++	       (addr_decoder_common >> 0) & 3,
++	       (addr_decoder_common >> 2) & 3,
++	       (addr_decoder_common >> 4) & 3);
++
++	for (unsigned int i = 0; i < NUM_CHANNELS; i++) {
++		const uint32_t ch_conf = mchbar_read32(MAD_DIMM(i));
++
++		printk(BIOS_DEBUG, "memcfg channel[%d] config (%8.8x):\n", i, ch_conf);
++		printk(BIOS_DEBUG, "   ECC %s\n", ecc_decoder[(ch_conf >> 24) & 3]);
++		printk(BIOS_DEBUG, "   enhanced interleave mode %s\n",
++		       ((ch_conf >> 22) & 1) ? "on" : "off");
++
++		printk(BIOS_DEBUG, "   rank interleave %s\n",
++		       ((ch_conf >> 21) & 1) ? "on" : "off");
++
++		printk(BIOS_DEBUG, "   DIMMA %d MB width %s %s rank%s\n",
++		       ((ch_conf >> 0) & 0xff) * 256,
++		       ((ch_conf >> 19) & 1) ? "x16" : "x8 or x32",
++		       ((ch_conf >> 17) & 1) ? "dual" : "single",
++		       ((ch_conf >> 16) & 1) ? "" : ", selected");
++
++		printk(BIOS_DEBUG, "   DIMMB %d MB width %s %s rank%s\n",
++		       ((ch_conf >> 8) & 0xff) * 256,
++		       ((ch_conf >> 20) & 1) ? "x16" : "x8 or x32",
++		       ((ch_conf >> 18) & 1) ? "dual" : "single",
++		       ((ch_conf >> 16) & 1) ? ", selected" : "");
++	}
++}
++
+ static uint8_t nb_get_ecc_type(const uint32_t capid0_a)
+ {
+ 	return capid0_a & CAPID_ECCDIS ? MEMORY_ARRAY_ECC_NONE : MEMORY_ARRAY_ECC_SINGLE_BIT;
+-- 
+2.47.3
+
