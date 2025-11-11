@@ -1,0 +1,358 @@
+From 8fa2db22db51dd5cde80b0be37cf0af59145cae7 Mon Sep 17 00:00:00 2001
+From: Jeremy Soller <jeremy@system76.com>
+Date: Fri, 31 May 2024 13:58:00 -0600
+Subject: [PATCH 1/5] drivers/intel/dtbt: Add discrete Thunderbolt driver
+
+Add a new driver which enables basic TBT support for the Alpine Ridge,
+Titan Ridge, and Maple Ridge discrete Thunderbolt controllers.
+
+This driver will initially be used on the Lenovo T480/T480s and
+System76 RPL-HX platform boards. It currently only supports a single
+dTBT controller.
+
+Ref: edk2-platforms KabylakeOpenBoardPkg reference implementation
+Ref: Titan Ridge BIOS Implementation Guide v1.4
+Ref: Maple Ridge BIOS Implementation Guide v1.6 (#632472)
+
+Change-Id: Ib78ce43740956fa2c93b9ebddb0eeb319dcc0364
+Signed-off-by: Jeremy Soller <jeremy@system76.com>
+Signed-off-by: Tim Crawford <tcrawford@system76.com>
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ src/drivers/intel/dtbt/Kconfig     |   6 +
+ src/drivers/intel/dtbt/Makefile.mk |   3 +
+ src/drivers/intel/dtbt/chip.h      |   8 ++
+ src/drivers/intel/dtbt/dtbt.c      | 202 +++++++++++++++++++++++++++++
+ src/drivers/intel/dtbt/dtbt.h      |  73 +++++++++++
+ 5 files changed, 292 insertions(+)
+ create mode 100644 src/drivers/intel/dtbt/Kconfig
+ create mode 100644 src/drivers/intel/dtbt/Makefile.mk
+ create mode 100644 src/drivers/intel/dtbt/chip.h
+ create mode 100644 src/drivers/intel/dtbt/dtbt.c
+ create mode 100644 src/drivers/intel/dtbt/dtbt.h
+
+diff --git a/src/drivers/intel/dtbt/Kconfig b/src/drivers/intel/dtbt/Kconfig
+new file mode 100644
+index 0000000000..d895dbd288
+--- /dev/null
++++ b/src/drivers/intel/dtbt/Kconfig
+@@ -0,0 +1,6 @@
++config DRIVERS_INTEL_DTBT
++	def_bool n
++	help
++	  Support for discrete Thunderbolt controllers.
++	  Currently only supports a single dTBT controller from the
++	  Alpine Ridge, Titan Ridge, and Maple Ridge families.
+diff --git a/src/drivers/intel/dtbt/Makefile.mk b/src/drivers/intel/dtbt/Makefile.mk
+new file mode 100644
+index 0000000000..1b5252dda0
+--- /dev/null
++++ b/src/drivers/intel/dtbt/Makefile.mk
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++ramstage-$(CONFIG_DRIVERS_INTEL_DTBT) += dtbt.c
+diff --git a/src/drivers/intel/dtbt/chip.h b/src/drivers/intel/dtbt/chip.h
+new file mode 100644
+index 0000000000..2b1dfa70a5
+--- /dev/null
++++ b/src/drivers/intel/dtbt/chip.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef _DRIVERS_INTEL_DTBT_CHIP_H_
++#define _DRIVERS_INTEL_DTBT_CHIP_H_
++
++struct drivers_intel_dtbt_config {};
++
++#endif /* _DRIVERS_INTEL_DTBT_CHIP_H_ */
+diff --git a/src/drivers/intel/dtbt/dtbt.c b/src/drivers/intel/dtbt/dtbt.c
+new file mode 100644
+index 0000000000..8613eee5e0
+--- /dev/null
++++ b/src/drivers/intel/dtbt/dtbt.c
+@@ -0,0 +1,202 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <acpi/acpigen.h>
++#include <console/console.h>
++#include <delay.h>
++#include <device/device.h>
++#include <device/pci.h>
++#include <device/pciexp.h>
++#include <device/pci_ids.h>
++#include <timer.h>
++#include "chip.h"
++#include "dtbt.h"
++
++
++/*
++ * We only want to enable the first/primary bridge device,
++ * as sending mailbox commands to secondary ones will fail,
++ * and we only want to create a single ACPI device in the SSDT.
++ */
++static bool enable_done;
++static bool ssdt_done;
++
++static void dtbt_cmd(struct device *dev, u32 command, u32 data, u32 timeout)
++{
++	u32 reg = (data << 8) | (command << 1) | PCIE2TBT_VALID;
++	u32 status;
++
++	printk(BIOS_SPEW, "dTBT send command 0x%x\n", command);
++	/* Send command */
++	pci_write_config32(dev, PCIE2TBT, reg);
++	/* Wait for done bit to be cleared */
++	if (!wait_ms(timeout, (status = pci_read_config32(dev, TBT2PCIE)) & TBT2PCIE_DONE))
++		printk(BIOS_ERR, "dTBT command 0x%x send timeout, status 0x%x\n", command, status);
++	/* Clear valid bit */
++	pci_write_config32(dev, PCIE2TBT, 0);
++	/* Wait for done bit to be cleared */
++	if (!wait_ms(timeout, (status = pci_read_config32(dev, TBT2PCIE)) & TBT2PCIE_DONE))
++		printk(BIOS_ERR, "dTBT command 0x%x clear valid bit timeout, status 0x%x\n", command, status);
++}
++
++static void dtbt_write_dsd(void)
++{
++	struct acpi_dp *dsd = acpi_dp_new_table("_DSD");
++
++	acpi_device_add_hotplug_support_in_d3(dsd);
++	acpi_device_add_external_facing_port(dsd);
++	acpi_dp_write(dsd);
++}
++
++static void dtbt_write_opregion(const struct bus *bus)
++{
++	uintptr_t mmconf_base = (uintptr_t)CONFIG_ECAM_MMCONF_BASE_ADDRESS
++			+ (((uintptr_t)(bus->secondary)) << 20);
++	const struct opregion opregion = OPREGION("PXCS", SYSTEMMEMORY, mmconf_base, 0x1000);
++	const struct fieldlist fieldlist[] = {
++		FIELDLIST_OFFSET(TBT2PCIE),
++		FIELDLIST_NAMESTR("TB2P", 32),
++		FIELDLIST_OFFSET(PCIE2TBT),
++		FIELDLIST_NAMESTR("P2TB", 32),
++	};
++
++	acpigen_write_opregion(&opregion);
++	acpigen_write_field("PXCS", fieldlist, ARRAY_SIZE(fieldlist),
++			    FIELD_DWORDACC | FIELD_NOLOCK | FIELD_PRESERVE);
++}
++
++static void dtbt_fill_ssdt(const struct device *dev)
++{
++	struct bus *bus;
++	struct device *parent;
++	const char *parent_scope;
++	const char *dev_name = acpi_device_name(dev);
++
++	if (ssdt_done)
++		return;
++
++	bus = dev->upstream;
++	if (!bus) {
++		printk(BIOS_ERR, "dTBT bus invalid\n");
++		return;
++	}
++
++	parent = bus->dev;
++	if (!parent || !is_pci(parent)) {
++		printk(BIOS_ERR, "dTBT parent invalid\n");
++		return;
++	}
++
++	parent_scope = acpi_device_path(parent);
++	if (!parent_scope) {
++		printk(BIOS_ERR, "dTBT parent scope not valid\n");
++		return;
++	}
++
++	/* Scope */
++	acpigen_write_scope(parent_scope);
++	dtbt_write_dsd();
++
++	/* Device */
++	acpigen_write_device(dev_name);
++	acpigen_write_name_integer("_ADR", 0);
++	dtbt_write_opregion(bus);
++
++	/* PTS Method */
++	acpigen_write_method_serialized("PTS", 0);
++
++	acpigen_write_debug_string("dTBT prepare to sleep");
++	acpigen_write_store_int_to_namestr(PCIE2TBT_GO2SX_NO_WAKE << 1, "P2TB");
++	acpigen_write_delay_until_namestr_int(GO2SX_TIMEOUT_MS, "TB2P", PCIE2TBT_GO2SX_NO_WAKE << 1);
++
++	acpigen_write_debug_namestr("TB2P");
++	acpigen_write_store_int_to_namestr(0, "P2TB");
++	acpigen_write_delay_until_namestr_int(GO2SX_TIMEOUT_MS, "TB2P", 0);
++	acpigen_write_debug_namestr("TB2P");
++
++	acpigen_write_method_end();
++	acpigen_write_device_end();
++	acpigen_write_scope_end();
++
++	// \.TBTS Method
++	acpigen_write_scope("\\");
++	acpigen_write_method("TBTS", 0);
++	acpigen_emit_namestring(acpi_device_path_join(dev, "PTS"));
++	acpigen_write_method_end();
++	acpigen_write_scope_end();
++
++	printk(BIOS_INFO, "%s.%s %s\n", parent_scope, dev_name, dev_path(dev));
++	ssdt_done = true;
++}
++
++static const char *dtbt_acpi_name(const struct device *dev)
++{
++	return "DTBT";
++}
++
++static void dtbt_enable(struct device *dev)
++{
++	if (!is_dev_enabled(dev) || enable_done)
++		return;
++
++	printk(BIOS_INFO, "dTBT controller found at %s\n", dev_path(dev));
++
++	// XXX: Recommendation is to set SL1 ("User Authorization")
++	printk(BIOS_DEBUG, "dTBT set security level SL0\n");
++	/* Set security level */
++	dtbt_cmd(dev, PCIE2TBT_SET_SECURITY_LEVEL, SEC_LEVEL_NONE, MBOX_TIMEOUT_MS);
++
++	if (acpi_is_wakeup_s3()) {
++		printk(BIOS_DEBUG, "dTBT SX exit\n");
++		dtbt_cmd(dev, PCIE2TBT_SX_EXIT_TBT_CONNECTED, 0, MBOX_TIMEOUT_MS);
++		/* Read TBT2PCIE register, verify not invalid */
++		if (pci_read_config32(dev, TBT2PCIE) == 0xffffffff)
++			printk(BIOS_ERR, "dTBT S3 resume failure.\n");
++	} else {
++		printk(BIOS_DEBUG, "dTBT set boot on\n");
++		dtbt_cmd(dev, PCIE2TBT_BOOT_ON, 0, MBOX_TIMEOUT_MS);
++		printk(BIOS_DEBUG, "dTBT set USB on\n");
++		dtbt_cmd(dev, PCIE2TBT_USB_ON, 0, MBOX_TIMEOUT_MS);
++	}
++	enable_done = true;
++}
++
++static struct pci_operations dtbt_device_ops_pci = {
++	.set_subsystem = 0,
++};
++
++static struct device_operations dtbt_device_ops = {
++	.read_resources   = pci_bus_read_resources,
++	.set_resources    = pci_dev_set_resources,
++	.enable_resources = pci_bus_enable_resources,
++	.acpi_fill_ssdt   = dtbt_fill_ssdt,
++	.acpi_name        = dtbt_acpi_name,
++	.scan_bus         = pciexp_scan_bridge,
++	.reset_bus        = pci_bus_reset,
++	.ops_pci          = &dtbt_device_ops_pci,
++	.enable           = dtbt_enable
++};
++
++/* We only want to match the (first) bridge device */
++static const unsigned short pci_device_ids[] = {
++	AR_2C_BRG,
++	AR_4C_BRG,
++	AR_LP_BRG,
++	AR_4C_C0_BRG,
++	AR_2C_C0_BRG,
++	TR_2C_BRG,
++	TR_4C_BRG,
++	TR_DD_BRG,
++	MR_2C_BRG,
++	MR_4C_BRG,
++	0
++};
++
++static const struct pci_driver intel_dtbt_driver __pci_driver = {
++	.ops		= &dtbt_device_ops,
++	.vendor		= PCI_VID_INTEL,
++	.devices	= pci_device_ids,
++};
++
++struct chip_operations drivers_intel_dtbt_ops = {
++	.name = "Intel Discrete Thunderbolt",
++};
+diff --git a/src/drivers/intel/dtbt/dtbt.h b/src/drivers/intel/dtbt/dtbt.h
+new file mode 100644
+index 0000000000..d01d3a35ef
+--- /dev/null
++++ b/src/drivers/intel/dtbt/dtbt.h
+@@ -0,0 +1,73 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef _DRIVERS_INTEL_DTBT_H_
++#define _DRIVERS_INTEL_DTBT_H_
++
++/* Alpine Ridge device IDs */
++#define AR_2C_NHI	0x1575
++#define AR_2C_BRG	0x1576
++#define AR_2C_USB	0x15B5
++#define AR_4C_NHI	0x1577
++#define AR_4C_BRG	0x1578
++#define AR_4C_USB	0x15B6
++#define AR_LP_NHI	0x15BF
++#define AR_LP_BRG	0x15C0
++#define AR_LP_USB	0x15C1
++#define AR_4C_C0_NHI	0x15D2
++#define AR_4C_C0_BRG	0x15D3
++#define AR_4C_C0_USB	0x15D4
++#define AR_2C_C0_NHI	0x15D9
++#define AR_2C_C0_BRG	0x15DA
++#define AR_2C_C0_USB	0x15DB
++
++/* Titan Ridge device IDs */
++#define TR_2C_BRG	0x15E7
++#define TR_2C_NHI	0x15E8
++#define TR_2C_USB	0x15E9
++#define TR_4C_BRG	0x15EA
++#define TR_4C_NHI	0x15EB
++#define TR_4C_USB	0x15EC
++#define TR_DD_BRG	0x15EF
++#define TR_DD_USB	0x15F0
++
++/* Maple Ridge device IDs */
++#define MR_2C_BRG	0x1133
++#define MR_2C_NHI	0x1134
++#define MR_2C_USB	0x1135
++#define MR_4C_BRG	0x1136
++#define MR_4C_NHI	0x1137
++#define MR_4C_USB	0x1138
++
++/* Security Levels */
++#define SEC_LEVEL_NONE			0
++#define SEC_LEVEL_USER			1
++#define SEC_LEVEL_AUTH			2
++#define SEC_LEVEL_DP_ONLY		3
++
++#define PCIE2TBT			0x54C
++#define PCIE2TBT_VALID			BIT(0)
++#define PCIE2TBT_GO2SX			2
++#define PCIE2TBT_GO2SX_NO_WAKE		3
++#define PCIE2TBT_SX_EXIT_TBT_CONNECTED	4
++#define PCIE2TBT_OS_UP			6
++#define PCIE2TBT_SET_SECURITY_LEVEL	8
++#define PCIE2TBT_GET_SECURITY_LEVEL	9
++#define PCIE2TBT_BOOT_ON		24
++#define PCIE2TBT_USB_ON			25
++#define PCIE2TBT_GET_ENUMERATION_METHOD	26
++#define PCIE2TBT_SET_ENUMERATION_METHOD	27
++#define PCIE2TBT_POWER_CYCLE		28
++#define PCIE2TBT_SX_START		29
++#define PCIE2TBT_ACL_BOOT		30
++#define PCIE2TBT_CONNECT_TOPOLOGY	31
++
++#define TBT2PCIE			0x548
++#define TBT2PCIE_DONE			BIT(0)
++
++// Timeout for mailbox commands unless otherwise specified.
++#define MBOX_TIMEOUT_MS			5000
++
++// Timeout for controller to ack GO2SX/GO2SX_NO_WAKE mailbox command.
++#define GO2SX_TIMEOUT_MS		600
++
++#endif /* _DRIVERS_INTEL_DTBT_H_ */
+-- 
+2.39.5
+
