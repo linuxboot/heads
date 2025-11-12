@@ -37,7 +37,7 @@ Heads now builds with Nix built docker images since https://github.com/linuxboot
 
 The short path to build Heads is to do what CircleCI would do (./docker_repro.sh under heads git cloned directory):
 - Install _docker-ce_ for your OS of choice (refer to their documentation)
-- run `./docker_repro.sh make BOARD=XYZ`
+- run `sudo ./docker_repro.sh make BOARD=XYZ`
 
 Using Nix local dev environement / building docker images with Nix
 ==
