@@ -1,0 +1,11 @@
+--- a/libtpm/mbedtls-compat.h	2025-08-11 12:21:30.328774478 -0400
++++ b/libtpm/mbedtls-compat.h	2025-08-11 12:21:30.354365190 -0400
+@@ -92,7 +92,7 @@
+ #define AES_cbc_encrypt(in, out, len, key, ivec, dir) \
+ 	mbedtls_aes_crypt_cbc(key, dir, len, ivec, in, out)
+ 
+-#define AES_encrypt mbedtls_aes_encrypt
++#define AES_encrypt(input, output, ctx) mbedtls_aes_encrypt(ctx, input, output)
+ 
+ //--------------------------------------------------
+ 

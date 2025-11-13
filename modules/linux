@@ -138,10 +138,23 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
 
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+#TODO: remove -std=gnu11 when bumping linux version (current 6.1.8 has C23 compatibility issues with GCC 15.1.0 bool/false conflicts)
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -std=gnu11
 
 ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 EXTRA_FLAGS += -Wno-cast-function-type
+endif
+
+# PowerPC specific alignment fixes for GCC 15.1.0
+ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+# Comprehensive GCC 15.1.0 PowerPC compatibility flags
+EXTRA_FLAGS += -fno-stack-protector
+EXTRA_FLAGS += -O1
+EXTRA_FLAGS += -fno-schedule-insns -fno-schedule-insns2
+EXTRA_FLAGS += -fno-reorder-blocks
+EXTRA_FLAGS += -fno-tree-vectorize
+# Force GNU C11 for PowerPC boot code to avoid C23 bool keyword conflicts
+EXTRA_FLAGS += -std=gnu11
 endif
 
 linux_target := \

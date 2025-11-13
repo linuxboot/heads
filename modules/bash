@@ -10,7 +10,10 @@ bash_hash := 5bac17218d3911834520dad13cd1f85ab944e1c09ae1aba55906be1f8192f558
 # --enable-debugger: Enables BASH_SOURCE tracing through functions as well as
 # BASH_ARGV/BASH_ARGC.  (Otherwise BASH_SOURCE[0] is empty when calling a
 # function, it's only set in top level script code.)
-bash_configure := CFLAGS="-g0 -Os" LDFLAGS="-s" ./configure \
+# TODO_GCC_15_BASH: Added -std=gnu11 for C23 keyword compatibility (bool, true, false conflicts)
+# Also patched lib/termcap/tparam.c to include <unistd.h> for write() function declaration
+# Consider reverting when bash is updated for GCC 15.1.0 compatibility
+bash_configure := CFLAGS="-g0 -Oz -std=gnu11" LDFLAGS="-s" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(target) \
 	--prefix="/usr" \
