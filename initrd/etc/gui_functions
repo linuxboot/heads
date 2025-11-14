@@ -178,6 +178,7 @@ show_system_info() {
 	Kernel: ${kernel}
 
 	CPU: ${cpustr}
+	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
 	RAM: ${memtotal} GB
 	$battery_status
 	$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')
