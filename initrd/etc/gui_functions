@@ -172,8 +172,22 @@ show_system_info() {
 	cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
 	kernel=$(uname -s -r)
 
+	local msgbox="${BOARD_NAME}
+
+	FW_VER: ${FW_VER}
+	Kernel: ${kernel}
+
+	CPU: ${cpustr}
+	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
+	RAM: ${memtotal} GB
+	$battery_status
+	$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')
+	"
+
+	local msgbox_rm_tabs=$(echo "$msgbox" | tr -d "\t")
+
 	whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
-		--msgbox "${BOARD_NAME}\n\nFW_VER: ${FW_VER}\nKernel: ${kernel}\n\nCPU: ${cpustr}\nRAM: ${memtotal} GB\n$battery_status\n$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')" 0 80
+		--msgbox "$msgbox_rm_tabs" 0 80
 }
 
 # Get "Enable" or "Disable" to display in the configuration menu, based on a
