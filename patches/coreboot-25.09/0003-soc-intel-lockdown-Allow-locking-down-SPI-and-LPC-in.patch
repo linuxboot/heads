@@ -1,7 +1,7 @@
-From f9f309190246c66e92db5408c183dd8b617987f3 Mon Sep 17 00:00:00 2001
+From d8ee9def7fe87b647cdeb951485efc679d119d86 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
 Date: Sat, 23 Nov 2024 22:43:10 +0100
-Subject: [PATCH] soc/intel/lockdown: Allow locking down SPI and LPC in SMM
+Subject: [PATCH 3/5] soc/intel/lockdown: Allow locking down SPI and LPC in SMM
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -47,9 +47,7 @@ Signed-off-by: Michał Żygowski <michal.zygowski@3mdeb.com>
  src/soc/intel/pantherlake/finalize.c          |  4 +-
  src/soc/intel/skylake/finalize.c              |  3 +-
  src/soc/intel/tigerlake/finalize.c            |  4 +-
- src/soc/intel/xeon_sp/finalize.c              |  3 +-
- src/soc/intel/xeon_sp/lockdown.c              | 18 ++-----
- 19 files changed, 127 insertions(+), 67 deletions(-)
+ 17 files changed, 121 insertions(+), 52 deletions(-)
  create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_lpc.c
  create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_spi.c
 
