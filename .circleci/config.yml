@@ -528,7 +528,7 @@ workflows:
           requires:
             - librem_14
 
-      # t480 is based on 25.09 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 25.09 coreboot release
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
@@ -536,7 +536,6 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
           name: EOL_t480s-hotp-maximized
           target: EOL_t480s-hotp-maximized
@@ -544,7 +543,6 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # t480s is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muslc-cross cache
       - build:
           name: EOL_t480s-maximized
           target: EOL_t480s-maximized
@@ -560,7 +558,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on x230
+      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on nv4x_adl
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
