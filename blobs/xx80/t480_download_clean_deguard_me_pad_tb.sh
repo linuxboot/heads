@@ -71,14 +71,17 @@ function download_and_clean() {
 
 	extracted_me_filename="1 Inspiron_5468_1.3.0 -- 3 Intel Management Engine (Non-VPro) Update v${ME_version}.bin"
 
-	# Neutralize and shrink Intel ME. Note that this doesn't include
+	# Deactivate, partially neuter and shrink Intel ME. Note that this doesn't include
 	# --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
 	# High Assurance Program) bits, as they are defined within the Flash
 	# Descriptor.
 	# However, the HAP bit must be enabled to make the deguarded ME work. We only clean the ME in this function.
+	# For ME 11.x this means we must keep the rbe, bup, kernel and syslib modules.
+	# https://github.com/corna/me_cleaner/wiki/How-does-it-work%3F#me-versions-from-11x-skylake-1
+	# Furthermore, deguard requires keeping the MFS, the HAP bit set, and we cannot relocate the FTPR partition.
+	# Some more general info on shrinking:
 	# https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
 
-	# MFS is needed for deguard so we whitelist it here and also do not relocate the FTPR partition
 	python "$me_cleaner" --whitelist MFS -t -O "$me_output" "${me_installer_filename}_extracted/Firmware/${extracted_me_filename}"
 	rm -rf ./*
 	popd || exit
