@@ -73,7 +73,9 @@ DATE=`date --rfc-3339=seconds`
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 
-ifeq "y" "$(shell [[ $(BOARD) =~ (^EOL_|^)UNMAINTAINED_.* ]] && echo y)""
+# If the board name begins with UNMAINTAINED_, use the
+# unmaintained_boards path.
+ifeq "y" "$(shell echo '$(BOARD)' | grep -E '^UNMAINTAINED_' >/dev/null 2>&1 && echo y)"
 CONFIG		:= $(pwd)/unmaintained_boards/$(BOARD)/$(BOARD).config
 else
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
