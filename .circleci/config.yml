@@ -421,15 +421,15 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_t440p-maximized
-          target: EOL_UNTESTED_t440p-maximized
+          name: EOL_t440p-maximized
+          target: EOL_t440p-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_t440p-hotp-maximized
-          target: EOL_UNTESTED_t440p-hotp-maximized
+          name: EOL_t440p-hotp-maximized
+          target: EOL_t440p-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
