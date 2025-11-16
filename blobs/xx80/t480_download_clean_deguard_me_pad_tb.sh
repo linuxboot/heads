@@ -82,6 +82,7 @@ function download_and_clean() {
 	# Some more general info on shrinking:
 	# https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
 
+	# MFS is needed for deguard so we whitelist it here and also do not relocate the FTPR partition
 	python "$me_cleaner" --whitelist MFS -t -O "$me_output" "${me_installer_filename}_extracted/Firmware/${extracted_me_filename}"
 	rm -rf ./*
 	popd || exit
