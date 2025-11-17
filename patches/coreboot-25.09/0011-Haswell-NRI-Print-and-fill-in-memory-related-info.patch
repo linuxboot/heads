@@ -1,0 +1,88 @@
+From 70e79f43b17b0646ac71d0ff28bc8a6a932bd2d2 Mon Sep 17 00:00:00 2001
+From: Angel Pons <th3fanbus@gmail.com>
+Date: Wed, 15 Oct 2025 17:47:50 +0200
+Subject: [PATCH 11/11] Haswell NRI: Print and fill in memory-related info
+
+Call the `report_memory_config()` and `setup_sdram_meminfo()` functions,
+which were factored out into shared raminit code in previous patches. As
+the SPD data is not readily available where `setup_sdram_meminfo()` gets
+called, add a function to get it from the saved data, as it is available
+in a global context. Technically speaking, the "mighty ctrl" variable is
+also static (thus global), but it is only meant to be used within native
+raminit code and is only static to avoid nuking the stack (it is huge).
+
+Change-Id: Ia2c0946f55748e38bb5ccb5cb06721aeb77527e7
+Signed-off-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/89600
+Reviewed-by: Nicholas Sudsgaard <devel+coreboot@nsudsgaard.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ .../intel/haswell/native_raminit/raminit_native.c    | 12 ++++++++++--
+ .../intel/haswell/native_raminit/raminit_native.h    |  1 +
+ .../intel/haswell/native_raminit/save_restore.c      | 10 ++++++++++
+ 3 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.c b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+index 4ac220cb22..d5b5c117d6 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+@@ -179,7 +179,7 @@ void perform_raminit(const bool s3resume)
+ 	const enum raminit_boot_mode bootmode =
+ 			do_actual_raminit(s3resume, cpu_replaced, orig_bootmode);
+ 
+-	/** TODO: report_memory_config **/
++	report_memory_config();
+ 
+ 	if (intel_early_me_uma_size() > 0) {
+ 		/*
+@@ -208,5 +208,13 @@ void perform_raminit(const bool s3resume)
+ 	if (!s3resume)
+ 		save_mrc_data();
+ 
+-	/** TODO: setup_sdram_meminfo **/
++	/*
++	 * To avoid passing pointers around too much, get the SPD data
++	 * from the saved data. It will always be present: a cold boot
++	 * populates saved data from training results, and a fast boot
++	 * or a S3 resume reads the saved data from the MRC cache.
++	 */
++	const uint8_t *spd_data[NUM_CHANNELS][NUM_SLOTS] = { 0 };
++	reg_frame_get_spd_data(spd_data);
++	setup_sdram_meminfo(spd_data);
+ }
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.h b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+index b9e84a11df..53dbe4df28 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.h
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.h
+@@ -504,6 +504,7 @@ void configure_refresh(struct sysinfo *ctrl);
+ struct register_save_frame *reg_frame_ptr(void);
+ size_t reg_frame_size(void);
+ uint32_t reg_frame_rev(void);
++void reg_frame_get_spd_data(const uint8_t *out_spd_data[NUM_CHANNELS][NUM_SLOTS]);
+ 
+ uint32_t get_tCKE(uint32_t mem_clock_mhz, bool lpddr);
+ uint32_t get_tXPDLL(uint32_t mem_clock_mhz);
+diff --git a/src/northbridge/intel/haswell/native_raminit/save_restore.c b/src/northbridge/intel/haswell/native_raminit/save_restore.c
+index f1f50e3ff8..5be68808d8 100644
+--- a/src/northbridge/intel/haswell/native_raminit/save_restore.c
++++ b/src/northbridge/intel/haswell/native_raminit/save_restore.c
+@@ -179,6 +179,16 @@ size_t reg_frame_size(void)
+ 	return sizeof(struct register_save_frame);
+ }
+ 
++void reg_frame_get_spd_data(const uint8_t *out_spd_data[NUM_CHANNELS][NUM_SLOTS])
++{
++	const struct save_params *params = &reg_frame_ptr()->params;
++	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
++		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {
++			out_spd_data[channel][slot] = params->dimms[channel][slot].raw_spd;
++		}
++	}
++}
++
+ typedef void (*reg_func_t)(const uint16_t offset, uint32_t *const value);
+ 
+ static void save_value(const uint16_t offset, uint32_t *const value)
+-- 
+2.47.3
+
