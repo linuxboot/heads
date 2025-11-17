@@ -1,0 +1,95 @@
+From b87a9795de20d2906c440174f28e4de172fe127e Mon Sep 17 00:00:00 2001
+From: Elyes Haouas <ehaouas@noos.fr>
+Date: Sat, 8 Feb 2025 12:19:28 +0100
+Subject: [PATCH 08/11] tree: Use boolean for s3resume
+
+Change-Id: I3e23134f879fcaf817cf62b641e9b59563eb643b
+Signed-off-by: Elyes Haouas <ehaouas@noos.fr>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/86331
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ src/northbridge/intel/haswell/broadwell_mrc/raminit.c         | 4 ++--
+ src/northbridge/intel/haswell/haswell_mrc/raminit.c           | 2 +-
+ src/northbridge/intel/haswell/native_raminit/raminit_native.c | 2 +-
+ src/northbridge/intel/haswell/raminit.h                       | 2 +-
+ src/northbridge/intel/haswell/romstage.c                      | 2 +-
+ 5 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+index e96f1a3adf..9114c26783 100644
+--- a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+@@ -310,7 +310,7 @@ static uint8_t map_to_pei_oc_pin(const uint8_t oc_pin)
+ 	return oc_pin >= USB_OC_PIN_SKIP ? PEI_USB_OC_PIN_SKIP : oc_pin;
+ }
+ 
+-static bool early_init_native(int s3resume)
++static bool early_init_native(bool s3resume)
+ {
+ 	printk(BIOS_DEBUG, "Starting native platform initialisation\n");
+ 
+@@ -326,7 +326,7 @@ static bool early_init_native(int s3resume)
+ 	return cpu_replaced;
+ }
+ 
+-void perform_raminit(const int s3resume)
++void perform_raminit(const bool s3resume)
+ {
+ 	const struct northbridge_intel_haswell_config *cfg = config_of_soc();
+ 
+diff --git a/src/northbridge/intel/haswell/haswell_mrc/raminit.c b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+index 62aa89ca79..edd9b049d4 100644
+--- a/src/northbridge/intel/haswell/haswell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+@@ -340,7 +340,7 @@ static uint8_t map_to_pei_oc_pin(const uint8_t oc_pin)
+ 	return oc_pin >= USB_OC_PIN_SKIP ? PEI_USB_OC_PIN_SKIP : oc_pin;
+ }
+ 
+-void perform_raminit(const int s3resume)
++void perform_raminit(const bool s3resume)
+ {
+ 	const struct device *gbe = pcidev_on_root(0x19, 0);
+ 
+diff --git a/src/northbridge/intel/haswell/native_raminit/raminit_native.c b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+index 3ad8ce29e7..4ac220cb22 100644
+--- a/src/northbridge/intel/haswell/native_raminit/raminit_native.c
++++ b/src/northbridge/intel/haswell/native_raminit/raminit_native.c
+@@ -163,7 +163,7 @@ static enum raminit_boot_mode do_actual_raminit(
+ 	return bootmode;
+ }
+ 
+-void perform_raminit(const int s3resume)
++void perform_raminit(const bool s3resume)
+ {
+ 	/*
+ 	 * See, this function's name is a lie. There are more things to
+diff --git a/src/northbridge/intel/haswell/raminit.h b/src/northbridge/intel/haswell/raminit.h
+index 6c76739e77..3f13a03db5 100644
+--- a/src/northbridge/intel/haswell/raminit.h
++++ b/src/northbridge/intel/haswell/raminit.h
+@@ -17,6 +17,6 @@ struct spd_info {
+ void mb_get_spd_map(struct spd_info *spdi);
+ 
+ void get_spd_info(struct spd_info *spdi, const struct northbridge_intel_haswell_config *cfg);
+-void perform_raminit(const int s3resume);
++void perform_raminit(const bool s3resume);
+ 
+ #endif	/* NORTHBRIDGE_INTEL_HASWELL_RAMINIT_H */
+diff --git a/src/northbridge/intel/haswell/romstage.c b/src/northbridge/intel/haswell/romstage.c
+index ce14915b2b..85fe967c7d 100644
+--- a/src/northbridge/intel/haswell/romstage.c
++++ b/src/northbridge/intel/haswell/romstage.c
+@@ -27,7 +27,7 @@ void mainboard_romstage_entry(void)
+ 	haswell_early_initialization();
+ 	printk(BIOS_DEBUG, "Back from haswell_early_initialization()\n");
+ 
+-	const int s3resume = southbridge_detect_s3_resume();
++	const bool s3resume = southbridge_detect_s3_resume();
+ 
+ 	elog_boot_notify(s3resume);
+ 
+-- 
+2.47.3
+
