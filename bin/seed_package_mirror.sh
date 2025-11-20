@@ -56,8 +56,8 @@ echo "Downloading packages..."
 make packages BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp
 make packages BOARD=UNTESTED_talos-2 # newt, PPC
 make packages BOARD=librem_l1um_v2 # TPM2
-make packages BOARD=librem_l1um # coreboot 4.11
-make packages BOARD=x230-maximized # io386
+make packages BOARD=EOL_librem_l1um # coreboot 4.11
+make packages BOARD=EOL_x230-maximized # io386
 echo
 echo "Copying to mirror directory..."
 mkdir -p "$ARG_MIRROR_DIR"
