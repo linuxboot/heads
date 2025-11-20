@@ -564,12 +564,11 @@ reset_tpm() {
 
 			TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
-			#TODO was counter supposed to be empty and that was ok?!?!?!
+			#TPM_COUNTER can be empty
 
 			DO_WITH_DEBUG increment_tpm_counter $TPM_COUNTER>/dev/null 2>&1 ||
 				die "Unable to increment tpm counter"
 
-			#TODO: should this be here?
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
 				die "Unable to create rollback file"
 
