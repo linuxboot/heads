@@ -166,7 +166,7 @@ reset_nk3_secret_app() {
 			else
 				error_code=$?
 				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
-					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 cecrets app reset attempt: $attempt/3"
+					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 secrets app reset attempt: $attempt/3"
 				else
 					whiptail_error_die "Nitrokey 3's Secrets app reset failed with error:$error_code. Contact Nitrokey support"
 				fi

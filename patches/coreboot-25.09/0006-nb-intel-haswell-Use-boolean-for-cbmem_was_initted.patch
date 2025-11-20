@@ -1,0 +1,44 @@
+From d9b609b139c619ea1fe8f2b442469992a6487fe5 Mon Sep 17 00:00:00 2001
+From: Elyes Haouas <ehaouas@noos.fr>
+Date: Thu, 2 Oct 2025 15:01:22 +0200
+Subject: [PATCH 06/11] nb/intel/haswell: Use boolean for cbmem_was_initted
+
+Change-Id: I4a311ce924200d85a97806bb3c826a374e68d81c
+Signed-off-by: Elyes Haouas <ehaouas@noos.fr>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/89399
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+---
+ src/northbridge/intel/haswell/broadwell_mrc/raminit.c | 2 +-
+ src/northbridge/intel/haswell/haswell_mrc/raminit.c   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+index 5b2427b918..e96f1a3adf 100644
+--- a/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/broadwell_mrc/raminit.c
+@@ -422,7 +422,7 @@ void perform_raminit(const int s3resume)
+ 
+ 	intel_early_me_status();
+ 
+-	int cbmem_was_initted = !cbmem_recovery(s3resume);
++	bool cbmem_was_initted = !cbmem_recovery(s3resume);
+ 	if (s3resume && !cbmem_was_initted) {
+ 		/* Failed S3 resume, reset to come up cleanly */
+ 		printk(BIOS_CRIT, "Failed to recover CBMEM in S3 resume.\n");
+diff --git a/src/northbridge/intel/haswell/haswell_mrc/raminit.c b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+index 3d5e46cdac..62aa89ca79 100644
+--- a/src/northbridge/intel/haswell/haswell_mrc/raminit.c
++++ b/src/northbridge/intel/haswell/haswell_mrc/raminit.c
+@@ -417,7 +417,7 @@ void perform_raminit(const int s3resume)
+ 
+ 	intel_early_me_status();
+ 
+-	int cbmem_was_initted = !cbmem_recovery(s3resume);
++	bool cbmem_was_initted = !cbmem_recovery(s3resume);
+ 	if (s3resume && !cbmem_was_initted) {
+ 		/* Failed S3 resume, reset to come up cleanly */
+ 		printk(BIOS_CRIT, "Failed to recover CBMEM in S3 resume.\n");
+-- 
+2.47.3
+
