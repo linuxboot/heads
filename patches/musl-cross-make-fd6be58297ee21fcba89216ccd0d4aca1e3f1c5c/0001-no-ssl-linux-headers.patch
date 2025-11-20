@@ -1,0 +1,11 @@
+--- ../orig/Makefile	2024-05-07 02:14:37.000000000 +0100
++++ ./Makefile	2025-10-27 00:11:38.045918046 +0000
+@@ -22,7 +22,7 @@
+ MUSL_REPO = https://git.musl-libc.org/git/musl
+ 
+ LINUX_SITE = https://cdn.kernel.org/pub/linux/kernel
+-LINUX_HEADERS_SITE = https://ftp.barfooze.de/pub/sabotage/tarballs/
++LINUX_HEADERS_SITE = http://ftp.barfooze.de/pub/sabotage/tarballs/
+ 
+ DL_CMD = wget -c -O
+ SHA1_CMD = sha1sum -c
