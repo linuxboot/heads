@@ -147,4 +147,15 @@
 +INSTALL_PROGRAM = $(INSTALL) $(M_INSTALL_PROGRAM)
  INSTALL_DATA = $(INSTALL) -p $(M_INSTALL_DATA)
  INSTALL_WDATA = $(INSTALL) -p -m 644
+
+--- ./lib/device/device_id.c.orig	2025-07-30 14:46:00.000000000 +0000
++++ ./lib/device/device_id.c	2025-07-30 14:46:00.000000000 +0000
+@@ -33,6 +33,7 @@
+ #include <sys/types.h>
+ #include <sys/file.h>
+ #include <sys/sysmacros.h>
++#include <libgen.h>
+ 
+ #define DEVICES_FILE_MAJOR 1
+ #define DEVICES_FILE_MINOR 1
  

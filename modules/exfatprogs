@@ -15,7 +15,7 @@ exfatprogs_hash := a6f3b1fb4bd37835c8f8cb421aac4eb75b880a51342b29850c40639731622
 # location.
 exfatprogs_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "" \

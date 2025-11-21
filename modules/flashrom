@@ -29,7 +29,7 @@ endif
 
 flashrom_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Oz -I$(INSTALL)/include/pci" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
 	LDFLAGS="-L$(INSTALL)/lib" \

@@ -11,7 +11,7 @@ index 0000000..5db9bca
 + endif
 + 
 +-CFLAGS := -fno-strict-aliasing -pie -fpie -fno-pic -mbig-endian -m64 -fno-asynchronous-unwind-tables
-++CFLAGS := -Wno-error=address-of-packed-member -Wno-error=format-overflow -fno-strict-aliasing -pie -fpie -fno-pic -mbig-endian -m64 -fno-asynchronous-unwind-tables
+++CFLAGS := -Wno-error=address-of-packed-member -Wno-error=format-overflow -Wno-error=unterminated-string-initialization -Wno-error=misleading-indentation -fno-strict-aliasing -pie -fpie -fno-pic -mbig-endian -m64 -fno-asynchronous-unwind-tables
 + CFLAGS += -mcpu=power7
 + CFLAGS += -Wl,--oformat,elf64-powerpc -ggdb
 + CFLAGS += $(call try-cflag,$(CC),-ffixed-r13)

@@ -6,8 +6,13 @@ cairo_tar := cairo-$(cairo_version).tar.xz
 cairo_url := https://www.cairographics.org/releases/$(cairo_tar)
 cairo_hash := 8c90f00c500b2299c0a323dd9beead2a00353752b2092ead558139bd67f7bf16
 
+#TODO_GCC_15_CAIRO: Requires all three flags for GCC 15.1.0 compatibility
+# -std=gnu11 (C23 bool keyword conflicts), -Wno-inline (inlining warnings), 
+# -Wno-incompatible-pointer-types (pointer type compatibility errors)
+#TODO_CAIRO_VERSION_BUMP: Cairo 1.14.12 is very old (2017-12-06), consider upgrading to cairo-1.18.4
+# or newer version which may have better GCC 15.1.0 compatibility and eliminate need for warning flags
 cairo_configure := \
-	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os"  \
+	CFLAGS="-DCAIRO_NO_MUTEX=1 -Oz -std=gnu11 -Wno-inline -Wno-incompatible-pointer-types"  \
 	$(CROSS_TOOLS) \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \

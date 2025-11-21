@@ -649,21 +649,21 @@ endef
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
 	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
-	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
+	@$(CROSS)strip --preserve-dates --strip-all "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
 	$(call do,INSTALL-LIB,$(1:$(pwd)/%=%),\
-		$(CROSS)strip --preserve-dates -o "$$@" "$$<")
+		$(CROSS)strip --preserve-dates --strip-all -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
 #bin_modules-$(CONFIG_MUSL) += musl-cross-make
-bin_modules-$(CONFIG_KEXEC) += kexec
+bin_modules-$(CONFIG_KEXEC) += kexec-tools
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom
@@ -712,6 +712,16 @@ $(foreach m, $(modules-y), \
 # this must be built *AFTER* musl, but since coreboot depends on other things
 # that depend on musl it should be ok.
 #
+# TODO_GCC_15_COREBOOT_CBMEM: GCC 15.1.0 compatibility fix for coreboot cbmem utility
+# The coreboot cbmem utility uses -Werror and GCC 15.1.0 generates new warnings 
+# about string initialization that weren't present in earlier versions.
+# Added -Wno-unterminated-string-initialization to suppress these warnings.
+# This should be moved to a proper coreboot module configuration when 
+# modules/coreboot is refactored to use standard module variables like other modules.
+# See: error "initializer-string for array of 'char' truncates NUL terminator"
+# Related modules: modules/coreboot (needs _configure and _target variables)
+# Alternative: Move this to use heads_cc extension or per-module CC override pattern
+#
 COREBOOT_UTIL_DIR=$(build)/$(coreboot_base_dir)/util
 ifeq ($(CONFIG_COREBOOT),y)
 $(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/cbmem/cbmem))
@@ -725,6 +735,7 @@ $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 : $(build)/$(coreboot_base_dir)/.canary musl-cross-make
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
+			CC="$(heads_cc) -Wno-unterminated-string-initialization" \
 	)
 
 # superio depends on zlib and pciutils

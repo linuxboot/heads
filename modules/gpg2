@@ -12,11 +12,13 @@ gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
+
+#TODO: remove -std=gnu11 when bumping gpg2 version (current 2.4.0 has C23 compatibility issues with GCC 15.1.0 true keyword conflicts)
 gpg2_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz -std=gnu11"  \
 	./configure \
-	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
+	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0 -DDISABLE_PHOTO_VIEWER" \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--libexecdir "/bin" \
