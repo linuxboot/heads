@@ -54,3 +54,7 @@ A guide on how to flash this board (both the Heads rom and the Thunderbolt `tb.b
 https://osresearch.net/T480-maximized-flashing/
 
 The upstream documentation is available here. It includes a list of known issues: https://doc.coreboot.org/mainboard/lenovo/t480.html
+Please note that some of the listed issues have been fixed under heads by using patches that are not yet merged upstream:
+* headphone jack works as expected and is automatically detected when plugged in
+* thunderbolt works
+* lower USB-C port works
