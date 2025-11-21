@@ -11,11 +11,11 @@
 
 # Make the Coreboot build depend on the following 3rd party blobs:
 $(build)/coreboot-$(CONFIG_COREBOOT_VERSION)/$(BOARD)/.build: \
-    $(pwd)/blobs/xx80/me.bin $(pwd)/blobs/xx80/tb.bin $(build)/$(BOARD)/tb.bin	
+    $(pwd)/blobs/xx80/t480s_me.bin $(pwd)/blobs/xx80/t480s_tb.bin $(build)/$(BOARD)/t480s_tb.bin	
 
-$(pwd)/blobs/xx80/me.bin $(pwd)/blobs/xx80/tb.bin &:
-	$(pwd)/blobs/xx80/download_clean_deguard_me_pad_tb.sh \
+$(pwd)/blobs/xx80/t480s_me.bin $(pwd)/blobs/xx80/t480s_tb.bin &:
+	$(pwd)/blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh \
 		-m $(pwd)/blobs/utils/me_cleaner/me_cleaner.py $(pwd)/blobs/xx80
 
-$(build)/$(BOARD)/tb.bin: $(pwd)/blobs/xx80/tb.bin
-	cp $(pwd)/blobs/xx80/tb.bin $(build)/$(BOARD)
+$(build)/$(BOARD)/t480s_tb.bin: $(pwd)/blobs/xx80/t480s_tb.bin
+	cp $(pwd)/blobs/xx80/t480s_tb.bin $(build)/$(BOARD)
