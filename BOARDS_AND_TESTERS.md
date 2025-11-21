@@ -59,6 +59,7 @@ xx4x (Haswell: Intel 4th Gen CPU)
 xx8x (Kaby Lake Refresh: Intel 8th Gen Mobile : ESU ended 12/31/2024)
 ===
 - [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76 @notgivenby @akunterkontrolle
+- [ ] t480s: @thickfont @kjkent @HarleyGodfrey @nestire
 
 Librem
 ===

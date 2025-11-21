@@ -2,7 +2,7 @@
 
 # These variables are all for the deguard tool.
 # They would need to be changed if using the tool for other devices like the T480s or with a different ME version...
-ME_delta="thinkpad_t480"
+ME_delta="thinkpad_t480s"
 ME_version="11.6.0.1126"
 ME_sku="2M"
 ME_pch="LP"
@@ -13,11 +13,12 @@ TBFW_SIZE=1048575
 # Integrity checks for the vendor provided ME blob...
 ME_DOWNLOAD_HASH="ddfbc51430699e0dfcb24a60bcb5b6e5481b325ebecf1ac177e069013189e4b0"
 # ...and the cleaned and deguarded version from that blob.
-DEGUARDED_ME_BIN_HASH="1990b42df67ba70292f4f6e2660efb909917452dcb9bd4b65ea2f86402cfa16b"
+DEGUARDED_ME_BIN_HASH="7bc47ed1ead1d72a135e7adff207ae8ddddc56d81128d9d6a8061ad04685c73b"
 # Integrity checks for the vendor provided Thunderbolt blob...
-TB_DOWNLOAD_HASH="a500a93fe6a3728aa6676c70f98cf46785ef15da7c5b1ccd7d3a478d190a28a8"
+TB_DOWNLOAD_HASH="090d0085af4a20bcdfba8a75f1bce735ff80afbfea968bbe276a80a0c4c18706"
 # ...and the padded and flashable version from that blob.
-TB_BIN_HASH="fc9c47ff4b16f036a7f49900f9da1983a5db44ca46156238b7b42e636d317388"
+TB_BIN_HASH="b53e4670327e076ef879b2abef0efd9aade20da88d0c0976921b9f32378c0119"
+
 
 function usage() {
 	echo -n \
@@ -82,6 +83,7 @@ function download_and_clean() {
 	# Some more general info on shrinking:
 	# https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
 
+	# MFS is needed for deguard so we whitelist it here and also do not relocate the FTPR partition
 	python "$me_cleaner" --whitelist MFS -t -O "$me_output" "${me_installer_filename}_extracted/Firmware/${extracted_me_filename}"
 	rm -rf ./*
 	popd || exit
@@ -119,14 +121,14 @@ function download_and_pad_tb() {
 	# extract the TB blob.
 	pushd "$(mktemp -d)" || exit
 
-	# Download the installer that contains the TB blob
-	tb_installer_filename=""n24th13w.exe""
+	# Download the installer that contains the T480s TB blob
+	tb_installer_filename=""n22th11w.exe""
 	user_agent="Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0"
 	curl -A "$user_agent" -s -O "https://download.lenovo.com/pccbbs/mobiles/${tb_installer_filename}"
 	chk_sha256sum "$TB_DOWNLOAD_HASH" "$tb_installer_filename"
 
 	# https://www.reddit.com/r/thinkpad/comments/9rnimi/ladies_and_gentlemen_i_present_to_you_the/
-	innoextract n24th13w.exe -d .
+	innoextract n22th11w.exe -d .
 	mv ./code\$GetExtractPath\$/TBT.bin tb.bin
 	# pad with zeros
 	dd if=/dev/zero of=tb.bin bs=1 seek="$TBFW_SIZE" count=1
@@ -171,8 +173,8 @@ function parse_params() {
 		usage_err "No valid output dir found"
 	fi
 	me_cleaned="${output_dir}/me_cleaned.bin"
-	me_deguarded="${output_dir}/me.bin"
-	tb_flashable="${output_dir}/tb.bin"
+	me_deguarded="${output_dir}/t480s_me.bin"
+	tb_flashable="${output_dir}/t480s_tb.bin"
 	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
 	echo "Writing flashable TB to ${tb_flashable}"
 }
