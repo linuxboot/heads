@@ -101,7 +101,7 @@ $(eval $(call coreboot_module,dasharo,24.02.01))
 # MSI boards are based on Dasharo, this commit hash should be pinned to
 # the most recent MSI release.
 coreboot-dasharo_msi_repo := https://github.com/dasharo/coreboot
-coreboot-dasharo_msi_commit_hash := fecb8be236ff4199cf8f576375e70bcc292c4821 # This is msi release v1.1.5 and v0.9.3
+coreboot-dasharo_msi_commit_hash := a5a05f133471c0463609631b599cdd88a623561f # This is `msi_ms7e06_v0.9.4` tag, effectively same as `msi_ms7d25_v1.1.6`.
 $(eval $(call coreboot_module,dasharo_msi,24.02.01))
 
 # T480 is based on coreboot ~25.09 release
