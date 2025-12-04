@@ -445,6 +445,10 @@ define define_module =
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
 		echo "INFO: Updating submodules (init and checkout)" && \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
+		echo "INFO: Cleaning board-specific build directories to prevent stale artifacts" && \
+		rm -rf "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
+		echo "INFO: Recreating board directories" && \
+		mkdir -p "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Updating .canary file with new repo info" && \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
 	fi
