@@ -182,6 +182,9 @@ show_system_info() {
 	[ -n "$EC_VER" ] && ec_ver_line="
 	EC_VER: ${EC_VER}"
 
+	local disk_info="$(disk_info_sysfs)"
+	DEBUG "disk_info=\n${disk_info}"
+
 	local msgbox="${BOARD_NAME}
 
 	FW_VER: ${FW_VER}${ec_ver_line}
@@ -191,7 +194,7 @@ show_system_info() {
 	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
 	RAM: ${memtotal} GB
 	$battery_status
-	$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')
+	${disk_info}
 	"
 
 	local msgbox_rm_tabs=$(echo "$msgbox" | tr -d "\t")
