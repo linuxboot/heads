@@ -119,8 +119,9 @@ while true; do
 		exit 0
 		;;
 	"b")
+		#Change /boot device
 		CURRENT_OPTION="$(load_config_value CONFIG_BOOT_DEV)"
-		if ! fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist.txt; then
+		if ! list_block_devices >/tmp/disklist.txt; then
 			whiptail_error --title 'ERROR: No bootable devices found' \
 				--msgbox "    $ERROR\n\n" 0 80
 			exit 1
@@ -214,8 +215,9 @@ while true; do
 		fi
 		;;
 	"R")
+		#Change the root device for hashing
 		CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DEV)"
-		fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist.txt
+		list_block_devices >/tmp/disklist.txt
 		# filter out extraneous options
 		>/tmp/root_device_list.txt
 		for i in $(cat /tmp/disklist.txt); do

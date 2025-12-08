@@ -50,6 +50,10 @@ kernel=$(uname -s -r)
 
 FB_OPTIONS=""
 if whiptail --version | grep "fbwhiptail"; then FB_OPTIONS="--text-size 12"; fi
+
+# Build disk information using shared sysfs helper
+disk_info="$(disk_info_sysfs)"
+
 # make sure we know the EC version too, populate if not already set
 if [ -z "$EC_VER" ]; then
 	EC_VER=$(ec_version)
@@ -60,4 +64,4 @@ ec_ver_line=""
 [ -n "$EC_VER" ] && ec_ver_line="\nEC_VER: ${EC_VER}"
 
 whiptail_type $BG_COLOR_MAIN_MENU $FB_OPTIONS --title 'System Info' \
-	--msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}${ec_ver_line}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')\n\n$(cat /tmp/devices_usb_pci)" 0 80
+	--msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}${ec_ver_line}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n${disk_info}\n$(cat /tmp/devices_usb_pci)" 0 80

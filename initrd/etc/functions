@@ -802,24 +802,77 @@ enable_usb_storage() {
 
 device_has_partitions() {
 	local DEVICE="$1"
-	# fdisk normally says "doesn't contain a valid partition table" for
-	# devices that lack a partition table - except for FAT32.
-	#
-	# FAT32 devices have a volume boot record that looks enough like an MBR
-	# to satisfy fdisk.  In that case, fdisk prints a partition table header
-	# but no partitions.
-	#
-	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
-	# In both cases the output is 5 lines: 3 about device info, 1 empty line
-	# and the 5th will be the table header or the invalid message.
-	local DISK_DATA=$(fdisk -l "$DEVICE" 2>/dev/null)
-	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" ||
-		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
-		# No partition table
+	# Check if device has any partitions by checking sysfs
+	# A device with partitions will have entries like /sys/block/sda/sda1, /sys/block/vda/vda1, etc
+	local device_name=$(basename "$DEVICE")
+
+	if [ ! -e "/sys/block/$device_name" ]; then
+		# Device doesn't exist
 		return 1
 	fi
-	# There is a partition table
-	return 0
+
+	# Count partitions - handle nvme partition naming (nvme0n1p1) and traditional (sda1, vda1, hda1)
+	if [ -n "$(ls -1 /sys/block/$device_name/ 2>/dev/null | grep -E "^${device_name}(p)?[0-9]")" ]; then
+		# There is a partition table
+		return 0
+	fi
+	# No partition table
+	return 1
+}
+
+# List all block devices using sysfs
+# Outputs one device path per line (e.g., /dev/sda, /dev/vda, /dev/nvme0n1)
+list_block_devices() {
+	TRACE_FUNC
+	for dev in /sys/block/sd* /sys/block/nvme* /sys/block/vd* /sys/block/hd*; do
+		if [ -e "$dev" ]; then
+			echo "/dev/$(basename "$dev")"
+		fi
+	done | sort
+}
+
+# Build displayable disk information using sysfs (vs current busybox's 2tb limit per https://bugs.busybox.net/show_bug.cgi?id=16276)
+# Output format: "Disk /dev/<name>: <GB> GB" per line
+disk_info_sysfs() {
+	TRACE_FUNC
+	local disk_info=""
+	DEBUG "disk_info_sysfs: Starting disk enumeration"
+	for dev in /sys/block/sd* /sys/block/nvme* /sys/block/vd* /sys/block/hd*; do
+		if [ -e "$dev" ]; then
+			local devname=$(basename "$dev")
+			DEBUG "disk_info_sysfs: Found device $dev (devname=$devname)"
+			local size_bytes=$(cat "$dev/size" 2>/dev/null)
+			DEBUG "disk_info_sysfs: /dev/${devname} reports size_bytes=$size_bytes sectors from $dev/size"
+			if [ -n "$size_bytes" ] && [ "$size_bytes" -gt 0 ]; then
+				# Determine sector size for this device from sysfs; prefer hw_sector_size
+				local sector_size=512
+				if [ -r "$dev/queue/hw_sector_size" ]; then
+					sector_size=$(cat "$dev/queue/hw_sector_size" 2>/dev/null || echo 512)
+					DEBUG "disk_info_sysfs: /dev/${devname} using hw_sector_size=$sector_size from $dev/queue/hw_sector_size"
+				elif [ -r "$dev/queue/logical_block_size" ]; then
+					sector_size=$(cat "$dev/queue/logical_block_size" 2>/dev/null || echo 512)
+					DEBUG "disk_info_sysfs: /dev/${devname} using logical_block_size=$sector_size from $dev/queue/logical_block_size"
+				else
+					DEBUG "disk_info_sysfs: /dev/${devname} using default sector_size=$sector_size (no queue info available)"
+				fi
+				# Convert from sectors * sector_size to bytes, then to decimal GB.
+				#
+				# Explanation of the constants:
+				# - We divide by 1,000,000,000 (1000000000) to report decimal GB (10^9 bytes),
+				#   which matches the historical output used elsewhere in Heads.
+				# - Shell arithmetic is integer-only, so to round to the nearest GB we add
+				#   half the divisor (500,000,000) before dividing. This implements
+				#   rounding instead of truncation.
+				#	If you prefer binary GiB (1024^3), replace the divisor and half-divisor
+				#	with 1073741824 and 536870912 respectively, or use `awk`/`printf`
+				#	for fractional output.
+				local size_gb=$(((size_bytes * sector_size + 500000000) / 1000000000))
+				disk_info="${disk_info}Disk /dev/${devname}: ${size_gb} GB\n"
+				DEBUG "disk_info_sysfs: /dev/${devname} calculated as ${size_gb} GB (${size_bytes} sectors * ${sector_size} bytes/sector = $((size_bytes * sector_size)) bytes)"
+			fi
+		fi
+	done
+	echo -n "$disk_info"
 }
 
 list_usb_storage() {
@@ -1278,12 +1331,19 @@ is_gpt_bios_grub() {
 
 	NUMBER="${BASH_REMATCH[1]}"
 
-	# Now we know the device and partition number, get the type.  This is
-	# specific to GPT disks, MBR disks are shown differently by fdisk.
-	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
-	if [ "$(fdisk -l "/dev/$DEVICE" 2>/dev/null | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
-		return 0
+	# Check partition type using sysfs if available, otherwise check for grub type
+	# For GPT disks, check /sys/class/block/<dev>/<partition>/uevent for PARTTYPENAME
+	local part_sys="/sys/class/block/$DEVICE/$(basename "$PART_DEV")"
+	if [ -e "$part_sys/uevent" ]; then
+		if grep -q "PARTTYPENAME=BIOS boot" "$part_sys/uevent"; then
+			TRACE "$PART_DEV is a GPT BIOS grub partition"
+			return 0
+		fi
 	fi
+
+	# Fallback: try to detect using other sysfs attributes if available
+	# For MBR disks, we would need to check partition type differently
+	DEBUG "$PART_DEV - unable to confirm it's a bios-grub partition via sysfs"
 	return 1
 }
 
@@ -1344,7 +1404,16 @@ mount_possible_boot_device() {
 detect_boot_device() {
 	TRACE_FUNC
 	local devname
-	# unmount /boot to be safe
+	local mounted_boot_dev
+
+	# If /boot is already mounted and looks valid, reuse it directly.
+	mounted_boot_dev="$(awk '$2 == "/boot" {print $1; exit}' /proc/mounts)"
+	if [ -n "$mounted_boot_dev" ] && ls -d /boot/grub* >/dev/null 2>&1; then
+		CONFIG_BOOT_DEV="$mounted_boot_dev"
+		return 0
+	fi
+
+	# unmount /boot to be safe before probe-based detection
 	cd / && umount /boot 2>/dev/null
 
 	# check $CONFIG_BOOT_DEV if set/valid
@@ -1354,7 +1423,7 @@ detect_boot_device() {
 	fi
 
 	# generate list of possible boot devices
-	fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
+	list_block_devices >/tmp/disklist
 
 	# Check each possible boot device
 	for i in $(cat /tmp/disklist); do
