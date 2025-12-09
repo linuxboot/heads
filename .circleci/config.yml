@@ -102,7 +102,8 @@ jobs:
       - run:
           name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx80/download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
@@ -195,7 +196,7 @@ jobs:
             - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
-            - build/x86/coreboot-24.12
+            - build/x86/coreboot-25.09
             - build/x86/coreboot-dasharo
             - build/x86/coreboot-purism
             - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
@@ -253,7 +254,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 25.09 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
           name: EOL_t480-hotp-maximized
           target: EOL_t480-hotp-maximized
@@ -286,7 +287,7 @@ workflows:
             - EOL_t480-hotp-maximized
 
       # Those onboarding new boards should add their entries below.
-      # coreboot 24.12 boards
+      # coreboot 25.09 boards
       - build:
           name: EOL_x220-hotp-maximized
           target: EOL_x220-hotp-maximized
@@ -421,29 +422,29 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_t440p-maximized
-          target: EOL_UNTESTED_t440p-maximized
+          name: EOL_t440p-maximized
+          target: EOL_t440p-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_t440p-hotp-maximized
-          target: EOL_UNTESTED_t440p-hotp-maximized
+          name: EOL_t440p-hotp-maximized
+          target: EOL_t440p-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_w541-maximized
-          target: EOL_UNTESTED_w541-maximized
+          name: EOL_w541-maximized
+          target: EOL_w541-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_w541-hotp-maximized
-          target: EOL_UNTESTED_w541-hotp-maximized
+          name: EOL_w541-hotp-maximized
+          target: EOL_w541-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -456,15 +457,15 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_z220-cmt-maximized
-          target: EOL_UNTESTED_z220-cmt-maximized
+          name: EOL_z220-cmt-maximized
+          target: EOL_z220-cmt-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_UNTESTED_z220-cmt-hotp-maximized
-          target: EOL_UNTESTED_z220-cmt-hotp-maximized
+          name: EOL_z220-cmt-hotp-maximized
+          target: EOL_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -527,10 +528,24 @@ workflows:
           requires:
             - librem_14
 
-      # t480 is based on 24.12 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
+      # t480 is based on 25.09 coreboot release
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_t480s-hotp-maximized
+          target: EOL_t480s-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_t480s-maximized
+          target: EOL_t480s-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -543,7 +558,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on x230
+      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on nv4x_adl
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu

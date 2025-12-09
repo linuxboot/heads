@@ -7,9 +7,10 @@ The following blobs are needed:
 * `me.bin`
 * `tb.bin` (optional but recommended flashing this blob to the separate Thunderbolt SPI chip to fix a bug in the original firmware)
 
-## me.bin: automatically extract, neuter and deguard
+## me.bin: automatically extract, deactivate, partially neuter and deguard
 
-download_clean_me.sh : Download vulnerable ME from Dell, verify checksum, extract ME, neuter ME and trim it, then apply the deguard patch and place it into me.bin
+download_clean_deguard_me_pad_tb.sh : Download vulnerable ME from Dell, verify checksum, extract ME, deactivate ME and paritally neuter it, then apply the deguard patch and place it into me.bin.
+For the technical details please read the documentation in the script itself, as removing modules is limited on the platform.
 
 The ME blob dumped in this directory comes from the following link: https://dl.dell.com/FOLDER04573471M/1/Inspiron_5468_1.3.0.exe
 
@@ -31,7 +32,7 @@ The GBE MAC address was forged to: `00:DE:AD:C0:FF:EE MAC`
 ## tb.bin
 
 This blob was extracted from https://download.lenovo.com/pccbbs/mobiles/n24th13w.exe
-It is zero-padded to 1MB and should be flashed to the Thunderbolt SPI chip, which is not the same as the 16MB chip to which the heads rom is flashed. External flashing is recommended as the only way to reliably fix a bug in the original Thunderbolt software on the SPI chip. You can find a guide here: https://osresearch.net/T430-maximized-flashing/
+It is zero-padded to 1MB and should be flashed to the Thunderbolt SPI chip, which is not the same as the 16MB chip to which the heads rom is flashed. External flashing is recommended as the only way to reliably fix a bug in the original Thunderbolt software on the SPI chip. You can find a guide here: https://osresearch.net/T480-maximized-flashing/
 
 ## Integrity
 
@@ -50,4 +51,10 @@ See the board configs `boards/t480-[hotp-]maximized/t480-[hotp-]maximized.config
 # Documentation
 
 A guide on how to flash this board (both the Heads rom and the Thunderbolt `tb.bin` blob) can be found here:
-https://osresearch.net/T430-maximized-flashing/
+https://osresearch.net/T480-maximized-flashing/
+
+The upstream documentation is available here. It includes a list of known issues: https://doc.coreboot.org/mainboard/lenovo/t480.html
+Please note that some of the listed issues have been fixed under heads by using patches that are not yet merged upstream:
+* headphone jack works as expected and is automatically detected when plugged in
+* thunderbolt works
+* lower USB-C port works
