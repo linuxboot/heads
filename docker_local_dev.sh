@@ -1,57 +1,164 @@
 #!/bin/bash
+#
+# Run Heads build in Docker using locally built image from flake.nix
+# This is for developers only - uses the local flake.nix/flake.lock to build the Docker image
+# WARNING: This may produce non-reproducible builds compared to the published images
+#
 
-#locally build docker name is linuxboot/heads:dev-env
-DOCKER_IMAGE="linuxboot/heads:dev-env"
+set -euo pipefail
 
-# Check if Nix is installed
-if ! command -v nix &>/dev/null; then
-	echo "Nix is not installed or not in the PATH. Please install Nix before running this script."
-	echo "Refer to the README.md at the root of the repository for installation instructions."
-	exit 1
-fi
+# ============================================================================
+# CONSTANTS
+# ============================================================================
 
-# Check if Docker is installed
-if ! command -v docker &>/dev/null; then
-	echo "Docker is not installed or not in the PATH. Please install Docker before running this script."
-	echo "Refer to the README.md at the root of the repository for installation instructions."
-	exit 1
-fi
+readonly DOCKER_IMAGE="linuxboot/heads:dev-env"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Inform the user about the Docker image being used
-echo "!!! This ./docker_local_dev.sh script is for developers usage only. !!!"
-echo ""
-echo "Using the last locally built Docker image when flake.nix/flake.lock was modified and repo was dirty: linuxboot/heads:dev-env"
-echo "!!! Warning: Using anything other than the published Docker image might lead to non-reproducible builds. !!!"
-echo ""
-echo "For using the latest published Docker image, refer to ./docker_latest.sh."
-echo "For producing reproducible builds as CircleCI, refer to ./docker_repro.sh."
-echo ""
+# ============================================================================
+# FUNCTIONS
+# ============================================================================
 
-# Function to display usage information
 usage() {
-	echo "Usage: $0 [OPTIONS] -- [COMMAND]"
-	echo "Options:"
-	echo "  CPUS=N  Set the number of CPUs"
-	echo "  V=1     Enable verbose mode"
-	echo "Command:"
-	echo "  The command to run inside the Docker container, e.g., make BOARD=BOARD_NAME"
+	cat << EOF
+Usage: $0 [OPTIONS] -- [COMMAND]
+
+Options:
+  CPUS=N              Set the number of CPUs
+  V=1                 Enable verbose mode
+  -h, --help          Display this help message
+
+Command:
+  The command to run inside the Docker container (e.g., make BOARD=BOARD_NAME)
+
+Examples:
+  $0 make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  $0 make BOARD=t440p V=1
+
+For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config
+EOF
 }
 
-# Function to kill GPG toolstack related processes using USB devices
+# Check if required commands are available
+check_requirements() {
+	local cmd
+	for cmd in nix docker; do
+		if ! command -v "${cmd}" &>/dev/null; then
+			echo "Error: '${cmd}' is not installed or not in PATH" >&2
+			echo "Please refer to the README.md at the root of the repository for installation instructions." >&2
+			return 1
+		fi
+	done
+}
+
+# Kill GPG toolstack related processes using USB devices
 kill_usb_processes() {
-	# check if scdaemon or pcscd processes are using USB devices
-	if [ -d /dev/bus/usb ]; then
-		if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' >/dev/null; then
-			echo "Killing GPG toolstack related processes using USB devices..."
-			sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' | awk '{print $1}' | xargs -r sudo kill -9
+	if [ ! -d "/dev/bus/usb" ]; then
+		return 0
+	fi
+
+	if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | \
+	   awk 'NR>1 {print $2}' | \
+	   xargs -r ps -p | \
+	   grep -E 'scdaemon|pcscd' >/dev/null 2>&1; then
+		echo "Killing GPG toolstack related processes using USB devices..."
+		sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | \
+			awk 'NR>1 {print $2}' | \
+			xargs -r ps -p | \
+			grep -E 'scdaemon|pcscd' | \
+			awk '{print $1}' | \
+			xargs -r sudo kill -9
+	fi
+}
+
+# Build Docker image if flake.nix or flake.lock have uncommitted changes
+rebuild_docker_image() {
+	if [ -z "$(git status --porcelain | grep -E 'flake\.nix|flake\.lock')" ]; then
+		echo "Git repository is clean. Using the previously built Docker image."
+		sleep 1
+		return 0
+	fi
+
+	cat << EOF
+**Warning: Uncommitted changes detected in flake.nix or flake.lock.**
+The Docker image will be rebuilt. If this was not intended, please Ctrl-C now,
+commit your changes, and rerun this script.
+
+EOF
+
+	sleep 2
+
+	echo "Building the Docker image from flake.nix..."
+	nix --extra-experimental-features nix-command --extra-experimental-features flakes \
+		--print-build-logs --verbose develop --ignore-environment --command true
+	nix --extra-experimental-features nix-command --extra-experimental-features flakes \
+		--print-build-logs --verbose build .#dockerImage && docker load <result
+}
+
+# Ensure local dev image exists; if not, guide user and build it
+ensure_local_image() {
+	if ! docker image inspect "${DOCKER_IMAGE}" >/dev/null 2>&1; then
+		cat << EOF
+The local developer Docker image '${DOCKER_IMAGE}' is not present.
+
+Please build the local image following the instructions in README.md:
+- Section: Development environment / Local Docker image
+- Command (run from repo root):
+	nix --print-build-logs --verbose develop --ignore-environment --command true
+	nix --print-build-logs --verbose build .#dockerImage && docker load <result
+
+Attempting to build the image automatically now...
+EOF
+
+		echo "Building the Docker image from flake.nix..."
+		nix --extra-experimental-features nix-command --extra-experimental-features flakes \
+			--print-build-logs --verbose develop --ignore-environment --command true
+		if nix --extra-experimental-features nix-command --extra-experimental-features flakes \
+			--print-build-logs --verbose build .#dockerImage; then
+			docker load <result || {
+				echo "Error: 'docker load' failed. Ensure Docker is running and you have permissions." >&2
+				exit 1
+			}
+		else
+			echo "Error: Nix build failed for '.#dockerImage'." >&2
+			echo "Refer to README.md for troubleshooting the local image build." >&2
+			exit 1
 		fi
 	fi
 }
 
-# Handle Ctrl-C (SIGINT) to exit gracefully
-trap "echo 'Script interrupted. Exiting...'; exit 1" SIGINT
+# Build Docker run options based on available host capabilities
+build_docker_opts() {
+	local opts="-e DISPLAY=${DISPLAY} --network host --rm -ti"
 
-# Check if --help or -h is provided
+	# Add USB device if available
+	if [ -d "/dev/bus/usb" ]; then
+		opts="${opts} --device=/dev/bus/usb:/dev/bus/usb"
+		echo "--->Launching container with access to host's USB buses..." >&2
+	else
+		echo "--->Launching container without access to host's USB buses..." >&2
+	fi
+
+	# Add KVM device if available
+	if [ -e "/dev/kvm" ]; then
+		opts="${opts} --device=/dev/kvm:/dev/kvm"
+	fi
+
+	# Add X11 display support
+	opts="${opts} -v /tmp/.X11-unix:/tmp/.X11-unix"
+
+	# Add Xauthority if it exists
+	if [ -f "${HOME}/.Xauthority" ]; then
+		opts="${opts} -v ${HOME}/.Xauthority:/root/.Xauthority:ro"
+	fi
+
+	echo "${opts}"
+}
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+# Handle help request
 for arg in "$@"; do
 	if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
 		usage
@@ -59,35 +166,55 @@ for arg in "$@"; do
 	fi
 done
 
-# Check if the git repository is dirty and if flake.nix or flake.lock are part of the uncommitted changes
-if [ -n "$(git status --porcelain | grep -E 'flake\.nix|flake\.lock')" ]; then
-	echo "**Warning: Uncommitted changes detected in flake.nix or flake.lock. The Docker image will be rebuilt!**"
-	echo "If this was not intended, please CTRL-C now, commit your changes and rerun the script."
-	echo "Building the Docker image from flake.nix..."
-	nix --print-build-logs --verbose develop --ignore-environment --command true
-	nix --print-build-logs --verbose build .#dockerImage && docker load <result
-else
-	echo "Git repository is clean. Using the previously built Docker image when repository was unclean and flake.nix/flake.lock changes were uncommited."
-	sleep 1
+# Check requirements
+if ! check_requirements; then
+	exit 1
 fi
+
+# Display developer warning
+cat << EOF
+!!! This ./docker_local_dev.sh script is for developers usage only. !!!
+
+Using the last locally built Docker image from flake.nix/flake.lock: ${DOCKER_IMAGE}
+
+!!! WARNING: Using anything other than the published Docker image might lead
+to non-reproducible builds. !!!
+
+For using the latest published Docker image, refer to ./docker_latest.sh.
+For producing reproducible builds like CircleCI, refer to ./docker_repro.sh.
+
+EOF
+
+# Handle Ctrl-C gracefully
+trap "echo 'Script interrupted. Exiting...'; exit 130" SIGINT
+
+# Rebuild Docker image if needed
+rebuild_docker_image
+
+# Ensure local image exists (handles first-time setup)
+ensure_local_image
 
 # Kill processes using USB devices
 kill_usb_processes
 
-# Inform the user about entering the Docker container
-echo "----"
-echo "Usage reminder: The minimal command is 'make BOARD=XYZ', where additional options, including 'V=1' or 'CPUS=N' are optional."
-echo "For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config."
-echo
-echo "Type exit within docker image to get back to host if launched interactively!"
-echo "----"
-echo
+# Display usage information
+cat << EOF
 
-# Execute the docker run command with the provided parameters
-if [ -d "/dev/bus/usb" ]; then
-	echo "--->Launching container with access to host's USB buses (some USB devices were connected to host)..."
-	docker run --device=/dev/bus/usb:/dev/bus/usb -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-else
-	echo "--->Launching container without access to host's USB buses (no USB devices was connected to host)..."
-	docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-fi
+----
+Usage reminder: The minimal command is 'make BOARD=XYZ', where additional
+options, including 'V=1' or 'CPUS=N' are optional.
+
+For more advanced QEMU testing options, refer to:
+  - targets/qemu.md
+  - boards/qemu-*/*.config
+
+Type 'exit' within the Docker container to return to the host.
+----
+
+EOF
+
+# Build Docker options and execute
+DOCKER_RUN_OPTS=$(build_docker_opts)
+
+# shellcheck disable=SC2086
+exec docker run ${DOCKER_RUN_OPTS} -v "$(pwd):$(pwd)" -w "$(pwd)" "${DOCKER_IMAGE}" -- "$@"

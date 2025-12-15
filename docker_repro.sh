@@ -1,42 +1,95 @@
 #!/bin/bash
+#
+# Run Heads build in Docker using the CircleCI image version for reproducible builds
+# This script extracts the Docker image from .circleci/config.yml to match CircleCI builds exactly
+#
 
-# Extract the Docker image version from the CircleCI config file
-DOCKER_IMAGE=$(grep -oP '^\s*-?\s*image:\s*\K(tlaurion/heads-dev-env:[^\s]+)' .circleci/config.yml | head -n 1)
+set -euo pipefail
 
-# Check if the Docker image was found
-if [ -z "$DOCKER_IMAGE" ]; then
-	echo "Error: Docker image not found in .circleci/config.yml"
-	exit 1
-fi
+# ============================================================================
+# CONSTANTS
+# ============================================================================
 
-# Inform the user about the versioned CircleCI Docker image being used
-echo "Using CircleCI Docker image: $DOCKER_IMAGE"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly CONFIG_FILE=".circleci/config.yml"
 
-# Function to display usage information
+# ============================================================================
+# FUNCTIONS
+# ============================================================================
+
 usage() {
-	echo "Usage: $0 [OPTIONS] -- [COMMAND]"
-	echo "Options:"
-	echo "  CPUS=N  Set the number of CPUs"
-	echo "  V=1     Enable verbose mode"
-	echo "Command:"
-	echo "  The command to run inside the Docker container, e.g., make BOARD=BOARD_NAME"
+	cat << EOF
+Usage: $0 [OPTIONS] -- [COMMAND]
+
+Options:
+  CPUS=N              Set the number of CPUs
+  V=1                 Enable verbose mode
+  -h, --help          Display this help message
+
+Command:
+  The command to run inside the Docker container (e.g., make BOARD=BOARD_NAME)
+
+Examples:
+  $0 make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  $0 make BOARD=t440p V=1
+
+For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config
+EOF
 }
 
-# Function to kill GPG toolstack related processes using USB devices
+# Kill GPG toolstack related processes using USB devices
 kill_usb_processes() {
-	# check if scdaemon or pcscd processes are using USB devices
-	if [ -d /dev/bus/usb ]; then
-		if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' >/dev/null; then
-			echo "Killing GPG toolstack related processes using USB devices..."
-			sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' | awk '{print $1}' | xargs -r sudo kill -9
-		fi
+	if [ ! -d "/dev/bus/usb" ]; then
+		return 0
+	fi
+
+	if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | \
+	   awk 'NR>1 {print $2}' | \
+	   xargs -r ps -p | \
+	   grep -E 'scdaemon|pcscd' >/dev/null 2>&1; then
+		echo "Killing GPG toolstack related processes using USB devices..."
+		sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | \
+			awk 'NR>1 {print $2}' | \
+			xargs -r ps -p | \
+			grep -E 'scdaemon|pcscd' | \
+			awk '{print $1}' | \
+			xargs -r sudo kill -9
 	fi
 }
 
-# Handle Ctrl-C (SIGINT) to exit gracefully
-trap "echo 'Script interrupted. Exiting...'; exit 1" SIGINT
+# Build Docker run options based on available host capabilities
+build_docker_opts() {
+	local opts="-e DISPLAY=${DISPLAY} --network host --rm -ti"
 
-# Check if --help or -h is provided
+	# Add USB device if available
+	if [ -d "/dev/bus/usb" ]; then
+		opts="${opts} --device=/dev/bus/usb:/dev/bus/usb"
+		echo "--->Launching container with access to host's USB buses..." >&2
+	else
+		echo "--->Launching container without access to host's USB buses..." >&2
+	fi
+
+	# Add KVM device if available
+	if [ -e "/dev/kvm" ]; then
+		opts="${opts} --device=/dev/kvm:/dev/kvm"
+	fi
+
+	# Add X11 display support
+	opts="${opts} -v /tmp/.X11-unix:/tmp/.X11-unix"
+
+	# Add Xauthority if it exists
+	if [ -f "${HOME}/.Xauthority" ]; then
+		opts="${opts} -v ${HOME}/.Xauthority:/root/.Xauthority:ro"
+	fi
+
+	echo "${opts}"
+}
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+# Handle help request
 for arg in "$@"; do
 	if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
 		usage
@@ -44,23 +97,45 @@ for arg in "$@"; do
 	fi
 done
 
+# Extract Docker image version from CircleCI config
+if [ ! -f "${CONFIG_FILE}" ]; then
+	echo "Error: ${CONFIG_FILE} not found" >&2
+	exit 1
+fi
+
+DOCKER_IMAGE=$(grep -oP '^\s*-?\s*image:\s*\K(tlaurion/heads-dev-env:[^\s]+)' "${CONFIG_FILE}" | head -n 1)
+
+if [ -z "${DOCKER_IMAGE}" ]; then
+	echo "Error: Docker image not found in ${CONFIG_FILE}" >&2
+	exit 1
+fi
+
+echo "Using CircleCI Docker image: ${DOCKER_IMAGE}"
+
+# Handle Ctrl-C gracefully
+trap "echo 'Script interrupted. Exiting...'; exit 130" SIGINT
+
 # Kill processes using USB devices
 kill_usb_processes
 
-# Inform the user about entering the Docker container
-echo "----"
-echo "Usage reminder: The minimal command is 'make BOARD=XYZ', where additional options, including 'V=1' or 'CPUS=N' are optional."
-echo "For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config."
-echo
-echo "Type exit within docker image to get back to host if launched interactively!"
-echo "----"
-echo
+# Display usage information
+cat << EOF
 
-# Execute the docker run command with the provided parameters
-if [ -d "/dev/bus/usb" ]; then
-	echo "--->Launching container with access to host's USB buses (some USB devices were connected to host)..."
-	docker run --device=/dev/bus/usb:/dev/bus/usb -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-else
-	echo "--->Launching container without access to host's USB buses (no USB devices was connected to host)..."
-	docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-fi
+----
+Usage reminder: The minimal command is 'make BOARD=XYZ', where additional
+options, including 'V=1' or 'CPUS=N' are optional.
+
+For more advanced QEMU testing options, refer to:
+  - targets/qemu.md
+  - boards/qemu-*/*.config
+
+Type 'exit' within the Docker container to return to the host.
+----
+
+EOF
+
+# Build Docker options and execute
+DOCKER_RUN_OPTS=$(build_docker_opts)
+
+# shellcheck disable=SC2086
+exec docker run ${DOCKER_RUN_OPTS} -v "$(pwd):$(pwd)" -w "$(pwd)" "${DOCKER_IMAGE}" -- "$@"
