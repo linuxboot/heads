@@ -931,11 +931,27 @@ modules.clean:
 # PUBKEY_ASC.
 inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
 
-$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
-	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
-	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE) $(PUBKEY_ASC)
+	@set -e; \
+	src="$(board_build)/$(CB_OUTPUT_FILE)"; \
+	tgt="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"; \
+	key="$(PUBKEY_ASC)"; \
+	meta="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ).meta"; \
+	if [ -f "$$tgt" ] && [ -f "$$meta" ]; then \
+		SRC_SHA256=$$(awk -F= '/^SRC_SHA256=/{print $$2}' "$$meta"); \
+		KEY_SHA256=$$(awk -F= '/^KEY_SHA256=/{print $$2}' "$$meta"); \
+		src_sum=$$(sha256sum "$$src" | awk '{print $$1}'); \
+		key_sum=$$(sha256sum "$$key" | awk '{print $$1}'); \
+		if [ "$$src_sum" = "$$SRC_SHA256" ] && [ "$$key_sum" = "$$KEY_SHA256" ]; then \
+			echo "GPG injection up-to-date; skipping"; \
+			exit 0; \
+		fi; \
+	fi; \
+	cp "$$src" "$$tgt"; \
+	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" "$$tgt" "$$key"; \
+	SRC_SHA256=$$(sha256sum "$$src" | awk '{print $$1}'); \
+	KEY_SHA256=$$(sha256sum "$$key" | awk '{print $$1}'); \
+	printf 'SRC_SHA256=%s\nKEY_SHA256=%s\n' "$$SRC_SHA256" "$$KEY_SHA256" > "$$meta"
 
 
 
