@@ -38,6 +38,14 @@ else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
 endif
 
+# Base EXTRA_FLAGS for all Linux versions
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+
+# TODO(GCC15-LINUX): 6.1.8 requires -std=gnu11 for C23 compatibility (bool/false keyword conflicts)
+ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
+EXTRA_FLAGS += -std=gnu11
+endif
+
 linux_base_dir := linux-$(linux_version)
 
 # input file in the heads config/ dir
@@ -137,9 +145,6 @@ linux_modules-$(CONFIG_LINUX_NVME)	+= drivers/nvme/host/nvme-core.ko
 # ME drivers for talking the the management engine
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei.ko
 linux_modules-$(CONFIG_LINUX_MEI)	+= drivers/misc/mei/mei-me.ko
-
-#TODO: remove -std=gnu11 when bumping linux version (current 6.1.8 has C23 compatibility issues with GCC 15.1.0 bool/false conflicts)
-EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches -std=gnu11
 
 ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 EXTRA_FLAGS += -Wno-cast-function-type
