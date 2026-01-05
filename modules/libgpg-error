@@ -1,5 +1,6 @@
 modules-$(CONFIG_GPG2) += libgpg-error
 
+#TODO: On version bump, check if PowerPC64LE lock object creation is still needed in patches/libgpg-error-1.46.patch
 libgpg-error_version := 1.46
 libgpg-error_dir := libgpg-error-$(libgpg-error_version)
 libgpg-error_tar := libgpg-error-$(libgpg-error_version).tar.bz2
