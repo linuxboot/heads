@@ -65,6 +65,11 @@ $(info **LOADAVG** (default: 1.5 times CPUS, e.g., 'make LOADAVG=54'))
 $(info **AVAILABLE_MEM_GB** (default: memory available on the system in GB, e.g., 'make AVAILABLE_MEM_GB=4'))
 $(info **MEM_PER_JOB_GB** (default: 1GB per job, e.g., 'make MEM_PER_JOB_GB=2'))
 $(info ----------------------------------------------------------------------)
+ifeq "$(V)" ""
+$(info Hint: If the build fails, re-run with V=1 for full configure + validation output)
+$(info Verbose example: ./docker_repro.sh make BOARD=$(BOARD) V=1)
+$(info ----------------------------------------------------------------------)
+endif
 $(info !!!!!! Build starts !!!!!!)
 
 
@@ -283,6 +288,34 @@ endif
 all payload:
 	@sha256sum $< | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
+
+# Validate coreboot CBFS size against IFD BIOS region
+validate_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Validating $(BOARD) CBFS size against IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
+	@echo "✓ CBFS configuration is valid"
+else
+	@echo "Board $(BOARD) does not use coreboot, skipping validation"
+endif
+
+# Auto-fix coreboot CBFS size to match IFD BIOS region
+fix_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Auto-fixing $(BOARD) CBFS size to match IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		--fix || exit 1
+	@echo ""
+	@echo "If CONFIG_CBFS_SIZE was adjusted, next build will use the new size."
+else
+	@echo "Board $(BOARD) does not use coreboot, nothing to fix"
+endif
 
 # Disable all built in rules
 .INTERMEDIATE:
