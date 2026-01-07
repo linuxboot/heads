@@ -65,6 +65,11 @@ $(info **LOADAVG** (default: 1.5 times CPUS, e.g., 'make LOADAVG=54'))
 $(info **AVAILABLE_MEM_GB** (default: memory available on the system in GB, e.g., 'make AVAILABLE_MEM_GB=4'))
 $(info **MEM_PER_JOB_GB** (default: 1GB per job, e.g., 'make MEM_PER_JOB_GB=2'))
 $(info ----------------------------------------------------------------------)
+ifeq "$(V)" ""
+$(info Hint: If the build fails, re-run with V=1 for full configure + validation output)
+$(info Verbose example: ./docker_repro.sh make BOARD=$(BOARD) V=1)
+$(info ----------------------------------------------------------------------)
+endif
 $(info !!!!!! Build starts !!!!!!)
 
 
@@ -283,6 +288,34 @@ endif
 all payload:
 	@sha256sum $< | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
+
+# Validate coreboot CBFS size against IFD BIOS region
+validate_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Validating $(BOARD) CBFS size against IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
+	@echo "✓ CBFS configuration is valid"
+else
+	@echo "Board $(BOARD) does not use coreboot, skipping validation"
+endif
+
+# Auto-fix coreboot CBFS size to match IFD BIOS region
+fix_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Auto-fixing $(BOARD) CBFS size to match IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		--fix || exit 1
+	@echo ""
+	@echo "If CONFIG_CBFS_SIZE was adjusted, next build will use the new size."
+else
+	@echo "Board $(BOARD) does not use coreboot, nothing to fix"
+endif
 
 # Disable all built in rules
 .INTERMEDIATE:
@@ -898,11 +931,27 @@ modules.clean:
 # PUBKEY_ASC.
 inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
 
-$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
-	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
-	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE) $(PUBKEY_ASC)
+	@set -e; \
+	src="$(board_build)/$(CB_OUTPUT_FILE)"; \
+	tgt="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"; \
+	key="$(PUBKEY_ASC)"; \
+	meta="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ).meta"; \
+	if [ -f "$$tgt" ] && [ -f "$$meta" ]; then \
+		SRC_SHA256=$$(awk -F= '/^SRC_SHA256=/{print $$2}' "$$meta"); \
+		KEY_SHA256=$$(awk -F= '/^KEY_SHA256=/{print $$2}' "$$meta"); \
+		src_sum=$$(sha256sum "$$src" | awk '{print $$1}'); \
+		key_sum=$$(sha256sum "$$key" | awk '{print $$1}'); \
+		if [ "$$src_sum" = "$$SRC_SHA256" ] && [ "$$key_sum" = "$$KEY_SHA256" ]; then \
+			echo "GPG injection up-to-date; skipping"; \
+			exit 0; \
+		fi; \
+	fi; \
+	cp "$$src" "$$tgt"; \
+	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" "$$tgt" "$$key"; \
+	SRC_SHA256=$$(sha256sum "$$src" | awk '{print $$1}'); \
+	KEY_SHA256=$$(sha256sum "$$key" | awk '{print $$1}'); \
+	printf 'SRC_SHA256=%s\nKEY_SHA256=%s\n' "$$SRC_SHA256" "$$KEY_SHA256" > "$$meta"
 
 
 
