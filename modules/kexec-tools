@@ -1,0 +1,27 @@
+modules-$(CONFIG_KEXEC) += kexec-tools
+
+kexec-tools_version := 2.0.26
+kexec-tools_dir := kexec-tools-$(kexec-tools_version)
+kexec-tools_tar := kexec-tools-$(kexec-tools_version).tar.gz
+kexec-tools_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec-tools_tar)
+kexec-tools_hash := 89bdd941542c64fec16311858df304ed3a3908c1a60874d69df5d9bf1611e062
+
+kexec-tools_configure := \
+	CFLAGS="-g -Os -fno-strict-aliasing -Wall -Wstrict-prototypes" \
+	./configure \
+	$(CROSS_TOOLS) \
+	--host $(MUSL_ARCH)-elf-linux \
+	--target $(MUSL_ARCH) \
+	--prefix="/" \
+	--without-lzma \
+	&& $(MAKE) clean
+
+kexec-tools_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+kexec-tools_output := build/sbin/kexec
+
+kexec-tools_depends := zlib $(musl_dep)
