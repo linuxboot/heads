@@ -9,7 +9,7 @@ libhidapi-libusb_url := https://github.com/libusb/hidapi/archive/$(libhidapi-lib
 libhidapi-libusb_hash := 630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
 
 MY_CROSS_TOOLS := \
-	CC="$(heads_cc) -Os" \
+	CC="$(heads_cc) -Oz" \
 	$(CROSS_TOOLS_NOCC) \
 
 

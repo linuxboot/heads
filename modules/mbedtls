@@ -12,7 +12,7 @@ mbedtls_configure :=
 
 mbedtls_target := \
 	SHARED=1 \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	DESTDIR=$(INSTALL) \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \

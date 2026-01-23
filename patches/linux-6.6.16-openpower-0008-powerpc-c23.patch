@@ -1,0 +1,11 @@
+--- a/arch/powerpc/boot/Makefile	2025-08-19 18:11:03.942092926 +0000
++++ b/arch/powerpc/boot/Makefile	2025-08-19 18:11:03.943875445 +0000
+@@ -79,7 +79,7 @@
+ 		   $(call cc-option,-mno-pcrel) \
+ 		   $(call cc-option,-mno-mma) \
+ 		   $(call cc-option,-mno-spe) $(call cc-option,-mspe=no) \
+-		   -fomit-frame-pointer -fno-builtin -fPIC
++		   -fomit-frame-pointer -fno-builtin -fPIC -std=gnu11
+ 
+ BOOTAFLAGS	:= $(BOOTTARGETFLAGS) -D__ASSEMBLY__
+ 

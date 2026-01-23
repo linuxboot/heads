@@ -20,7 +20,7 @@ newt_libraries := \
 	libnewt.so.0.52 \
 
 newt_configure := \
-	./autogen.sh && CFLAGS="-Os" ./configure \
+	./autogen.sh && CFLAGS="-Oz" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

@@ -10,7 +10,7 @@ fbwhiptail_hash := 2eb8fadfd3e2d574de52327bbc80ed6313739a3db9f4d87840c534352c66d
 
 fbwhiptail_target := \
 	$(MAKE_JOBS) \
-    CFLAGS="-g0 -Os" \
+    CFLAGS="-g0 -Oz" \
     LDFLAGS="-s" \
 	$(CROSS_TOOLS) \
 	fbwhiptail

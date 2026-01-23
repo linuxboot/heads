@@ -12,7 +12,7 @@ cryptsetup2_hash := 410ded65a1072ab9c8e41added37b9729c087fef4d2db02bb4ef529ad6da
 # build path.
 cryptsetup2_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

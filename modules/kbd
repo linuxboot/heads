@@ -14,7 +14,7 @@ kbd_tar := kbd-$(kbd_version).tar.gz
 kbd_url := https://www.kernel.org/pub/linux/utils/kbd/$(kbd_tar)
 kbd_hash := aaed530a1490d63d041448372e2ad4f38c3179042903251000b71d527c46e945
 
-kbd_configure := CFLAGS=-Os ./configure \
+kbd_configure := CFLAGS=-Oz ./configure \
 	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "" \

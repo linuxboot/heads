@@ -14,7 +14,7 @@ zstd_configure := true
 # Only the decompressor is built and installed, to be able to read zstd-compressed
 # initramfs archives.
 zstd_target := \
-	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Os" \
+	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Oz" \
 	HAVE_ZLIB=0 \
 	HAVE_LZMA=0 \
 	HAVE_LZ4=0 \
