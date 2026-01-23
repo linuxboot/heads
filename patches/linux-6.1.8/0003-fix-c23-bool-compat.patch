@@ -1,0 +1,17 @@
+diff --git a/work/tmp-linux-orig/include/linux/stddef.h b/work/tmp-linux-edit/include/linux/stddef.h
+index 929d67710c..40862e3a77 100644
+--- ./include/linux/stddef.h
++++ ./include/linux/stddef.h
+@@ -7,10 +7,12 @@
+ #undef NULL
+ #define NULL ((void *)0)
+ 
++#if !(defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
+ enum {
+ 	false	= 0,
+ 	true	= 1
+ };
++#endif
+ 
+ #undef offsetof
+ #define offsetof(TYPE, MEMBER)	__builtin_offsetof(TYPE, MEMBER)
