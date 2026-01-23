@@ -10,7 +10,7 @@ libusb_url := https://github.com/libusb/libusb/releases/download/v$(libusb_versi
 libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 
 libusb_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

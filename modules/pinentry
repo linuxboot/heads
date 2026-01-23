@@ -15,7 +15,7 @@ pinentry_hash := 68076686fa724a290ea49cdf0d1c0c1500907d1b759a3bcbfbec0293e8f5657
 # location.
 pinentry_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \

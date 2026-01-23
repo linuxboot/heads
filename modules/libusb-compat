@@ -11,7 +11,7 @@ libusb-compat_url := https://downloads.sourceforge.net/project/libusb/libusb-com
 libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea328bc55a
 
 libusb-compat_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
