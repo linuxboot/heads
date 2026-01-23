@@ -1,0 +1,83 @@
+--- a/kexec/arch/i386/x86-linux-setup.c	2025-08-11 16:40:00.000000000 +0000
++++ b/kexec/arch/i386/x86-linux-setup.c	2025-08-11 16:40:00.000000000 +0000
+@@ -138,31 +138,76 @@ static int setup_linux_vesafb(struct x86_linux_param_header *real_mode)
+ 	if (-1 == fd)
+ 		return -1;
+ 
+-	if (-1 == ioctl(fd, FBIOGET_FSCREENINFO, &fix))
++	if (-1 == ioctl(fd, FBIOGET_FSCREENINFO, &fix)) {
++                dbgprintf("%s: FBIOGET_FSCREENINFO failed, can't provide framebuffer\n",
++                    __func__);
+ 		goto out;
+-	if (-1 == ioctl(fd, FBIOGET_VSCREENINFO, &var))
++        }
++	if (-1 == ioctl(fd, FBIOGET_VSCREENINFO, &var)) {
++                dbgprintf("%s: FBIOGET_FSCREENINFO failed, can't provide framebuffer\n",
++                    __func__);
+ 		goto out;
+-	if (0 == strcmp(fix.id, "VESA VGA")) {
++        }
++        /*
++         * If we can get a framebuffer from the host kernel, provide it to the
++         * target kernel.  This does not work for all drivers - we have to be
++         * able to get the framebuffer address, and the framebuffer must be a
++         * plain flat framebuffer.  This should work for VESA framebuffers
++         * since that is the only type of framebuffer it creates.
++         *
++         * Since Linux 4.20, getting the framebuffer address requires
++         * CONFIG_DRM_FBDEV_LEAK_PHYS_SMEM and
++         * drm_kms_helper.drm_leak_fbdev_smem=1 on the command line.
++         *
++         * Since Linux 5.8, i915 often uses a compressed framebuffer, this must
++         * be disabled with i915.enable_fbc=0 on the kernel command line.
++         *
++         * This does not work with ast ("astdrmfb") currently as it uses a
++         * shadow buffer internally in the kernel, and there is no way to get
++         * the real framebuffer address.
++         */
++	if (0 == strcmp(fix.id, "VESA VGA")
++            || 0 == strcmp(fix.id, "inteldrmfb")
++            || 0 == strcmp(fix.id, "i915drmfb")) {
+ 		/* VIDEO_TYPE_VLFB */
+ 		real_mode->orig_video_isVGA = 0x23;
++                dbgprintf("%s: Found driver %s, providing VIDEO_TYPE_VLFB\n",
++                    __func__, fix.id);
+ 	} else if (0 == strcmp(fix.id, "EFI VGA")) {
+ 		/* VIDEO_TYPE_EFI */
+ 		real_mode->orig_video_isVGA = 0x70;
++                dbgprintf("%s: Found driver %s, providing VIDEO_TYPE_EFI\n",
++                    __func__, fix.id);
+ 	} else if (arch_options.reuse_video_type) {
+ 		int err;
+ 		off_t offset = offsetof(typeof(*real_mode), orig_video_isVGA);
+ 
+ 		/* blindly try old boot time video type */
+ 		err = get_bootparam(&real_mode->orig_video_isVGA, offset, 1);
+-		if (err)
++		if (err) {
++                        dbgprintf("%s: Can't get booted video type, can't provide framebuffer\n",
++                            __func__);
+ 			goto out;
++                }
++                dbgprintf("%s: Reusing video type %d\n",
++                    __func__, real_mode->orig_video_isVGA);
+ 	} else {
++                fprintf(stderr, "Unknown driver %s, can't provide framebuffer\n kexec'ed OS will take over console only if %s is provided\n",
++                    fix.id, fix.id);
+ 		real_mode->orig_video_isVGA = 0;
+ 		close(fd);
+ 		return 0;
+ 	}
+ 	close(fd);
+ 
++        if (!fix.smem_start) {
++            dbgprintf("%s: Kernel did not provide framebuffer address\n",
++                __func__);
++            dbgprintf("%s: Try enabling CONFIG_DRM_FBDEV_LEAK_PHYS_SMEM and "
++                "drm_kms_helper.drm_leak_fbdev_smem in kernel command-line options\n",
++                __func__);
++        }
++
+ 	real_mode->lfb_width      = var.xres;
+ 	real_mode->lfb_height     = var.yres;
+ 	real_mode->lfb_depth      = var.bits_per_pixel;
