@@ -6,6 +6,7 @@ lvm2_tar := LVM2.$(lvm2_version).tgz
 lvm2_url := https://mirrors.kernel.org/sourceware/lvm2/$(lvm2_tar)
 lvm2_hash := 74e794a9e9dee1bcf8a2065f65b9196c44fdf321e22d63b98ed7de8c9aa17a5d
 
+#TODO: remove libgen.h patch when bumping lvm2 version (current 2.03.23 needs libgen.h include for basename function with GCC 15.1.0)
 # cross compiling test assumes malloc/realloc aren't glibc compat
 # so we force it via the configure cache.
 lvm2_configure := \
@@ -19,7 +20,7 @@ lvm2_configure := \
 	--with-default-pid-dir=/run \
 	--with-default-dm-run-dir=/run \
 	--with-default-run-dir=/run/lvm \
-	--with-optimisation=-Os \
+	--with-optimisation=-Oz \
 	--enable-devmapper \
 	--disable-selinux \
 	--without-systemd \
@@ -37,7 +38,26 @@ lvm2_configure := \
 	--disable-cmirrord \
 	--disable-cache_check_needs_check \
 	--disable-thin_check_needs_check \
+	--disable-systemd-journal \
+	--disable-app-machineid \
+	--disable-blkid_wiping \
+	--disable-o_direct \
+	--disable-fsadm \
+	--disable-blkdeactivate \
+	--disable-blkzeroout \
+	--without-blkid \
+	--without-udev \
 	--with-cluster=none \
+	--with-thin=none \
+	--with-cache=none \
+	--with-vdo=none \
+	--with-writecache=none \
+	--with-integrity=none \
+	--with-snapshots=none \
+	--with-mirrors=none \
+	--disable-udev_rules \
+	--disable-pkgconfig \
+	--disable-nls \
 	--with-thin-check= \
 
 # not sure why LIB_SUFFIX is not defined in the cross build
