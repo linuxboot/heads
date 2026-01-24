@@ -10,6 +10,11 @@ find_drk_key_slot() {
 	local keyslot
 
 	for keyslot in "${luks_used_keyslots[@]}"; do
+		# Keyslots are expected to be numeric, skip non-numeric keyslots for robustness
+		if ! [[ "$keyslot" =~ ^[0-9]+$ ]]; then
+			DEBUG "Skipping non-numeric keyslot: $keyslot"
+			continue
+		fi
 		if [ -z "$temp_drk_key_slot" ]; then
 			DEBUG "Testing LUKS key slot $keyslot against $DISK_RECOVERY_KEY_FILE for Disk Recovery Key slot..."
 			if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
@@ -170,6 +175,11 @@ for dev in $key_devices; do
 
 	# If the key slot is not the expected DUK or DRK key slot, we will ask the user to confirm the wipe
 	for keyslot in "${luks_used_keyslots[@]}"; do
+		# Keyslots are expected to be numeric, skip non-numeric keyslots for robustness
+		if ! [[ "$keyslot" =~ ^[0-9]+$ ]]; then
+			DEBUG "Skipping non-numeric keyslot: $keyslot"
+			continue
+		fi
 		if [ "$keyslot" != "$drk_key_slot" ]; then
 			#set wipe_desired to no by default
 			wipe_desired="no"
