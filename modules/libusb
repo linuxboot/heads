@@ -2,6 +2,10 @@
 modules-$(CONFIG_GPG) += libusb
 modules-$(CONFIG_GPG2) += libusb
 
+# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
+# Evidence: build/x86/log/libusb.log, build/ppc64/log/libusb.log show no `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
+# Inventory classification: OK - no -O2/-O3
+
 libusb_version := 1.0.21
 libusb_dir := libusb-$(libusb_version)
 libusb_tar := libusb-$(libusb_version).tar.bz2

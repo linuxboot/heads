@@ -1,5 +1,10 @@
 modules-y += linux
 
+# TODO(-OFLAG): OFLAG status: CONFIRMED - non -Oz flags in subcomponents
+# Evidence: build/ppc64/log/linux.log and build/ppc64/log/coreboot-talos_2.log show non-`-Oz` flags in kernel/coreboot subcomponents.
+# Action: per-subcomponent audits and narrow patches required. (audit updated 2026-01-27)
+# Inventory classification: non -Oz flags in subcomponents
+
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 	LINUX_ARCH			:= x86
 	LINUX_IMAGE_FILE	:= bzImage

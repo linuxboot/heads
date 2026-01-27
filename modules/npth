@@ -6,6 +6,12 @@ npth_tar := npth-$(npth_version).tar.bz2
 npth_url := https://gnupg.org/ftp/gcrypt/npth/$(npth_tar)
 npth_hash := 1393abd9adcf0762d34798dc34fdcf4d0d22a8410721e76f1e3afcd1daa4e2d1
 
+# TODO(-OFLAG): OFLAG status: CONFIRMED — hardcoded -O2 (30 occurrences) observed in `npth` builds, conflicting with `CFLAGS=-Oz`.
+# Evidence: build/x86/log/npth.log shows `-g -O2` compile lines and `-O2` in link steps.
+# Action: add a minimal patch to remove explicit `-O2` from Makefile fragments or ensure packaging overrides it; validate via cross-arch builds. Priority: Medium.
+# Inventory classification: hardcoded -O2 (30 occurrences)
+
+
 npth_configure := ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-linux-musl \

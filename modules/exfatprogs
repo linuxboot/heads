@@ -2,6 +2,10 @@
 CONFIG_EXFATPROGS ?= y
 modules-$(CONFIG_EXFATPROGS) += exfatprogs
 
+# Inventory classification: UNKNOWN
+
+# TODO(-OFLAG): OFLAG status: OK/Explicitly set to -Oz — this module configures with `CFLAGS="-Oz"` and should comply with the repository policy. No further action required. (audit added 2026-01-27)
+
 exfatprogs_version := 1.2.1
 exfatprogs_dir := exfatprogs-$(exfatprogs_version)
 exfatprogs_tar := exfatprogs-$(exfatprogs_version).tar.xz

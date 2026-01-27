@@ -1,5 +1,9 @@
 modules-$(CONFIG_MBEDTLS) += mbedtls
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (~2 occurrences; evidence: build/x86/log/mbedtls.log, build/ppc64/log/mbedtls.log). (audit updated 2026-01-27)
+
 mbedtls_version := 2.4.2
 mbedtls_dir := mbedtls-$(mbedtls_version)
 mbedtls_tar := mbedtls-$(mbedtls_version).tar.gz

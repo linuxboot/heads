@@ -1,5 +1,10 @@
 modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in build logs (evidence: build/x86/log/fbwhiptail.log).
+# Action: none required; verified. (audit updated 2026-01-27)
+
 fbwhiptail_depends := cairo $(musl_dep)
 
 fbwhiptail_version := 1.3

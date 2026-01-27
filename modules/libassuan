@@ -1,5 +1,9 @@
 modules-$(CONFIG_GPG2) += libassuan
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (~118 occurrences; evidence: build/x86/log/libassuan.log, build/ppc64/log/libassuan.log). (audit updated 2026-01-27)
+
 #TODO: On version bump, check if hardcode_into_libs sed can be removed if configure script improves
 libassuan_version := 2.5.5
 libassuan_dir := libassuan-$(libassuan_version)

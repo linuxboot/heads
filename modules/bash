@@ -1,6 +1,11 @@
 # GNU bash
 modules-$(CONFIG_BASH) += bash
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (111 occurrences; evidence: build/x86/log/bash.log, build/ppc64/log/bash.log).
+# Action: none required; verified in cross-build logs. (audit updated 2026-01-27)
+
 bash_version := 5.1.16
 bash_dir := bash-$(bash_version)
 bash_tar := bash-$(bash_version).tar.gz

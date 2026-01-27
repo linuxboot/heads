@@ -4,6 +4,10 @@
 
 modules-$(CONFIG_GPG) += libusb-compat
 
+# Inventory classification: UNKNOWN - no logs
+
+# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `libusb-compat` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+
 libusb-compat_version := 0.1.5
 libusb-compat_dir := libusb-compat-$(libusb-compat_version)
 libusb-compat_tar := libusb-compat-$(libusb-compat_version).tar.bz2

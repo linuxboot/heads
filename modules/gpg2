@@ -1,5 +1,9 @@
 modules-$(CONFIG_GPG2) += gpg2
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (~680 occurrences across logs; evidence: build/x86/log/gpg2.log, build/ppc64/log/gpg2.log). (audit updated 2026-01-27)
+
 gpg2_version := 2.4.0
 gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2

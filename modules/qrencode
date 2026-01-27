@@ -1,5 +1,9 @@
 modules-$(CONFIG_QRENCODE) += qrencode
 
+# Inventory classification: OK - explicitly set -Oz
+
+# TODO(-OFLAG): OFLAG status: OK/Explicitly set to -Oz — `qrencode` already configures with `CFLAGS="-Oz"`, no action required now. (audit added 2026-01-27)
+
 qrencode_version := 3.4.4
 qrencode_dir := qrencode-$(qrencode_version)
 qrencode_tar := qrencode-$(qrencode_version).tar.gz

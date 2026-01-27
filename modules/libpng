@@ -1,5 +1,9 @@
 modules-$(CONFIG_CAIRO) += libpng
 
+# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
+# Evidence: build/x86/log/libpng.log does not show `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
+# Inventory classification: OK - no -O2/-O3
+
 libpng_version := 1.6.34
 libpng_dir := libpng-$(libpng_version)
 libpng_tar := libpng-$(libpng_version).tar.gz

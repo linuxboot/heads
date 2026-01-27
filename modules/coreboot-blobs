@@ -1,2 +1,6 @@
 # empty placeholder file
+
+# Inventory classification: N/A - placeholder
 # This submodule is defined in modules/coreboot if necessary
+
+# TODO(-OFLAG): OFLAG status: N/A — placeholder module; no build artifacts expected. If `coreboot-blobs` is later materialized, re-run build/log inspection and update status accordingly. (audit updated 2026-01-27)

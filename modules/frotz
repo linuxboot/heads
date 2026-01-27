@@ -1,5 +1,9 @@
 modules-$(CONFIG_FROTZ) += frotz
 
+# Inventory classification: UNKNOWN - no logs
+
+# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `frotz` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+
 frotz_version := 2.44
 frotz_dir := frotz-$(frotz_version)
 frotz_tar := frotz-$(frotz_version).tar.gz

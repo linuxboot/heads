@@ -8,6 +8,11 @@ cryptsetup2_tar := cryptsetup-$(cryptsetup2_version).tar.xz
 cryptsetup2_url := https://www.kernel.org/pub/linux/utils/cryptsetup/v2.6/cryptsetup-$(cryptsetup2_version).tar.xz
 cryptsetup2_hash := 410ded65a1072ab9c8e41added37b9729c087fef4d2db02bb4ef529ad6da4693
 
+# TODO(-OFLAG): OFLAG status: CONFIRMED — mixed -O3 and -Oz (bundled Argon2/Blake2 sets `-O3`; evidence: build/ppc64/log/cryptsetup2.log).
+# Action: the existing patch `patches/cryptsetup2-2.6.1.patch` removes the `-O3`; apply & verify in cross-builds on ppc64 and x86 and update this TODO with the patch merge request. Priority: High.
+# Inventory classification: mixed -O3 and -Oz
+
+
 # Use an empty prefix so that the executables will not include the
 # build path.
 cryptsetup2_configure := \

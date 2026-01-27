@@ -1,6 +1,8 @@
 # dropbear is a tiny ssh client
 modules-$(CONFIG_DROPBEAR) += dropbear
 
+# Inventory classification: UNKNOWN
+
 dropbear_version := 2025.88
 dropbear_dir := dropbear-$(dropbear_version)
 dropbear_tar := dropbear-$(dropbear_version).tar.bz2
@@ -17,6 +19,9 @@ dropbear_hash := 783f50ea27b17c16da89578fafdb6decfa44bb8f6590e5698a4e4d3672dc53d
 #       -Os (configurable via LTM_CFLAGS/DROPBEAR_LTM_CFLAGS). If you need
 #       further size tuning or to hunt GCC15 regressions, explore the
 #       libtommath/libtomcrypt flag variables (LTM_CFLAGS/LTC_CFLAGS) first.
+#
+# TODO(-OFLAG): OFLAG status: OK — main build uses `-Oz` (4 occurrences) and bundled libtommath uses `-Os` (2 occurrences); no `-O2`/`-O3` occurrences found in current logs (evidence: build/x86/log/dropbear.log).
+# Action: optional follow-up: inspect bundled libtommath/libtomcrypt Makefile fragments for hardcoded `-O3`; if present, remove or make conditional so `CFLAGS=-Oz` is respected in packaging. Priority: Low-to-Medium.
 #
 # NOTE: network support under Heads is seldom used. The `#network-recovery-init`
 #       hook (when present) is currently the main place that invokes dropbear

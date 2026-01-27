@@ -1,5 +1,9 @@
 modules-$(CONFIG_FLASHROM) += flashrom
 
+# Inventory classification: UNKNOWN - no logs
+
+# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `flashrom` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+
 flashrom_depends := pciutils $(musl_dep)
 
 flashrom_version := 1776bb46ba6ea3d1ab2ec3f0cd88158aabed7400

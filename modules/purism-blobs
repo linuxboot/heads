@@ -1,5 +1,9 @@
 modules-$(CONFIG_PURISM_BLOBS) += purism-blobs
 
+# TODO(-OFLAG): OFLAG status: N/A — binary blobs; no build artifacts expected. (audit updated 2026-01-27)
+
+# Inventory classification: N/A - binary blobs
+
 purism-blobs_base_dir := coreboot-$(CONFIG_COREBOOT_VERSION)/3rdparty/purism-blobs
 purism-blobs_version := 995f66c445841b86e6596e9b297cc4888c0257e5
 purism-blobs_tar := purism-blobs-${purism-blobs_version}.tar.gz

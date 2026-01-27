@@ -1,5 +1,10 @@
 modules-$(CONFIG_IOPORT) += ioport
 
+# Inventory classification: UNKNOWN - no logs
+
+# TODO(-OFLAG): OFLAG status: UNKNOWN 
+# Not used in boards
+
 ioport_version := 1.2.orig
 ioport_dir := ioport-$(ioport_version)
 ioport_tar := ioport_$(ioport_version).tar.gz

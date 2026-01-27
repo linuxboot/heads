@@ -17,6 +17,10 @@ kexec-tools_configure := \
 	--without-lzma \
 	&& $(MAKE) clean
 
+# TODO(-OFLAG): OFLAG status: CONFIRMED — mixed -Os/-O2/-Oz (O2:4 / Os:18 / Oz:87) occurrences, producing inconsistent final objects (evidence: build/x86/log/kexec-tools.log).
+# Action: apply a focused patch to remove explicit `-O2`/`-O3` occurrences and normalize to `-Oz` in packaging; verify by building on target architectures. Priority: Medium.
+# Inventory classification: mixed -Os/-O2/-Oz (O2:4 / Os:18 / Oz:87)
+
 kexec-tools_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \

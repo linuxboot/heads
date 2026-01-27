@@ -1,5 +1,9 @@
 modules-$(CONFIG_LINUXBOOT) += linuxboot
 
+# Inventory classification: UNKNOWN - no logs
+
+# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `linuxboot` in this retest. Run targeted board builds and re-check logs per-arch to classify. (audit updated 2026-01-27)
+
 linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
 linuxboot_base_dir := linuxboot-$(linuxboot_version)

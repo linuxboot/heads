@@ -1,5 +1,9 @@
 modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
+# TODO(-OFLAG): OFLAG status: UNKNOWN
+# Nothing uses this older module, cryptsetup2 is used instead
+# Inventory classification: UNKNOWN
+
 cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
 
 cryptsetup_version := 1.7.3

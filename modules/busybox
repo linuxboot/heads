@@ -2,6 +2,10 @@
 CONFIG_BUSYBOX ?= y
 modules-$(CONFIG_BUSYBOX) += busybox
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in build logs (evidence: build/x86/log/busybox.log, build/ppc64/log/busybox.log). (audit updated 2026-01-27)
+
 busybox_version := 1.36.1
 busybox_dir := busybox-$(busybox_version)
 busybox_tar := busybox-$(busybox_version).tar.bz2

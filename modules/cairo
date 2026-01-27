@@ -1,5 +1,10 @@
 modules-$(CONFIG_CAIRO) += cairo
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in current build logs (evidence: build/x86/log/cairo.log).
+# Action: none required; verified. (audit updated 2026-01-27)
+
 cairo_version := 1.14.12
 cairo_dir := cairo-$(cairo_version)
 cairo_tar := cairo-$(cairo_version).tar.xz

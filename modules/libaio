@@ -6,6 +6,10 @@ libaio_tar := libaio_$(libaio_version).orig.tar.gz
 libaio_url := https://deb.debian.org/debian/pool/main/liba/libaio/$(libaio_tar)
 libaio_hash := 2c44d1c5fd0d43752287c9ae1eb9c023f04ef848ea8d4aafa46e9aedb678200b
 
+# TODO(-OFLAG): OFLAG status: CONFIRMED — hardcoded -O2 (4 occurrences) observed during `libaio` compilation, conflicting with `CFLAGS=-Oz`.
+# Action: propose a minimal packaging patch to remove or override `-O2` in Makefile fragments and verify via cross-arch builds. Priority: Medium.
+# Inventory classification: hardcoded -O2 (4 occurrences)
+
 libaio_target := \
 	DESTDIR="$(INSTALL)" \
 	prefix="/" \

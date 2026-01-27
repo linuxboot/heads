@@ -1,5 +1,10 @@
 modules-$(CONFIG_GPG2) += libgpg-error
 
+# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
+# Evidence: build/x86/log/libgpg-error.log, build/ppc64/log/libgpg-error.log do not show `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
+# Inventory classification: OK - no -O2/-O3
+# Action: none required; verified. (audit updated 2026-01-27)
+
 #TODO: On version bump, check if PowerPC64LE lock object creation is still needed in patches/libgpg-error-1.46.patch
 libgpg-error_version := 1.46
 libgpg-error_dir := libgpg-error-$(libgpg-error_version)

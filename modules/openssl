@@ -1,6 +1,11 @@
 # OpenSSL library
 modules-$(CONFIG_OPENSSL) += openssl
 
+# Inventory classification: OK - no -O2/-O3
+
+# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in inspected build logs (evidence: build/x86/log/openssl.log).
+# Action: none required; verified. (audit updated 2026-01-27)
+
 openssl_version := 3.0.8
 openssl_dir := openssl-$(openssl_version)
 openssl_tar := openssl-$(openssl_version).tar.gz

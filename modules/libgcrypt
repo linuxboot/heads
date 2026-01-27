@@ -1,5 +1,9 @@
 modules-$(CONFIG_GPG2) += libgcrypt
 
+# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
+# Evidence: build/x86/log/libgcrypt.log, build/ppc64/log/libgcrypt.log do not show `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
+# Inventory classification: OK - no -O2/-O3
+
 #TODO: On version bump, check if hardcode_into_libs sed can be removed if configure script improves
 libgcrypt_version := 1.10.1
 libgcrypt_dir := libgcrypt-$(libgcrypt_version)
