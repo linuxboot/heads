@@ -1,3 +1,7 @@
+# 0001-unhardcode-ln-in-src-Makefile.patch
+# Purpose: avoid hardcoding an absolute /bin/ln in src/Makefile.in so the build uses the
+# ln on PATH (improves cross-build and portability).
+
 diff --git a/src/Makefile.in b/src/Makefile.in
 index 7fe4dc2..38fe174 100644
 --- a/src/Makefile.in

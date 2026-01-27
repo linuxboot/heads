@@ -10,7 +10,12 @@ slang_hash := f9145054ae131973c61208ea82486d5dd10e3c5cdad23b7c4a0617743c8f5a18
 # Action: create a minimal packaging patch (e.g., sed to strip `-O2` from generated Makefiles or adjust configure flags) and verify via cross-target builds that `-Oz` is used for final objects. Priority: Medium.
 # Inventory classification: hardcoded -O2 (166 occurrences)
 
-slang_configure := ./configure \
+
+# Minimal pre-configure substitution to neutralize -O2 in generated templates so packaging CFLAGS (e.g., -Oz) can take effect; keep small and easy to re-apply on version bumps.
+
+slang_configure := \
+	sed -i 's/CFLAGS="-g -O2"/CFLAGS="-g -Oz"/g; s/CFLAGS="-O2"/CFLAGS="-Oz"/g; s/-O2/-Oz/g' configure src/mkfiles/makefile.all slsh/mkfiles/makefile.all modules/mkfiles/makefile.all slsh/Makefile.g32 autoconf/aclocal.m4 INSTALL.unx || true \
+	&& ./configure \
 	$(CROSS_TOOLS) \
 	ac_cv_path_nc5config=ncurses-config \
 	--host $(MUSL_ARCH)-elf-linux \
