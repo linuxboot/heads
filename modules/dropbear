@@ -27,7 +27,13 @@ dropbear_hash := 783f50ea27b17c16da89578fafdb6decfa44bb8f6590e5698a4e4d3672dc53d
 #       compatibility fixes before widening -Oz usage elsewhere.
 # Force main build to use -Oz and prefer -Os for the bundled libtommath.
 # This keeps main dropbear space-optimised while avoiding O3 for libtommath.
-dropbear_configure := CFLAGS="-Oz" DROPBEAR_LTM_CFLAGS="-Os" LTM_CFLAGS="-Os" ./configure \
+# Use Autotools' cross-compile mechanism so configure knows it's a cross
+# build and won't probe the host compiler for runtime-only hardened flags.
+# Use $(CROSS_TOOLS) so CC and other crosstools are set consistently.
+
+dropbear_configure := $(CROSS_TOOLS) \
+	CFLAGS="-Oz" DROPBEAR_LTM_CFLAGS="-Os" LTM_CFLAGS="-Os" ./configure \
+	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-lastlog \
 	--disable-syslog \
@@ -41,7 +47,6 @@ dropbear_configure := CFLAGS="-Oz" DROPBEAR_LTM_CFLAGS="-Os" LTM_CFLAGS="-Os" ./
 	--disable-openpty \
 	--disable-shadow \
 
-dropbear_output := ssh scp dropbear
 dropbear_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
@@ -49,5 +54,7 @@ dropbear_target := \
 	dbclient scp dropbear \
 	&& \
 	cp -a $(build)/$(dropbear_dir)/dbclient $(build)/$(dropbear_dir)/ssh
+
+dropbear_output := ssh scp dropbear
 
 dropbear_depends := zlib $(musl_dep)
