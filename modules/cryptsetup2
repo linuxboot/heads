@@ -12,6 +12,7 @@ cryptsetup2_hash := 410ded65a1072ab9c8e41added37b9729c087fef4d2db02bb4ef529ad6da
 # build path.
 # Pre-configure substitutions mirror other modules and are intentionally small
 # to avoid brittle edits in generated files.
+# Note: OFLAG fix applied and validated (commit fac65ebc7e) — removes embedded -O3 in Argon2 and normalizes libtool flags.
 
 cryptsetup2_configure := \
 	( \
