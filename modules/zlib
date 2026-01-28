@@ -1,11 +1,7 @@
 CONFIG_ZLIB ?= y
 modules-$(CONFIG_ZLIB) += zlib
 
-
-# OFLAG: Enforce CFLAGS='-Oz' at packaging time (set in configure wrapper)
-
-
-
+# Inventory classification: fixed - CFLAGS=-Oz applied (verified)
 
 zlib_version := 1.2.11
 zlib_dir := zlib-$(zlib_version)
@@ -13,6 +9,7 @@ zlib_tar := zlib-$(zlib_version).tar.gz
 zlib_url := https://zlib.net/fossils/$(zlib_tar)
 zlib_hash := c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1
 
+# OFLAG: resolved — packaging enforces CFLAGS=-Oz; cross-arch verification tracked in TODO_zlib_cross_arch.md
 
 zlib_configure := \
 	CFLAGS=-Oz $(CROSS_TOOLS) ./configure \
