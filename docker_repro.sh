@@ -12,8 +12,8 @@ fi
 # Inform the user about the versioned CircleCI Docker image being used
 echo "Using CircleCI Docker image: $DOCKER_IMAGE"
 
-# Source shared docker helper functions
-source "$(dirname "$0")/common.sh"
+# Source shared docker helper functions (use the docker/ path where common.sh lives)
+source "$(dirname "$0")/docker/common.sh"
 
 # Inform the user about entering the Docker container
 echo "----"

@@ -5,7 +5,7 @@ echo "Using the latest Docker image: tlaurion/heads-dev-env:latest"
 DOCKER_IMAGE="tlaurion/heads-dev-env:latest"
 
 # Source shared docker helper functions
-source "$(dirname "$0")/common.sh"
+source "$(dirname "$0")/docker/common.sh"
 
 
 # Execute the docker run command with the provided parameters

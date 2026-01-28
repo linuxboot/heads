@@ -28,7 +28,7 @@ echo "For producing reproducible builds as CircleCI, refer to ./docker_repro.sh.
 echo ""
 
 # Source shared docker helper functions
-source "$(dirname "$0")/common.sh"
+source "$(dirname "$0")/docker/common.sh"
 
 # Inform the user about entering the Docker container
 echo "----"
