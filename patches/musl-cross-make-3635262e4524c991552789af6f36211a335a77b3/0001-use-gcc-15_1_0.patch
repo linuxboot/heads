@@ -1,0 +1,11 @@
+--- ./Makefile.orig	2025-07-29 14:01:18.949933787 -0400
++++ ./Makefile	2025-07-29 14:03:06.285334095 -0400
+@@ -3,7 +3,7 @@
+ 
+ CONFIG_SUB_REV = 3d5db9ebe860
+ BINUTILS_VER = 2.44
+-GCC_VER = 9.4.0
++GCC_VER = 15.1.0
+ MUSL_VER = 1.2.5
+ GMP_VER = 6.3.0
+ MPC_VER = 1.3.1

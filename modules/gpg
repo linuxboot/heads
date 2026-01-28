@@ -18,7 +18,7 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 # Otherwise it wil try to run tests.
 #
 gpg_configure := \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	$(CROSS_TOOLS) \
 	./configure \
 	--build $(MUSL_ARCH)-elf-linux \

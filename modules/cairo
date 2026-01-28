@@ -6,8 +6,11 @@ cairo_tar := cairo-$(cairo_version).tar.xz
 cairo_url := https://www.cairographics.org/releases/$(cairo_tar)
 cairo_hash := 8c90f00c500b2299c0a323dd9beead2a00353752b2092ead558139bd67f7bf16
 
+# TODO(GCC15-CAIRO): GCC 15.1 C23 standard requires workaround flags
+# Note: Cairo 1.18.0+ switched to Meson build system (1.16.0 was last autotools version).
+# Upgrading would require additional build infrastructure changes beyond simple autotools configure/make pattern
 cairo_configure := \
-	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os"  \
+	CFLAGS="-DCAIRO_NO_MUTEX=1 -std=gnu11 -Wno-inline -Wno-incompatible-pointer-types -Oz"  \
 	$(CROSS_TOOLS) \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \

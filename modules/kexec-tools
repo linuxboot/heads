@@ -1,0 +1,27 @@
+modules-$(CONFIG_KEXEC) += kexec-tools
+
+kexec-tools_version := upstream
+kexec-tools_dir := kexec-tools-e18a71faae081d075c8d3ec559aa68a59295c739
+kexec-tools_repo := https://github.com/horms/kexec-tools.git
+kexec-tools_commit_hash := e18a71faae081d075c8d3ec559aa68a59295c739
+
+kexec-tools_configure := \
+	autoreconf -fi \
+	&& CFLAGS="-g -Oz -fno-strict-aliasing -Wall -Wstrict-prototypes" \
+	./configure \
+	$(CROSS_TOOLS) \
+	--host $(MUSL_ARCH)-elf-linux \
+	--target $(MUSL_ARCH) \
+	--prefix="/" \
+	--without-lzma \
+	&& $(MAKE) clean
+
+kexec-tools_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	DESTDIR="$(INSTALL)" \
+	install \
+
+kexec-tools_output := build/sbin/kexec
+
+kexec-tools_depends := zlib $(musl_dep)

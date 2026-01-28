@@ -1,0 +1,11 @@
+--- a/libtpm/pcrs.c	2025-08-11 12:21:30.326408205 -0400
++++ b/libtpm/pcrs.c	2025-08-11 12:21:30.350638363 -0400
+@@ -118,7 +118,7 @@
+ 				}
+ 			}
+ #else
+-			fprintf(stderr, "%s:%s: Not supported\n", __FILE__, __LINE__);
++			fprintf(stderr, "%s:%d: Not supported\n", __FILE__, __LINE__);
+ 			exit(-1);
+ #endif
+ 		break;
