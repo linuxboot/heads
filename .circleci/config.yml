@@ -297,6 +297,20 @@ workflows:
       # Those onboarding new boards should add their entries below.
       # coreboot 25.09 boards
       - build:
+          name: EOL_m900_tiny-hotp-maximized
+          target: EOL_m900_tiny-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_m900_tiny-maximized
+          target: EOL_m900_tiny-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
           name: EOL_x220-hotp-maximized
           target: EOL_x220-hotp-maximized
           subcommand: ""
