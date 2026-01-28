@@ -20,8 +20,7 @@ dropbear_hash := 783f50ea27b17c16da89578fafdb6decfa44bb8f6590e5698a4e4d3672dc53d
 #       further size tuning or to hunt GCC15 regressions, explore the
 #       libtommath/libtomcrypt flag variables (LTM_CFLAGS/LTC_CFLAGS) first.
 #
-# TODO(-OFLAG): OFLAG status: OK — main build uses `-Oz` (4 occurrences) and bundled libtommath uses `-Os` (2 occurrences); no `-O2`/`-O3` occurrences found in current logs (evidence: build/x86/log/dropbear.log).
-# Action: optional follow-up: inspect bundled libtommath/libtomcrypt Makefile fragments for hardcoded `-O3`; if present, remove or make conditional so `CFLAGS=-Oz` is respected in packaging. Priority: Low-to-Medium.
+# FIXED(-OFLAG): packaging-time sed normalizes optimization flags to `-Oz` only (replaces `-O[0-9]+` and `-Os` with `-Oz`). We intentionally do **not** strip `-funroll-loops` or `-fomit-frame-pointer` here — reintroducing those options into bundled libs did not change the final `dropbear`/`ssh` sizes in our experiments. Validated V=1: configure and build logs show `-Oz` for the main build, but a size regression remains versus an earlier CircleCI artifact (dropbear: 184,832 → 241,248; ssh: 176,416 → 233,048, both ≈ +56 KiB). Local builds use GCC 15.1.0 while the earlier artifact used GCC 9.4.0, so the most likely root cause is compiler/toolchain or upstream package-version changes rather than residual `-O` flags. Action: retain the minimal, reversible sed (creates `.bak`) for reproducibility; record this regression in `build_OFLAG_inventory.csv` and `doc/OFLAG_fixes.md` for future follow-up (possible experiments: rebuild with GCC 9.4, symbol/section diffs, or linker-level mitigations). Priority: Low.
 #
 # NOTE: network support under Heads is seldom used. The `#network-recovery-init`
 #       hook (when present) is currently the main place that invokes dropbear
@@ -30,14 +29,17 @@ dropbear_hash := 783f50ea27b17c16da89578fafdb6decfa44bb8f6590e5698a4e4d3672dc53d
 #
 # TODO: Revisit and document any further flag experiments or required
 #       compatibility fixes before widening -Oz usage elsewhere.
-# Force main build to use -Oz and prefer -Os for the bundled libtommath.
+# Force main build to use -Oz and prefer -Oz for the bundled libtommath.
 # This keeps main dropbear space-optimised while avoiding O3 for libtommath.
 # Use Autotools' cross-compile mechanism so configure knows it's a cross
 # build and won't probe the host compiler for runtime-only hardened flags.
 # Use $(CROSS_TOOLS) so CC and other crosstools are set consistently.
 
-dropbear_configure := $(CROSS_TOOLS) \
-	CFLAGS="-Oz" DROPBEAR_LTM_CFLAGS="-Os" LTM_CFLAGS="-Os" ./configure \
+dropbear_configure := \
+	( \
+		sed -E -i.bak 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g' configure libtommath/makefile_include.mk libtomcrypt/makefile_include.mk || true; \
+	) && $(CROSS_TOOLS) \
+	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \
 	--disable-lastlog \
