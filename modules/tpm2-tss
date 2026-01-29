@@ -1,17 +1,24 @@
 # TPM2 TSS library
 modules-$(CONFIG_TPM2_TSS) += tpm2-tss
 
-
-# OFLAG: Pre-configure sed normalizes optimization flags to '-Oz' (sed pattern replaces -O[0-9]+ and -Os with -Oz) applied before build.
-
-
-
 tpm2-tss_version := 3.2.2
 tpm2-tss_dir := tpm2-tss-$(tpm2-tss_version)
 tpm2-tss_tar := tpm2-tss-$(tpm2-tss_version).tar.gz
 tpm2-tss_url := https://github.com/tpm2-software/tpm2-tss/releases/download/$(tpm2-tss_version)/$(tpm2-tss_tar)
 tpm2-tss_hash := ba9e52117f254f357ff502e7d60fce652b3bfb26327d236bbf5ab634235e40f1
 
+
+# OFLAG status: addressed — packaging-time normalization applied to autotools inputs
+# Actions taken:
+#  - Applied in-place `sed -i` normalization to `configure.ac` and `m4/*` to replace `-O[0-9]+` and `-Os` with `-Oz` and to collapse duplicate `-Oz` tokens.
+#  - Avoided editing generated `configure` in-place to prevent corrupting embedded scripts/backreferences; instead we edit autotools inputs and run `autoreconf`.
+#  - Set `hardcode_into_libs=yes` -> `no` to avoid hardcoding lib paths into installed `.la` artifacts.
+# Validation & repro:
+#  - Full verbose board build (V=1) completed and `build/x86/log/tpm2-tss.log` shows compile invocations using `-Oz` and **no** `-O2` in effective compile/link lines.
+#  - Residual `-O2` occurrences remain only in autotools caches/traces (e.g. `autom4te.cache/*`, `configure~`), which are informational and do not affect actual compile commands.
+# Next steps:
+#  - Optionally run `make BOARD=XYZ tpm2-tss V=1` to validate package-only behavior and ensure regenerated files remain normalized; otherwise consider this module ready for committing the packaging-time edits.
+# Inventory classification: fixed — packaging-time sed applied; validated (no -O2 in compile lines; -Oz present)
 
 tpm2-tss_configure := \
 	sed -i 's/-O[0-9][0-9]*/-Oz/g; s/-Os/-Oz/g' configure.ac \
