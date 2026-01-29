@@ -5,41 +5,41 @@ zlib,ppc64,fixed - CFLAGS=-Oz applied (verified x86 & ppc64; legacy -O tokens re
 tpmtotp,x86,abnormal -O3 (71 occurrences) - needs inspection; sample compile line: "... -ggdb -O3 -Wp,-MMD,./.nv.o.d -Wp,-MT,nv.o -W -Wall -Wextra -std=c99 ... -o nv.o -c nv.c","build/x86/log/tpmtotp.log"
 tpmtotp,ppc64,abnormal -O3 (71 occurrences) - needs inspection; sample compile line: "... -ggdb -O3 -Wp,-MMD,./.nv.o.d -Wp,-MT,nv.o -W -Wall -Wextra -std=c99 ... -o nv.o -c nv.c","build/ppc64/log/tpmtotp.log"
 npth,x86,fixed - pre-configure sed applied; validated V=1 (x86),"... -g -Oz -MT npth.lo -MD -MP -MF .deps/npth.Tpo -c -o npth.lo npth.c","build/x86/log/npth.log"
-pciutils,x86,fixed - packaging-time sed applied; validated V=1; no -O2 occurrences in current logs; sed uses in-place edits (no .bak files),"... -Oz -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes   -c -o lspci.o lspci.c","build/x86/log/pciutils.log"
-kbd,x86,mixed -O2 and -Oz,"... -O2 -D_FORTIFY_SOURCE=2 -Oz -Waggregate-return ... -c -o getfd.o getfd.c","build/x86/log/kbd.log"
-kexec-tools,x86,mixed -Os/-O2/-Oz (O2:2 / Os:10 / Oz:43),"... -Os ... -O2  -mcmodel=large ... -c -o purgatory/sha256.o util_lib/sha256.c","build/x86/log/kexec-tools.log"
-libaio,x86,hardcoded -O2 (2 occurrences),"... -g -fomit-frame-pointer -O2 -Wall -I. -fPIC -c struct_offsets.c","build/x86/log/libaio.log"
+pciutils,x86,mixed - O2:49 / Os:2 / Oz:4 (needs re-check; packaging-time sed applied for some files),"... -Oz -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes   -c -o lspci.o lspci.c","build/x86/log/pciutils.log"
+kbd,x86,mixed - O2:17 / Oz:87 (total 104); needs follow-up to normalize to -Oz,"... -O2 -D_FORTIFY_SOURCE=2 -Oz -Waggregate-return ... -c -o getfd.o getfd.c","build/x86/log/kbd.log"
+kexec-tools,x86,mixed - Os:40 / O2:10 / Oz:131 (scan totals); needs inspection,"... -Os ... -O2  -mcmodel=large ... -c -o purgatory/sha256.o util_lib/sha256.c","build/x86/log/kexec-tools.log"
+libaio,x86,hardcoded -O2 (4 occurrences across archs),"... -g -fomit-frame-pointer -O2 -Wall -I. -fPIC -c struct_offsets.c","build/x86/log/libaio.log"
 tpm2-tss,x86,fixed - packaging-time sed applied; validated V=1 (no -O2 occurrences; -Oz:589),"... -Oz -std=c99 -Wall -Wextra -fstack-protector-all -fpic -fPIC ... -c src/tss2-tcti/tctildr.c","build/x86/log/tpm2-tss.log"
-musl-cross-make,N/A,AS-IS - buildsystem-related (50 occurrences); deferred - not fixing now,"... -O2 ...","build/x86/log/musl-cross-make.log"
+ musl-cross-make,N/A,AS-IS - buildsystem-related (8550 -O2 occurrences); deferred - not fixing now,"... -O2 ...","build/x86/log/musl-cross-make.log"
 slang,x86,fixed (pre-configure substitution applied),"... -g -Oz -c -o slang.o slang.c","build/x86/log/slang.log"
 slang,ppc64,fixed (pre-configure substitution applied),"... -g -Oz -c -o slang.o slang.c","build/ppc64/log/slang.log"
-popt,ppc64,hardcoded -O2,"... -g -O2 -c -o popt.o popt.c","build/ppc64/log/popt.log"
-linux/coreboot,ppc64,non -Oz flags in subcomponents,"... -O2 ... -c ...","build/ppc64/log/coreboot-talos_2.log"
+popt,ppc64,hardcoded -O2 (108 occurrences across logs),"... -g -O2 -c -o popt.o popt.c","build/ppc64/log/popt.log"
+linux/coreboot,ppc64,non -Oz flags in subcomponents (O2:88 occurrences in coreboot-talos_2),"... -O2 ... -c ...","build/ppc64/log/coreboot-talos_2.log"
 newt,x86,OK - no -O2/-O3,,"build/x86/log/newt.log"
 ncurses,x86,OK - no -O2/-O3,,"build/x86/log/ncurses.log"
-bash,,OK - no -O2/-O3, ,build/x86/log/bash.log
+bash,,OK - CFLAGS=-Oz applied; Oz occurrences: 844,"... -Oz ...","build/x86/log/bash.log"
 busybox,,OK - no -O2/-O3, ,build/x86/log/busybox.log
 cairo,,OK - no -O2/-O3, ,build/x86/log/cairo.log
 coreboot,,UNKNOWN - no logs,,
 coreboot-blobs,,N/A - placeholder, ,
 cryptsetup,,UNKNOWN,,
 dropbear,x86,fixed - packaging-time sed normalizes -O/Os -> -Oz only; validated V=1 (x86); size regression observed (dropbear: 184,832 -> 241,248; ssh: 176,416 -> 233,048, ≈+56 KiB) — likely due to compiler/toolchain (GCC 15.1.0 vs GCC 9.4.0) or upstream version changes; follow-ups: rebuild with GCC 9.4, symbol/section diffs, or linker-level mitigations,"... -Oz -W -Wall ...","build/x86/dropbear-2025.88/config.log"
-e2fsprogs,,UNKNOWN,,"build/x86/log/e2fsprogs.log"
-exfatprogs,,UNKNOWN,,"build/x86/log/exfatprogs.log"
+ e2fsprogs,,OK - CFLAGS=-Oz applied; Oz occurrences: 450,"... -Oz ...","build/x86/log/e2fsprogs.log"
+ exfatprogs,,OK - CFLAGS=-Oz applied; Oz occurrences: 68,"... -Oz ...","build/x86/log/exfatprogs.log"
 fbwhiptail,,OK - no -O2/-O3, ,build/x86/log/fbwhiptail.log
 flashprog,,OK - no -O2/-O3, ,build/x86/log/flashprog.log
 flashrom,,UNKNOWN - no logs, ,
 flashtools,,OK - no -O2/-O3, ,build/x86/log/flashtools.log
 frotz,,UNKNOWN - no logs, ,
 gpg,,OK - no -O2/-O3, ,build/x86/log/gpg.log
-gpg2,,OK - CFLAGS=-Oz applied; Oz occurrences: 344,"... -Oz ...","build/x86/log/gpg2.log"
+gpg2,,OK - CFLAGS=-Oz applied; Oz occurrences: 668 (x86 & ppc64),"... -Oz ...","build/x86/log/gpg2.log"
 hidapi,,OK - no -O2/-O3, ,build/x86/log/hidapi.log
 hotp-verification,,OK - no -O2/-O3, ,build/x86/log/hotp-verification.log
 io386,,OK - no -O2/-O3, ,build/x86/log/io386.log
 ioport,,UNKNOWN - no logs, ,
 json-c,,OK - no -O2/-O3, ,build/x86/log/json-c.log
 libassuan,,OK - no -O2/-O3, ,build/x86/log/libassuan.log
-libgcrypt,,OK - CFLAGS=-Oz applied; Oz occurrences: 370,"... -Oz ...","build/x86/log/libgcrypt.log"
+libgcrypt,,OK - CFLAGS=-Oz applied; Oz occurrences: 1079 (scan across x86/ppc64),"... -Oz ...","build/x86/log/libgcrypt.log"
 libgpg-error,,OK - no -O2/-O3, ,build/x86/log/libgpg-error.log
 libhidapi-libusb,,UNKNOWN - no logs, ,
 libksba,,OK - no -O2/-O3, ,build/x86/log/libksba.log
@@ -59,7 +59,7 @@ pixman,,OK - no -O2/-O3, ,build/x86/log/pixman.log
 powerpc-utils,,OK - no -O2/-O3, ,build/ppc64/log/powerpc-utils.log
 purism-blobs,,N/A - binary blobs, ,
 qrencode,,OK - explicitly set -Oz, ,build/x86/log/qrencode.log
-tpm2-tools,,CONFIRMED - hardcoded -O2 (1 occurrence), ,build/x86/log/tpm2-tools.log
+tpm2-tools,,CONFIRMED - hardcoded -O2 (3 occurrences across logs), ,build/x86/log/tpm2-tools.log
 u-root,,UNKNOWN - no logs, ,
 util-linux,,OK - no -O2/-O3, ,build/x86/log/util-linux.log
 zstd,,OK - no -O2/-O3, ,build/x86/log/zstd.log

@@ -11,7 +11,6 @@ Produces lines: module,O,Os,O2,O3,Oz,total,examples
 import argparse
 import os
 import re
-import glob
 from collections import defaultdict
 
 def module_from_path(p):
