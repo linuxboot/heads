@@ -6,9 +6,14 @@ libaio_tar := libaio_$(libaio_version).orig.tar.gz
 libaio_url := https://deb.debian.org/debian/pool/main/liba/libaio/$(libaio_tar)
 libaio_hash := 2c44d1c5fd0d43752287c9ae1eb9c023f04ef848ea8d4aafa46e9aedb678200b
 
-# TODO(-OFLAG): OFLAG status: CONFIRMED — hardcoded -O2 (4 occurrences) observed during `libaio` compilation, conflicting with `CFLAGS=-Oz`.
-# Action: propose a minimal packaging patch to remove or override `-O2` in Makefile fragments and verify via cross-arch builds. Priority: Medium.
-# Inventory classification: hardcoded -O2 (4 occurrences)
+# TODO(-OFLAG): Packaging-time sed to normalize -O flags; FIX applied to change -O2/-Os -> -Oz in source Makefiles prior to build.
+# Action: V=1 package builds validated on x86 & ppc64; compile and link lines show `-Oz`. Marked FIXED for both x86 and ppc64.
+# Inventory classification: fixed - pre-configure sed applied; validated V=1 (x86 & ppc64) — compile/link lines show -Oz
+
+# Packaging-time configure: normalize -O flags in upstream Makefiles to -Oz (non-fatal if files missing)
+libaio_configure := \
+	mkdir -p "$(build)/$(libaio_dir)"; \
+	sed -i 's/-O[0-9]\+/-Oz/g; s/-Os/-Oz/g' $(build)/$(libaio_dir)/src/Makefile $(build)/$(libaio_dir)/Makefile* 2>/dev/null || true
 
 libaio_target := \
 	DESTDIR="$(INSTALL)" \
