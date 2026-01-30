@@ -23,7 +23,6 @@ npth,0,0,0,0,140,140,build/ppc64/log/npth.log;build/ppc64/npth-1.6/config.log;bu
 libpng,0,0,0,0,130,130,build/x86/libpng-1.6.34/config.log;build/x86/log/libpng.log
 libusb,0,0,8,0,102,110,build/ppc64/libusb-1.0.21/config.log;build/ppc64/log/libusb.log;build/x86/libusb-1.0.21/config.log
 newt,0,0,0,0,108,108,build/ppc64/log/newt.log;build/ppc64/newt-0.52.24/config.log;build/x86/newt-0.52.24/config.log
-kbd,0,0,17,0,87,104,build/x86/kbd-2.6.1/config.log
 exfatprogs,0,0,0,0,91,91,build/ppc64/exfatprogs-1.2.1/config.log;build/ppc64/log/exfatprogs.log;build/x86/exfatprogs-1.2.1/config.log
 coreboot-talos_2,2,2,85,0,0,89,build/ppc64/log/coreboot-talos_2.log;build/ppc64/coreboot-talos_2/UNTESTED_talos-2/util/sb-signing-utils/config.log;build/ppc64/coreboot-talos_2/UNTESTED_talos-2/util/ffs/config.log
 pixman,0,0,0,0,86,86,build/x86/pixman-0.34.0/config.log
@@ -31,6 +30,7 @@ pinentry,0,0,2,0,78,80,build/ppc64/log/pinentry.log;build/ppc64/pinentry-1.1.0/c
 powerpc-utils,0,0,0,0,71,71,build/ppc64/log/powerpc-utils.log;build/ppc64/powerpc-utils-1.3.5/config.log
 qrencode,0,0,0,0,66,66,build/ppc64/qrencode-3.4.4/config.log;build/x86/qrencode-3.4.4/config.log
 pciutils,0,0,0,0,53,53,build/ppc64/log/pciutils.log;build/x86/log/pciutils.log
+kbd,0,0,0,0,17,17,build/x86/kbd-2.6.1/config.log
 tpm2-tss,0,0,0,0,15,15,build/x86/tpm2-tss-3.2.2/config.log;build/x86/log/tpm2-tss.log
 linux,1,0,12,0,0,13,build/ppc64/log/linux.log
 npth.configure,6,0,0,0,6,12,build/ppc64/log/npth.configure.log;build/x86/log/npth.configure.log
@@ -40,6 +40,7 @@ tpm2-tss.configure,2,2,0,0,5,9,build/x86/log/tpm2-tss.configure.log
 pciutils.configure,2,2,0,0,4,8,build/ppc64/log/pciutils.configure.log;build/x86/log/pciutils.configure.log
 libaio.configure,2,2,0,0,4,8,build/ppc64/log/libaio.configure.log;build/x86/log/libaio.configure.log
 slang.configure,0,0,3,0,4,7,build/ppc64/log/slang.configure.log
+kbd.configure,1,1,0,0,3,5,build/x86/log/kbd.configure.log
 util-linux.configure,0,0,0,0,4,4,build/ppc64/log/util-linux.configure.log;build/x86/log/util-linux.configure.log
 tpmtotp.configure,2,0,0,0,2,4,build/ppc64/log/tpmtotp.configure.log;build/x86/log/tpmtotp.configure.log
 qrencode.configure,0,0,0,0,4,4,build/ppc64/log/qrencode.configure.log;build/x86/log/qrencode.configure.log
@@ -49,7 +50,6 @@ libgcrypt.configure,2,0,0,0,2,4,build/ppc64/log/libgcrypt.configure.log;build/x8
 libaio,0,0,0,0,4,4,build/ppc64/log/libaio.log;build/x86/log/libaio.log
 cryptsetup2.configure,0,0,0,2,2,4,build/ppc64/log/cryptsetup2.configure.log;build/x86/log/cryptsetup2.configure.log
 tpm2-tools,0,0,3,0,0,3,build/x86/tpm2-tools-5.6/config.log
-kbd.configure,0,0,1,0,2,3,build/x86/log/kbd.configure.log
 zstd,0,0,0,0,2,2,build/ppc64/log/zstd.log;build/x86/log/zstd.log
 zlib.configure,0,0,0,0,2,2,build/ppc64/log/zlib.configure.log;build/x86/log/zlib.configure.log
 tpmtotp,0,0,0,0,2,2,build/ppc64/log/tpmtotp.log;build/x86/log/tpmtotp.log

@@ -6,7 +6,7 @@ tpmtotp,x86,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64),"... 
 tpmtotp,ppc64,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64),"... -Oz -ggdb -Wp,-MMD,./.nv.o.d -Wp,-MT,nv.o -W -Wall -Wextra -std=c99 ... -o nv.o -c nv.c","build/ppc64/log/tpmtotp.log"
 npth,x86,fixed - pre-configure sed applied; validated V=1 (x86),"... -g -Oz -MT npth.lo -MD -MP -MF .deps/npth.Tpo -c -o npth.lo npth.c","build/x86/log/npth.log"
 pciutils,x86,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64),"... -Oz -Wall -W -Wno-parentheses -Wstrict-prototypes -Wmissing-prototypes   -c -o lspci.o lspci.c","build/x86/log/pciutils.log"
-kbd,x86,mixed - O2:17 / Oz:87 (total 104); needs follow-up to normalize to -Oz,"... -O2 -D_FORTIFY_SOURCE=2 -Oz -Waggregate-return ... -c -o getfd.o getfd.c","build/x86/log/kbd.log"
+kbd,x86,fixed - pre-configure sed applied; validated V=1 (x86),"... -Oz -D_FORTIFY_SOURCE=2 -Oz -Waggregate-return ... -c -o getfd.o getfd.c","build/x86/log/kbd.log"
 kexec-tools,x86,mixed - Os:40 / O2:10 / Oz:131 (scan totals); needs inspection,"... -Os ... -O2  -mcmodel=large ... -c -o purgatory/sha256.o util_lib/sha256.c","build/x86/log/kexec-tools.log"
 libaio,x86,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64) - compile/link lines show -Oz,"... -g -fomit-frame-pointer -Oz -Wall -I. -fPIC -c struct_offsets.c","build/x86/log/libaio.log"
 libaio,ppc64,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64) - compile/link lines show -Oz,"... -shared -g -fomit-frame-pointer -Oz -Wall -I. -fPIC -o libaio.so.1.0.2 ...","build/ppc64/log/libaio.log"
