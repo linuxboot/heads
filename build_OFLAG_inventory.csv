@@ -1,5 +1,6 @@
 module,arch,classification,sample_compile_line,log_path
 cryptsetup2,ppc64,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64); commit fac65ebc7e,"... -Oz -pthread -MT lib/crypto_backend/argon2/libargon2_la-argon2.lo ...","build/ppc64/log/cryptsetup2.log"
+cryptsetup2,x86,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64); commit fac65ebc7e,"... CFLAGS=-Oz ./configure --host x86_64-elf-linux --prefix / --enable-internal-sse-argon2 ...","build/x86/log/cryptsetup2.configure.log"
 zlib,x86,fixed - CFLAGS=-Oz applied (verified x86 & ppc64; legacy -O tokens remain in non-built files; TODO: verify arm64,riscv),"... -Oz -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN  -c -o adler32.o adler32.c","build/x86/log/zlib.log"
 zlib,ppc64,fixed - CFLAGS=-Oz applied (verified x86 & ppc64; legacy -O tokens remain in non-built files; TODO: verify arm64,riscv),"... -Oz -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN  -c -o adler32.o adler32.c","build/ppc64/log/zlib.log"
 tpmtotp,x86,fixed - pre-configure sed applied; validated V=1 (x86 & ppc64),"... -Oz -ggdb -Wp,-MMD,./.nv.o.d -Wp,-MT,nv.o -W -Wall -Wextra -std=c99 ... -o nv.o -c nv.c","build/x86/log/tpmtotp.log"
@@ -24,7 +25,8 @@ busybox,,OK - no -O2/-O3, ,build/x86/log/busybox.log
 cairo,,OK - no -O2/-O3, ,build/x86/log/cairo.log
 coreboot,,DEFERRED - per-board coreboot builds are out-of-scope for packaging-time fixes,,
 coreboot-blobs,,N/A - placeholder, ,
-cryptsetup,,UNKNOWN,,
+cryptsetup,,UNUSED - restored to HEAD; not referenced by any boards (no validation required),,
+cryptsetup,,UNUSED - restored to HEAD; not referenced by any boards (no validation required),,
 dropbear,x86,fixed - packaging-time sed normalizes -O/Os -> -Oz only; validated V=1 (x86); size regression observed (dropbear: 184,832 -> 241,248; ssh: 176,416 -> 233,048, ≈+56 KiB) — likely due to compiler/toolchain (GCC 15.1.0 vs GCC 9.4.0) or upstream version changes; follow-ups: rebuild with GCC 9.4, symbol/section diffs, or linker-level mitigations,"... -Oz -W -Wall ...","build/x86/dropbear-2025.88/config.log"
  e2fsprogs,,OK - CFLAGS=-Oz applied; Oz occurrences: 450,"... -Oz ...","build/x86/log/e2fsprogs.log"
  exfatprogs,,OK - CFLAGS=-Oz applied; Oz occurrences: 68,"... -Oz ...","build/x86/log/exfatprogs.log"

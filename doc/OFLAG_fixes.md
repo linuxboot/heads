@@ -10,8 +10,18 @@ This document lists recent OFLAG (optimization flag) fixes applied in the reposi
 - cryptsetup2
   - Fix: pre-configure substitutions applied (remove -O3 from Argon2 templates and normalize libtool hardcode flags)
   - Commit: fac65ebc7e
-  - Validation: V=1 x86 build validated; grep shows no remaining -O3 in cryptsetup build tree
-  - Logs: build/ppc64/log/cryptsetup2.log, build/x86/log/cryptsetup2.log
+  - Validation: V=1 x86 & ppc64 builds validated; grep shows no remaining -O3 in cryptsetup2 build trees
+  - Logs: build/ppc64/log/cryptsetup2.log, build/x86/log/cryptsetup2.configure.log
+
+- cryptsetup (older, not used)
+  - Packaging change: pre-configure sed added to normalize `-O[0-9]+`/`-Os` -> `-Oz` and `CXXFLAGS` set to `-g -Oz` in `modules/cryptsetup`.
+  - Note: this module is not used by current boards (`cryptsetup2` is the active module); change applied for completeness; validation is optional.
+  - Files: `modules/cryptsetup`
+
+- cryptsetup
+  - Fix: packaging-time pre-configure sed added to normalize `-O[0-9]+`/`-Os` -> `-Oz` and remove Makefile backup artifacts; `CXXFLAGS` set to `-g -Oz` for defensive coverage of C++ tests.
+  - Validation: **pending** — V=1 x86 & ppc64 builds to be run to confirm no `-O2`/`-Os` occurrences in final build logs
+  - Logs: build/x86/log/cryptsetup.configure.log, build/ppc64/log/cryptsetup.configure.log
 
 - slang
   - Fix: minimal pre-configure sed applied replacing -O2 with -Oz
@@ -40,4 +50,5 @@ This document lists recent OFLAG (optimization flag) fixes applied in the reposi
 
 Notes & next steps
 - .bak files left in the build trees are artifacts of the reversible sed step; remove them for cleanliness if desired or keep them as audit evidence.
+- cryptsetup (legacy module) restored to HEAD and is not referenced by any boards; no packaging-time changes are required for that module.
 - For cross-arch completeness, consider running per-package V=1 builds on additional arches (arm64, riscv) for packages that still show legacy -O tokens in non-built files.

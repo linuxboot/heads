@@ -18,7 +18,7 @@ cryptsetup2_configure := \
 	( \
 		sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure || true; \
 		sed -i 's/-O3//g' lib/crypto_backend/argon2/*.am lib/crypto_backend/argon2/Makemodule.am || true; \
-		sed -E -i.bak 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/g' configure Makefile.in || true; \
+		sed -E -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/g' configure Makefile.in || true; \
 	) && $(CROSS_TOOLS) \
 	CFLAGS="-Oz" \
 	./configure \
