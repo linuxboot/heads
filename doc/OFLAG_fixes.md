@@ -33,6 +33,11 @@ This document lists recent OFLAG (optimization flag) fixes applied in the reposi
   - Logs: build/x86/dropbear-2025.88/config.log
   - Recommended follow-ups: 1) Rebuild dropbear under GCC 9.4 to confirm toolchain impact; 2) run symbol/section diffs to localize growth; 3) prototype linker/build mitigations (`-ffunction-sections/-fdata-sections` + `--gc-sections`, strip, or LTO) if desired.
 
+- kexec-tools
+  - Fix: packaging-time pre-configure sed normalizes `-O[0-9]+`/`-Os` -> `-Oz` and removes Makefile backup artifacts; sed is run during `kexec-tools_configure` (pre-configure) so generated artifacts no longer contain legacy `-O` tokens.
+  - Validation: V=1 x86 & ppc64 builds show `-Oz` only in compile/link lines; evidence: `build/x86/log/kexec-tools.log`, `build/ppc64/log/kexec-tools.log`. Post-scan totals: `Oz:157`, no `-O2`/`-Os` occurrences remaining in build logs.
+  - Notes: prior scan reported mixed `-Os`/`-O2`/`-Oz`; packaging-time change resolved those mixed occurrences in validated builds.
+
 Notes & next steps
 - .bak files left in the build trees are artifacts of the reversible sed step; remove them for cleanliness if desired or keep them as audit evidence.
 - For cross-arch completeness, consider running per-package V=1 builds on additional arches (arm64, riscv) for packages that still show legacy -O tokens in non-built files.
