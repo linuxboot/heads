@@ -33,7 +33,17 @@ def module_from_path(p):
     return name
 
 def scan(root='build'):
-    patterns = [b'-O2', b'-O3', b'-Os', b'-Oz', b'-O']
+    # Use token-aware regex matches to avoid false positives (e.g., '-os' CLI
+    # options or lowercase '-os' in source strings). Match only uppercase 'O'
+    # followed by the expected suffix and ensure the flag is a separate token.
+    regexes = {
+        'O2': re.compile(rb'(?<![A-Za-z0-9_-])\-O2(?![A-Za-z0-9_-])'),
+        'O3': re.compile(rb'(?<![A-Za-z0-9_-])\-O3(?![A-Za-z0-9_-])'),
+        'Os': re.compile(rb'(?<![A-Za-z0-9_-])\-Os(?![A-Za-z0-9_-])'),
+        'Oz': re.compile(rb'(?<![A-Za-z0-9_-])\-Oz(?![A-Za-z0-9_-])'),
+        # Generic -O that is not -O2/-O3/-Os/-Oz
+        'O': re.compile(rb'(?<![A-Za-z0-9_-])\-O(?![0-9sSzZA-Za-z0-9_-])'),
+    }
     counts = defaultdict(lambda: {'O':0,'Os':0,'O2':0,'O3':0,'Oz':0,'paths':[]})
     for dirpath, _, filenames in os.walk(root):
         for fn in filenames:
@@ -45,14 +55,15 @@ def scan(root='build'):
                     b = fh.read()
             except Exception:
                 continue
-            if not any(p in b for p in patterns):
+            # Quick reject: if none of the uppercase patterns exist in the file, skip
+            if not any(p in b for p in [b'-O2', b'-O3', b'-Os', b'-Oz', b'-O']):
                 continue
             mod = module_from_path(fp)
-            cO2 = b.count(b'-O2')
-            cO3 = b.count(b'-O3')
-            cOs = b.count(b'-Os')
-            cOz = b.count(b'-Oz')
-            cO = b.count(b'-O') - (cO2 + cO3 + cOs + cOz)
+            cO2 = len(regexes['O2'].findall(b))
+            cO3 = len(regexes['O3'].findall(b))
+            cOs = len(regexes['Os'].findall(b))
+            cOz = len(regexes['Oz'].findall(b))
+            cO = len(regexes['O'].findall(b))
             counts[mod]['O'] += cO
             counts[mod]['Os'] += cOs
             counts[mod]['O2'] += cO2

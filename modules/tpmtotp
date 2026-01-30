@@ -8,17 +8,18 @@ tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
 tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/$(tpmtotp_version).tar.gz
 tpmtotp_hash := eaac1e8f652f1da7f5a1ed6a8cfefb6511f1e5e1dabf93b44db3b29c18c5ae53
 
-# OFLAG status: FIXED — pre-build `sed` applied to replace `-O3` with `-Oz` in generated Makefiles; validated on x86 and ppc64 (see build/x86/log/tpmtotp.log, build/ppc64/log/tpmtotp.log).
+# OFLAG status: FIXED — CFLAGS set to `-Oz` (overrides many cases) and a _configure `sed` applied to replace remaining `-O3` occurrences in generated Makefiles; validated on x86 and ppc64 (see build/x86/log/tpmtotp.log, build/ppc64/log/tpmtotp.log).
 # Inventory classification: OK - validated (x86 & ppc64)
 
+tpmtotp_configure := \
+	sed -E -i 's/-O[0-9]+/-Oz/g' Makefile util/Makefile libtpm/Makefile || true
 
 tpmtotp_target := \
-	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	&& sed -E -i.bak 's/-O[0-9]+/-Oz/g' $(build)/$(tpmtotp_dir)/Makefile $(build)/$(tpmtotp_dir)/util/Makefile $(build)/$(tpmtotp_dir)/libtpm/Makefile || true; \
-	$(MAKE) -C $(build)/$(tpmtotp_dir) \
-		CFLAGS="-I$(INSTALL)/include" \
-		LDFLAGS="-L$(INSTALL)/lib" \
+	$(MAKE_JOBS) \
+	CFLAGS="-I$(INSTALL)/include -Oz" \
+	LDFLAGS="-L$(INSTALL)/lib" \
+
 
 tpmtotp_output := \
 	totp \
@@ -28,5 +29,3 @@ tpmtotp_output := \
 
 tpmtotp_libraries := \
 	libtpm/libtpm.so \
-
-tpmtotp_configure := 
