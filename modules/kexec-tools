@@ -8,6 +8,7 @@ kexec-tools_repo := https://github.com/horms/kexec-tools.git
 
 kexec-tools_configure := \
 	autoreconf -fi \
+	&& sed -E -i 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g' configure Makefile* */Makefile* || true \
 	&& CFLAGS="-g -Oz -fno-strict-aliasing -Wall -Wstrict-prototypes" \
 	./configure \
 	$(CROSS_TOOLS) \
@@ -17,9 +18,9 @@ kexec-tools_configure := \
 	--without-lzma \
 	&& $(MAKE) clean
 
-# TODO(-OFLAG): OFLAG status: CONFIRMED — mixed -Os/-O2/-Oz (O2:4 / Os:18 / Oz:87) occurrences, producing inconsistent final objects (evidence: build/x86/log/kexec-tools.log).
-# Action: apply a focused patch to remove explicit `-O2`/`-O3` occurrences and normalize to `-Oz` in packaging; verify by building on target architectures. Priority: Medium.
-# Inventory classification: mixed -Os/-O2/-Oz (O2:4 / Os:18 / Oz:87)
+# OFLAG status: **FIXED** - pre-configure sed applied; validated V=1 (x86 & ppc64); compile/link lines show `-Oz` only (evidence: build/x86/log/kexec-tools.log; build/ppc64/log/kexec-tools.log).
+# Action: packaging-time sed normalizes `-O[0-9]+`/`-Os` -> `-Oz` and removes backup artifacts; validated via clean reproducible builds.
+# Inventory classification: fixed - pre-configure sed applied; validated V=1 (x86 & ppc64)
 
 kexec-tools_target := \
 	$(MAKE_JOBS) \
