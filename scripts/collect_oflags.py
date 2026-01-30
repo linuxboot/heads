@@ -45,6 +45,7 @@ def scan(root='build'):
         'O': re.compile(rb'(?<![A-Za-z0-9_-])\-O(?![0-9sSzZA-Za-z0-9_-])'),
     }
     counts = defaultdict(lambda: {'O':0,'Os':0,'O2':0,'O3':0,'Oz':0,'paths':[]})
+<<<<<<< HEAD
     # Only scan flat per-arch log directories: build/<arch>/log/*.log
     try:
         log_dirs = []
@@ -112,6 +113,33 @@ def scan(root='build'):
     except FileNotFoundError:
         # Root does not exist or is invalid
         pass
+=======
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            if not (fn.endswith('.log') or fn == 'config.log'):
+                continue
+            fp = os.path.join(dirpath, fn)
+            try:
+                with open(fp, 'rb') as fh:
+                    b = fh.read()
+            except Exception:
+                continue
+            # Quick reject: if none of the uppercase patterns exist in the file, skip
+            if not any(p in b for p in [b'-O2', b'-O3', b'-Os', b'-Oz', b'-O']):
+                continue
+            mod = module_from_path(fp)
+            cO2 = len(regexes['O2'].findall(b))
+            cO3 = len(regexes['O3'].findall(b))
+            cOs = len(regexes['Os'].findall(b))
+            cOz = len(regexes['Oz'].findall(b))
+            cO = len(regexes['O'].findall(b))
+            counts[mod]['O'] += cO
+            counts[mod]['Os'] += cOs
+            counts[mod]['O2'] += cO2
+            counts[mod]['O3'] += cO3
+            counts[mod]['Oz'] += cOz
+            counts[mod]['paths'].append(fp)
+>>>>>>> 4e0c6208ca (tpmtotp: normalize -O flags to -Oz in pre-configure; harden OFLAG scanner; update inventory and build_oflags_summary)
     return counts
 
 def write_csv(counts, out):
