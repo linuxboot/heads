@@ -23,6 +23,9 @@ pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe6
 # reproducible.  Otherwise the build path will be embedded
 # in the library and executables.
 
+pciutils_configure := \
+	sed -E -i 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g;' Makefile* */Makefile* || true 
+
 pciutils_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
@@ -33,7 +36,6 @@ pciutils_target := \
 	SHARED=yes \
 	IDSDIR="/" \
 	PREFIX="/" \
-	&& sed -E -i.bak 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g;' $(build)/$(pciutils_dir)/Makefile* $(build)/$(pciutils_dir)/*/Makefile* 2>/dev/null || true \
 	&& \
 	$(MAKE) \
 	-C $(build)/$(pciutils_dir) \
@@ -53,5 +55,3 @@ pciutils_output := \
 pciutils_libraries := \
 	lib/libpci.so.3.5.4 \
 	$(INSTALL)/lib/libpci.so.3\
-
-pciutils_configure := 
