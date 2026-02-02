@@ -1,8 +1,11 @@
 modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
-# TODO(-OFLAG): OFLAG status: UNKNOWN
+
+# OFLAG: Untested in prior retest (no build logs observed; boards use cryptsetup2 instead). Note: packaging sets CFLAGS='-Oz' but this module was not exercised.
+
+
+
 # Nothing uses this older module, cryptsetup2 is used instead
-# Inventory classification: UNKNOWN
 
 cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
 

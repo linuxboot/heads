@@ -1,9 +1,10 @@
 modules-$(CONFIG_HOTPKEY) += hotp-verification
 
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: build/x86/log/hotp-verification.log shows no `-O2`/`-O3` occurrences.
-# Inventory classification: OK - no -O2/-O3
-# Action: none required; verified. (audit updated 2026-01-27)
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
 
 hotp-verification_depends := libusb $(musl_dep)
 

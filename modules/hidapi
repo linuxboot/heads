@@ -1,6 +1,4 @@
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
 # empty placeholder file
 # This submodule is defined in modules/hotp-verification
-
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: build/x86/log/hidapi.log shows no `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
-# Inventory classification: OK - no -O2/-O3

@@ -1,8 +1,10 @@
 modules-$(CONFIG_CAIRO) += pixman
 
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: `pixman` configures with `CFLAGS="-Oz"` and build logs show no `-O2`/`-O3` occurrences. No action required. (audit added 2026-01-27)
-# Inventory classification: OK - no -O2/-O3
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
 
 pixman_version := 0.34.0
 pixman_dir := pixman-$(pixman_version)

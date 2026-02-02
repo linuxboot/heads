@@ -1,8 +1,11 @@
 modules-$(CONFIG_NKSTORECLI) += nkstorecli
 
-# Inventory classification: UNKNOWN - no logs
 
-# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `nkstorecli` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
+
 
 nkstorecli_depends := libnitrokey libusb $(musl_dep)
 

@@ -1,9 +1,11 @@
 modules-$(CONFIG_POPT) += popt
 
-# Inventory classification: hardcoded -O2
 
-# TODO(-OFLAG): OFLAG status: CONFIRMED — hardcoded `-O2` observed in PPC64 builds (evidence: build/ppc64/log/popt.log). 
-# Action: prepare a minimal packaging patch to remove `-O2` occurrences in Makefile fragments and verify via cross-builds. Priority: Medium.
+# OFLAG: Pre-configure sed normalizes optimization flags to '-Oz' (sed pattern replaces -O[0-9]+ and -Os with -Oz) applied before build.
+
+
+
+
 
 popt_version := 1.19
 popt_dir := popt-$(popt_version)

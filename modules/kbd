@@ -8,18 +8,17 @@
 # set CONFIG_KBD_DEVTOOLS=y.
 modules-$(CONFIG_KBD) += kbd
 
+
+# OFLAG: Pre-configure sed normalizes optimization flags to '-Oz' (sed pattern replaces -O[0-9]+ and -Os with -Oz) applied before build.
+
+
+
+
 kbd_version := 2.6.1
 kbd_dir := kbd-$(kbd_version)
 kbd_tar := kbd-$(kbd_version).tar.gz
 kbd_url := https://www.kernel.org/pub/linux/utils/kbd/$(kbd_tar)
 kbd_hash := aaed530a1490d63d041448372e2ad4f38c3179042903251000b71d527c46e945
-
-# TODO(-OFLAG): OFLAG status: CONFIRMED — mixed -O2 and -Oz (O2:1 / Oz:2), which mixes flags and prevents the policy `CFLAGS=-Oz` from being decisive.
-# Action: propose a patch to remove/override `-O2` occurrences and verify via cross-target builds. Priority: Medium.
-# Evidence (representative): build/x86/log/kbd.log contains many lines like:
-#   ... -O2 -D_FORTIFY_SOURCE=2 -Oz ... -c -o setvtrgb.o setvtrgb.c
-# Action: prepare a minimal packaging patch to remove hardcoded `-O2`/`-O3` from the package's Makefile fragments (e.g., a sed patch removing `-O2` occurrences in Makefile.am/Makefile.in or overriding CFLAGS in configure) and verify via cross-build that `-Oz` is used for final object builds. Update this TODO with the patch filename and verification results when available. Priority: Medium.
-# Inventory classification: mixed -O2 and -Oz
 
 kbd_configure := \
 	sed -E -i 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g' configure Makefile* */Makefile* || true; \

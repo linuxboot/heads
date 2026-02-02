@@ -1,12 +1,14 @@
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
 #
 # u-root go runtime
 #
 # This is not a normal Heads module, since it builds all of its
 # own dependencies.
 #
-# TODO(-OFLAG): OFLAG status: UNKNOWN - no logs
-# Action: run a targeted build (with cgo enabled if relevant) and inspect `build/*/log/u-root.log` to collect evidence. (audit updated 2026-01-27)
-# Inventory classification: UNKNOWN - no logs
 
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio

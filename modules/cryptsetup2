@@ -1,5 +1,10 @@
 modules-$(CONFIG_CRYPTSETUP2) += cryptsetup2
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
 cryptsetup2_depends := util-linux popt lvm2 json-c $(musl_dep)
 
 cryptsetup2_version := 2.6.1

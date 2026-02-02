@@ -1,9 +1,11 @@
 modules-$(CONFIG_NKSTORECLI) += libnitrokey
 
-# Inventory classification: UNKNOWN - no logs
 
-# TODO(-OFLAG): OFLAG status: UNKNOWN 
+# OFLAG: Untested in prior retest (no build logs observed).
 # no board uses this — no build logs available for `libnitrokey` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+
+
+
 
 libnitrokey_depends := libhidapi-libusb libusb $(musl_dep)
 

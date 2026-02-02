@@ -1,10 +1,11 @@
 # TPM2 tools program
 modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
 
-# Inventory classification: CONFIRMED - hardcoded -O2 (1 occurrence)
 
-# TODO(-OFLAG): OFLAG status: CONFIRMED — build logs show `-O2` used during compilation (1 occurrence in build/x86/log/tpm2-tools.log), which should be removed to respect `CFLAGS=-Oz`.
-# Action: add a minimal packaging patch to remove `-O2` in the offending Makefile fragment or ensure packaging overrides it; verify via cross-builds. Priority: Medium.
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
 
 # CONFIG_TPM means any TPM version.  (CONFIG_TPM2_TOOLS differentiates them when
 # they must be handled differently, which should be localized.)  Boards setting
@@ -25,17 +26,13 @@ tpm2-tools_hash := 52c8bcbaadca082abfe5eb7ee4967d2d632d84b1677675f2f071b6d2ec22c
 #tpm2-tools doesn't play nice with reproducible builds, hardcoding lib paths without providing a configure option to remove rpaths
 #  We make sure no hardcoding of libdir flags exist in configure script prior of calling the script with sed call
 #  We pass additional remapping of prefix-map from $INSTALL to local dir
-#
-# TODO: remove all patches and uniformize with similar sed calls.
-# 	# normalize any -O[0-9]+ / -Os tokens introduced by upstream or patches \
-	# and remove any stray Makefile backups; set defensive CFLAGS/CXXFLAGS \
+
 
 tpm2-tools_configure := \
 	echo "$(tpm2-tools_version)" > ./VERSION \
 	&& ./bootstrap \
 	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
 	&& sed -E -i 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g' configure \
-	&& rm -f Makefile*bak* || true \
 	&& CFLAGS="-g -Oz" CXXFLAGS="-g -Oz" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

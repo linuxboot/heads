@@ -1,8 +1,10 @@
 modules-$(CONFIG_NEWT) += ncurses
 
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: build/x86/log/ncurses.log and build/ppc64/log/ncurses.log show no `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
-# Inventory classification: OK - no -O2/-O3
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
 
 ncurses_depends := $(musl_dep)
 

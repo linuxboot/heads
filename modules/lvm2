@@ -1,9 +1,11 @@
 modules-$(CONFIG_LVM2) += lvm2
 
-# Inventory classification: OK - no -O2/-O3
 
-# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in inspected build logs (evidence: build/x86/log/lvm2.log, build/ppc64/log/lvm2.log).
-# Action: none required; verified. (audit updated 2026-01-27)
+# OFLAG: Enforce -Oz at packaging time (configure option --with-optimisation=-Oz)
+
+
+
+
 
 lvm2_version := 2.03.23
 lvm2_dir := lvm2.$(lvm2_version)

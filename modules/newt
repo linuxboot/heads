@@ -1,9 +1,11 @@
 modules-$(CONFIG_NEWT) += newt
 
-# Inventory classification: OK - no -O2/-O3
 
-# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (~35 occurrences; evidence: build/x86/log/newt.log). (audit updated 2026-01-27)
-# Evidence: build/x86/log/newt.log and build/ppc64/log/newt.log were inspected (2026-01-27) and contain no `-O2`/`-O3` compile or link lines. No action required now; re-open if future builds show offending flags.
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
 
 newt_depends := popt slang ncurses $(musl_dep)
 

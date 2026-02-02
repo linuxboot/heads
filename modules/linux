@@ -1,9 +1,10 @@
 modules-y += linux
 
-# TODO(-OFLAG): OFLAG status: CONFIRMED - non -Oz flags in subcomponents
-# Evidence: build/ppc64/log/linux.log and build/ppc64/log/coreboot-talos_2.log show non-`-Oz` flags in kernel/coreboot subcomponents.
-# Action: per-subcomponent audits and narrow patches required. (audit updated 2026-01-27)
-# Inventory classification: non -Oz flags in subcomponents
+
+# OFLAG: No packaging-time -Oz normalization applied; the Linux kernel uses -Os (per kernel version), so package-level -Oz normalization is not applied here.
+
+
+
 
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 	LINUX_ARCH			:= x86
@@ -46,7 +47,7 @@ endif
 # Base EXTRA_FLAGS for all Linux versions
 EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
-# TODO(GCC15-LINUX): 6.1.8 requires -std=gnu11 for C23 compatibility (bool/false keyword conflicts)
+GCC15-LINUX: 6.1.8 requires -std=gnu11 for C23 compatibility (bool/false keyword conflicts)
 ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
 EXTRA_FLAGS += -std=gnu11
 endif

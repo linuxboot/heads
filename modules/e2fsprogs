@@ -2,10 +2,13 @@
 CONFIG_E2FSPROGS ?= y
 modules-$(CONFIG_E2FSPROGS) += e2fsprogs
 
-# Inventory classification: UNKNOWN
 
-# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in build logs (evidence: build/x86/log/e2fsprogs.log, build/ppc64/log/e2fsprogs.log).
-# Action: none required; verified. (audit updated 2026-01-27)
+# OFLAG: Enforce CFLAGS='-Oz' at packaging time (set in configure wrapper)
+# GCC15-E2FSPROGS: Added -std=gnu11 for C23 compatibility (bool keyword redefinition conflicts)
+# Remove when e2fsprogs is updated for GCC 15.1.0 compatibility
+
+
+
 
 e2fsprogs_version := 1.47.0
 e2fsprogs_dir := e2fsprogs-$(e2fsprogs_version)
@@ -18,8 +21,6 @@ e2fsprogs_hash := 144af53f2bbd921cef6f8bea88bb9faddca865da3fbc657cc9b4d2001097d5
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
-# TODO(GCC15-E2FSPROGS): Added -std=gnu11 for C23 compatibility (bool keyword redefinition conflicts)
-# Remove when e2fsprogs is updated for GCC 15.1.0 compatibility
 e2fsprogs_configure := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-Oz -std=gnu11"  \

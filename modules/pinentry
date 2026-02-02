@@ -2,9 +2,12 @@
 CONFIG_PINENTRY ?= $(CONFIG_GPG2)
 modules-$(CONFIG_PINENTRY) += pinentry
 
-# Inventory classification: OK - no -O2/-O3
 
-# TODO(-OFLAG): OFLAG status: OK — `-Oz` occurrences found in build logs (~10 occurrences; evidence: build/x86/log/pinentry.log, build/ppc64/log/pinentry.log). (audit updated 2026-01-27)
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
 
 pinentry_version := 1.1.0
 pinentry_dir := pinentry-$(pinentry_version)

@@ -1,8 +1,11 @@
 modules-$(CONFIG_IOPORT) += ioport
 
-# Inventory classification: UNKNOWN - no logs
 
-# TODO(-OFLAG): OFLAG status: UNKNOWN 
+# OFLAG: Untested in prior retest (no build logs observed).
+
+
+
+
 # Not used in boards
 
 ioport_version := 1.2.orig

@@ -4,9 +4,11 @@
 
 modules-$(CONFIG_GPG) += libusb-compat
 
-# Inventory classification: UNKNOWN - no logs
 
-# TODO(-OFLAG): OFLAG status: UNKNOWN — no build logs available for `libusb-compat` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+# OFLAG: Untested in prior retest (no build logs observed; used only by GPG which is not enabled — gpg2 is used instead). Note: packaging sets CFLAGS='-Oz'.
+
+
+
 
 libusb-compat_version := 0.1.5
 libusb-compat_dir := libusb-compat-$(libusb-compat_version)

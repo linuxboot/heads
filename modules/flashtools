@@ -1,9 +1,10 @@
 modules-$(CONFIG_FLASHTOOLS) += flashtools
 
-# Inventory classification: OK - no -O2/-O3
 
-# TODO(-OFLAG): OFLAG status: OK — no `-O2`/`-O3` occurrences found in build logs (evidence: build/x86/log/flashtools.log, build/ppc64/log/flashtools.log).
-# Action: none required; verified. (audit updated 2026-01-27)
+# OFLAG: Enforce CFLAGS='-Oz' at packaging time (set in configure wrapper)
+
+
+
 
 flashtools_depends := $(musl_dep)
 

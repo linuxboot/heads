@@ -1,8 +1,9 @@
 modules-$(CONFIG_CRYPTSETUP2) += json-c
 
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: build/x86/log/json-c.log, build/ppc64/log/json-c.log show no `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
-# Inventory classification: OK - no -O2/-O3
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
 
 json-c_version := 0.14
 json-c_dir := json-c-$(json-c_version)

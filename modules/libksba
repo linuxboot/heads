@@ -1,9 +1,10 @@
 modules-$(CONFIG_GPG2) += libksba
 
-# TODO(-OFLAG): OFLAG status: OK - no -O2/-O3
-# Evidence: build/x86/log/libksba.log, build/ppc64/log/libksba.log do not show `-O2`/`-O3` occurrences. (audit updated 2026-01-27)
-# Inventory classification: OK - no -O2/-O3
-# Action: none required; verified. (audit updated 2026-01-27)
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
 
 #TODO: On version bump, check if hardcode_into_libs sed can be removed if configure script improves
 libksba_version := 1.6.3

@@ -5,13 +5,16 @@ CONFIG_MUSL ?= y
 # - Multiple modules required C23 compatibility fixes (see individual module TODOs)
 # - Systematic conversion from -Os to -Oz optimization across 33+ modules
 # - Key compatibility issues resolved: bool/false conflicts, basename function, true keyword, inlining
-# TODO(-OFLAG): OFLAG status: N/A — buildstack/toolchain component; not a target for per-module OFLAG remediation. See build logs for audit (`build/x86/log/musl-cross-make.log`, `build/ppc64/log/musl-cross-make.log`) and handle any cross-toolchain fixes at the buildstack level rather than as per-module patches. (audit updated 2026-01-27)
 
 ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 modules-$(CONFIG_MUSL) += musl-cross-make
 
-# Inventory classification: buildstack - N/A
+
+# OFLAG: No packaging-time -Oz normalization applied; musl-cross-make is part of the buildstack and is intentionally not subject to package-level -Oz normalization.
+
+
+
 
 musl-cross-make_version := e5147dde912478dd32ad42a25003e82d4f5733aa
 musl-cross-make_dir := musl-cross-make-$(musl-cross-make_version)
