@@ -57,3 +57,6 @@ Notes & next steps
 - .bak files left in the build trees are artifacts of the reversible sed step; remove them for cleanliness if desired or keep them as audit evidence.
 - cryptsetup (legacy module) restored to HEAD and is not referenced by any boards; no packaging-time changes are required for that module.
 - For cross-arch completeness, consider running per-package V=1 builds on additional arches (arm64, riscv) for packages that still show legacy -O tokens in non-built files.
+
+- Kernel config note (moved)
+  - Note: kernel-config changes to enable `CONFIG_TMPFS` and `CONFIG_MEMFD_CREATE` have been applied repository-wide; see the header comment in `initrd/bin/kexec-boot` for rationale and validation guidance.
