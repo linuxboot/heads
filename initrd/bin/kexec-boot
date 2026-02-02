@@ -1,5 +1,11 @@
 #!/bin/bash
 # Launches kexec from saved configuration entries
+#
+# NOTE: `kexec-boot` may use memfd-backed initrds and the kexec syscall/file-loader paths.
+# To avoid loader placement/copy errors (e.g., "Failed to copy decompressed buf") ensure
+# kernels intended to run `kexec --kexec-syscall --load ... --initrd=<memfd>` have:
+#   CONFIG_TMPFS=y
+#   CONFIG_MEMFD_CREATE=y
 set -e -o pipefail
 . /tmp/config
 . /etc/functions
