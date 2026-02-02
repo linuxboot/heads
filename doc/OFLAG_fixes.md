@@ -37,6 +37,11 @@ This document lists recent OFLAG (optimization flag) fixes applied in the reposi
   - Validation: V=1 builds completed for x86 & ppc64 and grep shows no remaining -O3 in build trees
   - Logs: build/x86/log/tpmtotp.log, build/ppc64/log/tpmtotp.log
 
+- tpm2-tools
+  - Fix: pre-configure sed normalizes `-O[0-9]+`/`-Os` -> `-Oz` and `CFLAGS`/`CXXFLAGS` set to `-g -Oz` defensively in `modules/tpm2-tools`.
+  - Validation: V=1 x86 build (board `msi_z790p_ddr5`) completed successfully and compile/link lines show `-Oz` only; configure-wrapper occurrences were addressed. TODO: run ppc64 validation if relevant.
+  - Logs: build/x86/log/tpm2-tools.log, build/x86/tpm2-tools-5.6/config.log
+
 - dropbear
   - Fix: packaging-time sed normalizes optimization flags to `-Oz` (replaces `-O[0-9]+` & `-Os` with `-Oz`) and configure is invoked with size-friendly env vars where applicable. We intentionally do not strip `-funroll-loops`/`-fomit-frame-pointer` at packaging time because reintroducing them into bundled libs did not change final binary sizes in our tests.
   - Validation: V=1 x86 build shows `-Oz` in `configure` and build logs. However, a size regression was observed versus the earlier CircleCI artifact: `dropbear` 184,832 → 241,248 (+56,416 bytes), `ssh` 176,416 → 233,048 (+56,632 bytes). Local builds used GCC 15.1.0 while the earlier artifact used GCC 9.4.0; most likely root cause is compiler/toolchain or upstream package-version changes rather than residual `-O` flags.

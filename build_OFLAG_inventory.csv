@@ -63,7 +63,7 @@ pixman,,OK - no -O2/-O3, ,build/x86/log/pixman.log
 powerpc-utils,,OK - no -O2/-O3, ,build/ppc64/log/powerpc-utils.log
 purism-blobs,,N/A - binary blobs, ,
 qrencode,,OK - explicitly set -Oz, ,build/x86/log/qrencode.log
-tpm2-tools,,CONFIRMED - hardcoded -O2 (3 occurrences across logs), ,build/x86/log/tpm2-tools.log
+tpm2-tools,x86,fixed - pre-configure sed applied; validated V=1 (x86); commit TBD,"... -g -Oz -MT tools/tpm2-tpm2_tpm2.o ...","build/x86/log/tpm2-tools.log"
 u-root,,UNKNOWN - no logs, ,
 util-linux,,OK - no -O2/-O3, ,build/x86/log/util-linux.log
 zstd,,OK - no -O2/-O3, ,build/x86/log/zstd.log

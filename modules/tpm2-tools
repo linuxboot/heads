@@ -27,11 +27,16 @@ tpm2-tools_hash := 52c8bcbaadca082abfe5eb7ee4967d2d632d84b1677675f2f071b6d2ec22c
 #  We pass additional remapping of prefix-map from $INSTALL to local dir
 #
 # TODO: remove all patches and uniformize with similar sed calls.
+# 	# normalize any -O[0-9]+ / -Os tokens introduced by upstream or patches \
+	# and remove any stray Makefile backups; set defensive CFLAGS/CXXFLAGS \
+
 tpm2-tools_configure := \
 	echo "$(tpm2-tools_version)" > ./VERSION \
 	&& ./bootstrap \
 	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
-	&& ./configure \
+	&& sed -E -i 's/-O[0-9]+/-Oz/g; s/-Os/-Oz/g' configure \
+	&& rm -f Makefile*bak* || true \
+	&& CFLAGS="-g -Oz" CXXFLAGS="-g -Oz" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
