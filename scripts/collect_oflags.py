@@ -11,6 +11,7 @@ Produces lines: module,O,Os,O2,O3,Oz,total,examples
 import argparse
 import os
 import re
+import glob
 from collections import defaultdict
 
 def module_from_path(p):
@@ -45,31 +46,73 @@ def scan(root='build'):
         'O': re.compile(rb'(?<![A-Za-z0-9_-])\-O(?![0-9sSzZA-Za-z0-9_-])'),
     }
     counts = defaultdict(lambda: {'O':0,'Os':0,'O2':0,'O3':0,'Oz':0,'paths':[]})
-    for dirpath, _, filenames in os.walk(root):
-        for fn in filenames:
-            if not (fn.endswith('.log') or fn == 'config.log'):
-                continue
-            fp = os.path.join(dirpath, fn)
-            try:
-                with open(fp, 'rb') as fh:
-                    b = fh.read()
-            except Exception:
-                continue
-            # Quick reject: if none of the uppercase patterns exist in the file, skip
-            if not any(p in b for p in [b'-O2', b'-O3', b'-Os', b'-Oz', b'-O']):
-                continue
-            mod = module_from_path(fp)
-            cO2 = len(regexes['O2'].findall(b))
-            cO3 = len(regexes['O3'].findall(b))
-            cOs = len(regexes['Os'].findall(b))
-            cOz = len(regexes['Oz'].findall(b))
-            cO = len(regexes['O'].findall(b))
-            counts[mod]['O'] += cO
-            counts[mod]['Os'] += cOs
-            counts[mod]['O2'] += cO2
-            counts[mod]['O3'] += cO3
-            counts[mod]['Oz'] += cOz
-            counts[mod]['paths'].append(fp)
+    # Only scan flat per-arch log directories: build/<arch>/log/*.log
+    try:
+        log_dirs = []
+        # If root itself has a 'log' directory, treat root as an arch path and scan it
+        root_log = os.path.join(root, 'log')
+        if os.path.isdir(root_log):
+            log_dirs = [root_log]
+        else:
+            for arch_entry in os.scandir(root):
+                if not arch_entry.is_dir():
+                    continue
+                arch_path = arch_entry.path
+                arch_log = os.path.join(arch_path, 'log')
+                if not os.path.isdir(arch_log):
+                    continue
+                log_dirs.append(arch_log)
+        for arch_log in log_dirs:
+            for fn in os.listdir(arch_log):
+                if not fn.endswith('.log'):
+                    continue
+                # Skip configure logs and unrelated config.log (also skip per-module configure logs like 'foo.configure.log')
+                if fn.startswith('configure.') or fn == 'config.log' or '.configure' in fn:
+                    continue
+                fp = os.path.join(arch_log, fn)
+                try:
+                    with open(fp, 'rb') as fh:
+                        b = fh.read()
+                except Exception:
+                    continue
+                # Quick reject: if none of the uppercase patterns exist in the file, skip
+                if not any(p in b for p in [b'-O2', b'-O3', b'-Os', b'-Oz', b'-O']):
+                    continue
+                mod = module_from_path(fp)
+                cO2 = cO3 = cOs = cOz = cO = 0
+                # Process file line-by-line so we can avoid matches inside sed substitution
+                # or other script/text contexts. If a line contains a pipeline ('|'), only
+                # consider the part before the pipe (compiler invocation) and ignore the
+                # rest (e.g., "... -Oz ... | sed -e 's/-O.../'"). For generic '-O' we only
+                # count occurrences when the line looks like a compiler command.
+                for line in b.splitlines():
+                    # If there's a pipeline, only analyze the part before the first '|'
+                    if b'|' in line:
+                        comp_part = line.split(b'|', 1)[0]
+                    else:
+                        comp_part = line
+                    # Heuristics to detect compiler-like lines.
+                    is_compiler_like = any(tok in comp_part for tok in [b'--mode=compile', b' gcc', b' g++', b' clang', b' -c ', b' -o ', b'cc '])
+                    # Skip purely sed/subst lines (they often contain s/-O.../ and are not compile invocations)
+                    if b'sed' in comp_part and not is_compiler_like:
+                        continue
+                    # Count explicit variants always in the compiler part
+                    cO2 += len(regexes['O2'].findall(comp_part))
+                    cO3 += len(regexes['O3'].findall(comp_part))
+                    cOs += len(regexes['Os'].findall(comp_part))
+                    cOz += len(regexes['Oz'].findall(comp_part))
+                    # Count generic '-O' only when the line looks like a compiler invocation
+                    if is_compiler_like:
+                        cO += len(regexes['O'].findall(comp_part))
+                counts[mod]['O'] += cO
+                counts[mod]['Os'] += cOs
+                counts[mod]['O2'] += cO2
+                counts[mod]['O3'] += cO3
+                counts[mod]['Oz'] += cOz
+                counts[mod]['paths'].append(fp)
+    except FileNotFoundError:
+        # Root does not exist or is invalid
+        pass
     return counts
 
 def write_csv(counts, out):
