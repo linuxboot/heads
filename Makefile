@@ -457,6 +457,19 @@ define define_module =
     # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
+	if [ -e "$$@" ] && [ -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		if [ -f patches/$($1_patch_name).patch ] && [ patches/$($1_patch_name).patch -nt "$$@" ]; then \
+			echo "INFO: Patch file modified, invalidating .canary to trigger full rebuild" && \
+			echo "INVALIDATED: patches modified" > "$$@" && \
+			rm -f "$(build)/$($1_base_dir)/.patched" && \
+			rm -rf "$(build)/$($1_base_dir)/$(BOARD)" "$(board_build)"; \
+		elif [ -d patches/$($1_patch_name) ] && [ -n "$$(find patches/$($1_patch_name)/ -name '*.patch' -newer '$$@' -print -quit)" ]; then \
+			echo "INFO: Patch files modified, invalidating .canary to trigger full rebuild" && \
+			echo "INVALIDATED: patches modified" > "$$@" && \
+			rm -f "$(build)/$($1_base_dir)/.patched" && \
+			rm -rf "$(build)/$($1_base_dir)/$(BOARD)" "$(board_build)"; \
+		fi; \
+	fi
 	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
 		echo "INFO: .canary file and directory not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
 		git clone $($1_repo) "$(build)/$($1_base_dir)" && \
@@ -473,7 +486,7 @@ define define_module =
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
 		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)" && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
-		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
+		git -C "$(build)/$($1_base_dir)" clean -dffx $(BOARD) payloads util/cbmem && \
 		echo "INFO: Synchronizing submodules" && \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
 		echo "INFO: Updating submodules (init and checkout)" && \
@@ -682,21 +695,21 @@ endef
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
 	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
-	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
+	@$(CROSS)strip --preserve-dates --strip-all "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
 endef
 
 define initrd_lib_add =
 $(initrd_lib_dir)/$(notdir $1): $1
 	$(call do,INSTALL-LIB,$(1:$(pwd)/%=%),\
-		$(CROSS)strip --preserve-dates -o "$$@" "$$<")
+		$(CROSS)strip --preserve-dates --strip-all -o "$$@" "$$<")
 initrd_libs += $(initrd_lib_dir)/$(notdir $1)
 endef
 
 # Only some modules have binaries that we install
 # Shouldn't this be specified in the module file?
 #bin_modules-$(CONFIG_MUSL) += musl-cross-make
-bin_modules-$(CONFIG_KEXEC) += kexec
+bin_modules-$(CONFIG_KEXEC) += kexec-tools
 bin_modules-$(CONFIG_TPMTOTP) += tpmtotp
 bin_modules-$(CONFIG_PCIUTILS) += pciutils
 bin_modules-$(CONFIG_FLASHROM) += flashrom
@@ -758,9 +771,22 @@ $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 : $(build)/$(coreboot_base_dir)/.canary musl-cross-make
 	+$(call do,MAKE,$(notdir $@),\
 		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
+			CC="$(heads_cc) -Wno-unterminated-string-initialization" \
 	)
 
 # superio depends on zlib and pciutils
+
+# TODO_GCC_15_COREBOOT_CBMEM: GCC 15.1.0 compatibility fix for coreboot cbmem utility
+# The coreboot cbmem utility uses -Werror and GCC 15.1.0 generates new warnings 
+# about string initialization that weren't present in earlier versions.
+# Added -Wno-unterminated-string-initialization to suppress these warnings.
+# This should be moved to a proper coreboot module configuration when 
+# modules/coreboot is refactored to use standard module variables like other modules.
+# See: error "initializer-string for array of 'char' truncates NUL terminator"
+# Related modules: modules/coreboot (needs _configure and _target variables)
+# Alternative: Move this to use heads_cc extension or per-module CC override pattern
+#
+
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 	$(build)/$(zlib_dir)/.build \
 	$(build)/$(pciutils_dir)/.build \

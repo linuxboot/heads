@@ -1,5 +1,10 @@
 modules-$(CONFIG_TPMTOTP) += tpmtotp
 
+
+# OFLAG: Enforce -Oz at packaging time (CFLAGS set to '-Oz'; pre-configure sed also normalizes -O[0-9]+/-Os to -Oz)
+
+
+
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
 tpmtotp_version := 4d63d21c8b7db2e92ddb393057f168aead147f47
@@ -8,11 +13,16 @@ tpmtotp_tar := tpmtotp-$(tpmtotp_version).tar.gz
 tpmtotp_url := https://github.com/osresearch/tpmtotp/archive/$(tpmtotp_version).tar.gz
 tpmtotp_hash := eaac1e8f652f1da7f5a1ed6a8cfefb6511f1e5e1dabf93b44db3b29c18c5ae53
 
+
+tpmtotp_configure := \
+	sed -E -i 's/-O[0-9]+/-Oz/g' Makefile util/Makefile libtpm/Makefile || true
+
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-I$(INSTALL)/include -Os" \
+	CFLAGS="-I$(INSTALL)/include -Oz" \
 	LDFLAGS="-L$(INSTALL)/lib" \
+
 
 tpmtotp_output := \
 	totp \
@@ -22,5 +32,3 @@ tpmtotp_output := \
 
 tpmtotp_libraries := \
 	libtpm/libtpm.so \
-
-tpmtotp_configure := 

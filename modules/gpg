@@ -1,5 +1,11 @@
 modules-$(CONFIG_GPG) += gpg
 
+
+# OFLAG: Untested in prior retest (no build logs observed; gpg2 is used instead). Note: packaging sets CFLAGS='-Oz'.
+
+
+
+
 # we install gpgv 1.4, which is an older version that has fewer
 # dependencies.  This may need to be revisted later.
 gpg_version := 1.4.21
@@ -18,7 +24,7 @@ gpg_hash := 6b47a3100c857dcab3c60e6152e56a997f2c7862c1b8b2b25adf3884a1ae2276
 # Otherwise it wil try to run tests.
 #
 gpg_configure := \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	$(CROSS_TOOLS) \
 	./configure \
 	--build $(MUSL_ARCH)-elf-linux \
