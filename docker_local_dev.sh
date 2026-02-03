@@ -30,15 +30,6 @@ echo ""
 # Source shared docker helper functions
 source "$(dirname "$0")/docker/common.sh"
 
-# Inform the user about entering the Docker container
-echo "----"
-echo "Usage reminder: The minimal command is 'make BOARD=XYZ', where additional options, including 'V=1' or 'CPUS=N' are optional."
-echo "For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config."
-echo
-echo "Type exit within docker image to get back to host if launched interactively!"
-echo "----"
-echo
-
 # Execute the docker run command with the provided parameters
 # Delegate to shared run_docker so all docker_* scripts share identical device/X11/KVM handling
 run_docker "$DOCKER_IMAGE" "$@"
