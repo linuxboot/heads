@@ -731,14 +731,20 @@ generate_checksums() {
 				whiptail_error_die "Unable to create TPM counter"
 			TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 
-			# increment TPM counter
-			increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-				whiptail_error_die "Unable to increment tpm counter"
+			if [ -s /tmp/counter-$TPM_COUNTER ]; then
 
-			# create rollback file
-			sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt 2>/dev/null ||
-				whiptail_error_die "Unable to create rollback file"
-		else
+				# increment TPM counter
+				increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
+					whiptail_error_die "Unable to increment tpm counter"
+
+				# create rollback file
+				sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt 2>/dev/null ||
+					whiptail_error_die "Unable to create rollback file"
+			fi
+		fi
+
+		# If HOTP is enabled from board config, create HOTP counter
+		if [ -x /bin/hotp_verification]; then
 			## needs to exist for initial call to unseal-hotp
 			echo "0" >/boot/kexec_hotp_counter
 		fi
@@ -772,11 +778,10 @@ generate_checksums() {
 
 	DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
 
-	if sha256sum $param_files 2>/dev/null | gpg \
+	if sha256sum $param_files 2>/dev/null | gpg --detach-sign \
 		--pinentry-mode loopback \
 		--passphrase-file <(echo -n "$USER_PIN") \
 		--digest-algo SHA256 \
-		--detach-sign \
 		-a \
 		>/boot/kexec.sig 2>/tmp/error; then
 		# successful - update the validated params

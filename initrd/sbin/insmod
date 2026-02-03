@@ -33,9 +33,9 @@ if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
 fi
 
 if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
-   if [ ! -c /dev/tpmrm0 -o ! -x /bin/tpm2 ]; then
-	   tpm_missing=1
-   fi
+	if [ ! -c /dev/tpmrm0 -o ! -x /bin/tpm2 ]; then
+		tpm_missing=1
+	fi
 fi
 
 if [ -z "$tpm_missing" ]; then
