@@ -26,7 +26,7 @@ DEBUG "Show PCRs"
 DEBUG "$(pcrs)"
 
 for tries in 1 2 3; do
-	read -s -p "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort): " tpm_password
+	read -r -s -p $'\nEnter LUKS TPM Disk Unlock Key passphrase (blank to abort): ' tpm_password
 	echo
 	if [ -z "$tpm_password" ]; then
 		die "Aborting unseal disk encryption key"

@@ -8,11 +8,12 @@ TOTP_SECRET="/tmp/secret/totp.key"
 TRACE_FUNC
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
-		die "Unable to unseal TOTP secret from TPM"
+	DO_WITH_DEBUG --mask-position 5 \
+		tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
+			die "Unable to unseal TOTP secret from TPM"
 fi
 
-if ! totp -q <"$TOTP_SECRET"; then
+if ! DO_WITH_DEBUG totp -q <"$TOTP_SECRET"; then
 	shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null
 	die 'Unable to compute TOTP hash?'
 fi

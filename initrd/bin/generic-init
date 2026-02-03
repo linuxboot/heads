@@ -48,14 +48,14 @@ while true; do
 	if [ "$totp_confirm" = "m" ]; then
 		# Try to select a kernel from the menu
 		mount_boot
-		kexec-select-boot -m -b /boot -c "grub.cfg"
+		DO_WITH_DEBUG kexec-select-boot -m -b /boot -c "grub.cfg"
 		continue
 	fi
 
 	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
 		# Try to boot the default
 		mount_boot
-		kexec-select-boot -b /boot -c "grub.cfg" \
+		DO_WITH_DEBUG kexec-select-boot -b /boot -c "grub.cfg" \
 		|| recovery "Failed default boot"
 	fi
 

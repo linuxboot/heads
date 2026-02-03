@@ -7,12 +7,12 @@ HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
 
 mount_boot_or_die() {
-  TRACE_FUNC
-  # Mount local disk if it is not already mounted
-  if ! grep -q /boot /proc/mounts; then
-    mount -o ro /boot ||
-      die "Unable to mount /boot"
-  fi
+	TRACE_FUNC
+	# Mount local disk if it is not already mounted
+	if ! grep -q /boot /proc/mounts; then
+		mount -o ro /boot ||
+			die "Unable to mount /boot"
+	fi
 }
 
 TRACE_FUNC
@@ -29,27 +29,33 @@ mount_boot_or_die
 #counter_value=$(read_tpm_counter $counter | cut -f2 -d ' ' | awk 'gsub("^000e","")')
 #
 
-counter_value=$(cat $HOTP_COUNTER)
+#if HOTP_COUNTER is not present, bail out
+if [ ! -f $HOTP_COUNTER ]; then
+	die "HOTP counter file not found. If you just reinstalled an OS, you need to reseal the HOTP secret"
+fi
+
+# Read the counter from the file
+counter_value=$(cat $HOTP_COUNTER 2>/dev/null)
 
 if [ "$counter_value" == "" ]; then
-  die "Unable to read HOTP counter"
+	die "Unable to read HOTP counter"
 fi
 
 #counter_value=$(printf "%d" 0x${counter_value})
 if [ "$CONFIG_TPM" = "y" ]; then
-  DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
-  tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" || die "Unable to unseal HOTP secret"
+	DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
+	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" || die "Unable to unseal HOTP secret"
 else
-  # without a TPM, generate a secret based on the SHA-256 of the ROM
-  secret_from_rom_hash >"$HOTP_SECRET" || die "Reading ROM failed"
+	# without a TPM, generate a secret based on the SHA-256 of the ROM
+	secret_from_rom_hash >"$HOTP_SECRET" || die "Reading ROM failed"
 fi
 
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
 
 if ! hotp $counter_value <"$HOTP_SECRET"; then
-  shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
-  die 'Unable to compute HOTP hash?'
+	shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
+	die 'Unable to compute HOTP hash?'
 fi
 
 shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
@@ -65,7 +71,7 @@ mount -o remount,rw /boot
 DEBUG "Incrementing HOTP counter under $HOTP_COUNTER"
 counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
-  die "Unable to create hotp counter file"
+	die "Unable to create hotp counter file"
 mount -o remount,ro /boot
 
 exit 0
