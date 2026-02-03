@@ -27,24 +27,29 @@ fi
 paramsdir="${paramsdir%%/}"
 
 assert_signable
-
-confirm_gpg_card
+TRACE_FUNC
 
 # remount /boot as rw
 mount -o remount,rw /boot
 
+DEBUG "Signing kexec parameters in $paramsdir, rollback=$rollback, update=$update, counter=$counter"
+
 # update hashes in /boot before signing
 if [ "$update" = "y" ]; then
 	(
+		TRACE_FUNC
+		DEBUG "update=y: Updating kexec hashes in /boot"
 		cd /boot
 		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >/boot/kexec_hashes.txt
 		if [ -e /boot/kexec_default_hashes.txt ]; then
+			DEBUG "/boot/kexec_default_hashes.txt exists, updating /boot/kexec_default_hashes.txt"
 			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
 			echo $DEFAULT_FILES | xargs sha256sum >/boot/kexec_default_hashes.txt
 		fi
 
 		#also save the file & directory structure to detect added files
 		print_tree >/boot/kexec_tree.txt
+		TRACE_FUNC
 	)
 	[ $? -eq 0 ] || die "$paramsdir: Failed to update hashes."
 
@@ -56,35 +61,68 @@ fi
 if [ "$rollback" = "y" ]; then
 	rollback_file="$paramsdir/kexec_rollback.txt"
 
+	DEBUG "rollback=y, counter=$counter, paramsdir=$paramsdir, rollback_file=$rollback_file"
+	TRACE_FUNC
+
 	if [ -n "$counter" ]; then
-		# use existing counter
-		read_tpm_counter $counter >/dev/null 2>&1 ||
+		DEBUG "rollback=y: provided counter=$counter, will read tpm counter next"
+		TRACE_FUNC
+
+		# use existing tpm counter
+		DO_WITH_DEBUG read_tpm_counter "$counter" >/dev/null 2>&1 ||
 			die "$paramsdir: Unable to read tpm counter '$counter'"
 	else
-		# increment counter
-		check_tpm_counter $rollback_file >/dev/null 2>&1 ||
-			die "$paramsdir: Unable to find/create tpm counter"
-		counter="$TPM_COUNTER"
+		DEBUG "rollback=y: counter was not provided: checking for existing TPM counter from TPM rollback_file=$rollback_file"
+		TRACE_FUNC
 
-		increment_tpm_counter $counter >/dev/null 2>&1 ||
-			die "$paramsdir: Unable to increment tpm counter"
+		if [ -e "$rollback_file" ]; then
+			# Extract TPM_COUNTER from rollback file
+			TPM_COUNTER=$(grep -o 'counter-[0-9a-f]*' "$rollback_file" | cut -d- -f2)
+			DEBUG "rollback=y: Found TPM counter $TPM_COUNTER in rollback file $rollback_file"
+		else
+			DEBUG "Rollback file $rollback_file does not exist. Creating new TPM counter."
+			DO_WITH_DEBUG check_tpm_counter $rollback_file ||
+				die "$paramsdir: Unable to find/create tpm counter"
+
+			TRACE_FUNC
+			TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
+			DEBUG "rollback=y: Created new TPM counter $TPM_COUNTER"
+		fi
 	fi
 
-	sha256sum /tmp/counter-$counter >$rollback_file ||
+	TRACE_FUNC
+
+	# Increment the TPM counter
+	DEBUG "rollback=y: Incrementing counter $TPM_COUNTER."
+	DO_WITH_DEBUG increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
+		die "$paramsdir: Unable to increment tpm counter"
+
+	# Ensure the incremented counter file exists
+	incremented_counter_file="/tmp/counter-$TPM_COUNTER"
+	if [ ! -e "$incremented_counter_file" ]; then
+		DEBUG "TPM counter file '$incremented_counter_file' not found. Attempting to read it again."
+		DO_WITH_DEBUG read_tpm_counter "$TPM_COUNTER" >/dev/null 2>&1 ||
+			die "$paramsdir: TPM counter file '$incremented_counter_file' not found after incrementing."
+	fi
+
+	DEBUG "TPM counter file '$incremented_counter_file' found."
+
+	# Create the rollback file
+	sha256sum "$incremented_counter_file" >$rollback_file ||
 		die "$paramsdir: Unable to create rollback file"
 fi
 
+TRACE_FUNC
 param_files=$(find $paramsdir/kexec*.txt)
 if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
 
 for tries in 1 2 3; do
-	if sha256sum $param_files | gpg \
-		--detach-sign \
-		-a \
-		>$paramsdir/kexec.sig \
-		; then
+	confirm_gpg_card
+	TRACE_FUNC
+
+	if DO_WITH_DEBUG sha256sum $param_files | gpg --detach-sign -a >$paramsdir/kexec.sig; then
 		# successful - update the validated params
 		check_config $paramsdir
 

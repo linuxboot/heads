@@ -10,19 +10,19 @@ TRACE_FUNC
 # Good system clock is required for GPG to work properly.
 # if system year is less then 2024, prompt user to set correct time
 if [ "$(date +%Y)" -lt 2024 ]; then
-    if whiptail_warning --title "System Time Incorrect" \
-        --yesno "The system time is incorrect. Please set the correct time." \
-        0 80 --yes-button Continue --no-button Skip --clear; then
-        change-time.sh
-    fi
+	if whiptail_warning --title "System Time Incorrect" \
+		--yesno "The system time is incorrect. Please set the correct time." \
+		0 80 --yes-button Continue --no-button Skip --clear; then
+		change-time.sh
+	fi
 fi
 
 # Import user's keys if they exist
 if [ -d /.gnupg/keys ]; then
-    # This is legacy location for user's keys. cbfs-init takes for granted that keyring and trustdb are in /.gnupg
-    #  oem-factory-reset generates keyring and trustdb which cbfs-init dumps to /.gnupg
-    # TODO: Remove individual key imports. This is still valid for distro keys only below.
-    gpg --import /.gnupg/keys/*.key  /.gnupg/keys/*.asc 2>/dev/null || warn "Importing user's keys failed"
+	# This is legacy location for user's keys. cbfs-init takes for granted that keyring and trustdb are in /.gnupg
+	#  oem-factory-reset generates keyring and trustdb which cbfs-init dumps to /.gnupg
+	# TODO: Remove individual key imports. This is still valid for distro keys only below.
+	gpg --import /.gnupg/keys/*.key  /.gnupg/keys/*.asc 2>/dev/null || warn "Importing user's keys failed"
 fi
 
 # Import trusted distro keys allowed for ISO signing
