@@ -172,6 +172,9 @@ show_system_info() {
 	cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
 	kernel=$(uname -s -r)
 
+	# Get disk information using the shared sysfs helper from functions
+	local disk_info="$(disk_info_sysfs)"
+
 	local msgbox="${BOARD_NAME}
 
 	FW_VER: ${FW_VER}
@@ -181,8 +184,7 @@ show_system_info() {
 	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
 	RAM: ${memtotal} GB
 	$battery_status
-	$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')
-	"
+	${disk_info}"
 
 	local msgbox_rm_tabs=$(echo "$msgbox" | tr -d "\t")
 
