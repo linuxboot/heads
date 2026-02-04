@@ -6,7 +6,7 @@ usage() {
 Usage: $0 [-y|--yes] [-w|--wrapper WRAPPER] IMAGE [-- [WRAPPER [WRAPPER_ARGS...]]]
 
 Helper: obtain an image digest and run a docker wrapper pinned to that digest.
-- IMAGE: an exact docker image ref (e.g. tlaurion/heads-dev-env:v0.2.6)
+- IMAGE: an exact docker image ref (e.g. tlaurion/heads-dev-env:v0.2.7)
 - If the image is not present locally, the helper will probe the registry and
   offer to pull it (use -y/--yes to auto-pull).
 - WRAPPER: the docker wrapper to execute (e.g. ./docker_latest.sh or ./docker_repro.sh).
@@ -20,16 +20,16 @@ Options:
 
 Examples:
   # Interactive: obtain digest and run the 'latest' wrapper pinned to that digest (explicit wrapper recommended)
-  ./docker/pin-and-run.sh tlaurion/heads-dev-env:v0.2.6 -- ./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  ./docker/pin-and-run.sh tlaurion/heads-dev-env:v0.2.7 -- ./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2
 
   # Auto-pull and run (auto-pull the ref to obtain a local digest then run wrapper)
-  ./docker/pin-and-run.sh -y tlaurion/heads-dev-env:v0.2.6 -- ./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  ./docker/pin-and-run.sh -y tlaurion/heads-dev-env:v0.2.7 -- ./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2
 
   # Shortcut: omit the wrapper and just provide the command — the helper will use the default './docker_latest.sh'
-  ./docker/pin-and-run.sh tlaurion/heads-dev-env:v0.2.6 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  ./docker/pin-and-run.sh tlaurion/heads-dev-env:v0.2.7 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
 
   # Use a different wrapper explicitly (e.g. repro):
-  ./docker/pin-and-run.sh -w ./docker_repro.sh tlaurion/heads-dev-env:v0.2.6 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
+  ./docker/pin-and-run.sh -w ./docker_repro.sh tlaurion/heads-dev-env:v0.2.7 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
 USAGE
 }
 

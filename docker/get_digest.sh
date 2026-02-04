@@ -7,7 +7,7 @@ Usage: $0 [--yes|-y] IMAGE[:TAG|@DIGEST]
 
 Helper to print the full 'repo@digest' and the raw digest for a docker image.
 Behavior:
- - The script treats the provided image reference literally. Provide exact `repo/name:tag` or `repo@digest` (e.g. `tlaurion/heads-dev-env:v0.2.6`).
+ - The script treats the provided image reference literally. Provide exact `repo/name:tag` or `repo@digest` (e.g. `tlaurion/heads-dev-env:v0.2.7`).
  - If the image exists locally, the script prints the first RepoDigest (repo@digest) and the raw digest.
  - If the image is not present locally, the script will offer to pull the exact provided reference to obtain a local RepoDigest (interactive or `-y`).
  - The script prefers to operate on local image state (e.g., Docker local RepoDigests). If a local digest is not available it may query the Docker Hub v2 HTTP API (docker.io) via `curl` to obtain an authoritative manifest digest for docker.io images; this requires network access and appropriate registry connectivity. For other registries or Docker versions you may still need to use `docker manifest inspect` or `skopeo inspect` manually if `RepoDigests` is not populated.
@@ -17,9 +17,9 @@ Options:
   -h, --help  Show this help message
 
 Examples:
-  ./docker/get_digest.sh tlaurion/heads-dev-env:v0.2.6
+  ./docker/get_digest.sh tlaurion/heads-dev-env:v0.2.7
   ./docker/get_digest.sh tlaurion/heads-dev-env:latest
-  ./docker/get_digest.sh -y tlaurion/heads-dev-env:v0.2.6
+  ./docker/get_digest.sh -y tlaurion/heads-dev-env:v0.2.7
   # Note: provide the exact repo:name:tag you intend; the script treats the reference literally.
 USAGE
 }
@@ -47,7 +47,7 @@ fi
 image="$1"
 
 # Treat the provided image reference literally and do not try to append ':latest'.
-# The caller should provide the exact reference they intend (e.g. 'tlaurion/heads-dev-env:v0.2.6'),
+# The caller should provide the exact reference they intend (e.g. 'tlaurion/heads-dev-env:v0.2.7'),
 # and the script will inspect that exact reference and prompt to pull it if missing.
 image_provided="${image}"
 image="${image_provided}"
