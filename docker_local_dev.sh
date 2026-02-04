@@ -1,93 +1,77 @@
 #!/bin/bash
 
+# Source shared docker helper functions
+# shellcheck source=docker/common.sh
+source "$(dirname "$0")/docker/common.sh"
+
 #locally build docker name is linuxboot/heads:dev-env
 DOCKER_IMAGE="linuxboot/heads:dev-env"
 
-# Check if Nix is installed
-if ! command -v nix &>/dev/null; then
-	echo "Nix is not installed or not in the PATH. Please install Nix before running this script."
-	echo "Refer to the README.md at the root of the repository for installation instructions."
-	exit 1
-fi
-
-# Check if Docker is installed
-if ! command -v docker &>/dev/null; then
-	echo "Docker is not installed or not in the PATH. Please install Docker before running this script."
-	echo "Refer to the README.md at the root of the repository for installation instructions."
-	exit 1
-fi
-
-# Inform the user about the Docker image being used
-echo "!!! This ./docker_local_dev.sh script is for developers usage only. !!!"
-echo ""
-echo "Using the last locally built Docker image when flake.nix/flake.lock was modified and repo was dirty: linuxboot/heads:dev-env"
-echo "!!! Warning: Using anything other than the published Docker image might lead to non-reproducible builds. !!!"
-echo ""
-echo "For using the latest published Docker image, refer to ./docker_latest.sh."
-echo "For producing reproducible builds as CircleCI, refer to ./docker_repro.sh."
-echo ""
-
-# Function to display usage information
 usage() {
-	echo "Usage: $0 [OPTIONS] -- [COMMAND]"
-	echo "Options:"
-	echo "  CPUS=N  Set the number of CPUs"
-	echo "  V=1     Enable verbose mode"
-	echo "Command:"
-	echo "  The command to run inside the Docker container, e.g., make BOARD=BOARD_NAME"
+  cat <<'USAGE'
+Usage: ./docker_local_dev.sh [COMMAND...]
+
+Run the local dev image (linuxboot/heads:dev-env). If flake.nix/flake.lock are dirty,
+rebuilds the image first.
+
+Environment:
+  HEADS_SKIP_DOCKER_REBUILD=1   Skip rebuild even if flake files changed
+  HEADS_CHECK_REPRODUCIBILITY=1 Compare local image ID to maintainer image
+  HEADS_CHECK_REPRODUCIBILITY_REMOTE=...  Override remote image for the check
+  HEADS_DISABLE_USB=1           Disable USB passthrough
+  HEADS_X11_XAUTH=1             Force mounting ~/.Xauthority
+
+Nix (only when rebuild is required):
+  HEADS_AUTO_INSTALL_NIX=1      Auto-install Nix (requires HEADS_NIX_INSTALLER_SHA256)
+  HEADS_NIX_INSTALLER_SHA256=...  Expected sha256 for the installer
+  HEADS_NIX_INSTALLER_VERSION=...  Use a pinned Nix installer version
+  HEADS_NIX_INSTALLER_URL=...   Override installer URL
+  HEADS_AUTO_ENABLE_FLAKES=1    Auto-enable flakes in nix.conf
+  HEADS_SKIP_DISK_CHECK=1       Skip disk preflight check
+  HEADS_MIN_DISK_GB=...         Override disk free threshold (GB)
+
+Examples:
+  ./docker_local_dev.sh
+  HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh
+USAGE
 }
 
-# Function to kill GPG toolstack related processes using USB devices
-kill_usb_processes() {
-	# check if scdaemon or pcscd processes are using USB devices
-	if [ -d /dev/bus/usb ]; then
-		if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' >/dev/null; then
-			echo "Killing GPG toolstack related processes using USB devices..."
-			sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' | awk '{print $1}' | xargs -r sudo kill -9
-		fi
-	fi
-}
-
-# Handle Ctrl-C (SIGINT) to exit gracefully
-trap "echo 'Script interrupted. Exiting...'; exit 1" SIGINT
-
-# Check if --help or -h is provided
-for arg in "$@"; do
-	if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-		usage
-		exit 0
-	fi
-done
-
-# Check if the git repository is dirty and if flake.nix or flake.lock are part of the uncommitted changes
-if [ -n "$(git status --porcelain | grep -E 'flake\.nix|flake\.lock')" ]; then
-	echo "**Warning: Uncommitted changes detected in flake.nix or flake.lock. The Docker image will be rebuilt!**"
-	echo "If this was not intended, please CTRL-C now, commit your changes and rerun the script."
-	echo "Building the Docker image from flake.nix..."
-	nix --print-build-logs --verbose develop --ignore-environment --command true
-	nix --print-build-logs --verbose build .#dockerImage && docker load <result
-else
-	echo "Git repository is clean. Using the previously built Docker image when repository was unclean and flake.nix/flake.lock changes were uncommited."
-	sleep 1
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
 fi
 
-# Kill processes using USB devices
-kill_usb_processes
+trap 'echo "Script interrupted. Exiting..."; exit 1' SIGINT
 
-# Inform the user about entering the Docker container
-echo "----"
-echo "Usage reminder: The minimal command is 'make BOARD=XYZ', where additional options, including 'V=1' or 'CPUS=N' are optional."
-echo "For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config."
-echo
-echo "Type exit within docker image to get back to host if launched interactively!"
-echo "----"
-echo
+# Inform the user succinctly about the Docker image being used
+echo "Developer helper: ./docker_local_dev.sh (local image: linuxboot/heads:dev-env)"
+echo "Rebuilds local image when flake.nix/flake.lock have uncommitted changes. Opt-out: HEADS_SKIP_DOCKER_REBUILD=1"
+echo "For published images use: ./docker_latest.sh; for reproducible builds use: ./docker_repro.sh"
+echo ""
 
-# Execute the docker run command with the provided parameters
-if [ -d "/dev/bus/usb" ]; then
-	echo "--->Launching container with access to host's USB buses (some USB devices were connected to host)..."
-	docker run --device=/dev/bus/usb:/dev/bus/usb -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-else
-	echo "--->Launching container without access to host's USB buses (no USB devices was connected to host)..."
-	docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
+# Ensure docker is available
+require_docker || exit $?
+
+# Rebuild the local image from flake.nix/flake.lock when uncommitted changes are present.
+# Nix is only required if rebuild is needed; ensure_nix_and_flakes is called from _build_nix_docker_image.
+# Opt-out with HEADS_SKIP_DOCKER_REBUILD=1
+maybe_rebuild_local_image "$DOCKER_IMAGE"
+echo "Using local dev image: $DOCKER_IMAGE" >&2
+
+# Optional: verify reproducibility against docker.io latest
+# Requires HEADS_CHECK_REPRODUCIBILITY=1 and either skopeo or curl installed
+if [ "${HEADS_CHECK_REPRODUCIBILITY:-0}" = "1" ]; then
+  compare_image_reproducibility "$DOCKER_IMAGE" || {
+    echo "Note: Reproducibility check failed (expected if Nix versions or flake.lock differs from maintainer build)" >&2
+  }
+fi
+
+# Only perform host-side side-effects when executed directly (not when sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # If USB passthrough is possible, clean up host processes that may hold tokens (interactive abort allowed).
+  kill_usb_processes
+
+  # Execute the docker run command with the provided parameters
+  # Delegate to shared run_docker so all docker_* scripts share identical device/X11/KVM handling
+  run_docker "$DOCKER_IMAGE" "$@"
 fi

@@ -1,0 +1,12 @@
+# Optional: pin the Docker image used by ./docker_repro.sh to an immutable digest
+# This file is read by docker_repro.sh if DOCKER_REPRO_DIGEST is not set in the
+# environment. The first non-empty, non-comment line is used as the digest value.
+# Acceptable formats are:
+#  - sha256:<64-hex>
+#  - sha256-<64-hex>  (will be normalized to sha256:<hex>)
+#  - <64-hex>         (will be normalized to sha256:<hex>)
+# Example:
+# sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+# Place the digest on the first non-comment line below (remove the leading '#')
+sha256-50a9110cdfc6a74a383169d7c624139c3b3e05567b87203498118a8a33dd79f1
