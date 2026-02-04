@@ -9,4 +9,5 @@
 # sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 # Place the digest on the first non-comment line below (remove the leading '#')
-sha256-50a9110cdfc6a74a383169d7c624139c3b3e05567b87203498118a8a33dd79f1
+# Version: v0.2.7
+sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
