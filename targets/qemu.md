@@ -15,20 +15,40 @@ The TPM and disks for this configuration are persisted in the build/qemu-coreboo
 Bootstrapping a working system
 ===
 
-1. Install QEMU and swtpm.  (Optionally, KVM.)
-   * Many distributions already package swtpm, but Debian Bullseye does not.  (Bookworm does.)  On Bullseye you will have to build and install libtpms and swtpm from source, see below for detailed instructions.
-     * https://github.com/stefanberger/libtpms
-     * https://github.com/stefanberger/swtpm
+Important: The supported and tested workflow uses the provided Docker wrappers (`./docker_repro.sh`, `./docker_local_dev.sh`, or `./docker_latest.sh`). Host-side installation of QEMU, `swtpm`, or other QEMU-related tooling is unnecessary and is not part of the standard, supported workflow; only advanced or edge-case scenarios should install those tools on the host (see 'Troubleshooting' below for guidance).
+
+1. Install Docker
+   * Install Docker (docker-ce) for your OS by following Docker's official installation guide: https://docs.docker.com/engine/install/
+
+Note: the Nix-built Docker images used by `./docker_repro.sh` include
+QEMU (`qemu-system-x86_64`), `swtpm` / `libtpms`, `canokey-qemu` (a
+virtual OpenPGP smartcard), and other userspace tooling required to
+build and test QEMU targets. These images are intended to be
+self-contained for QEMU testing; host-focused build instructions
+(e.g., building `swtpm` on the host) were removed to avoid
+divergence—use the Docker wrappers for the tested workflow.
+
+If you do not specify `USB_TOKEN` when running QEMU targets, the
+container will use the included `canokey-qemu` virtual token by
+default. To forward a hardware token from the host, set `USB_TOKEN` or
+pass `hostbus`/`hostport`/`vendorid,productid` to the make invocation.
+
+If you plan to manage disk images or use `qemu-img` snapshots on the
+host (outside the container), install the `qemu-utils` package locally
+(which provides `qemu-img`).
+
+
 2. Build Heads
-   * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp`
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp`
 3. Install OS
-   * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp INSTALL_IMG=<path_to_installer.iso> run`
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp INSTALL_IMG=<~/heads/path_to_iso.iso> run`
    * Lightweight desktops (XFCE, LXDE, etc.) are recommended, especially if KVM acceleration is not available (such nested in Qubes OS)
    * When running nested in a qube, disable memory ballooning for the qube, or performance will be very poor.
    * Include `QEMU_MEMORY_SIZE=6G` to set the guest's memory (`6G`, `8G`, etc.).  The default is 4G to be conservative, but more may be needed depending on the guest OS.
    * Include `QEMU_DISK_SIZE=30G` to set the guest's disk size, the default is `20G`.
 4. Shut down and boot Heads with the USB token attached, proceed with OEM reset
-   * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=<token> run`
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=<token> run`
+   * If you do not set `USB_TOKEN`, the included `canokey-qemu` virtual token will be used by default.
    * For `<token>`, use one of:
      * `NitrokeyPro` - a Nitrokey Pro by VID/PID
      * `NitrokeyStorage` - a Nitrokey Storage by VID/PID
@@ -47,54 +67,123 @@ Bootstrapping a working system
    * `sudo umount /media/fd_heads_gpg`
    * `sudo losetup --detach /dev/loop0`
 6. Inject the GPG key into the Heads image and run again
-   * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=<path_to_key.asc> inject_gpg`
-   * `make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=<path_to_key.asc> inject_gpg`
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
 7. Initialize the TPM - select "Reset the TPM" at the TOTP error prompt and follow prompts
 8. Select "Default boot" and follow prompts to sign /boot for the first time and set a default boot option
 
 You can reuse an already created ROOT_DISK_IMG by passing its path at runtime.
-Ex: `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+Ex: `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+
+Note: hardlinks are your friend. You can (should?) have qemu disk images kept somewhere (cp/mv) ~/qemu_img/test.qcow2 and do:
+  * `cp -alf ~/qemu_img/test.qcow2 ~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2`
+
+This way, if you accidentally wipe ~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2, the original is kept intact.
+Also note that hardlinks share the same underlying data; modifications to one linked copy affect them all, and the filesystem maintains a link count to track how many references exist.
+
+`cp -alf` is basically creating a hardlink to destination overwriting it, and doesn't cost additional disk space.
 
 On a daily development cycle, usage looks like:
-1. `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 inject_gpg`
-2. `make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+1. `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 inject_gpg`
+2. `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
 
-The first command builds latest uncommited/unsigned changes and injects the public key inside of the rom to be ran by the second command.
+The first command builds the latest uncommitted/unsigned changes and injects the public key inside the ROM to be run by the second command.
 To test across all qemu variants, one only has to change BOARD name and run the two previous commands, adapting `QEMU_MEMORY_SIZE=1G` or modifying the file directly under build dir to adapt to host resources.
 
-swtpm on Debian Bullseye
+
+Running via Docker wrappers
 ===
+We provide convenient wrapper scripts at the repository root that encapsulate Docker invocation and automatically handle common host integrations needed for QEMU runs.
 
-libtpms and swtpm must be built and installed from source on Debian Bullseye. Upstream provides tooling to build these as Debian packages, which allows things to work seamlessly with default AppArmor configs, etc.
+Wrapper comparison
+---
 
-1. Install dependencies
-   * `sudo apt install automake autoconf libtool make gcc libc-dev libssl-dev dh-autoreconf libssl-dev libtasn1-6-dev pkg-config net-tools iproute2 libjson-glib-dev libgnutls28-dev expect gawk socat gnutls-bin libseccomp-dev libfuse-dev python3-twisted selinux-policy-dev trousers devscripts equivs`
-2. Build libtpms
-   * `git clone https://github.com/stefanberger/libtpms`
-   * `cd libtpms; git checkout v0.9.4` (latest release as of this writing)
-   * `sudo mk-build-deps --install ./debian/control`
-   * `debuild -us -uc`
-   * `sudo apt install ../libtpms*.deb`
-3. Build swtpm
-   * `git clone https://github.com/stefanberger/swtpm`
-   * `cd swtpm; git checkout v0.7.3` (latest release as of this writing)
-   * `echo "libtpms0 libtpms" > ./debian/shlibs.local`
-   * `sudo mk-build-deps --install ./debian/control`
-   * `debuild -us -uc`
-   * `sudo apt install ../swtpm*.deb`
+| Script | Image | Use |
+|---|---:|---|
+| `docker_latest.sh` | `tlaurion/heads-dev-env:latest` | Convenience: run the latest published image |
+| `docker_local_dev.sh` | `linuxboot/heads:dev-env` | Development: use local image built from the flake (rebuilds when flake files are dirty) |
+| `docker_repro.sh` | Image pinned from `.circleci/config.yml` | Reproducible builds that match CircleCI |
 
-swtpm on Debian bookworm
-===
-1. Install dependencies
-   * `sudo apt install swtpm swtpm-tools`
+What the wrappers handle
+---
 
-swtpm on nix docker image
-===
-Nothing to do. Everything needed is in the docker image.
+Wrapper options: some runtime behavior is controlled via environment
+variables documented in the repository README (see 'Wrapper options &
+environment variables'). Important ones are `HEADS_DISABLE_USB`
+(set to `1` to disable automatic USB passthrough and cleanup) and
+`HEADS_X11_XAUTH` (force mounting your `$HOME/.Xauthority`).
 
-Just make sure to pass DISPLAY environement variable on your docker command line. eg:
-* Remotely downloaded docker image (doing make command only inside of docker example):
-  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2`
-  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) tlaurion/heads-dev-env:latest -- make BOARD=qemu-coreboot-whiptail-tpm2 run`
-* Locally created docker image from nix develop environment (jumping into docker image variation of the above, where developer does what he wants within):
-  * `docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) linuxboot/heads:dev-env`
+Make variables such as `USB_TOKEN`, `PUBKEY_ASC`, `INSTALL_IMG`,
+`QEMU_MEMORY_SIZE`, `QEMU_DISK_SIZE`, `ROOT_DISK_IMG`, `CPUS` and `V`
+are forwarded to the `make` invocation and affect how
+`targets/qemu.mk` runs QEMU. See `targets/qemu.mk` for token formats
+and examples.
+
+Note: when USB passthrough is active the wrapper will warn and, on
+interactive shells, give a 3s abort window before attempting to kill
+processes that hold the token (e.g., `scdaemon`/`pcscd`) to free the
+device; set `HEADS_DISABLE_USB=1` to opt out.
+
+- **KVM passthrough**: when `/dev/kvm` exists on the host the container is run with `/dev/kvm` mounted into the container, enabling KVM-accelerated QEMU.
+- **X11 GUI support**: the wrappers mount the X11 socket and programmatically create a per-user Xauthority file (`/tmp/.docker.xauth-<uid>`) when `xauth` is available; they fall back to mounting `${HOME}/.Xauthority` when needed and set `XAUTHORITY` inside the container so GTK/SDL QEMU windows work.
+  - To force mounting your `${HOME}/.Xauthority` regardless of socket detection, set `HEADS_X11_XAUTH=1`.
+- **USB passthrough**: when host USB buses exist `/dev/bus/usb` is mounted into the container so VMs can access hardware tokens. To explicitly disable automatic USB passthrough set `HEADS_DISABLE_USB=1`.
+- **USB token cleanup**: the wrappers attempt to detect and stop local GPG/toolstack processes (e.g., `scdaemon`, `pcscd`) which might hold USB tokens. Behavior notes:
+  - If `sudo` can be run without a password the cleanup runs silently.
+  - The cleanup avoids prompting for a password in non-interactive shells; it will prompt only when running interactively (attached to a TTY). To skip the cleanup entirely set `HEADS_DISABLE_USB=1`.
+- **Convenience variables accepted by the wrappers**: `V=1` for verbose make output, `CPUS=N` to set parallelism for builds, and any `make` variables may be passed through to the container command.
+- **Argument forwarding**: arguments given to the wrapper are forwarded directly to the container command (no special separator needed). For example: `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`.
+
+Environment variables reference
+---
+
+| Variable | Default | Effect |
+|---|---:|---|
+| `HEADS_DISABLE_USB` | `0` | When `1`, disable automatic USB passthrough and USB cleanup |
+| `HEADS_X11_XAUTH` | `0` | When `1`, mount `${HOME}/.Xauthority` into the container (force usage even when a programmatic Xauthority would otherwise be created) |
+| `HEADS_SKIP_DOCKER_REBUILD` | `0` | When `1`, skip rebuilding the local Docker image when `flake.nix`/`flake.lock` are dirty |
+| `HEADS_NIX_EXTRA_FLAGS` | (none) | Extra flags appended to Nix rebuild commands. Parsed as shell words, so quoted multi-word values are preserved (e.g. `--extra-experimental-features 'nix-command flakes'`). Do not set from untrusted input. |
+| `HEADS_NIX_VERBOSE` | `1` | When `1`, stream Nix output live during rebuilds (default on for dev scripts) |
+| `HEADS_AUTO_INSTALL_NIX` | `0` | When `1`, automatically attempt single-user Nix install if `nix` is missing (suppresses prompt) |
+| `HEADS_AUTO_ENABLE_FLAKES` | `0` | When `1`, automatically enable flakes by writing to `$HOME/.config/nix/nix.conf` (suppresses prompt) |
+| `HEADS_MIN_DISK_GB` | `50` | Minimum free disk in GB required on `/nix` or `/` before attempting rebuild |
+| `HEADS_SKIP_DISK_CHECK` | `0` | When `1`, skip the disk-space preflight check |
+| `HEADS_STRICT_REBUILD` | `0` | When `1`, treat rebuild errors as fatal (including `No 'fromImage' provided`) |
+
+Examples
+---
+
+- Reproducible (uses image version from CircleCI config):
+  - `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
+  - `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=pubkey.asc USB_TOKEN=Nitrokey3NFC inject_gpg`
+  - `HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=pubkey.asc run`
+  - `HEADS_X11_XAUTH=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
+
+- Local development image (uses locally built `linuxboot/heads:dev-env`):
+  - `./docker_local_dev.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2`
+
+- Published latest image (convenience):
+  - `./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
+
+How I tested these wrappers (smoke checks)
+---
+
+- Minimal: `source docker/common.sh && build_docker_opts` — should print a short description and show flags such as `--device=/dev/kvm` when KVM is available and `-v /tmp/.docker.xauth-<uid>:...` when Xauthority was created.
+- Functional (examples tested by PR author): see the tests in the PR body (Ubuntu, Debian, Fedora installer flows). Consider testing `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run` locally to verify KVM+GTK behavior.
+
+Troubleshooting
+---
+
+- Quick checks:
+  - `echo $DISPLAY` — ensure `DISPLAY` is set on the host.
+  - `command -v xauth` — preferred for programmatic Xauthority cookies.
+  - `ls -l /dev/kvm` — verify `/dev/kvm` exists and is accessible.
+  - `groups | grep -q kvm` — confirm your user is in a group with access to KVM (or run with appropriate privileges).
+  - `source docker/common.sh && build_docker_opts` — inspect the options the wrapper will use without launching Docker.
+- GUI issues: prefer installing `xauth` on the host so the wrappers can create a safe programmatic Xauthority file. As a last resort you can run `xhost +SI:localuser:root` (less secure).
+- USB/GPG cleanup: if the cleanup is refusing to run due to non-interactive sudo, run the kill steps manually or set `HEADS_DISABLE_USB=1` to skip automatic cleanup.
+
+Notes
+---
+- Ensure you have an X server available on the host; the wrappers forward `DISPLAY` automatically.
+- If KVM is available but `/dev/kvm` is missing, load kernel modules (e.g., `kvm`, `kvm_intel`, `kvm_amd`) so `/dev/kvm` appears.
