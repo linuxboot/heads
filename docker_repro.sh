@@ -1,66 +1,46 @@
 #!/bin/bash
 
-# Extract the Docker image version from the CircleCI config file
-DOCKER_IMAGE=$(grep -oP '^\s*-?\s*image:\s*\K(tlaurion/heads-dev-env:[^\s]+)' .circleci/config.yml | head -n 1)
+# Use the pinned digest from the repository file for reproducible builds
+DOCKER_IMAGE="tlaurion/heads-dev-env"
 
-# Check if the Docker image was found
-if [ -z "$DOCKER_IMAGE" ]; then
-	echo "Error: Docker image not found in .circleci/config.yml"
-	exit 1
+# Source shared docker helper functions (use the docker/ path where common.sh lives)
+# shellcheck source=docker/common.sh
+source "$(dirname "$0")/docker/common.sh"
+
+# Resolve pinned digest (env var preferred, repository file fallback), and prompt if using unpinned :latest
+DOCKER_IMAGE="$(resolve_docker_image "$DOCKER_IMAGE" "DOCKER_REPRO_DIGEST" "DOCKER_REPRO_DIGEST" "1")"
+# If resolve_docker_image returned empty for any reason, abort
+if [ -z "${DOCKER_IMAGE}" ]; then
+  echo "Error: failed to resolve Docker image; aborting." >&2
+  exit 1
 fi
 
-# Inform the user about the versioned CircleCI Docker image being used
-echo "Using CircleCI Docker image: $DOCKER_IMAGE"
+# Validate that image is pinned to a digest (not an unpinned tag)
+if [[ ! "${DOCKER_IMAGE}" =~ @sha256:[0-9a-f]{64} ]]; then
+  echo "Error: Reproducible builds require pinned digest (@sha256:...), but got: $DOCKER_IMAGE" >&2
+  exit 1
+fi
 
-# Function to display usage information
-usage() {
-	echo "Usage: $0 [OPTIONS] -- [COMMAND]"
-	echo "Options:"
-	echo "  CPUS=N  Set the number of CPUs"
-	echo "  V=1     Enable verbose mode"
-	echo "Command:"
-	echo "  The command to run inside the Docker container, e.g., make BOARD=BOARD_NAME"
-}
+# Extract digest for CircleCI validation
+DIGEST=$(echo "$DOCKER_IMAGE" | sed 's/.*@//')
+VERSION=$(grep '^# Version:' "$(dirname "$0")/docker/DOCKER_REPRO_DIGEST" 2>/dev/null | sed 's/# Version: //' | head -n1)
+if [ -z "$VERSION" ]; then VERSION="unknown"; fi
 
-# Function to kill GPG toolstack related processes using USB devices
-kill_usb_processes() {
-	# check if scdaemon or pcscd processes are using USB devices
-	if [ -d /dev/bus/usb ]; then
-		if sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' >/dev/null; then
-			echo "Killing GPG toolstack related processes using USB devices..."
-			sudo lsof /dev/bus/usb/00*/0* 2>/dev/null | awk 'NR>1 {print $2}' | xargs -r ps -p | grep -E 'scdaemon|pcscd' | awk '{print $1}' | xargs -r sudo kill -9
-		fi
-	fi
-}
+# Cross-validate with .circleci/config.yml (use POSIX grep, not -P)
+CIRCLECI_DIGEST=$(sed -n 's/.*tlaurion\/heads-dev-env@\([^ ]*\).*/\1/p' "$(dirname "$0")/.circleci/config.yml" | head -n1)
+if [ -z "$CIRCLECI_DIGEST" ]; then
+  echo "Warning: Could not find repro image digest in .circleci/config.yml" >&2
+elif [ "$DIGEST" != "$CIRCLECI_DIGEST" ]; then
+  echo "Error: Digest in resolved image ($DIGEST) does not match the digest used in .circleci/config.yml ($CIRCLECI_DIGEST)" >&2
+  exit 1
+fi
+echo "Reproducible build (matched .circleci/config.yml): $DOCKER_IMAGE" >&2
+echo "" >&2
 
-# Handle Ctrl-C (SIGINT) to exit gracefully
-trap "echo 'Script interrupted. Exiting...'; exit 1" SIGINT
 
-# Check if --help or -h is provided
-for arg in "$@"; do
-	if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-		usage
-		exit 0
-	fi
-done
-
-# Kill processes using USB devices
-kill_usb_processes
-
-# Inform the user about entering the Docker container
-echo "----"
-echo "Usage reminder: The minimal command is 'make BOARD=XYZ', where additional options, including 'V=1' or 'CPUS=N' are optional."
-echo "For more advanced QEMU testing options, refer to targets/qemu.md and boards/qemu-*/*.config."
-echo
-echo "Type exit within docker image to get back to host if launched interactively!"
-echo "----"
-echo
-
-# Execute the docker run command with the provided parameters
-if [ -d "/dev/bus/usb" ]; then
-	echo "--->Launching container with access to host's USB buses (some USB devices were connected to host)..."
-	docker run --device=/dev/bus/usb:/dev/bus/usb -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
-else
-	echo "--->Launching container without access to host's USB buses (no USB devices was connected to host)..."
-	docker run -e DISPLAY=$DISPLAY --network host --rm -ti -v $(pwd):$(pwd) -w $(pwd) $DOCKER_IMAGE -- "$@"
+# Only perform host-side side-effects when executed directly (not when sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Clean up host processes holding USB devices first (if applicable)
+  kill_usb_processes
+  run_docker "$DOCKER_IMAGE" "$@"
 fi
