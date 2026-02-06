@@ -40,6 +40,12 @@ echo "" >&2
 
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Ensure Docker CLI is available before attempting to run the container
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: Docker is not installed or not in PATH. Please install Docker to use docker_repro.sh." >&2
+    exit 127
+  fi
+
   # Clean up host processes holding USB devices first (if applicable)
   kill_usb_processes
   run_docker "$DOCKER_IMAGE" "$@"

@@ -120,6 +120,13 @@ esac
 print_digest_info "${image%@*}@${digest}" "${digest}" "user" "${envvar}"
 echo "Running ${wrapper} pinned to ${digest} (exporting ${envvar})" >&2
 
+# Validate that the wrapper exists and is executable before exec'ing it
+if [ -z "${wrapper:-}" ] || [ ! -x "$wrapper" ]; then
+  echo "Error: wrapper '${wrapper:-<unset>}' not found or not executable." >&2
+  usage
+  exit 1
+fi
+
 # Exec the wrapper with the pinned digest in the environment
 # Note: use env to avoid exporting the var in caller environment
 env "${envvar}=${digest}" "$wrapper" "${wrapper_args[@]:-}"

@@ -63,16 +63,15 @@ echo "" >&2
 echo "Fetching remote image digest from: ${remote_image}" >&2
 
 # Try skopeo first (if available, doesn't require full image pull)
+# For comparison, both local and remote must use image ID (not manifest digest)
 remote_digest=""
 if command -v skopeo >/dev/null 2>&1; then
-  echo "  Attempting with skopeo (no pull required)..." >&2
-  remote_digest=$(skopeo inspect "docker://${remote_image}" 2>/dev/null | grep -o '"Digest":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
-  if [ -n "${remote_digest}" ]; then
-    echo "  Found: ${remote_digest}" >&2
-  fi
+  echo "  Attempting with skopeo to check manifest..." >&2
+  # Skopeo returns manifest digest; for consistent comparison, fall through to docker pull
+  # which gives us the image ID (same format as local docker inspect)
 fi
 
-# If skopeo didn't work, pull the image and inspect it locally
+# Pull the image and inspect it locally for image ID
 if [ -z "${remote_digest}" ]; then
   echo "  Pulling image locally to inspect..." >&2
   if docker pull "${remote_image}" >/dev/null 2>&1; then

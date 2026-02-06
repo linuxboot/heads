@@ -100,10 +100,30 @@ if [ -z "${manifest_digest}" ]; then
     :
   fi
 
-  # Determine if it's a docker.io (default) reference (no registry prefix) or explicitly docker.io
-  # For our purposes, attempt hub API when the repo does not contain a '.' in the first path component
+  # Determine if it's a docker.io (default) reference, explicitly docker.io, or a non-Hub registry.
+  # We only attempt the Docker Hub API when:
+  #   - the first path component is explicitly 'docker.io' or 'registry-1.docker.io', or
+  #   - there is no explicit registry-like first component (no '.' or ':' and not 'localhost').
+  # This avoids misclassifying host:port registries (e.g. localhost:5000/repo:tag) as docker.io.
   first_component="${repo%%/*}"
-  if printf '%s' "${first_component}" | grep -qv '\.'; then
+  is_docker_hub_ref=0
+  if [ "${first_component}" = "docker.io" ] || [ "${first_component}" = "registry-1.docker.io" ]; then
+    # Explicit Docker Hub hostname
+    is_docker_hub_ref=1
+  elif printf '%s' "${first_component}" | grep -q '\.'; then
+    # Has a dot: looks like a custom registry hostname (e.g., myregistry.example.com)
+    is_docker_hub_ref=0
+  elif printf '%s' "${first_component}" | grep -q ':'; then
+    # Has a colon: likely host:port (e.g., localhost:5000), treat as non-Hub
+    is_docker_hub_ref=0
+  elif [ "${first_component}" = "localhost" ]; then
+    # localhost without an explicit port: also treat as non-Hub
+    is_docker_hub_ref=0
+  else
+    # No dot, no colon, not localhost: treat as implicit Docker Hub (e.g., 'library/ubuntu', 'user/repo')
+    is_docker_hub_ref=1
+  fi
+  if [ "${is_docker_hub_ref}" -eq 1 ]; then
     registry_api="https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull"
 
     # Prefer curl but fall back to wget; if neither is present skip the Hub API gracefully.

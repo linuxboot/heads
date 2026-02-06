@@ -574,7 +574,7 @@ maybe_rebuild_local_image() {
     local image_name
     image_name=$(echo "$image" | sed 's/:.*//')  # Extract image name without tag
     
-    if docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "^${image_name}:"; then
+    if docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${image_name}:"; then
       echo "Git repository is clean. Using existing Docker image." >&2
       return 0
     fi
@@ -700,9 +700,16 @@ resolve_docker_image() {
       return 1
     fi
 
-    # Strip any tag from fallback_image to get the repository name (tlaurion/heads-dev-env)
+    # Strip any existing digest and, if present, a tag after the last '/' from fallback_image
+    # to get the repository name. This preserves registry prefixes like 'registry.example.com:5000/'
     local image_repo
-    image_repo="${fallback_image%%[:@]*}"
+    # First, drop any '@digest' suffix from the fallback image
+    image_repo="${fallback_image%%@*}"
+    # Then, if the last path component contains a ':', treat that as a tag and strip it
+    local _last_component="${image_repo##*/}"
+    if [[ "${_last_component}" == *:* ]]; then
+      image_repo="${image_repo%:*}"
+    fi
     print_digest_info "${image_repo}@${digest_value}" "${digest_value}" "${digest_source}" "${digest_env_varname}"
     echo "${image_repo}@${digest_value}"
     return 0
