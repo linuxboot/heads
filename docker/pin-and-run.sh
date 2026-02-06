@@ -64,7 +64,7 @@ fi
 image="$1"; shift
 
 # Default wrapper if none supplied via -w
-default_wrapper="./docker_latest.sh"
+default_wrapper="$(dirname "$0")/docker_latest.sh"
 wrapper_args=()
 
 if [ $wrapper_override -eq 0 ]; then

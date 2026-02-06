@@ -145,7 +145,6 @@ Wrapper options & environment variables
 `./docker_local_dev.sh`:
 - `HEADS_SKIP_DOCKER_REBUILD=1` — skip automatically rebuilding the local image when `flake.nix`/`flake.lock` are dirty
 - `HEADS_CHECK_REPRODUCIBILITY=1` — **recommended for verifying reproducible builds**. After building/loading the local image, automatically compares its digest with the published maintainer image to verify reproducibility. Requires network access. By default compares against `${HEADS_MAINTAINER_DOCKER_IMAGE}:latest`. Use `HEADS_CHECK_REPRODUCIBILITY_REMOTE` to specify a different tag (e.g., `v0.2.7`). See the "Verifying reproducibility" section below for detailed examples and expected outputs.
-- `HEADS_NIX_VERBOSE=1` — stream Nix output live during rebuilds (default: on for dev scripts)
 - `HEADS_AUTO_INSTALL_NIX=1` — automatically attempt to download the Nix single-user installer when `nix` is missing (interactive prompt suppressed).
   For supply-chain safety the helper will download the installer to a temporary file and print its SHA256; it will NOT execute the installer automatically unless the downloaded installer matches a pinned hash. The helper will also attempt to detect the installer version heuristically (when possible) and suggest the canonical releases URL (for example `https://releases.nixos.org/nix/nix-2.33.2/install.sha256`) so you can fetch the published sha and compare. To verify:
 
@@ -157,7 +156,7 @@ Wrapper options & environment variables
 - `HEADS_AUTO_ENABLE_FLAKES=1` — automatically enable flakes by writing `experimental-features = nix-command flakes` to `$HOME/.config/nix/nix.conf` (interactive prompt suppressed)
 - `HEADS_MIN_DISK_GB` — minimum free disk space in GB required on `/nix` (or `/` if `/nix` missing) for building (default: `50`)
 - `HEADS_SKIP_DISK_CHECK=1` — skip the preflight disk-space check
-- `HEADS_ALLOW_UNPINNED_LATEST=1` — when set, bypass the interactive warning that using `:latest` in `./docker_latest.sh` is a supply-chain risk (otherwise `:latest` requires confirmation or set `DOCKER_LATEST_DIGEST`)
+- `HEADS_ALLOW_UNPINNED_LATEST=1` — when set, bypass the interactive warning that using `:latest` in `./docker_latest.sh` is a supply-chain risk (otherwise `:latest` requires confirmation unless `DOCKER_LATEST_DIGEST` is set or the wrapper can fall back to `DOCKER_REPRO_DIGEST` for the maintainer image)
 - `DOCKER_REPRO_DIGEST` — pin the image used by `./docker_repro.sh` to an immutable digest: `tlaurion/heads-dev-env@<digest>` (recommended for reproducible and secure builds). Note: `DOCKER_REPRO_DIGEST` is *consumed by* `./docker_repro.sh` (via `resolve_docker_image` in `docker/common.sh`) and is the canonical way to pin the repro image for reproducible builds.
 
 For details about selecting or forwarding a physical USB token to QEMU
@@ -211,7 +210,6 @@ Using `./docker_local_dev.sh`
   - Requires either `curl` or `wget` to fetch the Nix installer; if neither is present the script will print how to install one and abort.
   - Checks disk space on `/nix` (or `/` if `/nix` is absent); default minimum is **50 GB** (`HEADS_MIN_DISK_GB=50`) — override or skip the check with `HEADS_SKIP_DISK_CHECK=1`.
   - If `flake.nix` or `flake.lock` are dirty (uncommitted changes), the helper will rebuild the local Docker image. To intentionally trigger a rebuild, make and keep changes to `flake.nix` (for example update an input or a harmless comment) or update `flake.lock`, then run `./docker_local_dev.sh`; the helper detects the dirty flake files and will rebuild automatically. To avoid an automatic rebuild, commit or stash your changes or set `HEADS_SKIP_DOCKER_REBUILD=1` to disable the check.
-  - Nix output is streamed live by default (`HEADS_NIX_VERBOSE=1`).
 
 On some hardened OSes, you may encounter problems with ptrace.
 ```
@@ -238,7 +236,7 @@ There are three helpers designed for different use cases:
 |--------|----------|------------------|------------|
 | `./docker_repro.sh` | **Canonical reproducible builds** | Pinned to immutable digest | **All users & maintainers**: Standard way to build Heads; matches CircleCI exactly; use for releases and critical builds |
 | `./docker_local_dev.sh` | **Developer customization** | Local build may differ if flake changes | **Developers only**: Rebuilds from local `flake.nix`/`flake.lock` when dirty; useful for testing flake changes; use `HEADS_CHECK_REPRODUCIBILITY=1` to verify against published version |
-| `./docker_latest.sh` | **Convenience** | Unpinned; may change | **Testing/convenience**: Uses latest published image; **supply-chain warning**: not pinned to a digest; requires confirmation unless `HEADS_ALLOW_UNPINNED_LATEST=1` or `DOCKER_LATEST_DIGEST` is set |
+| `./docker_latest.sh` | **Convenience** | Defaults to reproducible digest; may be unpinned if no digest is available | **Testing/convenience**: Uses latest published image; by default falls back to the reproducible digest (`DOCKER_REPRO_DIGEST`) when available (no confirmation needed). Runs unpinned only when no digest is configured, in which case it requires confirmation unless `HEADS_ALLOW_UNPINNED_LATEST=1` or `DOCKER_LATEST_DIGEST` is set. |
 
 **Recommendation by role**:
 - **End users & QA**: Use `./docker_repro.sh` for all builds (ensures reproducibility and security)
@@ -457,10 +455,7 @@ docker tag linuxboot/heads:dev-env "$docker_hub_repo:$docker_version"
 docker push "$docker_hub_repo:$docker_version"
 
 # Capture the digest of the pushed image (use --yes to auto-pull)
-new_digest=$(./docker/check_reproducibility.sh linuxboot/heads:dev-env "$docker_hub_repo:$docker_version" 2>&1 | grep 'Remote' | tail -n1 | awk '{print $NF}')
-
-# Or use the traditional method:
-# new_digest=$(./docker/get_digest.sh -y "$docker_hub_repo:$docker_version" | tail -n1)
+new_digest=$(./docker/get_digest.sh -y "$docker_hub_repo:$docker_version" | tail -n1)
 prev_digest=$(grep '^[^#]' docker/DOCKER_REPRO_DIGEST | head -n1)
 
 # Update the digest in the repository file
@@ -513,7 +508,7 @@ Maintenance tip: The repository file `docker/DOCKER_REPRO_DIGEST` pins the canon
 
 Acceptable formats include `sha256:<64-hex>`, `sha256-<64-hex>` (normalized to `sha256:<hex>`), or just `<64-hex>` (normalized to `sha256:<hex>`). The helper will normalize these formats and produce an image reference like `tlaurion/heads-dev-env@sha256:<hex>`.
 
-If you need to pin the convenience `./docker_latest.sh` wrapper, set the `DOCKER_LATEST_DIGEST` environment variable locally; we do not maintain a `docker/DOCKER_LATEST_DIGEST` file in the repository because 'latest' is a user-level convenience and should be explicitly chosen. Without a digest, `./docker_latest.sh` will prompt before using an unpinned `:latest` unless `HEADS_ALLOW_UNPINNED_LATEST=1` is set in the environment.
+If you need to pin the convenience `./docker_latest.sh` wrapper, set the `DOCKER_LATEST_DIGEST` environment variable locally; we do not maintain a `docker/DOCKER_LATEST_DIGEST` file in the repository because 'latest' is a user-level convenience and should be explicitly chosen. When `DOCKER_LATEST_DIGEST` is unset, `./docker_latest.sh` may fall back to `DOCKER_REPRO_DIGEST` only when the base image matches the maintainer repo; otherwise it will prompt before using an unpinned `:latest` unless `HEADS_ALLOW_UNPINNED_LATEST=1` is set in the environment.
 
 Example: obtain the immutable digest for a published image and use it to force `docker_latest.sh` to use an immutable image:
 

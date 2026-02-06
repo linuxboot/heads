@@ -61,15 +61,15 @@ host (outside the container), install the `qemu-utils` package locally
    * Then Heads will indicate that there is no TOTP code yet, at this point shut down (Continue to main menu -> Power off)
 5. Get the public key that was saved to the virtual USB flash drive
    * `sudo mkdir /media/fd_heads_gpg`
-  * Attach the image and print the loop device in one step:
+   * Attach the image and print the loop device in one step:
 
-      sudo losetup --find --show --partscan ./build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+     sudo losetup --find --show --partscan ./build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
 
-    The command prints the loop device used (for example `/dev/loop0`) and the kernel will create partition nodes such as `/dev/loop0p1` and `/dev/loop0p2` when supported.
+     The command prints the loop device used (for example `/dev/loop0`) and the kernel will create partition nodes such as `/dev/loop0p1` and `/dev/loop0p2` when supported.
 
-    Then mount the appropriate partition (usually the second/public partition):
+     Then mount the appropriate partition (usually the second/public partition):
 
-      sudo mount /dev/loop0p2 /media/fd_heads_gpg  # adjust based on the loop device reported above
+     sudo mount /dev/loop0p2 /media/fd_heads_gpg  # adjust based on the loop device reported above
 
    * Look in `/media/fd_heads_gpg` and copy the most recent public key
    * `sudo umount /media/fd_heads_gpg`
@@ -108,7 +108,7 @@ Wrapper comparison
 
 | Script | Image | Use |
 |---|---:|---|
-| `docker_latest.sh` | `tlaurion/heads-dev-env:latest` | Convenience: run the latest published image |
+| `docker_latest.sh` | Defaults to pinned digest when available | Convenience: run the latest published image |
 | `docker_local_dev.sh` | `linuxboot/heads:dev-env` | Development: use local image built from the flake (rebuilds when flake files are dirty) |
 | `docker_repro.sh` | Image pinned from `.circleci/config.yml` | Reproducible builds that match CircleCI |
 
@@ -150,7 +150,6 @@ Environment variables reference
 | `HEADS_DISABLE_USB` | `0` | When `1`, disable automatic USB passthrough and USB cleanup |
 | `HEADS_X11_XAUTH` | `0` | When `1`, mount `${HOME}/.Xauthority` into the container (force usage even when a programmatic Xauthority would otherwise be created) |
 | `HEADS_SKIP_DOCKER_REBUILD` | `0` | When `1`, skip rebuilding the local Docker image when `flake.nix`/`flake.lock` are dirty |
-| `HEADS_NIX_VERBOSE` | `1` | When `1`, stream Nix output live during rebuilds (default on for dev scripts) |
 | `HEADS_AUTO_INSTALL_NIX` | `0` | When `1`, automatically attempt single-user Nix install if `nix` is missing (suppresses prompt) |
 | `HEADS_AUTO_ENABLE_FLAKES` | `0` | When `1`, automatically enable flakes by writing to `$HOME/.config/nix/nix.conf` (suppresses prompt) |
 | `HEADS_MIN_DISK_GB` | `50` | Minimum free disk in GB required on `/nix` or `/` before attempting rebuild |

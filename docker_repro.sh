@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Use the pinned digest from the repository file for reproducible builds
-DOCKER_IMAGE="tlaurion/heads-dev-env"
-
 # Source shared docker helper functions (use the docker/ path where common.sh lives)
 # shellcheck source=docker/common.sh
 source "$(dirname "$0")/docker/common.sh"
+
+# Use the pinned digest from the repository file for reproducible builds
+DOCKER_IMAGE="${HEADS_MAINTAINER_DOCKER_IMAGE:-tlaurion/heads-dev-env}"
 
 # Resolve pinned digest (env var preferred, repository file fallback), and prompt if using unpinned :latest
 DOCKER_IMAGE="$(resolve_docker_image "$DOCKER_IMAGE" "DOCKER_REPRO_DIGEST" "DOCKER_REPRO_DIGEST" "1")"
@@ -27,15 +27,20 @@ VERSION=$(grep '^# Version:' "$(dirname "$0")/docker/DOCKER_REPRO_DIGEST" 2>/dev
 if [ -z "$VERSION" ]; then VERSION="unknown"; fi
 
 # Cross-validate with .circleci/config.yml (use POSIX grep, not -P)
-CIRCLECI_DIGEST=$(sed -n 's/.*tlaurion\/heads-dev-env@\([^ ]*\).*/\1/p' "$(dirname "$0")/.circleci/config.yml" | head -n1)
-if [ -z "$CIRCLECI_DIGEST" ]; then
-  echo "Warning: Could not find repro image digest in .circleci/config.yml" >&2
-elif [ "$DIGEST" != "$CIRCLECI_DIGEST" ]; then
-  echo "Error: Digest in resolved image ($DIGEST) does not match the digest used in .circleci/config.yml ($CIRCLECI_DIGEST)" >&2
-  exit 1
+if [ "${DOCKER_IMAGE%%@*}" = "tlaurion/heads-dev-env" ]; then
+  CIRCLECI_DIGEST=$(sed -n 's/.*tlaurion\/heads-dev-env@\([^ ]*\).*/\1/p' "$(dirname "$0")/.circleci/config.yml" | head -n1)
+  if [ -z "$CIRCLECI_DIGEST" ]; then
+    echo "Warning: Could not find repro image digest in .circleci/config.yml" >&2
+  elif [ "$DIGEST" != "$CIRCLECI_DIGEST" ]; then
+    echo "Error: Digest in resolved image ($DIGEST) does not match the digest used in .circleci/config.yml ($CIRCLECI_DIGEST)" >&2
+    exit 1
+  fi
+  echo "Reproducible build (matched .circleci/config.yml): $DOCKER_IMAGE" >&2
+  echo "" >&2
+else
+  echo "Note: Skipping CircleCI digest check for non-canonical image: ${DOCKER_IMAGE%%@*}" >&2
+  echo "" >&2
 fi
-echo "Reproducible build (matched .circleci/config.yml): $DOCKER_IMAGE" >&2
-echo "" >&2
 
 
 # Only perform host-side side-effects when executed directly (not when sourced)

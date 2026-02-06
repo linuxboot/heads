@@ -14,6 +14,11 @@
 #
 # Environment variables and configuration are documented in the usage() function below.
 
+__HEADS_RESTORE_SHELL_OPTS=0
+if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+  __HEADS_SHELL_OPTS=$(set +o)
+  __HEADS_RESTORE_SHELL_OPTS=1
+fi
 set -euo pipefail
 
 # ================================================================
@@ -47,8 +52,7 @@ Environment variables (opt-ins / opt-outs):
   HEADS_DISABLE_USB=1   Disable automatic USB passthrough (default: enabled when /dev/bus/usb exists)
   HEADS_X11_XAUTH=1     Explicitly mount $HOME/.Xauthority into the container for X11 auth
   HEADS_SKIP_DOCKER_REBUILD=1  Skip automatic rebuild of the local Docker image when flake.nix/flake.lock are uncommitted
-  HEADS_CHECK_REPRODUCIBILITY=1  Verify reproducibility by comparing local image digest with remote (requires docker/check_reproducibility.sh and network access)
-  HEADS_NIX_VERBOSE=1      Stream Nix output live during rebuild (default: on for dev scripts; set to 0 to silence)
+  HEADS_CHECK_REPRODUCIBILITY=1  Verify reproducibility by comparing local image digest with remote (uses skopeo or curl/jq and network access)
   HEADS_AUTO_INSTALL_NIX=1 Automatically install Nix (single-user) if it's missing (interactive prompt suppressed). For supply-chain safety, this helper will not auto-execute a downloaded installer unless
   HEADS_NIX_INSTALLER_SHA256 is set to the expected sha256 of the installer.
   HEADS_AUTO_ENABLE_FLAKES=1 Automatically enable flakes by writing to $HOME/.config/nix/nix.conf (if needed)
@@ -107,7 +111,7 @@ ensure_nix_and_flakes() {
     local required_kb=$((min_gb * 1024 * 1024))
     if [ "$avail_kb" -lt "$required_kb" ]; then
       echo "Warning: building the docker image and populating /nix may require ${min_gb}GB+ free on ${target}." >&2
-      echo "Detected available: $(df -h --output=avail "$target" | tail -1)" >&2
+      echo "Detected available: $(df -h "$target" | awk 'NR==2{print $4}')" >&2
       if [ -t 1 ]; then
         printf "Continue despite low disk space? [y/N] " >&2
         read -r _ans
@@ -640,23 +644,45 @@ resolve_docker_image() {
     # back to the REPRO digest (env var first, then repository file) since the
     # latest convenience image normally mirrors the repro image in practice.
     if [ -z "${digest_value}" ] && [ "${digest_env_varname}" = "DOCKER_LATEST_DIGEST" ]; then
-      if [ -n "${DOCKER_REPRO_DIGEST:-}" ]; then
-        digest_value="${DOCKER_REPRO_DIGEST}"
-        digest_source="env DOCKER_REPRO_DIGEST"
-      else
-        local repro_file="$repo_dir/docker/DOCKER_REPRO_DIGEST"
-        if [ -f "${repro_file}" ]; then
-          digest_value=$(sed -n 's/#.*//; /^[[:space:]]*$/d; p' "${repro_file}" | head -n1 || true)
-          digest_source="file ${repo_dir}/docker/DOCKER_REPRO_DIGEST"
+      local allow_latest_fallback=0
+      local fallback_repo
+      fallback_repo="${fallback_image%%@*}"
+      local _fallback_last="${fallback_repo##*/}"
+      if [[ "${_fallback_last}" == *:* ]]; then
+        fallback_repo="${fallback_repo%:*}"
+      fi
+
+      if [ "${fallback_repo}" = "${HEADS_MAINTAINER_DOCKER_IMAGE}" ]; then
+        allow_latest_fallback=1
+      fi
+
+      if [ -n "${DOCKER_REPRO_DIGEST:-}" ] && [[ "${DOCKER_REPRO_DIGEST}" == *@* ]]; then
+        local repro_repo="${DOCKER_REPRO_DIGEST%@*}"
+        if [ "${repro_repo}" != "${fallback_repo}" ]; then
+          allow_latest_fallback=0
+          echo "Note: DOCKER_REPRO_DIGEST points to '${repro_repo}', not '${fallback_repo}'; not using it for latest image." >&2
         fi
       fi
-      if [ -n "${digest_value}" ]; then
-        echo "Note: no DOCKER_LATEST_DIGEST set; using DOCKER_REPRO_DIGEST as fallback for latest image." >&2
-        echo "To change which image 'latest' points to, either:" >&2
-        echo "  - Export a digest for convenience: export DOCKER_LATEST_DIGEST=sha256:<hex>" >&2
-        echo "    (get a digest with: ./docker/get_digest.sh tlaurion/heads-dev-env:vX.Y.Z | tail -n1)" >&2
-        echo "  - Or update the canonical file: edit 'docker/DOCKER_REPRO_DIGEST' in this repo to a preferred digest and commit it." >&2
-        echo "  - For one-off runs use the pin-and-run helper: ./docker/pin-and-run.sh <repo:tag> -- ./docker_latest.sh <command>" >&2
+
+      if [ "${allow_latest_fallback}" -eq 1 ]; then
+        if [ -n "${DOCKER_REPRO_DIGEST:-}" ]; then
+          digest_value="${DOCKER_REPRO_DIGEST}"
+          digest_source="env DOCKER_REPRO_DIGEST"
+        else
+          local repro_file="$repo_dir/docker/DOCKER_REPRO_DIGEST"
+          if [ -f "${repro_file}" ]; then
+            digest_value=$(sed -n 's/#.*//; /^[[:space:]]*$/d; p' "${repro_file}" | head -n1 || true)
+            digest_source="file ${repo_dir}/docker/DOCKER_REPRO_DIGEST"
+          fi
+        fi
+        if [ -n "${digest_value}" ]; then
+          echo "Note: no DOCKER_LATEST_DIGEST set; using DOCKER_REPRO_DIGEST as fallback for latest image." >&2
+          echo "To change which image 'latest' points to, either:" >&2
+          echo "  - Export a digest for convenience: export DOCKER_LATEST_DIGEST=sha256:<hex>" >&2
+          echo "    (get a digest with: ./docker/get_digest.sh tlaurion/heads-dev-env:vX.Y.Z | tail -n1)" >&2
+          echo "  - Or update the canonical file: edit 'docker/DOCKER_REPRO_DIGEST' in this repo to a preferred digest and commit it." >&2
+          echo "  - For one-off runs use the pin-and-run helper: ./docker/pin-and-run.sh <repo:tag> -- ./docker_latest.sh <command>" >&2
+        fi
       fi
     fi
   fi
@@ -722,11 +748,11 @@ resolve_docker_image() {
       read -r _ans
       case "${_ans:-N}" in
         [Yy]* ) echo "Proceeding with unpinned image." >&2 ;;
-        * ) printf "Aborting: set %s to pin an immutable image or set HEADS_ALLOW_UNPINNED_LATEST=1 to bypass this prompt.\n" "${digest_env_varname}" >&2; exit 1 ;;
+        * ) printf "Aborting: set %s to pin an immutable image or set HEADS_ALLOW_UNPINNED_LATEST=1 to bypass this prompt.\n" "${digest_env_varname}" >&2; return 1 ;;
       esac
     else
       echo "Refusing to use unpinned ':latest' in non-interactive mode without HEADS_ALLOW_UNPINNED_LATEST=1; aborting." >&2
-      exit 1
+      return 1
     fi
   fi
 
@@ -911,41 +937,86 @@ compare_image_reproducibility() {
   local local_image_id=""
   local_image_id=$(docker inspect --format='{{.Id}}' "${local_image}" 2>/dev/null || true)
   
-  # Get remote image digest
-  local remote_digest=""
-  
-  # Try skopeo first if available (fast, no download)
+  # Get remote image digest / manifest information
+  local remote_manifest_digest=""
+  local remote_repo_digest=""
+  local remote_image_id=""
+
+  # 1) Try skopeo first (preferred, no full download required)
   if command -v skopeo >/dev/null 2>&1; then
-    remote_digest=$(skopeo inspect "docker://${remote_image}" 2>/dev/null | grep -o '"Digest":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
-    if [ -n "${remote_digest}" ]; then
-      echo "Remote image (${remote_image}): ${remote_digest}" >&2
+    echo "  Attempting 'skopeo inspect' for ${remote_image} (no pull required)..." >&2
+    remote_manifest_digest=$(skopeo inspect "docker://${remote_image}" 2>/dev/null | grep -o '"Digest":"[^" ]*' | head -n1 | cut -d'"' -f4 || true)
+    if [ -n "${remote_manifest_digest}" ]; then
+      echo "  Found manifest digest (skopeo): ${remote_manifest_digest}" >&2
     fi
   fi
-  
-  # Fallback to curl + Docker Hub API if skopeo didn't work
-  if [ -z "${remote_digest}" ] && command -v curl >/dev/null 2>&1; then
+
+  # 2) Fallback to Docker Hub REST API if skopeo didn't work (only for docker.io-like refs)
+  if [ -z "${remote_manifest_digest}" ] && command -v curl >/dev/null 2>&1; then
     # Parse image reference: [registry/]namespace/repo:tag
     local repo_with_tag="${remote_image}"
     local tag="${repo_with_tag##*:}"
     local repo_path="${repo_with_tag%:*}"
-    
+
     # Strip registry hostname if present (docker.io, registry-1.docker.io, etc.)
     repo_path="${repo_path#docker.io/}"
     repo_path="${repo_path#registry-1.docker.io/}"
-    
+
     # Docker Hub REST API: https://hub.docker.com/v2/repositories/{namespace}/{repo}/tags/{tag}/
-    local manifest_digest=""
-    manifest_digest=$(curl -sL "https://hub.docker.com/v2/repositories/${repo_path}/tags/${tag}/" 2>/dev/null | grep -o '"digest":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
-    if [ -n "${manifest_digest}" ]; then
-      remote_digest="${manifest_digest}"
-      echo "Remote image (${remote_image}): ${remote_digest}" >&2
+    if command -v jq >/dev/null 2>&1; then
+      echo "  Attempting Docker Hub API for ${remote_image} (requires jq)..." >&2
+      remote_manifest_digest=$(curl -fsSL "https://hub.docker.com/v2/repositories/${repo_path}/tags/${tag}/" 2>/dev/null | jq -r '.digest // empty' || true)
+      if [ -n "${remote_manifest_digest}" ]; then
+        echo "  Found manifest digest (Docker Hub API): ${remote_manifest_digest}" >&2
+      fi
+    else
+      echo "  Note: 'jq' is not available; skipping Docker Hub JSON parsing for '${remote_image}'." >&2
     fi
   fi
-  
-  # If both methods failed, return error
+
+  # If we have a manifest digest and the local image exposes a RepoDigest, compare them now
+  if [ -n "${remote_manifest_digest}" ] && [ -n "${local_repo_digest}" ]; then
+    if [ "${local_repo_digest##*:}" = "${remote_manifest_digest##*:}" ]; then
+      echo "✓ MATCH: Local build is reproducible (manifest digests match)." >&2
+      echo "=== End Reproducibility Check ===" >&2
+      echo "" >&2
+      return 0
+    else
+      echo "Manifest digest mismatch: local ${local_repo_digest##*:} vs remote ${remote_manifest_digest##*:}" >&2
+      # Continue to docker pull path to compare by image ID
+    fi
+  fi
+
+  # 3) Fallback: pull the remote image so we can compare image IDs or RepoDigest locally
+  echo "  Falling back to 'docker pull' to obtain image identifier (progress will be shown)..." >&2
+  if ! docker pull "${remote_image}" 2>&1 | sed -u 's/^/    /'; then
+    echo "Error: Could not pull remote image '${remote_image}'" >&2
+    echo "Suggestion: ensure network access, registry auth, and that Docker daemon is healthy." >&2
+    return 1
+  fi
+
+  # After a successful pull, prefer the RepoDigest (manifest digest) if present
+  remote_repo_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${remote_image}" 2>/dev/null || true)
+  if [ -n "${remote_repo_digest}" ]; then
+    remote_repo_digest="${remote_repo_digest##*@}"
+    echo "  Found remote RepoDigest: ${remote_repo_digest}" >&2
+  fi
+  remote_image_id=$(docker inspect --format='{{.Id}}' "${remote_image}" 2>/dev/null || true)
+  if [ -n "${remote_image_id}" ]; then
+    echo "  Found remote image ID: ${remote_image_id}" >&2
+  fi
+
+  # Set remote_digest to the manifest digest if available, else to image ID as fallback
+  if [ -n "${remote_repo_digest}" ]; then
+    remote_digest="${remote_repo_digest}"
+  elif [ -n "${remote_manifest_digest}" ]; then
+    remote_digest="${remote_manifest_digest}"
+  elif [ -n "${remote_image_id}" ]; then
+    remote_digest="${remote_image_id}"
+  fi
+
   if [ -z "${remote_digest}" ]; then
-    echo "Warning: Could not fetch remote digest for '${remote_image}'" >&2
-    echo "Suggestion: Use 'skopeo' for offline digest inspection, or pull the image to inspect locally" >&2
+    echo "Warning: Could not retrieve any remote digest or image ID for '${remote_image}'" >&2
     return 1
   fi
 
@@ -963,8 +1034,20 @@ compare_image_reproducibility() {
     remote_image_id=$(docker inspect --format='{{.Id}}' "${remote_image}" 2>/dev/null || true)
     if [ -z "${remote_image_id}" ]; then
       if command -v docker >/dev/null 2>&1; then
-        docker pull "${remote_image}" >/dev/null 2>&1 || true
-        remote_image_id=$(docker inspect --format='{{.Id}}' "${remote_image}" 2>/dev/null || true)
+        echo "  Pulling remote image ${remote_image} to obtain image ID (progress will be shown)..." >&2
+        # Pipe output through sed -u to avoid progress bar control characters and ensure lines are flushed
+        if docker pull "${remote_image}" 2>&1 | sed -u 's/^/    /'; then
+          remote_image_id=$(docker inspect --format='{{.Id}}' "${remote_image}" 2>/dev/null || true)
+          if [ -n "${remote_image_id}" ]; then
+            echo "  Found remote image ID: ${remote_image_id}" >&2
+          else
+            echo "  Warning: docker pull succeeded but docker inspect did not return an image ID for '${remote_image}'" >&2
+          fi
+        else
+          echo "Error: Could not pull remote image '${remote_image}'" >&2
+          echo "Suggestion: run 'docker pull ${remote_image}' manually to see detailed errors (network/auth/daemon issues may be the cause)." >&2
+          return 1
+        fi
       fi
     fi
     if [ -n "${remote_image_id}" ] && [ -n "${local_image_id}" ]; then
@@ -1013,7 +1096,7 @@ run_docker() {
   host_workdir="$(pwd)"
   container_workdir="${host_workdir}"
 
-  parts=()
+  local -a parts=()
   case "${opts}" in *"/dev/kvm"*) parts+=(KVM=on) ;; *) parts+=(KVM=off) ;; esac
   case "${opts}" in *"/dev/bus/usb"*) parts+=(USB=on) ;; *) parts+=(USB=off) ;; esac
   case "${opts}" in *"/tmp/.X11-unix"*) parts+=(X11=on) ;; *) parts+=(X11=off) ;; esac
@@ -1068,3 +1151,7 @@ fi
 for arg in "$@"; do
   case "$arg" in -h|--help) usage; exit 0 ;; esac
 done
+
+if [ "${__HEADS_RESTORE_SHELL_OPTS}" = "1" ]; then
+  eval "${__HEADS_SHELL_OPTS}"
+fi

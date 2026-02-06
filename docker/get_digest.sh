@@ -52,6 +52,15 @@ image="$1"
 image_provided="${image}"
 image="${image_provided}"
 
+# Reject refs without a tag (unless a digest was provided).
+if [[ "${image}" != *@* ]]; then
+  _last_component="${image##*/}"
+  if [[ "${_last_component}" != *:* ]]; then
+    echo "Error: image reference '${image}' has no tag; please specify :tag or @digest." >&2
+    exit 2
+  fi
+fi
+
 # Ensure docker is available
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: docker not found in PATH" >&2
@@ -87,7 +96,7 @@ fi
 # need to pull the image or use tools like `docker manifest inspect`/`skopeo inspect` manually.
 manifest_digest=""
 
-# If we couldn't get a manifest digest via 'docker manifest', try Docker Hub registry API as a fallback
+# If we couldn't get a manifest digest locally, try the Docker Hub registry API as a fallback
 if [ -z "${manifest_digest}" ]; then
   # Only attempt the Docker Hub v2 API for docker.io-style images
   # Parse repo and tag
@@ -168,9 +177,8 @@ if [ -z "${manifest_digest}" ]; then
 
     # Offer to pull the exact image so the local Docker daemon has a repo@digest entry.
     if [ "${auto_yes}" = 1 ]; then
-      echo "Auto-pull enabled: pulling ${image}..." >&2
-      if ! docker pull "${image}"; then
-        echo "Warning: pull failed; you may need to login or pull manually." >&2
+      echo "Auto-pull enabled: pulling ${image} (progress will be shown)..." >&2
+      if ! docker pull "${image}" 2>&1 | sed -u 's/^/    /'; then
         exit 1
       fi
       local_repo_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${image}" 2>/dev/null || true)
