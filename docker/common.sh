@@ -865,9 +865,10 @@ build_docker_opts() {
     echo "--->X11 auth may be strict; no automatic 'xhost' changes are performed. Provide Xauthority (install xauth) or run 'xhost +SI:localuser:root' manually if you accept the security risk." >&2
   fi
 
-  local joined
-  printf -v joined "%s " "${opts[@]}"
-  echo "${joined}"
+  # Output each option on its own line so callers can safely populate an array
+  for o in "${opts[@]}"; do
+    printf '%s\n' "$o"
+  done
 }
 
 # Get digest of a locally-built Docker image (handles both RepoDigests and local image ID)
@@ -961,6 +962,11 @@ compare_image_reproducibility() {
     # Strip registry hostname if present (docker.io, registry-1.docker.io, etc.)
     repo_path="${repo_path#docker.io/}"
     repo_path="${repo_path#registry-1.docker.io/}"
+
+    # If no namespace present (no '/'), treat as official image and prefix 'library/'
+    if ! printf '%s' "${repo_path}" | grep -q '/'; then
+      repo_path="library/${repo_path}"
+    fi
 
     # Docker Hub REST API: https://hub.docker.com/v2/repositories/{namespace}/{repo}/tags/{tag}/
     if command -v jq >/dev/null 2>&1; then
@@ -1090,9 +1096,10 @@ compare_image_reproducibility() {
 run_docker() {
   local image="$1"; shift
   local opts host_workdir container_workdir DOCKER_OPTS_ARRAY
-  opts=$(build_docker_opts)
-  # Convert the single-line opts string into an array for safe expansion
-  read -r -a DOCKER_OPTS_ARRAY <<< "$opts"
+  # Read docker options (one-per-line) into an array, preserving spaces within options
+  mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
+  # Also create a single-string representation for legacy substring checks
+  opts=$(printf '%s\n' "${DOCKER_OPTS_ARRAY[@]}")
   host_workdir="$(pwd)"
   container_workdir="${host_workdir}"
 
@@ -1129,14 +1136,14 @@ trap "echo 'Script interrupted. Exiting...'; exit 1" SIGINT
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   # Script is being executed directly. Allow --help/-h to show usage and exit 0,
   # but otherwise require sourcing via the wrapper scripts.
-  for arg in "$@"; do
-    case "$arg" in
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
       -h|--help)
         usage
         exit 0
         ;;
     esac
-  done
+  fi
   # No --help flag provided; show error since script must be sourced
   echo "Error: This script is meant to be sourced by wrapper scripts, not executed directly." >&2
   echo "" >&2
@@ -1148,9 +1155,9 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
 fi
 
 # Parse command-line options when sourced
-for arg in "$@"; do
-  case "$arg" in -h|--help) usage; exit 0 ;; esac
-done
+if [ "$#" -gt 0 ]; then
+  case "$1" in -h|--help) usage; exit 0 ;; esac
+fi
 
 if [ "${__HEADS_RESTORE_SHELL_OPTS}" = "1" ]; then
   eval "${__HEADS_SHELL_OPTS}"

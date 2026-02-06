@@ -103,6 +103,14 @@ if [ -z "${manifest_digest}" ]; then
   repo="${image%:*}"
   tag="${image##*:}"
 
+  # Normalize repo for Docker Hub API: strip docker.io/ or registry-1.docker.io/ prefixes and
+  # ensure 'library/' prefix for official images (e.g., 'ubuntu' -> 'library/ubuntu').
+  repo_for_api="${repo#docker.io/}"
+  repo_for_api="${repo_for_api#registry-1.docker.io/}"
+  if ! printf '%s' "${repo_for_api}" | grep -q '/'; then
+    repo_for_api="library/${repo_for_api}"
+  fi
+
   # If repo contains a registry hostname (e.g., myregistry.example.com/...), skip hub API
   if ! printf '%s' "${repo}" | grep -q '/'; then
     # no slash in repo -- unlikely, but skip
@@ -133,7 +141,7 @@ if [ -z "${manifest_digest}" ]; then
     is_docker_hub_ref=1
   fi
   if [ "${is_docker_hub_ref}" -eq 1 ]; then
-    registry_api="https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull"
+    registry_api="https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo_for_api}:pull"
 
     # Prefer curl but fall back to wget; if neither is present skip the Hub API gracefully.
     downloader=""
@@ -155,7 +163,7 @@ if [ -z "${manifest_digest}" ]; then
         # Use jq for robust JSON parsing
         token=$(curl -fsSL "${registry_api}" | jq -r '.token // empty' 2>/dev/null || true)
         if [ -n "${token}" ]; then
-          header=$(curl -fsSI -H "Accept: application/vnd.docker.distribution.manifest.v2+json" -H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/${repo}/manifests/${tag}" 2>/dev/null || true)
+          header=$(curl -fsSI -H "Accept: application/vnd.docker.distribution.manifest.v2+json" -H "Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/${repo_for_api}/manifests/${tag}" 2>/dev/null || true)
           manifest_digest=$(printf '%s\n' "$header" | sed -n 's/Docker-Content-Digest:[[:space:]]*//Ip' | tr -d '\r' | head -n1 || true)
         fi
       else
@@ -163,7 +171,7 @@ if [ -z "${manifest_digest}" ]; then
         # Use jq for robust JSON parsing
         token=$(wget -qO- "${registry_api}" | jq -r '.token // empty' 2>/dev/null || true)
         if [ -n "${token}" ]; then
-          header=$(wget --server-response --header="Accept: application/vnd.docker.distribution.manifest.v2+json" --header="Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/${repo}/manifests/${tag}" -O - 2>&1 || true)
+          header=$(wget --server-response --header="Accept: application/vnd.docker.distribution.manifest.v2+json" --header="Authorization: Bearer ${token}" "https://registry-1.docker.io/v2/${repo_for_api}/manifests/${tag}" -O - 2>&1 || true)
           manifest_digest=$(printf '%s\n' "$header" | sed -n 's/Docker-Content-Digest:[[:space:]]*//Ip' | tr -d '\r' | head -n1 || true)
         fi
       fi
