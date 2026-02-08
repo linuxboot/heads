@@ -566,7 +566,7 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			DO_WITH_DEBUG increment_tpm_counter $TPM_COUNTER>/dev/null 2>&1 ||
+			increment_tpm_counter $TPM_COUNTER>/dev/null 2>&1 ||
 				die "Unable to increment tpm counter"
 
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
