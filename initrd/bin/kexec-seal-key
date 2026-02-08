@@ -151,8 +151,8 @@ for dev in $key_devices; do
 	if [ "$luks_version" == "2" ]; then
 		# LUKSv2 last key slot is 31
 		duk_keyslot=31
-		regex="^\s+([0-9]+):\s*luks2"
-		sed_command="s/^\s\+\([0-9]\+\):\s*luks2/\1/g"
+		regex="^[[:space:]]+([0-9]+):[[:space:]]*luks2"
+		sed_command="s/^[[:space:]]\+\([0-9]\+\):[[:space:]]*luks2/\1/g"
 		previous_luks_header_version=2
 		DEBUG "$dev: LUKSv2 device detected"
 	elif [ "$luks_version" == "1" ]; then
