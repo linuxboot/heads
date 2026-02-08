@@ -30,6 +30,7 @@
         bzip2
         cacert
         ccache
+        coreboot-utils #consumed by diffoscope for ifdtool cbfsutils etc
         cmake
         cpio
         curl
