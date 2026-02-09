@@ -1,5 +1,12 @@
 modules-$(CONFIG_LINUXBOOT) += linuxboot
 
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
+
+
 linuxboot_version := git
 linuxboot_repo := https://github.com/osresearch/linuxboot
 linuxboot_base_dir := linuxboot-$(linuxboot_version)

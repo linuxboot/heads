@@ -1,5 +1,12 @@
 modules-$(CONFIG_MSRTOOLS) += msrtools
 
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
+
+
 msrtools_depends := $(musl_dep)
 
 #msrtools_version := git

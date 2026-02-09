@@ -1,5 +1,10 @@
 modules-$(CONFIG_CRYPTSETUP2) += json-c
 
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
 json-c_version := 0.14
 json-c_dir := json-c-$(json-c_version)
 json-c_tar := json-c-$(json-c_version).tar.gz

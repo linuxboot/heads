@@ -1,6 +1,12 @@
 # OpenSSL library
 modules-$(CONFIG_OPENSSL) += openssl
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
 openssl_version := 3.0.8
 openssl_dir := openssl-$(openssl_version)
 openssl_tar := openssl-$(openssl_version).tar.gz
@@ -11,7 +17,7 @@ openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 # and SM3.
 openssl_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./Configure \
 		--prefix="/" \
 		linux-$(strip $(arch)) \
@@ -25,9 +31,14 @@ openssl_configure := \
 		no-des \
 		no-dh \
 		no-dsa \
+		no-dtls \
+		no-ec2m \
 		no-ecdh \
 		no-ecdsa \
+		no-engine \
+		no-gost \
 		no-idea \
+		no-md2 \
 		no-md4 \
 		no-mdc2 \
 		no-ocb \
@@ -41,7 +52,11 @@ openssl_configure := \
 		no-siv \
 		no-sm2 \
 		no-sm4 \
+		no-srp \
+		no-ssl3 \
 		no-tests \
+		no-tls1 \
+		no-tls1_1 \
 		no-whirlpool \
 
 openssl_target := $(MAKE_JOBS) \

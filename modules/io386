@@ -1,5 +1,11 @@
 modules-$(CONFIG_IO386) += io386
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
 io386_depends := $(musl_dep)
 
 io386_version := fc73fcf8e51a70638679c3e9b0ada10527f8a7c1
@@ -11,7 +17,7 @@ io386_hash := 874898af57d86dc057cea39b4a7e0621fc64aa4fb777dfb1eeb11e9134bc9a06
 io386_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	SHARED=yes \
 	PREFIX="/" \
 	&& \

@@ -1,5 +1,12 @@
 modules-$(CONFIG_NKSTORECLI) += nkstorecli
 
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
+
+
 nkstorecli_depends := libnitrokey libusb $(musl_dep)
 
 nkstorecli_version := 0.4.1

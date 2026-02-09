@@ -2,6 +2,13 @@
 CONFIG_EXFATPROGS ?= y
 modules-$(CONFIG_EXFATPROGS) += exfatprogs
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
+
 exfatprogs_version := 1.2.1
 exfatprogs_dir := exfatprogs-$(exfatprogs_version)
 exfatprogs_tar := exfatprogs-$(exfatprogs_version).tar.xz
@@ -15,7 +22,7 @@ exfatprogs_hash := a6f3b1fb4bd37835c8f8cb421aac4eb75b880a51342b29850c40639731622
 # location.
 exfatprogs_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "" \

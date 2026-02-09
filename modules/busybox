@@ -2,6 +2,12 @@
 CONFIG_BUSYBOX ?= y
 modules-$(CONFIG_BUSYBOX) += busybox
 
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
+
 busybox_version := 1.36.1
 busybox_dir := busybox-$(busybox_version)
 busybox_tar := busybox-$(busybox_version).tar.bz2

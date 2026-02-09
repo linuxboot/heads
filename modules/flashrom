@@ -1,5 +1,11 @@
 modules-$(CONFIG_FLASHROM) += flashrom
 
+
+# OFLAG: Untested in prior retest (no build logs observed).
+
+
+
+
 flashrom_depends := pciutils $(musl_dep)
 
 flashrom_version := 1776bb46ba6ea3d1ab2ec3f0cd88158aabed7400
@@ -29,7 +35,7 @@ endif
 
 flashrom_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Oz -I$(INSTALL)/include/pci" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
 	LDFLAGS="-L$(INSTALL)/lib" \

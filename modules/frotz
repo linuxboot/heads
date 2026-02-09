@@ -1,5 +1,11 @@
 modules-$(CONFIG_FROTZ) += frotz
 
+
+# OFLAG: Untested in prior retest (no build logs observed).
+
+
+
+
 frotz_version := 2.44
 frotz_dir := frotz-$(frotz_version)
 frotz_tar := frotz-$(frotz_version).tar.gz

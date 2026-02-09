@@ -1,6 +1,12 @@
 # GPG with Yubikey support requires libusb
 modules-$(CONFIG_GPG) += libusb
+
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
 modules-$(CONFIG_GPG2) += libusb
+
 
 libusb_version := 1.0.21
 libusb_dir := libusb-$(libusb_version)
@@ -10,7 +16,7 @@ libusb_url := https://github.com/libusb/libusb/releases/download/v$(libusb_versi
 libusb_hash := 7dce9cce9a81194b7065ee912bcd55eeffebab694ea403ffb91b67db66b1824b
 
 libusb_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

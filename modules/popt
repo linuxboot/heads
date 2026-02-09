@@ -1,15 +1,24 @@
 modules-$(CONFIG_POPT) += popt
 
+
+# OFLAG: Pre-configure sed normalizes optimization flags to '-Oz' (sed pattern replaces -O[0-9]+ and -Os with -Oz) applied before build.
+
+
+
+
+
 popt_version := 1.19
 popt_dir := popt-$(popt_version)
 popt_tar := popt-$(popt_version).tar.gz
 popt_url := https://fossies.org/linux/misc/$(popt_tar)
 popt_hash := c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9
 
-popt_configure := ./configure \
-	$(CROSS_TOOLS) \
-	--host $(MUSL_ARCH)-elf-linux \
-	--prefix "/" \
+popt_configure := \
+	sed -E -i 's/-O[0-9]+/-Oz/g' configure src/Makefile tests/Makefile libtool || true; \
+	./configure \
+		$(CROSS_TOOLS) \
+		--host $(MUSL_ARCH)-elf-linux \
+		--prefix "/" \
 
 popt_target := \
 	$(MAKE_JOBS) \

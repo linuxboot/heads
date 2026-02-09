@@ -1,0 +1,23 @@
+Fix function pointer declarations for GCC 15.1 C23 compatibility
+
+GCC 15.1 with C23 standard is stricter about function pointer type
+mismatches. The RTAS event function pointers need proper signatures
+to match their actual usage.
+
+diff --git a/src/nvram.c b/src/nvram.c
+index a7be3ee95c..74aade323b 100644
+--- a/src/nvram.c
++++ b/src/nvram.c
+@@ -900,9 +900,9 @@ dump_rtas_event_entry(char *data, int len)
+ {
+     void *rtas_event;
+     void *handle;
+-    void *(*parse_rtas_event)();
+-    void (*rtas_print_event)();
+-    void (*cleanup_rtas_event)();
++    void *(*parse_rtas_event)(char *, int);
++    void (*rtas_print_event)(FILE *, void *, int);
++    void (*cleanup_rtas_event)(void *);
+ 
+     handle = dlopen("/usr/lib/librtasevent.so", RTLD_LAZY);
+     if (handle == NULL)

@@ -1,5 +1,11 @@
 modules-$(CONFIG_FLASHPROG) += flashprog
 
+
+# OFLAG: Enforce CFLAGS='-Oz' at packaging time (set in configure wrapper)
+
+
+
+
 flashprog_depends := pciutils $(musl_dep)
 
 flashprog_version := eb2c04185f8f471c768b742d66e4c552effdd9cb
@@ -29,7 +35,7 @@ endif
 
 flashprog_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Oz -I$(INSTALL)/include/pci" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
 	LDFLAGS="-L$(INSTALL)/lib" \

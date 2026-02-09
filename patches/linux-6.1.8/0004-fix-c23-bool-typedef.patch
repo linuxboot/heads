@@ -1,0 +1,15 @@
+diff --git a/work/tmp-linux-orig/include/linux/types.h b/work/tmp-linux-edit/include/linux/types.h
+index ea8cf60a8a..87bedca7a9 100644
+--- ./include/linux/types.h
++++ ./include/linux/types.h
+@@ -27,7 +27,9 @@ typedef __kernel_timer_t	timer_t;
+ typedef __kernel_clockid_t	clockid_t;
+ typedef __kernel_mqd_t		mqd_t;
+ 
+-typedef _Bool			bool;
++#if !(defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
++typedef _Bool		bool;
++#endif
+ 
+ typedef __kernel_uid32_t	uid_t;
+ typedef __kernel_gid32_t	gid_t;

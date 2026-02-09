@@ -1,5 +1,12 @@
 modules-$(CONFIG_NEWT) += newt
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
+
 newt_depends := popt slang ncurses $(musl_dep)
 
 newt_version := 0.52.24
@@ -20,7 +27,7 @@ newt_libraries := \
 	libnewt.so.0.52 \
 
 newt_configure := \
-	./autogen.sh && CFLAGS="-Os" ./configure \
+	./autogen.sh && CFLAGS="-Oz" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

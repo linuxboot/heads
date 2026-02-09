@@ -1,5 +1,11 @@
 modules-y += linux
 
+
+# OFLAG: No packaging-time -Oz normalization applied; the Linux kernel uses -Os (per kernel version), so package-level -Oz normalization is not applied here.
+
+
+
+
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 	LINUX_ARCH			:= x86
 	LINUX_IMAGE_FILE	:= bzImage
@@ -36,6 +42,14 @@ linux_version := 6.1.8
 linux_hash := b60bb53ab8ba370a270454b11e93d41af29126fc72bd6ede517673e2e57b816d
 else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
+endif
+
+# Base EXTRA_FLAGS for all Linux versions
+EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
+
+GCC15-LINUX: 6.1.8 requires -std=gnu11 for C23 compatibility (bool/false keyword conflicts)
+ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
+EXTRA_FLAGS += -std=gnu11
 endif
 
 linux_base_dir := linux-$(linux_version)
@@ -142,6 +156,18 @@ EXTRA_FLAGS := -fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches
 
 ifeq "$(CONFIG_LINUX_VERSION)" "4.14.62"
 EXTRA_FLAGS += -Wno-cast-function-type
+endif
+
+# PowerPC specific alignment fixes for GCC 15.1.0
+ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
+# Comprehensive GCC 15.1.0 PowerPC compatibility flags
+EXTRA_FLAGS += -fno-stack-protector
+EXTRA_FLAGS += -O1
+EXTRA_FLAGS += -fno-schedule-insns -fno-schedule-insns2
+EXTRA_FLAGS += -fno-reorder-blocks
+EXTRA_FLAGS += -fno-tree-vectorize
+# Force GNU C11 for PowerPC boot code to avoid C23 bool keyword conflicts
+EXTRA_FLAGS += -std=gnu11
 endif
 
 linux_target := \

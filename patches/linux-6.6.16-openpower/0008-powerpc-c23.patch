@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Heads Build System <no-reply@heads.example>
+Date: Mon, 26 Jan 2026 00:00:00 +0000
+Subject: [PATCH 8/8] powerpc: add -std=gnu11 for C23 compatibility in boot Makefile
+
+Add -std=gnu11 to arch/powerpc/boot/Makefile BOOTAFLAGS to avoid C23
+keyword and type compatibility issues when building with GCC 15.1.
+
+Signed-off-by: Heads Build System <no-reply@heads.example>
+---
+--- a/arch/powerpc/boot/Makefile	2025-08-19 18:11:03.942092926 +0000
++++ b/arch/powerpc/boot/Makefile	2025-08-19 18:11:03.943875445 +0000
+@@ -79,7 +79,7 @@
+ 		   $(call cc-option,-mno-pcrel) \
+ 		   $(call cc-option,-mno-mma) \
+ 		   $(call cc-option,-mno-spe) $(call cc-option,-mspe=no) \
+-		   -fomit-frame-pointer -fno-builtin -fPIC
++		   -fomit-frame-pointer -fno-builtin -fPIC -std=gnu11
+ 
+ BOOTAFLAGS	:= $(BOOTTARGETFLAGS) -D__ASSEMBLY__
+ 
+-- 
+2.47.1
+

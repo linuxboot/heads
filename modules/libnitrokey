@@ -1,5 +1,12 @@
 modules-$(CONFIG_NKSTORECLI) += libnitrokey
 
+
+# OFLAG: Untested in prior retest (no build logs observed).
+# no board uses this — no build logs available for `libnitrokey` in this retest. Re-run a targeted build to generate logs and re-classify. (audit updated 2026-01-27)
+
+
+
+
 libnitrokey_depends := libhidapi-libusb libusb $(musl_dep)
 
 libnitrokey_version := 3.6
@@ -15,7 +22,7 @@ libnitrokey_hash := 4f3382b6193afe69c2001321038fce9490bc28803ed687152a397ccd8914
 cmake_cross := "-DCMAKE_AR=$(CROSS)ar" \
 	-DCMAKE_CXX_COMPILER="$(CROSS)g++" \
 	-DCMAKE_CXX_COMPILER_AR="$(CROSS)ar" \
-	-DCMAKE_CXX_FLAGS="-Os -fdata-sections -ffunction-sections -ffile-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
+	-DCMAKE_CXX_FLAGS="-Oz -fdata-sections -ffunction-sections -ffile-prefix-map=$(pwd)=heads -gno-record-gcc-switches -D__MUSL__ -I$(INSTALL)/include -L$(INSTALL)/lib " \
 	-DCMAKE_C_COMPILER="$(CROSS)gcc" \
 	-DCMAKE_LINKER="$(CROSS)ld"
 	-DCMAKE_NM="$(CROSS)nm" \

@@ -1,5 +1,12 @@
 modules-$(CONFIG_QRENCODE) += qrencode
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
+
 qrencode_version := 3.4.4
 qrencode_dir := qrencode-$(qrencode_version)
 qrencode_tar := qrencode-$(qrencode_version).tar.gz
@@ -9,7 +16,7 @@ qrencode_hash := e794e26a96019013c0e3665cb06b18992668f352c5553d0a553f5d144f7f2a7
 qrencode_libraries := .libs/libqrencode.so.3
 
 qrencode_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Oz" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

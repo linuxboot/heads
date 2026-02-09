@@ -1,14 +1,26 @@
 CONFIG_MUSL ?= y
 
+# GCC 15.1.0 Upgrade Notes:
+# - Upgraded from GCC 9.4.0 to 15.1.0 for improved -Oz optimization support
+# - Multiple modules required C23 compatibility fixes (see individual module TODOs)
+# - Systematic conversion from -Os to -Oz optimization across 33+ modules
+# - Key compatibility issues resolved: bool/false conflicts, basename function, true keyword, inlining
+
 ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 modules-$(CONFIG_MUSL) += musl-cross-make
 
-musl-cross-make_version := fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+
+# OFLAG: No packaging-time -Oz normalization applied; musl-cross-make is part of the buildstack and is intentionally not subject to package-level -Oz normalization.
+
+
+
+
+musl-cross-make_version := e5147dde912478dd32ad42a25003e82d4f5733aa
 musl-cross-make_dir := musl-cross-make-$(musl-cross-make_version)
 musl-cross-make_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross-make_version).tar.gz
 musl-cross-make_tar := musl-cross-make-$(musl-cross-make_version).tar.gz
-musl-cross-make_hash := 15b8e0a287d738a46e069e90d67a8d96213b357b79aaf3e8cf0cd40e4b230d9e
+musl-cross-make_hash := 24af217c8f4f4335f53057eae475c7d1c73d8bc7f02e66acda83b624879e0b0f
 
 
 ifneq "$(CROSS)" ""

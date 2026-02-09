@@ -1,0 +1,10 @@
+--- a/purgatory/Makefile	2025-08-11 16:40:00.000000000 +0000
++++ b/purgatory/Makefile	2025-08-11 16:40:00.000000000 +0000
+@@ -45,7 +45,6 @@ purgatory/sha256.o: $(srcdir)/util_lib/sha256.c
+ 	mkdir -p $(@D)
+ 	$(COMPILE.c) -o $@ $^
+ 
+-$(PURGATORY): CC=$(TARGET_CC)
+ $(PURGATORY): CFLAGS=$(PURGATORY_EXTRA_CFLAGS) \
+ 		      $($(ARCH)_PURGATORY_EXTRA_CFLAGS) \
+ 		      -Os -fno-builtin -ffreestanding \

@@ -10,9 +10,17 @@ cryptsetup2_hash := 410ded65a1072ab9c8e41added37b9729c087fef4d2db02bb4ef529ad6da
 
 # Use an empty prefix so that the executables will not include the
 # build path.
+# Pre-configure substitutions mirror other modules and are intentionally small
+# to avoid brittle edits in generated files.
+# Note: OFLAG fix applied and validated (commit fac65ebc7e) — removes embedded -O3 in Argon2 and normalizes libtool flags.
+
 cryptsetup2_configure := \
-	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	( \
+		sed -i 's/hardcode_into_libs=yes/hardcode_into_libs=no/g' configure || true; \
+		sed -i 's/-O3//g' lib/crypto_backend/argon2/*.am lib/crypto_backend/argon2/Makemodule.am || true; \
+		sed -E -i.bak 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/g' configure Makefile.in || true; \
+	) && $(CROSS_TOOLS) \
+	CFLAGS="-Oz" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
