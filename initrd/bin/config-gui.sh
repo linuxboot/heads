@@ -1,8 +1,12 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+. /etc/gui_functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
@@ -22,12 +26,13 @@ read_rom() {
 }
 
 while true; do
-	if [ ! -z "$param" ]; then
+	if [ -n "$param" ]; then
 		# use first char from parameter
 		menu_choice=${param::1}
 		unset param
 	else
 		# Re-source config because we change it when an option is toggled
+		# shellcheck disable=SC1091
 		. /tmp/config
 
 		dynamic_config_options=(
@@ -100,6 +105,7 @@ while true; do
 		)
 
 		unset menu_choice
+		# shellcheck disable=SC2086
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Config Management Menu" \
 			--menu "This menu lets you change settings for the current BIOS session.\n\nAll changes will revert after a reboot,\n\nunless you also save them to the running BIOS." 0 80 10 \
 			"${dynamic_config_options[@]}" \
@@ -113,6 +119,7 @@ while true; do
 		unset CONFIG_FINALIZE_PLATFORM_LOCKING
 		replace_config /etc/config.user "CONFIG_FINALIZE_PLATFORM_LOCKING" "n"
 		combine_configs
+		# shellcheck disable=SC1091
 		. /tmp/config
 		;;
 	"x")
@@ -126,16 +133,16 @@ while true; do
 			exit 1
 		fi
 		# filter out extraneous options
-		>/tmp/boot_device_list.txt
-		for i in $(cat /tmp/disklist.txt); do
+		: >/tmp/boot_device_list.txt
+		while read -r i; do
 			# remove block device from list if numeric partitions exist, since not bootable
-			DEV_NUM_PARTITIONS=$(($(ls -1 $i* | wc -l) - 1))
+			DEV_NUM_PARTITIONS=$(($(find "$i"* | wc -l) - 1))
 			if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-				echo $i >>/tmp/boot_device_list.txt
+				echo "$i" >>/tmp/boot_device_list.txt
 			else
-				ls $i* | tail -${DEV_NUM_PARTITIONS} >>/tmp/boot_device_list.txt
+				find "$i"* | tail -${DEV_NUM_PARTITIONS} >>/tmp/boot_device_list.txt
 			fi
-		done
+		done < /tmp/disklist.txt
 		file_selector "/tmp/boot_device_list.txt" \
 			"Choose the default /boot device.\n\n${CURRENT_OPTION:+\n\nCurrently set to }$CURRENT_OPTION." \
 			"Boot Device Selection"
@@ -150,7 +157,7 @@ while true; do
 			umount /boot 2>/dev/null
 		fi
 		# mount newly selected /boot device
-		if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error; then
+		if ! mount -o ro "$SELECTED_FILE" /boot 2>/tmp/error; then
 			ERROR=$(cat /tmp/error)
 			whiptail_error --title 'ERROR: unable to mount /boot' \
 				--msgbox "    $ERROR\n\n" 0 80
@@ -173,7 +180,7 @@ while true; do
 			/bin/flash.sh /tmp/config-gui.rom
 			whiptail --title 'BIOS Updated Successfully' \
 				--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			reboot.sh
 		else
 			exit 0
 		fi
@@ -197,18 +204,18 @@ while true; do
 
 			# clear GPG keys and user settings
 			for i in $(cbfs.sh -o /tmp/config-gui.rom -l | grep -e "heads/"); do
-				cbfs.sh -o /tmp/config-gui.rom -d $i
+				cbfs.sh -o /tmp/config-gui.rom -d "$i"
 			done
 			# flash cleared ROM
 			/bin/flash.sh -c /tmp/config-gui.rom
 
 			# reset TPM if present
 			if [ "$CONFIG_TPM" = "y" ]; then
-				/bin/tpm-reset
+				/bin/tpm-reset.sh
 			fi
 			whiptail --title 'Configuration Reset Updated Successfully' \
 				--msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			reboot.sh
 		else
 			exit 0
 		fi
@@ -216,17 +223,19 @@ while true; do
 	"R")
 		CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DEV)"
 		fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist.txt
+		INFO "DEBUG disklist: $(cat /tmp/disklist.txt)"
 		# filter out extraneous options
-		>/tmp/root_device_list.txt
-		for i in $(cat /tmp/disklist.txt); do
+		true > /tmp/root_device_list.txt
+		while read -r i; do
 			# remove block device from list if numeric partitions exist, since not bootable
-			DEV_NUM_PARTITIONS=$(($(ls -1 $i* | wc -l) - 1))
+			DEV_NUM_PARTITIONS=$(($(find "$i"* | wc -l) - 1))
 			if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-				echo $i >>/tmp/root_device_list.txt
+				echo "$i" >>/tmp/root_device_list.txt
 			else
-				ls $i* | tail -${DEV_NUM_PARTITIONS} >>/tmp/root_device_list.txt
+				find "$i"* | tail -${DEV_NUM_PARTITIONS} >>/tmp/root_device_list.txt
 			fi
-		done
+		done < /tmp/disklist.txt
+		INFO "DEBUG root_device_list: $(cat /tmp/root_device_list.txt)"
 		file_selector "/tmp/root_device_list.txt" \
 			"Choose the default root device.${CURRENT_OPTION:+\n\nCurrently set to }$CURRENT_OPTION." \
 			"Root Device Selection"
@@ -256,7 +265,7 @@ while true; do
 		read -r NEW_CONFIG_ROOT_DIRLIST
 
 		# strip any leading forward slashes
-		NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
+		NEW_CONFIG_ROOT_DIRLIST=$(echo "$NEW_CONFIG_ROOT_DIRLIST" | sed -e 's/^\///;s/ \// /g')
 
 		#check if list empty
 		if [ -z "$NEW_CONFIG_ROOT_DIRLIST" ]; then
@@ -392,7 +401,7 @@ while true; do
 				/bin/flash.sh /tmp/config-gui.rom
 				whiptail --title 'BIOS Updated Successfully' \
 					--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-				/bin/reboot
+				reboot.sh
 			fi
 		fi
 		;;
@@ -618,7 +627,7 @@ while true; do
 					echo "You can now test your keyboard layout in this shell."
 					echo "Press Enter when done testing to continue..."
 					echo "------------------------------------------------------------"
-					read -p $'\nTest your keymap now. Press Enter to continue:\n' dummy
+					read -r -p $'\nTest your keymap now. Press Enter to continue:\n' _
 					if whiptail --title "Keep this keymap?" \
 						--yesno "Do you want to use this keymap?\n\n$SELECTED_KEYMAP" 0 70; then
 						set_user_config "CONFIG_KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"
@@ -632,6 +641,7 @@ while true; do
 		;;
 	"Z")
 		unset output_choice
+		# shellcheck disable=SC2086
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Informational / Debug Output" \
 			--menu "$CONFIG_BRAND_NAME can display informational or debug output.\n\nChoose the output level:" 0 80 10 \
 			0 'None - Show no extra output' \

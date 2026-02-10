@@ -1,8 +1,10 @@
 #!/bin/bash
 set -o pipefail
 
-. /etc/functions
-. /etc/gui_functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+. /etc/gui_functions.sh
 
 # Automatically boot to a bootable USB medium if present.  This is for
 # unattended boot; there is no UI.
@@ -22,9 +24,9 @@ mkdir -p /media
 parse_boot_options()
 {
 	BOOTDIR="$1"
-	for i in $(find "$BOOTDIR" -name '*.cfg'); do
-		kexec-parse-boot "$BOOTDIR" "$i"
-	done
+	while IFS= read -r -d '' i; do
+		kexec-parse-boot.sh "$BOOTDIR" "$i"
+	done < <(find "$BOOTDIR" -name '*.cfg' -print0)
 }
 
 # Look for any bootable USB medium.
@@ -42,7 +44,7 @@ while read -u 4 -r USB_BLOCK_DEVICE; do
 			exit 0
 		fi
 		echo -e "\n\nBooting from USB...\n\n"
-		kexec-boot -b /media -e "$USB_DEFAULT_BOOT"
+		kexec-boot.sh -b /media -e "$USB_DEFAULT_BOOT"
 		# If kexec-boot returned, the boot obviously did not occur,
 		# return nonzero below so the normal OS boot will continue.
 	fi
