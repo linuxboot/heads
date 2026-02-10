@@ -70,4 +70,4 @@ echo
 
 echo "Press Enter to return to the menu"
 echo
-read -r nothing
+read -r

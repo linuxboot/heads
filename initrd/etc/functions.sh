@@ -1,0 +1,1736 @@
+#!/bin/bash
+
+# ------- Start of functions coming from /etc/ash_functions
+
+die() {
+	TRACE_FUNC
+	#TODO: add colors to output, here red for ERROR?
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+	else
+		echo -e "!!! ERROR: $* !!!" >&2
+	fi
+
+	# ask user to press Enter prior to exit
+	read -r -p $'Press Enter to continue...\n\n'
+
+	exit 1
+}
+
+# Use warn only for output that indicates a _likely_ problem, is _actionable_ to
+# correct, and when we are able to continue with degraded functionalty.
+# Do not overuse this!  See doc/logging.md.
+warn() {
+	TRACE_FUNC
+	#TODO: add colors to output, here yellow for WARNING?
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+	else
+		echo -e " *** WARNING: $* ***" >&2
+	fi
+	sleep 1
+}
+
+# Use DEBUG to track decisions made in script/function logic and the context
+# relating to those decisions.  Generally, focus on decision points, because
+# straight-line execution can usually be followed without further tracing.  See
+# doc/logging.md.
+DEBUG() {
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
+		echo "DEBUG: $*" | fold -s -w 960 | while read -r line; do
+			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		done
+	fi
+}
+
+# Use TRACE to trace control flow through Heads.  This is usually called by
+# TRACE_FUNC, but you can use it to additionally trace parameter values, etc.
+# Usually, use this to display unprocessed parameters that your script or
+# function received.  For information about the logic occurring in your script
+# or function, use DEBUG.  See doc/logging.md.
+TRACE() {
+	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ]; then
+		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+	fi
+}
+
+# Use NOTE to explain behaviors that are _likely_ to be unexpected or confusing.
+# Unlike INFO, this cannot be hidden, as the explained behavior would be too
+# confusing without this output.
+# Don't overuse this - too much NOTE output will cause users to ignore it.  See
+# doc/logging.md.
+NOTE() {
+	#TODO: add colors to output, here blue for NOTE?
+
+	# Make sure the user sees this message: seperate it from the rest of the output
+	echo
+	echo "NOTE:" "$@" | tee -a /tmp/debug.log
+	echo
+
+	# Sleep for a second to give the user time to read the message
+	sleep 1
+}
+
+# Use INFO for contextual information that might make sense to non-developers,
+# but that isn't generally needed to use Heads.  Non-developers might use this
+# level to troubleshoot basic problems, so it must make sense without deep
+# knowledge of how Heads works.  See doc/logging.md.
+INFO() {
+	TRACE_FUNC
+	#TODO: add colors to output, here green for INFO?
+
+	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
+	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		echo "$*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then
+		echo "$*" >>/tmp/debug.log
+	else
+		echo "$*"
+	fi
+}
+
+# Write directly to the debug log (but not kmsg), never appears on console
+#  Main consumer is DO_WITH_DEBUG, which uses this to log command output
+LOG() {
+	echo "LOG: $*" >>/tmp/debug.log
+}
+
+fw_version() {
+	local FW_VER
+	FW_VER="$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')"
+	# chop off date, since will always be epoch w/timeless builds
+	echo "${FW_VER::-10}"
+}
+
+preserve_rom() {
+	TRACE_FUNC
+	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
+
+	for old_file in $old_files; do
+		new_file=$(cbfs.sh -o "$1" -l | grep -x "$old_file")
+		if [ -z "$new_file" ]; then
+			echo "+++ Adding $old_file to $1"
+			cbfs -t 50 -r "$old_file" >/tmp/rom.$$ || die "Failed to read cbfs file from ROM"
+			cbfs.sh -o "$1" -a "$old_file" -f /tmp/rom.$$ || die "Failed to write cbfs file to new ROM file"
+		fi
+	done
+}
+
+confirm_gpg_card() {
+
+	#TODO: ideally, we ask for confirmation only once per boot session
+	#TODO: even change logic here to try first and then ask user to confirm if not found
+	#TODO: or ask GPG User PIN once and cache it for the rest of the boot session for reusal
+	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
+
+	TRACE_FUNC
+	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
+	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
+	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
+		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through pinentry"
+		return
+	fi
+
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
+		message="Please confirm that your GPG card is inserted(Y/n) or your GPG key material (b)backup thumbdrive is inserted [Y/n/b]: "
+	else
+		# Generic message if no known key material backup
+		message="Please confirm that your GPG card is inserted [Y/n]: "
+	fi
+
+	read -r -n 1 -p $'\n'"$message" card_confirm
+	echo
+
+	       # shellcheck disable=SC2166
+	       # SC2166: -a is intentionally used for legacy compatibility; fixing would break input parsing.
+	       if [ "$card_confirm" != "y" -a "$card_confirm" != "Y" -a "$card_confirm" != "b" -a -n "$card_confirm" ]; then
+		       die "gpg card not confirmed"
+	       fi
+
+	# If user has known GPG key material Thumb drive backup and asked to use it
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
+		#Only mount and import GPG key material thumb drive backup once
+		if [ ! "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]; then
+			CR_NONCE="/tmp/secret/cr_nonce"
+			CR_SIG="$CR_NONCE.sig"
+
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+
+			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
+			gpg_admin_pin=""
+			while [ -z "$gpg_admin_pin" ]; do
+				read -r -s -p $'\nPlease enter GPG Admin PIN needed to use the GPG backup thumb drive: ' gpg_admin_pin
+				echo
+			done
+			#prompt user to select the proper encrypted partition, which should the first one on next prompt
+			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
+			mount-usb.sh --pass "$gpg_admin_pin" || die "Unable to mount USB with provided GPG Admin PIN"
+			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
+				die "Unable to import GPG private subkeys"
+			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
+			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+				die "Unable to create $CR_NONCE to be detach-signed with GPG private signing subkey"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
+				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
+			#verify detached signature against public key in rom
+			if gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1; then
+				echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++"
+			else
+				die "Unable to verify $CR_SIG detached signature against public key in ROM"
+			fi
+			#Wipe any previous CR_NONCE and CR_SIG
+			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
+			set_user_config "CONFIG_GPG_KEY_BACKUP_IN_USE" "y"
+			umount /media || die "Unable to unmount USB"
+			return
+		fi
+	fi
+
+	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
+	enable_usb
+	# Wait for USB enumeration before accessing GPG card to avoid race condition
+	wait_for_usb_devices
+
+	echo -e "\nVerifying presence of GPG card...\n"
+	# ensure we don't exit without retrying
+	errexit=$(set -o | grep errexit | awk '{print $2}')
+	set +e
+	DEBUG "Attempting gpg card detection (bounded wait)"
+	if ! wait_for_gpg_card; then
+		DEBUG "GPG card access failed with output: $gpg_output"
+		# prompt for reinsertion and try a second time
+		# shellcheck disable=SC2034
+		read -n1 -r -p "Can't access GPG key; remove and reinsert, then press Enter to retry. " ignored
+		# restore prev errexit state
+		if [ "$errexit" = "on" ]; then
+			set -e
+		fi
+		# retry card status
+		DEBUG "Retrying gpg --card-status after reinsertion (bounded wait)"
+		wait_for_gpg_card ||
+			die "gpg card read failed"
+		DEBUG "Retry succeeded"
+	fi
+
+	# Extract and display GPG PIN retry counters
+	# output excerpt: "PIN retry counter : 3 0 3"
+	gpg_output=$(gpg --card-status 2>&1)
+	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
+	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
+	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
+
+	echo ""
+	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
+	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
+	echo ""
+	NOTE "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
+	echo ""
+
+	# restore prev errexit state
+	if [ "$errexit" = "on" ]; then
+		set -e
+	fi
+}
+
+gpg_auth() {
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]]; then
+		TRACE_FUNC
+		# If we have a GPG key backup, we can use it to authenticate even if the card is lost
+		echo >&2 "!!!!! Please authenticate with OpenPGP smartcard/backup media to prove you are the owner of this machine !!!!!"
+
+		# Wipe any existing nonce and signature
+		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+
+		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
+		while ! (confirm_gpg_card); do
+			# Call confirm_gpg_card in subshell to ensure GPG key material presence
+			:
+		done
+
+		# Perform a signing-based challenge-response,
+		# to authencate that the card plugged in holding
+		# the key to sign the list of boot files.
+
+		CR_NONCE="/tmp/secret/cr_nonce"
+		CR_SIG="$CR_NONCE.sig"
+
+		# Generate a random nonce
+		dd \
+			if=/dev/urandom \
+			of="$CR_NONCE" \
+			count=1 \
+			bs=20 \
+			2>/dev/null ||
+			die "Unable to generate 20 random bytes"
+
+		# Sign the nonce
+		for tries in 1 2 3; do
+			if gpg --digest-algo SHA256 \
+				--detach-sign \
+				-o "$CR_SIG" \
+				"$CR_NONCE" >/dev/null 2>&1 &&
+				gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1 \
+				; then
+				shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
+				TRACE_FUNC
+				return 0
+			else
+				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
+				if [ "$tries" -lt 3 ]; then
+					echo >&2 "!!!!! GPG authentication failed, please try again !!!!!"
+					continue
+				else
+					die "GPG authentication failed, please reboot and try again"
+				fi
+			fi
+		done
+		return 1
+	fi
+}
+
+recovery() {
+	TRACE_FUNC
+	echo >&2 "!!!!! $*"
+
+	# Remove any temporary secret files that might be hanging around
+	# but recreate the directory so that new tools can use it.
+
+	#safe to always be true. Otherwise "set -e" would make it exit here
+	shred -n 10 -z -u /tmp/secret/* 2>/dev/null || true
+	rm -rf /tmp/secret
+	mkdir -p /tmp/secret
+
+	# ensure /tmp/config exists for recovery scripts that depend on it
+	touch /tmp/config
+	# shellcheck disable=SC1091
+	# /tmp/config is generated at runtime and cannot be followed by shellcheck
+	. /tmp/config
+	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		INFO "TPM: Extending PCR[4] to prevent any further secret unsealing"
+		tpmr.sh extend -ix 4 -ic recovery
+	fi
+
+	if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
+		echo >&2 "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
+		sleep 5
+		reboot.sh
+	fi
+	while true; do
+		#Going to recovery shell should be authenticated if supported
+		gpg_auth
+
+		#if we have DEBUG_OUTPUT=y, we instruct users to use the debug log
+		if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+			cat /etc/DEBUG_LOG_COPY_INSTRUCTIONS
+		fi
+
+		#Guide user into enabling debug output in case of a discovered bug
+		if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
+			#User can enable DEBUG_OUTPUT=y and TRACE_FUNCTION_TRACING_OUTPUT=y from Configuration Options
+			NOTE "If you want to file a bug, please enable Debug mode through 'Options --> Change configuration settings > Configure Heads informational'"
+		fi
+		echo >&2 "!!!!! Starting recovery shell"
+
+		if [ -x /bin/setsid ]; then
+			/bin/setsid -c /bin/bash
+		else
+			/bin/bash
+		fi
+	done
+}
+
+pause_recovery() {
+	TRACE_FUNC
+	read -r -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	# shellcheck disable=SC2048,SC2086
+	recovery $*
+}
+
+combine_configs() {
+	TRACE_FUNC
+	cat /etc/config* >/tmp/config
+}
+
+# shellcheck disable=SC2317
+replace_config() {
+	# shellcheck disable=SC2317
+	TRACE_FUNC
+	# shellcheck disable=SC2317
+	CONFIG_FILE=$1
+	CONFIG_OPTION=$2
+	NEW_SETTING=$3
+
+	# shellcheck disable=SC2317
+	DEBUG "replace_config: CONFIG_FILE=$CONFIG_FILE CONFIG_OPTION=$CONFIG_OPTION NEW_SETTING=$NEW_SETTING"
+
+	# shellcheck disable=SC2317
+	touch "$CONFIG_FILE"
+	# first pull out the existing option from the global config and place in a tmp file
+	# shellcheck disable=SC2317
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >"${CONFIG_FILE}".tmp
+	# shellcheck disable=SC2317
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>"${CONFIG_FILE}".tmp
+
+	# then copy any remaining settings from the existing config file, minus the option you changed
+	# shellcheck disable=SC2317
+	grep -v "^export ${CONFIG_OPTION}=" "${CONFIG_FILE}" | grep -v "^${CONFIG_OPTION}=" >>"${CONFIG_FILE}".tmp || true
+	# shellcheck disable=SC2317
+	sort "${CONFIG_FILE}".tmp | uniq >"${CONFIG_FILE}"
+	# shellcheck disable=SC2317
+	rm -f "${CONFIG_FILE}".tmp
+}
+
+# Set a config variable in a specific file to a given value - replace it if it
+# exists, or add it.  If added, the variable will be exported.
+set_config() {
+	CONFIG_FILE="$1"
+	CONFIG_OPTION="$2"
+	NEW_SETTING="$3"
+
+	if grep -q "$CONFIG_OPTION" "$CONFIG_FILE"; then
+		replace_config "$CONFIG_FILE" "$CONFIG_OPTION" "$NEW_SETTING"
+	else
+		echo "export $CONFIG_OPTION=\"$NEW_SETTING\"" >>"$CONFIG_FILE"
+	fi
+}
+
+# Set a value in config.user, re-combine configs, and update configs in the
+# environment.
+set_user_config() {
+	CONFIG_OPTION="$1"
+	NEW_SETTING="$2"
+
+	set_config /etc/config.user "$CONFIG_OPTION" "$NEW_SETTING"
+	combine_configs
+	# shellcheck disable=SC1091
+	# /tmp/config is generated at runtime and cannot be followed by shellcheck
+	. /tmp/config
+}
+
+# Load a config value to a variable, defaulting to empty.  Does not fail if the
+# config is not set (since it would expand to empty by default).
+load_config_value() {
+	local config_name="$1"
+	if grep -q "$config_name=" /tmp/config; then
+		grep "$config_name=" /tmp/config | tail -n1 | cut -f2 -d '=' | tr -d '"'
+	fi
+}
+
+enable_usb() {
+	TRACE_FUNC
+	#insmod.sh ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
+	insmod.sh /lib/modules/ehci-hcd.ko || die "ehci_hcd: module load failed"
+
+	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
+		insmod.sh /lib/modules/uhci-hcd.ko || die "uhci_hcd: module load failed"
+		insmod.sh /lib/modules/ohci-hcd.ko || die "ohci_hcd: module load failed"
+		insmod.sh /lib/modules/ohci-pci.ko || die "ohci_pci: module load failed"
+	fi
+	insmod.sh /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
+	insmod.sh /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
+	insmod.sh /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
+}
+
+# Wait for USB bus enumeration to complete after enable_usb() loads modules.
+# Uses time-bounded polling (max 2s) to avoid race conditions where device
+# nodes haven't been created yet. No hardcoded sleep - checks actual readiness.
+# Waits for actual USB peripheral devices (e.g., 1-1, 5-3), not just hubs/controllers.
+wait_for_usb_devices() {
+	TRACE_FUNC
+	if [ ! -d /sys/bus/usb/devices ] || [ ! -r /proc/uptime ]; then
+		DEBUG "USB sysfs or uptime not available, skipping wait"
+		return
+	fi
+
+	local start now elapsed
+	start=$(awk '{print $1}' /proc/uptime)
+	DEBUG "Waiting for USB peripheral devices (not just hubs) - max 2s timeout"
+
+	local iteration=0
+	while :; do
+		iteration=$((iteration + 1))
+
+		# Check for actual USB peripheral devices (format: bus-port like 1-1, 5-3)
+		# Root hubs are named usb1, usb2, etc. - we want devices downstream from them
+		# Pattern: /sys/bus/usb/devices/[0-9]*-[0-9]*/idVendor (e.g., 1-1, 5-3.2)
+		local peripheral_count=0
+		if [ -d /sys/bus/usb/devices ]; then
+			# Count devices matching bus-port pattern (not usb* root hubs)
+			for dev in /sys/bus/usb/devices/*-*/idVendor; do
+				if [ -r "$dev" ]; then
+					peripheral_count=$((peripheral_count + 1))
+				fi
+			done
+		fi
+
+		now=$(awk '{print $1}' /proc/uptime)
+		elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
+
+		if [ "$peripheral_count" -gt 0 ]; then
+			DEBUG "USB peripheral devices ready after ${elapsed}s (iteration $iteration): found $peripheral_count device(s)"
+			return
+		fi
+
+		# Timeout after 2 seconds
+		if awk -v s="$start" -v n="$now" 'BEGIN{exit (n - s > 2.0) ? 0 : 1}'; then
+			DEBUG "USB wait timeout at ${elapsed}s (iter $iteration): only found $peripheral_count peripheral device(s)"
+			return
+		fi
+	done
+}
+
+# Wait for gpg --card-status to succeed (bounded, no sleep).
+# Sets global gpg_output with the last command output.
+wait_for_gpg_card() {
+	TRACE_FUNC
+	if [ ! -r /proc/uptime ]; then
+		gpg_output=$(gpg --card-status 2>&1)
+		return $?
+	fi
+
+	local start now elapsed
+	start=$(awk '{print $1}' /proc/uptime)
+	local attempt=0
+	while :; do
+		attempt=$((attempt + 1))
+		if gpg_output=$(gpg --card-status 2>&1); then
+			now=$(awk '{print $1}' /proc/uptime)
+			elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
+			DEBUG "gpg --card-status succeeded after ${elapsed}s (attempt $attempt)"
+			return 0
+		fi
+
+		now=$(awk '{print $1}' /proc/uptime)
+		elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
+		if awk -v s="$start" -v n="$now" 'BEGIN{exit (n - s > 2.0) ? 0 : 1}'; then
+			DEBUG "gpg --card-status timeout at ${elapsed}s (attempt $attempt)"
+			return 1
+		fi
+	done
+}
+
+enable_usb_keyboard() {
+	TRACE_FUNC
+	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
+	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
+	# Otherwise, if a user got CONFIG_USER_USB_KEYBOARD=n in their
+	# config.user by mistake (say, by copying config.user from a laptop to a
+	# desktop/server), they could lock themselves out, only recoverable by
+	# hardware flash.
+	if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = y ]; then
+		insmod.sh /lib/modules/usbhid.ko || die "usbhid: module load failed"
+	fi
+}
+
+# ------- End of functions coming from /etc/ash_functions
+
+# Print <hidden> or <empty> depending on whether $1 is empty.  Useful to mask an
+# optional password parameter.
+mask_param() {
+	if [ -z "$1" ]; then
+		echo "<empty>"
+	else
+		echo "<hidden>"
+	fi
+}
+
+# Pipe input to this to sink it to the debug log, with a name prefix.
+# If the input is empty, no output is produced, so actual output is
+# readily visible in logs.
+#
+# For example:
+# ls /boot/vmlinux* | SINK_LOG "/boot kernels"
+#
+# To capture stderr:
+# cryptsetup open /dev/sda1 media-crypt 2> >(SINK_LOG "LUKS unlock sda1 errors")
+# (Note: the space between '>' is necessary in '2> >(SINK_LOG ...)')
+#
+# To capture both:
+# tpm reset > >(SINK_LOG "tpm reset") 2>&1
+# (Note: 2>&1 must follow the stdout redirection, and space between '>' is
+# necessary)
+SINK_LOG() {
+	local name="$1"
+	local line haveblank
+	# If the input doesn't end with a line break, read won't give us the
+	# last (unterminated) line.  Add a line break with echo to ensure we
+	# don't lose any input.  Buffer up to one blank line so we can avoid
+	# emitting a final (or only) blank line.
+	(
+		cat
+		echo
+	) | while IFS= read -r line; do
+		[[ -n "$haveblank" ]] && LOG "$name: " # Emit buffered blank line
+		if [[ -z "$line" ]]; then
+			haveblank=y
+		else
+			haveblank=
+			LOG "$name: $line"
+		fi
+	done
+}
+
+# Trace a command with DEBUG, then execute it.  Trace failed exit status, stdout
+# and stderr, etc.
+#
+# DO_WITH_DEBUG is designed so it can be dropped in to most command invocations
+# without side effects - it adds visibility without actually affecting the
+# execution of the script.  Exit statuses, stdout, and stderr are traced, but
+# they are still returned/written to the caller.
+#
+# A password parameter can be masked by passing --mask-position N before the
+# command to execute, the debug trace will just indicate whether the password
+# was empty or nonempty (which is important when use of a password is optional).
+# N=0 is the name of the command to be executed, N=1 is its first parameter,
+# etc.
+#
+# DO_WITH_DEBUG() can be added in most places where a command is executed to
+# add visibility in the debug log.  For example:
+#
+# [DO_WITH_DEBUG] mount "$BLOCK" "$MOUNTPOINT"
+#   ^-- adding DO_WITH_DEBUG will show the block device, mountpoint, and whether
+#   the mount fails
+#
+# [DO_WITH_DEBUG --mask-position 7] tpmr.sh seal "$KEY" "$IDX" "$pcrs" "$pcrf" "$size" "$PASSWORD"
+#   ^-- trace the resulting invocation, but mask the password in the log
+#
+# if ! [DO_WITH_DEBUG] umount "$MOUNTPOINT"; then [...]
+#   ^-- it can be used when the exit status is checked, like the condition of `if`
+#
+# hotp_token_info="$([DO_WITH_DEBUG] hotp_verification info)"
+#   ^-- output of hotp_verification info becomes visible in debug log while
+#   still being captured by script
+#
+# [DO_WITH_DEBUG] umount "$MOUNTPOINT" &>/dev/null || true
+#   ^-- if the command's stdout/stderr/failure are ignored, this still works the
+#   same way with DO_WITH_DEBUG
+DO_WITH_DEBUG() {
+	local exit_status=0
+	# shellcheck disable=SC2034
+	local cmd_output
+	if [[ "$1" == "--mask-position" ]]; then
+		local mask_position="$2"
+		shift 2
+		local show_args=("$@")
+		# shellcheck disable=SC2004
+		show_args[$mask_position]="$(mask_param "${show_args[$mask_position]}")"
+		DEBUG "${show_args[@]}"
+	else
+		DEBUG "$@"
+	fi
+
+	# Execute the command and capture the exit status. Tee stdout/stderr to
+	# debug sinks, so they're visible but still can be used by the caller
+	#
+	# This is tricky when set -e / set -o pipefail may or may not be in
+	# effect.
+	# - Putting the command in an `if` ensures set -e won't terminate us,
+	#   and also does not overwrite $? (like `|| true` would).
+	# - We capture PIPESTATUS[0] whether the command succeeds or fails,
+	#   since we don't know whether the pipeline status will be that of the
+	#   command or 'tee' (depends on set -o pipefail).
+	if ! "$@" 2> >(tee /dev/stderr | SINK_LOG "$1 stderr") | tee >(SINK_LOG "$1 stdout"); then
+		exit_status="${PIPESTATUS[0]}"
+	else
+		exit_status="${PIPESTATUS[0]}"
+	fi
+	if [[ "$exit_status" -ne 0 ]]; then
+		# Trace unsuccessful exit status, but only at DEBUG because this
+		# may be expected.  Include the command name in case the command
+		# also invoked a DO_WITH_DEBUG (it could be a script).
+		DEBUG "$1: exited with status $exit_status"
+	fi
+	# If the command was (probably) not found, trace PATH in case it
+	# prevented the command from being found
+	if [[ "$exit_status" -eq 127 ]]; then
+		DEBUG "$1: PATH=$PATH"
+	fi
+
+	return "$exit_status"
+}
+
+# TRACE_FUNC outputs the function call stack in a readable format.
+# It helps debug the execution path leading to the current function.
+#
+# The format of the output is:
+#	main(/path/to/script:line) -> function1(/path/to/file:line) -> function2(/path/to/file:line)
+#
+# Usage:
+#	Call TRACE_FUNC within any function to print the call hierarchy.
+TRACE_FUNC() {
+	# Index [1] for BASH_SOURCE and FUNCNAME give us the caller location.
+	# FUNCNAME is 'main' if called from a script outside any function.
+	# BASH_LINENO is offset by 1, it provides the line that the
+	# corresponding FUNCNAME was _called from_, so BASH_LINENO[0] is the
+	# location of the caller.
+
+	local i stack_trace=""
+
+	# Traverse the call stack from the earliest caller to the direct caller of TRACE_FUNC
+	for ((i = ${#FUNCNAME[@]} - 1; i > 1; i--)); do
+		stack_trace+="${FUNCNAME[i]}(${BASH_SOURCE[i]}:${BASH_LINENO[i - 1]}) -> "
+	done
+
+	# Append the direct caller (without extra " -> " at the end)
+	stack_trace+="${FUNCNAME[1]}(${BASH_SOURCE[1]}:${BASH_LINENO[0]})"
+
+	# Print the final trace output
+	TRACE "${stack_trace}"
+}
+
+# Show the entire current call stack in debug output - useful if a catastrophic
+# error or something very unexpected occurs, like totally invalid parameters.
+DEBUG_STACK() {
+	local FRAMES
+	FRAMES="${#FUNCNAME[@]}"
+	DEBUG "call stack: ($((FRAMES - 1)) frames)"
+	# Don't print DEBUG_STACK itself, start from 1
+	for i in $(seq 1 "$((FRAMES - 1))"); do
+		DEBUG "- $((i - 1)) - ${BASH_SOURCE[$i]}(${BASH_LINENO[$((i - 1))]}): ${FUNCNAME[$i]}"
+	done
+}
+
+pcrs() {
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		tpm2 pcrread sha256
+	elif [ "$CONFIG_TPM" = "y" ]; then
+		head -8 /sys/class/tpm/tpm0/pcrs
+	fi
+}
+
+confirm_totp() {
+	TRACE_FUNC
+	prompt="$1"
+	last_half=X
+	unset totp_confirm
+
+	while true; do
+
+		# update the TOTP code every thirty seconds
+		date=$(date "+%Y-%m-%d %H:%M:%S")
+		seconds=$(date "+%s")
+		half=$(( (seconds % 60) / 30 ))
+		if [ "$CONFIG_TPM" != "y" ]; then
+			TOTP="NO TPM"
+		elif [ "$half" != "$last_half" ]; then
+			last_half=$half
+					TOTP=$(unseal-totp.sh) ||
+				recovery "TOTP code generation failed"
+		fi
+
+		echo -n "$date $TOTP: "
+
+		# read the first character, non-blocking
+		# shellcheck disable=SC2034
+		read -r -t 1 -n 1 -s -p "$prompt" totp_confirm && break
+
+		# nothing typed, redraw the line
+		echo -ne '\r'
+	done
+
+	# clean up with a newline
+	echo
+}
+
+reseal_tpm_disk_decryption_key() {
+	TRACE_FUNC
+	#For robustness, exit early if LUKS TPM Disk Unlock Key is prohibited in board configs
+	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
+		DEBUG "LUKS TPM Disk Unlock Key is prohibited in board configs"
+		return
+	else
+		DEBUG "LUKS TPM Disk Unlock Key is allowed in board configs. Continuing"
+	fi
+
+	if ! grep -q /boot /proc/mounts; then
+		mount -o ro /boot ||
+			recovery "Unable to mount /boot"
+	fi
+
+	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
+		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
+		while ! kexec-seal-key.sh /boot; do
+			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
+		done
+		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
+		echo "Updating checksums and signing all files under /boot/kexec.sig"
+		attempt=1
+		while ! update_checksums; do
+			warn "Attempt $attempt: Checksums were not signed. Preceding errors should explain possible causes"
+			if [ "$attempt" -ge 3 ]; then
+				die "Failed to sign checksums after 3 attempts"
+			fi
+			attempt=$((attempt + 1))
+		done
+		NOTE "Rebooting in 3 seconds to enable booting default boot option"
+		sleep 3
+		reboot.sh
+	else
+		DEBUG "No TPM disk decryption key to reseal"
+	fi
+}
+
+# Enable USB storage (if not already enabled), and wait for storage devices to
+# be detected.  If USB storage was already enabled, no wait occurs, this would
+# have happened already when USB storage was enabled.
+enable_usb_storage() {
+	TRACE_FUNC
+	if ! lsmod | grep -q usb_storage; then
+		timeout=0
+		echo "Scanning for USB storage devices..."
+		insmod.sh /lib/modules/usb-storage.ko >/dev/null 2>&1 ||
+			die "usb_storage: module load failed"
+		while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do
+			[[ "$timeout" -ge 8 ]] && break
+			sleep 1
+			timeout=$((timeout + 1))
+		done
+	fi
+}
+
+device_has_partitions() {
+	local DEVICE="$1"
+	# fdisk normally says "doesn't contain a valid partition table" for
+	# devices that lack a partition table - except for FAT32.
+	#
+	# FAT32 devices have a volume boot record that looks enough like an MBR
+	# to satisfy fdisk.  In that case, fdisk prints a partition table header
+	# but no partitions.
+	#
+	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
+	# In both cases the output is 5 lines: 3 about device info, 1 empty line
+	# and the 5th will be the table header or the invalid message.
+	local DISK_DATA
+	DISK_DATA=$(fdisk -l "$DEVICE" 2>/dev/null)
+	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" ||
+		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
+		# No partition table
+		return 1
+	fi
+	# There is a partition table
+	return 0
+}
+
+# shellcheck disable=SC2120
+list_usb_storage() {
+	TRACE_FUNC
+	# List all USB storage devices, including partitions unless we received argument stating we want drives only
+	# The output is a list of device names, one per line.
+
+	if [ "$1" = "disks" ]; then
+		DEBUG "Listing USB storage devices (disks only) since list_usb_storage was called with 'disks' argument"
+	else
+		DEBUG "Listing USB storage devices (including partitions)"
+	fi
+
+	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
+		cut -f1 -d ' ' |
+		sed "s/[']//g" |
+		while read -r b; do
+			# Ignore devices of size 0, such as empty SD card
+			# readers on laptops attached via USB.
+			if [ "$(cat "$b/size")" -gt 0 ]; then
+				DEBUG "USB storage device of size greater then 0: $b"
+				echo "$b"
+			fi
+		done |
+		sed "s|/sys/block|/dev|" |
+		while read -r b; do
+			# If the device has a partition table, ignore it and
+			# include the partitions instead - even if the kernel
+			# hasn't detected the partitions yet.  Such a device is
+			# never usable directly, and this allows the "wait for
+			# disks" loop in mount-usb to correctly wait for the
+			# partitions.
+			if ! device_has_partitions "$b"; then
+				# No partition table, include this device
+				DEBUG "USB storage device without partition table: $b"
+				echo "$b"
+			#Bypass the check for partitions if we want only disks
+			elif [ "$1" = "disks" ]; then
+				# disks only were requested, so we don't list partitions
+				DEBUG "USB storage device with partition table: $b"
+				DEBUG "We asked for disks only, so we don't want to list partitions"
+				echo "$b"
+			else
+				# Has a partition table, include partitions
+				DEBUG "USB storage device with partition table: $b"
+				# shellcheck disable=SC2012
+				ls -1 "$b"* | tail -n +2
+			fi
+		done
+}
+
+# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
+# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed.
+# Tools should optionally accept a TPM password on the command line, since some flows need
+# it multiple times and only one prompt is ideal.
+prompt_tpm_owner_password() {
+	TRACE_FUNC
+
+	if [ -s /tmp/secret/tpm_owner_password ]; then
+		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
+		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
+		return 0
+	fi
+
+	read -r -s -p $'\nTPM Owner Password: ' tpm_owner_password
+	echo
+
+	# Cache the password externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
+}
+
+# Prompt for a new TPM Owner Password when resetting the TPM.
+# Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
+# The password must be 1-32 characters and must be entered twice,
+# the script will loop until this is met.
+prompt_new_owner_password() {
+	TRACE_FUNC
+	local tpm_owner_password2
+	tpm_owner_password=1
+	tpm_owner_password2=2
+	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
+		read -r -s -p $'\nNew TPM Owner Password (2 words suggested, 1-32 characters max): ' tpm_owner_password
+		read -r -s -p $'\nRepeat chosen TPM Owner Password: ' tpm_owner_password2
+
+		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
+			echo
+			echo "Passphrases entered do not match. Try again!"
+		fi
+		echo
+	done
+
+	# Cache the password externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
+}
+
+check_tpm_counter() {
+	# $1: rollback file path
+	TRACE_FUNC
+
+	LABEL=${2:-3135106223}
+	# shellcheck disable=SC2034
+	tpm_password="$3"
+	# if the /boot.hashes file already exists, read the TPM counter ID
+	# from it.
+	if [ -r "$1" ]; then
+		# Robustly extract the first hex string after 'counter-' on any line
+		TPM_COUNTER=$(grep -Eo 'counter-[0-9a-fA-F]+' "$1" | sed -n 's/counter-//p' | head -n1 | tr -d '\n')
+		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
+	else
+		INFO "$1 does not exist; creating new TPM counter"
+		# Warn user: TPM Owner Password is required to create a new TPM counter
+		if [ ! -s /tmp/secret/tpm_owner_password ]; then
+			warn "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+		fi
+
+		tpmr.sh counter_create \
+			-pwdc '' \
+			-la "$LABEL" |
+			tee /tmp/counter >/dev/null 2>&1 ||
+			die "Unable to create TPM counter"
+		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
+		DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
+	fi
+
+	if [ -z "$TPM_COUNTER" ]; then
+		die "No TPM counter could be found or created."
+	fi
+}
+
+# Read the TPM counter value from the TPM.
+read_tpm_counter() {
+	TRACE_FUNC
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
+	if [ ! -e /tmp/counter-"$counter_id" ]; then
+		DEBUG "Counter file /tmp/counter-$counter_id not found. Attempting to read from TPM."
+		tpmr.sh counter_read -ix "$counter_id" | tee /tmp/counter-"$counter_id" >/dev/null 2>&1 ||
+			die "Counter read failed for index $counter_id"
+	fi
+	DEBUG "Counter file /tmp/counter-$counter_id read successfully."
+}
+
+increment_tpm_counter() {
+	TRACE_FUNC
+	local counter_id
+	counter_id="$(echo "$1" | tr -d '\n')"
+
+	# Check if counter exists by reading it first
+	if ! DO_WITH_DEBUG tpmr.sh counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
+		DEBUG "TPM counter $counter_id could not be read before incrementing"
+		# Continue with increment attempt anyway to get detailed error messages
+	else
+		DEBUG "TPM counter $counter_id exists and was read successfully"
+	fi
+
+	# Try to increment the counter
+	if ! tpmr.sh counter_increment -ix "$counter_id" -pwdc '' |
+		tee /tmp/counter-"$counter_id" >/dev/null 2>&1; then
+
+		# Check if we need to create a new counter
+		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
+
+		# Before the tpmr.sh call, check if password is needed and prompt
+		if [ "$CONFIG_TPM" = "y" ] && ! [ -s /tmp/secret/tpm_owner_password ]; then
+			prompt_tpm_owner_password
+		fi
+
+		if tpmr.sh counter_create -pwdc "$(cat /tmp/secret/tpm_owner_password 2>/dev/null || echo '')" -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
+			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
+		fi
+
+		die "TPM counter increment failed for rollback prevention. Please reset the TPM or update kexec_rollback.txt with a new counter."
+	fi
+
+	DEBUG "TPM counter incremented successfully for index $counter_id"
+}
+
+# Check detached signature on kexec boot params
+check_config() {
+	TRACE_FUNC
+	if [ ! -d /tmp/kexec ]; then
+		mkdir /tmp/kexec ||
+			die 'Failed to make kexec tmp dir'
+	else
+		rm -rf /tmp/kexec/* ||
+			die 'Failed to empty kexec tmp dir'
+	fi
+
+	if [ ! -r "$1"/kexec.sig ] && [ "$CONFIG_BASIC" != "y" ]; then
+		DEBUG "No $1/kexec.sig found"
+		return
+	fi
+
+	if [ "$(find "$1"/kexec*.txt | wc -l)" -eq 0 ]; then
+		DEBUG "No $1/kexec*.txt found"
+		return
+	fi
+
+	if [ "$2" != "force" ]; then
+		DEBUG "second param: $2 != force"
+		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
+		# shellcheck disable=SC2207
+		files=($(find "$1"/kexec*.txt | sort))
+		DEBUG "Files to verify: ${files[*]}"
+		if ! sha256sum "${files[@]}" | gpgv.sh "$1"/kexec.sig -; then
+			DEBUG "GPG verification failed for kexec boot params"
+			die 'Invalid signature on kexec boot params'
+		fi
+		DEBUG "Signature verified successfully for kexec boot params"
+	fi
+
+	INFO "+++ Found verified kexec boot params"
+	cp "$1"/kexec*.txt /tmp/kexec ||
+		die "Failed to copy kexec boot params to tmp"
+}
+
+# Replace a file in a ROM (add it if the file does not exist)
+replace_rom_file() {
+	ROM="$1"
+	ROM_FILE="$2"
+	NEW_FILE="$3"
+
+	if (cbfs.sh -o "$ROM" -l | grep -q "$ROM_FILE"); then
+		cbfs.sh -o "$ROM" -d "$ROM_FILE"
+	fi
+	cbfs.sh -o "$ROM" -a "$ROM_FILE" -f "$NEW_FILE"
+}
+
+# Replace the config file by the changed one
+# shellcheck disable=SC2317
+replace_config() {
+	TRACE_FUNC
+	# shellcheck disable=SC2317
+	CONFIG_FILE=$1
+	# shellcheck disable=SC2317
+	CONFIG_OPTION=$2
+	# shellcheck disable=SC2317
+	NEW_SETTING=$3
+
+	touch "$CONFIG_FILE"
+	# first pull out the existing option from the global config and place in a tmp file
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >"${CONFIG_FILE}.tmp"
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>"${CONFIG_FILE}.tmp"
+
+	# then copy any remaining settings from the existing config file, minus the option you changed
+	grep -v "^export ${CONFIG_OPTION}=" "$CONFIG_FILE" | grep -v "^${CONFIG_OPTION}=" >>"${CONFIG_FILE}.tmp" || true
+	sort "${CONFIG_FILE}.tmp" | uniq >"${CONFIG_FILE}"
+	rm -f "${CONFIG_FILE}.tmp"
+}
+
+# Generate a secret for TPM-less HOTP by reading the ROM.  Output is the
+# sha256sum of the ROM (binary, not printable), which can be truncated to the
+# supported secret length.
+secret_from_rom_hash() {
+	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
+
+	echo -e "\nTPM not detected; measuring ROM directly\n" 1>&2
+
+	# Read the ROM if we haven't read it yet
+	if [ ! -f "${ROM_IMAGE}" ]; then
+		flash.sh -r "${ROM_IMAGE}" >/dev/null 2>&1 || return 1
+	fi
+
+	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
+}
+
+# Update the checksums of the files in /boot and sign them
+update_checksums() {
+	TRACE_FUNC
+	# ensure /boot mounted
+	if ! grep -q /boot /proc/mounts; then
+		mount -o ro /boot ||
+			recovery "Unable to mount /boot"
+	fi
+
+	# remount RW
+	mount -o rw,remount /boot
+
+	# sign and auto-roll config counter
+	extparam=
+	if [ "$CONFIG_TPM" = "y" ]; then
+		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			DEBUG "add -r to kexec-sign-config since CONFIG_IGNORE_ROLLBACK is not set"
+			extparam=-r
+		fi
+	fi
+	if ! kexec-sign-config.sh -p /boot -u $extparam; then
+		rv=1
+	else
+		rv=0
+	fi
+
+	# switch back to ro mode
+	mount -o ro,remount /boot
+
+	return $rv
+}
+
+# Print the file and directory structure of /boot to caller's stdout
+print_tree() {
+	TRACE_FUNC
+	find ./ ! -path './kexec*' -print0 | sort -z
+}
+
+# Escape zero-delimited standard input to safely display it to the user in e.g.
+# `whiptail`, `less`, `echo`, `cat`. Doesn't produce shell-escaped output.
+# Most printable characters are passed verbatim (exception: \).
+# These escapes are used to replace their corresponding characters: #n#r#t#v#b
+# Other characters are rendered as hexadecimal escapes.
+# escape_zero [prefix] [escape character]
+# prefix: \0 in the input will result in \n[prefix]
+# escape character: character to use for escapes (default: #); \ may be interpreted by `whiptail`
+escape_zero() {
+	local prefix="$1"
+	local echar="${2:-#}"
+	local todo=""
+	local echar_hex
+	echar_hex="$(echo -n "$echar" | xxd -p -c1)"
+	[ ${#echar_hex} -eq 2 ] || die "Invalid escape character $echar passed to escape_zero(). Programming error?!"
+
+	echo -e -n "$prefix"
+	xxd -p -c1 | tr -d '\n' |
+		{
+			while IFS= read -r -n2 -d ''; do
+				if [ -n "$todo" ]; then
+					#REPLY == "  " is EOF
+					[[ "$REPLY" == "  " ]] && echo '' || echo -e -n "$todo"
+					todo=""
+				fi
+
+				case "$REPLY" in
+				00)
+					todo="\n$prefix"
+					;;
+				08)
+					echo -n "${echar}b"
+					;;
+				09)
+					echo -n "${echar}t"
+					;;
+				0a)
+					echo -n "${echar}n"
+					;;
+				0b)
+					echo -n "${echar}v"
+					;;
+				0d)
+					echo -n "${echar}r"
+					;;
+				"$echar_hex")
+					echo -n "$echar$echar"
+					;;
+				#interpreted characters:
+				2[0-9a-f] | 3[0-9a-f] | 4[0-9a-f] | 5[0-9abd-f] | 6[0-9a-f] | 7[0-9a-e])
+					echo -e -n '\x'"$REPLY"
+					;;
+				# All others are escaped
+				*)
+					echo -n "${echar}x$REPLY"
+					;;
+				esac
+			done
+		}
+}
+
+# Currently heads doesn't support signing file names with certain characters
+# due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
+# may be intepreted by `whiptail`, `less` et al (e.g. \n, \b, ...).
+assert_signable() {
+	TRACE_FUNC
+	# ensure /boot mounted
+	detect_boot_device
+
+	find /boot -print0 >/tmp/signable.ref
+	local del='\001-\037\134\177-\377'
+	LC_ALL=C tr -d "$del" </tmp/signable.ref > /tmp/signable.del || die "Failed to execute tr."
+	if ! cmp -s "/tmp/signable.ref" "/tmp/signable.del" &>/dev/null; then
+		local user_out="/tmp/hash_output_mismatches"
+		local add="Please investigate!"
+		[ -f "$user_out" ] && add="Please investigate the following relative paths to /boot (where # are sanitized invalid characters):"$'\n'"$(cat "$user_out")"
+		recovery "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"$add"
+	fi
+	rm -f /tmp/signable.*
+}
+
+# Verify the checksums of the files in /boot
+verify_checksums() {
+	TRACE_FUNC
+	local boot_dir="$1"
+	local gui="${2:-y}"
+
+	(
+		set +e -o pipefail
+		local ret=0
+		cd "$boot_dir" || ret=1
+		sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output 2>/dev/null || ret=1
+
+		# also make sure that the file & directory structure didn't change
+		# (sha256sum won't detect added files)
+		print_tree >/tmp/tree_output || ret=1
+		if ! cmp -s "$TMP_TREE_FILE" /tmp/tree_output 2>/dev/null; then
+			ret=1
+			[[ "$gui" != "y" ]] && exit "$ret"
+			# produce a diff that can safely be presented to the user
+			# this is relatively hard as file names may e.g. contain backslashes etc.,
+			# which are interpreted by whiptail, less, ...
+			if [ -r "$TMP_TREE_FILE" ]; then
+				escape_zero "(new) " <"$TMP_TREE_FILE" >"${TMP_TREE_FILE}.user" 2>/dev/null
+			else
+				touch "${TMP_TREE_FILE}.user"
+			fi
+			if [ -r /tmp/tree_output ]; then
+				escape_zero "(new) " </tmp/tree_output >/tmp/tree_output.user 2>/dev/null
+			else
+				touch /tmp/tree_output.user
+			fi
+			diff "${TMP_TREE_FILE}.user" /tmp/tree_output.user 2>/dev/null | grep -E '^\+\(new\).*$' | sed -r 's/^\+\(new\)/(new)/g' >>/tmp/hash_output 2>/dev/null
+			rm -f "${TMP_TREE_FILE}.user"
+			rm -f /tmp/tree_output.user
+		fi
+		exit $ret
+	)
+	return $?
+}
+
+# Check if a device is an LVM2 PV, and if so print the VG name
+find_lvm_vg_name() {
+	TRACE_FUNC
+	local DEVICE VG
+	DEVICE="$1"
+
+	mkdir -p /tmp/root-hashes-gui
+	if ! lvm pvs "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
+		# It's not an LVM PV
+		return 1
+	fi
+
+	VG="$(tail -n +2 /tmp/root-hashes-gui/lvm_vg | awk '{print $2}')"
+	if [ -z "$VG" ]; then
+		DEBUG "Could not find LVM2 VG from lvm pvs output:"
+		DEBUG "$(cat /tmp/root-hashes-gui/lvm_vg)"
+		return 1
+	fi
+
+	echo "$VG"
+}
+
+# If a block device is a partition, check if it is a bios-grub partition on a
+# GPT-partitioned disk.
+is_gpt_bios_grub() {
+	TRACE_FUNC
+
+	local PART_DEV="$1" DEVICE NUMBER
+
+	# Figure out the partitioned device containing this device (if there is
+	# one) from /sys/class/block.
+	local DEVICE_MATCHES=("/sys/class/block/"*"/$(basename "$PART_DEV")")
+
+	DEVICE="$(echo "${DEVICE_MATCHES[0]}" | cut -d/ -f5)"
+	if [ "${#DEVICE_MATCHES[@]}" -ne 1 ] || [ "$DEVICE" = "*" ]; then
+		return 0
+	fi
+
+	# Extract the partition number
+	if ! [[ $(basename "$PART_DEV") =~ ([0-9]+)$ ]]; then
+		return 0 # Can't figure out the partition number
+	fi
+
+	NUMBER="${BASH_REMATCH[1]}"
+
+	# Now we know the device and partition number, get the type.  This is
+	# specific to GPT disks, MBR disks are shown differently by fdisk.
+	DEBUG "$PART_DEV is partition $NUMBER of $DEVICE"
+	if [ "$(fdisk -l "/dev/$DEVICE" 2>/dev/null | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
+		return 0
+	fi
+	return 1
+}
+
+# Test if a block device could be used as /boot - we can mount it and it
+# contains /boot/grub* files.  (Here, the block device could be a partition or
+# an unpartitioned device.)
+#
+# If the device is a partition, its type is also checked.  Some common types
+# that we definitely can't mount this way are excluded to silence spurious exFAT
+# errors.
+#
+# Any existing /boot is unmounted.  If the device is a reasonable boot device,
+# it's left mounted on /boot.
+mount_possible_boot_device() {
+	TRACE_FUNC
+
+	local BOOT_DEV="$1"
+	# shellcheck disable=SC2034
+	local PARTITION_TYPE
+
+	# Unmount anything on /boot.  Ignore failure since there might not be
+	# anything.  If there is something mounted and we cannot unmount it for
+	# some reason, mount will fail, which is handled.
+	umount /boot 2>/dev/null || true
+
+	# Skip bios-grub partitions on GPT disks, LUKS partitions, and LVM PVs,
+	# we can't mount these as /boot.
+	if is_gpt_bios_grub "$BOOT_DEV" || cryptsetup isLuks "$BOOT_DEV" ||
+		find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
+		DEBUG "$BOOT_DEV is not a mountable partition for /boot"
+		return 1
+	fi
+
+	# Get the size of BOOT_DEV in 512-byte sectors
+	sectors="$(blockdev --getsz "$BOOT_DEV")"
+
+	# Check if the partition is small (less than 2MB, which is 4096 sectors)
+	if [ "$sectors" -lt 4096 ]; then
+		TRACE_FUNC
+		DEBUG "Partition $BOOT_DEV is very small, likely BIOS boot. Skipping mount."
+		return 1
+	else
+		TRACE_FUNC
+		DEBUG "Try mounting $BOOT_DEV as /boot"
+		if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
+			if ls -d /boot/grub* >/dev/null 2>&1; then
+				# This device is a reasonable boot device
+				return 0
+			fi
+			umount /boot || true
+		fi
+	fi
+
+	return 1
+}
+
+# detect and set /boot device
+# mount /boot if successful
+detect_boot_device() {
+	TRACE_FUNC
+	local devname
+	# unmount /boot to be safe
+	cd / && umount /boot 2>/dev/null
+
+	# check $CONFIG_BOOT_DEV if set/valid
+	if [ -e "$CONFIG_BOOT_DEV" ] && mount_possible_boot_device "$CONFIG_BOOT_DEV"; then
+		# CONFIG_BOOT_DEV is valid device and contains an installed OS
+		return 0
+	fi
+
+	# generate list of possible boot devices
+	fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
+
+	# Check each possible boot device
+	while IFS= read -r i; do
+		# If the device has partitions, check the partitions instead
+		if device_has_partitions "$i"; then
+			devname="$(basename "$i")"
+			partitions=("/sys/class/block/$devname/$devname"?*)
+		else
+			partitions=("$i") # Use the device itself
+		fi
+		for partition in "${partitions[@]}"; do
+			partition_dev=/dev/"$(basename "$partition")"
+			# No sense trying something we already tried above
+			if [ "$partition_dev" = "$CONFIG_BOOT_DEV" ]; then
+				continue
+			fi
+			# If this is a reasonable boot device, select it and finish
+			if mount_possible_boot_device "$partition_dev"; then
+				CONFIG_BOOT_DEV="$partition_dev"
+				return 0
+			fi
+		done
+	done < /tmp/disklist
+
+	# no valid boot device found
+	echo "Unable to locate /boot files on any mounted disk"
+	return 1
+}
+
+scan_boot_options() {
+	TRACE_FUNC
+	local bootdir config option_file
+	bootdir="$1"
+	config="$2"
+	option_file="$3"
+
+	DEBUG "scan_boot_options: bootdir='$bootdir' config='$config' option_file='$option_file'"
+
+	if [ -r "$option_file" ]; then rm "$option_file"; fi
+	find "$bootdir" -name "$config" | while read -r i; do
+		DEBUG "scan_boot_options: parsing grub config '$i'"
+		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
+	done
+	# FC29/30+ may use BLS format grub config files
+	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
+	# only parse these if $option_file is still empty
+	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
+		find "$bootdir" -name "$config" | while read -r i; do
+			DEBUG "scan_boot_options: parsing BLS entries from '$bootdir/loader/entries' with config '$i'"
+			kexec-parse-bls.sh "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
+		done
+	else
+		DEBUG "scan_boot_options: using grub parser output (BLS not needed or entries missing)"
+	fi
+}
+
+# truncate a file to a size only if it is longer (busybox truncate lacks '<' and
+# always sets the file size)
+truncate_max_bytes() {
+	local bytes="$1"
+	local file="$2"
+	if [ "$(stat -c %s "$file")" -gt "$bytes" ]; then
+		truncate -s "$bytes" "$file"
+	fi
+}
+
+# Busybox xxd -p pads the last line with spaces to 60 columns, which not only
+# trips up many scripts, it's very difficult to diagnose by looking at the
+# output.  Delete line breaks and spaces to really get plain hex output.
+tohex_plain() {
+	xxd -p | tr -d '\n '
+}
+
+# Busybox xxd -p -r silently truncates lines longer than 60 hex chars.
+# Shorter lines are OK, spaces are OK, and even splitting a byte across lines is
+# allowed, so just fold the text to maximum 60 column lines.
+# Note that also unlike GNU xxd, non-hex chars in input corrupt the output (GNU
+# xxd ignores them).
+fromhex_plain() {
+	fold -w 60 | xxd -p -r
+}
+
+print_battery_charge() {
+	local battery
+	battery="$1"
+	echo "$((100 * $(cat "${battery}/charge_now") / $(cat "${battery}/charge_full")))"
+}
+
+print_battery_health() {
+	local battery
+	battery="$1"
+	echo "$((100 * $(cat "${battery}/charge_full") / $(cat "${battery}/charge_full_design")))"
+}
+
+print_battery_name() {
+	local battery
+	battery="$1"
+	echo "$(cat "${battery}/manufacturer") $(cat "${battery}/model_name")"
+}
+
+# Print the charging and health state for all batteries
+# Print the maufacturer and model name for each battery if more than 1
+# The printed string contains the full formatting including leading an trailing "\n" strings
+print_battery_state() {
+	local battery_status
+	battery_status=""
+	all_batteries=(/sys/class/power_supply/BAT*)
+	for battery in "${all_batteries[@]}"; do
+		if [[ -d "${battery}" ]]; then
+			battery_name="Battery"
+			if [ "${#all_batteries[@]}" -gt 1 ]; then
+				battery_name+=" $(print_battery_name "${battery}")"
+			fi
+			battery_status+="\n${battery_name} charge: $(print_battery_charge "${battery}")%"
+			battery_status+="\n${battery_name} health: $(print_battery_health "${battery}")%"
+		fi
+	done
+	echo "${battery_status:+${battery_status}\n}"
+}
+
+generate_random_mac_address() {
+	#Borrowed from https://stackoverflow.com/questions/42660218/bash-generate-random-mac-address-unicast
+	hexdump -n 6 -ve '1/1 "%.2x "' /dev/urandom | awk -v a="2,6,a,e" -v r="$RANDOM" 'BEGIN{srand(r);}NR==1{split(a,b,",");r=int(rand()*4+1);printf "%s%s:%s:%s:%s:%s:%s\n",substr($1,0,1),b[r],$2,$3,$4,$5,$6}'
+}
+
+# Add a command to be invoked at exit.  (Note that trap EXIT replaces any
+# existing handler.)  Commands are invoked in reverse order, so they can be used
+# to clean up resources, etc.
+# The parameters are all executed as-is and do _not_ require additional quoting
+# (unlike trap).  E.g.:
+# at_exit shred "$file" #<-- file is expanded when calling at_exit, no extra quoting needed
+at_exit() {
+	AT_EXIT_HANDLERS+=("$@") # Command and args
+	AT_EXIT_HANDLERS+=("$#") # Number of elements in this command
+}
+
+# Array of all exit handler command arguments with lengths of each command at
+# the end.  For example:
+#   at_exit echo hello
+#   at_exit echo a b c
+# results in:
+# AT_EXIT_HANDLERS=(echo hello 2 echo a b c 4)
+
+AT_EXIT_HANDLERS=()
+# Each handler is an array AT_EXIT_HANDLER_{i}
+run_at_exit_handlers() {
+	local cmd_pos cmd_len
+	cmd_pos="${#AT_EXIT_HANDLERS[@]}"
+	# Silence trace if there are no handlers, this is common and occurs a lot
+	[ "$cmd_pos" -gt 0 ] && DEBUG "Running at_exit handlers"
+	while [ "$cmd_pos" -gt 0 ]; do
+		cmd_pos="$((cmd_pos - 1))"
+		cmd_len="${AT_EXIT_HANDLERS[$cmd_pos]}"
+		cmd_pos="$((cmd_pos - cmd_len))"
+		"${AT_EXIT_HANDLERS[@]:$cmd_pos:$cmd_len}"
+	done
+}
+trap run_at_exit_handlers EXIT
+
+# Helper function to generate diceware passphrase
+generate_passphrase() {
+	usage_generate_passphrase() {
+		echo "Usage: generate_passphrase --dictionary|-d <dictionary_file> [--number_words|-n <num_words>] [--max_length|-m <max_size>] [--lowercase|-l]"
+		echo "Generates a passphrase using a Diceware dictionary."
+		echo "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionaries/eff_short_wordlist_2_0.txt )."
+		echo "  [--number_words|-n <num_words>]  Number of words in the passphrase (default: 3)."
+		echo "  [--max_length|-m <max_size>]  Maximum size of the passphrase (default: 256)."
+		echo "  [--lowercase|-l]  Use lowercase words (default: false)."
+	}
+
+	# Helper subfunction to get a random word from the dictionary
+	get_random_word_from_dictionary() {
+		local dictionary_file="$1" lines random
+
+		lines="$(wc -l <"$dictionary_file")"
+		# 4 random bytes are used to reduce modulo bias to an acceptable
+		# level.  4 bytes with modulus 1296 results in 0.000003% bias
+		# toward the first 1263 words.
+		random="$(dd if=/dev/random bs=4 count=1 status=none | hexdump -e '1/4 "%u\n"')"
+		((random %= lines))
+		((++random)) # tail's line count is 1-based
+		tail -n +"$random" "$dictionary_file" | head -1 | cut -d$'\t' -f2
+	}
+
+	TRACE_FUNC
+	local dictionary_file="/etc/diceware_dictionaries/eff_short_wordlist_2_0.txt"
+	local num_words=3
+	local max_size=256
+	local lowercase=false
+
+	# Parse parameters
+	while [[ "$#" -gt 0 ]]; do
+		case "$1" in
+		--dictionary | -d)
+			dictionary_file="$2"
+			shift
+			;;
+		--lowercase | -l)
+			lowercase=true
+			;;
+		--number_words | -n)
+			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
+				warn "Invalid number of words: $2"
+				usage_generate_passphrase
+				return 1
+			fi
+			num_words="$2"
+			shift
+			;;
+		--max_length | -m)
+			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
+				warn "Invalid maximum size: $2"
+				usage_generate_passphrase
+				return 1
+			fi
+			max_size="$2"
+			shift
+			;;
+		*)
+			warn "Unknown parameter: $1"
+			usage_generate_passphrase
+			return 1
+			;;
+		esac
+		shift
+	done
+
+	# Validate dictionary file
+	if [[ -z "$dictionary_file" || ! -f "$dictionary_file" ]]; then
+		warn "Dictionary file not found or not provided: $dictionary_file"
+		usage_generate_passphrase
+		return 1
+	fi
+
+	local passphrase=""
+	local word=""
+
+	for ((i = 0; i < num_words; ++i)); do
+		word=$(get_random_word_from_dictionary "$dictionary_file")
+		if [[ "$lowercase" == "false" ]]; then
+			word=${word^} # Capitalize the first letter
+		fi
+		passphrase+="$word "
+		if [[ ${#passphrase} -gt $max_size ]]; then
+			DEBUG "Passphrase exceeds max size: $max_size, removing last word"
+			passphrase=${passphrase% *} # Remove the last word if it exceeds max_size
+			break
+		fi
+	done
+
+	#Remove passphrase trailing space from passphrase+="$word"
+	passphrase=${passphrase% }
+	echo "$passphrase"
+	return 0
+}
+
+# Load a keymap.  Normally used to load the configured keymap, also used in
+# config to test a keymap.
+#
+# This always resets the keymap before loading, so the result is the same even
+# if other keymaps had been loaded before, and even if the new keymap doesn't
+# define all keys (or if none was given).
+#
+# If the board defines an override keymap, it is always loaded after the keymap.
+# (For example, tablets map volume up/down and power to up/down/enter, and we
+# do not want a custom keymap to override that.)
+#
+# If the board didn't include loadkeys, this is a no-op.
+load_keymap() {
+	TRACE_FUNC
+
+	if ! [ -x /bin/loadkeys ]; then
+		return 0
+	fi
+
+	# Reset the keymap
+	DEBUG "Loading linux kernel shipped keyboard layout keymap: share/keymaps/defkeymap.map"
+	DO_WITH_DEBUG loadkeys --default
+
+	# Load the specified keymap, if given
+	if [ -n "$1" ]; then
+		if [ -f "$1" ]; then
+			DEBUG "Loading keyboard keymap: $1"
+			DO_WITH_DEBUG loadkeys "$1"
+		else
+			# We can continue by ignoring the specified keymap, but
+			# this might mean keys map unexpectedly.  If this is
+			# desired, update or clear the keymap setting to silence
+			# the warning.
+			warn "Keymap $1 does not exist, continuing without keymap"
+		fi
+	fi
+
+	# Load the board keymap.  These only define the keys that must always
+	# have a specific function on that board.
+	if [ -f /etc/board_keys.map ]; then
+		DO_WITH_DEBUG loadkeys /etc/board_keys.map
+	fi
+}
+
+# Show an updating UTC timestamp and optional TOTP on a single refreshed line
+# until the user presses the Escape key. Returns 0 after ESC pressed.
+# Function name: show_totp_until_esc - clearly indicates this displays the
+# TOTP code and waits for the user to press Escape to continue.
+show_totp_until_esc() {
+	local now_str status_line current_totp ch
+	local last_totp_time=0 last_totp=""
+	printf "\n" # reserve a line for updates
+
+	# Poll frequently (200ms) for responsiveness, but only refresh the
+	# displayed timestamp/TOTP when the displayed second changes. Cache
+	# the TOTP for a short interval to avoid repeated unseal calls.
+	local last_sec=0
+	while :; do
+		now_str=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+		local now_epoch
+		now_epoch=$(date +%s)
+		local now_sec=$now_epoch
+
+		# Refresh TOTP at most once every 1 second
+		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+			if [ $((now_epoch - last_totp_time)) -ge 1 ] || [ -z "$last_totp" ]; then
+						   if current_totp=$(unseal-totp.sh 2>/dev/null); then
+					last_totp="$current_totp"
+					last_totp_time=$now_epoch
+				else
+					# If unseal fails, clear cached value so we retry later
+					last_totp=""
+					last_totp_time=0
+				fi
+			fi
+		fi
+
+		# Only update display when the second changes to avoid flicker
+		if [ "$now_sec" -ne "$last_sec" ]; then
+			last_sec=$now_sec
+			# Build an explicit TOTP field so it's clear when no code is
+			# available (initial state or unseal failure).
+			local totp_field=""
+			if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+				if [ -n "$last_totp" ]; then
+					totp_field=" | TOTP code: $last_totp"
+				else
+					totp_field=" | TOTP unavailable"
+				fi
+			fi
+			status_line="[$now_str]${totp_field} | Press Esc to continue..."
+			printf "\r%s\033[K" "$status_line"
+		fi
+
+		# Short poll for keypress (200ms). If ESC pressed, exit and return 0.
+		if IFS= read -r -t 0.2 -n 1 ch; then
+			if [ "$ch" = $'\e' ]; then
+				# Print an extra blank line so the next prompt appears after
+				# an empty line (better UX before the passphrase prompt).
+				printf "\n\n"
+				return 0
+			fi
+			# Ignore other keys and continue polling
+		fi
+	done
+}
+

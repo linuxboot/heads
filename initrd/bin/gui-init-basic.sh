@@ -1,0 +1,219 @@
+#!/bin/bash
+# Boot from a local disk installation
+
+BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}} 
+MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Basic Boot Menu"
+export BG_COLOR_MAIN_MENU="normal"
+
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+. /etc/gui_functions.sh
+# shellcheck disable=SC1091
+. /tmp/config
+
+# skip_to_menu is set if the user selects "continue to the main menu" from any
+# error, so we will indeed go to the main menu even if other errors occur.  It's
+# reset when we reach the main menu so the user can retry from the main menu and
+# # see errors again.
+skip_to_menu="false"
+
+mount_boot()
+{
+  TRACE_FUNC
+  # Mount local disk if it is not already mounted
+  while ! grep -q /boot /proc/mounts ; do
+    # try to mount if CONFIG_BOOT_DEV exists
+    if [ -e "$CONFIG_BOOT_DEV" ]; then
+      if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+        continue
+      fi
+    fi
+
+    # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+    BG_COLOR_MAIN_MENU="error"
+    whiptail_error --title "ERROR: No Bootable OS Found!" \
+        --menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
+    How would you like to proceed?" 0 80 4 \
+        'b' ' Select a new boot device' \
+        'u' ' Boot from USB' \
+        'm' ' Continue to the main menu' \
+        'x' ' Exit to recovery shell' \
+        2>/tmp/whiptail || recovery "GUI menu failed"
+
+    option=$(cat /tmp/whiptail)
+    case "$option" in 
+      b )
+        if config-gui.sh boot_device_select; then
+          # update CONFIG_BOOT_DEV
+          # shellcheck disable=SC1091
+          . /tmp/config
+          BG_COLOR_MAIN_MENU="normal"
+        fi
+        ;;
+      u )
+        exec /bin/usb-init.sh
+        ;;
+      m )
+        skip_to_menu="true"
+        break
+        ;;
+      * )
+        recovery "User requested recovery shell"
+        ;;
+    esac
+  done
+}
+
+prompt_auto_default_boot()
+{
+  TRACE_FUNC
+  echo -e "\n\n"
+  if pause_automatic_boot; then
+    echo -e "\n\nAttempting default boot...\n\n"
+    attempt_default_boot
+  fi
+}
+
+show_main_menu()
+{
+  TRACE_FUNC
+  date=$(date "+%Y-%m-%d %H:%M:%S %Z")
+  # shellcheck disable=SC2086
+  whiptail_type $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
+    --menu "$date" 0 80 10 \
+    'd' ' Default boot' \
+    'o' ' Options -->' \
+    's' ' System Info' \
+    'p' ' Power Off' \
+    2>/tmp/whiptail || recovery "GUI menu failed"
+
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    d )
+      attempt_default_boot
+      ;;
+    o )
+      show_options_menu
+      ;;
+    s )
+      show_system_info
+      ;;
+    p )
+      poweroff.sh
+      ;;
+  esac
+}
+
+show_options_menu()
+{
+  TRACE_FUNC
+  # shellcheck disable=SC2086
+  whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Basic Options" \
+    --menu "" 0 80 10 \
+    'b' ' Boot Options -->' \
+    'c' ' Change configuration settings -->' \
+    'f' ' Flash/Update the BIOS -->' \
+    'x' ' Exit to recovery shell' \
+    'r' ' <-- Return to main menu' \
+    2>/tmp/whiptail || recovery "GUI menu failed"
+
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    b )
+      show_boot_options_menu
+      ;;
+    c )
+      config-gui.sh
+      ;;
+    f )
+      flash-gui.sh
+      ;;
+    x )
+      recovery "User requested recovery shell"
+      ;;
+    r )
+      ;;
+  esac
+}
+
+show_boot_options_menu()
+{
+  TRACE_FUNC
+  # shellcheck disable=SC2086
+  whiptail_type $BG_COLOR_MAIN_MENU --title "Boot Options" \
+    --menu "Select A Boot Option" 0 80 10 \
+    'm' ' Show OS boot menu' \
+    'u' ' USB boot' \
+    'r' ' <-- Return to main menu' \
+    2>/tmp/whiptail || recovery "GUI menu failed"
+
+  option=$(cat /tmp/whiptail)
+  case "$option" in 
+    m )
+      # select a kernel from the menu
+      select_os_boot_option
+      ;;
+    u )
+      exec /bin/usb-init.sh
+      ;;
+    r )
+      ;;
+  esac
+}
+
+select_os_boot_option()
+{
+  TRACE_FUNC
+  mount_boot
+  DO_WITH_DEBUG kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -i
+}
+
+attempt_default_boot()
+{
+  TRACE_FUNC
+  mount_boot
+
+  DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)
+  # Basic by default boots automatically to the first menu option.  This allows
+  # kernel updates to work in Basic by default without prompting to select a
+  # new default boot option.
+  if [ "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" != "y" ]; then
+    basic-autoboot.sh
+  elif [ -r "$DEFAULT_FILE" ]; then
+    DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" -g -i -s \
+    || recovery "Failed default boot"
+  elif (whiptail_warning --title 'No Default Boot Option Configured' \
+        --yesno "There is no default boot option configured yet.\nWould you like to load a menu of boot options?\nOtherwise you will return to the main menu." 0 80) then
+    DO_WITH_DEBUG kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -i
+  fi
+}
+
+# gui-init-basic start
+TRACE_FUNC
+
+# USB automatic boot (if configured) occurs before mounting /boot, this should
+# work even if no OS is installed
+if [ "$CONFIG_BASIC_USB_AUTOBOOT" = "y" ] && usb-autoboot.sh; then
+  # USB autoboot was offered and interrupted.  Don't offer the default boot,
+  # go to the menu.
+  skip_to_menu=true
+fi
+
+if ! detect_boot_device ; then
+  # can't determine /boot device or no OS installed, 
+  # so fall back to interactive selection
+  mount_boot
+fi
+
+if [ "$skip_to_menu" != "true" ] && [ -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+  prompt_auto_default_boot
+fi
+
+while true; do
+  TRACE_FUNC
+  skip_to_menu="false"
+  show_main_menu
+done
+
+recovery "Something failed during boot"

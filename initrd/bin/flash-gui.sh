@@ -1,8 +1,11 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+. /etc/gui_functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
@@ -42,6 +45,7 @@ single_glob() {
 
 while true; do
   unset menu_choice
+  # shellcheck disable=SC2086
   whiptail_type $BG_COLOR_MAIN_MENU --title "Firmware Management Menu" \
     --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n* Clears out /boot signatures\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 0 80 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
@@ -162,7 +166,7 @@ while true; do
         whiptail --title 'ROM Flashed Successfully' \
           --msgbox "$PKG_FILE_DISPLAY\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 80
         umount /media
-        /bin/reboot
+        reboot.sh
       fi
     fi
     ;;

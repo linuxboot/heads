@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e -o pipefail
-. /etc/functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# /tmp/config is generated at runtime and cannot be followed by shellcheck
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
