@@ -1,5 +1,5 @@
 #!/bin/bash
-. /etc/functions
+. /etc/functions.sh
 
 TRACE_FUNC
 

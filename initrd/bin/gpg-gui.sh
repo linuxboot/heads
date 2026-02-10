@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 TRACE_FUNC
@@ -69,12 +69,12 @@ gpg_flash_rom() {
         --msgbox "Failed to update checksums / sign default config" 0 80
     fi
   else
-    /bin/reboot
+    reboot.sh
   fi
 
   whiptail --title 'Files in /boot Updated Successfully'\
     --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 0 80
-  /bin/reboot
+  reboot.sh
   
 }
 gpg_post_gen_mgmt() {

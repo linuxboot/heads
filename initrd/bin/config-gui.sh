@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 TRACE_FUNC
@@ -173,7 +173,7 @@ while true; do
 			/bin/flash.sh /tmp/config-gui.rom
 			whiptail --title 'BIOS Updated Successfully' \
 				--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			reboot.sh
 		else
 			exit 0
 		fi
@@ -204,11 +204,11 @@ while true; do
 
 			# reset TPM if present
 			if [ "$CONFIG_TPM" = "y" ]; then
-				/bin/tpm-reset
+				   /bin/tpm-reset.sh
 			fi
 			whiptail --title 'Configuration Reset Updated Successfully' \
 				--msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			reboot.sh
 		else
 			exit 0
 		fi
@@ -392,7 +392,7 @@ while true; do
 				/bin/flash.sh /tmp/config-gui.rom
 				whiptail --title 'BIOS Updated Successfully' \
 					--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-				/bin/reboot
+				reboot.sh
 			fi
 		fi
 		;;

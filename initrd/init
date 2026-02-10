@@ -56,11 +56,11 @@ hwclock -l -s
 # Read the system configuration parameters from build time board configuration
 . /etc/config
 # import global functions
-. /etc/functions
+. /etc/functions.sh
 
 # export user related content from cbfs
 if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
+	/bin/cbfs-init.sh
 fi
 
 # Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
@@ -122,7 +122,7 @@ elif [ "$CONFIG_QUIET_MODE" = "n" ]; then
 	# both needs to be checked to determine if early boot measurements traces were suppressed
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null && grep -q 'CONFIG_QUIET_MODE="n"' /etc/config.user 2>/dev/null; then
 		echo "Early boot measurements traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)" >/dev/tty0
-		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init related traces prior of this point" >/dev/tty0
+		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init.sh related traces prior of this point" >/dev/tty0
 	fi
 fi
 
@@ -163,12 +163,12 @@ fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Initialize tpm2 encrypted sessions here
-	tpmr startsession
+	tpmr.sh startsession
 fi
 
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	# Initialize the UEFI environment for linuxboot boards
-	/bin/uefi-init
+	/bin/uefi-init.sh
 fi
 
 # Set GPG_TTY before calling gpg in key-init
@@ -176,7 +176,7 @@ fi
 export GPG_TTY=/dev/console
 
 # Initialize gpnupg with distro/user keys and setup the keyrings
-/bin/key-init
+/bin/key-init.sh
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
@@ -211,7 +211,7 @@ if [ "$boot_option" = "r" ]; then
 elif [ "$boot_option" = "o" ]; then
 	# Launch OEM Factory Reset mode
 	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
-	oem-factory-reset --mode oem
+	oem-factory-reset.sh --mode oem
 	# just in case...
 	exit
 fi
@@ -233,7 +233,7 @@ fi
 setconsolefont.sh
 
 if [ "$CONFIG_BASIC" = "y" ]; then
-	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
+	CONFIG_BOOTSCRIPT=/bin/gui-init-basic.sh
 	export CONFIG_HOTPKEY=n
 fi
 

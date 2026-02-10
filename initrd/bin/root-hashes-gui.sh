@@ -6,8 +6,8 @@ CONFIG_ROOT_DIRLIST="bin boot lib sbin usr"
 HASH_FILE="/boot/kexec_root_hashes.txt"
 ROOT_MOUNT="/root"
 
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 export CONFIG_ROOT_DIRLIST_PRETTY=$(echo $CONFIG_ROOT_DIRLIST | sed -e 's/^/\//;s/ / \//g')
@@ -79,7 +79,7 @@ check_root_checksums() {
   fi
 
   echo "+++ Checking root hash file signature "
-  if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
+  if ! sha256sum `find /boot/kexec*.txt` | gpgv.sh /boot/kexec.sig - > /tmp/hash_output; then
     ERROR=`cat /tmp/hash_output`
     whiptail_error --title 'ERROR: Signature Failure' \
       --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80

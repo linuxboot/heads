@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 TRACE_FUNC
@@ -162,7 +162,7 @@ while true; do
         whiptail --title 'ROM Flashed Successfully' \
           --msgbox "$PKG_FILE_DISPLAY\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 80
         umount /media
-        /bin/reboot
+        reboot.sh
       fi
     fi
     ;;
