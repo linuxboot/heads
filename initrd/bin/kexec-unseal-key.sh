@@ -3,12 +3,11 @@
 # The TOTP secret will be shown to the user on each encryption attempt.
 # It will then need to be bundled into initrd that is booted with Qubes.
 set -e -o pipefail
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TPM_INDEX=3
 TPM_SIZE=312
-
-. /etc/functions.sh
 
 TRACE_FUNC
 
@@ -25,7 +24,7 @@ DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
 DEBUG "Show PCRs"
 DEBUG "$(pcrs)"
 
-for tries in 1 2 3; do
+for _ in 1 2 3; do
 	# Show updating timestamp/TOTP until user presses Esc to continue to the
 	# passphrase prompt. This gives the user context while they prepare to
 	# type the LUKS passphrase.

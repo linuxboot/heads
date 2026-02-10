@@ -3,6 +3,9 @@
 # with the current PCRs and then store it in the TPM NVRAM.
 # It will then need to be bundled into initrd that is booted.
 set -e -o pipefail
+# shellcheck source=initrd/etc/functions.sh
+# Note: For shellcheck and runtime, sourced files are under initrd/etc.
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 find_drk_key_slot() {
@@ -26,10 +29,11 @@ find_drk_key_slot() {
 TPM_INDEX=3
 TPM_SIZE=312
 DUK_KEY_FILE="/tmp/secret/secret.key"
-TPM_SEALED="/tmp/secret/secret.sealed"
 DISK_RECOVERY_KEY_FILE="/tmp/secret/recovery.key"
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
@@ -41,7 +45,7 @@ fi
 
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
-key_devices=$(cat "$KEY_DEVICES" | cut -d\  -f1 | tr '\n' ' ')
+key_devices=$(cut -d\  -f1 "$KEY_DEVICES" | tr '\n' ' ')
 
 if [ ! -r "$KEY_DEVICES" ]; then
 	die "No devices defined for disk encryption"
@@ -51,12 +55,12 @@ fi
 
 if [ -r "$KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=$(cat $KEY_LVM)
+	VOLUME_GROUP=$(cat "$KEY_LVM")
 	if [ -z "$VOLUME_GROUP" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP ||
-		die "$VOLUME_GROUP: unable to activate volume group"
+	lvm vgchange -a y "$VOLUME_GROUP" ||
+		 die "$VOLUME_GROUP: unable to activate volume group"
 else
 	DEBUG "No LVM volume group defined for activation"
 fi
@@ -69,6 +73,7 @@ attempts=0
 
 # Ask for the DRK passphrase first, before testing any devices
 while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
+	TRACE_FUNC
 	read -r -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"': ' disk_recovery_key_passphrase
 	echo
 	echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
@@ -78,7 +83,7 @@ while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
 
 	for dev in $key_devices; do
 		DEBUG "Testing $DISK_RECOVERY_KEY_FILE keyfile against $dev"
-		if ! cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
+		if ! cryptsetup open "$dev" --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
 			warn "Failed to unlock LUKS device $dev with the provided passphrase."
 			all_devices_unlocked=0
 			break
@@ -103,6 +108,7 @@ done
 MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
+	TRACE_FUNC
 	read -r -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters): ' key_password
 	echo
 	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
@@ -170,7 +176,7 @@ for dev in $key_devices; do
 	drk_key_slot="-1"
 
 	# Get all the key slots that are used on $dev
-	luks_used_keyslots=($(cryptsetup luksDump "$dev" | grep -E "$regex" | sed "$sed_command"))
+	read -r -a luks_used_keyslots <<< "$(cryptsetup luksDump "$dev" | grep -E "$regex" | sed "$sed_command")"
 	DEBUG "$dev LUKS key slots: ${luks_used_keyslots[*]}"
 
 	#Find the key slot that can be unlocked with the provided passphrase
@@ -210,18 +216,32 @@ for dev in $key_devices; do
 				echo "++++++ $dev: Wiping LUKS key slot $keyslot"
 				DO_WITH_DEBUG cryptsetup luksKillSlot \
 					--key-file "$DISK_RECOVERY_KEY_FILE" \
-					$dev $keyslot ||
+					"$dev" "$keyslot" ||
 					warn "$dev: removal of LUKS slot $keyslot failed: Continuing"
 			fi
 		fi
 	done
 
+	# Wipe the DUK slot if it's not the DRK slot
+	if [ "$duk_keyslot" != "$drk_key_slot" ]; then
+		if [[ " ${luks_used_keyslots[*]} " =~ $duk_keyslot ]]; then
+			# Slot is ENABLED, should be wiped by the loop above
+			:
+		else
+			DEBUG "$dev: DUK slot $duk_keyslot is not ENABLED, attempting to wipe anyway"
+		fi
+		DO_WITH_DEBUG cryptsetup luksKillSlot \
+			--key-file "$DISK_RECOVERY_KEY_FILE" \
+			   "$dev" "$duk_keyslot" ||
+			   true  # Ignore failure, as slot may not exist
+	fi
+
 	echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
-	DO_WITH_DEBUG cryptsetup luksAddKey \
-		--key-file "$DISK_RECOVERY_KEY_FILE" \
-		--new-key-slot $duk_keyslot \
-		$dev "$DUK_KEY_FILE" ||
-		die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
+	   DO_WITH_DEBUG cryptsetup luksAddKey \
+		   --key-file "$DISK_RECOVERY_KEY_FILE" \
+		   --new-key-slot "$duk_keyslot" \
+		   "$dev" "$DUK_KEY_FILE" ||
+		   die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
 done
 
 # Now that we have setup the new keys, measure the PCRs
@@ -238,7 +258,7 @@ tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
 # Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
-if [ "$CONFIG_USER_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+if [ "$CONFIG_USER_USB_KEYBOARD" = "y" ] || [ -r /lib/modules/libata.ko ] || [ -x /bin/hotp_verification ]; then
 	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 	tpmr.sh pcrread -a 5 "$pcrf"
@@ -263,7 +283,7 @@ shred -n 10 -z -u "$pcrf" 2>/dev/null ||
 shred -n 10 -z -u "$DUK_KEY_FILE" 2>/dev/null ||
 	warn "Failed to delete key file - continuing"
 
-mount -o rw,remount $paramsdir || warn "Failed to remount $paramsdir in RW - continuing"
+mount -o rw,remount "$paramsdir" || warn "Failed to remount $paramsdir in RW - continuing"
 cp -f /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" ||
 	warn "Failed to copy LUKS header hashes to /boot - continuing"
-mount -o ro,remount $paramsdir || warn "Failed to remount $paramsdir in RO - continuing"
+mount -o ro,remount "$paramsdir" || warn "Failed to remount $paramsdir in RO - continuing"

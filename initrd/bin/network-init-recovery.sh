@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
@@ -31,9 +32,9 @@ mobile_tethering()
 		read -p "Press Enter to continue..." -r
 
 		network_modules="mii usbnet cdc_ether cdc_ncm cdc_eem"
-		for module in $(echo $network_modules); do
-			if [ -f /lib/modules/$module.ko ]; then
-				insmod.sh /lib/modules/$module.ko
+		for module in $network_modules; do
+			if [ -f /lib/modules/"$module".ko ]; then
+				insmod.sh /lib/modules/"$module".ko
 			fi
 		done
 
@@ -62,9 +63,9 @@ ethernet_activation()
 
 	echo "Loading Ethernet network modules..."
 	network_modules="e1000 e1000e igb sfc mdio mlx4_core mlx4_en"
-	for module in $(echo $network_modules); do
-		if [ -f /lib/modules/$module.ko ]; then
-			insmod.sh /lib/modules/$module.ko
+	for module in $network_modules; do
+		if [ -f /lib/modules/"$module".ko ]; then
+			insmod.sh /lib/modules/"$module".ko
 		fi
 	done
 }
@@ -94,24 +95,24 @@ if [ -n "$dev" ]; then
 		echo "Generating random MAC address..."
 		mac=$(generate_random_mac_address)
 		echo "Assigning randomly generated MAC: $mac to $dev..."
-		ifconfig $dev hw ether $mac
-		ifconfig $dev up
+		ifconfig "$dev" hw ether "$mac"
+		ifconfig "$dev" up
 	fi
 
 	# Set up static IP if configured in board config
-	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
+	if [ -n "$CONFIG_BOOT_STATIC_IP" ]; then
 		echo "Setting static IP: $CONFIG_BOOT_STATIC_IP"
-		ifconfig $dev $CONFIG_BOOT_STATIC_IP
+		ifconfig "$dev" "$CONFIG_BOOT_STATIC_IP"
 		echo "No NTP sync with static IP: no DNS server nor gateway defined, set time manually"
 	# Set up DHCP if no static IP
 	elif [ -e /sbin/udhcpc ]; then
 		echo "Getting IP from first DHCP server answering. This may take a while..."
-		if udhcpc -T 1 -i $dev -q; then
+		if udhcpc -T 1 -i "$dev" -q; then
 			if [ -e /sbin/ntpd ]; then
-				DNS_SERVER=$(grep nameserver /etc/resolv.conf | awk -F " " {'print $2'})
-				killall ntpd 2 &>1 >/dev/null
+				DNS_SERVER=$(grep nameserver /etc/resolv.conf | awk '{print $2}')
+				killall ntpd 2>/dev/null
 				echo "Attempting to sync time with NTP server: $DNS_SERVER..."
-				if ! ntpd -d -N -n -q -p $DNS_SERVER; then
+				if ! ntpd -d -N -n -q -p "$DNS_SERVER"; then
 					echo "NTP sync unsuccessful with DNS server"
 					echo "Attempting NTP time sync with pool.ntp.org..."
 					if ! ntpd -d -d -N -n -q -p pool.ntp.org; then

@@ -1,6 +1,7 @@
 #!/bin/bash
 # TPM Wrapper - to unify tpm and tpm2 subcommands
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 SECRET_DIR="/tmp/secret"
@@ -24,9 +25,11 @@ fi
 
 set -e -o pipefail
 if [ -r "/tmp/config" ]; then
-	. /tmp/config
+	# shellcheck disable=SC1091
+ 	. /tmp/config
 else
-	. /etc/config
+ 	# shellcheck disable=SC1091
+ 	. /etc/config
 fi
 
 # Busybox xxd lacks -r, and we get hex dumps from TPM1 commands.  This converts
@@ -161,6 +164,7 @@ EOF
 
 # awk script to handle all of the above. Note this gets squashed to one line so
 # semicolons are required.
+# shellcheck disable=SC2089,SC2016
 AWK_PROG='
 BEGIN {
 	getline;
@@ -203,7 +207,8 @@ replay_pcr() {
 		echo >&2 "Illegal PCR number ($2)"
 		return
 	fi
-	local log=$(cbmem -L)
+	local log
+	log=$(cbmem -L)
 	local alg="$1"
 	local pcr="$2"
 	local alg_digits=0
@@ -212,8 +217,10 @@ replay_pcr() {
 	# SHA-256 hashes are 64 chars
 	if [ "$alg" = "sha256" ]; then alg_digits=64; fi
 	shift 2
-	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
-		$(echo "$log" | awk -v alg=$alg -v pcr=$pcr -f <(echo $AWK_PROG)) $@)
+	# shellcheck disable=SC2046,SC2068,SC2086,SC2090
+	replayed_pcr=$(extend_pcr_state "$alg" "$(printf "%.${alg_digits}d" 0)" \
+		$(echo "$log" | awk -v alg="$alg" -v pcr="$pcr" -f <(echo "$AWK_PROG")) "$@")
+	# shellcheck disable=SC2086
 	echo $replayed_pcr | hex2bin
 	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
 	# To manually introspect current PCR values:
@@ -257,7 +264,7 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	INFO $(tpm2 pcrread "sha256:$index" 2>&1)
+	INFO "$(tpm2 pcrread "sha256:$index" 2>&1)"
 
 	TRACE_FUNC
 	DEBUG "TPM: Extended PCR[$index] with hash $hash"
@@ -276,7 +283,7 @@ tpm2_counter_read() {
 			;;
 		esac
 	done
-	echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
+	echo "$index: $(tpm2 nvread 0x"$index" | xxd -pc8)"
 }
 
 tpm2_counter_inc() {
@@ -297,7 +304,7 @@ tpm2_counter_inc() {
 		esac
 	done
 	tpm2 nvincrement "0x$index" >/dev/console
-	echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
+	echo "$index: $(tpm2 nvread 0x"$index" | xxd -pc8)"
 }
 
 tpm1_counter_create() {
@@ -325,10 +332,12 @@ tpm2_counter_create() {
 	while true; do
 		case "$1" in
 		-pwdc)
+			# shellcheck disable=SC2034
 			pwd="$2"
 			shift 2
 			;;
 		-la)
+			# shellcheck disable=SC2034
 			label="$2"
 			shift 2
 			;;
@@ -440,7 +449,7 @@ tpm2_seal() {
 	# TPM Owner Password is always needed for TPM2.
 
 	mkdir -p "$SECRET_DIR"
-	bname="$(basename $file)"
+	bname="$(basename "$file")"
 
 	# Pad with up to 6 zeros, i.e. '0x81000001', '0x81001234', etc.
 	handle="$(printf "0x81%6s" "$index" | tr ' ' 0)"
@@ -528,12 +537,14 @@ tpm1_seal() {
 	pcr_file_index=0
 	for pcr in "${PCR_LIST[@]}"; do
 		# Read each PCR_SIZE block from the file and pass as hex
+		# shellcheck disable=SC2206,SC2207
 		POLICY_ARGS+=(-ix "$pcr"
 			"$(dd if="$pcrf" skip="$pcr_file_index" bs="$PCR_SIZE" count=1 status=none | xxd -p | tr -d ' ')"
 		)
 		pcr_file_index=$((pcr_file_index + 1))
 	done
 
+	DEBUG "Sealing file with TPM using PCR policy"
 	tpm sealfile2 \
 		-if "$file" \
 		-of "$sealed_file" \
@@ -541,6 +552,7 @@ tpm1_seal() {
 		"${POLICY_ARGS[@]}"
 
 	# try it without the TPM Owner Password first
+	DEBUG "Attempting to write sealed data to TPM NVRAM index $index"
 	if ! tpm nv_writevalue -in "$index" -if "$sealed_file"; then
 		# to create an nvram space we need the TPM Owner Password
 		# and the TPM physical presence must be asserted.
@@ -552,10 +564,12 @@ tpm1_seal() {
 
 		prompt_tpm_owner_password
 
+		DEBUG "Defining TPM NVRAM space for index $index"
 		tpm nv_definespace -in "$index" -sz "$sealed_size" \
 			-pwdo "$tpm_owner_password" -per 0 ||
 			warn "Unable to define TPM NVRAM space; trying anyway"
 
+		DEBUG "Writing sealed data to TPM NVRAM after defining space"
 		tpm nv_writevalue -in "$index" -if "$sealed_file" ||
 			{
 				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_password"
@@ -639,6 +653,7 @@ tpm1_unseal() {
 
 	rm -f "$sealed_file"
 
+	DEBUG "Reading sealed data from TPM NVRAM index $index"
 	DO_WITH_DEBUG tpm nv_readvalue \
 		-in "$index" \
 		-sz "$sealed_size" \
@@ -650,11 +665,17 @@ tpm1_unseal() {
 		PASS_ARGS=(-pwdd "$pass")
 	fi
 
+	DEBUG "Unsealing data with TPM"
 	tpm unsealfile \
 		-if "$sealed_file" \
 		-of "$file" \
 		"${PASS_ARGS[@]}" \
 		-hk 40000000
+
+	# shellcheck disable=SC2181
+	if [ $? -eq 0 ]; then
+		DEBUG "Successfully unsealed data to $file"
+	fi
 }
 
 tpm2_reset() {

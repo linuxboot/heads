@@ -5,6 +5,7 @@
 # Pass in a hostname if you want to change it from the default string
 #
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
@@ -28,6 +29,7 @@ dd \
 	2>/dev/null ||
 	die "Unable to generate 20 random bytes"
 
+DEBUG "Generated random TOTP secret"
 secret="$(base32 <$TOTP_SECRET)"
 pcrf="/tmp/secret/pcrf.bin"
 DEBUG "Sealing TOTP with actual state of PCR0-3"
@@ -51,6 +53,7 @@ tpmr.sh pcrread -a 7 "$pcrf"
 #Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
 tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
 	die "Unable to write sealed secret to NVRAM from seal-totp.sh"
+DEBUG "TOTP secret successfully sealed to TPM NVRAM"
 #Make sure we clear TPM TOTP sealed if we succeed to seal TOTP
 shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 

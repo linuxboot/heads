@@ -4,6 +4,7 @@
 # The default PCR to be extended is 5, but can be
 # overridden with the MODULE_PCR environment variable
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
@@ -13,7 +14,6 @@ MODULE="$1"; shift
 if [ -z "$MODULE_PCR" ]; then
 	MODULE_PCR=5
 fi
-
 
 if [ -z "$MODULE" ]; then
 	die "Usage: $0 module [args...]"
@@ -32,11 +32,13 @@ if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
 	exit 0
 fi
 
-if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
-	if [ ! -c /dev/tpmrm0 -o ! -x /bin/tpm2 ]; then
+if [ ! -r /sys/class/tpm/tpm0/pcrs ] || [ ! -x /bin/tpm ]; then
+	if [ ! -c /dev/tpmrm0 ] || [ ! -x /bin/tpm2 ]; then
 		tpm_missing=1
 	fi
 fi
+
+DEBUG "tpm_missing='$tpm_missing'"
 
 if [ -z "$tpm_missing" ]; then
 	INFO "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"

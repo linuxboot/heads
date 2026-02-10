@@ -2,12 +2,15 @@
 # System Info
 
 BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
-MAIN_MENU_TITLE="${BOARD_NAME} | Extended System Information"
 export BG_COLOR_MAIN_MENU="normal"
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
+# shellcheck source=initrd/etc/luks-functions.sh
 . /etc/luks-functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
@@ -37,18 +40,19 @@ known_devices="$(echo -e "Camera: ${camera}\nBluetooth: ${bluetooth}\nWifi: ${wi
 
 echo -e "PCI             USB" >/tmp/devices_usb_pci
 for l in $(seq 16); do
-	row1="$(echo "$pci" | sed -n ${l}p | cut -d " " -f 5)"
-	row2="$(echo "$usb" | sed -n ${l}p | cut -d " " -f 6)"
-	row3="$(echo "$known_devices" | sed -n ${l}p)"
+	row1="$(echo "$pci" | sed -n "${l}"p | cut -d " " -f 5)"
+	row2="$(echo "$usb" | sed -n "${l}"p | cut -d " " -f 6)"
+	row3="$(echo "$known_devices" | sed -n "${l}"p)"
 	echo "${row1}   |   ${row2}    ${row3}" >>/tmp/devices_usb_pci
 done
 
-memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
-memtotal=$((${memtotal} / 1024 / 1024 + 1))
-cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
+memtotal=$(grep 'MemTotal' /proc/meminfo | tr -s ' ' | cut -f2 -d ' ')
+memtotal=$((memtotal / 1024 / 1024 + 1))
+cpustr=$(grep 'model name' /proc/cpuinfo | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
 kernel=$(uname -s -r)
 
 FB_OPTIONS=""
 if whiptail --version | grep "fbwhiptail"; then FB_OPTIONS="--text-size 12"; fi
-whiptail_type $BG_COLOR_MAIN_MENU $FB_OPTIONS --title 'System Info' \
+# shellcheck disable=SC2086
+whiptail_type $BG_COLOR_MAIN_MENU "$FB_OPTIONS" --title 'System Info' \
 	--msgbox "${BOARD_NAME}\nFW_VER: ${FW_VER}\nKernel: ${kernel}\nCPU: ${cpustr}  RAM: ${memtotal} GB $battery_status\n$(fdisk -l | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')\n\n$(cat /tmp/devices_usb_pci)" 0 80

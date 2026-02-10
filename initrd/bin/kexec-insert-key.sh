@@ -1,6 +1,7 @@
 #!/bin/bash
 # Unseal a LUKS Disk Unlock Key from TPM and add to a new initramfs
 set -e -o pipefail
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
@@ -24,12 +25,12 @@ if [ -r "$TMP_KEY_LVM" ]; then
 	if [ -z "$TMP_KEY_LVM" ]; then
 		die "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP ||
+	lvm vgchange -a y "$VOLUME_GROUP" ||
 		die "$VOLUME_GROUP: unable to activate volume group"
 fi
 
 # Measure the LUKS headers before we unseal the LUKS Disk Unlock Key from TPM
-	cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks.sh ||
+	cut -d\  -f1 "$TMP_KEY_DEVICES" | xargs /bin/qubes-measure-luks.sh ||
 	die "LUKS measure failed"
 
 # Unpack the initrd and fixup the crypttab
@@ -73,16 +74,13 @@ tpmr.sh extend -ix 4 -ic generic ||
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
-	read \
+	read -r \
 		-n 1 \
 		-p "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n] " \
 		confirm_boot
 	echo
 	
-	if [ "$confirm_boot" != 'y' \
-		-a "$confirm_boot" != 'Y' \
-		-a -n "$confirm_boot" ] \
-		; then
+	if [[ "$confirm_boot" != 'y' && "$confirm_boot" != 'Y' && -n "$confirm_boot" ]]; then
 		die "!!! Aborting boot due to failure to unseal TPM Disk Unlock Key"
 	fi
 fi
@@ -101,26 +99,26 @@ if [ "$unseal_failed" = "n" ]; then
 		echo "+++ $bootdir/kexec_initrd_crypttab_overrides.txt found..."
 		echo "+++ Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
 		# kexec-save-default has found crypttab files under initrd and saved them
-		cat "$bootdir/kexec_initrd_crypttab_overrides.txt" | while read line; do
-			crypttab_file=$(echo "$line" | awk -F ':' {'print $1'})
-			crypttab_entry=$(echo "$line" | awk -F ':' {'print $NF'})
+		while read -r line; do
+			crypttab_file=$(echo "$line" | awk -F ':' '{print $1}')
+			crypttab_entry=$(echo "$line" | awk -F ':' '{print $NF}')
 			# Replace each initrd crypttab file with modified entry containing /secret.key path
-			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
+			mkdir -p "$INITRD_DIR/$(dirname "$crypttab_file")"
 			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" >/dev/null
 			echo "+++ initramfs's $crypttab_file will be overriden with: $crypttab_entry"
-		done
+		done < "$bootdir/kexec_initrd_crypttab_overrides.txt"
 	else
 		# No crypttab files were found under selected default boot option's initrd file
 		#  Meanwhile, force crypttab to be created from scratch on both possible locations: /etc/crypttab and /cryptroot/crypttab
 		crypttab_files="etc/crypttab cryptroot/crypttab"
 		for crypttab_file in $crypttab_files; do
-			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
+			mkdir -p "$INITRD_DIR/$(dirname "$crypttab_file")"
 			# overwrite crypttab to mirror behavior of seal-key
 			echo "+++ The following $crypttab_file overrides will be passed through concatenated secret/initrd.cpio at kexec call:"
-			for uuid in $(cat "$TMP_KEY_DEVICES" | cut -d\  -f2); do
+			while read -r uuid; do
 				# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
 				echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"
-			done
+			done < <(cut -d\  -f2 "$TMP_KEY_DEVICES")
 		done
 	fi
 	(

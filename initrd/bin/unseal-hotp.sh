@@ -1,6 +1,7 @@
 #!/bin/bash
 # Retrieve the sealed file and counter from the NVRAM, unseal it and compute the hotp
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 HOTP_SECRET="/tmp/secret/hotp.key"
@@ -53,7 +54,7 @@ fi
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
 
-if ! hotp $counter_value <"$HOTP_SECRET"; then
+if ! hotp "$counter_value" <"$HOTP_SECRET"; then
 	shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 	die 'Unable to compute HOTP hash?'
 fi
@@ -69,8 +70,8 @@ shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 #   As of now, this counter isincreased only in the validated presence of the HOTP dongle being connected per callers
 mount -o remount,rw /boot
 DEBUG "Incrementing HOTP counter under $HOTP_COUNTER"
-counter_value=$(expr $counter_value + 1)
-echo $counter_value >$HOTP_COUNTER ||
+counter_value=$((counter_value + 1))
+echo "$counter_value" >"$HOTP_COUNTER" ||
 	die "Unable to create hotp counter file"
 mount -o remount,ro /boot
 

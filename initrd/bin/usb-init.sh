@@ -1,7 +1,9 @@
 #!/bin/bash
 # Boot a USB installation
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC

@@ -1,9 +1,12 @@
 #!/bin/bash
 # Scan for USB installation options
 set -e -o pipefail
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
-. /tmp/config
+ # shellcheck disable=SC1091
+ . /tmp/config
 
 TRACE_FUNC
 
@@ -16,12 +19,12 @@ if grep -q /boot /proc/mounts ; then
 		|| die "Unable to unmount /boot"
 fi
 
-available_partitions="$(blkid | while read line; do echo $line | awk -F ":" {'print $1'}; done )"
+available_partitions="$(blkid | while read -r line; do echo "$line" | awk -F ":" '{print $1}'; done )"
 
 if [ "$1" == "usb" ]; then
 	# Mount the USB boot device
 	mount_usb || die "Unable to mount /media"
-elif $(echo $available_partitions | grep -q "$1"); then
+elif echo "$available_partitions" | grep -q "$1"; then
 	if grep -q /media /proc/mounts; then
 		umount /media \
 			|| die "Unable to unmount /media"
@@ -38,15 +41,16 @@ get_menu_option() {
 	if [ -x /bin/whiptail ]; then
 		MENU_OPTIONS=""
 		n=0
-		while read option
+		while read -r option
 		do
-			n=`expr $n + 1`
-			option=$(echo $option | tr " " "_")
+			n=$((n + 1))
+			option=$(echo "$option" | tr " " "_")
 			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
 		done < /tmp/iso_menu.txt
 
 		MENU_OPTIONS="$MENU_OPTIONS a Abort"
 
+		# shellcheck disable=SC2086
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
 			--menu "Choose the ISO boot option [1-$n]:" 0 80 8 \
 			-- $MENU_OPTIONS \
@@ -56,13 +60,13 @@ get_menu_option() {
 	else
 		echo "+++ Select your ISO boot option:"
 		n=0
-		while read option
+		while read -r option
 		do
-			n=`expr $n + 1`
+			n=$((n + 1))
 			echo "$n. $option"
 		done < /tmp/iso_menu.txt
 
-		read \
+		read -r \
 			-p "Choose the ISO boot option [1-$n, a to abort]: " \
 			option_index
 	fi
@@ -72,7 +76,7 @@ get_menu_option() {
 		die "Aborting boot attempt"
 	fi
 
-	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
+	option=$(head -n "$option_index" /tmp/iso_menu.txt | tail -1)
 
 	if [ -z "$option" ]; then
 		die "Failed to find menu option $option_index"
@@ -81,9 +85,8 @@ get_menu_option() {
 
 # create ISO menu options - search recursively for ISO files
 find /media -name "*.iso" -type f 2>/dev/null | sort -r > /tmp/iso_menu.txt || true
-if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
-	option_confirm=""
-	while [ -z "$option" -a "$option_index" != "s" ]
+if [ "$(wc -l < /tmp/iso_menu.txt)" -gt 0 ]; then
+	while [ -z "$option" ] && [ "$option_index" != "s" ]
 	do
 		get_menu_option
 	done

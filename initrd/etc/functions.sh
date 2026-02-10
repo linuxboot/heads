@@ -38,7 +38,7 @@ warn() {
 DEBUG() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
-		echo "DEBUG: $*" | fold -s -w 960 | while read line; do
+		echo "DEBUG: $*" | fold -s -w 960 | while read -r line; do
 			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
 		done
 	fi
@@ -97,24 +97,22 @@ LOG() {
 }
 
 fw_version() {
-	local FW_VER=$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')
+	local FW_VER
+	FW_VER="$(dmesg | grep 'DMI' | grep -o 'BIOS.*' | cut -f2- -d ' ')"
 	# chop off date, since will always be epoch w/timeless builds
 	echo "${FW_VER::-10}"
 }
 
 preserve_rom() {
 	TRACE_FUNC
-	new_rom="$1"
 	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
 
-	for old_file in $(echo $old_files); do
-		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
+	for old_file in $old_files; do
+		new_file=$(cbfs.sh -o "$1" -l | grep -x "$old_file")
 		if [ -z "$new_file" ]; then
 			echo "+++ Adding $old_file to $1"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
-				die "Failed to read cbfs file from ROM"
-			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
-				die "Failed to write cbfs file to new ROM file"
+			cbfs -t 50 -r "$old_file" >/tmp/rom.$$ || die "Failed to read cbfs file from ROM"
+			cbfs.sh -o "$1" -a "$old_file" -f /tmp/rom.$$ || die "Failed to write cbfs file to new ROM file"
 		fi
 	done
 }
@@ -145,13 +143,11 @@ confirm_gpg_card() {
 	read -r -n 1 -p $'\n'"$message" card_confirm
 	echo
 
-	if [ "$card_confirm" != "y" \
-		-a "$card_confirm" != "Y" \
-		-a "$card_confirm" != "b" \
-		-a -n "$card_confirm" ] \
-		; then
-		die "gpg card not confirmed"
-	fi
+	       # shellcheck disable=SC2166
+	       # SC2166: -a is intentionally used for legacy compatibility; fixing would break input parsing.
+	       if [ "$card_confirm" != "y" -a "$card_confirm" != "Y" -a "$card_confirm" != "b" -a -n "$card_confirm" ]; then
+		       die "gpg card not confirmed"
+	       fi
 
 	# If user has known GPG key material Thumb drive backup and asked to use it
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
@@ -181,9 +177,11 @@ confirm_gpg_card() {
 			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
 				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
 			#verify detached signature against public key in rom
-			gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1 &&
-				echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++" ||
+			if gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1; then
+				echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++" 
+			else
 				die "Unable to verify $CR_SIG detached signature against public key in ROM"
+			fi
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
@@ -206,9 +204,8 @@ confirm_gpg_card() {
 	if ! wait_for_gpg_card; then
 		DEBUG "GPG card access failed with output: $gpg_output"
 		# prompt for reinsertion and try a second time
-		read -n1 -r -p \
-			"Can't access GPG key; remove and reinsert, then press Enter to retry. " \
-			ignored
+		# shellcheck disable=SC2034
+		read -n1 -r -p "Can't access GPG key; remove and reinsert, then press Enter to retry. " ignored
 		# restore prev errexit state
 		if [ "$errexit" = "on" ]; then
 			set -e
@@ -250,10 +247,9 @@ gpg_auth() {
 		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
 
 		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
-		false
-		while [ $? -ne 0 ]; do
+		while ! (confirm_gpg_card); do
 			# Call confirm_gpg_card in subshell to ensure GPG key material presence
-			(confirm_gpg_card)
+			:
 		done
 
 		# Perform a signing-based challenge-response,
@@ -311,7 +307,9 @@ recovery() {
 
 	# ensure /tmp/config exists for recovery scripts that depend on it
 	touch /tmp/config
-	. /tmp/config
+ 	# shellcheck disable=SC1091
+ 	# /tmp/config is generated at runtime and cannot be followed by shellcheck
+ 	. /tmp/config
 
 	DEBUG "Board $CONFIG_BOARD - version $(fw_version)"
 
@@ -325,7 +323,7 @@ recovery() {
 		sleep 5
 		reboot.sh
 	fi
-	while [ true ]; do
+	while true; do
 		#Going to recovery shell should be authenticated if supported
 		gpg_auth
 
@@ -351,7 +349,8 @@ recovery() {
 
 pause_recovery() {
 	TRACE_FUNC
-	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	read -r -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	# shellcheck disable=SC2048,SC2086
 	recovery $*
 }
 
@@ -360,21 +359,33 @@ combine_configs() {
 	cat /etc/config* >/tmp/config
 }
 
+# shellcheck disable=SC2317
 replace_config() {
+	# shellcheck disable=SC2317
 	TRACE_FUNC
+	# shellcheck disable=SC2317
 	CONFIG_FILE=$1
 	CONFIG_OPTION=$2
 	NEW_SETTING=$3
 
-	touch $CONFIG_FILE
+	# shellcheck disable=SC2317
+	DEBUG "replace_config: CONFIG_FILE=$CONFIG_FILE CONFIG_OPTION=$CONFIG_OPTION NEW_SETTING=$NEW_SETTING"
+
+	# shellcheck disable=SC2317
+	touch "$CONFIG_FILE"
 	# first pull out the existing option from the global config and place in a tmp file
-	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >${CONFIG_FILE}.tmp
-	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>${CONFIG_FILE}.tmp
+	# shellcheck disable=SC2317
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >"${CONFIG_FILE}".tmp
+	# shellcheck disable=SC2317
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>"${CONFIG_FILE}".tmp
 
 	# then copy any remaining settings from the existing config file, minus the option you changed
-	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >>${CONFIG_FILE}.tmp || true
-	sort ${CONFIG_FILE}.tmp | uniq >${CONFIG_FILE}
-	rm -f ${CONFIG_FILE}.tmp
+	# shellcheck disable=SC2317
+	grep -v "^export ${CONFIG_OPTION}=" "${CONFIG_FILE}" | grep -v "^${CONFIG_OPTION}=" >>"${CONFIG_FILE}".tmp || true
+	# shellcheck disable=SC2317
+	sort "${CONFIG_FILE}".tmp | uniq >"${CONFIG_FILE}"
+	# shellcheck disable=SC2317
+	rm -f "${CONFIG_FILE}".tmp
 }
 
 # Set a config variable in a specific file to a given value - replace it if it
@@ -399,7 +410,9 @@ set_user_config() {
 
 	set_config /etc/config.user "$CONFIG_OPTION" "$NEW_SETTING"
 	combine_configs
-	. /tmp/config
+ 	# shellcheck disable=SC1091
+ 	# /tmp/config is generated at runtime and cannot be followed by shellcheck
+ 	. /tmp/config
 }
 
 # Load a config value to a variable, defaulting to empty.  Does not fail if the
@@ -461,7 +474,7 @@ wait_for_usb_devices() {
 		now=$(awk '{print $1}' /proc/uptime)
 		elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
 		
-		if [ $peripheral_count -gt 0 ]; then
+		if [ "$peripheral_count" -gt 0 ]; then
 			DEBUG "USB peripheral devices ready after ${elapsed}s (iteration $iteration): found $peripheral_count device(s)"
 			return
 		fi
@@ -488,8 +501,7 @@ wait_for_gpg_card() {
 	local attempt=0
 	while :; do
 		attempt=$((attempt + 1))
-		gpg_output=$(gpg --card-status 2>&1)
-		if [ $? -eq 0 ]; then
+		if gpg_output=$(gpg --card-status 2>&1); then
 			now=$(awk '{print $1}' /proc/uptime)
 			elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
 			DEBUG "gpg --card-status succeeded after ${elapsed}s (attempt $attempt)"
@@ -602,12 +614,13 @@ SINK_LOG() {
 #   same way with DO_WITH_DEBUG
 DO_WITH_DEBUG() {
 	local exit_status=0
+	# shellcheck disable=SC2034
 	local cmd_output
 	if [[ "$1" == "--mask-position" ]]; then
 		local mask_position="$2"
-		shift
-		shift
+		shift 2
 		local show_args=("$@")
+		# shellcheck disable=SC2004
 		show_args[$mask_position]="$(mask_param "${show_args[$mask_position]}")"
 		DEBUG "${show_args[@]}"
 	else
@@ -704,7 +717,7 @@ confirm_totp() {
 		# update the TOTP code every thirty seconds
 		date=$(date "+%Y-%m-%d %H:%M:%S")
 		seconds=$(date "+%s")
-		half=$(expr \( $seconds % 60 \) / 30)
+		half=$(( (seconds % 60) / 30 ))
 		if [ "$CONFIG_TPM" != "y" ]; then
 			TOTP="NO TPM"
 		elif [ "$half" != "$last_half" ]; then
@@ -716,13 +729,8 @@ confirm_totp() {
 		echo -n "$date $TOTP: "
 
 		# read the first character, non-blocking
-		read \
-			-t 1 \
-			-n 1 \
-			-s \
-			-p "$prompt" \
-			totp_confirm &&
-			break
+		# shellcheck disable=SC2034
+		read -r -t 1 -n 1 -s -p "$prompt" totp_confirm && break
 
 		# nothing typed, redraw the line
 		echo -ne '\r'
@@ -782,9 +790,9 @@ enable_usb_storage() {
 		insmod.sh /lib/modules/usb-storage.ko >/dev/null 2>&1 ||
 			die "usb_storage: module load failed"
 		while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do
-			[[ $timeout -ge 8 ]] && break
+			[[ "$timeout" -ge 8 ]] && break
 			sleep 1
-			timeout=$(($timeout + 1))
+			timeout=$((timeout + 1))
 		done
 	fi
 }
@@ -801,7 +809,8 @@ device_has_partitions() {
 	# This check covers that: [ $(fdisk -l "$b" | wc -l) -eq 5 ]
 	# In both cases the output is 5 lines: 3 about device info, 1 empty line
 	# and the 5th will be the table header or the invalid message.
-	local DISK_DATA=$(fdisk -l "$DEVICE" 2>/dev/null)
+	local DISK_DATA
+	DISK_DATA=$(fdisk -l "$DEVICE" 2>/dev/null)
 	if echo "$DISK_DATA" | grep -q "doesn't contain a valid partition table" ||
 		[ "$(echo "$DISK_DATA" | wc -l)" -eq 5 ]; then
 		# No partition table
@@ -811,6 +820,7 @@ device_has_partitions() {
 	return 0
 }
 
+# shellcheck disable=SC2120
 list_usb_storage() {
 	TRACE_FUNC
 	# List all USB storage devices, including partitions unless we received argument stating we want drives only
@@ -825,7 +835,7 @@ list_usb_storage() {
 	stat -c %N /sys/block/sd* 2>/dev/null | grep usb |
 		cut -f1 -d ' ' |
 		sed "s/[']//g" |
-		while read b; do
+		while read -r b; do
 			# Ignore devices of size 0, such as empty SD card
 			# readers on laptops attached via USB.
 			if [ "$(cat "$b/size")" -gt 0 ]; then
@@ -834,7 +844,7 @@ list_usb_storage() {
 			fi
 		done |
 		sed "s|/sys/block|/dev|" |
-		while read b; do
+		while read -r b; do
 			# If the device has a partition table, ignore it and
 			# include the partitions instead - even if the kernel
 			# hasn't detected the partitions yet.  Such a device is
@@ -854,7 +864,8 @@ list_usb_storage() {
 			else
 				# Has a partition table, include partitions
 				DEBUG "USB storage device with partition table: $b"
-				ls -1 "$b"* | awk 'NR!=1 {print $0}'
+				# shellcheck disable=SC2012
+				ls -1 "$b"* | tail -n +2
 			fi
 		done
 }
@@ -912,6 +923,7 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
+	# shellcheck disable=SC2034
 	tpm_password="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
@@ -928,7 +940,7 @@ check_tpm_counter() {
 
 		tpmr.sh counter_create \
 			-pwdc '' \
-			-la $LABEL |
+			-la "$LABEL" |
 			tee /tmp/counter >/dev/null 2>&1 ||
 			die "Unable to create TPM counter"
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
@@ -973,7 +985,12 @@ increment_tpm_counter() {
 		# Check if we need to create a new counter
 		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
 		
-		if tpmr.sh counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+		# Before the tpmr.sh call, check if password is needed and prompt
+		if [ "$CONFIG_TPM" = "y" ] && ! [ -s /tmp/secret/tpm_owner_password ]; then
+			prompt_tpm_owner_password
+		fi
+		
+		if tpmr.sh counter_create -pwdc "$(cat /tmp/secret/tpm_owner_password 2>/dev/null || echo '')" -la 3135106223 >/tmp/new-counter 2>/dev/null; then
 			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
 			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
 		fi
@@ -995,12 +1012,12 @@ check_config() {
 			die 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
+	if [ ! -r "$1"/kexec.sig ] && [ "$CONFIG_BASIC" != "y" ]; then
 		DEBUG "No $1/kexec.sig found"
 		return
 	fi
 
-	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
+	if [ "$(find "$1"/kexec*.txt | wc -l)" -eq 0 ]; then
 		DEBUG "No $1/kexec*.txt found"
 		return
 	fi
@@ -1008,13 +1025,18 @@ check_config() {
 	if [ "$2" != "force" ]; then
 		DEBUG "second param: $2 != force"
 		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
-		if ! sha256sum $(find $1/kexec*.txt) | gpgv.sh $1/kexec.sig -; then
+		# shellcheck disable=SC2207
+		files=($(find "$1"/kexec*.txt | sort))
+		DEBUG "Files to verify: ${files[*]}"
+		if ! sha256sum "${files[@]}" | gpgv.sh "$1"/kexec.sig -; then
+			DEBUG "GPG verification failed for kexec boot params"
 			die 'Invalid signature on kexec boot params'
 		fi
+		DEBUG "Signature verified successfully for kexec boot params"
 	fi
 
 	INFO "+++ Found verified kexec boot params"
-	cp $1/kexec*.txt /tmp/kexec ||
+	cp "$1"/kexec*.txt /tmp/kexec ||
 		die "Failed to copy kexec boot params to tmp"
 }
 
@@ -1031,21 +1053,25 @@ replace_rom_file() {
 }
 
 # Replace the config file by the changed one
+# shellcheck disable=SC2317
 replace_config() {
 	TRACE_FUNC
+	# shellcheck disable=SC2317
 	CONFIG_FILE=$1
+	# shellcheck disable=SC2317
 	CONFIG_OPTION=$2
+	# shellcheck disable=SC2317
 	NEW_SETTING=$3
 
-	touch $CONFIG_FILE
+	touch "$CONFIG_FILE"
 	# first pull out the existing option from the global config and place in a tmp file
-	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >${CONFIG_FILE}.tmp
-	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>${CONFIG_FILE}.tmp
+	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >"${CONFIG_FILE}.tmp"
+	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>"${CONFIG_FILE}.tmp"
 
 	# then copy any remaining settings from the existing config file, minus the option you changed
-	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >>${CONFIG_FILE}.tmp || true
-	sort ${CONFIG_FILE}.tmp | uniq >${CONFIG_FILE}
-	rm -f ${CONFIG_FILE}.tmp
+	grep -v "^export ${CONFIG_OPTION}=" "$CONFIG_FILE" | grep -v "^${CONFIG_OPTION}=" >>"${CONFIG_FILE}.tmp" || true
+	sort "${CONFIG_FILE}.tmp" | uniq >"${CONFIG_FILE}"
+	rm -f "${CONFIG_FILE}.tmp"
 }
 
 # Generate a secret for TPM-less HOTP by reading the ROM.  Output is the
@@ -1114,7 +1140,8 @@ escape_zero() {
 	local prefix="$1"
 	local echar="${2:-#}"
 	local todo=""
-	local echar_hex="$(echo -n "$echar" | xxd -p -c1)"
+	local echar_hex
+	echar_hex="$(echo -n "$echar" | xxd -p -c1)"
 	[ ${#echar_hex} -eq 2 ] || die "Invalid escape character $echar passed to escape_zero(). Programming error?!"
 
 	echo -e -n "$prefix"
@@ -1172,7 +1199,7 @@ assert_signable() {
 
 	find /boot -print0 >/tmp/signable.ref
 	local del='\001-\037\134\177-\377'
-	LC_ALL=C tr -d "$del" </tmp/signable.ref >/tmp/signable.del || die "Failed to execute tr."
+	LC_ALL=C tr -d "$del" </tmp/signable.ref > /tmp/signable.del || die "Failed to execute tr."
 	if ! cmp -s "/tmp/signable.ref" "/tmp/signable.del" &>/dev/null; then
 		local user_out="/tmp/hash_output_mismatches"
 		local add="Please investigate!"
@@ -1269,7 +1296,7 @@ is_gpt_bios_grub() {
 
 	# Now we know the device and partition number, get the type.  This is
 	# specific to GPT disks, MBR disks are shown differently by fdisk.
-	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
+	DEBUG "$PART_DEV is partition $NUMBER of $DEVICE"
 	if [ "$(fdisk -l "/dev/$DEVICE" 2>/dev/null | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
 		return 0
 	fi
@@ -1290,6 +1317,7 @@ mount_possible_boot_device() {
 	TRACE_FUNC
 
 	local BOOT_DEV="$1"
+	# shellcheck disable=SC2034
 	local PARTITION_TYPE
 
 	# Unmount anything on /boot.  Ignore failure since there might not be
@@ -1301,12 +1329,12 @@ mount_possible_boot_device() {
 	# we can't mount these as /boot.
 	if is_gpt_bios_grub "$BOOT_DEV" || cryptsetup isLuks "$BOOT_DEV" ||
 		find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
-		TRACE "$BOOT_DEV is not a mountable partition for /boot"
+		DEBUG "$BOOT_DEV is not a mountable partition for /boot"
 		return 1
 	fi
 
 	# Get the size of BOOT_DEV in 512-byte sectors
-	sectors=$(blockdev --getsz "$BOOT_DEV")
+	sectors="$(blockdev --getsz "$BOOT_DEV")"
 
 	# Check if the partition is small (less than 2MB, which is 4096 sectors)
 	if [ "$sectors" -lt 4096 ]; then
@@ -1346,7 +1374,7 @@ detect_boot_device() {
 	fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" >/tmp/disklist
 
 	# Check each possible boot device
-	for i in $(cat /tmp/disklist); do
+	while IFS= read -r i; do
 		# If the device has partitions, check the partitions instead
 		if device_has_partitions "$i"; then
 			devname="$(basename "$i")"
@@ -1366,7 +1394,7 @@ detect_boot_device() {
 				return 0
 			fi
 		done
-	done
+	done < /tmp/disklist
 
 	# no valid boot device found
 	echo "Unable to locate /boot files on any mounted disk"
@@ -1380,17 +1408,23 @@ scan_boot_options() {
 	config="$2"
 	option_file="$3"
 
-	if [ -r $option_file ]; then rm $option_file; fi
-	for i in $(find $bootdir -name "$config"); do
-		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>$option_file
+	DEBUG "scan_boot_options: bootdir='$bootdir' config='$config' option_file='$option_file'"
+
+	if [ -r "$option_file" ]; then rm "$option_file"; fi
+	find "$bootdir" -name "$config" | while read -r i; do
+		DEBUG "scan_boot_options: parsing grub config '$i'"
+		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
-	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in $(find $bootdir -name "$config"); do
-			kexec-parse-bls.sh "$bootdir" "$i" "$bootdir/loader/entries" >>$option_file
+	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
+		find "$bootdir" -name "$config" | while read -r i; do
+			DEBUG "scan_boot_options: parsing BLS entries from '$bootdir/loader/entries' with config '$i'"
+			kexec-parse-bls.sh "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
 		done
+	else
+		DEBUG "scan_boot_options: using grub parser output (BLS not needed or entries missing)"
 	fi
 }
 

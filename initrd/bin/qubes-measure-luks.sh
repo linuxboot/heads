@@ -1,16 +1,17 @@
 #!/bin/bash
 # Measure all of the LUKS Disk Encryption headers into
 # a PCR so that we can detect disk swap attacks.
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
-DEBUG "Arguments passed to qubes-measure-luks.sh: $@"
+DEBUG "Arguments passed to qubes-measure-luks.sh: $*"
 
 # Measure the LUKS headers into PCR 6
 for dev in "$@"; do
 	DEBUG "Storing LUKS header for $dev into /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g')"
-	cryptsetup luksHeaderBackup $dev \
-		--header-backup-file /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g') ||
+	cryptsetup luksHeaderBackup "$dev" \
+		--header-backup-file "/tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g')" ||
 		die "$dev: Unable to read LUKS header"
 done
 

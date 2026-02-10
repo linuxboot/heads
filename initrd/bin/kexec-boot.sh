@@ -1,7 +1,9 @@
 #!/bin/bash
 # Launches kexec from saved configuration entries
 set -e -o pipefail
+# shellcheck disable=SC1091
 . /tmp/config
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC
@@ -18,17 +20,22 @@ while getopts "b:e:r:a:o:fi" arg; do
 		o) override_initrd="$OPTARG" ;;
 		f) dryrun="y"; printfiles="y" ;;
 		i) dryrun="y"; printinitrd="y" ;;
+		*) die "Invalid option $arg" ;;
 	esac
 done
 
-if [ -z "$bootdir" -o -z "$entry" ]; then
+if [ -z "$bootdir" ] || [ -z "$entry" ]; then
 	die "Usage: $0 -b /boot -e 'kexec params|...|...'"
 fi
 
 bootdir="${bootdir%%/}"
 
-kexectype=`echo $entry | cut -d\| -f2`
-kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
+kexectype=$(echo "$entry" | cut -d\| -f2)
+kexecparams=$(echo "$entry" | cut -d\| -f3- | tr '|' '\n')
+if [ "$printinitrd" = "y" ]; then
+	DEBUG "kexec-boot: print initrd requested"
+	DEBUG "kexec-boot: entry='$entry'"
+fi
 kexeccmd="kexec"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
@@ -46,7 +53,7 @@ fix_file_path() {
 
 	filepath="$bootdir$firstval"
 
-	if ! [ -r $filepath ]; then
+	if ! [ -r "$filepath" ]; then
 		die "Failed to find file $firstval"
 	fi
 }
@@ -55,7 +62,8 @@ adjusted_cmd_line="n"
 adjust_cmd_line() {
 	if [ -n "$cmdremove" ]; then
 		for i in $cmdremove; do
-			cmdline=$(echo $cmdline | sed "s/\b$i\b//g")
+			# shellcheck disable=SC2001
+			cmdline=$(echo "$cmdline" | sed "s/\b$i\b//g")
 		done
 	fi
 
@@ -71,11 +79,11 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 fi
 
 module_number="1"
-while read line
+while read -r line
 do
-	key=`echo $line | cut -d\  -f1`
-	firstval=`echo $line | cut -d\  -f2`
-	restval=`echo $line | cut -d\  -f3-`
+	key=$(echo "$line" | cut -d\  -f1)
+	firstval=$(echo "$line" | cut -d\  -f2)
+	restval=$(echo "$line" | cut -d\  -f3-)
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
 		if [ "$kexectype" = "xen" ]; then
@@ -105,21 +113,22 @@ do
 			elif [ "$module_number" -eq 2 ]; then
 				if [ "$printinitrd" = "y" ]; then
 					# output the current path to initrd
-					echo $filepath
+					echo "$filepath"
 				fi
 				if [ -n "$override_initrd" ]; then
 					filepath="$override_initrd"
 				fi
 			fi
 		fi
-		module_number=`expr $module_number + 1`
+		module_number=$((module_number + 1))
 		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then
 		fix_file_path
 		if [ "$printinitrd" = "y" ]; then
 			# output the current path to initrd
-			echo $filepath
+			DEBUG "kexec-boot: initrd path resolved to '$filepath'"
+			echo "$filepath"
 		fi
 		if [ -n "$override_initrd" ]; then
 			filepath="$override_initrd"
@@ -147,7 +156,9 @@ if [ "$adjusted_cmd_line" = "n" ]; then
 	fi
 fi
 
-if [ "$dryrun" = "y" ]; then exit 0; fi
+	if [ "$dryrun" = "y" ]; then
+	exit 0
+fi
 
 echo "Loading the new kernel:"
 echo "$kexeccmd"
@@ -158,7 +169,7 @@ DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null \
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 	#Ask user if they want to continue booting without echoing back the input (-s)
-	read -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
+	read -r -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
 	echo
 	if [ "${debug_boot_confirm^^}" = N ]; then
 		# abort
@@ -170,9 +181,11 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr.sh kexec_finalize
 fi
 
-if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
+if [ -x /bin/io386 ] && [ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
 	lock_chip
 fi
 
+TRACE_FUNC
 echo "Starting the new kernel"
+DEBUG "About to exec kexec -e"
 exec kexec -e

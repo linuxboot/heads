@@ -1,6 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 BOOT_MENU_OPTIONS=/tmp/basic-autoboot-options

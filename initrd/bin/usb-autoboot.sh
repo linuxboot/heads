@@ -1,7 +1,9 @@
 #!/bin/bash
 set -o pipefail
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
 
 # Automatically boot to a bootable USB medium if present.  This is for
@@ -22,9 +24,9 @@ mkdir -p /media
 parse_boot_options()
 {
 	BOOTDIR="$1"
-	for i in $(find "$BOOTDIR" -name '*.cfg'); do
+	while IFS= read -r -d '' i; do
 		kexec-parse-boot.sh "$BOOTDIR" "$i"
-	done
+	done < <(find "$BOOTDIR" -name '*.cfg' -print0)
 }
 
 # Look for any bootable USB medium.

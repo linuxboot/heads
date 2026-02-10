@@ -1,7 +1,9 @@
 #!/bin/bash
 # Boot from a local disk installation
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 mount_boot()
@@ -13,7 +15,6 @@ mount_boot()
 			|| recovery "Unable to mount /boot"
 	fi
 }
-
 
 # Confirm we have a good TOTP unseal and ask the user for next choice
 while true; do
@@ -41,7 +42,8 @@ while true; do
 	fi
 
 	if [ "$totp_confirm" = "u" ]; then
-		  exec /bin/usb-init
+		# shellcheck disable=SC2093
+		exec /bin/usb-init
 		continue
 	fi
 
@@ -52,7 +54,7 @@ while true; do
 		continue
 	fi
 
-	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
+	if [ "$totp_confirm" = "y" ] || [ -n "$totp_confirm" ]; then
 		# Try to boot the default
 		mount_boot
 		DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" \

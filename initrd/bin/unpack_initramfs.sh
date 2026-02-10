@@ -1,6 +1,7 @@
 #! /bin/bash
 set -e -o pipefail
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TRACE_FUNC

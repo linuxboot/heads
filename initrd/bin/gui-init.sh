@@ -5,9 +5,13 @@ BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
 MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Boot Menu"
 export BG_COLOR_MAIN_MENU="normal"
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
+# shellcheck source=initrd/etc/luks-functions.sh
 . /etc/luks-functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 # skip_to_menu is set if the user selects "continue to the main menu" from any
@@ -22,8 +26,9 @@ mount_boot() {
 	while ! grep -q /boot /proc/mounts; do
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot
-			[[ $? -eq 0 ]] && continue
+			if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+				continue
+			fi
 		fi
 
 		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
@@ -40,15 +45,15 @@ mount_boot() {
 		option=$(cat /tmp/whiptail)
 		case "$option" in
 		b)
-			config-gui.sh boot_device_select
-			if [ $? -eq 0 ]; then
+			if config-gui.sh boot_device_select; then
 				# update CONFIG_BOOT_DEV
-				. /tmp/config
+				# shellcheck disable=SC1091
+				   . /tmp/config
 				BG_COLOR_MAIN_MENU="normal"
 			fi
 			;;
 		u)
-					  exec /bin/usb-init.sh
+			exec /bin/usb-init.sh
 			;;
 		m)
 			skip_to_menu="true"
@@ -100,13 +105,13 @@ verify_global_hashes() {
 			UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
 
 			if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
-				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
+				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in $UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
 			else
 				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis might be due to the following package updates:\n$LAST_PACKAGE_LIST.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
 			fi
 
 		else
-			if [ $CHANGED_FILES_COUNT -gt 10 ]; then
+			if [ "$CHANGED_FILES_COUNT" -gt 10 ]; then
 				# drop to console to show full file list
 				whiptail_error --title 'ERROR: Boot Hash Mismatch' \
 					--msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 0 80
@@ -161,14 +166,14 @@ generate_totp_hotp() {
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
 				echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
-				read
+				read -r
 			fi
 			TRACE_FUNC
 			   /bin/seal-hotpkey.sh || die "Failed to generate HOTP secret"
 		else
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
 				echo "Once you have scanned the QR code, hit Enter to continue"
-				read
+				read -r
 			fi
 		fi
 		# clear screen
@@ -183,12 +188,10 @@ update_totp() {
 	TRACE_FUNC
 	# update the TOTP code
 	date=$(date "+%Y-%m-%d %H:%M:%S %Z")
-	tries=0
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
 	else
-			 TOTP=$(unseal-totp.sh)
-		if [ $? -ne 0 ]; then
+		if ! TOTP=$(unseal-totp.sh); then
 			BG_COLOR_MAIN_MENU="error"
 			if [ "$skip_to_menu" = "true" ]; then
 				return 1 # Already asked to skip to menu from a prior error
@@ -290,7 +293,8 @@ update_hotp() {
 		g)
 			if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-				generate_totp_hotp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+				generate_totp_hotp && update_totp && update_hotp \
+					&& BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
 			fi
 			;;
 		i)
@@ -311,12 +315,12 @@ clean_boot_check() {
 	fi
 
 	# check for any kexec files in /boot
-	kexec_files=$(find /boot -name kexec*.txt)
-	[ ! -z "$kexec_files" ] && return
+	kexec_files=$(find /boot -name "kexec*.txt")
+	[ -n "$kexec_files" ] && return
 
 	#check for GPG key in keyring
 	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
-	[ $GPG_KEY_COUNT -ne 0 ] && return
+	[ "$GPG_KEY_COUNT" -ne 0 ] && return
 
 	# check for USB security token
 	if [ -x /bin/hotp_verification ]; then
@@ -334,7 +338,8 @@ clean_boot_check() {
 check_gpg_key() {
 	TRACE_FUNC
 	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
-	if [ $GPG_KEY_COUNT -eq 0 ]; then
+	DEBUG "GPG_KEY_COUNT: $GPG_KEY_COUNT"
+	if [ "$GPG_KEY_COUNT" -eq 0 ]; then
 		BG_COLOR_MAIN_MENU="error"
 		if [ "$skip_to_menu" = "true" ]; then
 			return 1 # Already asked to skip to menu from a prior error
@@ -379,6 +384,7 @@ prompt_auto_default_boot() {
 show_main_menu() {
 	TRACE_FUNC
 	date=$(date "+%Y-%m-%d %H:%M:%S %Z")
+	# shellcheck disable=SC2086
 	whiptail_type $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
 		--menu "$date\nTOTP: $TOTP | HOTP: $HOTP" 0 80 10 \
 		'd' ' Default boot' \
@@ -410,6 +416,7 @@ show_main_menu() {
 
 show_options_menu() {
 	TRACE_FUNC
+	# shellcheck disable=SC2086
 	whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
 		--menu "" 0 80 10 \
 		'b' ' Boot Options -->' \
@@ -473,6 +480,7 @@ show_options_menu() {
 
 show_boot_options_menu() {
 	TRACE_FUNC
+	# shellcheck disable=SC2086
 	whiptail_type $BG_COLOR_MAIN_MENU --title "Boot Options" \
 		--menu "Select A Boot Option" 0 80 10 \
 		'm' ' Show OS boot menu' \
@@ -499,6 +507,7 @@ show_boot_options_menu() {
 
 show_tpm_totp_hotp_options_menu() {
 	TRACE_FUNC
+	# shellcheck disable=SC2086
 	whiptail_type $BG_COLOR_MAIN_MENU --title "TPM/TOTP/HOTP Options" \
 		--menu "Select An Option" 0 80 10 \
 		'g' ' Generate new TOTP/HOTP secret' \
@@ -510,10 +519,10 @@ show_tpm_totp_hotp_options_menu() {
 	option=$(cat /tmp/whiptail)
 	case "$option" in
 	g)
-		generate_totp_hotp && reseal_tpm_disk_decryption_key
+		generate_totp_hotp && update_totp && update_hotp && reseal_tpm_disk_decryption_key
 		;;
 	r)
-		reset_tpm && reseal_tpm_disk_decryption_key
+		reset_tpm && update_totp && update_hotp && reseal_tpm_disk_decryption_key
 		;;
 	t)
 		prompt_totp_mismatch
@@ -538,7 +547,7 @@ reset_tpm() {
 
 			if ! prompt_new_owner_password; then
 				echo "Press Enter to return to the menu..."
-				read
+				read -r
 				echo
 				return 1
 			fi
@@ -566,10 +575,10 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			increment_tpm_counter $TPM_COUNTER>/dev/null 2>&1 ||
+			increment_tpm_counter "$TPM_COUNTER" >/dev/null 2>&1 ||
 				die "Unable to increment tpm counter"
 
-			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
+			DO_WITH_DEBUG sha256sum /tmp/counter-"$TPM_COUNTER" >/boot/kexec_rollback.txt ||
 				die "Unable to create rollback file"
 
 			TRACE_FUNC
@@ -586,7 +595,7 @@ reset_tpm() {
 			fi
 			mount -o ro,remount /boot
 
-			generate_totp_hotp "$tpm_owner_password"
+			generate_totp_hotp "$tpm_owner_password" && update_totp && update_hotp
 		else
 			echo "Returning to the main menu"
 		fi
@@ -665,7 +674,7 @@ check_gpg_key
 update_totp
 update_hotp
 
-if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+	if [ "$HOTP" = "Success" ] && [ -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
 	prompt_auto_default_boot
 fi
 

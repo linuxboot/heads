@@ -1,9 +1,12 @@
 #!/bin/bash
 # Boot from signed ISO
 set -e -o pipefail
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
-. /tmp/config
+ # shellcheck disable=SC1091
+ . /tmp/config
 
 TRACE_FUNC
 
@@ -38,7 +41,7 @@ else
 		echo "WARNING: The selected ISO file does not have a detached signature"
 		echo "This means the integrity and authenticity cannot be verified"
 		echo "Booting unsigned ISOs is potentially unsafe"
-		read -n1 -p "Do you want to proceed anyway? (y/N): " response
+		read -r -n1 -p "Do you want to proceed anyway? (y/N): " response
 		echo
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
 			die "Unsigned ISO boot cancelled by user"
@@ -48,26 +51,26 @@ else
 fi
 
 echo '+++ Mounting ISO and booting'
-mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot \
-	|| die '$MOUNTED_ISO_PATH: Unable to mount /boot'
+mount -t iso9660 -o loop "$MOUNTED_ISO_PATH" /boot \
+	|| die "$MOUNTED_ISO_PATH: Unable to mount /boot"
 
-DEV_UUID=`blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2`
+DEV_UUID=$(blkid "$DEV" | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
 ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH img_dev=/dev/disk/by-uuid/$DEV_UUID iso-scan/filename=/${ISO_PATH} img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
 REMOVE=""
 
 paramsdir="/media/kexec_iso/$ISO_PATH"
-check_config $paramsdir
+check_config "$paramsdir"
 
 ADD_FILE=/tmp/kexec/kexec_iso_add.txt
-if [ -r $ADD_FILE ]; then
-	NEW_ADD=`cat $ADD_FILE`
+if [ -r "$ADD_FILE" ]; then
+	NEW_ADD=$(cat "$ADD_FILE")
 	ADD=$(eval "echo \"$NEW_ADD\"")
 fi
 echo "+++ Overriding standard ISO kernel arguments with additions: $ADD"
 
 REMOVE_FILE=/tmp/kexec/kexec_iso_remove.txt
-if [ -r $REMOVE_FILE ]; then
-	NEW_REMOVE=`cat $REMOVE_FILE`
+if [ -r "$REMOVE_FILE" ]; then
+	NEW_REMOVE=$(cat "$REMOVE_FILE")
 	REMOVE=$(eval "echo \"$NEW_REMOVE\"")
 fi
 echo "+++ Overriding standard ISO kernel arguments with suppressions: $REMOVE"

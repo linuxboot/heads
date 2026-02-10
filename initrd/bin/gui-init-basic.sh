@@ -5,8 +5,11 @@ BOARD_NAME=${CONFIG_BOARD_NAME:-${CONFIG_BOARD}}
 MAIN_MENU_TITLE="${BOARD_NAME} | $CONFIG_BRAND_NAME Basic Boot Menu"
 export BG_COLOR_MAIN_MENU="normal"
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 # skip_to_menu is set if the user selects "continue to the main menu" from any
@@ -22,8 +25,9 @@ mount_boot()
   while ! grep -q /boot /proc/mounts ; do
     # try to mount if CONFIG_BOOT_DEV exists
     if [ -e "$CONFIG_BOOT_DEV" ]; then
-      mount -o ro $CONFIG_BOOT_DEV /boot 
-      [[ $? -eq 0 ]] && continue
+      if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+        continue
+      fi
     fi
 
     # CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
@@ -40,9 +44,9 @@ mount_boot()
     option=$(cat /tmp/whiptail)
     case "$option" in 
       b )
-        config-gui.sh boot_device_select
-        if [ $? -eq 0 ]; then
+        if config-gui.sh boot_device_select; then
           # update CONFIG_BOOT_DEV
+# shellcheck disable=SC1091
           . /tmp/config
           BG_COLOR_MAIN_MENU="normal"
         fi
@@ -74,7 +78,8 @@ prompt_auto_default_boot()
 show_main_menu()
 {
   TRACE_FUNC
-  date=`date "+%Y-%m-%d %H:%M:%S %Z"`
+  date=$(date "+%Y-%m-%d %H:%M:%S %Z")
+  # shellcheck disable=SC2086
   whiptail_type $BG_COLOR_MAIN_MENU --title "$MAIN_MENU_TITLE" \
     --menu "$date" 0 80 10 \
     'd' ' Default boot' \
@@ -103,6 +108,7 @@ show_main_menu()
 show_options_menu()
 {
   TRACE_FUNC
+  # shellcheck disable=SC2086
   whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Basic Options" \
     --menu "" 0 80 10 \
     'b' ' Boot Options -->' \
@@ -134,6 +140,7 @@ show_options_menu()
 show_boot_options_menu()
 {
   TRACE_FUNC
+  # shellcheck disable=SC2086
   whiptail_type $BG_COLOR_MAIN_MENU --title "Boot Options" \
     --menu "Select A Boot Option" 0 80 10 \
     'm' ' Show OS boot menu' \
@@ -167,7 +174,7 @@ attempt_default_boot()
   TRACE_FUNC
   mount_boot
 
-  DEFAULT_FILE=`find /boot/kexec_default.*.txt 2>/dev/null | head -1`
+  DEFAULT_FILE=$(find /boot/kexec_default.*.txt 2>/dev/null | head -1)
   # Basic by default boots automatically to the first menu option.  This allows
   # kernel updates to work in Basic by default without prompting to select a
   # new default boot option.
@@ -199,7 +206,7 @@ if ! detect_boot_device ; then
   mount_boot
 fi
 
-if [ "$skip_to_menu" != "true" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+if [ "$skip_to_menu" != "true" ] && [ -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
   prompt_auto_default_boot
 fi
 

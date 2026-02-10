@@ -1,6 +1,7 @@
 #!/bin/bash
 # Retrieve the sealed file from the NVRAM, unseal it and compute the totp
 
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
 
 TOTP_SECRET="/tmp/secret/totp.key"

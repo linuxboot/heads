@@ -1,6 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
+# shellcheck disable=SC1091
 . /tmp/config
 
 # If CONFIG_AUTOMATIC_POWERON is set, always set the EC BRAM setting during

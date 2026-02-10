@@ -1,7 +1,10 @@
 #!/bin/bash
 # Mount a USB device
+# shellcheck source=initrd/etc/functions.sh
 . /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
 . /etc/gui_functions.sh
+# shellcheck source=initrd/etc/luks-functions.sh
 . /etc/luks-functions.sh
 
 TRACE_FUNC
@@ -87,7 +90,7 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
       --msgbox "Insert your USB drive and press Enter to continue." 0 80
   else
     echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
-    read
+    read -r
   fi
   sleep 1
   list_usb_storage > /tmp/usb_block_devices
@@ -105,7 +108,7 @@ fi
 USB_MOUNT_DEVICE=""
 # Check if the user has specified a USB device
 if [ -n "$DEVICE" ]; then
-  DEBUG "Checking if "$DEVICE" is a USB detected block device"
+  DEBUG "Checking if $DEVICE is a USB detected block device"
   if grep -q "$DEVICE" /tmp/usb_block_devices; then
     DEBUG "Selected device is a USB block device"
     USB_MOUNT_DEVICE="$DEVICE"
@@ -114,46 +117,46 @@ if [ -n "$DEVICE" ]; then
   fi
 else
   # Check for the common case: a single USB disk with one partition
-  if [ $(cat /tmp/usb_block_devices | wc -l) -eq 1 ]; then
+  if [ "$(wc -l < /tmp/usb_block_devices)" -eq 1 ]; then
     USB_MOUNT_DEVICE="$(cat /tmp/usb_block_devices)"
   fi
   # otherwise, let the user pick
-  if [ -z ${USB_MOUNT_DEVICE} ]; then
-    > /tmp/usb_disk_list
-    for i in $(cat /tmp/usb_block_devices); do
+  if [ -z "${USB_MOUNT_DEVICE}" ]; then
+    : > /tmp/usb_disk_list
+    while read -r i; do
       #appends label to the device name
-      echo $i $(blkid | grep $i | grep -o 'LABEL=".*"' | cut -f2 -d '"') >> /tmp/usb_disk_list
-    done
+      echo "$i" "$(blkid | grep "$i" | grep -o 'LABEL=".*"' | cut -f2 -d '"')" >> /tmp/usb_disk_list
+    done < /tmp/usb_block_devices
 
     if [ -x /bin/whiptail ]; then
       MENU_OPTIONS=""
       n=0
-      while read option
+      while read -r option
       do
-        n=$(expr $n + 1)
-        option=$(echo $option | tr " " "_")
+        n=$((n + 1))
+        option=$(echo "$option" | tr " " "_")
         MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
       done < /tmp/usb_disk_list
 
       MENU_OPTIONS="$MENU_OPTIONS a Abort"
-      whiptail --title "Select your USB disk" \
+      # shellcheck disable=SC2086
+      if ! whiptail --title "Select your USB disk" \
         --menu "Choose your USB disk [1-$n, a to abort]:" 0 80 8 \
         -- $MENU_OPTIONS \
-        2>/tmp/whiptail
-      if [ $? -ne 0 ]; then
+        2>/tmp/whiptail; then
         die "ERROR: Selecting USB disk/partition aborted."
       fi
       option_index=$(cat /tmp/whiptail)
     else
       echo "+++ Select your USB disk:"
       n=0
-      while read option
+      while read -r option
       do
-        n=$(expr $n + 1)
+        n=$((n + 1))
         echo "$n. $option"
       done < /tmp/usb_disk_list
 
-      read \
+      read -r \
         -p "Choose your USB disk [1-$n, a to abort]: " \
         option_index
     fi
@@ -161,7 +164,7 @@ else
     if [ "$option_index" = "a" ]; then
       exit 5
     fi
-    USB_MOUNT_DEVICE=$(head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
+    USB_MOUNT_DEVICE=$(head -n "$option_index" /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
   fi
 fi  
 
@@ -169,25 +172,26 @@ DEBUG "Checking if $USB_MOUNT_DEVICE is a LUKS device/partition"
 if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
   DEBUG "Selected USB partition is a LUKS device"
   #Selected USB partition is a LUKS device
-  if [ -e /dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")" ]; then
+  usb_mapper_name="usb_mount_$(basename "$USB_MOUNT_DEVICE")"
+  if [ -e /dev/mapper/"$usb_mapper_name" ]; then
     DEBUG "Closing currently mapped LUKS device"
-    cryptsetup close "usb_mount_$(basename "$USB_MOUNT_DEVICE")"
+    cryptsetup close "$usb_mapper_name"
   fi
   DEBUG "Opening LUKS device $USB_MOUNT_DEVICE"
   #Pass LUKS passphrase to cryptsetup only if we received one
   if [ -z "$PASS" ]; then
     #We haven't received a passphrase
-    cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" \
+    cryptsetup open "$USB_MOUNT_DEVICE" "$usb_mapper_name" \
     || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
   else
     #We received a pasphrase
-    cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file <(echo -n "${PASS}") \
+    cryptsetup open "$USB_MOUNT_DEVICE" "$usb_mapper_name" --key-file <(echo -n "${PASS}") \
     || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
   fi
 
-  warn "Note that you cannot boot from a mounted encrypted device"
-  DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
-  USB_MOUNT_DEVICE="/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
+  usb_mapper_name="usb_mount_$(basename "$USB_MOUNT_DEVICE")"
+  DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/$usb_mapper_name"
+  USB_MOUNT_DEVICE="/dev/mapper/$usb_mapper_name"
 else
   # Selected USB partition is not a LUKS device
   DEBUG "Selected USB partition is not a LUKS device, continuing..."
