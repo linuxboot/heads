@@ -230,34 +230,6 @@ workflows:
           requires:
             - prep_env
 
-      # This step builds musl-cross-make for ppc64 architecture, which will be used by subsequent ppc64 board builds
-      - build_and_persist:
-          name: ppc64-musl-cross-make
-          arch: ppc64
-          target: UNTESTED_talos-2
-          subcommand: "musl-cross-make"
-          requires:
-            - prep_env
-
-      # Below, sequentially build one board for each coreboot version.
-      # The last board in the sequence is the dependency for the parallel boards built at the end, and also save_cache.
-
-      # coreboot 24.02.01
-      - build_and_persist:
-          name: novacustom-nv4x_adl
-          target: novacustom-nv4x_adl
-          subcommand: ""
-          requires:
-            - x86-musl-cross-make
-
-      # coreboot purism: based on coreboot 24.02.01, reuse dasharo 24.02.01 crossgcc
-      - build_and_persist:
-          name: librem_14
-          target: librem_14
-          subcommand: ""
-          requires:
-            - novacustom-nv4x_adl
-
       # t480 is based on 25.09 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
           name: EOL_t480-hotp-maximized
