@@ -1,21 +1,25 @@
 #!/bin/bash
 #
 set -e -o pipefail
-. /etc/functions
-. /etc/gui_functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+. /etc/gui_functions.sh
+# shellcheck disable=SC1091
 . /tmp/config
 
 TRACE_FUNC
+# shellcheck disable=SC2120,SC2119
 gpg_flash_rom() {
-
-  if [ "$1" = "replace" ]; then
+  local arg="$1"
+  if [ "$arg" = "replace" ]; then
     # clear local keyring
     [ -e /.gnupg/pubring.gpg ] && rm /.gnupg/pubring.gpg
     [ -e /.gnupg/pubring.kbx ] && rm /.gnupg/pubring.kbx
     [ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
   fi
 
-  cat "$PUBKEY" | gpg --import
+  gpg --import < "$PUBKEY"
   #update /.gnupg/trustdb.gpg to ultimately trust all user provided public keys
   gpg --list-keys --fingerprint --with-colons |sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' |gpg --import-ownertrust
   gpg --update-trust
@@ -69,23 +73,22 @@ gpg_flash_rom() {
         --msgbox "Failed to update checksums / sign default config" 0 80
     fi
   else
-    /bin/reboot
+    reboot.sh
   fi
 
   whiptail --title 'Files in /boot Updated Successfully'\
     --msgbox "Checksums have been updated and /boot files signed.\n\nPress Enter to reboot" 0 80
-  /bin/reboot
+  reboot.sh
   
 }
 gpg_post_gen_mgmt() {
-  GPG_GEN_KEY=`grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p'`
-  gpg --export --armor $GPG_GEN_KEY > "/tmp/${GPG_GEN_KEY}.asc"
+  GPG_GEN_KEY=$(grep -A1 pub /tmp/gpg_card_edit_output | tail -n1 | sed -nr 's/^([ ])*//p')
+  gpg --export --armor "$GPG_GEN_KEY" > "/tmp/${GPG_GEN_KEY}.asc"
   if (whiptail --title 'Add Public Key to USB disk?' \
       --yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 0 80) then
     mount_usb
     mount -o remount,rw /media
-    cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
-    if [ $? -eq 0 ]; then
+    if cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"; then
       whiptail --title "The GPG Key Copied Successfully" \
         --msgbox "${GPG_GEN_KEY}.asc copied successfully." 0 80
     else
@@ -103,6 +106,7 @@ gpg_post_gen_mgmt() {
         exit 1
       fi
       PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
+      # shellcheck disable=SC2119
       gpg_flash_rom
   fi
 }
@@ -131,6 +135,7 @@ gpg_add_key_reflash() {
 
       if (whiptail --title 'Update ROM?' \
           --yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80) then
+        # shellcheck disable=SC2119
         gpg_flash_rom
       else
         exit 0
@@ -141,6 +146,7 @@ gpg_add_key_reflash() {
 
 while true; do
   unset menu_choice
+  # shellcheck disable=SC2086
   whiptail_type $BG_COLOR_MAIN_MENU --title "GPG Management Menu" \
     --menu 'Select the GPG function to perform' 0 80 10 \
     'r' ' Add GPG key to running BIOS and reflash' \
@@ -183,6 +189,7 @@ while true; do
 
           if (whiptail_warning --title 'Flash ROM?' \
               --yesno "This will replace your old ROM with $ROM\n\nDo you want to proceed?" 0 80) then
+            # shellcheck disable=SC2119
             gpg_flash_rom
           else
             exit 0
@@ -203,7 +210,7 @@ while true; do
       gpg_add_key_reflash
     ;;
     "l" )
-      GPG_KEYRING=`gpg -k`
+      GPG_KEYRING=$(gpg -k)
       whiptail --title 'GPG Keyring' \
         --msgbox "${GPG_KEYRING}" 0 80
     ;;
@@ -213,8 +220,7 @@ while true; do
         mount_usb
         mount -o remount,rw /media
         gpg --export --armor > "/tmp/public-key.asc"
-        cp "/tmp/public-key.asc" "/media/public-key.asc"
-        if [ $? -eq 0 ]; then
+        if cp "/tmp/public-key.asc" "/media/public-key.asc"; then
           whiptail --title "The GPG Key Copied Successfully" \
             --msgbox "public-key.asc copied successfully." 0 80
         else
@@ -234,8 +240,7 @@ while true; do
       echo "* Type 'quit' once you have generated the key to exit GPG."
       echo "*"
       echo "********************************************************************************"
-      gpg --card-edit > /tmp/gpg_card_edit_output
-      if [ $? -eq 0 ]; then
+      if gpg --card-edit > /tmp/gpg_card_edit_output; then
         gpg_post_gen_mgmt
       fi
     ;;

@@ -6,11 +6,18 @@ CONFIG_ROOT_DIRLIST="bin boot lib sbin usr"
 HASH_FILE="/boot/kexec_root_hashes.txt"
 ROOT_MOUNT="/root"
 
-. /etc/functions
-. /etc/gui_functions
-. /tmp/config
+# shellcheck source=initrd/etc/functions.sh
+# Note: For shellcheck and runtime, sourced files are under initrd/etc.
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+# shellcheck source=initrd/etc/gui_functions.sh
+ . /etc/gui_functions.sh
+# shellcheck disable=SC1091
+ # /tmp/config is generated at runtime and cannot be followed by shellcheck
+ . /tmp/config
 
-export CONFIG_ROOT_DIRLIST_PRETTY=$(echo $CONFIG_ROOT_DIRLIST | sed -e 's/^/\//;s/ / \//g')
+CONFIG_ROOT_DIRLIST_PRETTY=$(echo "$CONFIG_ROOT_DIRLIST" | sed -e 's/^/\//;s/ / \//g')
+export CONFIG_ROOT_DIRLIST_PRETTY
 
 update_root_checksums() {
   if ! detect_root_device; then
@@ -34,6 +41,7 @@ update_root_checksums() {
   echo "+++ Calculating hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY "
   # Intentional wordsplit
   # shellcheck disable=SC2086
+  # SC2086: CONFIG_ROOT_DIRLIST is intentionally unquoted to allow for option expansion.
   (cd "$ROOT_MOUNT" && find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum) >"${HASH_FILE}"
   
   # switch back to ro mode
@@ -79,8 +87,11 @@ check_root_checksums() {
   fi
 
   echo "+++ Checking root hash file signature "
-  if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
-    ERROR=`cat /tmp/hash_output`
+  read -r -a files <<< "$(find /boot/kexec*.txt)"
+  if ! sha256sum "${files[@]}" | gpgv.sh /boot/kexec.sig - > /tmp/hash_output; then
+    # shellcheck disable=SC2034
+    # SC2034: ERROR is intentionally unused for compatibility with legacy scripts.
+    ERROR=$(cat /tmp/hash_output)
     whiptail_error --title 'ERROR: Signature Failure' \
       --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
     unmount_root_device
@@ -88,7 +99,7 @@ check_root_checksums() {
   fi
 
   echo "+++ Checking for new files in $CONFIG_ROOT_DIRLIST_PRETTY "
-  (cd "$ROOT_MOUNT" && find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*') | sort > /tmp/new_file_list
+  (cd "$ROOT_MOUNT" && find "${CONFIG_ROOT_DIRLIST}" -type f ! -name '*kexec*') | sort > /tmp/new_file_list
   cut -d' ' -f3- ${HASH_FILE} | sort | diff -U0 - /tmp/new_file_list > /tmp/new_file_diff || new_files_found=y
   if [ "$new_files_found" == "y" ]; then
     grep -E -v '^[+-]{3}|[@]{2} ' /tmp/new_file_diff > /tmp/new_file_diff2 # strip any output that's not a file
@@ -106,6 +117,8 @@ check_root_checksums() {
   echo "+++ Checking hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY (this might take a while) "
   if (cd $ROOT_MOUNT && sha256sum -c ${HASH_FILE} > /tmp/hash_output 2>/dev/null); then
     echo "+++ Verified root hashes "
+    # shellcheck disable=SC2034
+    # SC2034: valid_hash is intentionally unused for compatibility with legacy scripts.
     valid_hash='y'
     unmount_root_device
 
@@ -256,6 +269,7 @@ open_root_device_no_clean_up() {
   # The filesystem must have all of the directories configured.  (Intentional
   # word-split)
   # shellcheck disable=SC2086
+  # SC2086: CONFIG_ROOT_DIRLIST is intentionally unquoted to allow for option expansion.
   if ! (cd "$ROOT_MOUNT" && ls -d $CONFIG_ROOT_DIRLIST &>/dev/null); then
     DEBUG "Root filesystem on $DEVICE lacks one of the configured directories: $CONFIG_ROOT_DIRLIST"
     return 1
@@ -370,14 +384,14 @@ detect_root_device()
   fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
 
   # filter out extraneous options
-  > /tmp_root_device_list
+  true > /tmp_root_device_list
   while IFS= read -r -u 10 i; do
     # remove block device from list if numeric partitions exist
-    DEV_NUM_PARTITIONS=$((`ls -1 $i* | wc -l`-1))
+    DEV_NUM_PARTITIONS=$(($(find "$i"* -maxdepth 0 -type b | wc -l)-1))
     if [ ${DEV_NUM_PARTITIONS} -eq 0 ]; then
-      echo $i >> /tmp_root_device_list
+      echo "$i" >> /tmp_root_device_list
     else
-      ls $i* | tail -${DEV_NUM_PARTITIONS} >> /tmp_root_device_list
+      find "$i"* | tail -${DEV_NUM_PARTITIONS} >> /tmp_root_device_list
     fi
   done 10</tmp/disklist
 
@@ -403,7 +417,9 @@ unmount_root_device()
 checkonly="n"
 createnew="n"
 while getopts ":hcn" arg; do
-	case $arg in
+    # shellcheck disable=SC2220
+    # SC2220: No default case needed; only valid flags are handled for strict input.
+    case $arg in
 		c) checkonly="y" ;;
 		n) createnew="y" ;;
 		h) echo "Usage: $0 [-c|-h|-n]"; exit 0 ;;
@@ -466,7 +482,7 @@ while true; do
     ;;
     "c" )
       check_root_checksums
-      if [ $? -eq 0 ]; then
+      if mycmd; then
         whiptail --title 'Verified Root Hashes' \
           --msgbox "All files in $CONFIG_ROOT_DIRLIST_PRETTY passed the verification process" 0 80
       fi

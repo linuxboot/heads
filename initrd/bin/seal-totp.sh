@@ -1,0 +1,66 @@
+#!/bin/bash
+# Generate a random secret, seal it with the PCRs
+# and write it to the TPM NVRAM.
+#
+# Pass in a hostname if you want to change it from the default string
+#
+
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+
+TRACE_FUNC
+
+TPM_NVRAM_SPACE=4d47
+
+HOST="$1"
+if [ -z "$HOST" ]; then
+	HOST="TPMTOTP"
+fi
+TPM_PASSWORD="$2"
+
+TOTP_SECRET="/tmp/secret/totp.key"
+TOTP_SEALED="/tmp/secret/totp.sealed"
+
+dd \
+	if=/dev/urandom \
+	of="$TOTP_SECRET" \
+	count=1 \
+	bs=20 \
+	2>/dev/null ||
+	die "Unable to generate 20 random bytes"
+
+DEBUG "Generated random TOTP secret"
+secret="$(base32 <$TOTP_SECRET)"
+pcrf="/tmp/secret/pcrf.bin"
+DEBUG "Sealing TOTP with actual state of PCR0-3"
+tpmr.sh pcrread 0 "$pcrf"
+tpmr.sh pcrread -a 1 "$pcrf"
+tpmr.sh pcrread -a 2 "$pcrf"
+tpmr.sh pcrread -a 3 "$pcrf"
+DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR4)"
+# pcr 4 is expected to either:
+#  zero on bare coreboot+linuxboot on x86 (boot mode: init)
+#  already extended on ppc64 per BOOTKERNEL (skiboot) which boots heads.
+# Read from event log to catch both cases, even when called from recovery shell.
+tpmr.sh calcfuturepcr 4 >>"$pcrf"
+# pcr 5 (kernel modules loaded) is not measured at sealing/unsealing of totp
+DEBUG "Sealing TOTP neglecting PCR5 involvement (Dynamically loaded kernel modules are not firmware integrity attestation related)"
+# pcr 6 (drive LUKS header) is not measured at sealing/unsealing of totp
+DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not firmware integrity attestation related)"
+# pcr 7 is containing measurements of user injected stuff in cbfs
+DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
+tpmr.sh pcrread -a 7 "$pcrf"
+#Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
+tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
+	die "Unable to write sealed secret to NVRAM from seal-totp.sh"
+DEBUG "TOTP secret successfully sealed to TPM NVRAM"
+#Make sure we clear TPM TOTP sealed if we succeed to seal TOTP
+shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
+
+url="otpauth://totp/$HOST?secret=$secret"
+
+DEBUG "TOTP secret output on screen (both URL and QR code)"
+qrenc "$url"
+
+echo "TOTP secret for manual input (device without camera): $secret"
+secret=""

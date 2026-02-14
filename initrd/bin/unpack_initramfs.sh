@@ -1,7 +1,8 @@
 #! /bin/bash
 set -e -o pipefail
 
-. /etc/functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
 
 TRACE_FUNC
 # Unpack a Linux initramfs archive.
