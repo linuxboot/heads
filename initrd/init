@@ -53,21 +53,22 @@ hwclock -l -s
 # filesystem after exFAT is iso9660, move exFAT last.
 (grep -v '^\texfat$' /proc/filesystems && echo -e '\texfat') >/etc/filesystems
 
+ # shellcheck disable=SC1091
 # Read the system configuration parameters from build time board configuration
 . /etc/config
 # import global functions
-. /etc/functions
+. /etc/functions.sh
 
 # export user related content from cbfs
 if [ "$CONFIG_COREBOOT" = "y" ]; then
-	/bin/cbfs-init
+	/bin/cbfs-init.sh
 fi
 
 # Override CONFIG_USE_BLOB_JAIL if needed and persist via user config
 if lspci -n | grep -E -q "8086:(2723|4df0)"; then
-	if ! cat /etc/config.user 2>/dev/null | grep -q "USE_BLOB_JAIL"; then
-		echo "CONFIG_USE_BLOB_JAIL=y" >>/etc/config.user
-	fi
+       if ! grep -q "USE_BLOB_JAIL" /etc/config.user 2>/dev/null; then
+	       echo "CONFIG_USE_BLOB_JAIL=y" >>/etc/config.user
+       fi
 fi
 
 # Override CONFIG_TPM and CONFIG_TPM2_TOOLS from /etc/config with runtime value
@@ -90,6 +91,7 @@ sed -i -e 's/^export CONFIG_PUREBOOT_BASIC=/export CONFIG_BASIC=/g' /etc/config.
 
 # Combine user configuration overrides from CBFS's /etc/config.user
 combine_configs
+ # shellcheck disable=SC1091
 # Load the user configuration parameters from combined config
 . /tmp/config
 
@@ -122,7 +124,7 @@ elif [ "$CONFIG_QUIET_MODE" = "n" ]; then
 	# both needs to be checked to determine if early boot measurements traces were suppressed
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null && grep -q 'CONFIG_QUIET_MODE="n"' /etc/config.user 2>/dev/null; then
 		echo "Early boot measurements traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)" >/dev/tty0
-		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init related traces prior of this point" >/dev/tty0
+		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init.sh related traces prior of this point" >/dev/tty0
 	fi
 fi
 
@@ -151,6 +153,7 @@ if [ ! -e /dev/tpm0 ]; then
 fi
 
 #Specify whiptail background colors cues under FBWhiptail only
+ # shellcheck disable=SC2086,SC2145
 if [ -x /bin/fbwhiptail ]; then
 	export BG_COLOR_WARNING="${CONFIG_WARNING_BG_COLOR:-"--background-gradient 0 0 0 150 125 0"}"
 	export BG_COLOR_ERROR="${CONFIG_ERROR_BG_COLOR:-"--background-gradient 0 0 0 150 0 0"}"
@@ -163,12 +166,12 @@ fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Initialize tpm2 encrypted sessions here
-	tpmr startsession
+	tpmr.sh startsession
 fi
 
 if [ "$CONFIG_LINUXBOOT" = "y" ]; then
 	# Initialize the UEFI environment for linuxboot boards
-	/bin/uefi-init
+	/bin/uefi-init.sh
 fi
 
 # Set GPG_TTY before calling gpg in key-init
@@ -176,14 +179,15 @@ fi
 export GPG_TTY=/dev/console
 
 # Initialize gpnupg with distro/user keys and setup the keyrings
-/bin/key-init
+/bin/key-init.sh
 
 # Setup recovery serial shell
-if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
-	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
-	pause_recovery 'Serial console recovery shell' \
-		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
-		>"$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
+if [ -n "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+       stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
+       # shellcheck disable=SC2094
+       pause_recovery 'Serial console recovery shell' \
+	       <"$CONFIG_BOOT_RECOVERY_SERIAL" \
+	       >"$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
 
 # load USB modules for boards using a USB keyboard
@@ -197,7 +201,7 @@ load_keymap "$CONFIG_KEYBOARD_KEYMAP"
 # If the user has been holding down r, enter a recovery shell
 # otherwise immediately start the configured boot script.
 # We don't print a prompt, since this is a near instant timeout.
-read \
+read -r \
 	-t 0.1 \
 	-n 1 \
 	boot_option
@@ -211,7 +215,7 @@ if [ "$boot_option" = "r" ]; then
 elif [ "$boot_option" = "o" ]; then
 	# Launch OEM Factory Reset mode
 	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
-	oem-factory-reset --mode oem
+	oem-factory-reset.sh --mode oem
 	# just in case...
 	exit
 fi
@@ -225,7 +229,7 @@ export FW_VER=$(fw_version)
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
-if [ ! -z "$CONFIG_BOOT_DEV" ]; then
+if [ -n "$CONFIG_BOOT_DEV" ]; then
 	echo >>/etc/fstab "$CONFIG_BOOT_DEV /boot auto defaults,ro 0 0"
 fi
 
@@ -233,7 +237,7 @@ fi
 setconsolefont.sh
 
 if [ "$CONFIG_BASIC" = "y" ]; then
-	CONFIG_BOOTSCRIPT=/bin/gui-init-basic
+	CONFIG_BOOTSCRIPT=/bin/gui-init-basic.sh
 	export CONFIG_HOTPKEY=n
 fi
 
@@ -242,18 +246,18 @@ if [ -x /bin/board-init.sh ]; then
 	/bin/board-init.sh
 fi
 
-if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+if [ ! -x "$CONFIG_BOOTSCRIPT" ] && [ ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 else
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
-		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
+		echo '***** Network Boot:' "$CONFIG_BOOTSCRIPT_NETWORK"
 		$CONFIG_BOOTSCRIPT_NETWORK
-		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
+		echo '***** Network Boot Completed:' "$CONFIG_BOOTSCRIPT_NETWORK"
 		# not blocking
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
-		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+		echo '***** Normal boot:' "$CONFIG_BOOTSCRIPT"
 
 		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
 			for console in $CONFIG_BOOT_EXTRA_TTYS; do

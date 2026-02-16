@@ -1,0 +1,66 @@
+#!/bin/bash
+# extend a TPM PCR with a module and then load it
+# any arguments will also be measured.
+# The default PCR to be extended is 5, but can be
+# overridden with the MODULE_PCR environment variable
+
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
+
+TRACE_FUNC
+
+MODULE="$1"; shift
+
+if [ -z "$MODULE_PCR" ]; then
+	MODULE_PCR=5
+fi
+
+if [ -z "$MODULE" ]; then
+	die "Usage: $0 module [args...]"
+fi
+
+if [ ! -r "$MODULE" ]; then
+	die "$MODULE: not found?"
+fi
+
+# Check if module is already loaded 
+#  Transform module name changing _ for - and trailing .ko if present
+#  Unify lsmod output to use - instead of _ for comparison
+module_name=$(basename "$MODULE" | sed 's/_/-/g' | sed 's/\.ko$//')
+if lsmod | sed 's/_/-/g' | grep -q "^$module_name\\b"; then
+	DEBUG "$MODULE: already loaded, skipping"
+	exit 0
+fi
+
+if [ ! -r /sys/class/tpm/tpm0/pcrs ] || [ ! -x /bin/tpm ]; then
+	if [ ! -c /dev/tpmrm0 ] || [ ! -x /bin/tpm2 ]; then
+		tpm_missing=1
+	fi
+fi
+
+DEBUG "tpm_missing='$tpm_missing'"
+
+if [ -z "$tpm_missing" ]; then
+	INFO "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"
+	# Extend with the module parameters (even if they are empty) and the
+	# module. Changing the parameters or the module content will result in a
+	# different PCR measurement.
+	if [ -n "$*" ]; then
+		TRACE_FUNC
+		INFO "Extending with module parameters and the module's content"
+		tpmr.sh extend -ix "$MODULE_PCR" -ic "$*"
+		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	else
+		TRACE_FUNC
+		INFO "No module parameters, extending only with the module's content"
+		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| die "$MODULE: tpm extend failed"
+	fi
+fi
+
+# Since we have replaced the real insmod, we must invoke
+# the busybox insmod via the original executable
+DEBUG "Loading $MODULE with busybox insmod"
+busybox insmod "$MODULE" "$@" \
+	|| die "$MODULE: insmod failed"

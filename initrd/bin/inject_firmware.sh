@@ -22,8 +22,10 @@
 
 set -e -o pipefail
 
+# shellcheck disable=SC1091
 . /tmp/config
-. /etc/functions
+# shellcheck source=initrd/etc/functions.sh
+. /etc/functions.sh
 
 if [ "$(load_config_value CONFIG_USE_BLOB_JAIL)" != "y" ]; then
 	# Blob jail not active, nothing to do
@@ -78,6 +80,7 @@ fi
 #
 # The root path is in ${rootmnt}, which should appear in the run-init command.
 # If it doesn't, then we don't understand the init script.
+# shellcheck disable=SC2016
 AWK_INSERT_CP='
 BEGIN{inserted=0}
 /^exec run-init .*\$\{rootmnt\}/ && inserted==0 {
