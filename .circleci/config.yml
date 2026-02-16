@@ -48,7 +48,8 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.5
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -123,7 +124,8 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.5
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -151,7 +153,8 @@ jobs:
 
   build:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.5
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -172,7 +175,8 @@ jobs:
 
   save_cache:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.5
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -275,6 +279,14 @@ workflows:
       - build_and_persist:
           name: EOL_librem_l1um
           target: EOL_librem_l1um
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
+      # dasharo_msi
+      - build_and_persist:
+          name: UNTESTED_msi_z690a_ddr4
+          target: UNTESTED_msi_z690a_ddr4
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -572,3 +584,25 @@ workflows:
           subcommand: ""
           requires:
             - novacustom-nv4x_adl
+
+      # dasharo_msi
+      - build:
+          name: UNTESTED_msi_z690a_ddr5
+          target: UNTESTED_msi_z690a_ddr5
+          subcommand: ""
+          requires:
+            - UNTESTED_msi_z690a_ddr4
+
+      - build:
+          name: UNTESTED_msi_z790p_ddr4
+          target: UNTESTED_msi_z790p_ddr4
+          subcommand: ""
+          requires:
+            - UNTESTED_msi_z690a_ddr4
+
+      - build:
+          name: msi_z790p_ddr5
+          target: msi_z790p_ddr5
+          subcommand: ""
+          requires:
+            - UNTESTED_msi_z690a_ddr4
