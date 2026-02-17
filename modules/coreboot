@@ -99,7 +99,7 @@ $(eval $(call coreboot_module,purism,24.02.01))
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := 6de027d1f0a62753182237ce3d793e5ba0395139
 $(eval $(call coreboot_module,dasharo,))
-#coreboot-dasharo_patch_version := unreleased
+coreboot-dasharo_patch_version := unreleased
 
 # MSI boards are based on Dasharo, this commit hash should be pinned to
 # the most recent MSI release.
