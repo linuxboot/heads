@@ -14,25 +14,30 @@ if [ "$CONFIG_TPM" = "y" ]; then
 		rc=$?
 		case "$rc" in
 			2)
-				die "No TPM primary handle. You must reset the TPM to seal secret to TPM NVRAM"
+				echo "No TPM primary handle. You must reset the TPM to seal secret to TPM NVRAM" >&2
+				exit 2
 				;;
 			3)
-				die "TPM primary handle hash mismatch. Possible tampering; aborting unseal"
+				echo "TPM primary handle hash mismatch. Possible tampering; aborting unseal" >&2
+				exit 3
 				;;
 			*)
-				die "TPM primary handle verification failed (code $rc)"
+				echo "TPM primary handle verification failed (code $rc)" >&2
+				exit "$rc"
 				;;
 		esac
 	fi
 
-	DO_WITH_DEBUG --mask-position 5 \
-		tpmr.sh unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" || \
-		die "Unable to unseal TOTP secret from TPM"
+	if ! DO_WITH_DEBUG --mask-position 5 tpmr.sh unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET"; then
+		echo "Unable to unseal TOTP secret from TPM" >&2
+		exit 1
+	fi
 fi
 
 if ! DO_WITH_DEBUG totp -q <"$TOTP_SECRET"; then
 	shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null
-	die 'Unable to compute TOTP hash?'
+	echo 'Unable to compute TOTP hash?' >&2
+	exit 4
 fi
 
 shred -n 10 -z -u "$TOTP_SECRET" 2>/dev/null

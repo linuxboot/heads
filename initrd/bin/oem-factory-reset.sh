@@ -1241,7 +1241,7 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ] || [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	enable_usb
 	if ! gpg --card-status >/dev/null 2>&1; then
-		local_whiptail_error "Can't access USB Security dongle; \nPlease remove and reinsert, then press Enter."
+		whiptail_error --msgbox "Can't access USB Security dongle; \nPlease remove and reinsert, then press Enter." $HEIGHT $WIDTH --title "Error"
 		if ! gpg --card-status >/dev/null 2>/tmp/error; then
 			ERROR=$(tail -n 1 /tmp/error | fold -s)
 			whiptail_error_die "Unable to detect USB Security dongle:\n\n${ERROR}"
