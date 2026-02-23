@@ -463,7 +463,7 @@ tpm2_seal() {
 		# Add an object authorization policy (the object authorization
 		# will be the password).  Save the digest, this is the resulting
 		# policy.
-		tpm2 policypassword -Q -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
+		tpm2 policyauthvalue -Q -S "$TRIAL_SESSION" -L "$AUTH_POLICY"
 		# Pass the password to create later.  Pass the sha256sum of the
 		# password to the TPM so the password is not limited to 32 chars
 		# in length.
@@ -605,7 +605,7 @@ tpm2_unseal() {
 		# Add the object authorization policy (the actual password is
 		# provided later, but we must include this so the policy we
 		# attempt to use is correct).
-		tpm2 policypassword -Q -S "$POLICY_SESSION"
+		tpm2 policyauthvalue -Q -S "$POLICY_SESSION"
 		# When unsealing, include the password with the auth session
 		UNSEAL_PASS_SUFFIX="+$(tpm2_password_hex "$pass")"
 	fi
