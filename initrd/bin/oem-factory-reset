@@ -744,7 +744,7 @@ generate_checksums() {
 		fi
 
 		# If HOTP is enabled from board config, create HOTP counter
-		if [ -x /bin/hotp_verification]; then
+		if [ -x /bin/hotp_verification ]; then
 			## needs to exist for initial call to unseal-hotp
 			echo "0" >/boot/kexec_hotp_counter
 		fi
