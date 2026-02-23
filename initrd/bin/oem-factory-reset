@@ -1375,8 +1375,16 @@ else
 	#We are not running in QEMU, so flash the key to ROM
 
 	## flash generated key to ROM
-	echo -e "\nReading current firmware...\n(this may take up to two minutes...)\n"
-	/bin/flash.sh -r /tmp/oem-setup.rom >/dev/null 2>/tmp/error
+	# read current firmware; show all output and capture stderr for errors
+	if echo "$CONFIG_FLASH_OPTIONS" | grep -q -- '--progress'; then
+		echo -e "\nReading current firmware (progress shown below)...\n"
+	else
+		echo -e "\nReading current firmware...\n(this may take up to two minutes...)\n"
+	fi
+	if ! /bin/flash.sh -r /tmp/oem-setup.rom 2> >(tee /tmp/error >&2); then
+		ERROR=$(tail -n 1 /tmp/error | fold -s)
+		whiptail_error_die "Error reading current firmware:\n\n$ERROR"
+	fi
 	if [ ! -s /tmp/oem-setup.rom ]; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error reading current firmware:\n\n$ERROR"
