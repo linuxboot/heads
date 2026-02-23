@@ -28,6 +28,7 @@
         bc
         bison # Generate flashmap descriptor parser
         bzip2
+        cargo # Dasharo EC build
         cacert
         ccache
         coreboot-utils #consumed by diffoscope for ifdtool cbfsutils etc
