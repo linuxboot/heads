@@ -1647,6 +1647,14 @@ show_totp_until_esc() {
 	local last_totp_time=0 last_totp=""
 	printf "\n" # reserve a line for updates
 
+	# Clear any pending keystrokes before we start displaying the TOTP.
+	# In particular, a stray Escape key from the previous passphrase
+	# prompt could be sitting in the input buffer and would cause the
+	# function to immediately return on the next iteration, confusing
+	# the user when they try to hit Esc again.  Drain stdin until it's
+	# empty.
+	while IFS= read -r -t 0 -n 1 junk; do :; done
+
 	# Poll frequently (200ms) for responsiveness, but only refresh the
 	# displayed timestamp/TOTP when the displayed second changes. Cache
 	# the TOTP for a short interval to avoid repeated unseal calls.
