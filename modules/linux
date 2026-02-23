@@ -219,6 +219,14 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
 	@touch $@ # force a timestamp update
 	@sha256sum "$@" | tee -a "$(HASHES)"
 
+# If loadkeys is shipped, include the actual default keymap used by the kernel,
+# so loadkeys --default really resets the keymap to the default state.
+ifeq "$(CONFIG_KBD_LOADKEYS)" "y"
+$(build)/$(linux_base_dir)/drivers/tty/vt/defkeymap.map: $(build)/$(linux_base_dir)/.canary
+linux_data += \
+	$(build)/$(linux_base_dir)/drivers/tty/vt/defkeymap.map|share/keymaps/defkeymap.map
+endif
+
 # modify_and_save_defconfig_in_place target allows us edit current in tree config
 # under linux decompressed+patched directory through menuconfig
 # and put it back in git tree to check changes with git difftool iteratively

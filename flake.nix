@@ -24,12 +24,13 @@
         autoconf
         automake
         bashInteractive
-        coreutils
+        coreutils #basic tools like ls, cp, mv, kill)
         bc
         bison # Generate flashmap descriptor parser
         bzip2
         cacert
         ccache
+        coreboot-utils #consumed by diffoscope for ifdtool cbfsutils etc
         cmake
         cpio
         curl
@@ -58,6 +59,8 @@
         patch
         perl
         pkg-config
+        procps #process tools like free, pidof, pkill, top, vmstat, watch, etc
+        psmisc #process tools like killall, pstree, etc
         python3 # me_cleaner, coreboot
         rsync # coreboot
         sharutils

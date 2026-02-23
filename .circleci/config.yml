@@ -16,7 +16,10 @@ commands:
             echo "Sourcing /devenv.sh since docker entrypoint doesn't do it as expected"
             source /devenv.sh
             rm -rf build/<< parameters.arch >>/<< parameters.target >>/* build/<< parameters.arch >>/log/*
-            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >>  | ts || touch ./tmpDir/failed_build
+            #Pass AVAILABLE_MEM_GB=8 to respect CircleCI free tier RAM assignation, which otherwise randomly fails. See Makefile calculations.
+            # Without AVAILABLE_MEM_GB=8: CircleCI passes '-j36 --load-average=54'
+            # With AVAILABLE_MEM_GB=8: CircleCI passes '-j8 --load-average=12'
+            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -45,7 +48,8 @@ commands:
 jobs:
   prep_env:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -65,11 +69,11 @@ jobs:
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
-            find .circleci/config.yml ./Makefile ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
+            find .circleci/config.yml ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
-            find .circleci/config.yml ./Makefile ./flake.lock modules/musl-cross-make* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross-make.sha256sums
+            find ./flake.lock modules/musl-cross-make* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross-make.sha256sums
       - restore_cache:
           # First matched/found key wins and following keys are not tried
           keys:
@@ -91,11 +95,16 @@ jobs:
           name: Download Optiplex 7010/9010 blobs
           command: |
             ./blobs/xx30/optiplex_7010_9010.sh ./blobs/xx30
+      # me_cleaner.py present under heads blobs/utils/me_cleaner dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
       - run:
-          # me_cleaner.py present under heads xx30 blobs dir comes from https://github.com/corna/me_cleaner/blob/43612a630c79f3bc6f2653bfe90dfe0b7b137e08/me_cleaner.py
           name: Download and neuter xx30 ME (keep generated GBE and extracted IFD in tree)
           command: |
-            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/xx30/me_cleaner.py)
+            ./blobs/xx30/download_clean_me_manually.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py)
+      - run:
+          name: Download, neuter and deguard xx80 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
@@ -115,7 +124,8 @@ jobs:
 
   build_and_persist:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -143,7 +153,8 @@ jobs:
 
   build:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -164,7 +175,8 @@ jobs:
 
   save_cache:
     docker:
-      - image: tlaurion/heads-dev-env:v0.2.4
+      # Docker image: tlaurion/heads-dev-env:v0.2.7
+      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -175,8 +187,8 @@ jobs:
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
           key: nix-docker-heads-musl-cross-make-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/ppc64/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
-            - build/x86/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - crossgcc
             - packages
       - save_cache:
@@ -185,13 +197,13 @@ jobs:
           key: nix-docker-heads-coreboot-musl-cross-make-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
             - build/ppc64/coreboot-talos_2
-            - build/ppc64/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
+            - build/x86/coreboot-25.09
             - build/x86/coreboot-dasharo
-            - build/x86/coreboot-mrchromebox
             - build/x86/coreboot-purism
-            - build/x86/musl-cross-make-38e52db8358c043ae82b346a2e6e66bc86a53bc1
+            - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - crossgcc
             - packages
       - save_cache:
@@ -206,13 +218,14 @@ jobs:
 workflows:
   version: 2
   build_and_test:
+    max_auto_reruns: 3
     jobs:
       - prep_env
 
       # This step builds musl-cross-make for x86 architecture, which will be used by subsequent x86 board builds
       - build_and_persist:
           name: x86-musl-cross-make
-          target: x230-hotp-maximized
+          target: EOL_t480-hotp-maximized
           subcommand: "musl-cross-make"
           requires:
             - prep_env
@@ -231,12 +244,11 @@ workflows:
 
       # coreboot 24.02.01
       - build_and_persist:
-          name: x230-hotp-maximized
-          target: x230-hotp-maximized
+          name: novacustom-nv4x_adl
+          target: novacustom-nv4x_adl
           subcommand: ""
           requires:
             - x86-musl-cross-make
-
       # coreboot-git mrchromebox
       - build:
           name: omnigul
@@ -245,25 +257,21 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # coreboot purism
+      # coreboot purism: based on coreboot 24.02.01, reuse dasharo 24.02.01 crossgcc
       - build_and_persist:
           name: librem_14
           target: librem_14
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - novacustom-nv4x_adl
 
-      # coreboot nitropad
-      # Nitropads depending on x230-hotp-maximized cache since kernel is 6.x and coreboot is git is unshared
-      # We use nitropad's coreboot's fork crossgcc
-      # No need to wait further for other board's cache
-      # We reuse built modules from x230-hotp-maximized cache only
+      # t480 is based on 25.09 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
-          name: novacustom-nv4x_adl
-          target: novacustom-nv4x_adl
+          name: EOL_t480-hotp-maximized
+          target: EOL_t480-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - x86-musl-cross-make
 
       # coreboot talos_2
       - build_and_persist:
@@ -276,8 +284,16 @@ workflows:
 
       # coreboot 4.11
       - build_and_persist:
-          name: librem_l1um
-          target: librem_l1um
+          name: EOL_librem_l1um
+          target: EOL_librem_l1um
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
+
+      # dasharo_msi
+      - build_and_persist:
+          name: UNTESTED_msi_z690a_ddr4
+          target: UNTESTED_msi_z690a_ddr4
           subcommand: ""
           requires:
             - x86-musl-cross-make
@@ -287,213 +303,218 @@ workflows:
       - save_cache:
           requires:
             - UNTESTED_talos-2
-            - librem_14
+            - EOL_t480-hotp-maximized
 
       # Those onboarding new boards should add their entries below.
-      # coreboot 24.02.01 boards
+      # coreboot 25.09 boards
       - build:
-          name: x220-hotp-maximized
-          target: x220-hotp-maximized
+          name: EOL_x220-hotp-maximized
+          target: EOL_x220-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x220-maximized
-          target: x220-maximized
+          name: EOL_x220-maximized
+          target: EOL_x220-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t420-hotp-maximized
-          target: t420-hotp-maximized
+          name: EOL_t420-hotp-maximized
+          target: EOL_t420-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t420-maximized
-          target: t420-maximized
+          name: EOL_t420-maximized
+          target: EOL_t420-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized_usb-kb
-          target: x230-hotp-maximized_usb-kb
+          name: EOL_t430-hotp-maximized
+          target: EOL_t430-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t430-hotp-maximized
-          target: t430-hotp-maximized
+          name: EOL_x230-maximized
+          target: EOL_x230-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-maximized
-          target: x230-maximized
+          name: EOL_optiplex-7010_9010-maximized
+          target: EOL_optiplex-7010_9010-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
-
-      #TODO: move away of 24.02.01 coreboot and depend on optiplex specific dasharo commit
-      - build:
-          name: optiplex-7010_9010-maximized
-          target: optiplex-7010_9010-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010-hotp-maximized
-          target: optiplex-7010_9010-hotp-maximized
+          name: EOL_optiplex-7010_9010-hotp-maximized
+          target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010_TXT-maximized
-          target: optiplex-7010_9010_TXT-maximized
+          name: EOL_optiplex-7010_9010_TXT-maximized
+          target: EOL_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: optiplex-7010_9010_TXT-hotp-maximized
-          target: optiplex-7010_9010_TXT-hotp-maximized
+          name: EOL_optiplex-7010_9010_TXT-hotp-maximized
+          target: EOL_optiplex-7010_9010_TXT-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-maximized-fhd_edp
-          target: x230-maximized-fhd_edp
+          name: EOL_x230-hotp-maximized
+          target: EOL_x230-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: x230-hotp-maximized-fhd_edp
-          target: x230-hotp-maximized-fhd_edp
+          name: EOL_x230-hotp-maximized_usb-kb
+          target: EOL_x230-hotp-maximized_usb-kb
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: w530-hotp-maximized
-          target: w530-hotp-maximized
+          name: EOL_x230-maximized-fhd_edp
+          target: EOL_x230-maximized-fhd_edp
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t430-maximized
-          target: t430-maximized
+          name: EOL_x230-hotp-maximized-fhd_edp
+          target: EOL_x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: w530-maximized
-          target: w530-maximized
+          name: EOL_w530-hotp-maximized
+          target: EOL_w530-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t530-maximized
-          target: t530-maximized
+          name: EOL_t430-maximized
+          target: EOL_t430-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: t530-hotp-maximized
-          target: t530-hotp-maximized
+          name: EOL_w530-maximized
+          target: EOL_w530-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
-
-
-      - build:
-          name: UNTESTED_t440p-maximized
-          target: UNTESTED_t440p-maximized
-          subcommand: ""
-          requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_t440p-hotp-maximized
-          target: UNTESTED_t440p-hotp-maximized
+          name: EOL_UNTESTED_t530-maximized
+          target: EOL_UNTESTED_t530-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-maximized
-          target: UNTESTED_w541-maximized
+          name: EOL_UNTESTED_t530-hotp-maximized
+          target: EOL_UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: UNTESTED_w541-hotp-maximized
-          target: UNTESTED_w541-hotp-maximized
+          name: EOL_t440p-maximized
+          target: EOL_t440p-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_t440p-hotp-maximized
+          target: EOL_t440p-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w541-maximized
+          target: EOL_w541-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w541-hotp-maximized
+          target: EOL_w541-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
 
       - build:
           name: qemu-coreboot-fbwhiptail-tpm2-hotp
           target: qemu-coreboot-fbwhiptail-tpm2-hotp
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: z220-cmt-maximized
-          target: z220-cmt-maximized
+          name: EOL_z220-cmt-maximized
+          target: EOL_z220-cmt-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       - build:
-          name: z220-cmt-hotp-maximized
-          target: z220-cmt-hotp-maximized
+          name: EOL_z220-cmt-hotp-maximized
+          target: EOL_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - EOL_t480-hotp-maximized
 
       # coreboot purism
       # librem boards
       - build:
-          name: librem_13v2
-          target: librem_13v2
+          name: EOL_librem_13v2
+          target: EOL_librem_13v2
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_15v3
-          target: librem_15v3
+          name: EOL_librem_15v3
+          target: EOL_librem_15v3
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_13v4
-          target: librem_13v4
+          name: EOL_librem_13v4
+          target: EOL_librem_13v4
           subcommand: ""
           requires:
             - librem_14
 
       - build:
-          name: librem_15v4
-          target: librem_15v4
+          name: EOL_librem_15v4
+          target: EOL_librem_15v4
           subcommand: ""
           requires:
             - librem_14
@@ -519,6 +540,35 @@ workflows:
           requires:
             - librem_14
 
+      - build:
+          name: librem_l1um_v2
+          target: librem_l1um_v2
+          subcommand: ""
+          requires:
+            - librem_14
+
+      # t480 is based on 25.09 coreboot release
+      - build:
+          name: EOL_t480-maximized
+          target: EOL_t480-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_t480s-hotp-maximized
+          target: EOL_t480s-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_t480s-maximized
+          target: EOL_t480s-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
       # dasharo release, share 24.02.01 utils/crossgcc
       - build:
           name: UNTESTED_nitropad-ns50
@@ -527,48 +577,39 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
+      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on nv4x_adl
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
           subcommand: ""
           requires:
-            - x230-hotp-maximized
+            - novacustom-nv4x_adl
 
       - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
           subcommand: ""
           requires:
-            - x230-hotp-maximized
-            
-      # coreboot 4.11
-      - build:
-          name: UNMAINTAINED_kgpe-d16_workstation
-          target: UNMAINTAINED_kgpe-d16_workstation
-          subcommand: ""
-          requires:
-            - librem_l1um
+            - novacustom-nv4x_adl
 
-      # coreboot 4.11
+      # dasharo_msi
       - build:
-          name: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
-          target: UNMAINTAINED_kgpe-d16_workstation-usb_keyboard
+          name: UNTESTED_msi_z690a_ddr5
+          target: UNTESTED_msi_z690a_ddr5
           subcommand: ""
           requires:
-            - librem_l1um
+            - UNTESTED_msi_z690a_ddr4
 
-      # coreboot 4.11
       - build:
-          name: UNMAINTAINED_kgpe-d16_server
-          target: UNMAINTAINED_kgpe-d16_server
+          name: UNTESTED_msi_z790p_ddr4
+          target: UNTESTED_msi_z790p_ddr4
           subcommand: ""
           requires:
-            - librem_l1um
+            - UNTESTED_msi_z690a_ddr4
 
-      # coreboot 4.11
       - build:
-          name: UNMAINTAINED_kgpe-d16_server-whiptail
-          target: UNMAINTAINED_kgpe-d16_server-whiptail
+          name: msi_z790p_ddr5
+          target: msi_z790p_ddr5
           subcommand: ""
           requires:
-            - librem_l1um
+            - UNTESTED_msi_z690a_ddr4

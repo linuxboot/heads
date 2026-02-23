@@ -65,6 +65,11 @@ $(info **LOADAVG** (default: 1.5 times CPUS, e.g., 'make LOADAVG=54'))
 $(info **AVAILABLE_MEM_GB** (default: memory available on the system in GB, e.g., 'make AVAILABLE_MEM_GB=4'))
 $(info **MEM_PER_JOB_GB** (default: 1GB per job, e.g., 'make MEM_PER_JOB_GB=2'))
 $(info ----------------------------------------------------------------------)
+ifeq "$(V)" ""
+$(info Hint: If the build fails, re-run with V=1 for full configure + validation output)
+$(info Verbose example: ./docker_repro.sh make BOARD=$(BOARD) V=1)
+$(info ----------------------------------------------------------------------)
+endif
 $(info !!!!!! Build starts !!!!!!)
 
 
@@ -72,7 +77,14 @@ $(info !!!!!! Build starts !!!!!!)
 DATE=`date --rfc-3339=seconds`
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
+
+# If the board name begins with UNMAINTAINED_, use the
+# unmaintained_boards path.
+ifeq "y" "$(shell echo '$(BOARD)' | grep -E '^UNMAINTAINED_' >/dev/null 2>&1 && echo y)"
+CONFIG		:= $(pwd)/unmaintained_boards/$(BOARD)/$(BOARD).config
+else
 CONFIG		:= $(pwd)/boards/$(BOARD)/$(BOARD).config
+endif
 
 ifneq "y" "$(shell [ -r '$(CONFIG)' ] && echo y)"
 $(error $(CONFIG): board configuration does not exist)
@@ -108,6 +120,12 @@ CONFIG_HEADS	?= y
 
 # Unless otherwise specified, we are building bash to have non-interactive shell for scripts (arrays and bashisms)
 CONFIG_BASH	?= y
+
+# Unless otherwise specified, we build kbd to have setfont, loadkeys and keymaps
+CONFIG_KBD	?= y
+#loadkeys permits to load .map source files directly
+CONFIG_KBD_LOADKEYS ?= y
+
 
 # USB keyboards can be ignored, optionally supported, or required.
 #
@@ -173,11 +191,12 @@ endif
 
 
 # Create a temporary directory for the initrd
-initrd_dir	:= $(BOARD)
-initrd_tmp_dir	:= $(shell mktemp -d)
-initrd_data_dir	:= $(initrd_tmp_dir)/etc/terminfo/l
-initrd_lib_dir	:= $(initrd_tmp_dir)/lib
-initrd_bin_dir	:= $(initrd_tmp_dir)/bin
+initrd_dir		:= $(BOARD)
+initrd_tmp_dir		:= $(shell mktemp -d)
+initrd_tools_dir	:= $(initrd_tmp_dir)/tools
+initrd_lib_dir		:= $(initrd_tools_dir)/lib
+initrd_bin_dir		:= $(initrd_tools_dir)/bin
+initrd_data_dir		:= $(initrd_tmp_dir)/data
 modules-y += initrd
 
 $(shell mkdir -p "$(initrd_lib_dir)" "$(initrd_bin_dir)" "$(initrd_data_dir)")
@@ -270,6 +289,34 @@ all payload:
 	@sha256sum $< | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
 
+# Validate coreboot CBFS size against IFD BIOS region
+validate_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Validating $(BOARD) CBFS size against IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
+	@echo "✓ CBFS configuration is valid"
+else
+	@echo "Board $(BOARD) does not use coreboot, skipping validation"
+endif
+
+# Auto-fix coreboot CBFS size to match IFD BIOS region
+fix_cbfs_ifd:
+ifneq ($(CONFIG_COREBOOT),)
+	@echo "Auto-fixing $(BOARD) CBFS size to match IFD BIOS region..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		--fix || exit 1
+	@echo ""
+	@echo "If CONFIG_CBFS_SIZE was adjusted, next build will use the new size."
+else
+	@echo "Board $(BOARD) does not use coreboot, nothing to fix"
+endif
+
 # Disable all built in rules
 .INTERMEDIATE:
 .SUFFIXES:
@@ -291,10 +338,22 @@ define map =
 $(foreach _,$2,$(eval $(call $1,$_)))
 endef
 
+# Data files can be specified in modules/* to be added into data.cpio.
+# Each module should set <modulename>_data += src|dst
+# Example (in modules/ncurses):
+#   ncurses_data += $(INSTALL)/usr/lib/terminfo/l/linux|etc/terminfo/l/linux
+#
+# The main Makefile will collect all data files from enabled modules:
+#   $(call data,$(modules-y))
+
 # Bring in all of the module definitions;
 # these are the external pieces that will be downloaded and built
 # as part of creating the Heads firmware image.
 include modules/*
+
+# Collect all data files from enabled modules
+data_files :=
+$(foreach m,$(modules-y),$(eval data_files += $($(m)_data)))
 
 define bins =
 $(foreach m,$1,$(call prefix,$(build)/$($m_dir)/,$($m_output)))
@@ -309,7 +368,6 @@ endef
 define outputs =
 $(foreach m,$1,\
 	$(call bins,$m)\
-	$(call data,$m)\
 	$(call libs,$m)\
 )
 endef
@@ -399,41 +457,52 @@ define define_module =
     # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
-	if [ ! -e "$$@" ]; then \
-		git clone $($1_repo) "$(build)/$($1_base_dir)"; \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash); \
-		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
-	elif [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "Switching $1 to $($1_repo) at $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		echo "git fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no" && \
-		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
-		echo "git reset --hard $($1_commit_hash)" && \
+	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
+		echo "INFO: .canary file and directory not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
+		git clone $($1_repo) "$(build)/$($1_base_dir)" && \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
 		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
-		echo "git clean" && \
+		echo "INFO: Creating .canary file with repo and commit hash" && \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
+	elif [ ! -e "$$@" ] || [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
+		echo "INFO: .canary file missing or differs. Resetting $1 to $($1_repo) at $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
+		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)" && \
+		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
+		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
+		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)" && \
 		git -C "$(build)/$($1_base_dir)" clean -df && \
 		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
-		echo "git submodule sync" && \
+		echo "INFO: Synchronizing submodules" && \
 		git -C "$(build)/$($1_base_dir)" submodule sync && \
-		echo "git submodule update" && \
+		echo "INFO: Updating submodules (init and checkout)" && \
 		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
-		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@"; \
+		echo "INFO: Updating .canary file with new repo info" && \
+		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
 	fi
 	if [ ! -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .patched file not found. Beginning patch application for $1" && \
 		if [ -r patches/$($1_patch_name).patch ]; then \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< patches/$($1_patch_name).patch \
-				|| exit 1 ; \
-		fi && \
-		if [ -d patches/$($1_patch_name) ] && \
-		   [ -r patches/$($1_patch_name) ] ; then \
-			for patch in patches/$($1_patch_name)/*.patch ; do \
-				echo "Applying patch file : $$$$patch " ;  \
-				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-					< $$$$patch \
-					|| exit 1 ; \
-			done ; \
-		fi && \
+			echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
+			if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch; then \
+				echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
+				git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || true && \
+				git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch || exit 1; \
+			fi; \
+		fi; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "INFO: Applying patch file: $$$$patch" && \
+				if ! git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch"; then \
+					echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
+					git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || true && \
+					git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < "$$$$patch" || exit 1; \
+				fi; \
+			done; \
+		fi; \
+		echo "INFO: Patches applied successfully. Creating .patched file." && \
 		touch "$(build)/$($1_base_dir)/.patched"; \
 	fi
   else
@@ -458,20 +527,45 @@ define define_module =
 	mkdir -p "$$(dir $$@)"
 	tar -xf "$(packages)/$($1_tar)" $(or $($1_tar_opt),--strip 1) -C "$$(dir $$@)"
 	if [ -r patches/$($1_patch_name).patch ]; then \
-		( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-			< patches/$($1_patch_name).patch \
-			|| exit 1 ; \
-	fi
-	if [ -d patches/$($1_patch_name) ] && \
-	   [ -r patches/$($1_patch_name) ] ; then \
-		for patch in patches/$($1_patch_name)/*.patch ; do \
-			echo "Applying patch file : $$$$patch " ;  \
-			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) ) \
-				< $$$$patch \
-				|| exit 1 ; \
+		echo "INFO: Applying single patch file: patches/$($1_patch_name).patch" && \
+		if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ); then \
+			echo "ERROR: Failed to apply patch: patches/$($1_patch_name).patch. Reversing and reapplying." && \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
+		fi ; \
+	fi ; \
+	if [ -d patches/$($1_patch_name) ]; then \
+		echo "INFO: Applying multiple patch files from directory: patches/$($1_patch_name)" && \
+		for patch in patches/$($1_patch_name)/*.patch; do \
+			echo "INFO: Applying patch file: $$$$patch" && \
+			if ! ( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ); then \
+				echo "ERROR: Failed to apply patch: $$$$patch. Reversing and reapplying." && \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
+				echo "INFO: Reapplying patch file: $$$$patch" && \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
+			fi ; \
 		done ; \
 	fi
-	@touch "$$@"
+	if [ ! -e "$$@" ] && [ -e "$(build)/$($1_base_dir)/.patched" ]; then \
+		echo "INFO: .canary file not found but .patched exists. Reversing and reapplying patches for $1" && \
+		if [ -r patches/$($1_patch_name).patch ]; then \
+			echo "INFO: Reversing single patch file: patches/$($1_patch_name).patch." && \
+			( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || true && \
+			echo "INFO: Reapplying single patch file: patches/$($1_patch_name).patch." && \
+			( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < patches/$($1_patch_name).patch ) || exit 1 ; \
+		fi ; \
+		if [ -d patches/$($1_patch_name) ]; then \
+			echo "INFO: Reversing and reapplying multiple patch files from directory: patches/$($1_patch_name)" && \
+			for patch in patches/$($1_patch_name)/*.patch; do \
+				echo "INFO: Reversing patch file: $$$$patch" && \
+				( git apply --reverse --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || true && \
+				echo "INFO: Reapplying patch file: $$$$patch" && \
+				( git apply --verbose --reject --binary --directory build/$(CONFIG_TARGET_ARCH)/$($1_base_dir) < $$$$patch ) || exit 1 ; \
+			done ; \
+		fi ; \
+		rm -f "$(build)/$($1_base_dir)/.patched" ; \
+	fi
+	touch "$$@"
   endif
 
   # Allow the module to override the destination configuration file
@@ -531,7 +625,8 @@ define define_module =
 	stat $(call outputs,$1) >/dev/null 2>/dev/null || echo FORCE \
   ))
 
-  $(build)/$($1_dir)/.build: $($1.force) \
+  #TODO: something better then removing .build: $($1.force) so that newt/ncurses are not rebuilt inconditionally?
+  $(build)/$($1_dir)/.build: \
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
@@ -582,19 +677,13 @@ endef
 
 #
 # Files that should be copied into the initrd
-# THis should probably be done in a more scalable manner
+# This should probably be done in a more scalable manner
 #
 define initrd_bin_add =
 $(initrd_bin_dir)/$(notdir $1): $1
 	$(call do,INSTALL-BIN,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
 	@$(CROSS)strip --preserve-dates "$$@" 2>&-; true
 initrd_bins += $(initrd_bin_dir)/$(notdir $1)
-endef
-
-define initrd_data_add =
-$(initrd_data_dir)/$(notdir $1): $1
-	$(call do,INSTALL-DATA,$$(<:$(pwd)/%=%),cp -a --remove-destination "$$<" "$$@")
-initrd_data += $(initrd_data_dir)/$(notdir $1)
 endef
 
 define initrd_lib_add =
@@ -677,7 +766,7 @@ $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 	$(build)/$(pciutils_dir)/.build \
 
 #
-# initrd image creation
+# --- INITRD IMAGE CREATION ---
 #
 # The initrd is constructed from various bits and pieces
 # The cpio-clean program is used ensure that the files
@@ -699,7 +788,99 @@ initrd-y += $(build)/$(initrd_dir)/tools.cpio
 initrd-y += $(build)/$(initrd_dir)/board.cpio
 initrd-$(CONFIG_HEADS) += $(build)/$(initrd_dir)/heads.cpio
 
-#$(build)/$(initrd_dir)/.build: $(build)/$(initrd_dir)/initrd.cpio.xz
+# --- DATA.CPIO STAGING AND CREATION ---
+
+# Macro to handle staging of data files into the initrd temporary data directory
+# Arguments:
+#   1: Source path (file or directory)
+#   2: Destination path inside initrd (relative path inside archive)
+define stage_data_file =
+$(initrd_data_dir)/$2: $1
+	$(call do,INSTALL-DATA,$(1:$(pwd)/%=%) => $2,\
+		mkdir -p "$(dir $(initrd_data_dir)/$2)"; \
+		cp -R "$1" "$(initrd_data_dir)/$2"; \
+	)
+data_initrd_files += $(initrd_data_dir)/$2
+endef
+
+# Expand all data_files entries. Each entry: "src_path|dest_path"
+$(foreach entry,$(data_files),\
+  $(eval src := $(word 1,$(subst |, ,$(entry)))) \
+  $(eval dst := $(word 2,$(subst |, ,$(entry)))) \
+  $(eval $(call stage_data_file,$(src),$(dst))) \
+)
+
+# Rule to build final data.cpio archive from staged files
+ifneq ($(strip $(data_files)),)
+$(build)/$(initrd_dir)/data.cpio: $(data_initrd_files) FORCE
+	$(call do-cpio,$@,$(initrd_data_dir))
+	@$(RM) -rf "$(initrd_data_dir)"
+initrd-y += $(build)/$(initrd_dir)/data.cpio
+endif
+
+# --- MODULES.CPIO ---
+
+# modules.cpio is built from kernel modules staged in a temp dir by modules/linux
+# The temp dir is cleaned up after cpio creation.
+# (see modules/linux for details)
+
+# --- TOOLS.CPIO ---
+
+# tools.cpio is built from all binaries, libraries, and config staged in initrd_tools_dir
+$(build)/$(initrd_dir)/tools.cpio: \
+	$(initrd_bins) \
+	$(initrd_libs) \
+	$(initrd_tools_dir)/etc/config \
+	FORCE
+	$(call do-cpio,$@,$(initrd_tools_dir))
+	@$(RM) -rf "$(initrd_tools_dir)"
+
+# --- TOOLS.CPIO'S ETC/CONFIG  ---
+#	This is board's config provided defaults (at compilation time)
+#  Those defaults can be overriden by cbfs' config.user applied at init through cbfs-init.
+#   To view overriden exports at runtime, simply run 'env' and review CONFIG_ exported variables
+#   To view compilation time board's config; check /etc/config under recovery shell.
+$(initrd_tools_dir)/etc/config: FORCE
+	@mkdir -p $(dir $@)
+	$(call do,INSTALL,$(CONFIG), \
+		export \
+			| grep ' CONFIG_' \
+			| sed -e 's/^declare -x /export /' \
+			-e 's/\\\"//g' \
+			> $@ \
+	)
+	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS) $(BOARD), \
+		echo export GIT_HASH=\'$(GIT_HASH)\' \
+		>> $@ ; \
+		echo export GIT_STATUS=$(GIT_STATUS) \
+		>> $@ ; \
+		echo export CONFIG_BOARD=$(BOARD) \
+		>> $@ ; \
+		echo export CONFIG_BRAND_NAME=$(BRAND_NAME) \
+		>> $@ ; \
+	)
+
+# --- BOARD.CPIO ---
+
+# board.cpio is built from the board's initrd/ directory and contains 
+#  board-specific support scripts.
+ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
+$(build)/$(initrd_dir)/board.cpio:
+	# Only create a board.cpio if the board has a initrd directory
+	cpio -H newc -o </dev/null >"$@"
+else
+$(build)/$(initrd_dir)/board.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
+endif
+
+# --- HEADS.CPIO ---
+
+# heads.cpio is built from the initrd directory in the Heads tree
+#  This is heads security policies, executed by board's CONFIG_BOOTSCRIPT at init
+$(build)/$(initrd_dir)/heads.cpio: FORCE
+	$(call do-cpio,$@,$(pwd)/initrd)
+
+# --- FINAL INITRD PACKAGING ---
 
 $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 	$(call do,CPIO-XZ  ,$@,\
@@ -720,64 +901,10 @@ $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
 
-#
-# At the moment PowerPC can only load initrd bundled with the kernel.
-#
+# --- BUNDLED INITRD FOR POWERPC ---
+
 bundle-$(CONFIG_LINUX_BUNDLED)	+= $(board_build)/$(LINUX_IMAGE_FILE).bundled
 all: $(bundle-y)
-
-# The board.cpio is built from the board's initrd/ directory.  It contains
-# board-specific support scripts.
-
-ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
-$(build)/$(initrd_dir)/board.cpio:
-	cpio -H newc -o </dev/null >"$@"
-else
-$(build)/$(initrd_dir)/board.cpio: FORCE
-	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
-endif
-
-#
-# The heads.cpio is built from the initrd directory in the
-# Heads tree.
-#
-$(build)/$(initrd_dir)/heads.cpio: FORCE
-	$(call do-cpio,$@,$(pwd)/initrd)
-
-
-#
-# The tools initrd is made from all of the things that we've
-# created during the submodule build.
-#
-$(build)/$(initrd_dir)/tools.cpio: \
-	$(initrd_bins) \
-	$(initrd_data) \
-	$(initrd_libs) \
-	$(initrd_tmp_dir)/etc/config \
-
-	$(info Used **BINS**: $(initrd_bins))
-	$(call do-cpio,$@,$(initrd_tmp_dir))
-	@$(RM) -rf "$(initrd_tmp_dir)"
-
-$(initrd_tmp_dir)/etc/config: FORCE
-	@mkdir -p $(dir $@)
-	$(call do,INSTALL,$(CONFIG), \
-		export \
-			| grep ' CONFIG_' \
-			| sed -e 's/^declare -x /export /' \
-			-e 's/\\\"//g' \
-			> $@ \
-	)
-	$(call do,HASH,$(GIT_HASH) $(GIT_STATUS) $(BOARD), \
-		echo export GIT_HASH=\'$(GIT_HASH)\' \
-		>> $@ ; \
-		echo export GIT_STATUS=$(GIT_STATUS) \
-		>> $@ ; \
-		echo export CONFIG_BOARD=$(BOARD) \
-		>> $@ ; \
-		echo export CONFIG_BRAND_NAME=$(BRAND_NAME) \
-		>> $@ ; \
-	)
 
 # Ensure that the initrd depends on all of the modules that produce
 # binaries for it
@@ -798,30 +925,67 @@ modules.clean:
 		rm -f "build/${CONFIG_TARGET_ARCH}/$$dir/.configured" ; \
 	done
 
+# Inject a GPG key into the image - this is most useful when testing in qemu,
+# since we can't reflash the firmware in qemu to update the keychain.  Instead,
+# inject the public key ahead of time.  Specify the location of the key with
+# PUBKEY_ASC.
+inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
+
+$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE) $(PUBKEY_ASC)
+	@set -e; \
+	src="$(board_build)/$(CB_OUTPUT_FILE)"; \
+	tgt="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"; \
+	key="$(PUBKEY_ASC)"; \
+	meta="$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ).meta"; \
+	if [ -f "$$tgt" ] && [ -f "$$meta" ]; then \
+		SRC_SHA256=$$(awk -F= '/^SRC_SHA256=/{print $$2}' "$$meta"); \
+		KEY_SHA256=$$(awk -F= '/^KEY_SHA256=/{print $$2}' "$$meta"); \
+		src_sum=$$(sha256sum "$$src" | awk '{print $$1}'); \
+		key_sum=$$(sha256sum "$$key" | awk '{print $$1}'); \
+		if [ "$$src_sum" = "$$SRC_SHA256" ] && [ "$$key_sum" = "$$KEY_SHA256" ]; then \
+			echo "GPG injection up-to-date; skipping"; \
+			exit 0; \
+		fi; \
+	fi; \
+	cp "$$src" "$$tgt"; \
+	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" "$$tgt" "$$key"; \
+	SRC_SHA256=$$(sha256sum "$$src" | awk '{print $$1}'); \
+	KEY_SHA256=$$(sha256sum "$$key" | awk '{print $$1}'); \
+	printf 'SRC_SHA256=%s\nKEY_SHA256=%s\n' "$$SRC_SHA256" "$$KEY_SHA256" > "$$meta"
+
+
+
+
+
+
+# --- Development helpers ---
+# Development targets for moving boards between states
+
 board.move_untested_to_tested:
 	@echo "Moving $(BOARD) from UNTESTED to tested status"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_//'); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNTESTED_/\1/'); \
 	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
 	NEW_INCLUDE_BOARD=$$(echo $$INCLUDE_BOARD | sed 's/^UNTESTED_//'); \
 	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
 	sed -i 's/$(BOARD)/'$${NEW_BOARD}'/g' boards/$(BOARD)/$(BOARD).config; \
 	sed -i 's/'$$INCLUDE_BOARD'/'$$NEW_INCLUDE_BOARD'/g' boards/$(BOARD)/$(BOARD).config; \
 	echo "Renaming config file to $${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming board directory to $${NEW_BOARD}"; \
-	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
 	echo "Updating .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
 	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"
 
 board.move_unmaintained_to_tested:
 	@echo "NEW_BOARD variable will remove UNMAINTAINED_ prefix from $(BOARD)"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNMAINTAINED_//'); \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
-	mv boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNMAINTAINED_/\1/'); \
+	echo "Renaming unmaintained_boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	mkdir -p boards/$$BOARD; \
+	git mv unmaintained_boards/$$BOARD/$$BOARD.config boards/$$BOARD/$$NEW_BOARD.config; \
 	echo "Renaming boards/$$BOARD to boards/$$NEW_BOARD"; \
-	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD boards/$$NEW_BOARD; \
+	rm -rf boards/$$NEW_BOARD unmaintained_boards/$$BOARD; \
+	git mv boards/$$BOARD boards/$$NEW_BOARD; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml; \
 	echo "Board $$BOARD has been moved to tested status as $$NEW_BOARD"; \
@@ -829,32 +993,41 @@ board.move_unmaintained_to_tested:
 
 board.move_untested_to_unmaintained:
 	@echo "NEW_BOARD variable will move from UNTESTED_ to UNMAINTAINED_ from $(BOARD)"
-	@NEW_BOARD=$$(echo $(BOARD) | sed 's/^UNTESTED_/UNMAINTAINED_/g'); \
-	echo "Renaming boards/$$BOARD/$$BOARD.config to boards/$$BOARD/$$NEW_BOARD.config"; \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)UNTESTED_/\1UNMAINTAINED_/'); \
+	echo "Renaming boards/$$BOARD to unmaintained_boards/$$NEW_BOARD"; \
 	mkdir -p unmaintained_boards; \
-	mv boards/$$BOARD/$$BOARD.config unmaintained_boards/$$BOARD/$$NEW_BOARD.config; \
-	echo "Renaming boards/$$BOARD to unmaintainted_boards/$$NEW_BOARD"; \
+	git mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
+	echo "Renaming unmaintained_boards/$$NEW_BOARD/$$BOARD.config to unmaintained_boards/$$NEW_BOARD/$$NEW_BOARD.config"; \
 	rm -rf boards/$$NEW_BOARD; \
-	mv boards/$$BOARD unmaintained_boards/$$NEW_BOARD; \
+	git mv unmaintained_boards/$$NEW_BOARD/$$BOARD.config unmaintained_boards/$$NEW_BOARD/$$NEW_BOARD.config; \
 	echo "Replacing $$BOARD with $$NEW_BOARD in .circleci/config.yml. Delete manually entries"; \
 	sed -i "s/$$BOARD/$$NEW_BOARD/g" .circleci/config.yml
 
 board.move_tested_to_untested:
 	@echo "NEW_BOARD variable will add UNTESTED_ prefix to $(BOARD)"
-	@NEW_BOARD=UNTESTED_$(BOARD); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)/\1UNTESTED_/'); \
 	rm -rf boards/$${NEW_BOARD}; \
-	echo "changing $(BOARD) name under boards/$(BOARD)/$(BOARD).config to $${NEW_BOARD}"; \
-	sed boards/$(BOARD)/$(BOARD).config 's/$(BOARD)/$${NEW_BOARD}/g'; \
 	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
 	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
-	mv boards/$(BOARD) boards/$${NEW_BOARD}; \
-	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
+	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
+
+board.move_tested_to_EOL:
+	@echo "NEW_BOARD variable will EOL_$(BOARD)"
+	@NEW_BOARD=EOL_$(BOARD); \
+	rm -rf boards/$${NEW_BOARD}; \
+	echo "Renaming boards/$(BOARD)/$(BOARD).config to boards/$(BOARD)/$${NEW_BOARD}.config"; \
+	git mv boards/$(BOARD)/$(BOARD).config boards/$(BOARD)/$${NEW_BOARD}.config; \
+	echo "Renaming boards/$(BOARD) to boards/$${NEW_BOARD}"; \
+	git mv boards/$(BOARD) boards/$${NEW_BOARD}; \
+	echo "Replacing $(BOARD) with $${NEW_BOARD} in .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml
 
 board.move_tested_to_unmaintained:
 	@echo "Moving $(BOARD) from tested to unmaintained status"
-	@NEW_BOARD=UNMAINTAINED_$(BOARD); \
+	@NEW_BOARD=$$(echo $(BOARD) | sed -E 's/(^EOL_|^)/\1UNMAINTAINED_/'); \
 	INCLUDE_BOARD=$$(grep "include \$$(pwd)/boards/" boards/$(BOARD)/$(BOARD).config | sed 's/.*boards\/\(.*\)\/.*/\1/'); \
 	NEW_INCLUDE_BOARD=UNMAINTAINED_$${INCLUDE_BOARD}; \
 	echo "Updating config file: boards/$(BOARD)/$(BOARD).config"; \
@@ -865,48 +1038,55 @@ board.move_tested_to_unmaintained:
 	echo "Creating unmaintained_boards directory if it doesn't exist"; \
 	mkdir -p unmaintained_boards/$${NEW_BOARD}; \
 	echo "Moving and renaming config file to unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config"; \
-	mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
+	git mv boards/$(BOARD)/$(BOARD).config unmaintained_boards/$${NEW_BOARD}/$${NEW_BOARD}.config; \
 	echo "Moving board directory contents to unmaintained_boards/$${NEW_BOARD}"; \
-	mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
+	git mv boards/$(BOARD)/* unmaintained_boards/$${NEW_BOARD}/; \
 	rmdir boards/$(BOARD); \
 	echo "Updating .circleci/config.yml"; \
 	sed -i "s/$(BOARD)/$${NEW_BOARD}/g" .circleci/config.yml; \
 	echo "Operation completed for $(BOARD) -> $${NEW_BOARD}"; \
 	echo "Please manually review and remove any unnecessary entries in .circleci/config.yml"
 
-# Inject a GPG key into the image - this is most useful when testing in qemu,
-# since we can't reflash the firmware in qemu to update the keychain.  Instead,
-# inject the public key ahead of time.  Specify the location of the key with
-# PUBKEY_ASC.
-inject_gpg: $(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)
-
-$(board_build)/$(CB_OUTPUT_BASENAME)-gpg-injected.rom: $(board_build)/$(CB_OUTPUT_FILE)
-	cp "$(board_build)/$(CB_OUTPUT_FILE)" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)"
-	./bin/inject_gpg_key.sh --cbfstool "$(build)/$(coreboot_dir)/cbfstool" \
-		"$(board_build)/$(CB_OUTPUT_FILE_GPG_INJ)" "$(PUBKEY_ASC)"
-
-
 #Dev cycles helpers:
+
+# Helper function to overwrite coreboot git repo's .canary file with a bogus commit (.canary checked for matching commit on build)
+#  TODO: Implement a cleaner solution to ensure files created by patches are properly deleted instead of requiring manual intervention.
+define overwrite_canary_if_coreboot_git
+	@echo "Checking for coreboot directory: build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)"
+	if [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)" ] && \
+	   [ -d "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.git" ]; then \
+		echo "INFO: Recreating .canary file for 'build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)' with placeholder." && \
+		echo BOGUS_COMMIT_ID > "build/${CONFIG_TARGET_ARCH}/coreboot-$(CONFIG_COREBOOT_VERSION)/.canary" && \
+		echo "INFO: .canary file has been recreated." ; \
+	else \
+		echo "INFO: Coreboot directory or .git not found, skipping .canary overwrite." ; \
+	fi
+endef
+
 real.clean:
+	@echo "Cleaning build artifacts and install directories, leaving crossgcc intact."
 	for dir in \
 		$(module_dirs) \
 		$(kernel_headers) \
 	; do \
 		if [ ! -z "$$dir" ]; then \
-			rm -rf "build/${CONFIG_TARGET_ARCH}/$$dir"; \
-		fi; \
+			rm -rf "build/${CONFIG_TARGET_ARCH}/$$dir" ; \
+		fi ; \
 	done
 	cd install && rm -rf -- *
+	$(call overwrite_canary_if_coreboot_git)
+
 real.gitclean:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep downloaded coreboot forks (detected as Git repos)."
 	git clean -fxd
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' directory."
 	git clean -fxd -e "packages"
+	$(call overwrite_canary_if_coreboot_git)
 
 real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "Removing 'canary' files to force Heads to restart building board configurations..."
@@ -917,10 +1097,18 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "This approach economizes time since most build artifacts do not need to be rebuilt, as the file dates should be the same as when you originally built them."
 	@echo "Only a minimal time is needed for rebuilding, which is also good for your SSD."
 	@echo "*** USE THIS APPROACH FIRST ***"
-	find ./build/ -type f -name ".canary" -print -delete
-	find ./install/*/* -print -exec rm -rf {} +
+	@echo "Removing ./build .canary files..."
+	@find ./build/ -type f -name ".canary" -print -delete || true
+	@echo "Removing install/*/* content..."
+	@find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
+	@echo "Removing coreboot board related artifact directory: $(build)/$(coreboot_dir)"
+	rm -rf "$(build)/$(coreboot_dir)"
+	@echo "Removing coreboot board related artifacts directory $(board_build)"
+	rm -rf "$(board_build)"
+	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages_and_build:
 	@echo "Cleaning the repository using Git ignore file as a base..."
 	@echo "This will wipe everything not in the Git tree, but keep the 'packages' and 'build' directories."
 	git clean -fxd -e "packages" -e "build"
+	$(call overwrite_canary_if_coreboot_git)

@@ -22,14 +22,6 @@ mount_boot() {
 
 TRACE_FUNC
 
-fatal_error() {
-	echo -e "\nERROR: ${1}; press Enter to continue."
-	read
-	# get lsusb output for debugging
-	DEBUG "lsusb output: $(lsusb)"
-	die "$1"
-}
-
 # Use stored HOTP key branding (this might be useful after OEM reset)
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
@@ -40,7 +32,7 @@ fi
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" ||
-		fatal_error "Unable to unseal HOTP secret"
+		die "Unable to unseal HOTP secret"
 else
 	# without a TPM, generate a secret based on the SHA-256 of the ROM
 	secret_from_rom_hash >"$HOTP_SECRET" || die "Reading ROM failed"
@@ -66,8 +58,10 @@ counter_value=1
 
 enable_usb
 
+TRACE_FUNC
+
 # Make sure no conflicting GPG related services are running, gpg-agent will respawn
-killall gpg-agent scdaemon >/dev/null 2>&1
+DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
 
 # While making sure the key is inserted, capture the status so we can check how
 # many PIN attempts remain
@@ -77,7 +71,7 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 	if ! hotp_token_info="$(hotp_verification info)"; then
 		# don't leak key on failure
 		shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
-		fatal_error "Unable to find $HOTPKEY_BRANDING"
+		die "Unable to find $HOTPKEY_BRANDING"
 	fi
 fi
 
@@ -90,8 +84,12 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
 
+DEBUG "HOTP USB Security dongle branding is $HOTPKEY_BRANDING"
+
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
+
+TRACE_FUNC
 
 # Check when the signing key was created to consider trying the default PIN
 # (Note: we must avoid using gpg --card-status here as the Nitrokey firmware
@@ -146,22 +144,19 @@ fi
 if [ "$admin_pin_status" -ne 0 ]; then
 
 	# prompt user for PIN and retry
-	echo ""
-	read -s -p "Enter your $HOTPKEY_BRANDING $prompt_message PIN: " admin_pin
-	echo -e "\n"
-
+	read -r -s -p $'\nEnter your '"$HOTPKEY_BRANDING $prompt_message"' PIN: ' admin_pin
+	echo
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
 	if [ $? -ne 0 ]; then
-		echo -e "\n"
-		read -s -p "Error setting HOTP secret, re-enter $prompt_message PIN and try again: " admin_pin
-		echo -e "\n"
+		read -r -s -p $'\nError setting HOTP secret, re-enter '"$prompt_message"' PIN and try again: ' admin_pin
+		echo
 		if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
 			# don't leak key on failure
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 			if [ "$HOTPKEY_BRANDING" == "Nitrokey" ]; then
-				fatal_error "Setting HOTP secret failed, to reset $prompt_message PIN, redo Re-Ownership procedure, use the Nitrokey App 2 or contact Nitrokey support"
+				die "Setting HOTP secret failed, to reset $prompt_message PIN, redo Re-Ownership procedure, use the Nitrokey App 2 or contact Nitrokey support"
 			else
-				fatal_error "Setting HOTP secret failed"
+				die "Setting HOTP secret failed"
 			fi
 		fi
 	fi
@@ -183,7 +178,7 @@ mount -o remount,rw /boot
 
 counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
-	fatal_error "Unable to create hotp counter file"
+	die "Unable to create hotp counter file"
 
 # Store/overwrite HOTP USB Security dongle branding found out beforehand
 echo $HOTPKEY_BRANDING >$HOTP_KEY ||

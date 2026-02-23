@@ -96,12 +96,28 @@ coreboot-mrchromebox_repo := https://github.com/MrChromebox/coreboot.git
 coreboot-mrchromebox_commit_hash := 9071e69522e38bef841253dc5970ca6b806d2e55
 $(eval $(call coreboot_module,mrchromebox,))
 
-# MSI and NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
+# NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
 # coreboot fork, based on upstream coreboot version 24.02
 coreboot-dasharo_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_commit_hash := 94e5f5d5b808cf8d8fd5c70d4ef6a08a054f8986
 $(eval $(call coreboot_module,dasharo,24.02.01))
 #coreboot-dasharo_patch_version := unreleased
+
+# MSI boards are based on Dasharo, this commit hash should be pinned to
+# the most recent MSI release.
+coreboot-dasharo_msi_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_msi_commit_hash := a5a05f133471c0463609631b599cdd88a623561f # This is `msi_ms7e06_v0.9.4` tag, effectively same as `msi_ms7d25_v1.1.6`.
+$(eval $(call coreboot_module,dasharo_msi,24.02.01))
+
+# T480 is based on coreboot ~25.09 release
+#  coreboot 25.09 doesn't include Thunderbolt support and support of the lower USB-C port which is still under review at https://review.coreboot.org/c/coreboot/+/75286 and https://review.coreboot.org/c/coreboot/+/88490
+#   TODO: track upstream WiP and switch to later upstream release containing patchset without relaying on libreboot downstream maintained patchset
+# Therefore, patches/coreboot-25.09 include upstream patches to provide Thunderbolt/full USB-C support for the T480
+#  patches/coreboot-25.09 also includes PR0 patchset, minus xeon support which don't apply to 25.09 as per https://review.coreboot.org/c/coreboot/+/85278
+#   TODO: @miczyg1 rebase of patchset so that doenstream don't have to maintain, adapt work
+coreboot-25.09_repo := https://github.com/coreboot/coreboot
+coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
+$(eval $(call coreboot_module,25.09,))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
@@ -157,7 +173,15 @@ $(coreboot_module)_configure := \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		BUILD_TIMELESS=1 \
+		BUILD_TIMELESS=1; \
+	echo ""; \
+	echo "Validating CONFIG_CBFS_SIZE vs IFD BIOS region..."; \
+	$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+		|| exit 1; \
+	echo ""
 
 # Create a dependency from coreboot to the toolchain.  Use .heads-toolchain to
 # mark that the toolchain was built.
@@ -228,9 +252,18 @@ $(build)/$(coreboot_dir)/.build: \
 # This produces a ROM image that is written with the flashrom program
 ifneq ($(CONFIG_COREBOOT),)
 
+# Let make rebuild the ROM only when inputs change; downstream logic
+# will ensure expensive post-processing (like GPG injection) is skipped when up-to-date.
 $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 	# Use coreboot.rom, because custom output files might not be processed by cbfstool
 	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
+	@echo ""
+	@echo "Validating final CBFS/IFD configuration..."
+	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
+		--coreboot-dir "$(build)/$(coreboot_dir)" \
+		--board-dir "$(build)/$(BOARD)" \
+		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
+	@echo ""
 	$(call do-copy,$(dir $<)$(CONFIG_COREBOOT_ROM),$@)
 	@touch $@   # update the time stamp
 
