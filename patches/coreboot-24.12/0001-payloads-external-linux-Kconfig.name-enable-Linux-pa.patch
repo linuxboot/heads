@@ -1,0 +1,31 @@
+From a8e290af937e56b162f644b446f5b9a286489d52 Mon Sep 17 00:00:00 2001
+From: =?utf-8?q?Micha=C5=82=20Kope=C4=87?= <michal.kopec@3mdeb.com>
+Date: Sun, 13 Apr 2025 17:47:04 +0200
+Subject: [PATCH] payloads/external/linux/Kconfig.name: enable Linux payload on
+ arm64
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: Iac30528b382b2de464f81435ef393503d01b96d2
+Signed-off-by: Michał Kopeć <michal.kopec@3mdeb.com>
+---
+ payloads/external/linux/Kconfig.name | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/payloads/external/linux/Kconfig.name b/payloads/external/linux/Kconfig.name
+index 1d8fcd08f6d5..514a234b5ba8 100644
+--- a/payloads/external/linux/Kconfig.name
++++ b/payloads/external/linux/Kconfig.name
+@@ -2,7 +2,7 @@
+ 
+ config PAYLOAD_LINUX
+ 	bool "A Linux payload"
+-	depends on ARCH_X86 || ARCH_ARM || ARCH_RISCV
++	depends on ARCH_X86 || ARCH_ARM || ARCH_RISCV || ARCH_ARM64
+ 	help
+ 	  Select this option if you have a Linux bzImage which coreboot
+ 	  should run as soon as the basic hardware initialization
+-- 
+2.49.0
+

@@ -6,6 +6,9 @@ ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 else ifeq "$(CONFIG_TARGET_ARCH)" "ppc64"
 	LINUX_ARCH			:= powerpc
 	LINUX_IMAGE_FILE	:= zImage
+else ifeq "$(CONFIG_TARGET_ARCH)" "arm64"
+	LINUX_ARCH			:= arm64
+	LINUX_IMAGE_FILE	:= zImage
 else
 	$(error "$(CONFIG_TARGET_ARCH) target isn't supported by this module")
 endif
@@ -34,6 +37,9 @@ linux_hash := 40f014d53e81f204f6d2a364aae4201ae07970dd1b70dc602d7c66c1a140f558
 else ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
 linux_version := 6.1.8
 linux_hash := b60bb53ab8ba370a270454b11e93d41af29126fc72bd6ede517673e2e57b816d
+else ifeq "$(CONFIG_LINUX_VERSION)" "6.14.2"
+linux_version := 6.14.2
+linux_hash := c5c682a354ea3190139357a57d34a79e5c37221ace823a938e10116b577a2e1b
 else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
 endif
