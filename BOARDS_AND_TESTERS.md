@@ -46,9 +46,9 @@ xx20 (Sandy Bridge: Intel 2nd Gen CPU)
 xx30 (Ivy Bridge: Intel 3rd Gen CPU)
 ===
 - [ ] t430 (xx30): @notgivenby @nestire @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
-- [ ] w530 (xx30): @eganonoa @zifxify @weyounsix (dGPU: w530-k2000m) @jnscmns (dGPU K1000M) @computer-user123 (w530 / w530 k2000: prefers iGPU) @tlaurio
+- [ ] w530 (xx30): @eganonoa @zifxify @weyounsix (dGPU: w530-k2000m) @jnscmns (dGPU K1000M) @computer-user123 (w530 / w530 k2000: prefers iGPU) @tlaurion
 - [ ] x230 (xx30): @nestire @tlaurion @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns
-- [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display) @doob85 https://matrix.to/#/@rsabdpy:matrix.org (agan mod board)
+- [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display) @doob85
 - [ ] t530 (xx30): @fhvyhjriur @3hhh (See: https://github.com/linuxboot/heads/issues/1682)
 
 xx4x (Haswell: Intel 4th Gen CPU)
@@ -82,7 +82,7 @@ Desktops / Servers
 ==
 - [ ] Optiplex 7010/9010 SFF/DT (Ivy Bridge: Intel 3rd Gen CPU): @tlaurion(owns DT variant)
 - [ ] HP Z220 CMT (Ivy Bridge: Intel 3rd Gen CPU): @d-wid
-- [ ] KGPE-D16 (Bulldozer: AMD Family 15h CPU) – dropped in coreboot 4.12: @arhabd @Tonux599 @zifxify https://matrix.to/#/@rsabdpy:matrix.org
+- [ ] KGPE-D16 (Bulldozer: AMD Family 15h CPU) – dropped in coreboot 4.12: @arhabd @Tonux599 @zifxify
 - [ ] Librem L1UM v1 (Broadwell: Intel 5th Gen CPU): @JonathonHall-Purism
 - [ ] Librem L1UM v2 (Coffee Lake: Intel 9th Gen CPU): @JonathonHall-Purism
 - [ ] Librem mini v1 (Whiskey Lake: Intel 8th Gen CPU : ESU ends 03/31/2026): @JonathonHall-Purism
