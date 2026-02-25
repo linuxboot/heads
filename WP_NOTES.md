@@ -15,7 +15,7 @@ Some random notes since support is incomplete (depends on chips, really)
 
 Alternative, as suggested by @i-c-o-n is Chipset Platform Locking (PR0) which is enforced at platform's chipset level for a boot
 - This is implemented and enforced on <= Haswell from this PR merged : https://github.com/linuxboot/heads/pull/1373
-- Non-upstreamed work has been made from @root-hardenedvault work in vaultboot downstream fork of Heads at https://github.com/hardenedvault/vaultboot/blob/master/patches/coreboot/0001-x11.patch
+- All Intel platforms have PR0 platform locking implemented prior of kexec call with this non-yet upstreamed patch applied in all forks https://review.coreboot.org/c/coreboot/+/85278
 - Discussion point under flashrom-> flashprog PR under https://github.com/linuxboot/heads/pull/1769/files/f8eb0a27c3dcb17a8c6fcb85dd7f03e8513798ae#r1752395865 tagging @i-c-o-n
 
 
