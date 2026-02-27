@@ -1,0 +1,50 @@
+ifeq "$(CONFIG_DASHARO_EC)" "y"
+
+modules-y += dasharo-ec
+
+dasharo-ec_repo := https://github.com/Dasharo/ec
+dasharo-ec_commit_hash := ad7e15ce2b0234bd33bbc5fa0b5fe202a804209b
+
+# Map BOARD to the EC board model
+ifeq "$(BOARD)" "novacustom-v540tu"
+	DASHARO_EC_BOARD_MODEL := v540tu
+else ifeq "$(BOARD)" "novacustom-v560tu"
+	DASHARO_EC_BOARD_MODEL := v560tu
+else
+	$(error "$(BOARD): no Dasharo EC board model mapping defined")
+endif
+
+dasharo-ec_version := $(dasharo-ec_commit_hash)
+dasharo-ec_base_dir := dasharo-ec-$(dasharo-ec_version)
+dasharo-ec_dir := dasharo-ec-$(dasharo-ec_version)
+
+# Use .built sentinel since the real output is in a dynamic path
+dasharo-ec_output := .built
+
+# No-op configure: submodules are handled by the EC Makefile's canary rule
+# for git repos
+dasharo-ec_configure :=
+
+# Build the EC firmware following the upstream build.sh process:
+#  1. make BOARD=novacustom/<model>  (compile with SDCC)
+#  2. Copy ec.rom from the dynamic output path to a known location
+#  3. Extend ec.rom to 128KB (zero-padded) as required by coreboot
+# Note: the && chain after make -C runs in the parent cwd, so use
+# absolute paths.  Use sh -c so the shell expands the glob.
+dasharo-ec_target := \
+	BOARD=novacustom/$(DASHARO_EC_BOARD_MODEL) \
+	&& sh -c 'cp $(build)/$(dasharo-ec_dir)/build/novacustom/$(DASHARO_EC_BOARD_MODEL)/*/ec.rom $(build)/$(dasharo-ec_dir)/ec.rom' \
+	&& dd if=/dev/zero of=$(build)/$(dasharo-ec_dir)/ec.rom bs=1 seek=128k count=0 \
+	&& touch $(build)/$(dasharo-ec_dir)/.built
+
+# Copy ec.rom into the coreboot source tree before coreboot configures.
+# coreboot expects ec.rom in its root directory.
+$(build)/$(coreboot_base_dir)/ec.rom: $(build)/$(dasharo-ec_dir)/.build
+	$(call do,COPY,ec.rom -> coreboot, \
+		cp "$(build)/$(dasharo-ec_dir)/ec.rom" "$@" \
+	)
+
+# Ensure coreboot's configure step depends on ec.rom being present
+$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_base_dir)/ec.rom
+
+endif
