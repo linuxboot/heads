@@ -222,6 +222,7 @@ fi
 
 # export firmware version
 export FW_VER=$(fw_version)
+export EC_VER=$(ec_version)
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.

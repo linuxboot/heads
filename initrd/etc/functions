@@ -102,6 +102,14 @@ fw_version() {
 	echo "${FW_VER::-10}"
 }
 
+ec_version() {
+	# EC firmware version from DMI type 11 OEM Strings (if present).
+	# The raw sysfs entry has a 5-byte header followed by null-terminated strings.
+	local raw="/sys/firmware/dmi/entries/11-0/raw"
+	[ -f "$raw" ] || return
+	tail -c +6 "$raw" | tr '\0' '\n' | sed -n 's/^EC firmware version: *//p'
+}
+
 preserve_rom() {
 	TRACE_FUNC
 	new_rom="$1"
