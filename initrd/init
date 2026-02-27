@@ -222,6 +222,9 @@ fi
 
 # export firmware version
 export FW_VER=$(fw_version)
+# export EC firmware version (DMI type 11 OEM string)
+# `ec_version` returns an empty string if the field is missing.
+export EC_VER=$(ec_version)
 
 # Add our boot devices into the /etc/fstab, if they are defined
 # in the configuration file.
