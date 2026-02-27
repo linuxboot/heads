@@ -1,0 +1,50 @@
+From 3730ed80345632754fbdecf0bfddb89e4fd45847 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Micha=C5=82=20Kope=C4=87?= <michal.kopec@3mdeb.com>
+Date: Thu, 12 Feb 2026 16:49:40 +0100
+Subject: [PATCH] mb/novacustom/mtl-h: Bump Energy Performance Preference to
+ 45%
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Improve performance by lowering the EPP value from the power-on default
+of 0xb3 (70%) to 0x73 (45%). Lower value = higher performance.
+
+Upstream-Status: Pending
+Change-Id: I5a1f48dd2b563cf7dc37f7682317e5b7f81ad13c
+Signed-off-by: Michał Kopeć <michal.kopec@3mdeb.com>
+---
+ src/mainboard/novacustom/mtl-h/variants/dgpu/overridetree.cb | 4 ++++
+ src/mainboard/novacustom/mtl-h/variants/igpu/overridetree.cb | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/src/mainboard/novacustom/mtl-h/variants/dgpu/overridetree.cb b/src/mainboard/novacustom/mtl-h/variants/dgpu/overridetree.cb
+index 73edf9c3ea8..d5d61b196a1 100644
+--- a/src/mainboard/novacustom/mtl-h/variants/dgpu/overridetree.cb
++++ b/src/mainboard/novacustom/mtl-h/variants/dgpu/overridetree.cb
+@@ -11,6 +11,10 @@ chip soc/intel/meteorlake
+ 	# MTL SOC has additional setting for PsysPmax
+ 	register "psys_pmax_watts" = "180"
+ 
++	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
++	register "enable_energy_perf_pref" = "true"
++	register "energy_perf_pref_value" = "0x73"
++
+ 	device domain 0 on
+ 		subsystemid 0x1558 0xa741 inherit
+ 		device ref pcie_rp12 on # PEG
+diff --git a/src/mainboard/novacustom/mtl-h/variants/igpu/overridetree.cb b/src/mainboard/novacustom/mtl-h/variants/igpu/overridetree.cb
+index 3745a68df56..b7a71b2e1df 100644
+--- a/src/mainboard/novacustom/mtl-h/variants/igpu/overridetree.cb
++++ b/src/mainboard/novacustom/mtl-h/variants/igpu/overridetree.cb
+@@ -11,6 +11,10 @@ chip soc/intel/meteorlake
+ 	# MTL SOC has additional setting for PsysPmax
+ 	register "psys_pmax_watts" = "99"
+ 
++	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
++	register "enable_energy_perf_pref" = "true"
++	register "energy_perf_pref_value" = "0x73"
++
+ 	device domain 0 on
+ 		subsystemid 0x1558 0xa743 inherit
+ 		device ref igpu on

@@ -22,12 +22,14 @@
       deps = with pkgs; [
         # Core build utilities
         autoconf
+        avrdude  # Dasharo EC build
         automake
         bashInteractive
         coreutils #basic tools like ls, cp, mv, kill)
         bc
         bison # Generate flashmap descriptor parser
         bzip2
+        cargo # Dasharo EC build
         cacert
         ccache
         coreboot-utils #consumed by diffoscope for ifdtool cbfsutils etc
@@ -59,10 +61,13 @@
         patch
         perl
         pkg-config
+        pkgsCross.avr.buildPackages.gcc # Dasharo EC build
+        pkgsCross.avr.libcCross # Dasharo EC build
         procps #process tools like free, pidof, pkill, top, vmstat, watch, etc
         psmisc #process tools like killall, pstree, etc
         python3 # me_cleaner, coreboot
         rsync # coreboot
+        sdcc  # Dasharo EC build
         sharutils
         texinfo
         unzip
