@@ -93,7 +93,7 @@ display_block_device_size() {
 	local block_dev disk_size_bytes
 	block_dev="$1"
 
-	# Obtain size of thumb drive to be wiped with fdisk
+	# Obtain size of the selected block device in bytes
 	if ! disk_size_bytes="$(blockdev --getsize64 "$block_dev")"; then
 		exit 1
 	fi
@@ -178,6 +178,9 @@ show_system_info() {
 	cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
 	kernel=$(uname -s -r)
 
+	# Get disk information using the shared sysfs helper from functions
+	local disk_info="$(disk_info_sysfs)"
+
 	local ec_ver_line=""
 	[ -n "$EC_VER" ] && ec_ver_line="
 	EC_VER: ${EC_VER}"
@@ -191,8 +194,7 @@ show_system_info() {
 	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
 	RAM: ${memtotal} GB
 	$battery_status
-	$(fdisk -l 2>/dev/null | grep -e '/dev/sd.:' -e '/dev/nvme.*:' | sed 's/B,.*/B/')
-	"
+	${disk_info}"
 
 	local msgbox_rm_tabs=$(echo "$msgbox" | tr -d "\t")
 

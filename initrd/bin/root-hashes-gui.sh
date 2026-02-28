@@ -164,21 +164,29 @@ check_root_checksums() {
 open_block_device_lvm() {
   TRACE_FUNC
   local VG="$1"
+  local LV
+  local MAPPER_VG
 
   if ! lvm vgchange -ay "$VG"; then
     DEBUG "Can't open LVM VG: $VG"
     return 1
   fi
 
-  # Use the LV 'root'.  This is the default name used by Qubes.  There's no
-  # way to configure this at the moment.
-  if ! [ -e "/dev/mapper/$VG-root" ]; then
+  # Use the LV 'root'.  This is the default name used by Qubes.  Try both the
+  # canonical /dev/<vg>/<lv> path and mapper path (with dash escaping).
+  LV="/dev/$VG/root"
+  if ! [ -e "$LV" ]; then
+    MAPPER_VG="${VG//-/--}"
+    LV="/dev/mapper/$MAPPER_VG-root"
+  fi
+
+  if ! [ -e "$LV" ]; then
     DEBUG "LVM volume group does not have 'root' logical volume"
     return 1
   fi
 
   # Use the root LV now
-  open_block_device_layers "/dev/mapper/$VG-root"
+  open_block_device_layers "$LV"
 }
 
 # Open a LUKS device, then continue looking for more layers.
@@ -269,9 +277,16 @@ open_root_device_no_clean_up() {
 close_block_device_lvm() {
   TRACE_FUNC
   local VG="$1"
+  local LV
+  local MAPPER_VG
 
-  # We always use the LV 'root' currently
-  local LV="/dev/mapper/$VG-root"
+  # We always use the LV 'root' currently.  Try canonical and mapper paths.
+  LV="/dev/$VG/root"
+  if ! [ -e "$LV" ]; then
+    MAPPER_VG="${VG//-/--}"
+    LV="/dev/mapper/$MAPPER_VG-root"
+  fi
+
   if [ -e "$LV" ]; then
     close_block_device_layers "$LV"
   fi
@@ -367,7 +382,7 @@ detect_root_device()
   fi
 
   # generate list of possible boot devices
-  fdisk -l 2>/dev/null | grep "Disk /dev/" | cut -f2 -d " " | cut -f1 -d ":" > /tmp/disklist
+  list_block_devices > /tmp/disklist
 
   # filter out extraneous options
   > /tmp_root_device_list
