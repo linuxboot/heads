@@ -174,9 +174,38 @@ generate_totp_hotp() {
 		# clear screen
 		printf "\033c"
 	else
-		warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed"
-		warn 'Try "Generate new HOTP/TOTP secret" option if you updated firmware content'
+		# seal-totp already printed an explanatory error (e.g. missing
+		# primary handle) and guided the user to reset the TPM.  Don't add
+		# confusing generic warnings here, just propagate failure.
+		return 1
 	fi
+}
+
+prompt_missing_gpg_key_action() {
+	TRACE_FUNC
+	whiptail_error --title "ERROR: GPG keyring empty!" \
+		--menu "Cannot continue TPM disk-key reseal because no GPG key is available.\n\nHow would you like to proceed?" 0 80 4 \
+		'g' ' Add a GPG key to the running BIOS' \
+		'F' ' OEM Factory Reset / Re-Ownership' \
+		'm' ' Return to main menu' \
+		'x' ' Exit to recovery shell' \
+		2>/tmp/whiptail || recovery "GUI menu failed"
+
+	option=$(cat /tmp/whiptail)
+	case "$option" in
+	g)
+		gpg-gui.sh && BG_COLOR_MAIN_MENU="normal"
+		;;
+	F)
+		oem-factory-reset
+		;;
+	x)
+		recovery "User requested recovery shell"
+		;;
+	m | *)
+		return 1
+		;;
+	esac
 }
 
 update_totp() {
@@ -218,7 +247,9 @@ update_totp() {
 			g)
 				if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 					--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-					generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+					if generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+						reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+					fi
 				fi
 				;;
 			i)
@@ -226,7 +257,9 @@ update_totp() {
 				return 1
 				;;
 			p)
-				reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+				if reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
 				;;
 			x)
 				recovery "User requested recovery shell"
@@ -290,7 +323,9 @@ update_hotp() {
 		g)
 			if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-				generate_totp_hotp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+				if generate_totp_hotp && BG_COLOR_MAIN_MENU="normal"; then
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
 			fi
 			;;
 		i)
@@ -510,10 +545,14 @@ show_tpm_totp_hotp_options_menu() {
 	option=$(cat /tmp/whiptail)
 	case "$option" in
 	g)
-		generate_totp_hotp && reseal_tpm_disk_decryption_key
+		if generate_totp_hotp; then
+			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+		fi
 		;;
 	r)
-		reset_tpm && reseal_tpm_disk_decryption_key
+		if reset_tpm; then
+			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+		fi
 		;;
 	t)
 		prompt_totp_mismatch
@@ -566,7 +605,7 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			increment_tpm_counter $TPM_COUNTER>/dev/null 2>&1 ||
+			increment_tpm_counter $TPM_COUNTER ||
 				die "Unable to increment tpm counter"
 
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
@@ -574,7 +613,10 @@ reset_tpm() {
 
 			TRACE_FUNC
 			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it
-			if (whiptail --title 'TPM Reset Successfully' \
+			GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
+			if [ "$GPG_KEY_COUNT" -eq 0 ]; then
+				prompt_missing_gpg_key_action
+			elif (whiptail --title 'TPM Reset Successfully' \
 				--yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80); then
 				if ! update_checksums; then
 					whiptail_error --title 'ERROR' \
@@ -658,15 +700,76 @@ else
 	mount_boot
 fi
 
-# detect whether any GPG keys exist in the keyring, if not, initialize that first
-check_gpg_key
-# Even if GPG init fails, still try to update TOTP/HOTP so the main menu can
-# show the correct status.
-update_totp
-update_hotp
+# Fail early on rollback-counter inconsistencies before presenting TOTP/HOTP
+# recovery prompts. This avoids guiding users into reseal flows when TPM
+# rollback state is already invalid.
+rollback_preflight_failed="n"
+if ! preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+	rollback_preflight_failed="y"
+	BG_COLOR_MAIN_MENU="error"
+	preflight_error_msg="$(cat /tmp/rollback_preflight_error 2>/dev/null)"
+	if [ -z "$preflight_error_msg" ]; then
+		preflight_error_msg="TPM rollback counter state could not be validated."
+	fi
+	[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
 
-if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
-	prompt_auto_default_boot
+	# Keep the on-screen text concise and user-focused; full raw reason stays in DEBUG logs.
+	preflight_reason="Stored TPM rollback state is invalid for this system."
+	if echo "$preflight_error_msg" | grep -qi "cannot be read"; then
+		preflight_reason="Stored TPM rollback metadata cannot be read."
+	elif echo "$preflight_error_msg" | grep -qi "empty\|no writable\|ownerwrite-only"; then
+		preflight_reason="Stored TPM rollback metadata does not match current TPM state."
+	fi
+
+	preflight_menu_text="Cannot verify TPM rollback protection.\n\n$preflight_reason\n\nPossible causes:\n - TPM was reset or replaced\n - /boot disk was swapped or restored\n - TPM state tampering occurred\n\nRecommended first step:\n - Show integrity report (TOTP/HOTP + /boot)\n\nChoose an action:"
+	while [ "$rollback_preflight_failed" = "y" ]; do
+		whiptail_error --title 'ERROR: TPM State Inconsistent' \
+			--menu "$preflight_menu_text" 22 80 4 \
+			'i' ' Show integrity report -->' \
+			'o' ' OEM Factory Reset / Re-Ownership -->' \
+			't' ' Reset the TPM' \
+			'm' ' Continue to main menu' \
+			2>/tmp/whiptail || recovery "GUI menu failed"
+
+		option=$(cat /tmp/whiptail)
+		case "$option" in
+		i)
+			report_integrity_measurements
+			;;
+		o)
+			oem-factory-reset
+			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
+			;;
+		t)
+			if reset_tpm && preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
+			;;
+		m | *)
+			break
+			;;
+		esac
+		if [ "$rollback_preflight_failed" = "y" ]; then
+			preflight_error_msg="$(cat /tmp/rollback_preflight_error 2>/dev/null)"
+			[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
+		fi
+	done
+fi
+
+# detect whether any GPG keys exist in the keyring, if not, initialize that first
+if [ "$rollback_preflight_failed" != "y" ]; then
+	check_gpg_key
+	# Even if GPG init fails, still try to update TOTP/HOTP so the main menu can
+	# show the correct status.
+	update_totp &&	update_hotp
+
+	if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+		prompt_auto_default_boot
+	fi
 fi
 
 while true; do

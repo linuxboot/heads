@@ -8,9 +8,30 @@ TOTP_SECRET="/tmp/secret/totp.key"
 TRACE_FUNC
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	DO_WITH_DEBUG --mask-position 5 \
-		tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET" ||
-			die "Unable to unseal TOTP secret from TPM"
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		# if we are talking to TPM2, ensure the primary handle exists; TPM1
+		# does not have the concept, so skip the check.
+		if [ ! -f "/tmp/secret/primary.handle" ]; then
+			die "Unable to unseal TOTP secret from TPM; no TPM primary handle. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI)."
+		fi
+		# show unseal invocation; there is no secret argument to mask
+		if ! DO_WITH_DEBUG \
+			tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET"; then
+			# If unseal failed but a primary handle exists, this is usually a
+			# policy/object mismatch and resealing is the appropriate recovery.
+			die "Unable to unseal TOTP secret from TPM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
+		fi
+	else
+		# TPM1 path: after reset/re-ownership, unseal failures here are best
+		# handled by resealing the secret from the GUI flow.
+		if ! DO_WITH_DEBUG tpmr unseal 4d47 0,1,2,3,4,7 312 "$TOTP_SECRET"; then
+			die "Unable to unseal TOTP secret from TPM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
+		fi
+	fi
+fi
+
+if [ ! -s "$TOTP_SECRET" ]; then
+	die "Unable to unseal TOTP secret from TPM; secret file $TOTP_SECRET is missing or empty. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
 fi
 
 if ! DO_WITH_DEBUG totp -q <"$TOTP_SECRET"; then

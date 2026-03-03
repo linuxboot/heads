@@ -734,7 +734,7 @@ generate_checksums() {
 			if [ -s /tmp/counter-$TPM_COUNTER ]; then
 
 				# increment TPM counter
-				increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
+				increment_tpm_counter $TPM_COUNTER ||
 					whiptail_error_die "Unable to increment tpm counter"
 
 				# create rollback file
@@ -850,76 +850,6 @@ set_default_boot_option() {
 	(cd /boot && /bin/kexec-boot -b "/boot" -e "$entry" -f |
 		xargs sha256sum >$hash_file 2>/dev/null) ||
 		whiptail_error_die "Failed to create hashes of boot files"
-
-	TRACE_FUNC
-}
-
-report_integrity_measurements() {
-	TRACE_FUNC
-
-	#check for GPG key in keyring
-	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
-	if [ "$GPG_KEY_COUNT" -ne 0 ]; then
-		# Check and report TOTP
-		# update the TOTP code every thirty seconds
-		date=$(date "+%Y-%m-%d %H:%M:%S %Z")
-		seconds=$(date "+%s")
-		half=$(expr \( "$seconds" % 60 \) / 30)
-		if [ "$CONFIG_TPM" != "y" ]; then
-			TOTP="NO TPM"
-		elif [ "$half" != "$last_half" ]; then
-			last_half=$half
-			TOTP=$(unseal-totp) >/dev/null 2>&1
-		fi
-
-		# Check and report on HOTP status
-		if [ -x /bin/hotp_verification ]; then
-			HOTP="Unverified"
-			enable_usb
-			for attempt in 1 2 3; do
-				if ! hotp_verification info >/dev/null 2>&1; then
-					whiptail_warning --title "WARNING: Please insert your HOTP enabled USB Security dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security dongle was not detected.\n\nPlease remove it and insert it again." 0 80
-				else
-					break
-				fi
-			done
-
-			if [ $attempt -eq 3 ]; then
-				die "No HOTP enabled USB Security dongle detected. Please disable 'CONFIG_HOTPKEY' in the board config and rebuild."
-			fi
-
-			# Don't output HOTP codes to screen, so as to make replay attacks harder
-			HOTP=$(unseal-hotp) >/dev/null 2>&1
-			hotp_verification check $HOTP
-			case "$?" in
-			0)
-				HOTP="Success"
-				;;
-			4)
-				HOTP="Invalid code"
-				BG_COLOR_MAIN_MENU="error"
-				;;
-			*)
-				HOTP="Error checking code, Insert USB Security dongle and retry"
-				BG_COLOR_MAIN_MENU="warning"
-				;;
-			esac
-		else
-			HOTP='N/A'
-		fi
-		# Check for detached signed digest and report on /boot integrity status
-		check_config /boot force
-		TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
-
-		if (cd /boot && sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output); then
-			HASH="OK"
-		else
-			HASH="ALTERED"
-		fi
-
-		#Show results
-		whiptail_type $BG_COLOR_MAIN_MENU --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
-	fi
 
 	TRACE_FUNC
 }

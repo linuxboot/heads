@@ -69,7 +69,10 @@ attempts=0
 
 # Ask for the DRK passphrase first, before testing any devices
 while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
-	read -r -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"': ' disk_recovery_key_passphrase
+	if [ $attempts -eq 0 ]; then
+		echo
+	fi
+	read -r -s -p "Enter LUKS Disk Recovery Key (DRK) passphrase that can unlock $key_devices: " disk_recovery_key_passphrase
 	echo
 	echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 
@@ -103,15 +106,19 @@ done
 MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
-	read -r -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters): ' key_password
-	echo
+	if [ $attempts -eq 0 ]; then
+		echo
+	fi
+	read -r -s -p "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum $MIN_PASSPHRASE_LENGTH characters): " key_password
 	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
+		echo
 		attempts=$((attempts + 1))
 		warn "Disk Unlock Key (DUK) passphrase is too short. Please try again."
 		continue
 	fi
 
-	read -r -s -p $'\nRepeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: ' key_password2
+	echo
+	read -r -s -p "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: " key_password2
 	echo
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))

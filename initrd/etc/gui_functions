@@ -203,6 +203,57 @@ show_system_info() {
 		--msgbox "$msgbox_rm_tabs" 0 80
 }
 
+# Show measured integrity report including TOTP/HOTP status and /boot integrity.
+report_integrity_measurements() {
+	TRACE_FUNC
+	local date_now hash_state msg totp_state hotp_state
+	local report_body
+
+	date_now=$(date "+%Y-%m-%d %H:%M:%S %Z")
+	totp_state="N/A"
+	hotp_state="N/A"
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		totp_state="UNAVAILABLE"
+		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
+			if tpmr unseal 4d47 0,1,2,3,4,7 312 /tmp/integrity_totp_key >/dev/null 2>&1; then
+				truncate_max_bytes 20 /tmp/integrity_totp_key >/dev/null 2>&1
+				if totp </tmp/integrity_totp_key >/tmp/integrity_totp 2>/dev/null; then
+					totp_state="$(cat /tmp/integrity_totp 2>/dev/null)"
+				else
+					totp_state="ERROR"
+				fi
+			fi
+		fi
+		shred -n 10 -z -u /tmp/integrity_totp_key /tmp/integrity_totp 2>/dev/null
+	fi
+
+	if [ -x /bin/hotp_verification ]; then
+		hotp_state="TOKEN MISSING"
+		enable_usb
+		if hotp_verification info >/dev/null 2>&1; then
+			hotp_state="TOKEN PRESENT"
+		fi
+	fi
+
+	# Force-load current signed config references, then verify /boot checksums.
+	check_config /boot force
+	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
+
+	if [ -r "$TMP_HASH_FILE" ] && [ -r "$TMP_TREE_FILE" ] && verify_checksums /boot n; then
+		hash_state="OK"
+	else
+		hash_state="ALTERED OR UNKNOWN"
+	fi
+
+	report_body="Date: $date_now\nTOTP: $totp_state\nHOTP: $hotp_state\n/BOOT INTEGRITY: $hash_state\n\nIf integrity is not OK, investigate before TPM reset or re-ownership."
+	msg="Measured Integrity Report\n\n$(printf '%b' "$report_body" | fold -s -w 76)"
+
+	whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+		--msgbox "$msg" 0 80
+}
+
 # Get "Enable" or "Disable" to display in the configuration menu, based on a
 # setting value
 get_config_display_action() {

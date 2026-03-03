@@ -94,13 +94,14 @@ if [ "$rollback" = "y" ]; then
 
 	# Increment the TPM counter
 	DEBUG "rollback=y: Incrementing counter $TPM_COUNTER."
-	increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
+	increment_tpm_counter $TPM_COUNTER ||
 		die "$paramsdir: Unable to increment tpm counter"
 
 	# Ensure the incremented counter file exists
 	incremented_counter_file="/tmp/counter-$TPM_COUNTER"
 	if [ ! -e "$incremented_counter_file" ]; then
 		DEBUG "TPM counter file '$incremented_counter_file' not found. Attempting to read it again."
+		# read_tpm_counter doesn't prompt; silence its normal output if called in DEBUG context
 		DO_WITH_DEBUG read_tpm_counter "$TPM_COUNTER" >/dev/null 2>&1 ||
 			die "$paramsdir: TPM counter file '$incremented_counter_file' not found after incrementing."
 	fi
@@ -118,11 +119,25 @@ if [ -z "$param_files" ]; then
 	die "$paramsdir: No kexec parameter files to sign"
 fi
 
+# before we even attempt to sign, make sure there is at least one public
+# key available so the user gets a clear error instead of a mysterious gpg
+# failure.  (The GUI path offers "Options -> Add a GPG key" for this.)
+if [ "$(gpg -k 2>/dev/null | wc -l)" -eq 0 ]; then
+	# Provide guidance using the exact menu wording.  Users may also choose
+	# to perform an OEM Factory Reset / Re-Ownership which will create a
+	# fresh keyring.
+	die "$paramsdir: no public GPG keys in keyring; add one (Options -> Add a GPG key) or perform OEM Factory Reset / Re-Ownership and try again."
+fi
+
 for tries in 1 2 3; do
 	confirm_gpg_card
 	TRACE_FUNC
 
-	if DO_WITH_DEBUG sha256sum $param_files | gpg --detach-sign -a >$paramsdir/kexec.sig; then
+	# Run the signing command without DO_WITH_DEBUG so that any gpg errors
+	# print directly to the console.  We still capture stderr to the debug log
+	# (via tee) for later analysis.
+	if sha256sum $param_files | \
+		gpg --detach-sign -a 2>&1 | tee /tmp/kexec-sign.log >$paramsdir/kexec.sig; then
 		# successful - update the validated params
 		check_config $paramsdir
 

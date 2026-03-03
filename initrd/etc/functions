@@ -323,9 +323,6 @@ gpg_auth() {
 
 recovery() {
 	TRACE_FUNC
-	echo >&2 "!!!!! $*"
-
-	# Remove any temporary secret files that might be hanging around
 	# but recreate the directory so that new tools can use it.
 
 	#safe to always be true. Otherwise "set -e" would make it exit here
@@ -366,8 +363,14 @@ recovery() {
 			#User can enable DEBUG_OUTPUT=y and TRACE_FUNCTION_TRACING_OUTPUT=y from Configuration Options
 			NOTE "If you want to file a bug, please enable Debug mode through 'Options --> Change configuration settings > Configure Heads informational'"
 		fi
+		# display any custom recovery message just before the banner
+		if [ -n "$*" ]; then
+			printf '\n!!!!! %s\n\n' "$*" >&2
+		fi
 		echo >&2 "!!!!! Starting recovery shell"
 
+		# ensure user starts in /boot for convenience
+		cd /boot || true
 		if [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/bash
 		else
@@ -765,6 +768,20 @@ confirm_totp() {
 
 reseal_tpm_disk_decryption_key() {
 	TRACE_FUNC
+	local GPG_KEY_COUNT
+	# Resealing disk-unlock material eventually requires signing /boot updates;
+	# do not proceed if keyring is empty.
+	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
+	if [ "$GPG_KEY_COUNT" -eq 0 ]; then
+		DEBUG "Skipping TPM disk-key reseal: GPG keyring is empty (caller handles user guidance)"
+		return 1
+	fi
+
+	# only relevant for TPM2; TPM1 has no primary handle concept
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ ! -f "/tmp/secret/primary.handle" ]; then
+		warn "Cannot reseal TPM disk decryption key; no TPM primary handle. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to reset the TPM first."
+		return 1
+	fi
 	#For robustness, exit early if LUKS TPM Disk Unlock Key is prohibited in board configs
 	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
 		DEBUG "LUKS TPM Disk Unlock Key is prohibited in board configs"
@@ -779,10 +796,11 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+		preflight_rollback_counter_before_reseal
 		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
 		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
 		while ! kexec-seal-key /boot; do
-			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
+			die "Failed to reseal LUKS TPM Disk Unlock Key. Recovery Disk Encryption passphrase or TPM Owner Password is likely invalid. Retry from GUI: Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret."
 		done
 		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
@@ -998,17 +1016,122 @@ check_tpm_counter() {
 			warn "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
 		fi
 
+		# attempt to make a new counter, capturing any stderr for debugging
+		DEBUG "Invoking tpmr counter_create with label $LABEL"
+		# run it, then record the exit status explicitly; the '!' operator
+		# cannot be used because it would hide the real return code.
 		tpmr counter_create \
-			-pwdc '' \
-			-la $LABEL |
-			tee /tmp/counter >/dev/null 2>&1 ||
-			die "Unable to create TPM counter"
+			-pwdc "${tpm_password:-}" \
+			-la $LABEL \
+			> /tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
+		local rc=$?
+		if [ $rc -ne 0 ]; then
+			DEBUG "tpmr counter_create failed with status $rc"
+			# don't tell the user to reset again; the TPM was just reset
+			die "Unable to create TPM counter; TPM appears to be in a bad state. Perform OEM Factory Reset / re-ownership and try again."
+		fi
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
 		DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
 	fi
 
 	if [ -z "$TPM_COUNTER" ]; then
 		die "No TPM counter could be found or created."
+	fi
+}
+
+# Return the numeric value of the rollback counter stored in the given file
+# (typically /boot/kexec_rollback.txt).  Returns an empty string if the file
+# doesn't exist or doesn't contain a counter entry.
+get_rollback_counter_id() {
+	TRACE_FUNC
+	local rollback_file="$1"
+	if [ -r "$rollback_file" ]; then
+		grep -Eo 'counter-[0-9a-fA-F]+' "$rollback_file" | sed -n 's/counter-//p' | head -n1 | tr -d '\n'
+	fi
+}
+
+# Test whether the current TPM rollback counter (the one referenced by
+# /boot/kexec_rollback.txt) can still be read.  Exit 0 if the counter can be
+# read, non-zero otherwise.  This can be used to decide whether the TPM needs a
+# full reset instead of merely resealing secrets.
+counter_readable() {
+	TRACE_FUNC
+	# rely on colon-free output in case caller wraps in DO_WITH_DEBUG
+	local id
+	id=$(get_rollback_counter_id /boot/kexec_rollback.txt)
+	if [ -n "$id" ]; then
+		if tpmr counter_read -ix "$id" >/dev/null 2>&1; then
+			return 0
+		fi
+	fi
+	return 1
+}
+
+# Validate rollback counter state before expensive operations.
+# This is a non-mutating preflight intended to fail early when the configured
+# rollback counter is clearly unusable.
+# Parameters:
+#   $1 optional rollback file path (default: /boot/kexec_rollback.txt)
+#   $2 optional explicit counter id override
+#   $3 optional on-error mode: 'die' (default) or 'return'
+preflight_rollback_counter_before_reseal() {
+	TRACE_FUNC
+	local rollback_file counter_id attrs_lc on_error error_file
+	rollback_file="${1:-/boot/kexec_rollback.txt}"
+	counter_id="$2"
+	on_error="${3:-die}"
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
+	error_file="/tmp/rollback_preflight_error"
+
+	fail_preflight() {
+		local message="$1"
+		mkdir -p /tmp/secret || true
+		: >"$reset_required_marker"
+		if [ "$on_error" = "return" ]; then
+			echo "$message" >"$error_file"
+			return 1
+		fi
+		die "$message"
+	}
+
+	if [ "$CONFIG_TPM" != "y" ] || [ "$CONFIG_IGNORE_ROLLBACK" = "y" ]; then
+		DEBUG "Skipping rollback counter preflight: rollback checks are disabled"
+		return 0
+	fi
+
+	if [ -z "$counter_id" ]; then
+		counter_id="$(get_rollback_counter_id "$rollback_file")"
+	fi
+	if [ -z "$counter_id" ]; then
+		DEBUG "Skipping rollback counter preflight: no counter id in $rollback_file"
+		return 0
+	fi
+
+	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
+	if ! tpmr counter_read -ix "$counter_id" >/dev/null 2>&1; then
+		fail_preflight "TPM rollback counter '$counter_id' cannot be read. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		return 1
+	fi
+
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		if attrs_lc="$(tpm2 nvreadpublic "0x$counter_id" 2>/dev/null | tr '[:upper:]' '[:lower:]')"; then
+			if [ -n "$attrs_lc" ]; then
+			if echo "$attrs_lc" | grep -q "ownerwrite" && ! echo "$attrs_lc" | grep -q "authwrite"; then
+				fail_preflight "TPM rollback counter '$counter_id' uses ownerwrite-only policy, which does not match Heads rollback increment path. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+				return 1
+			fi
+			if ! echo "$attrs_lc" | grep -Eq "authwrite|ownerwrite"; then
+				fail_preflight "TPM rollback counter '$counter_id' has no writable attribute. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+				return 1
+			fi
+			else
+				fail_preflight "TPM rollback counter '$counter_id' attributes are empty. TPM state is inconsistent. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+				return 1
+			fi
+		else
+			fail_preflight "TPM rollback counter '$counter_id' attributes cannot be read. TPM state is inconsistent. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+			return 1
+		fi
 	fi
 }
 
@@ -1027,30 +1150,54 @@ read_tpm_counter() {
 
 increment_tpm_counter() {
 	TRACE_FUNC
-	local counter_id
+	local counter_id counter_present
 	counter_id="$(echo "$1" | tr -d '\n')"
+	counter_present="n"
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
 	
 	# Check if counter exists by reading it first
-	if ! DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
+	DEBUG "reading TPM counter $counter_id"
+	if ! tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
 		DEBUG "TPM counter $counter_id could not be read before incrementing"
 		# Continue with increment attempt anyway to get detailed error messages
 	else
 		DEBUG "TPM counter $counter_id exists and was read successfully"
+		counter_present="y"
 	fi
 
-	# Try to increment the counter
-	if ! DO_WITH_DEBUG tpmr counter_increment -ix "$counter_id" -pwdc '' |
-		tee /tmp/counter-"$counter_id" >/dev/null 2>&1; then
+	# Try to increment the counter.  We normally hide the verbose
+	# output of tpmr commands to avoid overwhelming the console, but we
+	# must *not* swallow any interactive prompts.  The previous implementation
+	# redirected the entire `tpmr counter_create` invocation to a file and
+	# /dev/null, which meant that when the counter was missing the password
+	# prompt could not be seen by the user even though tpmr printed it to the
+	# controlling terminal.  Instead, capture just the stdout in a temporary
+	# file while still letting stdout appear on the console (and logging
+	# stderr to debug log).
+	DEBUG "incrementing TPM counter $counter_id"
+	# suppress stdout from tpmr to avoid spamming the screen; keep a copy
+	if ! (set -o pipefail; tpmr counter_increment -ix "$counter_id" -pwdc '' \
+		2> >(SINK_LOG "tpm counter_increment stderr") \
+		| tee /tmp/counter-"$counter_id" >/dev/null); then
+		if [ "$counter_present" = "y" ]; then
+			mkdir -p /tmp/secret || true
+			: >"$reset_required_marker"
+			die "TPM rollback counter '$counter_id' is readable but not incrementable. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		fi
 		
 		# Check if we need to create a new counter
 		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
 		
-		if DO_WITH_DEBUG tpmr counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+		# run counter_create but tee its stdout to a file so we still see
+		# the interactive prompt and any informational messages.
+		if (set -o pipefail; tpmr counter_create -pwdc '' -la 3135106223 \
+			2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) \
+			| tee /tmp/new-counter >/dev/null); then
 			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
-			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
+			DEBUG "Created new TPM counter: $NEW_COUNTER. (counter won't be usable without reset)"
 		fi
 		
-		die "TPM counter increment failed for rollback prevention. Please reset the TPM or update kexec_rollback.txt with a new counter."
+		die "TPM counter increment failed for rollback prevention. Reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to clear the counter and allow a fresh one to be created."
 	fi
 	
 	DEBUG "TPM counter incremented successfully for index $counter_id"
@@ -1139,6 +1286,7 @@ secret_from_rom_hash() {
 # Update the checksums of the files in /boot and sign them
 update_checksums() {
 	TRACE_FUNC
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts; then
 		mount -o ro /boot ||
@@ -1156,7 +1304,14 @@ update_checksums() {
 			extparam=-r
 		fi
 	fi
-	if ! DO_WITH_DEBUG kexec-sign-config -p /boot -u $extparam; then
+	# signing may prompt for TPM password; avoid DO_WITH_DEBUG which
+	# severs the controlling tty for the child process.
+	DEBUG "running kexec-sign-config -p /boot -u $extparam"
+	rm -f "$reset_required_marker"
+	if ! kexec-sign-config -p /boot -u $extparam; then
+		if [ -e "$reset_required_marker" ]; then
+			die "TPM rollback counter state is invalid for secure rollback protection. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		fi
 		rv=1
 	else
 		rv=0
