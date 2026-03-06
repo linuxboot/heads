@@ -1,9 +1,15 @@
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
+
+
+
 #
 # u-root go runtime
 #
 # This is not a normal Heads module, since it builds all of its
 # own dependencies.
 #
+
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio
 UROOT_CMDS ?=

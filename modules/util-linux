@@ -1,5 +1,12 @@
 modules-$(CONFIG_UTIL_LINUX) += util-linux
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
+
 util-linux_version := 2.39
 util-linux_dir := util-linux-$(util-linux_version)
 util-linux_tar := util-linux-$(util-linux_version).tar.xz
@@ -8,7 +15,7 @@ util-linux_hash := 32b30a336cda903182ed61feb3e9b908b762a5e66fe14e43efb88d3716207
 
 util-linux_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \
