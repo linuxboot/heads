@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# maintain a cross-script trace stack.  When a script sources /etc/functions
+# this appends the script name/line to TRACE_STACK; the variable is exported so
+# it survives into children invoked with exec.  TRACE_FUNC will prepend this
+# stack to the normal function call stack, giving a full picture from init to
+# the current point (even across multiple scripts).
+# Only add the current script once to avoid repetition when the same script
+# sources this file multiple times or invokes TRACE_FUNC repeatedly.
+case "${TRACE_STACK}" in
+*"main($0:"*)
+	;;
+*)
+	TRACE_STACK="${TRACE_STACK:+$TRACE_STACK -> }main($0:0)"
+	export TRACE_STACK
+	;;
+esac
+
 # ------- Start of functions coming from /etc/ash_functions
 
 die() {
@@ -680,8 +696,12 @@ TRACE_FUNC() {
 	# Append the direct caller (without extra " -> " at the end)
 	stack_trace+="${FUNCNAME[1]}(${BASH_SOURCE[1]}:${BASH_LINENO[0]})"
 
-	# Print the final trace output
-	TRACE "${stack_trace}"
+	# Print the final trace output, including any inherited script-level stack
+	if [ -n "$TRACE_STACK" ]; then
+		TRACE "$TRACE_STACK -> $stack_trace"
+	else
+		TRACE "${stack_trace}"
+	fi
 }
 
 # Show the entire current call stack in debug output - useful if a catastrophic
