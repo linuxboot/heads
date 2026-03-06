@@ -799,9 +799,9 @@ reseal_tpm_disk_decryption_key() {
 		preflight_rollback_counter_before_reseal
 		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
 		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
-		while ! kexec-seal-key /boot; do
-			die "Failed to reseal LUKS TPM Disk Unlock Key. Recovery Disk Encryption passphrase or TPM Owner Password is likely invalid. Retry from GUI: Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret."
-		done
+		if ! kexec-seal-key /boot; then
+			die "Failed to reseal LUKS TPM Disk Unlock Key. See preceding errors from kexec-seal-key for validation/retry outcome."
+		fi
 		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
 		echo "Updating checksums and signing all files under /boot/kexec.sig"
 		attempt=1

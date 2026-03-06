@@ -15,6 +15,7 @@ export BG_COLOR_MAIN_MENU="normal"
 # reset when we reach the main menu so the user can retry from the main menu and
 # # see errors again.
 skip_to_menu="false"
+INTEGRITY_GATE_REQUIRED="n"
 
 mount_boot() {
 	TRACE_FUNC
@@ -115,23 +116,44 @@ verify_global_hashes() {
 				less /tmp/hash_output_mismatches
 				#move outdated hash mismatch list
 				mv /tmp/hash_output_mismatches /tmp/hash_output_mismatch_old
-				TEXT="Would you like to update your checksums now?"
+				TEXT="${CHANGED_FILES_COUNT} files failed the verification process.\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
 			else
-				TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+				TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
 			fi
 		fi
 
-		if (whiptail_error --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80); then
-			if update_checksums; then
-				BG_COLOR_MAIN_MENU="normal"
-				return 0
-			else
-				whiptail_error --title 'ERROR' \
-					--msgbox "Failed to update checksums / sign default config" 0 80
-			fi
-		fi
-		BG_COLOR_MAIN_MENU="error"
-		return 1
+		while true; do
+			TRACE_FUNC
+			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
+				--menu "$TEXT\n\nChoose an action:" 0 80 8 \
+				'i' ' Investigate discrepancies -->' \
+				'u' ' Update checksums now' \
+				'm' ' Return to main menu' \
+				2>/tmp/whiptail || {
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+			}
+
+			option=$(cat /tmp/whiptail)
+			case "$option" in
+			i)
+				investigate_integrity_discrepancies
+				;;
+			u)
+				if update_checksums; then
+					BG_COLOR_MAIN_MENU="normal"
+					return 0
+				else
+					whiptail_error --title 'ERROR' \
+						--msgbox "Failed to update checksums / sign default config" 0 80
+				fi
+				;;
+			m | *)
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+				;;
+			esac
+		done
 	fi
 }
 
@@ -144,6 +166,63 @@ prompt_update_checksums() {
 				--msgbox "Failed to update checksums / sign default config" 0 80
 		fi
 	fi
+}
+
+gate_reseal_with_integrity_report() {
+	TRACE_FUNC
+	local token_ok="y"
+
+	if [ "$INTEGRITY_GATE_REQUIRED" != "y" ]; then
+		DEBUG "Skipping integrity gate: no TOTP/HOTP failure context"
+		return 0
+	fi
+
+	INTEGRITY_REPORT_HASH_STATE="UNKNOWN"
+	report_integrity_measurements
+	local report_rc=$?
+	DEBUG "gate_reseal_with_integrity_report: report_integrity_measurements rc=$report_rc"
+	DEBUG "gate_reseal_with_integrity_report: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
+	if [ "$INTEGRITY_REPORT_HASH_STATE" != "OK" ]; then
+		DEBUG "returned from integrity report, now running investigation"
+		if ! investigate_integrity_discrepancies; then
+			DEBUG "investigation indicated problem, aborting gate"
+			return 1
+		fi
+
+		DEBUG "gate_reseal_with_integrity_report: about to verify detached signature"
+		DEBUG "ls -l /boot/kexec.sig: $(ls -l /boot/kexec.sig 2>/dev/null || echo missing)"
+		if ! detached_kexec_signature_valid /boot; then
+			DEBUG "detached_kexec_signature_valid failed"
+			whiptail_error --title 'ERROR: Signature Verification Failed' \
+				--msgbox "Cannot proceed with sealing new secrets because /boot/kexec.sig could not be verified with your current keyring.\n\nTreat /boot as untrusted and recover ownership first." 0 80
+			return 1
+		fi
+	else
+		DEBUG "gate_reseal_with_integrity_report: integrity is OK, skipping investigation and detached signature verification"
+	fi
+
+	if [ -x /bin/hotp_verification ]; then
+		token_ok="n"
+		while [ "$token_ok" != "y" ]; do
+			enable_usb
+			if hotp_verification info >/dev/null 2>&1; then
+				token_ok="y"
+				break
+			fi
+			if ! whiptail_warning --title "USB Security Dongle Required" \
+				--yes-button "Retry" --no-button "Abort" \
+				--yesno "Your USB security dongle must be present before sealing new secrets.\n\nInsert the dongle and choose Retry, or Abort." 0 80; then
+				return 1
+			fi
+		done
+	fi
+
+	if ! whiptail_warning --title 'Integrity Gate Passed' \
+		--yesno "Integrity checks completed.\n\nProceed with TOTP/HOTP reseal action?" 0 80; then
+		return 1
+	fi
+	INTEGRITY_GATE_REQUIRED="n"
+	return 0
 }
 
 generate_totp_hotp() {
@@ -216,16 +295,14 @@ update_totp() {
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
 	else
-		TOTP=$(unseal-totp)
+		TOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-totp)
 		if [ $? -ne 0 ]; then
+			INTEGRITY_GATE_REQUIRED="y"
 			BG_COLOR_MAIN_MENU="error"
 			if [ "$skip_to_menu" = "true" ]; then
 				return 1 # Already asked to skip to menu from a prior error
 			fi
 
-			DEBUG "CONFIG_TPM: $CONFIG_TPM"
-			DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
-			DEBUG "Show PCRs"
 			DEBUG "$(pcrs)"
 
 			whiptail_error --title "ERROR: TOTP Generation Failed!" \
@@ -245,7 +322,7 @@ update_totp() {
 			option=$(cat /tmp/whiptail)
 			case "$option" in
 			g)
-				if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+				if gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 					--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
 					if generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal"; then
 						reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
@@ -257,7 +334,7 @@ update_totp() {
 				return 1
 				;;
 			p)
-				if reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+				if gate_reseal_with_integrity_report && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 				;;
@@ -265,6 +342,8 @@ update_totp() {
 				recovery "User requested recovery shell"
 				;;
 			esac
+		else
+			INTEGRITY_GATE_REQUIRED="n"
 		fi
 	fi
 }
@@ -286,7 +365,7 @@ update_hotp() {
 				return
 			fi
 		fi
-		HOTP=$(unseal-hotp)
+		HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp)
 		# Don't output HOTP codes to screen, so as to make replay attacks harder
 		hotp_verification check "$HOTP"
 		case "$?" in
@@ -308,9 +387,7 @@ update_hotp() {
 	fi
 
 	if [[ "$HOTP" = "Invalid code" ]]; then
-		#Do not propose to generate a new secret if there is no /boot/kexec_hotp_counter
-		# tpm unseal succeeded: so the sealed secret is correct: we should propose to reset TPM if not already
-		#  Here: the OS was most probably reinstalled since TPM can still unseal the secret
+		INTEGRITY_GATE_REQUIRED="y"
 		whiptail_error --title "ERROR: HOTP Validation Failed!" \
 			--menu "ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
 			'g' ' Generate new TOTP/HOTP secret' \
@@ -321,9 +398,11 @@ update_hotp() {
 		option=$(cat /tmp/whiptail)
 		case "$option" in
 		g)
-			if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+			if gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-				if generate_totp_hotp && BG_COLOR_MAIN_MENU="normal"; then
+				if generate_totp_hotp; then
+					update_totp || true
+					BG_COLOR_MAIN_MENU="normal"
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 			fi
@@ -335,6 +414,8 @@ update_hotp() {
 			recovery "User requested recovery shell"
 			;;
 		esac
+	else
+		INTEGRITY_GATE_REQUIRED="n"
 	fi
 }
 
@@ -449,6 +530,7 @@ show_options_menu() {
 		--menu "" 0 80 10 \
 		'b' ' Boot Options -->' \
 		't' ' TPM/TOTP/HOTP Options -->' \
+		'i' ' Investigate integrity discrepancies -->' \
 		'h' ' Change system time' \
 		'u' ' Update checksums and sign all files in /boot' \
 		'c' ' Change configuration settings -->' \
@@ -469,6 +551,9 @@ show_options_menu() {
 		;;
 	t)
 		show_tpm_totp_hotp_options_menu
+		;;
+	i)
+		investigate_integrity_discrepancies
 		;;
 	h)
 		change-time.sh
@@ -545,12 +630,12 @@ show_tpm_totp_hotp_options_menu() {
 	option=$(cat /tmp/whiptail)
 	case "$option" in
 	g)
-		if generate_totp_hotp; then
+		if gate_reseal_with_integrity_report && generate_totp_hotp; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 		fi
 		;;
 	r)
-		if reset_tpm; then
+		if gate_reseal_with_integrity_report && reset_tpm; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 		fi
 		;;
@@ -616,19 +701,24 @@ reset_tpm() {
 			GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
 			if [ "$GPG_KEY_COUNT" -eq 0 ]; then
 				prompt_missing_gpg_key_action
-			elif (whiptail --title 'TPM Reset Successfully' \
-				--yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80); then
+			else
+				DEBUG "TPM reset successful: updating checksums/signatures without additional confirmation"
 				if ! update_checksums; then
 					whiptail_error --title 'ERROR' \
 						--msgbox "Failed to update checksums / sign default config" 0 80
+					return 1
 				fi
-			else
-				warn "TPM reset successful, but user chose not to update+sign /boot checksums. Rebooting"
-				reboot
 			fi
 			mount -o ro,remount /boot
 
-			generate_totp_hotp "$tpm_owner_password"
+			if ! generate_totp_hotp "$tpm_owner_password"; then
+				return 1
+			fi
+
+			if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+				DEBUG "TPM reset successful: auto-resealing TPM Disk Unlock Key (DUK)"
+				reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+			fi
 		else
 			echo "Returning to the main menu"
 		fi

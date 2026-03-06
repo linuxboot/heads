@@ -207,25 +207,26 @@ show_system_info() {
 report_integrity_measurements() {
 	TRACE_FUNC
 	local date_now hash_state msg totp_state hotp_state
-	local report_body
+	local report_body report_option
 
 	date_now=$(date "+%Y-%m-%d %H:%M:%S %Z")
 	totp_state="N/A"
 	hotp_state="N/A"
+	DEBUG "integrity report generated at $date_now"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
 		totp_state="UNAVAILABLE"
 		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
-			if tpmr unseal 4d47 0,1,2,3,4,7 312 /tmp/integrity_totp_key >/dev/null 2>&1; then
-				truncate_max_bytes 20 /tmp/integrity_totp_key >/dev/null 2>&1
-				if totp </tmp/integrity_totp_key >/tmp/integrity_totp 2>/dev/null; then
-					totp_state="$(cat /tmp/integrity_totp 2>/dev/null)"
+			if tpmr unseal 4d47 0,1,2,3,4,7 312 /tmp/secret/integrity_totp_key >/dev/null 2>&1; then
+				truncate_max_bytes 20 /tmp/secret/integrity_totp_key >/dev/null 2>&1
+				if totp </tmp/secret/integrity_totp_key >/tmp/secret/integrity_totp 2>/dev/null; then
+					totp_state="$(cat /tmp/secret/integrity_totp 2>/dev/null)"
 				else
 					totp_state="ERROR"
 				fi
 			fi
 		fi
-		shred -n 10 -z -u /tmp/integrity_totp_key /tmp/integrity_totp 2>/dev/null
+		shred -n 10 -z -u /tmp/secret/integrity_totp_key /tmp/secret/integrity_totp 2>/dev/null
 	fi
 
 	if [ -x /bin/hotp_verification ]; then
@@ -246,12 +247,192 @@ report_integrity_measurements() {
 	else
 		hash_state="ALTERED OR UNKNOWN"
 	fi
+	INTEGRITY_REPORT_HASH_STATE="$hash_state"
 
 	report_body="Date: $date_now\nTOTP: $totp_state\nHOTP: $hotp_state\n/BOOT INTEGRITY: $hash_state\n\nIf integrity is not OK, investigate before TPM reset or re-ownership."
+	DEBUG "report_integrity_measurements: totp=$totp_state hotp=$hotp_state hash=$hash_state"
+	DEBUG "report_integrity_measurements: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
 	msg="Measured Integrity Report\n\n$(printf '%b' "$report_body" | fold -s -w 76)"
 
-	whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
-		--msgbox "$msg" 0 80
+	if [ "$hash_state" = "OK" ]; then
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+			--msgbox "$msg" 0 80
+		return 0
+	fi
+
+	while true; do
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+			--menu "$msg\n\nChoose an action:" 0 80 8 \
+			'i' ' Investigate discrepancies -->' \
+			'c' ' Continue' \
+			2>/tmp/whiptail || return 0
+		report_option=$(cat /tmp/whiptail)
+		case "$report_option" in
+		i)
+			investigate_integrity_discrepancies
+			;;
+		*)
+			return 0
+			;;
+		esac
+	done
+}
+
+investigate_integrity_discrepancies() {
+	TRACE_FUNC
+	local changed_files changed_count details
+	local sig_trust_state investigation_option
+
+	check_config /boot force
+	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
+
+	if verify_checksums /boot y; then
+		DEBUG "investigate_integrity_discrepancies: verify_checksums returned success, no discrepancies"
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Integrity Investigation' \
+			--msgbox 'No integrity discrepancies are currently detected for /boot.' 0 80
+		return 0
+	else
+		DEBUG "investigate_integrity_discrepancies: verify_checksums returned failure, proceeding with investigation"
+	fi
+
+	sig_trust_state="untrusted"
+	if detached_kexec_signature_valid /boot; then
+		sig_trust_state="trusted"
+	fi
+	DEBUG "investigate_integrity_discrepancies: signature trust state=$sig_trust_state"
+
+	changed_files=$(grep -v 'OK$' /tmp/hash_output 2>/dev/null | cut -f1 -d ':' | sed '/^$/d')
+	if [ -z "$changed_files" ] && [ -r /tmp/hash_output ]; then
+		changed_files=$(sed '/^$/d' /tmp/hash_output)
+	fi
+	DEBUG "investigate_integrity_discrepancies: raw changed_files list=$changed_files"
+
+	if [ -z "$changed_files" ]; then
+		whiptail_error --title 'Integrity Investigation' \
+			--msgbox 'Integrity is not OK, but no detailed mismatch list is available.' 0 80
+		return 1
+	fi
+
+	# details remains relative; user is told paths are under /boot
+	details=$(printf '%s\n' "$changed_files" | sort -u)
+	changed_count=$(printf '%s\n' "$details" | wc -l | tr -d ' ')
+	DEBUG "integrity: changed_count=$changed_count"
+	DEBUG "integrity: details=$details"
+
+	while true; do
+		if [ "$sig_trust_state" = "trusted" ]; then
+			whiptail_error --title 'Integrity Investigation' \
+				--menu "Integrity mismatches were detected.\n\nDetached signature on /boot/kexec.sig verified successfully.\n\nChoose an action:" 0 80 14 \
+				'd' ' Show mismatch details -->' \
+				's' ' Show detached signed output -->' \
+				'u' ' Update checksums now' \
+				'r' ' Drop to recovery shell (view discrepancies)' \
+				'c' ' Continue' \
+				2>/tmp/whiptail || return 1
+		else
+			whiptail_error --title 'Integrity Investigation' \
+				--menu "Integrity mismatches were detected.\n\nDetached signature on /boot/kexec.sig could not be verified.\n\nTreat /boot contents as untrusted.\n\nChoose an action:" 0 80 12 \
+				'd' ' Show mismatch details -->' \
+				's' ' Show detached signed output -->' \
+				'u' ' Update checksums now' \
+				'r' ' Drop to recovery shell (view discrepancies)' \
+				'c' ' Continue' \
+				2>/tmp/whiptail || return 1
+		fi
+
+		investigation_option=$(cat /tmp/whiptail)
+		case "$investigation_option" in
+		s)
+			show_detached_signed_kexec_output
+			;;
+		d)
+			if [ "$changed_count" -gt 12 ]; then
+				printf '%s\n' "$details" >/tmp/hash_output_mismatches
+				echo 'Type "q" to exit the list and return.' >>/tmp/hash_output_mismatches
+				whiptail_error --title 'Integrity Investigation' \
+					--msgbox "${changed_count} discrepancy entries found.\n\nPress OK to review the full list." 0 80
+				less /tmp/hash_output_mismatches
+			else
+				whiptail_error --title 'Integrity Investigation' \
+					--msgbox "Discrepancy entries detected:\n\n${details}" 0 80
+			fi
+			;;
+		r)
+			local msg
+			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount /boot read-write:\n    mount -o rw,remount /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the Heads menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; Heads will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
+			recovery "$msg"
+			;;
+		u)
+			prompt_update_checksums
+			;;
+		*)
+			return 0
+			;;
+		esac
+	done
+}
+
+detached_kexec_signature_valid() {
+	TRACE_FUNC
+	local boot_dir="$1"
+	local kexec_txt_files
+
+	[ -n "$boot_dir" ] || boot_dir="/boot"
+
+	if [ "$CONFIG_BASIC" = "y" ]; then
+		return 1
+	fi
+
+	if [ ! -r "$boot_dir/kexec.sig" ]; then
+		return 1
+	fi
+
+	kexec_txt_files=$(find "$boot_dir"/kexec*.txt 2>/dev/null | sort)
+	if [ -z "$kexec_txt_files" ]; then
+		DEBUG "detached_kexec_signature_valid: no kexec txt files found under $boot_dir"
+		return 1
+	fi
+	DEBUG "detached_kexec_signature_valid: txt files=$(echo "$kexec_txt_files" | tr '\n' ' ')"
+	# perform verification, capturing output for debugging
+	if sha256sum $kexec_txt_files | gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
+		DEBUG "detached signature valid"
+		mkdir -p /tmp/kexec
+		cp $kexec_txt_files /tmp/kexec 2>/dev/null || true
+		return 0
+	else
+		DEBUG "detached signature verification failed, head of /tmp/integrity_sigcheck:"
+		DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
+	fi
+	return 1
+}
+
+show_detached_signed_kexec_output() {
+	TRACE_FUNC
+	local signed_files signed_count
+
+	signed_files=$(find /tmp/kexec/kexec*.txt 2>/dev/null | sort)
+	if [ -z "$signed_files" ]; then
+		whiptail_error --title 'Signed Output' \
+			--msgbox 'No verified detached signed output is available to display.' 0 80
+		return 1
+	fi
+
+	: >/tmp/integrity_signed_output
+	for signed_file in $signed_files; do
+		echo "===== $(basename "$signed_file") =====" >>/tmp/integrity_signed_output
+		cat "$signed_file" >>/tmp/integrity_signed_output
+		echo >>/tmp/integrity_signed_output
+	done
+
+	signed_count=$(wc -l /tmp/integrity_signed_output | cut -f1 -d ' ')
+	if [ "$signed_count" -gt 20 ]; then
+		echo 'Type "q" to exit the list and return.' >>/tmp/integrity_signed_output
+		less /tmp/integrity_signed_output
+	else
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Signed Output' \
+			--msgbox "$(cat /tmp/integrity_signed_output)" 0 80
+	fi
 }
 
 # Get "Enable" or "Disable" to display in the configuration menu, based on a

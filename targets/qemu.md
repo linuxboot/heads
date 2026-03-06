@@ -181,6 +181,19 @@ How I tested these wrappers (smoke checks)
 Troubleshooting
 ---
 
+- Reuse provisioned canokey state across QEMU board build dirs:
+  - QEMU boards that use the default virtual token store canokey state at `build/x86/<BOARD>/.canokey-file` (from `targets/qemu.mk`: `-device canokey,file=$(build)/$(BOARD)/.canokey-file`).
+  - After provisioning via Heads OEM reset/re-ownership in one QEMU board, you can copy that file into another QEMU board build directory to reuse the same virtual smartcard identity/public key material.
+  - Example:
+    - `cp build/x86/qemu-coreboot-fbwhiptail-tpm2/.canokey-file build/x86/qemu-coreboot-fbwhiptail-tpm2-prod_quiet/.canokey-file`
+  - This is useful when troubleshooting TPM workflows while keeping the same token identity across variants.
+
+- TPM2 interaction capture (pcap) for debugging, similar to a bus sniffer:
+  - On TPM2 boards, set `export CONFIG_TPM2_CAPTURE_PCAP=y` in the board config.
+  - Heads `tpmr` then uses the pcap TCTI and writes captures to `/tmp/tpm0.pcap` inside the booted Heads environment.
+  - Save/copy that file from the guest (mount-usb --mode rw) and inspect it with Wireshark to analyze TPM command/response traffic.
+  - This is intended for TPM2 boards (for example the `qemu-coreboot-fbwhiptail-tpm2*` targets).
+
 - Quick checks:
   - `echo $DISPLAY` — ensure `DISPLAY` is set on the host.
   - `command -v xauth` — preferred for programmatic Xauthority cookies.
