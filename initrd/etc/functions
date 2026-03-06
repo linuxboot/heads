@@ -1297,12 +1297,35 @@ verify_checksums() {
 # Check if a device is an LVM2 PV, and if so print the VG name
 find_lvm_vg_name() {
 	TRACE_FUNC
-	local DEVICE VG
+	local DEVICE VG part
 	DEVICE="$1"
 
+	# closing fd10 should be handled by callers (detect_root_device now
+	# closes it for commands before invoking us).  leaving this here can
+	# interfere with future uses of fd10 elsewhere in the same shell.
+	# (Note: previous versions contained a hack to close it here; see
+	# commit 700ed0c141.)
+
 	mkdir -p /tmp/root-hashes-gui
-	if ! lvm pvs --noheadings -o vg_name "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
-		# It's not an LVM PV
+	# Try to query whether DEVICE is an LVM physical volume.  On systems
+	# without LVM the command may not exist; treat that like "not a PV".
+	if ! lvm pvs --noheadings -o vg_name "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/tmp/root-hashes-gui/lvm_err; then
+		# It's not an LVM PV, or lvm failed entirely.  Log stderr for debugging.
+		DEBUG "lvm pvs failed for $DEVICE, stderr:" "$(cat /tmp/root-hashes-gui/lvm_err)"
+		# try any children shown by lsblk (handles LUKS containers with
+		# internal partitions such as dm-0, dm-1 etc).
+		if command -v lsblk >/dev/null 2>&1; then
+			DEBUG "find_lvm_vg_name: lsblk children of $DEVICE"
+			for part in $(lsblk -np -l -o NAME "$DEVICE" | tail -n +2); do
+				[ -b "$part" ] || continue
+				DEBUG "find_lvm_vg_name: testing child $part"
+				if lvm pvs --noheadings -o vg_name "$part" >/tmp/root-hashes-gui/lvm_vg 2>/tmp/root-hashes-gui/lvm_err; then
+					VG="$(awk 'NF {print $1; exit}' /tmp/root-hashes-gui/lvm_vg)"
+					[ -n "$VG" ] && { echo "$VG"; return 0; }
+				fi
+			done
+		fi
+		DEBUG "find_lvm_vg_name: $DEVICE is not an LVM PV"
 		return 1
 	fi
 
