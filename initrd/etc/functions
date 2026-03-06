@@ -822,6 +822,47 @@ device_has_partitions() {
 	return 0
 }
 
+# Build displayable disk information using sysfs (vs current BusyBox's 2TB limit per https://bugs.busybox.net/show_bug.cgi?id=16276)
+# Output format: "Disk /dev/<name>: <SIZE> GB/TB" per line
+# (GB for smaller disks, TB for disks >= 1000 GB)
+# The /sys/block/*/size entry is always counted in 512‑byte sectors, so
+# calculate using bytes from blockdev when available or multiply by 512.
+disk_info_sysfs() {
+	TRACE_FUNC
+	local disk_info=""
+	for dev in /sys/block/sd* /sys/block/nvme* /sys/block/vd* /sys/block/hd*; do
+		if [ -e "$dev" ]; then
+			# ignore partition entries (they contain a 'partition' file)
+			if [ -e "$dev/partition" ]; then
+				continue
+			fi
+			local devname=$(basename "$dev")
+			local size_bytes=""
+			if command -v blockdev >/dev/null 2>&1; then
+				size_bytes=$(blockdev --getsize64 "/dev/${devname}" 2>/dev/null)
+			fi
+			if [ -z "$size_bytes" ] || ! [ "$size_bytes" -gt 0 ] 2>/dev/null; then
+				local size_sectors_512=$(cat "$dev/size" 2>/dev/null)
+				if [ -n "$size_sectors_512" ] && [ "$size_sectors_512" -gt 0 ] 2>/dev/null; then
+					size_bytes=$((size_sectors_512 * 512))
+				fi
+			fi
+			if [ -n "$size_bytes" ] && [ "$size_bytes" -gt 0 ] 2>/dev/null; then
+				local size_gb=$(((size_bytes + 500000000) / 1000000000))
+				# show TB when size is at least 1,000,000,000,000 bytes (≈1000 GB) for better UX
+				if [ "$size_bytes" -ge 1000000000000 ]; then
+					local size_tb=$(((size_bytes + 500000000000) / 1000000000000))
+					printf -v disk_info "%sDisk /dev/%s: %s TB\n" "$disk_info" "$devname" "$size_tb"
+				else
+					printf -v disk_info "%sDisk /dev/%s: %s GB\n" "$disk_info" "$devname" "$size_gb"
+				fi
+			fi
+		fi
+	done
+	# trim trailing newline so callers don't get an extra blank line
+	printf "%s" "${disk_info%$'\n'}"
+}
+
 list_usb_storage() {
 	TRACE_FUNC
 	# List all USB storage devices, including partitions unless we received argument stating we want drives only
@@ -1240,12 +1281,12 @@ find_lvm_vg_name() {
 	DEVICE="$1"
 
 	mkdir -p /tmp/root-hashes-gui
-	if ! lvm pvs "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
+	if ! lvm pvs --noheadings -o vg_name "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/dev/null; then
 		# It's not an LVM PV
 		return 1
 	fi
 
-	VG="$(tail -n +2 /tmp/root-hashes-gui/lvm_vg | awk '{print $2}')"
+	VG="$(awk 'NF {print $1; exit}' /tmp/root-hashes-gui/lvm_vg)"
 	if [ -z "$VG" ]; then
 		DEBUG "Could not find LVM2 VG from lvm pvs output:"
 		DEBUG "$(cat /tmp/root-hashes-gui/lvm_vg)"
@@ -1259,29 +1300,37 @@ find_lvm_vg_name() {
 # GPT-partitioned disk.
 is_gpt_bios_grub() {
 	TRACE_FUNC
+	# $1 is the device path being tested (e.g. /dev/vda1)
+	local PART_DEV="$1"
+	DEBUG "PART_DEV=$PART_DEV"
 
-	local PART_DEV="$1" DEVICE NUMBER
+	# identify the base device and partition number using shell parameter expansion
+	local partname device number
+	partname=$(basename "$PART_DEV")
 
-	# Figure out the partitioned device containing this device (if there is
-	# one) from /sys/class/block.
-	local DEVICE_MATCHES=("/sys/class/block/"*"/$(basename "$PART_DEV")")
-
-	DEVICE="$(echo "${DEVICE_MATCHES[0]}" | cut -d/ -f5)"
-	if [ "${#DEVICE_MATCHES[@]}" -ne 1 ] || [ "$DEVICE" = "*" ]; then
-		return 0
+	# Split trailing digits from the base device name.
+	number="${partname##*[!0-9]}"
+	if [ -z "$number" ]; then
+		DEBUG "cannot parse partition name '$partname'"
+		return 1    # not a recognised partition
 	fi
 
-	# Extract the partition number
-	if ! [[ $(basename "$PART_DEV") =~ ([0-9]+)$ ]]; then
-		return 0 # Can't figure out the partition number
+	device="${partname%"$number"}"
+	# nvme/mmc names include an extra 'p' separator before the partition
+	# number (e.g. nvme0n1p2, mmcblk0p1). Remove only that separator.
+	if [[ "$device" == *p && "${device%p}" == *[0-9] ]]; then
+		device="${device%p}"
 	fi
 
-	NUMBER="${BASH_REMATCH[1]}"
+	if [ -z "$device" ]; then
+		DEBUG "cannot parse partition device from '$partname'"
+		return 1
+	fi
 
-	# Now we know the device and partition number, get the type.  This is
-	# specific to GPT disks, MBR disks are shown differently by fdisk.
-	TRACE "$PART_DEV is partition $NUMBER of $DEVICE"
-	if [ "$(fdisk -l "/dev/$DEVICE" 2>/dev/null | awk '$1 == '"$NUMBER"' {print $5}')" == grub ]; then
+	DEBUG "DEVICE=$device NUMBER=$number"
+
+	# GPT disks list type in column 5; fall through to 1 otherwise
+	if [ "$(fdisk -l "/dev/$device" 2>/dev/null | awk '$1 == '"$number"' {print $5}')" == grub ]; then
 		return 0
 	fi
 	return 1
@@ -1310,9 +1359,17 @@ mount_possible_boot_device() {
 
 	# Skip bios-grub partitions on GPT disks, LUKS partitions, and LVM PVs,
 	# we can't mount these as /boot.
-	if is_gpt_bios_grub "$BOOT_DEV" || cryptsetup isLuks "$BOOT_DEV" ||
-		find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
-		TRACE "$BOOT_DEV is not a mountable partition for /boot"
+	# Skip partitions we definitely can't mount for /boot.  Log each reason.
+	if is_gpt_bios_grub "$BOOT_DEV"; then
+		DEBUG "$BOOT_DEV is GPT BIOS/GRUB partition, skipping"
+		return 1
+	fi
+	if cryptsetup isLuks "$BOOT_DEV"; then
+		DEBUG "$BOOT_DEV is a LUKS volume, skipping"
+		return 1
+	fi
+	if find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
+		DEBUG "$BOOT_DEV is an LVM PV, skipping"
 		return 1
 	fi
 
@@ -1343,7 +1400,17 @@ mount_possible_boot_device() {
 # mount /boot if successful
 detect_boot_device() {
 	TRACE_FUNC
-	local devname
+	local devname mounted_boot_dev
+	DEBUG "CONFIG_BOOT_DEV=$CONFIG_BOOT_DEV"
+	# If /boot is already mounted and appears to be a valid boot tree, just
+	# use its device.  This avoids remount churn and makes the later lookup
+	# fast.
+	mounted_boot_dev="$(awk '$2=="/boot" {print $1; exit}' /proc/mounts)"
+	if [ -n "$mounted_boot_dev" ] && ls -d /boot/grub* >/dev/null 2>&1; then
+		CONFIG_BOOT_DEV="$mounted_boot_dev"
+		DEBUG "Using already-mounted /boot device as CONFIG_BOOT_DEV=$CONFIG_BOOT_DEV"
+		return 0
+	fi
 	# unmount /boot to be safe
 	cd / && umount /boot 2>/dev/null
 
@@ -1381,6 +1448,7 @@ detect_boot_device() {
 
 	# no valid boot device found
 	echo "Unable to locate /boot files on any mounted disk"
+	DEBUG "detect_boot_device: failed to find a bootable device"
 	return 1
 }
 
