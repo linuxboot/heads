@@ -249,6 +249,13 @@ workflows:
           subcommand: ""
           requires:
             - x86-musl-cross-make
+      # coreboot-git mrchromebox
+      - build:
+          name: omnigul
+          target: omnigul
+          subcommand: ""
+          requires:
+            - x86-musl-cross-make
 
       # coreboot purism: based on coreboot 24.02.01, reuse dasharo 24.02.01 crossgcc
       - build_and_persist:
