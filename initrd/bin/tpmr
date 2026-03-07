@@ -281,6 +281,8 @@ tpm2_counter_read() {
 
 tpm2_counter_inc() {
 	TRACE_FUNC
+	local index pwd
+	local inc_args=()
 	while true; do
 		case "$1" in
 		-ix)
@@ -296,7 +298,10 @@ tpm2_counter_inc() {
 			;;
 		esac
 	done
-	tpm2 nvincrement "0x$index" >/dev/console
+	if [ -n "$pwd" ]; then
+		inc_args=(-C o -P "$(tpm2_password_hex "$pwd")")
+	fi
+	tpm2 nvincrement "${inc_args[@]}" "0x$index" >/dev/console
 	echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
 }
 
@@ -315,13 +320,15 @@ tpm1_counter_create() {
 			DEBUG "tpm1 stderr: $line"
 		done <"$TMP_ERR_FILE"
 		rm -f "$TMP_ERR_FILE"
-		die "Unable to create counter from tpm1_counter_create"
+		die "Unable to create counter from tpm1_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
 	fi
 	rm -f "$TMP_ERR_FILE"
 }
 
 tpm2_counter_create() {
 	TRACE_FUNC
+	pwd=""    # owner password from argument
+	label=""  # label argument
 	while true; do
 		case "$1" in
 		-pwdc)
@@ -337,15 +344,33 @@ tpm2_counter_create() {
 			;;
 		esac
 	done
-	prompt_tpm_owner_password
+
+	# if caller supplied a password use it, otherwise prompt / use cache
+	if [ -n "$pwd" ]; then
+		tpm_owner_password="$pwd"
+		# cache it so other functions can reuse without prompting
+		mkdir -p "$SECRET_DIR" || true
+		echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password 2>/dev/null || true
+	else
+		prompt_tpm_owner_password
+	fi
+
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 2>/dev/null | xxd -pc3)"
-	tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$(cat "/tmp/secret/tpm_owner_password")")" "0x$rand_index" >/dev/null 2>&1 ||
-		{
-			DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
-			shred -n 10 -z -u /tmp/secret/tpm_owner_password
-			die "Unable to create counter from tpm2_counter_create"
-		}
+	# capture stderr to a temp file for visibility
+	TMP_ERR_FILE=$(mktemp)
+	if ! tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
+		-P "$(tpm2_password_hex "$tpm_owner_password")" "0x$rand_index" \
+		2>"$TMP_ERR_FILE" >/dev/null; then
+		DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_password
+		# log the TPM2 stderr output
+		while IFS= read -r line; do
+			DEBUG "tpm2 stderr: $line"
+		done <"$TMP_ERR_FILE"
+		rm -f "$TMP_ERR_FILE"
+		die "Unable to create counter from tpm2_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+	fi
+	rm -f "$TMP_ERR_FILE"
 	echo "$rand_index: (valid after an increment)"
 }
 
@@ -439,6 +464,10 @@ tpm2_seal() {
 	tpm_password="$7" # Owner password - will prompt if needed and not empty
 	# TPM Owner Password is always needed for TPM2.
 
+	# bail early if the TPM hasn't been reset and we lack a primary handle.
+	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
+		die "Unable to seal secret from TPM; no TPM primary handle. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) and try again."
+	fi
 	mkdir -p "$SECRET_DIR"
 	bname="$(basename $file)"
 
@@ -476,7 +505,9 @@ tpm2_seal() {
 	# (The default is to allow either policy auth _or_ password auth.  In
 	# this case the policy includes the password, and we don't want to allow
 	# the password on its own.)
-	tpm2 create -Q -C "$PRIMARY_HANDLE_FILE" \
+	# mask hex of authorization password when supplied (it will be the
+	# last parameter if CREATE_PASS_ARGS is non-empty)
+	DO_WITH_DEBUG --mask-position 18 tpm2 create -Q -C "$PRIMARY_HANDLE_FILE" \
 		-i "$file" \
 		-u "$SECRET_DIR/$bname.priv" \
 		-r "$SECRET_DIR/$bname.pub" \
@@ -485,12 +516,13 @@ tpm2_seal() {
 		-a "fixedtpm|fixedparent|adminwithpolicy" \
 		"${CREATE_PASS_ARGS[@]}"
 
-	tpm2 load -Q -C "$PRIMARY_HANDLE_FILE" \
+	DO_WITH_DEBUG tpm2 load -Q -C "$PRIMARY_HANDLE_FILE" \
 		-u "$SECRET_DIR/$bname.priv" -r "$SECRET_DIR/$bname.pub" \
 		-c "$SECRET_DIR/$bname.seal.ctx"
 	prompt_tpm_owner_password
 	# remove possible data occupying this handle
-	tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
+	# masking here is optional but keeps logs consistent
+	DO_WITH_DEBUG --mask-position 6 tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
 		-c "$handle" 2>/dev/null || true
 	DO_WITH_DEBUG --mask-position 6 \
 		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
@@ -589,7 +621,7 @@ tpm2_unseal() {
 	# can't do anything without a primary handle.
 	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
 		DEBUG "tpm2_unseal: No primary handle, cannot attempt to unseal"
-		warn "No TPM primary handle. You must reset the TPM to seal secret to TPM NVRAM"
+		warn "No TPM primary handle. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) before attempting to unseal a secret from TPM NVRAM"
 		exit 1
 	fi
 
@@ -639,11 +671,17 @@ tpm1_unseal() {
 
 	rm -f "$sealed_file"
 
-	DO_WITH_DEBUG tpm nv_readvalue \
+	# Read the sealed blob from NVRAM.  `tpm nv_readvalue` prints a
+	# spurious warning about index size that we don't want on the console;
+	# capture stderr in the debug log instead.  Password prompts are written
+	# directly to the tty and are unaffected by this redirection.
+	if ! DO_WITH_DEBUG tpm nv_readvalue \
 		-in "$index" \
 		-sz "$sealed_size" \
-		-of "$sealed_file" ||
-		die "Unable to read sealed file from TPM NVRAM"
+		-of "$sealed_file" \
+		2> >(SINK_LOG "tpm nv_readvalue stderr"); then
+		die "Unable to read sealed file from TPM NVRAM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
+	fi
 
 	PASS_ARGS=()
 	if [ "$pass" ]; then

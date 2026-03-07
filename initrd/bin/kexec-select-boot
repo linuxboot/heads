@@ -70,6 +70,7 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 				DEBUG "Hash of TPM2 primary key handle mismatched for $PRIMHASH_FILE"
 				DEBUG "Contents of $PRIMHASH_FILE:"
 				DEBUG "$(cat $PRIMHASH_FILE)"
+				die "Hash of TPM2 primary key handle mismatch ($PRIMHASH_FILE). If you did not intentionally regenerate the TPM2 primary key, this may indicate compromise."
 			}
 	else
 		warn "Hash of TPM2 primary key handle does not exist"
