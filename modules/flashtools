@@ -1,5 +1,11 @@
 modules-$(CONFIG_FLASHTOOLS) += flashtools
 
+
+# OFLAG: Enforce CFLAGS='-Oz' at packaging time (set in configure wrapper)
+
+
+
+
 flashtools_depends := $(musl_dep)
 
 flashtools_version := d1e6f12568cb23387144a4b7a6535fe1bc1e79b1
@@ -11,7 +17,7 @@ flashtools_hash := a68cdb4a2e312f96862119a6d829ac900b53d0cbc80caa5632efd43b5b7ee
 flashtools_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include" \
+	CFLAGS="-Oz -I$(INSTALL)/include" \
 	LDFLAGS="-L$(INSTALL)/lib" \
 
 flashtools_output := \

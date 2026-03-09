@@ -1,2 +1,4 @@
+
+# OFLAG: No packaging-time OFLAG normalization applied; validate with V=1 builds if needed.
 # empty placeholder file
 # This submodule is defined in modules/hotp-verification
