@@ -1,6 +1,6 @@
 ifeq "$(CONFIG_COREBOOT)" "y"
 
-CONFIG_COREBOOT_ROM			?= coreboot.rom
+CONFIG_COREBOOT_ROM		?= coreboot.rom
 CONFIG_COREBOOT_BOOTBLOCK	?=
 
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
@@ -131,6 +131,7 @@ coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+$(coreboot_module)_depends += $(if $(CONFIG_DASHARO_EC), dasharo-ec)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -167,6 +168,7 @@ $(coreboot_module)_configure := \
 		sed -i '/^CONFIG_MAINBOARD_SMBIOS_MANUFACTURER/d' $(build)/$(coreboot_dir)/.config; \
 		echo 'CONFIG_MAINBOARD_SMBIOS_MANUFACTURER="$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)"' >> $(build)/$(coreboot_dir)/.config; \
 	fi; \
+	sed -i 's|@COREBOOT_BUILD_DIR@|$(build)/$(coreboot_dir)|g' "$(build)/$(coreboot_dir)/.config"; \
 	$(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
@@ -285,7 +287,7 @@ coreboot.save_in_defconfig_format_in_place:
 		olddefconfig && \
 	$(MAKE) \
 		-C "$(build)/$(coreboot_base_dir)" \
- 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		savedefconfig && \
 	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
 
