@@ -4,6 +4,10 @@
   # Inputs define external dependencies and their sources.
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable"; # Using the unstable channel for the latest packages, while flake.lock fixates the commit reused until changed.
+    # No flake for 3.8.0
+    # Pinned nixpkgs for sdcc 4.2.0 - matches: https://github.com/Dasharo/ec-sdk/pull/2
+    # sdcc 4.5.0 has optimizer bug: https://github.com/Dasharo/dasharo-issues/issues/1785
+    nixpkgs-sdcc.url = "github:nixos/nixpkgs/7a339d87931bba829f68e94621536cad9132971a";
     flake-utils.url = "github:numtide/flake-utils"; # Utilities for flake functionality.
   };
   # Outputs are the result of the flake, including the development environment and Docker image.
@@ -11,10 +15,12 @@
     self,
     flake-utils,
     nixpkgs,
+    nixpkgs-sdcc,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system}; # Accessing the legacy package set.
+      pkgs-sdcc = nixpkgs-sdcc.legacyPackages.${system}; # Pinned for sdcc 4.2.0
       lib = pkgs.lib; # The standard Nix packages library.
 
       # Dependencies are the packages required for the Heads project.
@@ -22,14 +28,12 @@
       deps = with pkgs; [
         # Core build utilities
         autoconf
-        avrdude  # Dasharo EC build
         automake
         bashInteractive
         coreutils #basic tools like ls, cp, mv, kill)
         bc
         bison # Generate flashmap descriptor parser
         bzip2
-        cargo # Dasharo EC build
         cacert
         ccache
         coreboot-utils #consumed by diffoscope for ifdtool cbfsutils etc
@@ -61,18 +65,17 @@
         patch
         perl
         pkg-config
-        pkgsCross.avr.buildPackages.gcc # Dasharo EC build
-        pkgsCross.avr.libcCross # Dasharo EC build
         procps #process tools like free, pidof, pkill, top, vmstat, watch, etc
         psmisc #process tools like killall, pstree, etc
         python3 # me_cleaner, coreboot
         rsync # coreboot
-        sdcc  # Dasharo EC build
+        pkgs-sdcc.sdcc  # Dasharo EC build — pinned to 4.2.0 (matches Debian oldstable, 4.5 has optimizer bug)
         sharutils
         texinfo
         unzip
         wget
         which
+        xxd # Dasharo EC build
         xz
         zip
         zlib
