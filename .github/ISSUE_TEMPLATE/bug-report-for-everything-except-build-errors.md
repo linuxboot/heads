@@ -7,11 +7,23 @@ assignees: ''
 
 ---
 
+## Before filing a bug report
+
+**⚠️ Check if your issue is already fixed in master!**
+
+1. Get your Heads version from the running system: go to **Options → System Information** and note the full version string (including git commit hash).
+2. Compare your version with the current [Heads master branch](https://github.com/linuxboot/heads/commits/master). You can check the diff at:
+   `https://github.com/linuxboot/heads/compare/<your-commit-hash>...master`
+   - If the bug is already fixed in master, **please upgrade** to the latest release instead of filing a report.
+   - If you received your device from a vendor (Nitrokey, Insurgo, Purism, etc.) and the fix is in master but not in their release, **please file the bug with your vendor** so they can do a bugfix release.
+
+---
+
 ## Please identify some basic details to help process the report
 
 ### A. Provide Hardware Details
 
-1. What board are you using? (Choose from the list of boards [here](https://github.com/eganonoa/heads/tree/master/boards))
+1. What board are you using? (Choose from the list of boards [here](https://github.com/linuxboot/heads/tree/master/boards))
 
 2. Does your computer have a dGPU or is it iGPU-only?
     - [ ] dGPU (Distinct GPU other then internal GPU)
@@ -87,8 +99,9 @@ assignees: ''
     - [ ] Heads:Master
     - [ ] Other (please identify)
 
-4. What version of coreboot did you use in building?
-{ You can find this information from github commit ID or once flashed, by giving the complete version from Sytem Information under Options --> menu}
+4. What version of Heads/coreboot are you running?
+   - Navigate to **Options → System Information** on the running device and paste the **full version string** here (including the git commit hash).
+   - Alternatively, provide the GitHub commit ID if building from source.
 
 5. In building the rom, where did you get the blobs?
     - [ ] No blobs required
@@ -99,6 +112,13 @@ assignees: ''
     - [ ] I don't know
 
 ## Please describe the problem
+
+**⚠️ Debug traces are required for all bug reports!**
+
+Before filling in the details below, please capture debug/trace output from Heads. Follow the instructions at:
+👉 https://osresearch.net/Porting/#enabling-debug--trace-from-heads-gui
+
+Paste the debug output in the **Additional context** section below (or attach as a file).
 
 **Describe the bug**
 A clear and concise description of what the bug is.
