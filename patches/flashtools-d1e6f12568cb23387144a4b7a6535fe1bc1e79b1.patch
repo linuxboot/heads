@@ -1,0 +1,240 @@
+--- a/cbfs.c	2023-03-10 04:51:40.000000000 -0500
++++ b/cbfs.c	2026-03-15 20:49:13.697175119 -0400
+@@ -21,6 +21,20 @@
+ #include "pnor.h"
+ #include "util.h"
+ 
++/* Intel PCH SPI controller: bus 0, device 31, function 5 */
++#define INTEL_SPI_PCI_PATH     "/sys/bus/pci/devices/0000:00:1f.5/config"
++/* SPI BIOS Control PCI config register (offset 0xdc) */
++#define SPI_BIOS_CONTROL              0xdc
++#define SPI_BIOS_CONTROL_EXT_BIOS_ENABLE (1u << 27)
++/* SPI CFG BAR1: host base address of the 32MB extended BIOS window (offset 0xe0) */
++#define SPI_CFG_BAR1                  0xe0
++
++/* The fixed decode window always maps the top 16MB of BIOS at 0xFF000000 */
++#define FIXED_WIN_BASE         UINT64_C(0xFF000000)
++#define FIXED_BIOS_WIN_SIZE    (16u * 1024u * 1024u)
++/* The extended decode window is a fixed 32MB region in host address space */
++#define EXT_BIOS_WIN_TOTAL     (32u * 1024u * 1024u)
++
+ #define CBFS_HEADER_MAGIC  0x4F524243
+ #define CBFS_HEADER_VERSION1 0x31313131
+ #define CBFS_HEADER_VERSION2 0x31313132
+@@ -394,6 +408,155 @@
+ 	return hbi;
+ }
+ 
++/*
++ * Read a 32-bit little-endian value from a PCI device's config space.
++ * pci_path: e.g. "/sys/bus/pci/devices/0000:00:1f.5/config"
++ * offset:   byte offset within PCI config space
++ */
++static int
++read_pci_config32(const char *pci_path, unsigned offset, uint32_t *val)
++{
++	int fd = open(pci_path, O_RDONLY);
++	if (fd < 0)
++		return -1;
++	if (pread(fd, val, sizeof(*val), offset) != (ssize_t)sizeof(*val)) {
++		close(fd);
++		return -1;
++	}
++	close(fd);
++	return 0;
++}
++
++
++/*
++ * For flash chips > 16MB, Intel PCH SPI controllers provide an extended BIOS
++ * decode window (EXT_BIOS_WIN) alongside the standard 16MB fixed decode window:
++ *
++ *   Fixed decode window:    top 16MB of BIOS mapped at 0xFF000000-0xFFFFFFFF
++ *   Extended decode window: lower portion of BIOS mapped via SPI_CFG_BAR1
++ *
++ * The extended window occupies a fixed 32MB slot in host address space.
++ * Flash data is placed at the TOP of this 32MB slot.
++ *
++ *   SPI_BIOS_CONTROL (PCI 0xdc): bit 27         = EXT_BIOS_ENABLE
++ *                                 bits 12-26     = EXT_BIOS_LIMIT (ext size, 4KB aligned)
++ *   SPI_CFG_BAR1    (PCI 0xe0): host base of the 32MB EXT_BIOS_WIN region
++ *
++ * References:
++ *   coreboot/src/soc/intel/common/block/fast_spi/mmap_boot.c
++ *   coreboot/src/soc/intel/common/block/fast_spi/fast_spi.c  (line ~361)
++ *   https://github.com/osresearch/flashtools/issues/10
++ *
++ * Returns a malloc'd buffer containing the full ROM (caller must free),
++ * or NULL if the extended window is not present / not supported.
++ * On success *size_out is set to the total ROM size in bytes.
++ */
++static void *
++try_ext_bios_win(uint64_t *size_out)
++{
++	uint32_t bios_control = 0, bar1 = 0;
++
++	if (read_pci_config32(INTEL_SPI_PCI_PATH, SPI_BIOS_CONTROL, &bios_control) < 0) {
++		if (verbose)
++			fprintf(stderr,
++				"Could not read SPI BIOS_CONTROL from %s; "
++				"no extended window support\n",
++				INTEL_SPI_PCI_PATH);
++		return NULL;
++	}
++
++	if (!(bios_control & SPI_BIOS_CONTROL_EXT_BIOS_ENABLE)) {
++		if (verbose)
++			fprintf(stderr,
++				"Extended BIOS window not enabled "
++				"(BIOS_CONTROL=0x%08x)\n", bios_control);
++		return NULL;
++	}
++
++	if (read_pci_config32(INTEL_SPI_PCI_PATH, SPI_CFG_BAR1, &bar1) < 0) {
++		fprintf(stderr, "Failed to read SPI_CFG_BAR1 from %s\n",
++			INTEL_SPI_PCI_PATH);
++		return NULL;
++	}
++
++	/* Clear PCI BAR type bits (bottom 4) to get the host base address */
++	const uint64_t ext_win_base = (uint64_t)(bar1 & ~0xfU);
++	if (ext_win_base == 0) {
++		fprintf(stderr,
++			"SPI_CFG_BAR1 is zero - extended window not configured\n");
++		return NULL;
++	}
++
++	/*
++	 * EXT_BIOS_LIMIT (bits 12-26 of BIOS_CONTROL) is the size in bytes
++	 * of the extended (non-fixed) portion, stored 4KB-aligned.
++	 */
++	const size_t ext_size = bios_control & 0x07FFF000U;
++	if (ext_size == 0) {
++		fprintf(stderr, "EXT_BIOS_LIMIT is zero\n");
++		return NULL;
++	}
++	if (ext_size > EXT_BIOS_WIN_TOTAL) {
++		fprintf(stderr,
++			"EXT_BIOS_LIMIT 0x%zx exceeds EXT_BIOS_WIN_TOTAL 0x%x\n",
++			ext_size, EXT_BIOS_WIN_TOTAL);
++		return NULL;
++	}
++
++	const size_t total_size = FIXED_BIOS_WIN_SIZE + ext_size;
++
++	/*
++	 * Within the 32MB EXT_BIOS_WIN region, flash data occupies the top
++	 * ext_size bytes:
++	 *   ext_flash_host = ext_win_base + EXT_BIOS_WIN_TOTAL - ext_size
++	 */
++	const uint64_t ext_flash_host = ext_win_base + EXT_BIOS_WIN_TOTAL - ext_size;
++
++	if (verbose) {
++		fprintf(stderr, "Extended BIOS window detected:\n");
++		fprintf(stderr, "  BIOS_CONTROL=0x%08x  BAR1=0x%08x\n",
++			bios_control, bar1);
++		fprintf(stderr, "  Total ROM: %zu MB  (fixed 16 MB + ext %zu MB)\n",
++			total_size >> 20, ext_size >> 20);
++		fprintf(stderr, "  Fixed decode:    host 0x%016llx  16 MB\n",
++			(unsigned long long)FIXED_WIN_BASE);
++		fprintf(stderr, "  Extended decode: host 0x%016llx  %zu MB\n",
++			(unsigned long long)ext_flash_host, ext_size >> 20);
++	}
++
++	uint8_t *rom = malloc(total_size);
++	if (!rom) {
++		perror("malloc");
++		return NULL;
++	}
++
++	/* Top 16MB of BIOS from the fixed decode window */
++	void *fixed = map_physical(FIXED_WIN_BASE, FIXED_BIOS_WIN_SIZE);
++	if (!fixed) {
++		fprintf(stderr,
++			"Failed to map fixed BIOS window at 0x%016llx\n",
++			(unsigned long long)FIXED_WIN_BASE);
++		free(rom);
++		return NULL;
++	}
++	memcpy(rom + ext_size, fixed, FIXED_BIOS_WIN_SIZE);
++
++	/* Lower portion of BIOS from the extended decode window */
++	void *ext = map_physical(ext_flash_host, ext_size);
++	if (!ext) {
++		fprintf(stderr,
++			"Failed to map extended BIOS window at 0x%016llx\n",
++			(unsigned long long)ext_flash_host);
++		free(rom);
++		return NULL;
++	}
++	memcpy(rom, ext, ext_size);
++
++	*size_out = (uint64_t)total_size;
++	return rom;
++}
++
++
+ static int64_t find_cbfs(const char *romname, const uint8_t *rom, size_t size)
+ {
+ 	long int fmap_offset = fmap_find(rom, size);
+@@ -492,12 +655,13 @@
+ 		return EXIT_FAILURE;
+ 	}
+ 
+-	int32_t header_delta;
++	int32_t header_delta = 0;
+ 	struct cbfs_header header;
+ 	void *rom = NULL, *off = NULL;
+-	uint64_t size, cb_size;
++	uint64_t size = 0, cb_size;
+ 	const uint64_t mem_end = 0x100000000;
+ 	void *cb_map;
++	void *ext_rom = NULL;	/* malloc'd full ROM from extended BIOS window */
+ 
+ 	if (use_file) {
+ 		int readonly = do_add || do_delete ? 0 : 1;
+@@ -529,8 +693,29 @@
+ 
+ 			memcpy(&header, cb_map + offset, sizeof(header));
+ 		} else {
+-			copy_physical(mem_end - 4, sizeof(header_delta), &header_delta);
+-			copy_physical(mem_end + header_delta, sizeof(header), &header);
++			/*
++			 * For flash chips > 16MB the CBFS master header may lie
++			 * below the fixed 16MB decode window.  Try the extended
++			 * BIOS window first; fall back to the legacy delta pointer
++			 * for 16MB (and smaller) chips.
++			 */
++			uint64_t ext_size = 0;
++			ext_rom = try_ext_bios_win(&ext_size);
++			if (ext_rom != NULL) {
++				int64_t offset = find_cbfs("live flash",
++							   ext_rom, ext_size);
++				if (offset < 0) {
++					free(ext_rom);
++					return EXIT_FAILURE;
++				}
++				size = ext_size;
++				memcpy(&header, ext_rom + offset, sizeof(header));
++			} else {
++				copy_physical(mem_end - 4, sizeof(header_delta),
++					      &header_delta);
++				copy_physical(mem_end + header_delta,
++					      sizeof(header), &header);
++			}
+ 		}
+ 	}
+ 
+@@ -559,7 +744,11 @@
+ 	}
+ 
+ 	if (!use_file) {
+-		if (cb_map == NULL) {
++		if (ext_rom != NULL) {
++			/* Full ROM already in memory from extended BIOS window */
++			rom = ext_rom;
++			/* size already set when ext_rom was assembled */
++		} else if (cb_map == NULL) {
+ 			size = (uint64_t) header.romsize;
+ 			rom = map_physical(mem_end - size, size);
+ 		} else {
