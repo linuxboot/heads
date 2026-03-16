@@ -1,9 +1,11 @@
 --- a/cbfs.c	2023-03-10 04:51:40.000000000 -0500
 +++ b/cbfs.c	2026-03-15 20:49:13.697175119 -0400
-@@ -21,6 +21,20 @@
+@@ -21,6 +21,21 @@
  #include "pnor.h"
  #include "util.h"
  
++#include <sys/mman.h>
++
 +/* Intel PCH SPI controller: bus 0, device 31, function 5 */
 +#define INTEL_SPI_PCI_PATH     "/sys/bus/pci/devices/0000:00:1f.5/config"
 +/* SPI BIOS Control PCI config register (offset 0xdc) */
@@ -157,6 +159,7 @@
 +		return NULL;
 +	}
 +	memcpy(rom + ext_size, fixed, FIXED_BIOS_WIN_SIZE);
++	unmap_physical(fixed, FIXED_BIOS_WIN_SIZE);
 +
 +	/* Lower portion of BIOS from the extended decode window */
 +	void *ext = map_physical(ext_flash_host, ext_size);
@@ -164,10 +167,16 @@
 +		fprintf(stderr,
 +			"Failed to map extended BIOS window at 0x%016llx\n",
 +			(unsigned long long)ext_flash_host);
++		munmap(fixed, FIXED_BIOS_WIN_SIZE);
 +		free(rom);
 +		return NULL;
 +	}
 +	memcpy(rom, ext, ext_size);
++	unmap_physical(ext, ext_size);
++
++	/* Mappings are no longer needed after copying into the ROM buffer. */
++	munmap(ext, ext_size);
++	munmap(fixed, FIXED_BIOS_WIN_SIZE);
 +
 +	*size_out = (uint64_t)total_size;
 +	return rom;
