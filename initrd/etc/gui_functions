@@ -274,9 +274,12 @@ report_integrity_measurements() {
 		enable_usb
 		STATUS "Checking USB security dongle presence"
 		DEBUG "report_integrity_measurements: querying HOTP token info"
-		if hotp_verification info >/dev/null 2>&1; then
+		local _hotp_info
+		if _hotp_info="$(hotp_verification info 2>/dev/null)"; then
 			hotp_state="TOKEN PRESENT"
 			STATUS_OK "USB security dongle detected"
+			# Show dongle firmware version with color coding so users know when to upgrade
+			hotpkey_fw_display "$_hotp_info" "$(cat /boot/kexec_hotp_key 2>/dev/null || echo "USB security dongle")"
 		else
 			DEBUG "report_integrity_measurements: hotp_verification info failed, hotp_state=TOKEN MISSING"
 		fi

@@ -470,6 +470,44 @@ pin_color() {
 	esac
 }
 
+# Display USB security dongle firmware version with color coding.
+# Green if the version meets the minimum known-good version for that device,
+# yellow if the firmware is older and should be upgraded.
+# $1: raw output from "hotp_verification info"
+# $2: dongle branding string (e.g. "Nitrokey", "Librem Key")
+hotpkey_fw_display() {
+	local info="$1" branding="$2" fw_ver min_ver fw_color extras
+	extras=""
+
+	if echo "$info" | grep -q "Firmware Nitrokey 3:"; then
+		# NK3: "Firmware Nitrokey 3: v1.8.3"
+		fw_ver="$(echo "$info" | grep "Firmware Nitrokey 3:" | sed 's/.*: *//')"
+		min_ver="v1.8.3"
+		# Also capture Secrets App version
+		local app_ver
+		app_ver="$(echo "$info" | grep "Firmware Secrets App:" | sed 's/.*: *//')"
+		[ -n "$app_ver" ] && extras=" (Secrets App: ${app_ver})"
+	elif echo "$info" | grep -q "^Firmware:"; then
+		# Nitrokey Pro / Storage / Librem Key: "Firmware: v0.15"
+		fw_ver="$(echo "$info" | grep "^Firmware:" | sed 's/.*: *//')"
+		if [ "$branding" = "Librem Key" ]; then
+			INFO "$branding firmware: ${fw_ver}${extras}"
+			return
+		fi
+		min_ver="v0.15"
+	else
+		return
+	fi
+
+	# Color: green if >= minimum known-good version, yellow if older
+	if [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" = "$min_ver" ]; then
+		fw_color="\033[1;32m"  # green: at or above minimum
+	else
+		fw_color="\033[1;33m"  # yellow: older firmware, upgrade recommended
+	fi
+	INFO "$branding firmware: ${fw_color}${fw_ver}\033[0m${extras} (minimum recommended: ${min_ver})"
+}
+
 # Release the exclusive CCID device lock so hotp_verification can access the
 # dongle.  Killing scdaemon alone is insufficient: gpg-agent restarts it
 # immediately.  Both must be killed; gpg-agent and scdaemon respawn on demand

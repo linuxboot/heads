@@ -453,6 +453,9 @@ update_hotp() {
 		fi
 	fi
 
+	# Show dongle firmware version with color coding so users know when to upgrade
+	hotpkey_fw_display "$hotp_token_info" "$HOTPKEY_BRANDING"
+
 	# Unseal HOTP secret from TPM once; if this fails don't proceed at all
 	HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp)
 	if [ -z "$HOTP" ]; then
