@@ -1,9 +1,7 @@
 #!/bin/bash
 . /etc/functions
 
-echo '*****'
-echo '***** WARNING: This will erase all keys and secrets from the TPM'
-echo '*****'
+NOTE "This will erase all keys and secrets from the TPM"
 
 prompt_new_owner_password
 

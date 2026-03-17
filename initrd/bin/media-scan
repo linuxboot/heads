@@ -8,26 +8,26 @@ set -e -o pipefail
 TRACE_FUNC
 
 #Booting from external media should be authenticated if supported
-gpg_auth || die "GPG authentication failed"
+gpg_auth || DIE "GPG authentication failed"
 
 # Unmount any previous boot device
 if grep -q /boot /proc/mounts ; then
 	umount /boot \
-		|| die "Unable to unmount /boot"
+		|| DIE "Unable to unmount /boot"
 fi
 
 available_partitions="$(blkid | while read line; do echo $line | awk -F ":" {'print $1'}; done )"
 
 if [ "$1" == "usb" ]; then
 	# Mount the USB boot device
-	mount_usb || die "Unable to mount /media"
+	mount_usb || DIE "Unable to mount /media"
 elif $(echo $available_partitions | grep -q "$1"); then
 	if grep -q /media /proc/mounts; then
 		umount /media \
-			|| die "Unable to unmount /media"
+			|| DIE "Unable to unmount /media"
 	fi
 	mount "$1" /media \
-		|| die "Unable to mount $1 to /media"
+		|| DIE "Unable to mount $1 to /media"
 fi
 
 # Get USB boot device
@@ -50,11 +50,11 @@ get_menu_option() {
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
 			--menu "Choose the ISO boot option [1-$n]:" 0 80 8 \
 			-- $MENU_OPTIONS \
-			2>/tmp/whiptail || die "Aborting boot attempt"
+			2>/tmp/whiptail || DIE "Aborting boot attempt"
 
 		option_index=$(cat /tmp/whiptail)
 	else
-		echo "+++ Select your ISO boot option:"
+		STATUS "Select your ISO boot option:"
 		n=0
 		while read option
 		do
@@ -62,20 +62,18 @@ get_menu_option() {
 			echo "$n. $option"
 		done < /tmp/iso_menu.txt
 
-		read \
-			-p "Choose the ISO boot option [1-$n, a to abort]: " \
-			option_index
+		INPUT "Choose the ISO boot option [1-$n, a to abort]:" -r option_index
 	fi
 
 	# Empty occurs when aborting fbwhiptail with esc-esc
 	if [ -z "$option_index" ] || [ "$option_index" = "a" ]; then
-		die "Aborting boot attempt"
+		DIE "Aborting boot attempt"
 	fi
 
 	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
 
 	if [ -z "$option" ]; then
-		die "Failed to find menu option $option_index"
+		DIE "Failed to find menu option $option_index"
 	fi
 }
 
@@ -92,16 +90,16 @@ if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
 	ISO="${option:7}" # remove /media/ to get device relative path
 	DO_WITH_DEBUG kexec-iso-init "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV"
 
-	die "Something failed in iso init"
+	DIE "Something failed in iso init"
 fi
 
 # No *.iso files on media, try ordinary bootable USB
 
 if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
-	die "No ISO files found, bootable USB not allowed with Restricted Boot."
+	DIE "No ISO files found, bootable USB not allowed with Restricted Boot."
 fi
 
-echo "!!! Could not find any ISO, trying bootable USB"
+WARN "Could not find any ISO, trying bootable USB"
 # Attempt to pull verified config from device
 if [ -x /bin/whiptail ]; then
 	DO_WITH_DEBUG kexec-select-boot -b /media -c "*.cfg" -u -g -s
@@ -109,4 +107,4 @@ else
 	DO_WITH_DEBUG kexec-select-boot -b /media -c "*.cfg" -u -s
 fi
 
-die "Something failed in selecting boot"
+DIE "Something failed in selecting boot"
