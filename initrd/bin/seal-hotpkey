@@ -22,12 +22,13 @@ mount_boot() {
 
 TRACE_FUNC
 
-# Use stored HOTP key branding (this might be useful after OEM reset)
+# Use stored HOTP key branding; export so all child processes inherit it
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
 	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
+export HOTPKEY_BRANDING
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
@@ -83,6 +84,7 @@ else
 	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
 
+export HOTPKEY_BRANDING
 DEBUG "HOTP USB Security dongle branding is $HOTPKEY_BRANDING"
 
 # Truncate the secret if it is longer than the maximum HOTP secret

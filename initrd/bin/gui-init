@@ -484,6 +484,11 @@ update_hotp() {
 			BG_COLOR_MAIN_MENU="error"
 			break
 			;;
+		6) # EXIT_SLOT_NOT_PROGRAMMED — sealing was never completed or failed mid-way
+			HOTP="HOTP slot not configured"
+			BG_COLOR_MAIN_MENU="warning"
+			break
+			;;
 		*)
 			# Transient error (USB glitch etc.) — retry if attempts remain
 			if [ "$attempt" -lt 3 ]; then
@@ -507,7 +512,32 @@ update_hotp() {
 		esac
 	done
 
-	if [[ "$HOTP" = "Invalid code" ]]; then
+	if [[ "$HOTP" = "HOTP slot not configured" ]]; then
+		WARN "$HOTPKEY_BRANDING HOTP slot is not configured"
+		whiptail_warning --title "HOTP Not Configured" \
+			--menu "The HOTP slot on your $HOTPKEY_BRANDING is not configured.\n\nThis can happen if HOTP sealing was interrupted (connection error, dongle removed during setup).\n\nPlease generate a new TOTP/HOTP secret to configure it." 0 80 2 \
+			'g' ' Generate new TOTP/HOTP secret' \
+			'x' ' Exit to recovery shell' \
+			2>/tmp/whiptail || recovery "GUI menu failed"
+
+		option=$(cat /tmp/whiptail)
+		case "$option" in
+		g)
+			if gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
+				if generate_totp_hotp; then
+					update_totp || true
+					BG_COLOR_MAIN_MENU="normal"
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
+			fi
+			;;
+		x)
+			recovery "User requested recovery shell"
+			;;
+		esac
+		return
+	elif [[ "$HOTP" = "Invalid code" ]]; then
 		INTEGRITY_GATE_REQUIRED="y"
 		local hotp_error_msg
 		hotp_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
@@ -903,12 +933,13 @@ force_unsafe_boot() {
 # gui-init start
 TRACE_FUNC
 
-# Use stored HOTP key branding
+# Use stored HOTP key branding; export so all child processes inherit it
 if [ -r /boot/kexec_hotp_key ]; then
 	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
 else
 	HOTPKEY_BRANDING="HOTP USB Security dongle"
 fi
+export HOTPKEY_BRANDING
 
 if [ -x /bin/hotp_verification ]; then
 	enable_usb
