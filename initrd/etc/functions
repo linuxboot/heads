@@ -1257,7 +1257,7 @@ reseal_tpm_disk_decryption_key() {
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
 		preflight_rollback_counter_before_reseal
-		STATUS "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
+		NOTE "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
 		if ! kexec-seal-key /boot; then
 			DIE "Failed to reseal TPM Disk Unlock Key"
 		fi
