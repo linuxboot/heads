@@ -491,7 +491,7 @@ hotpkey_fw_display() {
 		# Nitrokey Pro / Storage / Librem Key: "Firmware: v0.15"
 		fw_ver="$(echo "$info" | grep "^Firmware:" | sed 's/.*: *//')"
 		if [ "$branding" = "Librem Key" ]; then
-			INFO "$branding firmware: ${fw_ver}${extras}"
+			NOTE "$branding firmware: ${fw_ver}${extras}"
 			return
 		fi
 		min_ver="v0.15"
@@ -505,7 +505,7 @@ hotpkey_fw_display() {
 	else
 		fw_color="\033[1;33m"  # yellow: older firmware, upgrade recommended
 	fi
-	INFO "$branding firmware: ${fw_color}${fw_ver}\033[0m${extras} (minimum recommended: ${min_ver})"
+	NOTE "$branding firmware: ${fw_color}${fw_ver}\033[0m${extras} (minimum recommended: ${min_ver})"
 }
 
 # Release the exclusive CCID device lock so hotp_verification can access the
