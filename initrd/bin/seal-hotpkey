@@ -114,7 +114,6 @@ admin_pin_retries="${admin_pin_retries:-0}"
 DEBUG "HOTP related PIN retry counter is $admin_pin_retries"
 # Show dongle firmware version with color coding so users know when to upgrade
 hotpkey_fw_display "$hotp_token_info" "$HOTPKEY_BRANDING"
-STATUS "$HOTPKEY_BRANDING $prompt_message PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 
 # Re-query and display the current PIN retry counter before each manual prompt.
 # prompt_message is already set for the device type (NK3 vs older), reuse it.
