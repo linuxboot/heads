@@ -3,11 +3,15 @@ set -e -o pipefail
 . /etc/functions
 
 # CBFS extraction and measurement
-#  This extraction and measurement cannot be suppressed by quiet mode, since 
-#   config.user is not yet loaded at this point.
-#  To suppress this output, set CONFIG_QUIET_MODE=y needs be be set in /etc/config
-#   which is defined at build time under board configuration file to be part of initrd.cpio
-#  This script is called from initrd/init so really early in the boot process to put files in place in initramfs
+#  cbfs-init runs before config.user is extracted and merged into /tmp/config,
+#  so logging here is governed by the board build-time /etc/config only.
+#  STATUS and STATUS_OK are always visible regardless of CONFIG_QUIET_MODE and
+#  are used for the summary bracket so the user always sees progress.
+#  Per-file detail is at DEBUG level (developer-facing).
+#  INFO calls (TPM PCR extensions) are suppressed in quiet mode - that is
+#  intentional, since quiet boards have CONFIG_QUIET_MODE=y in /etc/config.
+#  init will NOTE the user after loading config.user if early traces were
+#  suppressed, pointing them to /tmp/measuring_trace.log.
 
 TRACE_FUNC
 
@@ -29,12 +33,13 @@ fi
 # Load individual files
 cbfsfiles=`cbfs -t 50 -l $CBFS_ARG 2>/dev/null | grep "^heads/initrd/"`
 
+STATUS "Extracting firmware configuration from CBFS"
 for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:12}
 	if [ ! -z "$filename" ]; then
 		mkdir -p `dirname $filename` \
 		|| DIE "$filename: mkdir failed"
-		STATUS "Extracting CBFS file $cbfsname"
+		DEBUG "Extracting CBFS file $cbfsname"
 		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
 		|| DIE "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
@@ -49,3 +54,4 @@ for cbfsname in `echo $cbfsfiles`; do
 		fi
 	fi
 done
+STATUS_OK "Firmware configuration extracted from CBFS"
