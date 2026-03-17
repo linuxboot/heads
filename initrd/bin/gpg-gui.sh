@@ -226,14 +226,9 @@ while true; do
     ;;
     "g" )
       confirm_gpg_card
-      echo -e "\n\n\n\n"
-      echo "********************************************************************************"
-      echo "*"
-      echo "* INSTRUCTIONS:"
-      echo "* Type 'admin' and then 'generate' and follow the prompts to generate a GPG key."
-      echo "* Type 'quit' once you have generated the key to exit GPG."
-      echo "*"
-      echo "********************************************************************************"
+      STATUS "INSTRUCTIONS:"
+      INFO "Type 'admin' then 'generate' and follow the prompts to generate a GPG key"
+      INFO "Type 'quit' once the key is generated to exit GPG"
       gpg --card-edit > /tmp/gpg_card_edit_output
       if [ $? -eq 0 ]; then
         gpg_post_gen_mgmt

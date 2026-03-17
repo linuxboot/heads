@@ -21,7 +21,7 @@ while getopts "p:c:ur" arg; do
 done
 
 if [ -z "$paramsdir" ]; then
-	die "Usage: $0 -p /boot [ -u | -c counter ]"
+	DIE "Usage: $0 -p /boot [ -u | -c counter ]"
 fi
 
 paramsdir="${paramsdir%%/}"
@@ -51,7 +51,7 @@ if [ "$update" = "y" ]; then
 		print_tree >/boot/kexec_tree.txt
 		TRACE_FUNC
 	)
-	[ $? -eq 0 ] || die "$paramsdir: Failed to update hashes."
+	[ $? -eq 0 ] || DIE "$paramsdir: Failed to update hashes."
 
 	# Remove any package trigger log files
 	# We don't need them after the user decides to sign
@@ -70,7 +70,7 @@ if [ "$rollback" = "y" ]; then
 
 		# use existing tpm counter
 		DO_WITH_DEBUG read_tpm_counter "$counter" >/dev/null 2>&1 ||
-			die "$paramsdir: Unable to read tpm counter '$counter'"
+			DIE "$paramsdir: Unable to read tpm counter '$counter'"
 	else
 		DEBUG "rollback=y: counter was not provided: checking for existing TPM counter from TPM rollback_file=$rollback_file"
 		TRACE_FUNC
@@ -82,7 +82,7 @@ if [ "$rollback" = "y" ]; then
 		else
 			DEBUG "Rollback file $rollback_file does not exist. Creating new TPM counter."
 			DO_WITH_DEBUG check_tpm_counter $rollback_file ||
-				die "$paramsdir: Unable to find/create tpm counter"
+				DIE "$paramsdir: Unable to find/create tpm counter"
 
 			TRACE_FUNC
 			TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
@@ -94,35 +94,66 @@ if [ "$rollback" = "y" ]; then
 
 	# Increment the TPM counter
 	DEBUG "rollback=y: Incrementing counter $TPM_COUNTER."
-	increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-		die "$paramsdir: Unable to increment tpm counter"
+	increment_tpm_counter $TPM_COUNTER ||
+		DIE "$paramsdir: Unable to increment tpm counter"
 
 	# Ensure the incremented counter file exists
 	incremented_counter_file="/tmp/counter-$TPM_COUNTER"
 	if [ ! -e "$incremented_counter_file" ]; then
 		DEBUG "TPM counter file '$incremented_counter_file' not found. Attempting to read it again."
+		# read_tpm_counter doesn't prompt; silence its normal output if called in DEBUG context
 		DO_WITH_DEBUG read_tpm_counter "$TPM_COUNTER" >/dev/null 2>&1 ||
-			die "$paramsdir: TPM counter file '$incremented_counter_file' not found after incrementing."
+			DIE "$paramsdir: TPM counter file '$incremented_counter_file' not found after incrementing."
 	fi
 
 	DEBUG "TPM counter file '$incremented_counter_file' found."
 
 	# Create the rollback file
 	sha256sum "$incremented_counter_file" >$rollback_file ||
-		die "$paramsdir: Unable to create rollback file"
+		DIE "$paramsdir: Unable to create rollback file"
 fi
 
 TRACE_FUNC
 param_files=$(find $paramsdir/kexec*.txt)
 if [ -z "$param_files" ]; then
-	die "$paramsdir: No kexec parameter files to sign"
+	DIE "$paramsdir: No kexec parameter files to sign"
+fi
+
+# before we even attempt to sign, make sure there is at least one public
+# key available so the user gets a clear error instead of a mysterious gpg
+# failure.
+if [ "$(gpg -k 2>/dev/null | wc -l)" -eq 0 ]; then
+	DIE "$paramsdir: no public GPG keys in keyring; add one via Options --> GPG Options --> Add GPG key to running BIOS and reflash, or perform OEM Factory Reset / Re-Ownership."
 fi
 
 for tries in 1 2 3; do
 	confirm_gpg_card
 	TRACE_FUNC
+	DEBUG "kexec-sign-config: signing attempt ${tries}/3 begins after GPG card confirmation"
 
-	if DO_WITH_DEBUG sha256sum $param_files | gpg --detach-sign -a >$paramsdir/kexec.sig; then
+	# Public keys are not sufficient for signing. After card confirmation,
+	# force discovery of a usable secret key identity and pass it explicitly
+	# to gpg, instead of relying on implicit default-key selection.
+	card_status_output=$(gpg --card-status 2>/dev/null || true)
+	SIGNING_KEY_ID=$(gpg --with-colons --list-secret-keys 2>/dev/null | awk -F: '$1=="sec"||$1=="ssb" {print $5; exit}')
+	if [ -z "$SIGNING_KEY_ID" ]; then
+		CARD_SIGNING_KEY_ID=$(echo "$card_status_output" | awk -F: '/Signature key/ {gsub(/[[:space:]]/,"",$2); print $2; exit}')
+		if [ -n "$CARD_SIGNING_KEY_ID" ]; then
+			SIGNING_KEY_ID="$CARD_SIGNING_KEY_ID"
+			DEBUG "kexec-sign-config: using card-reported signing key id ${SIGNING_KEY_ID}"
+		fi
+	fi
+	if [ -z "$SIGNING_KEY_ID" ]; then
+		DIE "$paramsdir: no private signing key is available. A public key in keyring is not enough to sign. Insert/unlock the signing smartcard (or import private key backup material), then retry. If smartcard is inserted, ensure it contains a signing key and that GPG card status shows a non-empty 'Signature key'."
+	fi
+	DEBUG "kexec-sign-config: using explicit signing key id ${SIGNING_KEY_ID}"
+
+	# Run the signing command without DO_WITH_DEBUG so that any gpg errors
+	# print directly to the console.  Stdout (the signature) goes to kexec.sig;
+	# stderr (gpg status/error messages) goes to the log for later analysis.
+	# Keeping them separate prevents gpg status text from corrupting the sig file.
+	if sha256sum $param_files | \
+		gpg --disable-dirmngr --no-auto-key-retrieve --local-user "$SIGNING_KEY_ID" --detach-sign -a >"$paramsdir/kexec.sig" 2>/tmp/kexec-sign.log; then
 		# successful - update the validated params
 		check_config $paramsdir
 
@@ -131,9 +162,32 @@ for tries in 1 2 3; do
 
 		exit 0
 	fi
+
+	DEBUG "kexec-sign-config: signing attempt ${tries}/3 failed"
+	if [ -r /tmp/kexec-sign.log ]; then
+		DEBUG "kexec-sign-config: gpg signing stderr/stdout excerpt follows"
+		DEBUG "$(sed -n '1,40p' /tmp/kexec-sign.log)"
+	fi
+
+	if grep -Eiq 'no dirmngr|failed to start dirmngr|can.t connect to the dirmngr|error running .*/dirmngr|signing failed: no dirmngr' /tmp/kexec-sign.log 2>/dev/null; then
+		DIE "$paramsdir: GPG signing failed because required GPG service 'dirmngr' is unavailable in this session/build. This is not a PIN error. Reboot and retry once; if it persists, use a Heads image/build with working dirmngr/gpg services before re-signing /boot metadata."
+	fi
+
+	if grep -Eiq 'no default secret key|no secret key|secret key not available|signing failed: no secret key' /tmp/kexec-sign.log 2>/dev/null; then
+		DIE "$paramsdir: GPG signing failed because no private signing key is available to gpg. Confirm the expected signing key is present/unlocked on your smartcard or imported backup key material, then retry (Options --> GPG Options --> Add GPG key to running BIOS and reflash, or OEM Factory Reset / Re-Ownership)."
+	fi
+
+	# Provide precise, actionable guidance for common smartcard PIN failures.
+	if grep -Eiq 'bad pin|wrong pin|incorrect pin|pin incorrect|pinentry.*cancel' /tmp/kexec-sign.log 2>/dev/null; then
+		DIE "$paramsdir: GPG signing failed due to incorrect or rejected smartcard User PIN. Re-run signing and enter the correct User PIN at the prompt. Check remaining retries in the GPG card status menu; if retries are exhausted, unblock/reset with Admin PIN and try again."
+	fi
+
+	if grep -Eiq 'pin blocked|card is blocked|authentication failed' /tmp/kexec-sign.log 2>/dev/null; then
+		DIE "$paramsdir: GPG signing failed because smartcard PIN is blocked or authentication is denied. Unblock/reset the card PIN with Admin PIN (or use valid backup key material) and retry signing."
+	fi
 done
 
 # remount /boot as ro
 mount -o remount,ro /boot
 
-die "$paramsdir: Unable to sign kexec hashes"
+DIE "$paramsdir: Unable to sign kexec hashes"
