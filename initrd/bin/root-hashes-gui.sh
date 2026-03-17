@@ -19,7 +19,7 @@ show_unsupported_root_layout_and_die() {
 
   whiptail_error --title 'ERROR: Unsupported Root Layout' \
     --msgbox "$ROOT_DETECT_UNSUPPORTED_REASON\n\n$ROOT_SUPPORTED_LAYOUT_MSG\n\nTry a supported root layout,\nor do not use root hashing,\nthen rerun $ACTION." 0 80
-  die "$ROOT_DETECT_UNSUPPORTED_REASON"
+  DIE "$ROOT_DETECT_UNSUPPORTED_REASON"
 }
 
 update_root_checksums() {
@@ -30,7 +30,7 @@ update_root_checksums() {
     fi
     whiptail_error --title 'ERROR: No Valid Root Disk Found' \
       --msgbox "No Valid Root Disk Found" 0 80
-    die "No Valid Root Disk Found"
+    DIE "No Valid Root Disk Found"
   fi
 
   # mount /boot RW
@@ -39,14 +39,14 @@ update_root_checksums() {
        unmount_root_device
        whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
-       die "Unable to mount /boot"
+       DIE "Unable to mount /boot"
     fi
   else
     mount -o rw,remount /boot
   fi
 
   DEBUG "calculating hashes for $CONFIG_ROOT_DIRLIST_PRETTY on $ROOT_MOUNT"
-  echo "+++ Calculating hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY "
+  STATUS "Calculating hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY"
   # Intentional wordsplit
   # shellcheck disable=SC2086
   (cd "$ROOT_MOUNT" && find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum) >"${HASH_FILE}"
@@ -70,7 +70,7 @@ check_root_checksums() {
     fi
     whiptail_error --title 'ERROR: No Valid Root Disk Found' \
       --msgbox "No Valid Root Disk Found" 0 80
-    die "No Valid Root Disk Found"
+    DIE "No Valid Root Disk Found"
   fi
 
   # mount /boot RO
@@ -79,7 +79,7 @@ check_root_checksums() {
        unmount_root_device
        whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
-       die "Unable to mount /boot"
+       DIE "Unable to mount /boot"
     fi
   fi
 
@@ -99,16 +99,16 @@ check_root_checksums() {
       fi
   fi
 
-  echo "+++ Checking root hash file signature "
+  STATUS "Checking root hash file signature"
   if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
     ERROR=`cat /tmp/hash_output`
     whiptail_error --title 'ERROR: Signature Failure' \
       --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
     unmount_root_device
-    die 'Invalid signature'
+    DIE 'Invalid signature'
   fi
 
-  echo "+++ Checking for new files in $CONFIG_ROOT_DIRLIST_PRETTY "
+  STATUS "Checking for new files in $CONFIG_ROOT_DIRLIST_PRETTY"
   (cd "$ROOT_MOUNT" && find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*') | sort > /tmp/new_file_list
   cut -d' ' -f3- ${HASH_FILE} | sort | diff -U0 - /tmp/new_file_list > /tmp/new_file_diff || new_files_found=y
   if [ "$new_files_found" == "y" ]; then
@@ -121,12 +121,12 @@ check_root_checksums() {
     echo "Type \"q\" to exit the list and return to the menu." >> /tmp/new_file_diff
     less /tmp/new_file_diff
   else
-    echo "+++ Verified no files added/removed "
+    STATUS_OK "Verified no files added or removed"
   fi
 
-  echo "+++ Checking hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY (this might take a while) "
+  STATUS "Checking hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY (this may take a while)"
   if (cd $ROOT_MOUNT && sha256sum -c ${HASH_FILE} > /tmp/hash_output 2>/dev/null); then
-    echo "+++ Verified root hashes "
+    STATUS_OK "Verified root hashes"
     valid_hash='y'
     unmount_root_device
 
@@ -189,7 +189,7 @@ open_block_device_lvm() {
   local VG="$1"
   local LV MAPPER_VG MAPPER_LV name lvpath FIRST_LV_PREFERRED FIRST_LV_FALLBACK
 
-  if ! lvm vgchange -ay "$VG"; then
+  if ! run_lvm vgchange -ay "$VG"; then
     DEBUG "Can't open LVM VG: $VG"
     return 1
   fi
@@ -207,7 +207,7 @@ open_block_device_lvm() {
     FIRST_LV_FALLBACK=""
     DEBUG "LVM VG $VG has no 'root' LV, enumerating all LVs"
     # list LV names and prefer root-like names
-    for name in $(lvm lvs --noheadings -o lv_name --separator ' ' "$VG" 2>/dev/null); do
+    for name in $(run_lvm lvs --noheadings -o lv_name --separator ' ' "$VG" 2>/dev/null); do
       # thin pool/metadata and swap-like LVs are not root filesystems
       case "$name" in
         *pool*|*tmeta*|*tdata*|*tpool*|swap*)
@@ -272,7 +272,7 @@ open_block_device_luks() {
   # volumes.  This is harmless on systems without lvm installed.
   if command -v lvm >/dev/null 2>&1; then
     DEBUG "running vgscan to populate /dev/mapper after unlocking LUKS"
-    lvm vgscan --mknodes >/dev/null 2>&1 || true
+    run_lvm vgscan --mknodes >/dev/null 2>&1 || true
   fi
 
   open_block_device_layers "/dev/mapper/$LUKSDEV"
@@ -365,7 +365,7 @@ close_block_device_lvm() {
   local VG="$1"
   # Deactivate the VG directly. This avoids recursive LV close probing noise
   # for LV paths that are not PVs and matches the minimal initrd workflow.
-  lvm vgchange -an "$VG" || \
+  run_lvm vgchange -an "$VG" || \
     DEBUG "Can't close LVM VG: $VG"
 }
 
@@ -441,7 +441,7 @@ detect_root_device()
 {
   TRACE_FUNC
 
-  echo "+++ Detecting root device "
+  STATUS "Detecting root device"
 
   if [ ! -e $ROOT_MOUNT ]; then
     mkdir -p $ROOT_MOUNT
@@ -508,7 +508,7 @@ detect_root_device()
   if [ -n "$ROOT_DETECT_UNSUPPORTED_REASON" ]; then
     DEBUG "$ROOT_DETECT_UNSUPPORTED_REASON"
   fi
-  echo "Unable to locate $ROOT_MOUNT files on any mounted disk"
+  WARN "Unable to locate $ROOT_MOUNT files on any mounted disk"
   return 1
 }
 
@@ -550,7 +550,7 @@ while true; do
        unmount_root_device
        whiptail_error --title 'ERROR: Unable to mount /boot' \
          --msgbox "Unable to mount /boot" 0 80
-       die "Unable to mount /boot"
+       DIE "Unable to mount /boot"
     fi
   fi
 

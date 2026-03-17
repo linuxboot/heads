@@ -86,8 +86,7 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
     whiptail_warning --title 'USB Drive Missing' \
       --msgbox "Insert your USB drive and press Enter to continue." 0 80
   else
-    echo "+++ USB Drive Missing! Insert your USB drive and press Enter to continue."
-    read
+    INPUT "USB Drive Missing! Insert your USB drive and press Enter to continue."
   fi
   sleep 1
   list_usb_storage > /tmp/usb_block_devices
@@ -96,7 +95,7 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
       whiptail_error --title 'ERROR: USB Drive Missing' \
         --msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 0 80
     else
-      echo "!!! ERROR: USB Drive Missing! Aborting mount. Press Enter to continue."
+      DIE "USB Drive Missing! Aborting mount."
     fi
     exit 1
   fi
@@ -110,7 +109,7 @@ if [ -n "$DEVICE" ]; then
     DEBUG "Selected device is a USB block device"
     USB_MOUNT_DEVICE="$DEVICE"
   else
-    die "ERROR: Selected $DEVICE is not a USB block device"
+    DIE "ERROR: Selected $DEVICE is not a USB block device"
   fi
 else
   # Check for the common case: a single USB disk with one partition
@@ -141,11 +140,11 @@ else
         -- $MENU_OPTIONS \
         2>/tmp/whiptail
       if [ $? -ne 0 ]; then
-        die "ERROR: Selecting USB disk/partition aborted."
+        DIE "ERROR: Selecting USB disk/partition aborted."
       fi
       option_index=$(cat /tmp/whiptail)
     else
-      echo "+++ Select your USB disk:"
+      STATUS "Select your USB disk:"
       n=0
       while read option
       do
@@ -153,9 +152,7 @@ else
         echo "$n. $option"
       done < /tmp/usb_disk_list
 
-      read \
-        -p "Choose your USB disk [1-$n, a to abort]: " \
-        option_index
+      INPUT "Choose your USB disk [1-$n, a to abort]:" -r option_index
     fi
 
     if [ "$option_index" = "a" ]; then
@@ -178,14 +175,14 @@ if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
   if [ -z "$PASS" ]; then
     #We haven't received a passphrase
     cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" \
-    || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+    || DIE "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
   else
     #We received a pasphrase
     cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file <(echo -n "${PASS}") \
-    || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+    || DIE "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
   fi
 
-  warn "Note that you cannot boot from a mounted encrypted device"
+  WARN "Note that you cannot boot from a mounted encrypted device"
   DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
   USB_MOUNT_DEVICE="/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
 else
@@ -197,8 +194,8 @@ fi
 # Mount the USB device
 if [ "$MODE" = "rw" ]; then
   DEBUG "Mounting $USB_MOUNT_DEVICE as read-write"
-  mount -o rw "$USB_MOUNT_DEVICE" "$MOUNTPOINT" || die "ERROR: Failed to mount ${USB_MOUNT_DEVICE} as read-write"
+  mount -o rw "$USB_MOUNT_DEVICE" "$MOUNTPOINT" || DIE "ERROR: Failed to mount ${USB_MOUNT_DEVICE} as read-write"
 else
   DEBUG "Mounting $USB_MOUNT_DEVICE as read-only"
-  mount -o ro "$USB_MOUNT_DEVICE" "$MOUNTPOINT" || die "ERROR: Failed to mount ${USB_MOUNT_DEVICE} as read-only"
+  mount -o ro "$USB_MOUNT_DEVICE" "$MOUNTPOINT" || DIE "ERROR: Failed to mount ${USB_MOUNT_DEVICE} as read-only"
 fi

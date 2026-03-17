@@ -18,9 +18,12 @@ fi
 
 if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
 	# Use flashrom directly, because we don't have /tmp/config with params for flash.sh yet
-	/bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom \
-		&& CBFS_ARG=" -o /tmp/cbfs-init.rom" \
-		|| echo "Failed reading Heads configuration from flash! Some features may not be available."
+	STATUS "Reading Heads configuration from flash"
+	if /bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom; then
+		CBFS_ARG=" -o /tmp/cbfs-init.rom"
+	else
+		WARN "Failed reading Heads configuration from flash - some features may not be available"
+	fi
 fi
 
 # Load individual files
@@ -30,19 +33,19 @@ for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:12}
 	if [ ! -z "$filename" ]; then
 		mkdir -p `dirname $filename` \
-		|| die "$filename: mkdir failed"
-		INFO "Extracting CBFS file $cbfsname into $filename"
+		|| DIE "$filename: mkdir failed"
+		STATUS "Extracting CBFS file $cbfsname"
 		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
-		|| die "$filename: cbfs file read failed"
+		|| DIE "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TRACE_FUNC
-			INFO "TPM: Extending PCR[$CONFIG_PCR] with filename $filename and then its content"
+			INFO "TPM: Extending PCR[$CONFIG_PCR] with $filename"
 			# Measure both the filename and its content.  This
 			# ensures that renaming files or pivoting file content
 			# will still affect the resulting PCR measurement.
 			tpmr extend -ix "$CONFIG_PCR" -ic "$filename"
 			tpmr extend -ix "$CONFIG_PCR" -if "$filename" \
-			|| die "$filename: tpm extend failed"
+			|| DIE "$filename: tpm extend failed"
 		fi
 	fi
 done
