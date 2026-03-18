@@ -23,6 +23,7 @@ while true; do
     --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n* Clears out /boot signatures\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 0 80 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
     'c' ' Flash the firmware with a new ROM, erase settings' \
+    'r' ' Rollback to previous firmware backup' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -31,6 +32,59 @@ while true; do
   case "$menu_choice" in
   "x")
     exit 0
+    ;;
+  "r")
+    # Rollback to the most recent firmware backup saved in /boot/<brand>/.
+    # Integrity is attested by /boot kexec.sig (print_tree + kexec.sig covers
+    # all /boot files including the backup ROM once the user re-signs /boot).
+    # Warn loudly if kexec.sig is missing or invalid; still allow override.
+    ROLLBACK_BRAND_LOWER="$(echo "$CONFIG_BRAND_NAME" | tr '[:upper:]' '[:lower:]')"
+    ROLLBACK_DIR="/boot/${ROLLBACK_BRAND_LOWER}"
+    ROLLBACK_MARKER="${ROLLBACK_DIR}/pending_rollback"
+
+    # Prefer the marker path; fall back to most recent backup_*.rom
+    if [ -f "$ROLLBACK_MARKER" ]; then
+      ROLLBACK_ROM="$(cat "$ROLLBACK_MARKER" 2>/dev/null || true)"
+    else
+      ROLLBACK_ROM=""
+    fi
+    if [ -z "$ROLLBACK_ROM" ] || [ ! -f "$ROLLBACK_ROM" ]; then
+      ROLLBACK_ROM="$(find "${ROLLBACK_DIR}" -maxdepth 1 -name 'backup_*.rom' 2>/dev/null | sort | tail -1)"
+    fi
+
+    if [ -z "$ROLLBACK_ROM" ] || [ ! -f "$ROLLBACK_ROM" ]; then
+      whiptail_error --title 'No Rollback Backup Found' \
+        --msgbox "No firmware backup was found in ${ROLLBACK_DIR}.\n\nA backup is saved automatically when flashing firmware\n(requires rollback backup to be enabled in Flash Options)." 0 80
+      continue
+    fi
+
+    # Verify kexec.sig covers /boot (includes backup ROM after user re-signs).
+    KEXEC_SIG_OK="false"
+    if [ -f /boot/kexec.sig ] && [ "$(find /boot/kexec*.txt 2>/dev/null | wc -l)" -gt 0 ]; then
+      if sha256sum $(find /boot/kexec*.txt) 2>/dev/null | gpgv /boot/kexec.sig - 2>/dev/null; then
+        KEXEC_SIG_OK="true"
+        DEBUG "kexec.sig verification passed for rollback"
+      else
+        DEBUG "kexec.sig verification FAILED for rollback"
+      fi
+    fi
+
+    if [ "$KEXEC_SIG_OK" = "false" ]; then
+      if ! whiptail_error --title 'WARNING: Backup Integrity Unverified' \
+          --yesno "The /boot signature (kexec.sig) is missing or invalid.\n\nThe rollback backup cannot be verified as trustworthy.\nThis may mean /boot was not signed after the last firmware flash,\nor the backup file has been modified.\n\nBackup: ${ROLLBACK_ROM}\n\nProceed anyway? (NOT recommended)" 0 80; then
+        continue
+      fi
+    else
+      if ! whiptail_warning --title 'Rollback Firmware?' \
+          --yesno "This will reflash the previous firmware backup:\n\n${ROLLBACK_ROM}\n\nCurrent settings will be erased (factory reset).\nkexec.sig integrity verified.\n\nDo you want to proceed?" 0 80; then
+        continue
+      fi
+    fi
+
+    /bin/flash.sh -c --no-backup --bypass-verify "$ROLLBACK_ROM"
+    whiptail --title 'Rollback Complete' \
+      --msgbox "Previous firmware has been restored.\n\nPress Enter to reboot." 0 80
+    /bin/reboot
     ;;
   f | c)
     if (whiptail_warning --title 'Flash the BIOS with a new ROM' \
