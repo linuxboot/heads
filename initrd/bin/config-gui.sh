@@ -85,6 +85,11 @@ while true; do
 			)
 		fi
 
+		# Flash write options
+		dynamic_config_options+=(
+			'F' " Configure flash write options"
+		)
+
 		# Debugging option always available
 		dynamic_config_options+=(
 			'Z' " Configure $CONFIG_BRAND_NAME informational / debug output"
@@ -628,6 +633,100 @@ while true; do
 					load_keymap "$CURRENT_KEYMAP"
 				fi
 			done
+		done
+		;;
+	"F")
+		while true; do
+			# Re-source so toggles reflect immediately
+			. /tmp/config
+			unset flash_opts_choice
+			whiptail_type $BG_COLOR_MAIN_MENU --title "Flash Write Options" \
+				--menu "Configure flash write behaviour.\n\nChanges take effect immediately and are persisted across reboots\nvia the 'Save configuration' option.\n\nCurrent state is shown in brackets [ON]/[OFF]." 0 80 10 \
+				'v' " [$([ "$CONFIG_FLASH_NO_VERIFY" = "y" ] && echo "OFF" || echo " ON")] Post-write verification: confirms written firmware matches source" \
+				'b' " [$([ "$CONFIG_FLASH_SAVE_BACKUP" = "n" ] && echo "OFF" || echo " ON")] Rollback backup: saves current firmware before each write" \
+				'r' " [$([ "$CONFIG_FLASH_AUTO_ROLLBACK" = "n" ] && echo "OFF" || echo " ON")] Auto-rollback: restores backup if new firmware fails to boot$([ "$CONFIG_FLASH_SAVE_BACKUP" = "n" ] && echo " (backup OFF)" || echo "")" \
+				'w' " Show current SPI write protection status" \
+				'x' " Return to Config Menu" \
+				2>/tmp/whiptail || recovery "GUI menu failed"
+			flash_opts_choice=$(cat /tmp/whiptail)
+			case "$flash_opts_choice" in
+			"v")
+				# CONFIG_FLASH_NO_VERIFY=y means verification is OFF (negative config)
+				if [ "$CONFIG_FLASH_NO_VERIFY" = "y" ]; then
+					set_user_config "CONFIG_FLASH_NO_VERIFY" "n"
+					whiptail --title 'Post-write verification enabled' \
+						--msgbox "Flashprog will now verify written firmware after each flash.\n\nThis confirms the data on the chip matches the source image.\n\nSave the configuration to make this persistent across reboots." 0 80
+				else
+					set_user_config "CONFIG_FLASH_NO_VERIFY" "y"
+					whiptail_warning --title 'Post-write verification disabled' \
+						--msgbox "Flashprog will skip post-write verification.\n\nThis is faster but gives no confirmation the write succeeded.\nOnly disable this if flashprog verification causes problems.\n\nSave the configuration to make this persistent across reboots." 0 80
+				fi
+				;;
+			"b")
+				# CONFIG_FLASH_SAVE_BACKUP=n means backup is OFF; default is ON.
+				if [ "$CONFIG_FLASH_SAVE_BACKUP" = "n" ]; then
+					set_user_config "CONFIG_FLASH_SAVE_BACKUP" "y"
+					whiptail --title 'Rollback backup enabled' \
+						--msgbox "Current firmware will be saved to /boot before each write.\n\nThis allows recovery if the new firmware does not boot.\n\nSave the configuration to make this persistent across reboots." 0 80
+				else
+					# Disabling backup: auto-rollback depends on it; disable that too.
+					if [ "$CONFIG_FLASH_AUTO_ROLLBACK" != "n" ]; then
+						if ! whiptail_warning --title 'Disable rollback backup?' \
+							--yesno "Auto-rollback is currently ON and requires rollback backup.\n\nDisabling rollback backup will also disable auto-rollback.\n\nDisable both?" 0 80; then
+							continue
+						fi
+						set_user_config "CONFIG_FLASH_AUTO_ROLLBACK" "n"
+					fi
+					set_user_config "CONFIG_FLASH_SAVE_BACKUP" "n"
+					whiptail_warning --title 'Rollback backup disabled' \
+						--msgbox "Rollback backup will not be saved before writes.\n\nRollback recovery will not be available for future writes.\n\nSave the configuration to make this persistent across reboots." 0 80
+				fi
+				;;
+			"r")
+				# CONFIG_FLASH_AUTO_ROLLBACK=n means rollback is OFF; default is ON.
+				if [ "$CONFIG_FLASH_AUTO_ROLLBACK" = "n" ]; then
+					# Auto-rollback requires backup; offer to enable both if needed.
+					if [ "$CONFIG_FLASH_SAVE_BACKUP" = "n" ]; then
+						if ! whiptail_warning --title 'Enable auto-rollback and backup?' \
+							--yesno "Auto-rollback requires rollback backup to be enabled.\n\nRollback backup is currently OFF.\n\nEnable both rollback backup and auto-rollback?" 0 80; then
+							continue
+						fi
+						set_user_config "CONFIG_FLASH_SAVE_BACKUP" "y"
+						set_user_config "CONFIG_FLASH_AUTO_ROLLBACK" "y"
+						whiptail --title 'Rollback backup and auto-rollback enabled' \
+							--msgbox "Rollback backup and auto-rollback are now ON.\n\nAfter each firmware write, the previous firmware is saved.\nIf the new firmware fails to boot, it will be restored automatically.\n\nSave the configuration to make this persistent across reboots." 0 80
+					else
+						set_user_config "CONFIG_FLASH_AUTO_ROLLBACK" "y"
+						whiptail --title 'Auto-rollback enabled' \
+							--msgbox "If new firmware fails to reach the boot prompt,\nthe previous firmware will be restored automatically.\n\nSave the configuration to make this persistent across reboots." 0 80
+					fi
+				else
+					set_user_config "CONFIG_FLASH_AUTO_ROLLBACK" "n"
+					whiptail_warning --title 'Auto-rollback disabled' \
+						--msgbox "The automatic rollback countdown will be skipped after firmware writes.\n\nRollback backup is still saved and can be restored manually\nfrom the Firmware Management menu.\n\nSave the configuration to make this persistent across reboots." 0 80
+				fi
+				;;
+			"w")
+				unset wp_out wp_title wp_opts
+				# flashprog wp subcommand; strip binary and --progress (not accepted by wp)
+				wp_opts="${CONFIG_FLASH_OPTIONS#flashprog}"
+				wp_opts="${wp_opts//--progress/}"
+				wp_out=$(flashprog wp status $wp_opts 2>&1) || true
+				if echo "$wp_out" | grep -q "Protection mode: disabled"; then
+					wp_title="SPI Write Protection: DISABLED"
+				elif echo "$wp_out" | grep -q "Protection mode:"; then
+					wp_title="SPI Write Protection: ACTIVE"
+				else
+					wp_title="SPI Write Protection Status"
+					wp_out="Write protection status is not available for this programmer.\n\n${wp_out}"
+				fi
+				whiptail --title "$wp_title" \
+					--msgbox "$wp_out" 0 80
+				;;
+			"x")
+				break
+				;;
+			esac
 		done
 		;;
 	"Z")
