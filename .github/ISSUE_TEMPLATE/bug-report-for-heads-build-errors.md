@@ -7,6 +7,17 @@ assignees: ''
 
 ---
 
+## Before filing a build error report
+
+**⚠️ Check if your issue is already fixed in master!**
+
+Compare your branch/commit with the current [Heads master branch](https://github.com/linuxboot/heads/commits/master):
+`https://github.com/linuxboot/heads/compare/<your-commit-hash>...master`
+
+If the bug is already fixed in master, please update your branch before filing a report.
+
+---
+
 ## Context of the Build
 
 **1. What board are you trying to build?**
@@ -15,8 +26,9 @@ assignees: ''
 - [ ] Heads:Master
 - [ ] Other (please specify)
 
-**3. What version of coreboot are you trying to build**
-<!-- Please provide GitHub commit ID, or if firmware flashed, the information found under System Information for version -->
+**3. What version of Heads/coreboot are you trying to build?**
+<!-- Please provide the GitHub commit ID or tag (e.g. v2.0.0).
+     If firmware is already flashed, this information is available under Options → System Information. -->
 
 **4. In building the rom where did you get the blobs?**
 - [ ] No blobs required
