@@ -175,7 +175,7 @@ while true; do
 
 		if (whiptail --title 'Update ROM?' \
 			--yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80); then
-			/bin/flash.sh /tmp/config-gui.rom
+			/bin/flash.sh --no-backup /tmp/config-gui.rom
 			whiptail --title 'BIOS Updated Successfully' \
 				--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
 			/bin/reboot
@@ -205,7 +205,7 @@ while true; do
 				cbfs.sh -o /tmp/config-gui.rom -d $i
 			done
 			# flash cleared ROM
-			/bin/flash.sh -c /tmp/config-gui.rom
+			/bin/flash.sh -c --no-backup /tmp/config-gui.rom
 
 			# reset TPM if present
 			if [ "$CONFIG_TPM" = "y" ]; then
@@ -394,7 +394,7 @@ while true; do
 
 				replace_rom_file /tmp/config-gui.rom "heads/initrd/etc/config.user" "$FLASH_USER_CONFIG"
 
-				/bin/flash.sh /tmp/config-gui.rom
+				/bin/flash.sh --no-backup /tmp/config-gui.rom
 				whiptail --title 'BIOS Updated Successfully' \
 					--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
 				/bin/reboot
