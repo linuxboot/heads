@@ -97,6 +97,37 @@ flash_rom() {
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of="/tmp/${CONFIG_BOARD}.rom" conv=notrunc >/dev/null 2>&1
     fi
 
+    # Save a rollback backup of the current firmware to /boot before writing.
+    # Integrity is guaranteed by /boot attestation (print_tree + kexec.sig)
+    # once the user signs /boot after confirming the new firmware works.
+    # FLASH_BACKUP_FILE is set on successful backup; the pending_rollback marker
+    # (written after flash completes) is only written when a backup was saved.
+    if [ "$SAVE_BACKUP" -eq 1 ]; then
+      DEBUG "Rollback backup enabled - saving current firmware before write"
+      local brand_lower backup_dir backup_ts backup_file
+      brand_lower="$(echo "$CONFIG_BRAND_NAME" | tr '[:upper:]' '[:lower:]')"
+      backup_dir="/boot/${brand_lower}"
+      backup_ts="$(date +%Y%m%d%H%M%S 2>/dev/null || echo "unknown")"
+      backup_file="${backup_dir}/backup_${CONFIG_BOARD}_${backup_ts}.rom"
+      flash_status "Saving rollback backup to $backup_file..."
+      if grep -q " /boot " /proc/mounts 2>/dev/null; then
+        mount -o remount,rw /boot 2>/dev/null || true
+        mkdir -p "$backup_dir" 2>/dev/null || true
+        if $CONFIG_FLASH_OPTIONS -r "$backup_file" 2>&1; then
+          flash_status_ok "Rollback backup saved: $backup_file"
+          FLASH_BACKUP_FILE="$backup_file"
+          DEBUG "FLASH_BACKUP_FILE=$FLASH_BACKUP_FILE"
+        else
+          warn "WARNING: Rollback backup failed - proceeding without backup"
+        fi
+        mount -o remount,ro /boot 2>/dev/null || true
+      else
+        warn "WARNING: /boot is not mounted - rollback backup skipped"
+      fi
+    else
+      DEBUG "Rollback backup disabled (SAVE_BACKUP=0)"
+    fi
+
     warn "Do not power off computer.  Updating firmware, this will take a few minutes"
     flash_status "Writing firmware..."
     if [ "$NOVERIFY" -eq 1 ]; then
@@ -114,7 +145,10 @@ flash_rom() {
 CLEAN=0
 READ=0
 NOVERIFY=0
+SAVE_BACKUP=1  # rollback backup is on by default; disable with CONFIG_FLASH_SAVE_BACKUP=n
+NO_BACKUP=0    # --no-backup hard-suppresses backup AND pending_rollback marker
 ROM=""
+FLASH_BACKUP_FILE=""  # set by flash_rom() only when backup saved successfully
 
 # Apply persistent config overrides before parsing CLI flags.
 # CLI flags always take final precedence.
@@ -122,27 +156,42 @@ if [ "$CONFIG_FLASH_NO_VERIFY" = "y" ]; then
   NOVERIFY=1
   DEBUG "CONFIG_FLASH_NO_VERIFY=y: post-write verification disabled by config"
 fi
+if [ "$CONFIG_FLASH_SAVE_BACKUP" = "n" ]; then
+  SAVE_BACKUP=0
+  DEBUG "CONFIG_FLASH_SAVE_BACKUP=n: rollback backup disabled by config"
+fi
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -c)               CLEAN=1                  ; shift ;;
     -r)               READ=1                   ; shift ;;
     --bypass-verify)  NOVERIFY=1               ; shift ;;
-    -*) die "Unknown flag: $1\nUsage: $0 [-c|-r] [--bypass-verify] <path/to/image.(rom|zip|tgz)>" ;;
+    --save-backup)    SAVE_BACKUP=1; NO_BACKUP=0              ; shift ;;
+    --no-backup)      NO_BACKUP=1;  SAVE_BACKUP=0             ; shift ;;
+    -*) die "Unknown flag: $1\nUsage: $0 [-c|-r] [--bypass-verify] [--save-backup|--no-backup] <path/to/image.(rom|zip|tgz)>" ;;
     *)  ROM="$1" ; shift ; break ;;
   esac
 done
 
-DEBUG "Flags: CLEAN=$CLEAN READ=$READ NOVERIFY=$NOVERIFY"
+DEBUG "Flags: CLEAN=$CLEAN READ=$READ NOVERIFY=$NOVERIFY SAVE_BACKUP=$SAVE_BACKUP NO_BACKUP=$NO_BACKUP"
+
+if [ "$NO_BACKUP" -eq 1 ]; then
+  NOTE "--no-backup active: rollback backup and pending_rollback marker suppressed"
+fi
 
 if [ -z "$ROM" ]; then
-  die "Usage: $0 [-c|-r] [--bypass-verify] <path/to/image.(rom|zip|tgz)>
+  die "Usage: $0 [-c|-r] [--bypass-verify] [--save-backup|--no-backup] <path/to/image.(rom|zip|tgz)>
 
   (no flags)       Flash firmware, retaining GPG keyring and /boot device settings
   -c               Flash firmware, erasing all settings (factory reset)
   -r               Read/backup current firmware to the specified path
   --bypass-verify  Skip flashprog post-write verification (faster, use with care)
                    Also enabled persistently by CONFIG_FLASH_NO_VERIFY=y
+  --save-backup    Force rollback backup even if CONFIG_FLASH_SAVE_BACKUP=n
+                   Backup saved to /boot/<brand>/ and a pending_rollback marker
+                   written so init can auto-reflash on next boot if needed
+  --no-backup      Hard-suppress backup and pending_rollback marker (used by
+                   automatic rollback to prevent infinite reflash loops)
 
 Supported image formats:
   .rom  Plain ROM image - flashed directly (sha256sum printed by flashprog)
@@ -174,6 +223,30 @@ else
     flash_rom "$ROM"
     ;;
   esac
+
+  # After a successful write, if a backup was saved write a pending_rollback
+  # marker so init can detect this is a post-flash boot and auto-reflash
+  # the backup if the new firmware fails.
+  # --no-backup suppresses this to prevent infinite rollback loops.
+  if [ "$NO_BACKUP" -eq 0 ] && [ -n "$FLASH_BACKUP_FILE" ]; then
+    MARKER_BRAND_LOWER="$(echo "$CONFIG_BRAND_NAME" | tr '[:upper:]' '[:lower:]')"
+    MARKER_DIR="/boot/${MARKER_BRAND_LOWER}"
+    flash_status "Writing pending_rollback marker..."
+    DEBUG "Marker dir: $MARKER_DIR"
+    if grep -q " /boot " /proc/mounts 2>/dev/null; then
+      mount -o remount,rw /boot 2>/dev/null || true
+      mkdir -p "$MARKER_DIR" 2>/dev/null || true
+      if echo "$FLASH_BACKUP_FILE" > "${MARKER_DIR}/pending_rollback" 2>/dev/null; then
+        flash_status_ok "Rollback marker written: ${MARKER_DIR}/pending_rollback"
+        DEBUG "pending_rollback contains: $FLASH_BACKUP_FILE"
+      else
+        warn "WARNING: Failed to write rollback marker"
+      fi
+      mount -o remount,ro /boot 2>/dev/null || true
+    fi
+  else
+    DEBUG "Skipping pending_rollback marker (NO_BACKUP=$NO_BACKUP FLASH_BACKUP_FILE=$FLASH_BACKUP_FILE)"
+  fi
 fi
 
 # don't leave temporary files lying around
