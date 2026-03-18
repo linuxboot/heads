@@ -143,6 +143,131 @@ preserve_rom() {
 	done
 }
 
+# Determine the plain firmware image extension for this board.
+# Most boards use .rom; talos-2 uses .tgz for multi-component updates.
+update_plain_ext() {
+	TRACE_FUNC
+	if [ "${CONFIG_BOARD%_*}" = "talos-2" ]; then
+		echo "tgz"
+	else
+		echo "rom"
+	fi
+}
+
+# Check that a glob matches exactly one file.  Echoes the path on success.
+# Do not quote the glob argument.
+#
+# Example:
+#   if ROM="$(single_glob /media/heads-*.rom)"; then
+#       echo "Found ROM: $ROM"
+#   fi
+single_glob() {
+	TRACE_FUNC
+	if [ "$#" -eq 1 ] && [ -f "$1" ]; then
+		echo "$1"
+	else
+		return 1
+	fi
+}
+
+# Prepare a firmware image for flashing from a .zip, .tgz, or .rom file.
+# Handles package extraction and integrity verification.
+#
+# Usage: prepare_flash_image <image_file> [extract_dir]
+#
+# On success:
+#   PREPARED_ROM      - path to the validated image ready for flash_rom()
+#   PREPARED_ROM_HASH - SHA256 of the image (set for plain .rom only; empty
+#                       for pre-verified .zip/.tgz packages)
+# On failure:
+#   PREPARED_ROM_ERROR - human-readable description of the failure
+#   returns 1
+#
+# .zip update packages: extracts, verifies sha256sum.txt, locates the single
+#   .rom (or .tgz on talos-2) inside.
+# .tgz (talos-2 only): extracts, verifies sha256sum.txt, reads the current
+#   flash and assembles the pnor update image at /tmp/flash.sh.bak.
+# .rom plain image: copies to extract_dir and computes SHA256 for display.
+prepare_flash_image() {
+	TRACE_FUNC
+	local input_file="$1"
+	local extract_dir="${2:-/tmp/flash_prepare}"
+	local plain_ext
+	plain_ext="$(update_plain_ext)"
+
+	PREPARED_ROM=""
+	PREPARED_ROM_HASH=""
+	PREPARED_ROM_ERROR=""
+
+	rm -rf "$extract_dir"
+	mkdir -p "$extract_dir"
+
+	case "${input_file##*.}" in
+	zip)
+		DEBUG "zip package detected: extracting and verifying sha256sum.txt"
+		# Extract; on failure remove partial output and report error
+		if ! unzip "$input_file" -d "$extract_dir"; then
+			rm -rf "$extract_dir"
+			PREPARED_ROM_ERROR="Failed to extract $input_file"
+			return 1
+		fi
+		# Older packages hard-coded /tmp/verified_rom/ in sha256sum.txt paths
+		sed -i -e 's| /tmp/verified_rom/\+| |g' "$extract_dir/sha256sum.txt" 2>/dev/null || true
+		if ! (cd "$extract_dir" && sha256sum -cs sha256sum.txt); then
+			PREPARED_ROM_ERROR="Integrity check failed for $input_file"
+			return 1
+		fi
+		if ! PREPARED_ROM="$(single_glob "$extract_dir/"*."$plain_ext")"; then
+			PREPARED_ROM_ERROR="ROM image not found in $input_file"
+			return 1
+		fi
+		;;
+	tgz)
+		DEBUG "tgz archive detected: extracting and verifying sha256sum.txt (talos-2 only)"
+		if [ "${CONFIG_BOARD%_*}" != "talos-2" ]; then
+			PREPARED_ROM_ERROR="$CONFIG_BOARD does not support tgz image format"
+			return 1
+		fi
+		rm -rf /tmp/verified_rom
+		mkdir /tmp/verified_rom
+		if ! tar -C /tmp/verified_rom -xf "$input_file"; then
+			PREPARED_ROM_ERROR="Failed to extract archive $input_file"
+			return 1
+		fi
+		if ! (cd /tmp/verified_rom && sha256sum -cs sha256sum.txt); then
+			PREPARED_ROM_ERROR="Integrity check failed for $input_file"
+			return 1
+		fi
+		INFO "Reading current flash and building an update image"
+		$CONFIG_FLASH_OPTIONS -r /tmp/flash.sh.bak \
+			|| recovery "Read of flash has failed"
+		local _bootblock _rom _kernel
+		_bootblock=$(echo /tmp/verified_rom/*.bootblock)
+		_rom=$(echo /tmp/verified_rom/*.rom)
+		_kernel=$(echo /tmp/verified_rom/*-zImage.bundled)
+		pnor /tmp/flash.sh.bak -aw HBB < "$_bootblock"
+		pnor /tmp/flash.sh.bak -aw HBI < "$_rom"
+		pnor /tmp/flash.sh.bak -aw BOOTKERNEL < "$_kernel"
+		rm -rf /tmp/verified_rom
+		PREPARED_ROM=/tmp/flash.sh.bak
+		;;
+	rom)
+		DEBUG "plain ROM image detected: copying and computing SHA256"
+		if ! cp "$input_file" "$extract_dir/"; then
+			PREPARED_ROM_ERROR="Failed to read $input_file"
+			return 1
+		fi
+		PREPARED_ROM="$extract_dir/$(basename "$input_file")"
+		PREPARED_ROM_HASH="$(sha256sum "$PREPARED_ROM" | awk '{print $1}')"
+		;;
+	*)
+		DEBUG "unsupported file type: .${input_file##*.}"
+		PREPARED_ROM_ERROR="Unsupported file type: .${input_file##*.} (expected .zip, .tgz, or .rom)"
+		return 1
+		;;
+	esac
+}
+
 confirm_gpg_card() {
 
 	#TODO: ideally, we ask for confirmation only once per boot session
