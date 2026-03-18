@@ -268,6 +268,115 @@ prepare_flash_image() {
 	esac
 }
 
+# Check for a pending_rollback marker left by flash.sh after a firmware write.
+# If found, give the user a text-mode countdown to confirm the new firmware is
+# working.  Uses only echo/read so it fires even when the framebuffer is broken.
+# On timeout (or non-interactive stdin) the backup is reflashed automatically
+# via flash.sh -c --no-backup --bypass-verify to prevent loop creation.
+# Backup integrity is covered by /boot attestation (print_tree + kexec.sig)
+# once the user re-signs /boot after confirming new firmware works.
+check_pending_rollback() {
+	TRACE_FUNC
+	local brand_lower marker_file backup_file confirmed i
+
+	# /boot must be mounted to read the marker
+	grep -q " /boot " /proc/mounts 2>/dev/null || return 0
+
+	brand_lower="$(echo "$CONFIG_BRAND_NAME" | tr '[:upper:]' '[:lower:]')"
+	marker_file="/boot/${brand_lower}/pending_rollback"
+
+	[ -f "$marker_file" ] || return 0
+
+	# Auto-rollback can be disabled via config; clear any pending marker and
+	# return to normal boot without countdown or reflash.
+	if [ "$CONFIG_FLASH_AUTO_ROLLBACK" = "n" ]; then
+		DEBUG "CONFIG_FLASH_AUTO_ROLLBACK=n: clearing marker without rollback"
+		mount -o remount,rw /boot 2>/dev/null || true
+		rm -f "$marker_file" 2>/dev/null || true
+		mount -o remount,ro /boot 2>/dev/null || true
+		return 0
+	fi
+
+	backup_file="$(cat "$marker_file" 2>/dev/null || true)"
+
+	# Stale or corrupt marker (backup gone) - clear it and continue normal boot
+	if [ -z "$backup_file" ] || [ ! -f "$backup_file" ]; then
+		warn "Stale rollback marker found (backup not found: $backup_file) - clearing"
+		mount -o remount,rw /boot 2>/dev/null || true
+		rm -f "$marker_file" 2>/dev/null || true
+		mount -o remount,ro /boot 2>/dev/null || true
+		return 0
+	fi
+
+	DEBUG "pending_rollback found: $backup_file - starting 30-second confirmation countdown"
+
+	# Alert: beep to attract attention even if display is broken
+	printf '\a'
+	echo ""
+	echo "======================================================"
+	echo "  FIRMWARE UPDATE DETECTED"
+	echo "======================================================"
+	echo ""
+	echo "  New firmware was flashed on the previous boot."
+	echo "  Rollback backup: $backup_file"
+	echo ""
+	echo "  Press Enter within 30 seconds to confirm the new"
+	echo "  firmware is working and KEEP it."
+	echo ""
+	echo "  If no input is received, the previous firmware will"
+	echo "  be restored automatically."
+	echo ""
+	echo "  To cancel rollback: hold power button for 10 seconds"
+	echo "  to power off the system."
+	echo ""
+
+	confirmed="false"
+	i=30
+	while [ "$i" -gt 0 ]; do
+		printf "\r  Restoring in %2d seconds... (Enter to keep new firmware)  " "$i"
+		if IFS= read -r -t 1 _confirm; then
+			confirmed="true"
+			break
+		fi
+		i=$((i - 1))
+	done
+	echo ""
+
+	if [ "$confirmed" = "true" ]; then
+		INFO "New firmware confirmed - rollback cancelled"
+		mount -o remount,rw /boot 2>/dev/null || true
+		rm -f "$marker_file" 2>/dev/null || true
+		mount -o remount,ro /boot 2>/dev/null || true
+		return 0
+	fi
+
+	# No confirmation received - reflash the backup.
+	# --no-backup: prevents saving a new backup or writing another marker,
+	#   avoiding an infinite rollback loop.
+	# --bypass-verify: backup integrity is covered by /boot attestation
+	#   (print_tree + kexec.sig) once the user re-signs /boot; skip
+	#   redundant post-write verification to minimise recovery time.
+	echo ""
+	echo "  No confirmation received."
+	echo "  Reflashing previous firmware - DO NOT POWER OFF..."
+	echo ""
+	if /bin/flash.sh -c --no-backup --bypass-verify "$backup_file"; then
+		echo ""
+		echo "  Rollback complete - rebooting."
+		mount -o remount,rw /boot 2>/dev/null || true
+		rm -f "$marker_file" 2>/dev/null || true
+		mount -o remount,ro /boot 2>/dev/null || true
+		sleep 2
+		/bin/reboot
+	else
+		echo ""
+		echo "  ERROR: Automatic rollback failed."
+		echo "  Use an external programmer to recover."
+		echo "  Backup file: $backup_file"
+		recovery "Automatic firmware rollback failed"
+	fi
+}
+
 confirm_gpg_card() {
 
 	#TODO: ideally, we ask for confirmation only once per boot session

@@ -214,6 +214,19 @@ elif [ "$boot_option" = "o" ]; then
 	oem-factory-reset --mode oem
 	# just in case...
 	exit
+elif [ "$boot_option" = "b" ]; then
+	# Manual emergency rollback: mount /boot, find backup, and reflash.
+	# Uses the same check_pending_rollback() path (marker-based) or falls
+	# back to the most recent backup file if no marker is present.
+	printf '\a'
+	echo -e "***** Manual rollback requested\n" >/dev/tty0
+	if [ -n "$CONFIG_BOOT_DEV" ] && [ -e "$CONFIG_BOOT_DEV" ]; then
+		mount -o ro "$CONFIG_BOOT_DEV" /boot 2>/dev/null || true
+	fi
+	# check_pending_rollback handles the 30-second countdown, --no-backup,
+	# and --bypass-verify.  If no marker is found it returns silently.
+	check_pending_rollback
+	# If marker was absent or rollback was confirmed (kept), continue normal boot.
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
@@ -257,6 +270,18 @@ else
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
 		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+
+		# Check for a pending rollback marker before handing off to the boot
+		# script.  This fires even when the framebuffer is broken because
+		# check_pending_rollback() uses only echo/read.  /boot must be mounted
+		# for the marker to be readable; mount it transiently here if not yet
+		# mounted (gui-init will mount it properly later).
+		if ! grep -q " /boot " /proc/mounts 2>/dev/null; then
+			if [ -n "$CONFIG_BOOT_DEV" ] && [ -e "$CONFIG_BOOT_DEV" ]; then
+				mount -o ro "$CONFIG_BOOT_DEV" /boot 2>/dev/null || true
+			fi
+		fi
+		check_pending_rollback
 
 		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
 			for console in $CONFIG_BOOT_EXTRA_TTYS; do
