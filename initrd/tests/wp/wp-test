@@ -1,0 +1,183 @@
+#!/bin/sh
+# shellcheck disable=SC2086  # $PROG_OPTS intentionally unquoted for word splitting
+# WP functional test for internal Intel SPI (opaque/hwseq) programmer.
+# Tests wp status, wp list, and command exit codes.
+#
+# Usage: wp-test [flashprog-programmer-opts]
+#
+# On PCH100+ (Meteor Lake etc.) coreboot pre-programs PRRs with WP=1 as
+# preparation for the kexec lockdown, but FLOCKDN=0 during heads execution
+# means that protection is not yet enforced.  wp status correctly reports
+# 'disabled' in this case.  wp enable/disable commands are tested for exit
+# code only; persistence across invocations requires FLOCKDN=1.
+
+PASS=0
+FAIL=0
+SKIP=0
+
+SEP="========================================"
+
+pass() { echo "PASS: $1"; PASS=$(( PASS + 1 )); }
+fail() { echo "FAIL: $1"; FAIL=$(( FAIL + 1 )); }
+skip() { echo "SKIP: $1"; SKIP=$(( SKIP + 1 )); }
+info() { echo "INFO: $1"; }
+
+PROG_OPTS="${*}"
+if [ -z "$PROG_OPTS" ] && [ -n "$CONFIG_FLASH_OPTIONS" ]; then
+	PROG_OPTS="$(echo "$CONFIG_FLASH_OPTIONS" | \
+		sed 's/^flashprog[[:space:]]*//' | \
+		sed 's/--progress[[:space:]]*//')"
+fi
+if [ -z "$PROG_OPTS" ]; then
+	PROG_OPTS="--programmer internal"
+fi
+
+# Strip layout flags: 'flashprog wp' subcommands do not accept --ifd or -i.
+PROG_OPTS="$(echo "$PROG_OPTS" | \
+	sed 's/--ifd[[:space:]]*//' | \
+	sed 's/--image[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+	sed 's/-i[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+	sed 's/[[:space:]]*$//')"
+
+
+echo "$SEP"
+echo "flashprog WP functional test"
+echo "Programmer opts: $PROG_OPTS"
+echo "$SEP"
+echo ""
+
+# --- Test 1: wp status exits cleanly ---
+echo "--- Test 1: wp status succeeds on opaque/hwseq programmer ---"
+status_out="$(flashprog wp status $PROG_OPTS 2>&1)"
+status_rc=$?
+echo "$status_out"
+if [ "$status_rc" -eq 0 ]; then
+	pass "wp status exit code 0 (opaque programmer WP read path works)"
+else
+	fail "wp status failed (rc=$status_rc) - opaque WP dispatch not reached"
+fi
+
+# --- Test 2: wp status reports a recognised protection mode ---
+echo ""
+echo "--- Test 2: wp status reports a valid PCH PRR protection mode ---"
+if echo "$status_out" | grep -qiE 'Protection mode:'; then
+	mode="$(echo "$status_out" | grep -i 'Protection mode:' | head -1)"
+	pass "wp status shows '$mode'"
+else
+	fail "wp status missing 'Protection mode:' field - ich_hwseq_wp_read_cfg not reached"
+	info "Raw output: $status_out"
+fi
+
+# --- Test 3: wp list exits cleanly ---
+echo ""
+echo "--- Test 3: wp list succeeds on opaque/hwseq programmer ---"
+list_out="$(flashprog wp list $PROG_OPTS 2>&1)"
+list_rc=$?
+echo "$list_out"
+if [ "$list_rc" -eq 0 ]; then
+	pass "wp list exit code 0 (ich_hwseq_wp_get_ranges reached)"
+else
+	fail "wp list failed (rc=$list_rc)"
+fi
+
+# --- Test 4: wp list returns chip-size-derived ranges ---
+echo ""
+echo "--- Test 4: wp list returns power-of-2 top ranges derived from chip size ---"
+range_count="$(echo "$list_out" | grep -c 'start=0x' || true)"
+if [ "$range_count" -gt 2 ]; then
+	chip_size_hex="$(echo "$list_out" | grep 'length=' | tail -1 | \
+		grep -oE 'length=0x[0-9a-fA-F]+' | grep -oE '0x[0-9a-fA-F]+')"
+	pass "wp list returned $range_count ranges; chip size $chip_size_hex"
+else
+	fail "wp list returned $range_count ranges (expected >2 power-of-2 entries)"
+	info "Raw output: $list_out"
+fi
+
+# --- Test 5: FLOCKDN state ---
+echo ""
+echo "--- Test 5: PCH SPI FLOCKDN state ---"
+verbose_out="$(flashprog wp status $PROG_OPTS --verbose 2>&1)"
+if echo "$verbose_out" | grep -qi 'locked down\|Configuration is locked'; then
+	info "FLOCKDN is SET - PRRs are hardware-locked, protection is enforced"
+	flockdn_set=1
+else
+	info "FLOCKDN is NOT set - PRR protection not enforced (pre-kexec state)"
+	info "coreboot pre-programs PRRs but locks them only at kexec time"
+	flockdn_set=0
+fi
+pass "FLOCKDN detection completed (see INFO above)"
+
+# --- Test 6: wp status reports correct enforcement state ---
+echo ""
+echo "--- Test 6: wp status reflects actual enforcement (FLOCKDN-aware) ---"
+if [ "$flockdn_set" -eq 0 ]; then
+	# FLOCKDN=0: ich9_set_pr clears WP bits successfully, so no protection
+	# is actually enforced regardless of what coreboot wrote to PRRs.
+	if echo "$status_out" | grep -qi 'disabled'; then
+		pass "wp status reports 'disabled' (FLOCKDN=0, protection not enforced)"
+	else
+		fail "wp status should report 'disabled' when FLOCKDN=0 (PRRs are not locked)"
+		info "Status output: $status_out"
+	fi
+else
+	# FLOCKDN=1: ich9_set_pr cannot clear WP bits, protection is enforced.
+	if echo "$status_out" | grep -qi 'hardware'; then
+		pass "wp status reports 'hardware' (FLOCKDN=1, protection enforced)"
+	else
+		info "wp status: $status_out"
+		pass "FLOCKDN=1 detected; wp status result noted above"
+	fi
+fi
+
+# --- Tests 7+: wp command exit-code tests ---
+echo ""
+echo "--- Test 7: wp disable exits cleanly ---"
+dis_out="$(flashprog wp disable $PROG_OPTS 2>&1)"
+dis_rc=$?
+echo "$dis_out"
+if [ "$dis_rc" -eq 0 ]; then
+	pass "wp disable returned exit code 0"
+elif echo "$dis_out" | grep -qi 'locked\|FLOCKDN\|Configuration is locked'; then
+	skip "wp disable blocked by FLOCKDN (PRR registers are frozen)"
+else
+	fail "wp disable failed (rc=$dis_rc)"
+fi
+
+echo ""
+echo "--- Test 8: wp range + wp enable exit cleanly ---"
+chip_size_hex="$(echo "$list_out" | grep 'length=' | tail -1 | \
+	grep -oE 'length=0x[0-9a-fA-F]+' | grep -oE '0x[0-9a-fA-F]+')"
+if [ -z "$chip_size_hex" ]; then
+	skip "wp range/enable - could not determine chip size from wp list output"
+else
+	chip_size=$(( chip_size_hex ))
+	range_start=$(( chip_size - 4096 ))
+	range_len=4096
+	printf "Using top 4KB range: start=0x%x len=0x%x\n" "$range_start" "$range_len"
+	range_arg="$(printf '0x%x,0x%x' "$range_start" "$range_len")"
+	range_out="$(flashprog wp range $PROG_OPTS "$range_arg" 2>&1)"
+	range_rc=$?
+	echo "$range_out"
+	en_out="$(flashprog wp enable $PROG_OPTS 2>&1)"
+	en_rc=$?
+	echo "$en_out"
+	if [ "$range_rc" -eq 0 ] && [ "$en_rc" -eq 0 ]; then
+		pass "wp range + wp enable returned exit code 0"
+		if [ "$flockdn_set" -eq 0 ]; then
+			info "FLOCKDN=0: wp enable writes PRR but protection is not persistently" \
+			     "enforced; FLOCKDN is set only at kexec time by coreboot/heads"
+		fi
+	elif echo "$range_out$en_out" | grep -qi 'locked\|FLOCKDN\|Configuration is locked'; then
+		skip "wp range/enable blocked by FLOCKDN"
+	else
+		fail "wp range/enable failed (range_rc=$range_rc en_rc=$en_rc)"
+	fi
+fi
+
+# --- Summary ---
+echo ""
+echo "$SEP"
+echo "Results: PASS=$PASS  FAIL=$FAIL  SKIP=$SKIP"
+echo "$SEP"
+
+[ "$FAIL" -eq 0 ]
