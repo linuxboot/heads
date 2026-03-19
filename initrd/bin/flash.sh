@@ -36,9 +36,14 @@ check_spi_wp() {
   TRACE_FUNC
   local wp_out wp_rc wp_opts
   flash_status "Checking SPI write protection status..."
-  # Build 'flashprog wp status' args: strip binary name and --progress flag
+  # Build 'flashprog wp status' args: strip binary name, --progress, and layout
+  # flags (--ifd, -i <region>) which wp subcommands do not accept.
   wp_opts="${CONFIG_FLASH_OPTIONS#flashprog}"
-  wp_opts="${wp_opts//--progress/}"
+  wp_opts="$(echo "$wp_opts" | \
+    sed 's/--progress[[:space:]]*//' | \
+    sed 's/--ifd[[:space:]]*//' | \
+    sed 's/--image[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+    sed 's/-i[[:space:]]*[a-z][a-z]*[[:space:]]*//g')"
   wp_rc=0
   wp_out=$(flashprog wp status $wp_opts 2>&1) || wp_rc=$?
   echo "$wp_out"

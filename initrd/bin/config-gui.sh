@@ -708,9 +708,14 @@ while true; do
 				;;
 			"w")
 				unset wp_out wp_title wp_opts
-				# flashprog wp subcommand; strip binary and --progress (not accepted by wp)
+				# flashprog wp subcommand; strip binary name, --progress, and layout
+				# flags (--ifd, -i <region>) which wp subcommands do not accept.
 				wp_opts="${CONFIG_FLASH_OPTIONS#flashprog}"
-				wp_opts="${wp_opts//--progress/}"
+				wp_opts="$(echo "$wp_opts" | \
+					sed 's/--progress[[:space:]]*//' | \
+					sed 's/--ifd[[:space:]]*//' | \
+					sed 's/--image[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+					sed 's/-i[[:space:]]*[a-z][a-z]*[[:space:]]*//g')"
 				wp_out=$(flashprog wp status $wp_opts 2>&1) || true
 				if echo "$wp_out" | grep -q "Protection mode: disabled"; then
 					wp_title="SPI Write Protection: DISABLED"
