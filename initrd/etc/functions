@@ -297,16 +297,32 @@ check_pending_rollback() {
 		return 0
 	fi
 
-	backup_file="$(cat "$marker_file" 2>/dev/null || true)"
+	# Read first line only to avoid multi-line injection
+	backup_file="$(head -n 1 "$marker_file" 2>/dev/null || true)"
+	# Normalize path and validate it stays within /boot/${brand_lower}/
+	backup_file_resolved="$(readlink -f -- "$backup_file" 2>/dev/null || true)"
 
-	# Stale or corrupt marker (backup gone) - clear it and continue normal boot
-	if [ -z "$backup_file" ] || [ ! -f "$backup_file" ]; then
-		warn "Stale rollback marker found (backup not found: $backup_file) - clearing"
+	# Stale, corrupt, or unsafe marker - clear it and continue normal boot
+	if [ -z "$backup_file_resolved" ] || [ ! -f "$backup_file_resolved" ]; then
+		warn "Stale rollback marker found (backup not found: ${backup_file_resolved:-$backup_file}) - clearing"
 		mount -o remount,rw /boot 2>/dev/null || true
 		rm -f "$marker_file" 2>/dev/null || true
 		mount -o remount,ro /boot 2>/dev/null || true
 		return 0
 	fi
+	case "$backup_file_resolved" in
+	"/boot/${brand_lower}/backup_"*.rom)
+		# valid path, continue
+		;;
+	*)
+		warn "Invalid rollback marker path '$backup_file_resolved' - clearing"
+		mount -o remount,rw /boot 2>/dev/null || true
+		rm -f "$marker_file" 2>/dev/null || true
+		mount -o remount,ro /boot 2>/dev/null || true
+		return 0
+		;;
+	esac
+	backup_file="$backup_file_resolved"
 
 	DEBUG "pending_rollback found: $backup_file - starting 30-second confirmation countdown"
 

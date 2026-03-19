@@ -215,18 +215,16 @@ elif [ "$boot_option" = "o" ]; then
 	# just in case...
 	exit
 elif [ "$boot_option" = "b" ]; then
-	# Manual emergency rollback: mount /boot, find backup, and reflash.
-	# Uses the same check_pending_rollback() path (marker-based) or falls
-	# back to the most recent backup file if no marker is present.
+	# Manual emergency rollback: mount /boot and invoke marker-based rollback.
+	# Uses check_pending_rollback() which handles the 30-second countdown,
+	# --no-backup, and --bypass-verify. If no marker is present it returns
+	# silently and boot continues normally.
 	printf '\a'
 	echo -e "***** Manual rollback requested\n" >/dev/tty0
 	if [ -n "$CONFIG_BOOT_DEV" ] && [ -e "$CONFIG_BOOT_DEV" ]; then
 		mount -o ro "$CONFIG_BOOT_DEV" /boot 2>/dev/null || true
 	fi
-	# check_pending_rollback handles the 30-second countdown, --no-backup,
-	# and --bypass-verify.  If no marker is found it returns silently.
 	check_pending_rollback
-	# If marker was absent or rollback was confirmed (kept), continue normal boot.
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
