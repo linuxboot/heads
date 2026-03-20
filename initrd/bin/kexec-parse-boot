@@ -8,7 +8,7 @@ bootdir="$1"
 file="$2"
 
 if [ -z "$bootdir" -o -z "$file" ]; then
-	die "Usage: $0 /boot /boot/grub/grub.cfg"
+	DIE "Usage: $0 /boot /boot/grub/grub.cfg"
 fi
 
 reset_entry() {

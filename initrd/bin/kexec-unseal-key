@@ -30,20 +30,20 @@ for tries in 1 2 3; do
 	# passphrase prompt. This gives the user context while they prepare to
 	# type the LUKS passphrase.
 	show_totp_until_esc
-
-	read -r -s -p $'\nEnter LUKS TPM Disk Unlock Key passphrase (blank to abort): ' tpm_password
-	echo
+	STATUS "Unlocking LUKS with TPM Disk Unlock Key"
+	INPUT "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort):" -r -s tpm_password
 	if [ -z "$tpm_password" ]; then
-		die "Aborting unseal disk encryption key"
+		DIE "Aborting unseal disk encryption key"
 	fi
 
 	if DO_WITH_DEBUG --mask-position 6 \
 		tpmr unseal "$TPM_INDEX" "0,1,2,3,4,5,6,7" "$TPM_SIZE" \
 		"$key_file" "$tpm_password"; then
+		STATUS_OK "TPM Disk Unlock Key unsealed"
 		exit 0
 	fi
 
-	warn "Unable to unseal LUKS Disk Unlock Key from TPM"
+	WARN "Unable to unseal LUKS Disk Unlock Key from TPM"
 done
 
-die "Retry count exceeded..."
+DIE "Retry count exceeded..."
