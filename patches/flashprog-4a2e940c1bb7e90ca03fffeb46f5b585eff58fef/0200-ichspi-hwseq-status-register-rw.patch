@@ -9,8 +9,10 @@
 # ich_hwseq_wp_read_cfg / ich_hwseq_wp_write_cfg / ich_hwseq_wp_get_ranges:
 # original heads work. PRR-based, FLOCKDN-aware WP for PCH100+ opaque chips.
 # Not present in upstream flashrom or Dasharo's fork.
+# Registered only for PCH100+ (opaque_master_ich_hwseq_pch100); ICH9/pre-PCH100
+# platforms use STATUS register WP via wp_operations_available (Dasharo approach).
 --- a/ichspi.c	2026-02-13 13:14:40.000000000 -0500
-+++ b/ichspi.c	2026-03-19 16:10:21.470110288 -0400
++++ b/ichspi.c	2026-03-19 20:30:00.000000000 -0400
 @@ -1177,6 +1177,8 @@
  	uint32_t addr_mask;
  	bool only_4k;
@@ -20,7 +22,7 @@
  } hwseq_data;
  
  /* Sets FLA in FADDR to (addr & hwseq_data.addr_mask) without touching other bits. */
-@@ -1688,13 +1690,302 @@
+@@ -1688,13 +1690,330 @@
  	.probe_opcode	= ich_spi_probe_opcode,
  };
  
@@ -308,6 +310,11 @@
 +	return 0;
 +}
 +
++/*
++ * Base hwseq opaque master: STATUS register read/write via hwseq cycles,
++ * used for all ICH generations.  Write protection on ICH9/pre-PCH100 goes
++ * through the generic SPI STATUS register path (wp_operations_available).
++ */
  static const struct opaque_master opaque_master_ich_hwseq = {
 -	.max_data_read	= 64,
 -	.max_data_write	= 64,
@@ -323,18 +330,47 @@
 +	.erase			= ich_hwseq_block_erase,
 +	.read_register		= ich_hwseq_read_status,
 +	.write_register		= ich_hwseq_write_status,
++};
++
++/*
++ * PCH100+ hwseq opaque master: adds PRR-based write protection.
++ *
++ * On PCH100+ (Meteor Lake and later) the flash chip is fully opaque;
++ * the STATUS register WP bits are not accessible via standard SPI opcodes
++ * even though hwseq cycle types 8/7 work.  Write protection is instead
++ * enforced through the PCH's Protected Range Registers (PRRs).
++ *
++ * On older ICH9/pre-PCH100 platforms, PRRs may be write-locked by their
++ * own WP bit (independent of FLOCKDN), so PRR-based WP is unreliable there.
++ * Those platforms use the STATUS register WP path via wp_operations_available.
++ */
++static const struct opaque_master opaque_master_ich_hwseq_pch100 = {
++	.max_data_read		= 64,
++	.max_data_write		= 64,
++	.probe			= ich_hwseq_probe,
++	.read			= ich_hwseq_read,
++	.write			= ich_hwseq_write,
++	.erase			= ich_hwseq_block_erase,
++	.read_register		= ich_hwseq_read_status,
++	.write_register		= ich_hwseq_write_status,
 +	.wp_read_cfg		= ich_hwseq_wp_read_cfg,
 +	.wp_write_cfg		= ich_hwseq_wp_write_cfg,
 +	.wp_get_ranges		= ich_hwseq_wp_get_ranges,
  };
  
  int ich9_init_spi(void *spibar, enum ich_chipset ich_gen)
-@@ -1948,6 +2239,8 @@
+@@ -1948,8 +2267,13 @@
  			return ERROR_FATAL;
  		}
  		hwseq_data.size_comp1 = tmpi;
 +		hwseq_data.reg_pr0 = reg_pr0;
 +		hwseq_data.num_pr  = num_pr;
  
- 		register_opaque_master(&opaque_master_ich_hwseq, NULL);
+-		register_opaque_master(&opaque_master_ich_hwseq, NULL);
++		if (ich_generation >= SPI_ENGINE_PCH100)
++			register_opaque_master(&opaque_master_ich_hwseq_pch100, NULL);
++		else
++			register_opaque_master(&opaque_master_ich_hwseq, NULL);
  	} else {
+ 		register_spi_master(&spi_master_ich9, 0, NULL);
+ 	}

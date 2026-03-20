@@ -5,11 +5,13 @@
 #
 # Usage: wp-test [flashprog-programmer-opts]
 #
-# On PCH100+ (Meteor Lake etc.) coreboot pre-programs PRRs with WP=1 as
-# preparation for the kexec lockdown, but FLOCKDN=0 during heads execution
-# means that protection is not yet enforced.  wp status correctly reports
-# 'disabled' in this case.  wp enable/disable commands are tested for exit
-# code only; persistence across invocations requires FLOCKDN=1.
+# Two WP paths depending on platform:
+#   PCH100+ (Meteor Lake+): PRR-based WP via ich_hwseq_wp_{read,write}_cfg.
+#     coreboot pre-programs PRRs with WP=1 but FLOCKDN=0 during heads execution
+#     means protection is not yet enforced.  wp status reports 'disabled'.
+#   ICH9/pre-PCH100 (Ivy Bridge, QM77, etc.): STATUS register WP via
+#     wp_operations_available; ich_hwseq_read/write_status provide register
+#     access.  WP behaviour depends on chip STATUS register bit definitions.
 
 PASS=0
 FAIL=0
