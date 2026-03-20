@@ -1,0 +1,386 @@
+# ich_hwseq_read_status / ich_hwseq_write_status: backported from upstream
+# flashrom (https://github.com/flashrom/flashrom), originally contributed by
+# the Dasharo/3mdeb team (SergiiDmytruk et al.) for Meteor Lake hwseq support.
+# See: https://review.coreboot.org/c/flashrom/+/68179
+#      https://github.com/linuxboot/heads/issues/1741
+# Adapted for flashprog 1.5 (direct REGREAD/REGWRITE instead of
+# ich_exec_sync_hwseq_xfer; flashprog_wp_result types).
+#
+# ich_hwseq_wp_read_cfg / ich_hwseq_wp_write_cfg / ich_hwseq_wp_get_ranges:
+# original heads work. PRR-based, FLOCKDN-aware WP for PCH100+ opaque chips.
+# Not present in upstream flashrom or Dasharo's fork.
+# Registered only for PCH100+ (opaque_master_ich_hwseq_pch100); ICH9/pre-PCH100
+# platforms use STATUS register WP via wp_operations_available (Dasharo approach).
+--- a/ichspi.c	2026-02-13 13:14:40.000000000 -0500
++++ b/ichspi.c	2026-03-19 20:30:00.000000000 -0400
+@@ -115,6 +115,9 @@
+ #define HSFC_FGO		(0x1 << HSFC_FGO_OFF)
+ #define HSFC_FCYCLE_OFF		1	/* 1-2: FLASH Cycle */
+ #define HSFC_FCYCLE		(0x3 << HSFC_FCYCLE_OFF)
++#define HSFC_FCYCLE_MASK(n)	((n) << HSFC_FCYCLE_OFF)	/* PCH100+: 4-bit field */
++#define HSFC_CYCLE_WR_STATUS	HSFC_FCYCLE_MASK(7)	/* WR_STATUS (PCH100+) */
++#define HSFC_CYCLE_RD_STATUS	HSFC_FCYCLE_MASK(8)	/* RD_STATUS (PCH100+) */
+ 					/* 3-7: reserved */
+ #define HSFC_FDBC_OFF		8	/* 8-13: Flash Data Byte Count */
+ #define HSFC_FDBC		(0x3f << HSFC_FDBC_OFF)
+@@ -1177,6 +1180,8 @@
+ 	uint32_t addr_mask;
+ 	bool only_4k;
+ 	uint32_t hsfc_fcycle;
++	size_t reg_pr0;		/* offset of PR0 in ich_spibar; needed by wp_read_cfg */
++	unsigned int num_pr;	/* number of PR registers */
+ } hwseq_data;
+ 
+ /* Sets FLA in FADDR to (addr & hwseq_data.addr_mask) without touching other bits. */
+@@ -1688,13 +1693,330 @@
+ 	.probe_opcode	= ich_spi_probe_opcode,
+ };
+ 
++/*
++ * Read write protection status from the PCH's Protected Range Registers (PRR).
++ *
++ * On PCH100+ (Meteor Lake etc.) the flash chip is exposed as an opaque master
++ * via hardware sequencing, so SPI STATUS register-based WP decoding is not
++ * possible without knowing the chip's bit layout.  Instead, we read the
++ * hardware-enforced PRR registers directly from the SPI BAR.
++ *
++ * Protection is only reported as active when FLOCKDN (ichspi_lock) is set.
++ * When FLOCKDN=0, ich9_set_pr() already cleared the WP bits so they are
++ * not actually enforced; coreboot pre-programs PRRs with WP=1 as preparation
++ * for the kexec lockdown, but until FLOCKDN is set those bits do not prevent
++ * writes.  Reading them as "hardware" mode would be misleading.
++ *
++ * Multiple active PRRs are merged into a single bounding range.
++ */
++static enum flashprog_wp_result ich_hwseq_wp_read_cfg(struct flashprog_wp_cfg *cfg,
++						       struct flashctx *flash)
++{
++	unsigned int i;
++	uint32_t range_start = UINT32_MAX;
++	uint32_t range_end = 0;
++	bool wp_active = false;
++
++	/* When FLOCKDN is not set, ich9_set_pr() already cleared all WP bits.
++	 * PRR writes are not enforced; report disabled immediately. */
++	if (!ichspi_lock) {
++		cfg->mode        = FLASHPROG_WP_MODE_DISABLED;
++		cfg->range.start = 0;
++		cfg->range.len   = 0;
++		msg_pdbg("%s: FLOCKDN not set, PRR protection not enforced\n", __func__);
++		return FLASHPROG_WP_OK;
++	}
++
++	/* FLOCKDN is set: read live PRR values.  ich9_set_pr() could not clear
++	 * them, so whatever WP bits remain are truly hardware-enforced. */
++	for (i = 0; i < hwseq_data.num_pr; i++) {
++		uint32_t pr = mmio_readl(ich_spibar + hwseq_data.reg_pr0 + i * 4);
++
++		msg_pdbg("PRR%u: 0x%08x (WP=%u RP=%u base=0x%05x limit=0x%05x)\n",
++			 i, pr,
++			 (pr >> PR_WP_OFF) & 1,
++			 (pr >> PR_RP_OFF) & 1,
++			 ICH_FREG_BASE(pr) >> 12,
++			 ICH_FREG_LIMIT(pr) >> 12);
++
++		if (!(pr & (1u << PR_WP_OFF)))
++			continue;
++
++		uint32_t base  = ICH_FREG_BASE(pr);
++		uint32_t limit = ICH_FREG_LIMIT(pr);
++
++		if (limit < base)
++			continue;
++
++		wp_active = true;
++		if (base < range_start)
++			range_start = base;
++		if (limit > range_end)
++			range_end = limit;
++	}
++
++	if (!wp_active) {
++		cfg->mode        = FLASHPROG_WP_MODE_DISABLED;
++		cfg->range.start = 0;
++		cfg->range.len   = 0;
++	} else {
++		cfg->mode        = FLASHPROG_WP_MODE_HARDWARE;
++		cfg->range.start = range_start;
++		cfg->range.len   = (size_t)range_end - range_start + 1;
++	}
++
++	return FLASHPROG_WP_OK;
++}
++
++/*
++ * Write WP configuration via PCH Protected Range Registers.
++ *
++ * DISABLE: clears WP bit on all PRR registers.
++ * HARDWARE: encodes the requested range into the first free PRR slot.
++ *   The range must be 4KB-aligned.  Fails if PRRs are locked (FLOCKDN set)
++ *   or no free slot is available.
++ *
++ * Other modes (POWER_CYCLE, PERMANENT) are not supported via PRR.
++ */
++static enum flashprog_wp_result ich_hwseq_wp_write_cfg(struct flashctx *flash,
++						       const struct flashprog_wp_cfg *cfg)
++{
++	unsigned int i;
++
++	if (ichspi_lock) {
++		msg_perr("%s: SPI configuration is locked (FLOCKDN); "
++			 "cannot modify protected ranges\n", __func__);
++		return FLASHPROG_WP_ERR_WRITE_FAILED;
++	}
++
++	if (cfg->mode == FLASHPROG_WP_MODE_DISABLED) {
++		/* Clear WP bit on all writable PRR registers.
++		 * GPR0 (last slot on PCH100+) is chipset-controlled; skip it. */
++		for (i = 0; i < hwseq_data.num_pr; i++) {
++			if (ich_generation >= SPI_ENGINE_PCH100 &&
++			    i == hwseq_data.num_pr - 1)
++				continue; /* GPR0: not OS-writable */
++			msg_pdbg("Clearing PRR%u\n", i);
++			mmio_writel(0, ich_spibar + hwseq_data.reg_pr0 + i * 4);
++		}
++		return FLASHPROG_WP_OK;
++	}
++
++	if (cfg->mode != FLASHPROG_WP_MODE_HARDWARE)
++		return FLASHPROG_WP_ERR_MODE_UNSUPPORTED;
++
++	/* Validate alignment: PRRs work at 4KB granularity */
++	if ((cfg->range.start & 0xFFF) || (cfg->range.len & 0xFFF)) {
++		msg_perr("%s: range start/length must be 4KB-aligned "
++			 "(start=0x%zx len=0x%zx)\n",
++			 __func__, cfg->range.start, cfg->range.len);
++		return FLASHPROG_WP_ERR_RANGE_UNSUPPORTED;
++	}
++
++	uint32_t base_4k  = (uint32_t)(cfg->range.start >> 12) & 0x7FFF;
++	uint32_t limit_4k = (uint32_t)((cfg->range.start + cfg->range.len - 1) >> 12) & 0x7FFF;
++
++	/* Encode: bits[14:0]=base, bit[15]=RP=0, bits[30:16]=limit, bit[31]=WP */
++	uint32_t pr_val = base_4k | ((uint32_t)limit_4k << 16) | (1u << PR_WP_OFF);
++
++	msg_pdbg("WP enable: base_4k=0x%04x limit_4k=0x%04x pr_val=0x%08x\n",
++		 base_4k, limit_4k, pr_val);
++
++	/* Clear all writable PRR slots to avoid stale-slot accumulation.
++	 * GPR0 (last slot on PCH100+) is chipset-controlled; skip it. */
++	for (i = 0; i < hwseq_data.num_pr; i++) {
++		if (ich_generation >= SPI_ENGINE_PCH100 &&
++		    i == hwseq_data.num_pr - 1)
++			continue; /* GPR0: not OS-writable */
++		msg_pdbg("Clearing PRR%u\n", i);
++		mmio_writel(0, ich_spibar + hwseq_data.reg_pr0 + i * 4);
++	}
++
++	/* Write the new range into slot 0 */
++	msg_pdbg("Writing PRR0 = 0x%08x\n", pr_val);
++	mmio_writel(pr_val, ich_spibar + hwseq_data.reg_pr0);
++
++	/* Verify the write took effect */
++	uint32_t readback = mmio_readl(ich_spibar + hwseq_data.reg_pr0);
++	msg_pdbg("PRR0 readback = 0x%08x\n", readback);
++	if (readback != pr_val) {
++		msg_perr("%s: PRR0 write failed (wrote 0x%08x, read back 0x%08x)\n",
++			 __func__, pr_val, readback);
++		return FLASHPROG_WP_ERR_VERIFY_FAILED;
++	}
++
++	return FLASHPROG_WP_OK;
++}
++
++/*
++ * Enumerate possible WP ranges for PCH Protected Range Registers.
++ *
++ * PRRs can protect any 4KB-aligned range, so a complete enumeration is not
++ * practical.  Instead this function returns the conventional set: no-protection
++ * plus power-of-2 fractions from the top of the flash chip (the typical pattern
++ * used to protect BIOS regions), ending with full-chip protection.
++ *
++ * The total chip size is derived from the flash descriptor component density
++ * values read during init.
++ */
++static enum flashprog_wp_result ich_hwseq_wp_get_ranges(struct flashprog_wp_ranges **list,
++							 struct flashctx *flash)
++{
++	size_t total_size = hwseq_data.size_comp0 + hwseq_data.size_comp1;
++	size_t count, frac, idx;
++
++	if (!total_size)
++		total_size = (size_t)flash->chip->total_size * 1024;
++
++	/* count: (0,0) + top power-of-2 fracs [4K..total_size/2] + (0,total) */
++	count = 2;
++	for (frac = 4096; frac < total_size; frac <<= 1)
++		count++;
++
++	*list = calloc(1, sizeof(struct flashprog_wp_ranges));
++	if (!*list)
++		return FLASHPROG_WP_ERR_OTHER;
++
++	(*list)->ranges = calloc(count, sizeof(struct wp_range));
++	if (!(*list)->ranges) {
++		free(*list);
++		*list = NULL;
++		return FLASHPROG_WP_ERR_OTHER;
++	}
++	(*list)->count = count;
++
++	idx = 0;
++
++	/* No protection */
++	(*list)->ranges[idx].start = 0;
++	(*list)->ranges[idx].len   = 0;
++	idx++;
++
++	/* Top power-of-2 fractions: 4K, 8K, ..., total_size/2 */
++	for (frac = 4096; frac < total_size; frac <<= 1) {
++		(*list)->ranges[idx].start = total_size - frac;
++		(*list)->ranges[idx].len   = frac;
++		idx++;
++	}
++
++	/* Full chip */
++	(*list)->ranges[idx].start = 0;
++	(*list)->ranges[idx].len   = total_size;
++
++	return FLASHPROG_WP_OK;
++}
++
++/*
++ * Read flash STATUS1 register via hardware sequencer RD_STATUS cycle (type 8).
++ * This is needed on PCH100+ (e.g. Meteor Lake) where software sequencing is
++ * locked out and regular SPI STATUS opcodes are unavailable.
++ */
++static int ich_hwseq_read_status(const struct flashctx *flash, enum flash_reg reg, uint8_t *value)
++{
++	uint16_t hsfc;
++	const int len = 1;
++
++	if (reg != STATUS1) {
++		msg_pdbg("%s: only STATUS1 is supported\n", __func__);
++		return SPI_INVALID_OPCODE;
++	}
++
++	/* clear FDONE, FCERR, AEL by writing 1 to them (if set) */
++	REGWRITE16(ICH9_REG_HSFS, REGREAD16(ICH9_REG_HSFS));
++
++	hsfc = REGREAD16(ICH9_REG_HSFC);
++	hsfc &= ~hwseq_data.hsfc_fcycle;		/* clear cycle type */
++	hsfc |= HSFC_CYCLE_RD_STATUS;				/* RD_STATUS cycle (type 8, PCH100+) */
++	hsfc &= ~HSFC_FDBC;				/* clear byte count */
++	hsfc |= (((len - 1) << HSFC_FDBC_OFF) & HSFC_FDBC);
++	hsfc |= HSFC_FGO;				/* start */
++	REGWRITE16(ICH9_REG_HSFC, hsfc);
++
++	if (ich_hwseq_wait_for_cycle_complete(len))
++		return -1;
++
++	ich_read_data(value, len, ICH9_REG_FDATA0);
++	return 0;
++}
++
++/*
++ * Write flash STATUS1 register via hardware sequencer WR_STATUS cycle (type 7).
++ */
++static int ich_hwseq_write_status(const struct flashctx *flash, enum flash_reg reg, uint8_t value)
++{
++	uint16_t hsfc;
++	const int len = 1;
++
++	if (ichspi_lock) {
++		msg_perr("%s: SPI configuration is locked; cannot write STATUS register\n",
++			 __func__);
++		return -1;
++	}
++
++	if (reg != STATUS1) {
++		msg_pdbg("%s: only STATUS1 is supported\n", __func__);
++		return SPI_INVALID_OPCODE;
++	}
++
++	/* clear FDONE, FCERR, AEL by writing 1 to them (if set) */
++	REGWRITE16(ICH9_REG_HSFS, REGREAD16(ICH9_REG_HSFS));
++
++	ich_fill_data(&value, len, ICH9_REG_FDATA0);
++
++	hsfc = REGREAD16(ICH9_REG_HSFC);
++	hsfc &= ~hwseq_data.hsfc_fcycle;		/* clear cycle type */
++	hsfc |= HSFC_CYCLE_WR_STATUS;				/* WR_STATUS cycle (type 7, PCH100+) */
++	hsfc &= ~HSFC_FDBC;				/* clear byte count */
++	hsfc |= (((len - 1) << HSFC_FDBC_OFF) & HSFC_FDBC);
++	hsfc |= HSFC_FGO;				/* start */
++	REGWRITE16(ICH9_REG_HSFC, hsfc);
++
++	if (ich_hwseq_wait_for_cycle_complete(len))
++		return -1;
++
++	return 0;
++}
++
++/*
++ * Base hwseq opaque master: STATUS register read/write via hwseq cycles,
++ * used for all ICH generations.  Write protection on ICH9/pre-PCH100 goes
++ * through the generic SPI STATUS register path (wp_operations_available).
++ */
+ static const struct opaque_master opaque_master_ich_hwseq = {
+-	.max_data_read	= 64,
+-	.max_data_write	= 64,
+-	.probe		= ich_hwseq_probe,
+-	.read		= ich_hwseq_read,
+-	.write		= ich_hwseq_write,
+-	.erase		= ich_hwseq_block_erase,
++	.max_data_read		= 64,
++	.max_data_write		= 64,
++	.probe			= ich_hwseq_probe,
++	.read			= ich_hwseq_read,
++	.write			= ich_hwseq_write,
++	.erase			= ich_hwseq_block_erase,
++	.read_register		= ich_hwseq_read_status,
++	.write_register		= ich_hwseq_write_status,
++};
++
++/*
++ * PCH100+ hwseq opaque master: adds PRR-based write protection.
++ *
++ * On PCH100+ (Meteor Lake and later) the flash chip is fully opaque;
++ * the STATUS register WP bits are not accessible via standard SPI opcodes
++ * even though hwseq cycle types 8/7 work.  Write protection is instead
++ * enforced through the PCH's Protected Range Registers (PRRs).
++ *
++ * On older ICH9/pre-PCH100 platforms, PRRs may be write-locked by their
++ * own WP bit (independent of FLOCKDN), so PRR-based WP is unreliable there.
++ * Those platforms use the STATUS register WP path via wp_operations_available.
++ */
++static const struct opaque_master opaque_master_ich_hwseq_pch100 = {
++	.max_data_read		= 64,
++	.max_data_write		= 64,
++	.probe			= ich_hwseq_probe,
++	.read			= ich_hwseq_read,
++	.write			= ich_hwseq_write,
++	.erase			= ich_hwseq_block_erase,
++	.read_register		= ich_hwseq_read_status,
++	.write_register		= ich_hwseq_write_status,
++	.wp_read_cfg		= ich_hwseq_wp_read_cfg,
++	.wp_write_cfg		= ich_hwseq_wp_write_cfg,
++	.wp_get_ranges		= ich_hwseq_wp_get_ranges,
+ };
+ 
+ int ich9_init_spi(void *spibar, enum ich_chipset ich_gen)
+@@ -1948,8 +2270,13 @@
+ 			return ERROR_FATAL;
+ 		}
+ 		hwseq_data.size_comp1 = tmpi;
++		hwseq_data.reg_pr0 = reg_pr0;
++		hwseq_data.num_pr  = num_pr;
+ 
+-		register_opaque_master(&opaque_master_ich_hwseq, NULL);
++		if (ich_generation >= SPI_ENGINE_PCH100)
++			register_opaque_master(&opaque_master_ich_hwseq_pch100, NULL);
++		else
++			register_opaque_master(&opaque_master_ich_hwseq, NULL);
+ 	} else {
+ 		register_spi_master(&spi_master_ich9, 0, NULL);
+ 	}

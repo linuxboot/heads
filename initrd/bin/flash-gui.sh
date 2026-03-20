@@ -13,32 +13,9 @@ if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
   exit 1
 fi
 
-# Most boards use a .rom file as a "plain" update, contents of the BIOS flash
-UPDATE_PLAIN_EXT=rom
-# talos-2 uses a .tgz file for its "plain" update, contains other parts as well
-# as its own integrity check.  This isn't integrated with the "update package"
-# workflow (as-is, a .tgz could be inside that package in theory) but more work
-# would be needed to properly integrate it.
-if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
-  UPDATE_PLAIN_EXT=tgz
-fi
-
-# Check that a glob matches exactly one thing.  If so, echoes the single value.
-# Otherwise, fails.  As always, do not quote the glob.
-#
-# E.g, locate a ROM with unknown version when only one should be present:
-# if ROM_FILE="$(single_glob /media/heads-*.rom)"; then
-#     echo "ROM is $ROM_FILE"
-# else
-#     echo "Failed to find a ROM" >&2
-# fi
-single_glob() {
-  if [ "$#" -eq 1 ] && [ -f "$1" ]; then
-    echo "$1"
-  else
-    return 1
-  fi
-}
+# Most boards use a .rom file as a "plain" update, contents of the BIOS flash.
+# talos-2 uses a .tgz for multi-component updates with built-in integrity check.
+UPDATE_PLAIN_EXT="$(update_plain_ext)"
 
 while true; do
   unset menu_choice
@@ -46,6 +23,7 @@ while true; do
     --menu "Select the firmware function to perform\n\nRetaining settings copies existing settings to the new firmware:\n* Keeps your GPG keyring\n* Keeps changes to the default /boot device\n\nErasing settings uses the new firmware as-is:\n* Erases any existing GPG keyring\n* Restores firmware to default factory settings\n* Clears out /boot signatures\n\nIf you are just updating your firmware, you probably want to retain\nyour settings." 0 80 10 \
     'f' ' Flash the firmware with a new ROM, retain settings' \
     'c' ' Flash the firmware with a new ROM, erase settings' \
+    'r' ' Rollback to previous firmware backup' \
     'x' ' Exit' \
     2>/tmp/whiptail || recovery "GUI menu failed"
 
@@ -54,6 +32,59 @@ while true; do
   case "$menu_choice" in
   "x")
     exit 0
+    ;;
+  "r")
+    # Rollback to the most recent firmware backup saved in /boot/<brand>/.
+    # Integrity is attested by /boot kexec.sig (print_tree + kexec.sig covers
+    # all /boot files including the backup ROM once the user re-signs /boot).
+    # Warn loudly if kexec.sig is missing or invalid; still allow override.
+    ROLLBACK_BRAND_LOWER="$(echo "$CONFIG_BRAND_NAME" | tr '[:upper:]' '[:lower:]')"
+    ROLLBACK_DIR="/boot/${ROLLBACK_BRAND_LOWER}"
+    ROLLBACK_MARKER="${ROLLBACK_DIR}/pending_rollback"
+
+    # Prefer the marker path; fall back to most recent backup_*.rom
+    if [ -f "$ROLLBACK_MARKER" ]; then
+      ROLLBACK_ROM="$(cat "$ROLLBACK_MARKER" 2>/dev/null || true)"
+    else
+      ROLLBACK_ROM=""
+    fi
+    if [ -z "$ROLLBACK_ROM" ] || [ ! -f "$ROLLBACK_ROM" ]; then
+      ROLLBACK_ROM="$(find "${ROLLBACK_DIR}" -maxdepth 1 -name 'backup_*.rom' 2>/dev/null | sort | tail -1)"
+    fi
+
+    if [ -z "$ROLLBACK_ROM" ] || [ ! -f "$ROLLBACK_ROM" ]; then
+      whiptail_error --title 'No Rollback Backup Found' \
+        --msgbox "No firmware backup was found in ${ROLLBACK_DIR}.\n\nA backup is saved automatically when flashing firmware\n(requires rollback backup to be enabled in Flash Options)." 0 80
+      continue
+    fi
+
+    # Verify kexec.sig covers /boot (includes backup ROM after user re-signs).
+    KEXEC_SIG_OK="false"
+    if [ -f /boot/kexec.sig ] && [ "$(find /boot/kexec*.txt 2>/dev/null | wc -l)" -gt 0 ]; then
+      if sha256sum $(find /boot/kexec*.txt) 2>/dev/null | gpgv /boot/kexec.sig - 2>/dev/null; then
+        KEXEC_SIG_OK="true"
+        DEBUG "kexec.sig verification passed for rollback"
+      else
+        DEBUG "kexec.sig verification FAILED for rollback"
+      fi
+    fi
+
+    if [ "$KEXEC_SIG_OK" = "false" ]; then
+      if ! whiptail_error --title 'WARNING: Backup Integrity Unverified' \
+          --yesno "The /boot signature (kexec.sig) is missing or invalid.\n\nThe rollback backup cannot be verified as trustworthy.\nThis may mean /boot was not signed after the last firmware flash,\nor the backup file has been modified.\n\nBackup: ${ROLLBACK_ROM}\n\nProceed anyway? (NOT recommended)" 0 80; then
+        continue
+      fi
+    else
+      if ! whiptail_warning --title 'Rollback Firmware?' \
+          --yesno "This will reflash the previous firmware backup:\n\n${ROLLBACK_ROM}\n\nCurrent settings will be erased (factory reset).\nkexec.sig integrity verified.\n\nDo you want to proceed?" 0 80; then
+        continue
+      fi
+    fi
+
+    /bin/flash.sh -c --no-backup --bypass-verify "$ROLLBACK_ROM"
+    whiptail --title 'Rollback Complete' \
+      --msgbox "Previous firmware has been restored.\n\nPress Enter to reboot." 0 80
+    /bin/reboot
     ;;
   f | c)
     if (whiptail_warning --title 'Flash the BIOS with a new ROM' \
@@ -75,7 +106,7 @@ while true; do
           exit 1
         fi
         file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
-        if [ "$FILE" == "" ]; then
+        if [ "$FILE" = "" ]; then
           exit 1
         else
           PKG_FILE=$FILE
@@ -84,34 +115,16 @@ while true; do
         # Display the package file without the "/media/" prefix
         PKG_FILE_DISPLAY="${PKG_FILE#"/media/"}"
 
-        # Unzip the package
         PKG_EXTRACT="/tmp/flash_gui/update_package"
-        rm -rf "$PKG_EXTRACT"
-        mkdir -p "$PKG_EXTRACT"
 
         # is an update package provided?
         if [ -z "${PKG_FILE##*.zip}" ]; then
-          # If extraction fails, delete everything and fall through to the
-          # integrity failure prompt.  This is the most likely path if the ROM
-          # was actually corrupted in transit.  Corrupting the ZIP in a way that
-          # still extracts is possible (the sha256sum detects this) but less
-          # likely.
-          unzip "$PKG_FILE" -d "$PKG_EXTRACT" || rm -rf "$PKG_EXTRACT"
-          # Older packages had /tmp/verified_rom hard-coded in the sha256sum.txt
-          # Remove that so it's a relative path to the ROM in the package.
-          # Ignore failure, if there is no sha256sum.txt the sha256sum will fail
-          sed -i -e 's| /tmp/verified_rom/\+| |g' "$PKG_EXTRACT/sha256sum.txt" || true
-          # check file integrity
-          if ! (cd "$PKG_EXTRACT" && sha256sum -cs sha256sum.txt); then
-            whiptail --title 'ROM Integrity Check Failed! ' \
-              --msgbox "Integrity check failed in\n$PKG_FILE_DISPLAY.\nDid not flash.\n\nPlease check your file (e.g. re-download).\n" 16 60
-            exit 1
-          fi
-
-          # The package must contain exactly one *.rom file, flash that.
-          if ! PACKAGE_ROM="$(single_glob "$PKG_EXTRACT/"*."$UPDATE_PLAIN_EXT")"; then
-            whiptail --title 'BIOS Image Not Found! ' \
-              --msgbox "A BIOS image was not found in\n$PKG_FILE_DISPLAY.\n\nPlease check your file (e.g. re-download).\n" 16 60
+          # Verify integrity and extract the ROM from the zip package.
+          # prepare_flash_image handles extraction, sha256sum.txt validation,
+          # and locating the single ROM inside.
+          if ! prepare_flash_image "$PKG_FILE" "$PKG_EXTRACT"; then
+            whiptail --title 'ROM Integrity Check Failed!' \
+              --msgbox "Integrity check failed:\n$PKG_FILE_DISPLAY\n\n$PREPARED_ROM_ERROR\n\nDid not flash.\n\nPlease check your file (e.g. re-download).\n" 16 60
             exit 1
           fi
 
@@ -120,33 +133,31 @@ while true; do
             exit 1
           fi
 
-          # Continue on using the verified ROM
-          ROM="$PACKAGE_ROM"
+          ROM="$PREPARED_ROM"
         else
-          # talos-2 uses a .tgz file for its "plain" update, contains other parts as well, validated against hashes under flash.sh
-          # Skip prompt for hash validation for talos-2. Only method is through tgz or through bmc with individual parts
+          # talos-2 uses a .tgz for its plain update; integrity is verified
+          # automatically inside flash.sh via prepare_flash_image.
+          # Skip the manual hash prompt - tgz has its own sha256sum.txt.
           if [ "${CONFIG_BOARD%_*}" != talos-2 ]; then
-            # Though a plain ROM isn't a package, copy it to /tmp before doing
-            # anything, so we can be sure the media won't disappear or fail
-            # while flashing.
-            if ! cp "$PKG_FILE" "$PKG_EXTRACT/"; then
+            # Plain .rom file: copy to /tmp and compute hash for manual verification.
+            if ! prepare_flash_image "$PKG_FILE" "$PKG_EXTRACT"; then
               whiptail --title 'Failed to read ROM' \
-                --msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\nPlease check your file (e.g. re-download).\n" 16 60
+                --msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\n$PREPARED_ROM_ERROR\n\nPlease check your file (e.g. re-download).\n" 16 60
               exit 1
             fi
-            ROM="$PKG_EXTRACT/$(basename "$PKG_FILE")"
-            ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}')
+            ROM="$PREPARED_ROM"
+            ROM_HASH="$PREPARED_ROM_HASH"
             if ! (whiptail_error --title 'Flash ROM without integrity check?' \
-              --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
+              --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
               exit 1
             fi
           else
-            #We are on talos-2, so we have a tgz file. We will pass it directly to flash.sh which will take care of it
+            # talos-2: pass .tgz directly to flash.sh for validated pnor assembly
             ROM="$PKG_FILE"
           fi
         fi
 
-        if [ "$menu_choice" == "c" ]; then
+        if [ "$menu_choice" = "c" ]; then
           /bin/flash.sh -c "$ROM"
           # after flash, /boot signatures are now invalid so go ahead and clear them
           if ls /boot/kexec* >/dev/null 2>&1; then

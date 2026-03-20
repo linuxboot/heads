@@ -1,0 +1,24 @@
+# Backported from upstream flashrom (https://github.com/flashrom/flashrom),
+# where this infrastructure was contributed by the Dasharo team to enable
+# write-protect operations on opaque (hardware-sequenced) programmers.
+# Adapted for flashprog 1.5 (flashprog_wp_result / flashprog_wp_cfg types).
+--- a/include/programmer.h	2026-02-13 13:14:40.000000000 -0500
++++ b/include/programmer.h	2026-03-18 17:09:05.983978890 -0400
+@@ -421,6 +421,17 @@
+ 	int (*read) (struct flashctx *flash, uint8_t *buf, unsigned int start, unsigned int len);
+ 	int (*write) (struct flashctx *flash, const uint8_t *buf, unsigned int start, unsigned int len);
+ 	int (*erase) (struct flashctx *flash, unsigned int blockaddr, unsigned int blocklen);
++	/*
++	 * Callbacks for accessing flash registers. An opaque programmer must
++	 * provide these for writeprotect operations to be available, unless it
++	 * provides custom wp operations instead.
++	 */
++	int (*read_register)(const struct flashctx *flash, enum flash_reg reg, uint8_t *value);
++	int (*write_register)(const struct flashctx *flash, enum flash_reg reg, uint8_t value);
++	/* Optional overrides for default writeprotect operations. */
++	enum flashprog_wp_result (*wp_write_cfg)(struct flashctx *, const struct flashprog_wp_cfg *);
++	enum flashprog_wp_result (*wp_read_cfg)(struct flashprog_wp_cfg *, struct flashctx *);
++	enum flashprog_wp_result (*wp_get_ranges)(struct flashprog_wp_ranges **, struct flashctx *);
+ 	int (*shutdown)(void *data);
+ 	void *data;
+ };

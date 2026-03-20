@@ -658,6 +658,11 @@ else
 	mount_boot
 fi
 
+# If a firmware flash occurred on the last boot, give the user a text-mode
+# countdown to confirm the new firmware works.  Reflashes the backup
+# automatically if no input is received (handles broken framebuffer/keyboard).
+check_pending_rollback
+
 # detect whether any GPG keys exist in the keyring, if not, initialize that first
 check_gpg_key
 # Even if GPG init fails, still try to update TOTP/HOTP so the main menu can

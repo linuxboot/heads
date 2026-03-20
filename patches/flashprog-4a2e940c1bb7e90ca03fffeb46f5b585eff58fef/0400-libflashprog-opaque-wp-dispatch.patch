@@ -1,0 +1,77 @@
+# Backported from upstream flashrom (https://github.com/flashrom/flashrom),
+# originally contributed by the Dasharo/3mdeb team (SergiiDmytruk et al.).
+# See: https://review.coreboot.org/c/flashrom/+/68179
+#      https://github.com/linuxboot/heads/issues/1741
+# Adapted for flashprog 1.5 (flashprog_wp_result / flashprog_flashctx types;
+# flash->mst.opaque pointer dereference vs flashrom's struct-embed access).
+--- a/libflashprog.c	2026-02-13 13:14:40.000000000 -0500
++++ b/libflashprog.c	2026-03-18 17:59:40.421567168 -0400
+@@ -658,10 +658,19 @@
+  */
+ enum flashprog_wp_result flashprog_wp_write_cfg(struct flashctx *flash, const struct flashprog_wp_cfg *cfg)
+ {
+-	if (!flash->chip->wp_write_cfg)
+-		return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
++	/* Programmer-level override (e.g. custom hwseq WP write) */
++	if ((flash->chip->bustype & BUS_PROG) && flash->mst.opaque->wp_write_cfg)
++		return flash->mst.opaque->wp_write_cfg(flash, cfg);
++
++	/* Chip-level WP write (standard SPI chips) */
++	if (flash->chip->wp_write_cfg)
++		return flash->chip->wp_write_cfg(flash, cfg);
++
++	/* Generic SPI-register-based WP via opaque read/write_register callbacks */
++	if (wp_operations_available(flash))
++		return spi_wp_write_cfg(flash, cfg);
+ 
+-	return flash->chip->wp_write_cfg(flash, cfg);
++	return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
+ }
+ 
+ /**
+@@ -675,10 +684,19 @@
+  */
+ enum flashprog_wp_result flashprog_wp_read_cfg(struct flashprog_wp_cfg *cfg, struct flashctx *flash)
+ {
+-	if (!flash->chip->wp_read_cfg)
+-		return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
++	/* Programmer-level override */
++	if ((flash->chip->bustype & BUS_PROG) && flash->mst.opaque->wp_read_cfg)
++		return flash->mst.opaque->wp_read_cfg(cfg, flash);
++
++	/* Chip-level WP read */
++	if (flash->chip->wp_read_cfg)
++		return flash->chip->wp_read_cfg(cfg, flash);
++
++	/* Generic SPI-register-based WP */
++	if (wp_operations_available(flash))
++		return spi_wp_read_cfg(cfg, flash);
+ 
+-	return flash->chip->wp_read_cfg(cfg, flash);
++	return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
+ }
+ 
+ /**
+@@ -695,10 +713,19 @@
+  */
+ enum flashprog_wp_result flashprog_wp_get_available_ranges(struct flashprog_wp_ranges **list, struct flashprog_flashctx *flash)
+ {
+-	if (!flash->chip->wp_get_ranges)
+-		return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
++	/* Programmer-level override */
++	if ((flash->chip->bustype & BUS_PROG) && flash->mst.opaque->wp_get_ranges)
++		return flash->mst.opaque->wp_get_ranges(list, flash);
++
++	/* Chip-level ranges */
++	if (flash->chip->wp_get_ranges)
++		return flash->chip->wp_get_ranges(list, flash);
++
++	/* Generic SPI-register-based ranges */
++	if (wp_operations_available(flash))
++		return spi_wp_get_available_ranges(list, flash);
+ 
+-	return flash->chip->wp_get_ranges(list, flash);
++	return FLASHPROG_WP_ERR_CHIP_UNSUPPORTED;
+ }
+ 
+ /**

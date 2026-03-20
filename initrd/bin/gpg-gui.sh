@@ -60,7 +60,7 @@ gpg_flash_rom() {
   if [ -e /etc/config.user ]; then
     cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
   fi
-  /bin/flash.sh /tmp/gpg-gui.rom
+  /bin/flash.sh --no-backup /tmp/gpg-gui.rom
 
   if (whiptail --title 'BIOS Flashed Successfully' \
       --yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80) then

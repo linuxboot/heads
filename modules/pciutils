@@ -41,6 +41,7 @@ pciutils_target := \
 
 pciutils_output := \
 	lspci \
+	setpci \
 
 pciutils_libraries := \
 	lib/libpci.so.3.5.4 \
