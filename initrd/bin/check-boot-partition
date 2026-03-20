@@ -1,0 +1,133 @@
+#!/bin/sh
+# check-boot-partition: Validate that CONFIG_BOOT_DEV points to a real,
+# separate, unencrypted block device partition — not a directory inside
+# an already-mounted root filesystem.
+#
+# This is a hard architectural requirement of Heads: the integrity model
+# depends on Heads (running from ROM) being able to mount, measure, and
+# GPG-sign the contents of /boot before the OS ever runs. If /boot is
+# part of an encrypted root, or is a subdirectory of /, that chain of
+# custody is broken.
+#
+# Returns 0 if all checks pass.
+# Calls `die` (from /etc/functions) on hard failures.
+# Calls `warn` for conditions that are unusual but recoverable.
+#
+# Usage: check-boot-partition
+#   Called automatically from gui-init and init before mount_boot().
+#   Can also be called from the recovery shell for diagnosis.
+
+. /etc/functions
+. /tmp/config
+
+BOOT_CHECK_ERRORS=0
+BOOT_CHECK_WARNINGS=0
+
+_boot_error() {
+	BOOT_CHECK_ERRORS=$((BOOT_CHECK_ERRORS + 1))
+	echo "!!! BOOT PARTITION ERROR: $*" >&2
+}
+
+_boot_warn() {
+	BOOT_CHECK_WARNINGS=$((BOOT_CHECK_WARNINGS + 1))
+	echo "WARNING: $*" >&2
+}
+
+# ------------------------------------------------------------
+# CHECK 1: CONFIG_BOOT_DEV must be set
+# ------------------------------------------------------------
+if [ -z "$CONFIG_BOOT_DEV" ]; then
+	_boot_error "CONFIG_BOOT_DEV is not set."
+	_boot_error "Heads requires a dedicated /boot partition."
+	_boot_error "Set CONFIG_BOOT_DEV in /etc/config.user, e.g.:"
+	_boot_error "  echo \"export CONFIG_BOOT_DEV='/dev/sda1'\" > /etc/config.user"
+fi
+
+# ------------------------------------------------------------
+# CHECK 2: CONFIG_BOOT_DEV must be a block device
+# ------------------------------------------------------------
+if [ -n "$CONFIG_BOOT_DEV" ]; then
+	if [ ! -e "$CONFIG_BOOT_DEV" ]; then
+		_boot_error "CONFIG_BOOT_DEV='$CONFIG_BOOT_DEV' does not exist."
+		_boot_error "Check that the drive is present and the device path is correct."
+	elif [ ! -b "$CONFIG_BOOT_DEV" ]; then
+		_boot_error "CONFIG_BOOT_DEV='$CONFIG_BOOT_DEV' exists but is not a block device."
+		_boot_error "Heads requires /boot to be a separate partition, not a directory."
+		_boot_error "If /boot is inside your root filesystem, Heads cannot provide"
+		_boot_error "boot integrity guarantees. You must repartition and reinstall."
+	fi
+fi
+
+# ------------------------------------------------------------
+# CHECK 3: CONFIG_BOOT_DEV must not be the same device as /
+# ------------------------------------------------------------
+if [ -n "$CONFIG_BOOT_DEV" ] && [ -b "$CONFIG_BOOT_DEV" ]; then
+	ROOT_DEV=""
+	if grep -q ' / ' /proc/mounts 2>/dev/null; then
+		ROOT_DEV=$(grep ' / ' /proc/mounts | awk '{print $1}' | head -1)
+	fi
+
+	if [ -n "$ROOT_DEV" ] && [ "$ROOT_DEV" = "$CONFIG_BOOT_DEV" ]; then
+		_boot_error "CONFIG_BOOT_DEV='$CONFIG_BOOT_DEV' is the same device as /."
+		_boot_error "Heads requires /boot to be a SEPARATE partition from /."
+		_boot_error "A merged /boot means kernel and initrd updates are invisible"
+		_boot_error "to Heads until you manually re-sign, and Heads cannot detect"
+		_boot_error "tampering against a baseline it was never given."
+	fi
+fi
+
+# ------------------------------------------------------------
+# CHECK 4: CONFIG_BOOT_DEV must not be LUKS-encrypted
+# ------------------------------------------------------------
+if [ -n "$CONFIG_BOOT_DEV" ] && [ -b "$CONFIG_BOOT_DEV" ]; then
+	BOOT_FSTYPE=$(blkid -o value -s TYPE "$CONFIG_BOOT_DEV" 2>/dev/null)
+
+	if [ "$BOOT_FSTYPE" = "crypto_LUKS" ]; then
+		_boot_error "CONFIG_BOOT_DEV='$CONFIG_BOOT_DEV' is a LUKS-encrypted partition."
+		_boot_error "Heads requires /boot to be UNENCRYPTED."
+		_boot_error "Heads runs from ROM and has no mechanism to decrypt LUKS before"
+		_boot_error "it reads the kernel, initrd, and grub config. An encrypted /boot"
+		_boot_error "makes the entire Heads integrity model impossible."
+		_boot_error "You must repartition: create a small (512MB) unencrypted ext4"
+		_boot_error "partition for /boot, and keep your root encrypted."
+	elif [ -z "$BOOT_FSTYPE" ]; then
+		_boot_warn "Could not determine filesystem type of $CONFIG_BOOT_DEV."
+		_boot_warn "Ensure it is a formatted, unencrypted ext2/ext3/ext4 partition."
+	fi
+fi
+
+# ------------------------------------------------------------
+# CHECK 5: Warn if /boot mount device mismatches CONFIG_BOOT_DEV
+# ------------------------------------------------------------
+if grep -q ' /boot ' /proc/mounts 2>/dev/null; then
+	CURRENT_BOOT_DEV=$(grep ' /boot ' /proc/mounts | awk '{print $1}' | head -1)
+	if [ -n "$CONFIG_BOOT_DEV" ] && [ "$CURRENT_BOOT_DEV" != "$CONFIG_BOOT_DEV" ]; then
+		_boot_warn "/boot is currently mounted from $CURRENT_BOOT_DEV"
+		_boot_warn "but CONFIG_BOOT_DEV is set to $CONFIG_BOOT_DEV."
+		_boot_warn "These should match. Check your configuration."
+	fi
+fi
+
+# ------------------------------------------------------------
+# RESULT
+# ------------------------------------------------------------
+if [ "$BOOT_CHECK_ERRORS" -gt 0 ]; then
+	echo "" >&2
+	echo "===========================================================" >&2
+	echo "HEADS BOOT PARTITION REQUIREMENT NOT MET ($BOOT_CHECK_ERRORS error(s))" >&2
+	echo "" >&2
+	echo "Heads requires a dedicated, separate, unencrypted partition" >&2
+	echo "for /boot. This is not optional — it is the foundation of" >&2
+	echo "Heads' integrity model." >&2
+	echo "" >&2
+	echo "See: https://osresearch.net/Boot-Partition-Requirements" >&2
+	echo "===========================================================" >&2
+	echo "" >&2
+	die "Boot partition requirement not met. Cannot continue safely."
+fi
+
+if [ "$BOOT_CHECK_WARNINGS" -gt 0 ]; then
+	echo "Boot partition checks passed with $BOOT_CHECK_WARNINGS warning(s)." >&2
+fi
+
+return 0 2>/dev/null || exit 0

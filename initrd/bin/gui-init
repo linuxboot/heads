@@ -16,7 +16,7 @@ export BG_COLOR_MAIN_MENU="normal"
 # # see errors again.
 skip_to_menu="false"
 
-mount_boot() {
+mount_boot() {  # only called after check-boot-partition passes
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
 	while ! grep -q /boot /proc/mounts; do
@@ -637,6 +637,14 @@ force_unsafe_boot() {
 
 # gui-init start
 TRACE_FUNC
+
+# Validate /boot partition requirements before anything else.
+# This is a hard prerequisite: Heads cannot provide integrity guarantees
+# if /boot is not a separate, unencrypted block device partition.
+# check-boot-partition calls die() on failure, so execution stops here
+# if the layout is wrong, rather than silently degrading into confusing
+# first-boot-style dialogs.
+check-boot-partition || die "Boot partition check failed"
 
 # Use stored HOTP key branding
 if [ -r /boot/kexec_hotp_key ]; then
