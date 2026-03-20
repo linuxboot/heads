@@ -13,7 +13,17 @@
 # platforms use STATUS register WP via wp_operations_available (Dasharo approach).
 --- a/ichspi.c	2026-02-13 13:14:40.000000000 -0500
 +++ b/ichspi.c	2026-03-19 20:30:00.000000000 -0400
-@@ -1177,6 +1177,8 @@
+@@ -115,6 +115,9 @@
+ #define HSFC_FGO		(0x1 << HSFC_FGO_OFF)
+ #define HSFC_FCYCLE_OFF		1	/* 1-2: FLASH Cycle */
+ #define HSFC_FCYCLE		(0x3 << HSFC_FCYCLE_OFF)
++#define HSFC_FCYCLE_MASK(n)	((n) << HSFC_FCYCLE_OFF)	/* PCH100+: 4-bit field */
++#define HSFC_CYCLE_WR_STATUS	HSFC_FCYCLE_MASK(7)	/* WR_STATUS (PCH100+) */
++#define HSFC_CYCLE_RD_STATUS	HSFC_FCYCLE_MASK(8)	/* RD_STATUS (PCH100+) */
+ 					/* 3-7: reserved */
+ #define HSFC_FDBC_OFF		8	/* 8-13: Flash Data Byte Count */
+ #define HSFC_FDBC		(0x3f << HSFC_FDBC_OFF)
+@@ -1177,6 +1180,8 @@
  	uint32_t addr_mask;
  	bool only_4k;
  	uint32_t hsfc_fcycle;
@@ -22,7 +32,7 @@
  } hwseq_data;
  
  /* Sets FLA in FADDR to (addr & hwseq_data.addr_mask) without touching other bits. */
-@@ -1688,13 +1690,330 @@
+@@ -1688,13 +1693,330 @@
  	.probe_opcode	= ich_spi_probe_opcode,
  };
  
@@ -259,7 +269,7 @@
 +
 +	hsfc = REGREAD16(ICH9_REG_HSFC);
 +	hsfc &= ~hwseq_data.hsfc_fcycle;		/* clear cycle type */
-+	hsfc |= (0x8 << HSFC_FCYCLE_OFF);		/* RD_STATUS cycle */
++	hsfc |= HSFC_CYCLE_RD_STATUS;				/* RD_STATUS cycle (type 8, PCH100+) */
 +	hsfc &= ~HSFC_FDBC;				/* clear byte count */
 +	hsfc |= (((len - 1) << HSFC_FDBC_OFF) & HSFC_FDBC);
 +	hsfc |= HSFC_FGO;				/* start */
@@ -298,7 +308,7 @@
 +
 +	hsfc = REGREAD16(ICH9_REG_HSFC);
 +	hsfc &= ~hwseq_data.hsfc_fcycle;		/* clear cycle type */
-+	hsfc |= (0x7 << HSFC_FCYCLE_OFF);		/* WR_STATUS cycle */
++	hsfc |= HSFC_CYCLE_WR_STATUS;				/* WR_STATUS cycle (type 7, PCH100+) */
 +	hsfc &= ~HSFC_FDBC;				/* clear byte count */
 +	hsfc |= (((len - 1) << HSFC_FDBC_OFF) & HSFC_FDBC);
 +	hsfc |= HSFC_FGO;				/* start */
@@ -359,7 +369,7 @@
  };
  
  int ich9_init_spi(void *spibar, enum ich_chipset ich_gen)
-@@ -1948,8 +2267,13 @@
+@@ -1948,8 +2270,13 @@
  			return ERROR_FATAL;
  		}
  		hwseq_data.size_comp1 = tmpi;
