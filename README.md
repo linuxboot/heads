@@ -436,16 +436,18 @@ docker_hub_repo="tlaurion/heads-dev-env"
 # Update pinned packages to latest if needed, modify flake.nix as required
 nix flake update
 
-# Commit flake changes
-git add flake.nix flake.lock
-git commit --signoff -m "Bump nix develop based docker image to $docker_version"
-
+# Build new docker image with helper and uncommited changes to flake* files above
+./docker_local_dev.sh
+# OR
 # Verify reproducibility: ensure the local build matches (no further changes to flake files)
 nix develop --ignore-environment --command true
-
 # Build the new Docker image
 nix build .#dockerImage
 docker load < result
+
+# Commit flake changes
+git add flake.nix flake.lock
+git commit --signoff -m "Bump nix develop based docker image to $docker_version"
 
 # Verify you can extract the digest (for fully reproducible builds, flake.nix/flake.lock must be committed)
 docker inspect --format='{{.Id}}' linuxboot/heads:dev-env
@@ -471,6 +473,7 @@ sed -i "s|# Version: .*|# Version: $docker_version|" docker/DOCKER_REPRO_DIGEST
 # fresh "# Docker image: $docker_hub_repo:$docker_version" comment immediately above the
 # matching "- image: $docker_hub_repo@<digest>" line while preserving indentation.
 sed -i -e "/^[[:space:]]*# Docker image: /d" -e "/^[[:space:]]*- image: ${docker_hub_repo//\//\\/}@/ s|^\([[:space:]]*\)\(- image: ${docker_hub_repo//\//\\/}@\)|\\1# Docker image: $docker_hub_repo:$docker_version\n\\1\\2|" .circleci/config.yml
+sed -i "s|$prev_digest|$new_digest|" docker/DOCKER_REPRO_DIGEST .circleci/config.yml
 
 # Commit the digest and config changes
 git add docker/DOCKER_REPRO_DIGEST .circleci/config.yml
