@@ -1,0 +1,46 @@
+ifeq "$(CONFIG_DASHARO_EC)" "y"
+
+modules-y += dasharo-ec
+
+dasharo-ec_repo        := https://github.com/Dasharo/ec
+dasharo-ec_commit_hash := d198b641195e60e13afc17be9464e4f402d1c2fa
+
+# dasharo/ec system76/ec uses slash-separated BOARD paths (src/board/novacustom/v540tu/)
+ifeq "$(BOARD)" "novacustom-v540tu"
+DASHARO_EC_BOARD_MODEL := novacustom/v540tu
+else ifeq "$(BOARD)" "novacustom-v560tu"
+DASHARO_EC_BOARD_MODEL := novacustom/v560tu
+else
+$(error "$(BOARD): no Dasharo EC board model mapping defined")
+endif
+
+dasharo-ec_version  := $(dasharo-ec_commit_hash)
+dasharo-ec_base_dir := dasharo-ec-$(dasharo-ec_version)
+dasharo-ec_dir      := dasharo-ec-$(dasharo-ec_version)
+
+# definemodule checks that this file exists after _target runs
+dasharo-ec_output := .built
+
+# definemodule runs: ( echo "..." ; $(MAKE) -C $(build)/$(dasharo-ec_dir) $(dasharo-ec_target) ) | tee log
+# The whole expansion is a subshell, so && is valid shell inside it.
+# BOARD=... is passed to the upstream EC Makefile as a variable override.
+# Touch .built so definemodule's output sentinel is satisfied.
+dasharo-ec_target := \
+	BOARD=$(DASHARO_EC_BOARD_MODEL) \
+	&& touch "$(build)/$(dasharo-ec_dir)/.built"
+
+# After dasharo-ec/.build sentinel is touched by definemodule, copy ec.rom into
+# the per-board coreboot build dir. The datestamped subdir is matched with glob.
+# $(coreboot_dir) = coreboot-dasharo/$(BOARD) — defined in modules/coreboot.
+$(build)/$(coreboot_dir)/ec.rom: $(build)/$(dasharo-ec_dir)/.build
+	$(call do,EC-ROM,$(DASHARO_EC_BOARD_MODEL) -> $(coreboot_dir)/ec.rom, \
+		mkdir -p "$(build)/$(coreboot_dir)" \
+		&& sh -c 'cp "$(build)/$(dasharo-ec_dir)/build/$(DASHARO_EC_BOARD_MODEL)"/*/ec.rom \
+		          "$(build)/$(coreboot_dir)/ec.rom"' \
+	)
+
+# Append ec.rom as prerequisite to coreboot configure without redefining recipe.
+# Guarantees coreboot configure runs only after ec.rom is in place.
+$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_dir)/ec.rom
+
+endif
