@@ -52,26 +52,28 @@ if [ -z "$key_devices" ]; then
 fi
 
 # try to switch to rw mode
-mount -o rw,remount $paramsdev
+mount -o rw,remount "$paramsdev"
 
-rm -f $paramsdir/kexec_key_lvm.txt || true
+rm -f "$paramsdir/kexec_key_lvm.txt" || true
 if [ -n "$lvm_volume_group" ]; then
 	DEBUG "kexec-save-key saving under $paramsdir/kexec_key_lvm.txt : lvm_volume_group: $lvm_volume_group"
-	echo "$lvm_volume_group" >$paramsdir/kexec_key_lvm.txt ||
-		DIE "Failed to write lvm group to key config "
+	echo "$lvm_volume_group" >"$paramsdir/kexec_key_lvm.txt" ||
+		DIE "Failed to write lvm group to key config"
 fi
 
-rm -f $paramsdir/kexec_key_devices.txt || true
+rm -f "$paramsdir/kexec_key_devices.txt" || true
 for dev in $key_devices; do
 	DEBUG "Getting UUID for $dev"
 	uuid=$(cryptsetup luksUUID "$dev" 2>/dev/null) ||
 		DIE "Failed to get UUID for device $dev"
 	DEBUG "Saving under $paramsdir/kexec_key_devices.txt : dev: $dev, uuid: $uuid"
-	echo "$dev $uuid" >>$paramsdir/kexec_key_devices.txt ||
+	echo "$dev $uuid" >>"$paramsdir/kexec_key_devices.txt" ||
 		DIE "Failed to add $dev:$uuid to key devices config"
 done
 
-kexec-seal-key $paramsdir ||
+# kexec-seal-key tests the DRK passphrase, filters kexec_key_devices.txt to
+# only the unlockable subset, then seals the DUK into TPM NVRAM.
+kexec-seal-key "$paramsdir" ||
 	DIE "Failed to save and generate LUKS TPM Disk Unlock Key"
 
 if [ "$skip_sign" != "y" ]; then
@@ -80,8 +82,9 @@ if [ "$skip_sign" != "y" ]; then
 		DEBUG "kexec-save-key: CONFIG_IGNORE_ROLLBACK is not set, will sign with -r"
 		extparam=-r
 	fi
-	# sign and auto-roll config counter
-	DO_WITH_DEBUG kexec-sign-config -p $paramsdir $extparam ||
+	# Sign the updated /boot — kexec_key_devices.txt now reflects only the
+	# devices that actually received a DUK (may be a subset of what was passed).
+	DO_WITH_DEBUG kexec-sign-config -p "$paramsdir" $extparam ||
 		DIE "Failed to sign updated config"
 fi
 
