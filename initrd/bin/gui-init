@@ -431,7 +431,7 @@ update_hotp() {
 		return
 	fi
 
-	local hotp_token_info hotp_pin_retries prompt_label hotp_exit attempt
+	local hotp_token_info hotp_exit attempt
 
 	# Ensure dongle is present; capture info for PIN counter display
 	if ! hotp_token_info="$(hotp_verification info)"; then
@@ -492,18 +492,7 @@ update_hotp() {
 		*)
 			# Transient error (USB glitch etc.) — retry if attempts remain
 			if [ "$attempt" -lt 3 ]; then
-				# Refresh PIN counter and show it before the next attempt
-				hotp_token_info="$(hotp_verification info 2>/dev/null)" || true
-				if lsusb | grep -q "20a0:42b2"; then
-					hotp_pin_retries=$(echo "$hotp_token_info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
-					prompt_label="Secrets app"
-				else
-					hotp_pin_retries=$(echo "$hotp_token_info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
-					prompt_label="Admin"
-				fi
-				hotp_pin_retries="${hotp_pin_retries:-0}"
 				WARN "HOTP check failed (attempt $attempt/3), retrying"
-				STATUS "$HOTPKEY_BRANDING $prompt_label PIN retries remaining: $(pin_color "$hotp_pin_retries")${hotp_pin_retries}\033[0m"
 			else
 				HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
 				BG_COLOR_MAIN_MENU="warning"
