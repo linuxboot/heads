@@ -473,16 +473,20 @@ pin_color() {
 # Display USB security dongle firmware version with color coding.
 # Green if the version meets the minimum known-good version for that device,
 # yellow if the firmware is older and should be upgraded.
+# Minimum versions are defined in /etc/dongle-versions for easy maintainability.
 # $1: raw output from "hotp_verification info"
 # $2: dongle branding string (e.g. "Nitrokey", "Librem Key")
 hotpkey_fw_display() {
 	local info="$1" branding="$2" fw_ver min_ver fw_color extras
 	extras=""
 
+	# Load minimum recommended firmware versions
+	. /etc/dongle-versions
+
 	if echo "$info" | grep -q "Firmware Nitrokey 3:"; then
 		# NK3: "Firmware Nitrokey 3: v1.8.3"
 		fw_ver="$(echo "$info" | grep "Firmware Nitrokey 3:" | sed 's/.*: *//')"
-		min_ver="v1.8.3"
+		min_ver="$HOTPKEY_NK3_MIN_VER"
 		# Also capture Secrets App version
 		local app_ver
 		app_ver="$(echo "$info" | grep "Firmware Secrets App:" | sed 's/.*: *//')"
@@ -490,11 +494,15 @@ hotpkey_fw_display() {
 	elif echo "$info" | grep -q "^Firmware:"; then
 		# Nitrokey Pro / Storage / Librem Key: "Firmware: v0.15"
 		fw_ver="$(echo "$info" | grep "^Firmware:" | sed 's/.*: *//')"
+		# Warn if below the external-reprogram threshold (applies to all pre-NK3 devices)
+		if [ "$(printf '%s\n' "$fw_ver" "$HOTPKEY_REPROGRAM_BELOW" | sort -V | head -1)" != "$HOTPKEY_REPROGRAM_BELOW" ]; then
+			WARN "$branding firmware $fw_ver is below $HOTPKEY_REPROGRAM_BELOW - this device cannot be upgraded via software and requires external hardware reprogramming or replacement"
+		fi
 		if [ "$branding" = "Librem Key" ]; then
 			NOTE "$branding firmware: ${fw_ver}${extras}"
 			return
 		fi
-		min_ver="v0.15"
+		min_ver="$HOTPKEY_NITROKEY_MIN_VER"
 	else
 		return
 	fi

@@ -1,0 +1,22 @@
+# Minimum recommended firmware versions for USB security dongles.
+#
+# Update these values when a new minimum known-good firmware is established.
+# Sourced by initrd/etc/functions (hotpkey_fw_display) at runtime.
+#
+# Version strings must be prefixed with 'v' and use dot notation (e.g. v1.8.3)
+# so that sort -V ordering works correctly for the comparison in hotpkey_fw_display.
+
+# Nitrokey 3 (NK3)
+# Identified by "Firmware Nitrokey 3: vX.Y.Z" in hotp_verification info output.
+HOTPKEY_NK3_MIN_VER="v1.8.3"
+
+# Nitrokey Pro / Nitrokey Storage (pre-NK3 devices)
+# Identified by "Firmware: vX.Y" in hotp_verification info output.
+# Note: Librem Key is a Nitrokey Pro rebrand and runs Nitrokey Pro firmware;
+# it shares the same firmware version space and reprogram threshold below.
+HOTPKEY_NITROKEY_MIN_VER="v0.15"
+
+# Firmware version below which pre-NK3 devices (Nitrokey Pro/Storage, Librem Key)
+# cannot be upgraded via software and require external hardware reprogramming.
+# Devices below this threshold should be reprogrammed or replaced.
+HOTPKEY_REPROGRAM_BELOW="v0.10"
