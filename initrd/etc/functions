@@ -1735,6 +1735,8 @@ increment_tpm_counter() {
 # Check detached signature on kexec boot params
 check_config() {
 	TRACE_FUNC
+	local paramsdir="${1%%/}"
+
 	if [ ! -d /tmp/kexec ]; then
 		mkdir /tmp/kexec ||
 			DIE 'Failed to make kexec tmp dir'
@@ -1743,30 +1745,42 @@ check_config() {
 			DIE 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
-		DEBUG "No $1/kexec.sig found"
+	DEBUG "check_config: checking $paramsdir (force=$2)"
+
+	if [ ! -r "$paramsdir/kexec.sig" -a "$CONFIG_BASIC" != "y" ]; then
+		DEBUG "check_config: no $paramsdir/kexec.sig found, skipping signature check"
 		return
 	fi
 
-	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
-		DEBUG "No $1/kexec*.txt found"
+	# Collect kexec*.txt files present in paramsdir
+	local param_files=()
+	for f in "$paramsdir"/kexec*.txt; do
+		[ -e "$f" ] || continue
+		param_files+=( "$(basename "$f")" )
+	done
+	DEBUG "check_config: ${#param_files[@]} kexec*.txt file(s) in $paramsdir: ${param_files[*]}"
+
+	if [ ${#param_files[@]} -eq 0 ]; then
+		DEBUG "check_config: no kexec*.txt files found in $paramsdir, skipping"
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
-		DEBUG "second param: $2 != force"
-		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
+		# Verify using relative filenames (cd into paramsdir) so the sha256sum
+		# output matches exactly what was produced during signing, where the same
+		# relative names were used.  Absolute paths would differ between the
+		# signing staging dir and $paramsdir, causing a spurious mismatch.
 		STATUS "Verifying GPG signature on kexec boot params"
-		# Capture gpgv output (raw "Good/BAD signature from ..." lines) to LOG only.
-		# The result is conveyed via STATUS below (success) or DIE (failure).
-		if ! sha256sum $(find $1/kexec*.txt) \
-			| gpgv $1/kexec.sig - 2> >(SINK_LOG "gpgv kexec.sig"); then
+		DEBUG "check_config: running (cd $paramsdir && sha256sum ${param_files[*]}) | gpgv $paramsdir/kexec.sig"
+		if ! (cd "$paramsdir" && sha256sum "${param_files[@]}") \
+			| gpgv "$paramsdir/kexec.sig" - 2> >(SINK_LOG "gpgv kexec.sig"); then
 			DIE 'Invalid signature on kexec boot params'
 		fi
 	fi
 
 	STATUS_OK "GPG signature on kexec boot params verified"
-	cp $1/kexec*.txt /tmp/kexec ||
+	DEBUG "check_config: copying kexec*.txt from $paramsdir to /tmp/kexec"
+	cp "$paramsdir"/kexec*.txt /tmp/kexec ||
 		DIE "Failed to copy kexec boot params to tmp"
 }
 

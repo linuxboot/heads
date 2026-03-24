@@ -603,32 +603,45 @@ investigate_integrity_discrepancies() {
 detached_kexec_signature_valid() {
 	TRACE_FUNC
 	local boot_dir="$1"
-	local kexec_txt_files
 
 	[ -n "$boot_dir" ] || boot_dir="/boot"
+	boot_dir="${boot_dir%%/}"
 
 	if [ "$CONFIG_BASIC" = "y" ]; then
 		return 1
 	fi
 
 	if [ ! -r "$boot_dir/kexec.sig" ]; then
+		DEBUG "detached_kexec_signature_valid: no $boot_dir/kexec.sig"
 		return 1
 	fi
 
-	kexec_txt_files=$(find "$boot_dir"/kexec*.txt 2>/dev/null | sort)
-	if [ -z "$kexec_txt_files" ]; then
-		DEBUG "detached_kexec_signature_valid: no kexec txt files found under $boot_dir"
+	# Collect relative basenames so sha256sum output is path-independent and
+	# matches what kexec-sign-config produced when signing from its staging dir.
+	local kexec_txt_files=()
+	for f in "$boot_dir"/kexec*.txt; do
+		[ -e "$f" ] || continue
+		kexec_txt_files+=( "$(basename "$f")" )
+	done
+	if [ ${#kexec_txt_files[@]} -eq 0 ]; then
+		DEBUG "detached_kexec_signature_valid: no kexec*.txt files found under $boot_dir"
 		return 1
 	fi
-	DEBUG "detached_kexec_signature_valid: txt files=$(echo "$kexec_txt_files" | tr '\n' ' ')"
-	# perform verification, capturing output for debugging
+	DEBUG "detached_kexec_signature_valid: ${#kexec_txt_files[@]} file(s) in $boot_dir: ${kexec_txt_files[*]}"
+
+	# Verify using relative filenames (cd into boot_dir) to match the signing
+	# path format.  Absolute paths would differ from the staging dir used during
+	# signing and cause a spurious BAD signature result.
 	STATUS "Verifying /boot detached signature"
-	if sha256sum $kexec_txt_files | gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
-		DEBUG "detached signature valid"
+	DEBUG "detached_kexec_signature_valid: running (cd $boot_dir && sha256sum ${kexec_txt_files[*]}) | gpgv $boot_dir/kexec.sig"
+	if (cd "$boot_dir" && sha256sum "${kexec_txt_files[@]}") \
+		| gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
+		DEBUG "detached_kexec_signature_valid: signature valid"
 		mkdir -p /tmp/kexec
-		cp $kexec_txt_files /tmp/kexec 2>/dev/null || true
+		cp "$boot_dir"/kexec*.txt /tmp/kexec 2>/dev/null || true
 		return 0
 	else
+		DEBUG "detached_kexec_signature_valid failed"
 		DEBUG "detached signature verification failed, head of /tmp/integrity_sigcheck:"
 		DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
 	fi

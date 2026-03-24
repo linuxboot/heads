@@ -763,8 +763,14 @@ generate_checksums() {
 	)
 	[ $? -eq 0 ] || whiptail_error_die "Error generating kexec hashes"
 
-	param_files=$(find /boot/kexec*.txt)
-	[ -z "$param_files" ] &&
+	# Collect relative basenames so sha256sum output is path-independent and
+	# matches what check_config produces when verifying (also uses cd+relative).
+	param_files=()
+	for f in /boot/kexec*.txt; do
+		[ -e "$f" ] || continue
+		param_files+=( "$(basename "$f")" )
+	done
+	[ ${#param_files[@]} -eq 0 ] &&
 		whiptail_error_die "No kexec parameter files to sign"
 
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" -a "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "n" ]; then
@@ -774,14 +780,15 @@ generate_checksums() {
 		USER_PIN=$ADMIN_PIN
 	fi
 
-	DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
+	DEBUG "oem-factory-reset: ${#param_files[@]} file(s) to sign (relative): ${param_files[*]}"
 
-	if sha256sum $param_files 2>/dev/null | gpg --detach-sign \
+	if (cd /boot && sha256sum "${param_files[@]}") 2>/dev/null | gpg --detach-sign \
 		--pinentry-mode loopback \
 		--passphrase-file <(echo -n "$USER_PIN") \
 		--digest-algo SHA256 \
 		-a \
 		>/boot/kexec.sig 2>/tmp/error; then
+		DEBUG "oem-factory-reset: signing succeeded, running check_config /boot"
 		# successful - update the validated params
 		if ! check_config /boot >/dev/null 2>/tmp/error; then
 			cat /tmp/error

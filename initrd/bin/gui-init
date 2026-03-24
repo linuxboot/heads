@@ -977,6 +977,10 @@ Possible causes:
  - /boot disk was swapped or restored
  - TPM state tampering occurred
 
+WARNING: If none of the above were intentional, treat /boot as
+UNTRUSTED. A disk or TPM swap attack cannot be ruled out.
+Verify integrity before trusting any boot files.
+
 Recommended first step:
  - Show boot integrity report (TOTP/HOTP + /boot)
 

@@ -124,10 +124,19 @@ if [ "$rollback" = "y" ]; then
 fi
 
 TRACE_FUNC
-param_files=$(find "$stagedir"/kexec*.txt 2>/dev/null)
-if [ -z "$param_files" ]; then
+
+# Collect the list of kexec*.txt files present in staging (relative names
+# only, so the sha256sum output is path-independent and check_config can
+# reproduce the same signed data from $paramsdir after the move).
+param_files=()
+for f in "$stagedir"/kexec*.txt; do
+	[ -e "$f" ] || continue
+	param_files+=( "$(basename "$f")" )
+done
+if [ ${#param_files[@]} -eq 0 ]; then
 	DIE "$paramsdir: No kexec parameter files to sign"
 fi
+DEBUG "kexec-sign-config: ${#param_files[@]} file(s) to sign from $stagedir: ${param_files[*]}"
 
 # before we even attempt to sign, make sure there is at least one public
 # key available so the user gets a clear error instead of a mysterious gpg
@@ -158,22 +167,28 @@ for tries in 1 2 3; do
 	fi
 	DEBUG "kexec-sign-config: using explicit signing key id ${SIGNING_KEY_ID}"
 
-	# Run the signing command without DO_WITH_DEBUG so that any gpg errors
-	# print directly to the console.  Stdout (the signature) goes to the
-	# staging dir; stderr (gpg status/error messages) goes to the log.
-	# Keeping them separate prevents gpg status text from corrupting the sig.
-	if sha256sum $param_files | \
+	# Sign using relative filenames (cd into stagedir) so the sha256sum
+	# output contains bare names like "kexec_hashes.txt" rather than the
+	# full staging path.  check_config reproduces the same output by doing
+	# the same cd+sha256sum from $paramsdir after the files are moved there.
+	DEBUG "kexec-sign-config: running sha256sum (relative) | gpg in $stagedir"
+	if (cd "$stagedir" && sha256sum "${param_files[@]}") | \
 		gpg --disable-dirmngr --no-auto-key-retrieve --local-user "$SIGNING_KEY_ID" --detach-sign -a >"$stagedir/kexec.sig" 2>/tmp/kexec-sign.log; then
 		# Signing succeeded — move all staged files to their final locations
+		DEBUG "kexec-sign-config: signing succeeded; moving staged files to $paramsdir"
 		for f in "$stagedir"/*; do
+			[ -e "$f" ] || continue
+			DEBUG "kexec-sign-config: mv $f -> $paramsdir/$(basename "$f")"
 			mv "$f" "$paramsdir/$(basename "$f")"
 		done
+		DEBUG "kexec-sign-config: all staged files moved to $paramsdir"
 
 		# Remove any package trigger log files now that the user has signed
 		rm -f /boot/kexec_package_trigger*
 
 		# Validate the final config in paramsdir
-		check_config $paramsdir
+		DEBUG "kexec-sign-config: calling check_config $paramsdir"
+		check_config "$paramsdir"
 
 		# remount /boot as ro
 		mount -o remount,ro /boot

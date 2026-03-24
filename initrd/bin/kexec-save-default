@@ -91,28 +91,35 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 		declare -a key_lvms_array
 
 		while [ $selected_lvms_not_existing -ne 0 ]; do
-			{
-				# Read the user input and store it in a variable
-				INPUT "Encrypted LVMs? (choose between/all: $lvm_suggest):" -r key_lvms
+			# Read the user input and store it in a variable
+			INPUT "Encrypted LVMs? (type 'all' to select all, or space-separated subset of: $lvm_suggest):" -r key_lvms
 
-				# Split the user input by spaces and add each element to the array
-				IFS=' ' read -r -a key_lvms_array <<<"$key_lvms"
+			# 'all' expands to every discovered LVM
+			if [ "$key_lvms" = "all" ]; then
+				key_lvms="$lvm_suggest"
+				DEBUG "User chose 'all' LVMs: $key_lvms"
+				selected_lvms_not_existing=0
+				continue
+			fi
 
-				# Loop through the array and check if each element is in the lvms_array
-				valid=1
-				for lvm in "${key_lvms_array[@]}"; do
-					if [[ ! ${lvms_array[$lvm]+_} ]]; then
-						# If not found, set the flag to indicate invalid input
-						valid=0
-						break
-					fi
-				done
+			# Split the user input by spaces and validate each element
+			IFS=' ' read -r -a key_lvms_array <<<"$key_lvms"
 
-				# If valid, set the flag to indicate valid input
-				if [[ $valid -eq 1 ]]; then
-					selected_lvms_not_existing=0
+			if [ ${#key_lvms_array[@]} -eq 0 ]; then
+				continue
+			fi
+
+			valid=1
+			for lvm in "${key_lvms_array[@]}"; do
+				if [[ ! ${lvms_array[$lvm]+_} ]]; then
+					valid=0
+					break
 				fi
-			}
+			done
+
+			if [[ $valid -eq 1 ]]; then
+				selected_lvms_not_existing=0
+			fi
 		done
 	elif [ "$num_lvms" -eq 1 ]; then
 		INFO "Single Encrypted LVM found at $lvm_suggest"
@@ -138,28 +145,35 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 		declare -a key_devices_array
 
 		while [ $selected_luksdevs_not_existing -ne 0 ]; do
-			{
-				# Read the user input and store it in a variable
-				INPUT "Encrypted devices? (choose between/all: $devices_suggest):" -r key_devices
+			# Read the user input and store it in a variable
+			INPUT "Encrypted devices? (type 'all' to select all, or space-separated subset of: $devices_suggest):" -r key_devices
 
-				# Split the user input by spaces and add each element to the array
-				IFS=' ' read -r -a key_devices_array <<<"$key_devices"
+			# 'all' expands to every discovered LUKS device
+			if [ "$key_devices" = "all" ]; then
+				key_devices="$devices_suggest"
+				DEBUG "User chose 'all' LUKS devices: $key_devices"
+				selected_luksdevs_not_existing=0
+				continue
+			fi
 
-				# Loop through the array and check if each element is in the devices_array
-				valid=1
-				for device in "${key_devices_array[@]}"; do
-					if [[ ! ${devices_array[$device]+_} ]]; then
-						# If not found, set the flag to indicate invalid input
-						valid=0
-						break
-					fi
-				done
+			# Split the user input by spaces and validate each element
+			IFS=' ' read -r -a key_devices_array <<<"$key_devices"
 
-				# If valid, set the flag to indicate valid input
-				if [[ $valid -eq 1 ]]; then
-					selected_luksdevs_not_existing=0
+			if [ ${#key_devices_array[@]} -eq 0 ]; then
+				continue
+			fi
+
+			valid=1
+			for device in "${key_devices_array[@]}"; do
+				if [[ ! ${devices_array[$device]+_} ]]; then
+					valid=0
+					break
 				fi
-			}
+			done
+
+			if [[ $valid -eq 1 ]]; then
+				selected_luksdevs_not_existing=0
+			fi
 		done
 	elif [ "$num_devices" -eq 1 ]; then
 		INFO "Single Encrypted Disk found at $devices_suggest"

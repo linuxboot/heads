@@ -100,7 +100,9 @@ check_root_checksums() {
   fi
 
   STATUS "Checking root hash file signature"
-  if ! sha256sum `find /boot/kexec*.txt` | gpgv /boot/kexec.sig - > /tmp/hash_output; then
+  # Use relative filenames (cd /boot) so sha256sum output matches what was
+  # produced during signing, which also uses relative names from a staging dir.
+  if ! (cd /boot && sha256sum kexec*.txt) | gpgv /boot/kexec.sig - > /tmp/hash_output; then
     ERROR=`cat /tmp/hash_output`
     whiptail_error --title 'ERROR: Signature Failure' \
       --msgbox "The signature check on hash files failed:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
@@ -210,6 +212,7 @@ open_block_device_lvm() {
     for name in $(run_lvm lvs --noheadings -o lv_name --separator ' ' "$VG" 2>/dev/null); do
       # thin pool/metadata and swap-like LVs are not root filesystems
       case "$name" in
+        # TODO: *tdata*, *tmeta*, *tpool* are redundant with *pool*; deduplicate
         *pool*|*tmeta*|*tdata*|*tpool*|swap*)
           DEBUG "skipping LV name $name (not a root LV candidate)"
           continue
