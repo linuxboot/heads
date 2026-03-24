@@ -34,28 +34,38 @@ mount -o remount,rw /boot
 
 DEBUG "Signing kexec parameters in $paramsdir, rollback=$rollback, update=$update, counter=$counter"
 
-# update hashes in /boot before signing
+# All writes go to a staging directory first; files are moved to their final
+# locations only after signing succeeds.  This prevents a failed signing
+# attempt (wrong PIN, connection error, etc.) from leaving /boot with updated
+# hash files but a stale or missing signature.
+stagedir=$(mktemp -d /tmp/kexec-sign-XXXXXX)
+cleanup_stagedir() { rm -rf "$stagedir"; }
+trap cleanup_stagedir EXIT
+
+# Seed staging with any existing kexec*.txt from paramsdir so unchanged files
+# are included when building param_files for signing.
+for f in "$paramsdir"/kexec*.txt; do
+	[ -e "$f" ] && cp "$f" "$stagedir/"
+done
+
+# update hashes in staging before signing
 if [ "$update" = "y" ]; then
 	(
 		TRACE_FUNC
-		DEBUG "update=y: Updating kexec hashes in /boot"
+		DEBUG "update=y: Updating kexec hashes in staging dir $stagedir"
 		cd /boot
-		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >/boot/kexec_hashes.txt
+		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >"$stagedir/kexec_hashes.txt"
 		if [ -e /boot/kexec_default_hashes.txt ]; then
-			DEBUG "/boot/kexec_default_hashes.txt exists, updating /boot/kexec_default_hashes.txt"
+			DEBUG "/boot/kexec_default_hashes.txt exists, updating in staging"
 			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-			echo $DEFAULT_FILES | xargs sha256sum >/boot/kexec_default_hashes.txt
+			echo $DEFAULT_FILES | xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
 		fi
 
 		#also save the file & directory structure to detect added files
-		print_tree >/boot/kexec_tree.txt
+		print_tree >"$stagedir/kexec_tree.txt"
 		TRACE_FUNC
 	)
 	[ $? -eq 0 ] || DIE "$paramsdir: Failed to update hashes."
-
-	# Remove any package trigger log files
-	# We don't need them after the user decides to sign
-	rm -f /boot/kexec_package_trigger*
 fi
 
 if [ "$rollback" = "y" ]; then
@@ -108,13 +118,13 @@ if [ "$rollback" = "y" ]; then
 
 	DEBUG "TPM counter file '$incremented_counter_file' found."
 
-	# Create the rollback file
-	sha256sum "$incremented_counter_file" >$rollback_file ||
-		DIE "$paramsdir: Unable to create rollback file"
+	# Write rollback file to staging; moved to paramsdir only on signing success
+	sha256sum "$incremented_counter_file" >"$stagedir/kexec_rollback.txt" ||
+		DIE "$paramsdir: Unable to create rollback file in staging"
 fi
 
 TRACE_FUNC
-param_files=$(find $paramsdir/kexec*.txt)
+param_files=$(find "$stagedir"/kexec*.txt 2>/dev/null)
 if [ -z "$param_files" ]; then
 	DIE "$paramsdir: No kexec parameter files to sign"
 fi
@@ -149,12 +159,20 @@ for tries in 1 2 3; do
 	DEBUG "kexec-sign-config: using explicit signing key id ${SIGNING_KEY_ID}"
 
 	# Run the signing command without DO_WITH_DEBUG so that any gpg errors
-	# print directly to the console.  Stdout (the signature) goes to kexec.sig;
-	# stderr (gpg status/error messages) goes to the log for later analysis.
-	# Keeping them separate prevents gpg status text from corrupting the sig file.
+	# print directly to the console.  Stdout (the signature) goes to the
+	# staging dir; stderr (gpg status/error messages) goes to the log.
+	# Keeping them separate prevents gpg status text from corrupting the sig.
 	if sha256sum $param_files | \
-		gpg --disable-dirmngr --no-auto-key-retrieve --local-user "$SIGNING_KEY_ID" --detach-sign -a >"$paramsdir/kexec.sig" 2>/tmp/kexec-sign.log; then
-		# successful - update the validated params
+		gpg --disable-dirmngr --no-auto-key-retrieve --local-user "$SIGNING_KEY_ID" --detach-sign -a >"$stagedir/kexec.sig" 2>/tmp/kexec-sign.log; then
+		# Signing succeeded — move all staged files to their final locations
+		for f in "$stagedir"/*; do
+			mv "$f" "$paramsdir/$(basename "$f")"
+		done
+
+		# Remove any package trigger log files now that the user has signed
+		rm -f /boot/kexec_package_trigger*
+
+		# Validate the final config in paramsdir
 		check_config $paramsdir
 
 		# remount /boot as ro

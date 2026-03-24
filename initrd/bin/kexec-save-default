@@ -259,25 +259,44 @@ if [ ! -d $paramsdir ]; then
 		DIE "Failed to create params directory"
 fi
 
+# All writes go to a staging directory; files are moved to their final
+# locations only after kexec-sign-config succeeds.  This prevents a failed
+# signing attempt from leaving /boot with updated config but no matching
+# signature.
+stagedir=$(mktemp -d /tmp/kexec-default-XXXXXX)
+cleanup_stagedir() { rm -rf "$stagedir"; }
+trap cleanup_stagedir EXIT
+DEBUG "Staging directory created: $stagedir"
+
+# Seed staging with existing kexec*.txt so sign-config signs everything
+for f in "$paramsdir"/kexec*.txt; do
+	[ -e "$f" ] && cp "$f" "$stagedir/"
+done
+# Seed staging with existing crypttab overrides if present
+[ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ] && \
+	cp "$bootdir/kexec_initrd_crypttab_overrides.txt" "$stagedir/"
+DEBUG "Seeded $stagedir with existing config files from $paramsdir"
+
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	if [ -f /tmp/secret/primary.handle ]; then
 		DEBUG "Hashing TPM2 primary key handle..."
-		sha256sum /tmp/secret/primary.handle > "$PRIMHASH_FILE" ||
+		sha256sum /tmp/secret/primary.handle > "$stagedir/kexec_primhdl_hash.txt" ||
 			DIE "ERROR: Failed to Hash TPM2 primary key handle!"
-		DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
+		DEBUG "TPM2 primary key handle hash written to $stagedir/kexec_primhdl_hash.txt"
 	else
 		DIE "ERROR: TPM2 primary key handle file does not exist!"
 	fi
 fi
 
-rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
-echo "$entry" >$ENTRY_FILE
+# Remove old kexec_default.*.txt from staging; new entry written below
+rm "$stagedir"/kexec_default.*.txt 2>/dev/null || true
+echo "$entry" >"$stagedir/kexec_default.$index.txt"
 (
 	cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f |
-		xargs sha256sum >$HASH_FILE
+		xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
 ) || DIE "Failed to create hashes of boot files"
-if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
-	DIE "Failed to write default config"
+if [ ! -r "$stagedir/kexec_default.$index.txt" -o ! -r "$stagedir/kexec_default_hashes.txt" ]; then
+	DIE "Failed to write default config to staging"
 fi
 
 if [ "$save_key" = "y" ]; then
@@ -285,7 +304,7 @@ if [ "$save_key" = "y" ]; then
 	initrd_decompressed="/tmp/initrd_extract"
 	mkdir -p "$initrd_decompressed"
 	# Get initrd filename selected to be default initrd that OS could be using to configure LUKS on boot by deploying crypttab files
-	current_default_initrd=$(cat /boot/kexec_default_hashes.txt | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
+	current_default_initrd=$(cat "$stagedir/kexec_default_hashes.txt" | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
 
 	DEBUG "Extracting $current_default_initrd to find crypttab files"
 	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed"
@@ -293,7 +312,7 @@ if [ "$save_key" = "y" ]; then
 
 	if [ ! -z "$crypttab_files" ]; then
 		DEBUG "Found crypttab files in $current_default_initrd"
-		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
+		rm -f "$stagedir/kexec_initrd_crypttab_overrides.txt" || true
 
 		#Parsing each crypttab file found
 		echo "$crypttab_files" | while read crypttab_file; do
@@ -307,20 +326,20 @@ if [ "$save_key" = "y" ]; then
 			modified_crypttab_entries=$(echo "$current_crypttab_entries" | sed 's/none/\/secret.key/g')
 			DEBUG "Modified crypttab entries $final_initrd_filepath:$modified_crypttab_entries"
 			echo "$modified_crypttab_entries" | while read modified_crypttab_entry; do
-				echo "$final_initrd_filepath:$modified_crypttab_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
+				echo "$final_initrd_filepath:$modified_crypttab_entry" >>"$stagedir/kexec_initrd_crypttab_overrides.txt"
 			done
 		done
 
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
 		STATUS "The following OS crypttab entries were modified from default boot's initrd:"
-		cat $bootdir/kexec_initrd_crypttab_overrides.txt
+		cat "$stagedir/kexec_initrd_crypttab_overrides.txt"
 		STATUS_OK "Heads added /secret.key to those entries and saved overrides for signing"
 		DEBUG "Crypttab overrides will be included in signed digests and injected via cpio at kexec"
 	else
 		INFO "No crypttab found in initrd; a generic crypttab will be generated"
-		if [ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
-			DEBUG "Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
-			rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt"
+		if [ -e "$stagedir/kexec_initrd_crypttab_overrides.txt" ]; then
+			DEBUG "Removing stale $stagedir/kexec_initrd_crypttab_overrides.txt (no crypttab found in initrd)"
+			rm -f "$stagedir/kexec_initrd_crypttab_overrides.txt"
 		fi
 	fi
 
@@ -337,8 +356,22 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	fi
 fi
 if [ "$CONFIG_BASIC" != "y" ]; then
-	DO_WITH_DEBUG kexec-sign-config -p $paramsdir $extparam ||
+	DO_WITH_DEBUG kexec-sign-config -p "$stagedir" $extparam ||
 		DIE "Failed to sign default config"
 fi
+# Signing succeeded; move all staged files to their final locations.
+# kexec-sign-config may have remounted $paramsdev ro; remount rw for the moves.
+mount -o rw,remount $paramsdev
+rm "$paramsdir"/kexec_default.*.txt 2>/dev/null || true
+for f in "$stagedir"/*; do
+	[ -e "$f" ] || continue
+	fname="$(basename "$f")"
+	if [ "$fname" = "kexec_initrd_crypttab_overrides.txt" ]; then
+		mv "$f" "$bootdir/$fname"
+	else
+		mv "$f" "$paramsdir/$fname"
+	fi
+done
+DEBUG "Staged files from $stagedir moved to $paramsdir (crypttab overrides to $bootdir)"
 # switch back to ro mode
 mount -o ro,remount $paramsdev
