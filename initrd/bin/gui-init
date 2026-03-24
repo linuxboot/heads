@@ -248,9 +248,11 @@ gate_reseal_with_integrity_report() {
 			# starting the NK3 CCID teardown.  This safety call covers the
 			# case where scdaemon was restarted between then and now.
 			release_scdaemon
+			STATUS "Checking USB security dongle presence before sealing"
 			DEBUG "gate_reseal_with_integrity_report: checking HOTP token presence"
 			if hotp_verification info >/dev/null 2>&1; then
 				token_ok="y"
+				STATUS_OK "USB security dongle present and accessible"
 				break
 			fi
 			DEBUG "gate_reseal_with_integrity_report: HOTP token not accessible"

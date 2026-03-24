@@ -1261,6 +1261,7 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+		STATUS "Validating TPM rollback counter before resealing"
 		preflight_rollback_counter_before_reseal
 		NOTE "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
 		if ! kexec-seal-key /boot; then
@@ -1270,7 +1271,7 @@ reseal_tpm_disk_decryption_key() {
 		while ! update_checksums; do
 			WARN "Signing attempt $attempt/3 failed"
 			if [ "$attempt" -ge 3 ]; then
-				DIE "Failed to sign /boot metadata after 3 attempts"
+				DIE "Failed to sign boot hashes under /boot after 3 attempts"
 			fi
 			attempt=$((attempt + 1))
 		done
@@ -1650,7 +1651,7 @@ increment_tpm_counter() {
 	# but the newer reseal/update flows can call this later in the session after
 	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
 	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_password" ]; then
-		WARN "TPM Owner Password is required to update rollback counter before signing updated /boot metadata."
+		WARN "TPM Owner Password is required to update rollback counter before signing updated boot hashes."
 		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner password; prompting now"
 		prompt_tpm_owner_password
 		tpm_password="$tpm_owner_password"
@@ -1891,9 +1892,9 @@ update_checksums() {
 	DEBUG "update_checksums: signing targets under /boot: ${signing_targets:-<none>}"
 	DEBUG "update_checksums: rollback marker path is $reset_required_marker"
 	DEBUG "update_checksums: extparam='$extparam' CONFIG_TPM='${CONFIG_TPM:-}' CONFIG_IGNORE_ROLLBACK='${CONFIG_IGNORE_ROLLBACK:-}'"
-	DEBUG "update_checksums: signing is required because /boot metadata changed (rollback counter and/or resealed secrets) and must be re-trusted"
+	DEBUG "update_checksums: signing is required because boot hashes under /boot changed (rollback counter and/or resealed secrets) and must be re-trusted"
 
-	STATUS "Signing $CONFIG_BRAND_NAME verified boot metadata under /boot - GPG prompt will follow"
+	STATUS "Signing $CONFIG_BRAND_NAME boot hashes under /boot - GPG prompt will follow"
 
 	# signing may prompt for TPM password; avoid DO_WITH_DEBUG which
 	# severs the controlling tty for the child process.

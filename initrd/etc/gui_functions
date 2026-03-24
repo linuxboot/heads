@@ -347,6 +347,7 @@ report_integrity_measurements() {
 
 	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
 	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
+	STATUS "Verifying OpenPGP signing key on USB security dongle"
 	enable_usb
 	gpg_output=""
 	local _card_detected=0
