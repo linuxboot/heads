@@ -645,13 +645,6 @@ gpg_auth() {
 		# Wipe any existing nonce and signature
 		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
 
-		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
-		false
-		while [ $? -ne 0 ]; do
-			# Call confirm_gpg_card in subshell to ensure GPG key material presence
-			(confirm_gpg_card)
-		done
-
 		# Perform a signing-based challenge-response,
 		# to authencate that the card plugged in holding
 		# the key to sign the list of boot files.
@@ -668,8 +661,12 @@ gpg_auth() {
 			2>/dev/null ||
 			DIE "Unable to generate 20 random bytes"
 
-		# Sign the nonce
+		# Sign the nonce; re-confirm card (and re-display PIN counter) before
+		# each attempt so the user sees the decremented count after a bad PIN.
 		for tries in 1 2 3; do
+			# confirm_gpg_card shows the current PIN retry count and ensures
+			# the card is accessible; loop until the card is detected.
+			until (confirm_gpg_card); do true; done
 			if gpg --digest-algo SHA256 \
 				--detach-sign \
 				-o "$CR_SIG" \
@@ -682,7 +679,7 @@ gpg_auth() {
 			else
 				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
 				if [ "$tries" -lt 3 ]; then
-					WARN "GPG authentication failed, please try again"
+					WARN "GPG authentication failed (attempt $tries/3), please try again"
 					continue
 				else
 					DIE "GPG authentication failed, please reboot and try again"
