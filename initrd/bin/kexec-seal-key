@@ -125,22 +125,19 @@ while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
 	key_devices="$unlockable_devices"
 done
 
-# Update kexec_key_devices.txt to reflect only the devices that will receive a DUK.
-# kexec-save-key wrote the full list; trim it to the unlockable subset so boot-time
-# unlock attempts are not made against devices that were never keyed.
-DEBUG "kexec-seal-key: updating $KEY_DEVICES to unlockable devices: $key_devices"
+# Build the filtered device list in /tmp; written to $KEY_DEVICES in the rw
+# block near the end so all paramsdir writes happen in one mount window.
+# kexec-save-key pre-mounts /boot rw before calling us, but
+# reseal_tpm_disk_decryption_key calls us directly with /boot still ro.
+DEBUG "kexec-seal-key: filtering $KEY_DEVICES to unlockable devices: $key_devices"
 {
 	for dev in $key_devices; do
 		grep "^$dev " "$KEY_DEVICES" || true
 	done
 } > /tmp/kexec_key_devices_filtered.txt
-if [ -s /tmp/kexec_key_devices_filtered.txt ]; then
-	cp /tmp/kexec_key_devices_filtered.txt "$KEY_DEVICES"
-	DEBUG "kexec-seal-key: $KEY_DEVICES updated"
-else
+if [ ! -s /tmp/kexec_key_devices_filtered.txt ]; then
 	DIE "kexec-seal-key: filtered device list is empty, cannot continue"
 fi
-rm -f /tmp/kexec_key_devices_filtered.txt
 
 # Proceed with DUK setup for the confirmed unlockable devices
 MIN_PASSPHRASE_LENGTH=12
@@ -312,6 +309,10 @@ shred -n 10 -z -u "$DUK_KEY_FILE" 2>/dev/null ||
 	WARN "Failed to delete key file - continuing"
 
 mount -o rw,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RW - continuing"
+cp -f /tmp/kexec_key_devices_filtered.txt "$KEY_DEVICES" ||
+	DIE "kexec-seal-key: failed to update $KEY_DEVICES"
+DEBUG "kexec-seal-key: $KEY_DEVICES updated"
+rm -f /tmp/kexec_key_devices_filtered.txt
 cp -f /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" ||
 	WARN "Failed to copy LUKS header hashes to /boot - continuing"
 mount -o ro,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RO - continuing"
