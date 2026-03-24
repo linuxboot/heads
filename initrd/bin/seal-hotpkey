@@ -160,24 +160,28 @@ fi
 
 if [ "$admin_pin_status" -ne 0 ]; then
 
-	# prompt user for PIN and retry; re-query counter each time so the user
-	# sees the decremented count (e.g. if the default PIN attempt consumed one)
-	show_pin_retries
-	INPUT "Enter your $HOTPKEY_BRANDING $prompt_message PIN:" -r -s admin_pin
-	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"
-	if [ $? -ne 0 ]; then
+	# prompt user for PIN; re-query counter before each attempt so the user
+	# sees the decremented count after a wrong PIN (same pattern as kexec-sign-config)
+	for tries in 1 2 3; do
 		show_pin_retries
-		INPUT "Error setting HOTP secret, re-enter $prompt_message PIN and try again:" -r -s admin_pin
-		if ! hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
+		if [ "$tries" -eq 1 ]; then
+			INPUT "Enter your $HOTPKEY_BRANDING $prompt_message PIN (attempt $tries/3):" -r -s admin_pin
+		else
+			INPUT "Wrong PIN - re-enter your $HOTPKEY_BRANDING $prompt_message PIN (attempt $tries/3):" -r -s admin_pin
+		fi
+		if hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING"; then
+			break
+		fi
+		if [ "$tries" -eq 3 ]; then
 			# don't leak key on failure
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 			if [ "$HOTPKEY_BRANDING" == "Nitrokey" ]; then
-				DIE "Setting HOTP secret failed, to reset $prompt_message PIN, redo Re-Ownership procedure, use the Nitrokey App 2 or contact Nitrokey support"
+				DIE "Setting HOTP secret failed after 3 attempts, to reset $prompt_message PIN, redo Re-Ownership procedure, use the Nitrokey App 2 or contact Nitrokey support"
 			else
-				DIE "Setting HOTP secret failed"
+				DIE "Setting HOTP secret failed after 3 attempts"
 			fi
 		fi
-	fi
+	done
 else
 	# remind user to change admin password
 	WARN "Default $prompt_message PIN detected.  Please change this as soon as possible with Options > OEM Factory Reset / Re-Ownership"
