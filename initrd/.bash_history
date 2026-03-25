@@ -1,7 +1,7 @@
 #mount /boot in read-only by default
 mount /boot
-#verify detached signature of /boot content (cd so sha256sum uses relative paths, matching how kexec-sign-config signed them)
-(cd /boot && sha256sum kexec*.txt) | gpgv /boot/kexec.sig -
+#verify detached signature of /boot content (tries relative paths first; falls back to full paths for sigs made before the staging-dir change)
+(cd /boot && sha256sum kexec*.txt) | gpgv /boot/kexec.sig - || sha256sum /boot/kexec*.txt | gpgv /boot/kexec.sig -
 #remove invalid kexec_* signed files
 mount /dev/sda1 /boot && mount -o remount,rw /boot && rm /boot/kexec* && mount -o remount,ro /boot
 #Generate keys on OpenPGP smartcard: 
