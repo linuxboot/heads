@@ -630,22 +630,37 @@ detached_kexec_signature_valid() {
 	fi
 	DEBUG "detached_kexec_signature_valid: ${#kexec_txt_files[@]} file(s) in $boot_dir: ${kexec_txt_files[*]}"
 
-	# Verify using relative filenames (cd into boot_dir) to match the signing
-	# path format.  Absolute paths would differ from the staging dir used during
-	# signing and cause a spurious BAD signature result.
+	# Try relative filenames first (cd into boot_dir) to match the signing
+	# path format used by this branch's kexec-sign-config (staging dir + relative names).
 	STATUS "Verifying /boot detached signature"
 	DEBUG "detached_kexec_signature_valid: running (cd $boot_dir && sha256sum ${kexec_txt_files[*]}) | gpgv $boot_dir/kexec.sig"
 	if (cd "$boot_dir" && sha256sum "${kexec_txt_files[@]}") \
 		| gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
-		DEBUG "detached_kexec_signature_valid: signature valid"
+		DEBUG "detached_kexec_signature_valid: signature valid (relative paths)"
 		mkdir -p /tmp/kexec
 		cp "$boot_dir"/kexec*.txt /tmp/kexec 2>/dev/null || true
 		return 0
-	else
-		DEBUG "detached_kexec_signature_valid failed"
-		DEBUG "detached signature verification failed, head of /tmp/integrity_sigcheck:"
-		DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
 	fi
+	DEBUG "detached_kexec_signature_valid: relative-path check failed; retrying with full paths (legacy format)"
+	DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
+
+	# Backwards compatibility: the previous kexec-sign-config signed with full
+	# paths (sha256sum /boot/kexec*.txt), not relative paths.  A firmware upgrade
+	# must not invalidate an existing valid signature.
+	local kexec_txt_full=()
+	for f in "${kexec_txt_files[@]}"; do
+		kexec_txt_full+=( "$boot_dir/$f" )
+	done
+	DEBUG "detached_kexec_signature_valid: running sha256sum ${kexec_txt_full[*]} | gpgv $boot_dir/kexec.sig"
+	if sha256sum "${kexec_txt_full[@]}" \
+		| gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
+		DEBUG "detached_kexec_signature_valid: signature valid (full paths, legacy format)"
+		mkdir -p /tmp/kexec
+		cp "$boot_dir"/kexec*.txt /tmp/kexec 2>/dev/null || true
+		return 0
+	fi
+	DEBUG "detached_kexec_signature_valid: both relative and full-path checks failed"
+	DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
 	return 1
 }
 
