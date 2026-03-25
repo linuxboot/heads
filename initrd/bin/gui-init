@@ -505,6 +505,8 @@ update_hotp() {
 
 	if [[ "$HOTP" = "HOTP slot not configured" ]]; then
 		WARN "$HOTPKEY_BRANDING HOTP slot is not configured"
+		STATUS "Verify TOTP against your phone to confirm TPM is intact, then press Escape to continue"
+		show_totp_until_esc
 		whiptail_warning --title "HOTP Not Configured" \
 			--menu "The HOTP slot on your $HOTPKEY_BRANDING is not configured.\n\nThis can happen if HOTP sealing was interrupted (connection error, dongle removed during setup).\n\nPlease generate a new TOTP/HOTP secret to configure it." 0 80 2 \
 			'g' ' Generate new TOTP/HOTP secret' \
@@ -518,6 +520,8 @@ update_hotp() {
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
 				if generate_totp_hotp; then
 					update_totp || true
+					HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp)
+					[ -n "$HOTP" ] && hotp_verification check "$HOTP" >/dev/null 2>&1 && HOTP="Success"
 					BG_COLOR_MAIN_MENU="normal"
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
@@ -530,6 +534,8 @@ update_hotp() {
 		return
 	elif [[ "$HOTP" = "Invalid code" ]]; then
 		INTEGRITY_GATE_REQUIRED="y"
+		STATUS "HOTP failed - verify TOTP against your phone to confirm TPM integrity, then press Escape to continue"
+		show_totp_until_esc
 		local hotp_error_msg
 		hotp_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
 		whiptail_error --title "ERROR: HOTP Validation Failed!" \
@@ -546,6 +552,8 @@ update_hotp() {
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
 				if generate_totp_hotp; then
 					update_totp || true
+					HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp)
+					[ -n "$HOTP" ] && hotp_verification check "$HOTP" >/dev/null 2>&1 && HOTP="Success"
 					BG_COLOR_MAIN_MENU="normal"
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
@@ -778,6 +786,9 @@ show_tpm_totp_hotp_options_menu() {
 	g)
 		if gate_reseal_with_integrity_report && generate_totp_hotp; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+			# If reseal did not reboot (no LUKS devices), refresh display so
+			# the user sees the new TOTP/HOTP state without a manual 'r'
+			update_totp && update_hotp || true
 		fi
 		;;
 	r)
