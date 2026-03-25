@@ -193,6 +193,7 @@ for tries in 1 2 3; do
 		# remount /boot as ro
 		mount -o remount,ro /boot
 
+		STATUS_OK "Boot hashes signed successfully"
 		exit 0
 	fi
 

@@ -1263,7 +1263,8 @@ reseal_tpm_disk_decryption_key() {
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
 		STATUS "Validating TPM rollback counter before resealing"
 		preflight_rollback_counter_before_reseal
-		NOTE "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
+		STATUS_OK "TPM rollback counter validated"
+		STATUS "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
 		if ! kexec-seal-key /boot; then
 			DIE "Failed to reseal TPM Disk Unlock Key"
 		fi
@@ -1275,6 +1276,7 @@ reseal_tpm_disk_decryption_key() {
 			fi
 			attempt=$((attempt + 1))
 		done
+		STATUS_OK "TPM Disk Unlock Key resealed and boot hashes signed"
 		STATUS "Rebooting to enable default boot option"
 		sleep 3
 		reboot
@@ -2169,11 +2171,9 @@ mount_possible_boot_device() {
 
 	# Check if the partition is small (less than 2MB, which is 4096 sectors)
 	if [ "$sectors" -lt 4096 ]; then
-		TRACE_FUNC
 		DEBUG "Partition $BOOT_DEV is very small, likely BIOS boot. Skipping mount."
 		return 1
 	else
-		TRACE_FUNC
 		DEBUG "Try mounting $BOOT_DEV as /boot"
 		if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
 			if ls -d /boot/grub* >/dev/null 2>&1; then
@@ -2250,16 +2250,16 @@ scan_boot_options() {
 	config="$2"
 	option_file="$3"
 
-	if [ -r $option_file ]; then rm $option_file; fi
-	for i in $(find $bootdir -name "$config"); do
-		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >>$option_file
+	if [ -r "$option_file" ]; then rm "$option_file"; fi
+	for i in $(find "$bootdir" -name "$config"); do
+		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
-	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in $(find $bootdir -name "$config"); do
-			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >>$option_file
+	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
+		for i in $(find "$bootdir" -name "$config"); do
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
 		done
 	fi
 }

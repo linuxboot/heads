@@ -40,8 +40,9 @@ mount_boot() {
 	while ! grep -q /boot /proc/mounts; do
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot
-			[[ $? -eq 0 ]] && continue
+			if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+				continue
+			fi
 		fi
 
 		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options.
