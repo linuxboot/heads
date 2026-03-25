@@ -44,29 +44,37 @@ mount_boot() {
 			[[ $? -eq 0 ]] && continue
 		fi
 
-		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options.
+		# LUKS_PARTITION_DETECTED is set by detect_boot_device (via mount_possible_boot_device)
+		# when it skips a LUKS partition -- reuse that result to distinguish
+		# "OS installed without separate /boot" from "no OS found at all".
 		BG_COLOR_MAIN_MENU="error"
-		whiptail_error --title "ERROR: No Bootable OS Found!" \
-			--menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
-    How would you like to proceed?" 0 80 4 \
-			'b' ' Select a new boot device' \
+		local boot_msg
+		if [ "${LUKS_PARTITION_DETECTED:-n}" = "y" ]; then
+			boot_msg="An encrypted OS was detected but no separate /boot partition was found.\n\n$CONFIG_BRAND_NAME requires a separate, unencrypted /boot partition.\n\nMost OS installers do not create this layout by default. Only DVD/live\nISOs that detect legacy boot (BIOS/CSM mode) will offer the correct\npartition scheme. Use 'Boot from USB' to boot a live ISO and reinstall\nyour OS with a separate /boot partition.\n\nHow would you like to proceed?"
+		else
+			boot_msg="No bootable OS was found on any disk.\n\n$CONFIG_BRAND_NAME requires a separate, unencrypted /boot partition\ncontaining grub configuration files.\n\nIf you are installing an OS for the first time, use 'Boot from USB' to\nboot a live ISO. Only DVD/live ISOs that detect legacy boot (BIOS/CSM)\nwill offer the correct partition scheme with a separate /boot.\n\nHow would you like to proceed?"
+		fi
+		whiptail_error --title "ERROR: No /boot Partition Found" \
+			--menu "$boot_msg" 0 80 4 \
 			'u' ' Boot from USB' \
+			'b' ' Select a new boot device' \
 			'm' ' Continue to the main menu' \
 			'x' ' Exit to recovery shell' \
 			2>/tmp/whiptail || recovery "GUI menu failed"
 
 		option=$(cat /tmp/whiptail)
 		case "$option" in
+		u)
+			exec /bin/usb-init
+			;;
 		b)
-			config-gui.sh boot_device_select
-			if [ $? -eq 0 ]; then
+			if config-gui.sh boot_device_select; then
 				# update CONFIG_BOOT_DEV
+				# shellcheck source=/dev/null
 				. /tmp/config
 				BG_COLOR_MAIN_MENU="normal"
 			fi
-			;;
-		u)
-			exec /bin/usb-init
 			;;
 		m)
 			skip_to_menu="true"

@@ -588,7 +588,7 @@ investigate_integrity_discrepancies() {
 			;;
 		r)
 			local msg
-			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount /boot read-write:\n    mount -o rw,remount /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the Heads menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; Heads will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
+			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount /boot read-write:\n    mount -o rw,remount /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the '"${CONFIG_BRAND_NAME}"$' menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; '"${CONFIG_BRAND_NAME}"$' will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
 			recovery "$msg"
 			;;
 		u)

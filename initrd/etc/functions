@@ -1593,7 +1593,7 @@ preflight_rollback_counter_before_reseal() {
 		if attrs_lc="$(tpm2 nvreadpublic "0x$counter_id" 2>/dev/null | tr '[:upper:]' '[:lower:]')"; then
 			if [ -n "$attrs_lc" ]; then
 				if echo "$attrs_lc" | grep -q "ownerwrite" && ! echo "$attrs_lc" | grep -q "authwrite"; then
-					fail_preflight "TPM rollback counter '$counter_id' uses ownerwrite-only policy, which does not match Heads rollback increment path. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+					fail_preflight "TPM rollback counter '$counter_id' uses ownerwrite-only policy, which does not match $CONFIG_BRAND_NAME rollback increment path. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 					return 1
 				fi
 				if ! echo "$attrs_lc" | grep -Eq "authwrite|ownerwrite"; then
@@ -2156,6 +2156,7 @@ mount_possible_boot_device() {
 	fi
 	if cryptsetup isLuks "$BOOT_DEV"; then
 		DEBUG "$BOOT_DEV is a LUKS volume, skipping"
+		LUKS_PARTITION_DETECTED="y"
 		return 1
 	fi
 	if find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
