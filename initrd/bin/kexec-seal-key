@@ -166,14 +166,14 @@ if [ $attempts -ge 3 ]; then
 fi
 
 # Generate key file
-STATUS "Generating new randomized 128-byte key file for LUKS TPM Disk Unlock Key"
+STATUS "Generating new randomized key of 128 characters for LUKS TPM Disk Unlock Key"
 dd \
 	if=/dev/urandom \
 	of="$DUK_KEY_FILE" \
 	bs=1 \
 	count=128 \
 	2>/dev/null ||
-	DIE "Unable to generate 128 random bytes"
+	DIE "Unable to generate random key of 128 characters"
 
 previous_luks_header_version=0
 for dev in $key_devices; do
