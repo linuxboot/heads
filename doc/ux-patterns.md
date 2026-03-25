@@ -133,6 +133,92 @@ This prevents new TOTP/HOTP/DUK secrets from being sealed against a potentially 
 
 ---
 
+## GPG User PIN caching
+
+Heads signs `/boot` content using a GPG key. For OpenPGP smartcard keys, the
+card's "force signature PIN" property (enabled by default on supported tokens)
+requires the User PIN to be presented to the card for every signing operation.
+Without caching, the user would be prompted on every `gpg --detach-sign` call
+within the same session.
+
+To reduce PIN prompts (issue [#1955](https://github.com/linuxboot/heads/issues/1955)),
+Heads caches the validated PIN for the session in `/tmp/secret/gpg_pin`
+(mode 600, on tmpfs; cleared at power-off).
+
+### Architecture: loopback mode
+
+All GPG signing in Heads uses `--pinentry-mode=loopback` with
+`--passphrase-file /tmp/secret/gpg_pin`. This means gpg-agent never calls
+`pinentry` for signing operations — the PIN is supplied directly from the
+cache file through the loopback channel. `initrd/.gnupg/gpg-agent.conf`
+sets `allow-loopback-pinentry` to permit this.
+
+`confirm_gpg_card` in `initrd/etc/functions` is a thin wrapper around
+`cache_gpg_signing_pin`, which implements both key paths below.
+
+### Priming the cache: test-sign in cache_gpg_signing_pin
+
+Both key paths prime the PIN cache **inside `cache_gpg_signing_pin`** (called
+via `confirm_gpg_card`) via a validated test-sign before returning. The cache
+is always populated before `kexec-sign-config` performs the actual signing.
+On second and later calls in the same session, `[ -s /tmp/secret/gpg_pin ]`
+triggers an early return with no prompting.
+
+**Smartcard (User PIN) path:**
+`cache_gpg_signing_pin` reads the card status to display PIN retry counters,
+then collects the User PIN via `INPUT` (Heads-controlled prompt). It performs
+a test detach-sign using `--pinentry-mode=loopback --passphrase-file
+<(printf '%s' "$sc_user_pin")` and verifies the signature. On success the PIN
+is written to `/tmp/secret/gpg_pin` and `STATUS_OK "GPG User PIN cached for
+this session"` is emitted. On bad PIN: clear input, WARN with updated retry
+counter, retry (up to 3 attempts). The test-sign nonce is shredded on
+completion.
+
+**Backup key (Admin PIN) path:**
+`cache_gpg_signing_pin` collects the Admin PIN via `INPUT`, imports the
+private subkeys with `--pinentry-mode=loopback --passphrase-file`, does a
+test-sign with loopback, verifies the signature, then writes the validated
+passphrase directly to `/tmp/secret/gpg_pin` and emits
+`STATUS_OK "GPG Admin PIN cached for this session"`.
+
+### Bad PIN handling
+
+On bad-PIN signing failure inside `kexec-sign-config` or `gpg_auth`, callers
+delete `/tmp/secret/gpg_pin` before retrying. The next call to `confirm_gpg_card`
+finds an empty cache, runs the full test-sign flow, and re-prompts the user.
+
+### STATUS_OK on cache save
+
+`cache_gpg_signing_pin` emits `STATUS_OK` when the PIN is successfully cached:
+
+- Smartcard path: `STATUS_OK "GPG User PIN cached for this session"`
+- Backup key path: `STATUS_OK "GPG Admin PIN cached for this session"`
+
+---
+
+## Once-per-session display
+
+Some informational displays are useful on first occurrence but become noise if
+repeated across multiple call sites in the same session. Guard these with a
+session flag file under `/tmp`:
+
+```bash
+some_display_function() {
+    [ -f /tmp/some_shown ] && return
+    # ... produce the display ...
+    touch /tmp/some_shown
+}
+```
+
+`/tmp` is on tmpfs and is cleared at reboot, so the guard is automatically
+lifted on the next boot. No cleanup code is needed.
+
+This pattern is used by `hotpkey_fw_display` in `initrd/etc/functions` to show
+the USB security dongle firmware version at most once per session, regardless
+of how many times the function is called from different code paths.
+
+---
+
 ## TPM counter patterns
 
 ### Reading counters

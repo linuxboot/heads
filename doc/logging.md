@@ -307,6 +307,8 @@ the `console=` kernel parameter and reaches whatever output the system was confi
 (serial port, framebuffer, BMC console, etc.) without requiring any process setup.
 This means callers never need to care about redirections: a caller that does
 `2>/tmp/whiptail` or `>/boot/kexec_tree.txt` will not accidentally capture log output.
+Similarly, scripts that use stdout for a structured protocol can safely call STATUS,
+STATUS_OK, and any other logging function — log output never appears on stdout.
 
 NOTE, WARN and DIE print a blank line before and after the message so they stand out visually
 from surrounding output. STATUS and STATUS_OK do **not** — they are called frequently and blank

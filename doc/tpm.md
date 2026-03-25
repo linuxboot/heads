@@ -169,6 +169,10 @@ PCRs (e.g. enabling an optional coreboot feature) would break the seal.
 
 #### LUKS Disk Unlock Key (DUK) — kexec-seal-key
 
+The DUK is a 128-character random key (128 bytes from `/dev/urandom`, providing
+1024 bits of entropy). It is added to a dedicated LUKS key slot and sealed to
+TPM NVRAM with the policy below.
+
 | PCR | How obtained | Reason |
 | --- | --- | --- |
 | 0 | `pcrread` (current value) | Platform state at seal time |

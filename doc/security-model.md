@@ -185,7 +185,11 @@ When the user installs or updates the OS, `kexec-sign-config`:
 
 The signing key lives on a hardware security dongle (OpenPGP smartcard),
 never in the ROM. Signing requires physical possession of the card and
-knowledge of the card PIN.
+knowledge of the card PIN. To reduce repeated PIN prompts within the same
+session, Heads caches the validated User PIN in `/tmp/secret/gpg_pin` (mode
+600, tmpfs; cleared at power-off). See
+[ux-patterns.md — GPG User PIN caching](ux-patterns.md#gpg-user-pin-caching)
+for the caching mechanism and its security properties.
 
 ### Verification (kexec-select-boot)
 
@@ -203,7 +207,7 @@ the ROM keyring; no private key material is needed at boot.
 
 The LUKS Disk Unlock Key (DUK) is a random binary key that:
 
-1. Is generated from `/dev/urandom` by `kexec-seal-key`.
+1. Is generated from `/dev/urandom` by `kexec-seal-key` (128 characters — 1024 bits of entropy).
 2. Is sealed to TPM NVRAM with PCR policy `0,1,2,3,4,5,6,7`.
 3. Is added as a LUKS key slot alongside the user's Disk Recovery Key (DRK).
 4. At boot, `kexec-insert-key` unseals it and injects it into a minimal
