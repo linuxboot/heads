@@ -978,15 +978,11 @@ if ! preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return
 	fi
 	[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
 
-	# Keep the on-screen text concise and user-focused; full raw reason stays in DEBUG logs.
-	preflight_reason="Stored TPM rollback state is invalid for this system."
-	if echo "$preflight_error_msg" | grep -qi "missing or unreadable\|initialized but rollback state cannot be validated"; then
-		preflight_reason="Stored TPM rollback metadata is missing for an initialized system (possible TPM reset/replacement)."
-	elif echo "$preflight_error_msg" | grep -qi "cannot be read"; then
-		preflight_reason="Stored TPM rollback metadata cannot be read."
-	elif echo "$preflight_error_msg" | grep -qi "empty\|no writable\|ownerwrite-only"; then
-		preflight_reason="Stored TPM rollback metadata does not match current TPM state."
-	fi
+	# Show the actual diagnostic directly so the user knows exactly why.
+	# Strip the "Reset TPM from GUI..." action guidance that fail_preflight appends
+	# since the menu already offers those actions.
+	preflight_reason="${preflight_error_msg%%. Reset TPM from GUI*}"
+	[ -z "$preflight_reason" ] && preflight_reason="TPM rollback counter state could not be validated."
 
 	preflight_menu_text=$(
 		cat <<EOF

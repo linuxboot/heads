@@ -121,6 +121,25 @@ The correct UX is:
   exactly what they expected through an out-of-band means (e.g. comparing against a known-good
   clean OS installation, not against the signature itself).
 
+### Show the actual diagnostic — do not paraphrase
+
+When an internal check fails and a reason is already available as a string,
+show it directly to the user. Do **not** grep the message and replace it with
+a vague summary — that discards the specific detail the user needs to act.
+
+```bash
+# CORRECT — user sees exactly which counter and why
+preflight_reason="${preflight_error_msg%%. Reset TPM from GUI*}"
+
+# WRONG — throws away counter ID and specific condition
+if echo "$preflight_error_msg" | grep -qi "cannot be read"; then
+    preflight_reason="Stored TPM rollback metadata cannot be read."
+fi
+```
+
+Strip action guidance from the displayed reason only when the menu already
+offers those actions — this avoids duplication, not information loss.
+
 ### Gate before sealing new secrets
 
 `gate_reseal_with_integrity_report` (`initrd/bin/gui-init`) must be called before any operation

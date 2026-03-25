@@ -265,6 +265,33 @@ and writes the result to `/tmp/counter-<index>`. The format is
 At boot, `kexec-select-boot` reads the counter, hashes the file, and checks
 it against the stored hash. Any discrepancy aborts the boot.
 
+### Rollback preflight: boot-time validation
+
+Before presenting TOTP/HOTP recovery prompts, `gui-init` calls
+`preflight_rollback_counter_before_reseal` to confirm the rollback counter
+is consistent. This catches TPM replacements, `/boot` disk swaps, and counter
+corruption before any secrets are resealed.
+
+Failure conditions and their diagnostic messages:
+
+| Condition | Message shown to user |
+| --- | --- |
+| `/boot/kexec_rollback.txt` missing on initialized system | "TPM rollback metadata is missing or unreadable... System appears initialized but rollback state cannot be validated." |
+| Counter index unreadable from TPM | "TPM rollback counter '`<id>`' cannot be read." |
+| TPM2: counter has `ownerwrite` but not `authwrite` | "TPM rollback counter '`<id>`' uses ownerwrite-only policy." |
+| TPM2: counter has neither `authwrite` nor `ownerwrite` | "TPM rollback counter '`<id>`' has no writable attribute." |
+| TPM2: counter attributes empty or unreadable | "TPM rollback counter '`<id>`' attributes are empty / cannot be read." |
+
+The exact diagnostic message from `fail_preflight` is shown directly in the
+error dialog — **not** a vague paraphrase. This tells the user and any support
+context exactly which condition was detected. The action guidance ("Reset TPM
+from GUI...") is stripped from the dialog since the menu already offers those
+options.
+
+The user is offered four actions: show the integrity report, OEM Factory Reset,
+Reset the TPM, or continue to the main menu. The dialog loops until the
+counter passes preflight or the user chooses to continue.
+
 ### Pipeline safety
 
 `tpmr counter_read` must be called with a direct redirect, not piped through
