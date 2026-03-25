@@ -278,8 +278,15 @@ else
 			done
 		fi
 
-		#Setup a control tty so that all terminals outputs correct tty when tty is called
-		exec cttyhack "$CONFIG_BOOTSCRIPT"
+		# Run the boot script under a respawn loop so that a DIE/exit inside
+		# gui-init (or any script it calls) does not kill PID 1 and oops the
+		# kernel.  cttyhack is NOT exec'd — /init stays as PID 1.
+		while true; do
+			cttyhack "$CONFIG_BOOTSCRIPT"
+			_rc=$?
+			WARN "$CONFIG_BOOTSCRIPT exited (code $_rc) - respawning"
+			sleep 2
+		done
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'
