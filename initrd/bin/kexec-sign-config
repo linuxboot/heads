@@ -214,6 +214,9 @@ for tries in 1 2 3; do
 	if grep -Eiq 'bad pin|wrong pin|incorrect pin|pin incorrect|pinentry.*cancel' /tmp/kexec-sign.log 2>/dev/null; then
 		if [ "$tries" -lt 3 ]; then
 			WARN "$paramsdir: GPG signing failed due to incorrect smartcard User PIN (attempt $tries/3) - re-enter the correct PIN at the next prompt"
+			# Clear the PIN cache so the next attempt prompts for a fresh PIN
+			# rather than silently replaying the wrong PIN from cache.
+			rm -f /tmp/secret/gpg_pin
 			continue
 		else
 			DIE "$paramsdir: GPG signing failed due to incorrect smartcard User PIN after 3 attempts. Check remaining retries in the GPG card status menu; if retries are exhausted, unblock/reset with Admin PIN and try again."

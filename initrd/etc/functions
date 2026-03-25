@@ -525,19 +525,17 @@ release_scdaemon() {
 	killall gpg-agent scdaemon >/dev/null 2>&1 || true
 }
 
-confirm_gpg_card() {
-
-	#TODO: ideally, we ask for confirmation only once per boot session
-	#TODO: even change logic here to try first and then ask user to confirm if not found
-	#TODO: or ask GPG User PIN once and cache it for the rest of the boot session for reusal
-	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
-
+cache_gpg_signing_pin() {
 	TRACE_FUNC
-	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
+
+	# Skip if PIN already cached for this session.
+	[ -s /tmp/secret/gpg_pin ] && return
+
+	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked
 	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
 	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
-		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through pinentry"
+		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through loopback"
 		return
 	fi
 
@@ -590,6 +588,9 @@ confirm_gpg_card() {
 			gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1 &&
 				STATUS_OK "Local GPG keyring is available for signing, encryption, and authentication this boot session" ||
 				DIE "Unable to verify $CR_SIG detached signature against public key in ROM"
+			#Cache validated passphrase; subsequent loopback signing reuses it without prompting.
+			printf '%s' "$gpg_admin_pin" >/tmp/secret/gpg_pin
+			chmod 600 /tmp/secret/gpg_pin
 			#Wipe any previous CR_NONCE and CR_SIG
 			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
 			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
@@ -626,7 +627,7 @@ confirm_gpg_card() {
 		DEBUG "Retry succeeded"
 	fi
 
-	# Extract and display GPG PIN retry counters
+	# Read card status and display PIN retry counters before prompting.
 	# output excerpt: "PIN retry counter : 3 0 3"
 	gpg_output=$(gpg --card-status 2>&1)
 	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
@@ -636,12 +637,59 @@ confirm_gpg_card() {
 	echo >/dev/console 2>/dev/null
 	STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
 	STATUS "GPG Admin PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
-	NOTE "GPG User PIN required at next smartcard prompt"
+
+	# Collect and validate smartcard User PIN via Heads INPUT then loopback
+	# test-sign. On success, cache the PIN so all subsequent signing calls in
+	# this session use --pinentry-mode=loopback --passphrase-file without
+	# prompting the user again.
+	SC_NONCE="/tmp/secret/sc_nonce"
+	SC_SIG="$SC_NONCE.sig"
+	shred -n 10 -z -u "$SC_NONCE" "$SC_SIG" >/dev/null 2>&1 || true
+	dd if=/dev/urandom of="$SC_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+		DIE "Unable to create nonce for smartcard PIN test-sign"
+	STATUS "Testing GPG smartcard signing to cache User PIN for this session"
+	sc_user_pin=""
+	sc_pin_tries=0
+	while [ "$sc_pin_tries" -lt 3 ]; do
+		sc_pin_tries=$(( sc_pin_tries + 1 ))
+		while [ -z "$sc_user_pin" ]; do
+			INPUT "Enter GPG User PIN for smartcard:" -r -s sc_user_pin
+		done
+		if gpg --pinentry-mode=loopback \
+				--passphrase-file <(printf '%s' "$sc_user_pin") \
+				--detach-sign "$SC_NONCE" >/dev/null 2>/tmp/sc-sign.log; then
+			gpg --verify "$SC_SIG" "$SC_NONCE" >/dev/null 2>&1 ||
+				DIE "GPG smartcard test-sign: signature verification failed"
+			printf '%s' "$sc_user_pin" >/tmp/secret/gpg_pin
+			chmod 600 /tmp/secret/gpg_pin
+			STATUS_OK "GPG User PIN cached for this session"
+			break
+		fi
+		sc_user_pin=""
+		if grep -Eiq 'bad pin|wrong pin|incorrect pin|pin incorrect|pinentry.*cancel' /tmp/sc-sign.log 2>/dev/null; then
+			if [ "$sc_pin_tries" -lt 3 ]; then
+				WARN "Incorrect GPG User PIN (attempt $sc_pin_tries/3) - please retry"
+				# Re-read counter to show updated remaining retries after the failed attempt
+				gpg_output=$(gpg --card-status 2>&1)
+				pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
+				user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
+				STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
+				continue
+			fi
+			DIE "Incorrect GPG User PIN after 3 attempts. Check remaining PIN retries."
+		fi
+		DIE "GPG smartcard test-sign failed: $(head -5 /tmp/sc-sign.log 2>/dev/null)"
+	done
+	shred -n 10 -z -u "$SC_NONCE" "$SC_SIG" >/dev/null 2>&1 || true
 
 	# restore prev errexit state
 	if [ "$errexit" = "on" ]; then
 		set -e
 	fi
+}
+
+confirm_gpg_card() {
+	cache_gpg_signing_pin "$@"
 }
 
 gpg_auth() {
@@ -669,13 +717,13 @@ gpg_auth() {
 			2>/dev/null ||
 			DIE "Unable to generate 20 random bytes"
 
-		# Sign the nonce; re-confirm card (and re-display PIN counter) before
-		# each attempt so the user sees the decremented count after a bad PIN.
+		# Sign the nonce; cache_gpg_signing_pin ensures the PIN is cached and
+		# the card is accessible before each attempt.
 		for tries in 1 2 3; do
-			# confirm_gpg_card shows the current PIN retry count and ensures
-			# the card is accessible; loop until the card is detected.
 			until (confirm_gpg_card); do true; done
 			if gpg --digest-algo SHA256 \
+				--pinentry-mode=loopback \
+				--passphrase-file /tmp/secret/gpg_pin \
 				--detach-sign \
 				-o "$CR_SIG" \
 				"$CR_NONCE" >/dev/null 2>&1 &&
@@ -688,6 +736,8 @@ gpg_auth() {
 				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
 				if [ "$tries" -lt 3 ]; then
 					WARN "GPG authentication failed (attempt $tries/3), please try again"
+					# Clear cached PIN so the next attempt re-prompts for the correct PIN.
+					rm -f /tmp/secret/gpg_pin
 					continue
 				else
 					DIE "GPG authentication failed, please reboot and try again"
@@ -1898,7 +1948,7 @@ update_checksums() {
 	DEBUG "update_checksums: extparam='$extparam' CONFIG_TPM='${CONFIG_TPM:-}' CONFIG_IGNORE_ROLLBACK='${CONFIG_IGNORE_ROLLBACK:-}'"
 	DEBUG "update_checksums: signing is required because boot hashes under /boot changed (rollback counter and/or resealed secrets) and must be re-trusted"
 
-	STATUS "Signing $CONFIG_BRAND_NAME boot hashes under /boot - GPG prompt will follow"
+	STATUS "Signing $CONFIG_BRAND_NAME boot hashes under /boot"
 
 	# signing may prompt for TPM password; avoid DO_WITH_DEBUG which
 	# severs the controlling tty for the child process.
