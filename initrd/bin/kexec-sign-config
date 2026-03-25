@@ -149,7 +149,7 @@ for tries in 1 2 3; do
 	TRACE_FUNC
 	DEBUG "kexec-sign-config: signing attempt ${tries}/3 begins after GPG card confirmation"
 
-	# Public keys are not sufficient for signing. After card confirmation,
+	# Public keys are not sufficient for signing. After cache_gpg_signing_pin,
 	# force discovery of a usable secret key identity and pass it explicitly
 	# to gpg, instead of relying on implicit default-key selection.
 	card_status_output=$(gpg --card-status 2>/dev/null || true)
@@ -172,7 +172,10 @@ for tries in 1 2 3; do
 	# the same cd+sha256sum from $paramsdir after the files are moved there.
 	DEBUG "kexec-sign-config: running sha256sum (relative) | gpg in $stagedir"
 	if (cd "$stagedir" && sha256sum "${param_files[@]}") | \
-		gpg --disable-dirmngr --no-auto-key-retrieve --local-user "$SIGNING_KEY_ID" --detach-sign -a >"$stagedir/kexec.sig" 2>/tmp/kexec-sign.log; then
+		gpg --local-user "$SIGNING_KEY_ID" \
+			--pinentry-mode=loopback \
+			--passphrase-file /tmp/secret/gpg_pin \
+			--detach-sign -a >"$stagedir/kexec.sig" 2>/tmp/kexec-sign.log; then
 		# Signing succeeded — move all staged files to their final locations
 		DEBUG "kexec-sign-config: signing succeeded; moving staged files to $paramsdir"
 		for f in "$stagedir"/*; do
@@ -202,24 +205,19 @@ for tries in 1 2 3; do
 		DEBUG "$(sed -n '1,40p' /tmp/kexec-sign.log)"
 	fi
 
-	if grep -Eiq 'no dirmngr|failed to start dirmngr|can.t connect to the dirmngr|error running .*/dirmngr|signing failed: no dirmngr' /tmp/kexec-sign.log 2>/dev/null; then
-		DIE "$paramsdir: GPG signing failed because required GPG service 'dirmngr' is unavailable in this session/build. This is not a PIN error. Reboot and retry once; if it persists, use a Heads image/build with working dirmngr/gpg services before re-signing /boot metadata."
-	fi
-
 	if grep -Eiq 'no default secret key|no secret key|secret key not available|signing failed: no secret key' /tmp/kexec-sign.log 2>/dev/null; then
 		DIE "$paramsdir: GPG signing failed because no private signing key is available to gpg. Confirm the expected signing key is present/unlocked on your smartcard or imported backup key material, then retry (Options --> GPG Options --> Add GPG key to running BIOS and reflash, or OEM Factory Reset / Re-Ownership)."
 	fi
 
-	# Provide precise, actionable guidance for common smartcard PIN failures.
+	# Bad PIN after cache_gpg_signing_pin pre-validation is unexpected; clear
+	# and retry so the user can re-enter the correct PIN on the next attempt.
 	if grep -Eiq 'bad pin|wrong pin|incorrect pin|pin incorrect|pinentry.*cancel' /tmp/kexec-sign.log 2>/dev/null; then
 		if [ "$tries" -lt 3 ]; then
-			WARN "$paramsdir: GPG signing failed due to incorrect smartcard User PIN (attempt $tries/3) - re-enter the correct PIN at the next prompt"
-			# Clear the PIN cache so the next attempt prompts for a fresh PIN
-			# rather than silently replaying the wrong PIN from cache.
+			WARN "$paramsdir: GPG signing failed due to incorrect PIN (attempt $tries/3) - re-enter the correct PIN at the next prompt"
 			rm -f /tmp/secret/gpg_pin
 			continue
 		else
-			DIE "$paramsdir: GPG signing failed due to incorrect smartcard User PIN after 3 attempts. Check remaining retries in the GPG card status menu; if retries are exhausted, unblock/reset with Admin PIN and try again."
+			DIE "$paramsdir: GPG signing failed due to incorrect PIN after 3 attempts. Check remaining retries in the GPG card status menu; if retries are exhausted, unblock/reset with Admin PIN and try again."
 		fi
 	fi
 

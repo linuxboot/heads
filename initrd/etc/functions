@@ -532,7 +532,10 @@ cache_gpg_signing_pin() {
 	TRACE_FUNC
 
 	# Skip if PIN already cached for this session.
-	[ -s /tmp/secret/gpg_pin ] && return
+	if [ -s /tmp/secret/gpg_pin ]; then
+		DEBUG "GPG signing PIN already cached for this session; skipping"
+		return
+	fi
 
 	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked
 	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
@@ -557,53 +560,89 @@ cache_gpg_signing_pin() {
 				DIE "gpg card not confirmed"
 			fi
 		done
+		DEBUG "User key source selection: '${card_confirm}' (empty or y/Y = dongle, b = backup thumb drive)"
 	fi
 	# Non-backup case: skip the upfront confirmation entirely.  wait_for_gpg_card
 	# below does the actual check and prompts on failure.
 
 	# If user has known GPG key material Thumb drive backup and asked to use it
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
+		DEBUG "Backup thumb drive path selected"
 		#Only mount and import GPG key material thumb drive backup once
 		if [ ! "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]; then
-			CR_NONCE="/tmp/secret/cr_nonce"
-			CR_SIG="$CR_NONCE.sig"
+			DEBUG "Backup key not yet in use this session; proceeding with mount and import"
+			# Use a distinct path from CR_NONCE so we don't shred the nonce
+			# that gpg_auth may have already created at /tmp/secret/cr_nonce
+			# before calling confirm_gpg_card.
+			local BP_NONCE="/tmp/secret/backup_test_nonce"
+			local BP_SIG="$BP_NONCE.sig"
 
-			#Wipe any previous CR_NONCE and CR_SIG
-			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			shred -n 10 -z -u "$BP_NONCE" "$BP_SIG" >/dev/null 2>&1 || true
 
-			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
 			gpg_admin_pin=""
 			while [ -z "$gpg_admin_pin" ]; do
 				INPUT "Please enter GPG Admin PIN needed to use the GPG backup thumb drive:" -r -s gpg_admin_pin
 			done
-			#prompt user to select the proper encrypted partition, which should the first one on next prompt
 			WARN "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
 			mount-usb --pass "$gpg_admin_pin" || DIE "Unable to mount USB with provided GPG Admin PIN"
-			STATUS "Testing detach-sign operation and verifying against public key in ROM"
-			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
-				DIE "Unable to import GPG private subkeys"
-			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
-			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
-				DIE "Unable to create $CR_NONCE to be detach-signed with GPG private signing subkey"
-			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
-				DIE "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
-			#verify detached signature against public key in rom
-			gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1 &&
-				STATUS_OK "Local GPG keyring is available for signing, encryption, and authentication this boot session" ||
-				DIE "Unable to verify $CR_SIG detached signature against public key in ROM"
-			#Cache validated passphrase; subsequent loopback signing reuses it without prompting.
+			DEBUG "USB backup thumb drive mounted; clearing card stubs and importing private subkeys"
+			STATUS "Importing GPG private subkeys from backup thumb drive"
+			# After keytocard the local keyring has card stubs in
+			# private-keys-v1.d/.  gpg --import returns 0 even when it silently
+			# skips overwriting an existing stub, so the stub must be removed
+			# first.  Kill agent+scdaemon, delete all stub key files, then
+			# import so GPG writes actual private key material and the
+			# subsequent detach-sign uses the local key, not the smartcard.
+			release_scdaemon
+			find "${GNUPGHOME:-$HOME/.gnupg}/private-keys-v1.d" \
+				-name '*.key' -delete >/dev/null 2>&1 || true
+			DEBUG "Deleted card stubs from private-keys-v1.d before importing backup key"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") \
+				--import-options restore --import /media/subkeys.sec \
+				>/dev/null 2>/tmp/backup-import.log || {
+				DEBUG "GPG import failed: $(head -5 /tmp/backup-import.log 2>/dev/null)"
+				DIE "Unable to import GPG private subkeys from backup thumb drive"
+			}
+			STATUS_OK "GPG private subkeys imported from backup"
+			STATUS "Testing detach-sign and verifying against ROM-fused public key"
+			dd if=/dev/urandom of="$BP_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+				DIE "Unable to create $BP_NONCE to be detach-signed with GPG private signing subkey"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") \
+				--detach-sign "$BP_NONCE" \
+				>/dev/null 2>/tmp/backup-sign.log || {
+				DEBUG "GPG detach-sign failed: $(head -5 /tmp/backup-sign.log 2>/dev/null)"
+				DIE "Unable to detach-sign $BP_NONCE with GPG private signing subkey using GPG Admin PIN"
+			}
+			DEBUG "Detach-sign succeeded; verifying against ROM-fused public key"
+			if ! gpg --verify "$BP_SIG" "$BP_NONCE" >/dev/null 2>/tmp/backup-verify.log; then
+				DEBUG "GPG verify failed: $(head -5 /tmp/backup-verify.log 2>/dev/null)"
+				DIE "Unable to verify $BP_SIG detached signature against public key in ROM"
+			fi
+			STATUS_OK "Local GPG keyring is available for signing, encryption, and authentication this boot session"
 			printf '%s' "$gpg_admin_pin" >/tmp/secret/gpg_pin
 			chmod 600 /tmp/secret/gpg_pin
-			#Wipe any previous CR_NONCE and CR_SIG
-			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			STATUS_OK "GPG Admin PIN cached for this session"
+			shred -n 10 -z -u "$BP_NONCE" "$BP_SIG" >/dev/null 2>&1 || true
 			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
 			set_user_config "CONFIG_GPG_KEY_BACKUP_IN_USE" "y"
+			DEBUG "CONFIG_GPG_KEY_BACKUP_IN_USE set; unmounting backup thumb drive"
 			umount /media || DIE "Unable to unmount USB"
 			return
+		else
+			DEBUG "Backup key already in use this session (CONFIG_GPG_KEY_BACKUP_IN_USE=y); skipping mount"
 		fi
 	fi
 
 	release_scdaemon
+	# Clear any private key material left by a previous backup import (or
+	# stale stubs from a previous smartcard session) so the agent starts
+	# from a clean state.  For the smartcard path the agent re-discovers
+	# card-resident keys via scdaemon when wait_for_gpg_card runs
+	# gpg --card-status; fresh stubs are created automatically at that
+	# point.  This mirrors what the backup path does before importing.
+	find "${GNUPGHOME:-$HOME/.gnupg}/private-keys-v1.d" \
+		-name '*.key' -delete >/dev/null 2>&1 || true
+	DEBUG "Cleared private-keys-v1.d; agent will re-discover keys via scdaemon"
 
 	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
 	enable_usb
