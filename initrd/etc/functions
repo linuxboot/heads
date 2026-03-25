@@ -477,6 +477,7 @@ pin_color() {
 # $1: raw output from "hotp_verification info"
 # $2: dongle branding string (e.g. "Nitrokey", "Librem Key")
 hotpkey_fw_display() {
+	[ -f /tmp/hotpkey_fw_shown ] && return
 	local info="$1" branding="$2" fw_ver min_ver fw_color extras
 	extras=""
 
@@ -500,6 +501,7 @@ hotpkey_fw_display() {
 		fi
 		if [ "$branding" = "Librem Key" ]; then
 			NOTE "$branding firmware: ${fw_ver}${extras}"
+			touch /tmp/hotpkey_fw_shown
 			return
 		fi
 		min_ver="$HOTPKEY_NITROKEY_MIN_VER"
@@ -514,6 +516,7 @@ hotpkey_fw_display() {
 		fw_color="\033[1;33m"  # yellow: older firmware, upgrade recommended
 	fi
 	NOTE "$branding firmware: ${fw_color}${fw_ver}\033[0m${extras} (minimum recommended: ${min_ver})"
+	touch /tmp/hotpkey_fw_shown
 }
 
 # Release the exclusive CCID device lock so hotp_verification can access the
