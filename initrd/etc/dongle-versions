@@ -11,12 +11,15 @@
 HOTPKEY_NK3_MIN_VER="v1.8.3"
 
 # Nitrokey Pro / Nitrokey Storage (pre-NK3 devices)
-# Identified by "Firmware: vX.Y" in hotp_verification info output.
+# Identified by "<TAB>Firmware: vX.Y" in hotp_verification info output (tab-indented).
 # Note: Librem Key is a Nitrokey Pro rebrand and runs Nitrokey Pro firmware;
 # it shares the same firmware version space and reprogram threshold below.
 HOTPKEY_NITROKEY_MIN_VER="v0.15"
 
 # Firmware version below which pre-NK3 devices (Nitrokey Pro/Storage, Librem Key)
-# cannot be upgraded via software and require external hardware reprogramming.
-# Devices below this threshold should be reprogrammed or replaced.
-HOTPKEY_REPROGRAM_BELOW="v0.10"
+# cannot be upgraded via nitropy.  v0.10 is the final firmware for that hardware
+# generation; the hardware changed with NK3.  v0.11+ can be upgraded via nitropy.
+# Source: Nitrokey upstream issue #95 (https://github.com/Nitrokey/nitrokey-pro-firmware/issues/95)
+# Set to v0.11 so the strict "< HOTPKEY_REPROGRAM_BELOW" check in hotpkey_fw_display
+# catches v0.10 and earlier as informational-red (upgrade path: external programmer required).
+HOTPKEY_REPROGRAM_BELOW="v0.11"

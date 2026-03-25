@@ -102,6 +102,23 @@ convention).
 **Do not use INPUT for yes/no choices** — use `whiptail_warning --yesno` or
 `whiptail_error --yesno` for those so the user has a clear graphical dialog.
 
+### Surviving a screen repaint — acknowledgment pattern
+
+`WARN`/`NOTE`/`STATUS` write to the terminal but do not block. When control
+returns to a caller that repaints the screen (whiptail menu, gui-init loop),
+those messages are immediately overwritten and the user never sees them.
+
+For security-critical notices that **must** be read, follow the logging call
+with an `INPUT` acknowledgment:
+
+```bash
+WARN "Default Admin PIN detected - your dongle is using factory defaults."
+INPUT "Change secrets via Options > OEM Factory Reset / Re-Ownership. Press Enter to acknowledge." ignored
+```
+
+The `INPUT` call blocks until Enter is pressed, keeping the warning on screen
+regardless of what the caller does next.
+
 ---
 
 ## Security UX — integrity report and unknown keys
@@ -235,6 +252,41 @@ lifted on the next boot. No cleanup code is needed.
 This pattern is used by `hotpkey_fw_display` in `initrd/etc/functions` to show
 the USB security dongle firmware version at most once per session, regardless
 of how many times the function is called from different code paths.
+
+### Color-coded version checks
+
+When displaying a version that has a known minimum, use the logging level that
+matches the severity — do not embed raw ANSI codes in STATUS or produce two
+separate messages for the same device:
+
+| Condition | Function | Visual result |
+| --- | --- | --- |
+| `fw_ver >= min_ver` | `STATUS_OK` | Bold green — firmware is current |
+| `fw_ver < min_ver`, nitropy upgrade available | `NOTE` with inline `\033[1;33m` on the version | Yellow version — upgrade recommended |
+| `fw_ver < reprogram_threshold`, no nitropy upgrade | `NOTE` with inline `\033[1;31m` on the version | Red version — external programmer required |
+
+One message per device, color determined by the worst applicable condition.
+Check the critical threshold before any early-return branch so all device
+types (including Librem Key) go through the same severity logic.
+
+#### Nitrokey Pro / Librem Key upgrade threshold
+
+`HOTPKEY_REPROGRAM_BELOW="v0.11"` in `initrd/etc/dongle-versions`. Firmware
+v0.10 and earlier have no DFU bootloader and cannot be upgraded via nitropy;
+the bootloader was introduced in v0.11
+([Nitrokey Pro firmware issue #95](https://github.com/Nitrokey/nitrokey-pro-firmware/issues/95)).
+The physical hardware is unchanged — this is a firmware-only gap. Devices at
+v0.10 or older continue to work normally; the red indicator informs the user
+that an external programmer (e.g. SWD/JTAG) is required to flash firmware
+up to the minimum recommended version.
+
+#### Parsing hotp_verification output
+
+`hotp_verification info` tab-indents all output lines (`\tFirmware: v0.15`).
+Use `grep "Firmware:"` without `^` — the `^` anchor would never match a
+tab-prefixed line. Also normalize `fw_ver` to add a `v` prefix if absent so
+`sort -V` comparisons against the `v`-prefixed threshold values in
+`dongle-versions` are consistent.
 
 ---
 

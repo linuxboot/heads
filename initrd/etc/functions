@@ -478,8 +478,8 @@ pin_color() {
 # $2: dongle branding string (e.g. "Nitrokey", "Librem Key")
 hotpkey_fw_display() {
 	[ -f /tmp/hotpkey_fw_shown ] && return
-	local info="$1" branding="$2" fw_ver min_ver fw_color extras
-	extras=""
+	local info="$1" branding="$2" fw_ver min_ver critical upgrade_cmd
+	critical="n"
 
 	# Load minimum recommended firmware versions
 	. /etc/dongle-versions
@@ -488,19 +488,28 @@ hotpkey_fw_display() {
 		# NK3: "Firmware Nitrokey 3: v1.8.3"
 		fw_ver="$(echo "$info" | grep "Firmware Nitrokey 3:" | sed 's/.*: *//')"
 		min_ver="$HOTPKEY_NK3_MIN_VER"
-		# Also capture Secrets App version
+		# Secrets App version: developer detail only; not shown in quiet/info mode.
 		local app_ver
 		app_ver="$(echo "$info" | grep "Firmware Secrets App:" | sed 's/.*: *//')"
-		[ -n "$app_ver" ] && extras=" (Secrets App: ${app_ver})"
-	elif echo "$info" | grep -q "^Firmware:"; then
-		# Nitrokey Pro / Storage / Librem Key: "Firmware: v0.15"
-		fw_ver="$(echo "$info" | grep "^Firmware:" | sed 's/.*: *//')"
-		# Warn if below the external-reprogram threshold (applies to all pre-NK3 devices)
+		[ -n "$app_ver" ] && DEBUG "$branding Secrets App: ${app_ver}"
+		upgrade_cmd="nitropy nk3 firmware update"
+	elif echo "$info" | grep -q "Firmware:"; then
+		# Nitrokey Pro / Pro 2 / Storage / Librem Key: "<TAB>Firmware: v0.15"
+		# hotp_verification prefixes lines with a tab; omit ^ so the pattern matches.
+		fw_ver="$(echo "$info" | grep "Firmware:" | sed 's/.*: *//')"
+		# Normalize: ensure fw_ver has 'v' prefix for consistent sort -V comparison.
+		case "$fw_ver" in v*) ;; *) fw_ver="v$fw_ver" ;; esac
+		# Flag if below the external-reprogram threshold (cannot upgrade via software)
 		if [ "$(printf '%s\n' "$fw_ver" "$HOTPKEY_REPROGRAM_BELOW" | sort -V | head -1)" != "$HOTPKEY_REPROGRAM_BELOW" ]; then
-			WARN "$branding firmware $fw_ver is below $HOTPKEY_REPROGRAM_BELOW - this device cannot be upgraded via software and requires external hardware reprogramming or replacement"
+			critical="y"
 		fi
+		upgrade_cmd="nitropy pro firmware update"
 		if [ "$branding" = "Librem Key" ]; then
-			NOTE "$branding firmware: ${fw_ver}${extras}"
+			if [ "$critical" = "y" ]; then
+				NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_REPROGRAM_BELOW}; requires external SWD programmer to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Purism support for servicing."
+			else
+				STATUS_OK "$branding firmware: ${fw_ver}"
+			fi
 			touch /tmp/hotpkey_fw_shown
 			return
 		fi
@@ -509,13 +518,14 @@ hotpkey_fw_display() {
 		return
 	fi
 
-	# Color: green if >= minimum known-good version, yellow if older
-	if [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" = "$min_ver" ]; then
-		fw_color="\033[1;32m"  # green: at or above minimum
+	# Green: at or above minimum.  Yellow: upgrade via nitropy.  Red: external programmer required.
+	if [ "$critical" = "y" ]; then
+		NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_REPROGRAM_BELOW}; cannot be upgraded via software. An external SWD programmer is required to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Nitrokey for servicing: https://www.nitrokey.com/support"
+	elif [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" = "$min_ver" ]; then
+		STATUS_OK "$branding firmware: ${fw_ver} (meets minimum ${min_ver})"
 	else
-		fw_color="\033[1;33m"  # yellow: older firmware, upgrade recommended
+		NOTE "$branding firmware: \033[1;33m${fw_ver}\033[0m - upgrade to ${min_ver} recommended. Run on your daily OS: ${upgrade_cmd}"
 	fi
-	NOTE "$branding firmware: ${fw_color}${fw_ver}\033[0m${extras} (minimum recommended: ${min_ver})"
 	touch /tmp/hotpkey_fw_shown
 }
 

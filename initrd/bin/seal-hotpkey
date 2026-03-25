@@ -183,8 +183,9 @@ if [ "$admin_pin_status" -ne 0 ]; then
 		fi
 	done
 else
-	# remind user to change admin password
-	WARN "Default $prompt_message PIN detected.  Please change this as soon as possible with Options > OEM Factory Reset / Re-Ownership"
+	# Default PIN was accepted — security reminder, not a fatal error.
+	# NOTE prints blank lines before/after and is always visible; no INPUT needed.
+	NOTE "Default $prompt_message PIN detected.  Change it via Options --> OEM Factory Reset / Re-Ownership."
 fi
 
 # HOTP key no longer needed
