@@ -57,13 +57,12 @@ if [ "$update" = "y" ]; then
 		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >"$stagedir/kexec_hashes.txt"
 		if [ -e /boot/kexec_default_hashes.txt ]; then
 			DEBUG "/boot/kexec_default_hashes.txt exists, updating in staging"
-			DEFAULT_FILES=$(cat /boot/kexec_default_hashes.txt | cut -f3 -d ' ')
-			echo $DEFAULT_FILES | xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
+			DEFAULT_FILES=$(cut -f3 -d ' ' </boot/kexec_default_hashes.txt)
+			echo "$DEFAULT_FILES" | xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
 		fi
 
 		#also save the file & directory structure to detect added files
 		print_tree >"$stagedir/kexec_tree.txt"
-		TRACE_FUNC
 	)
 	[ $? -eq 0 ] || DIE "$paramsdir: Failed to update hashes."
 fi

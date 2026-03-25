@@ -617,24 +617,23 @@ detached_kexec_signature_valid() {
 		return 1
 	fi
 
-	# Collect relative basenames so sha256sum output is path-independent and
-	# matches what kexec-sign-config produced when signing from its staging dir.
+	# Collect full paths once; derive relative names via ##*/ where needed.
 	local kexec_txt_files=()
 	for f in "$boot_dir"/kexec*.txt; do
 		[ -e "$f" ] || continue
-		kexec_txt_files+=( "$(basename "$f")" )
+		kexec_txt_files+=( "$f" )
 	done
 	if [ ${#kexec_txt_files[@]} -eq 0 ]; then
 		DEBUG "detached_kexec_signature_valid: no kexec*.txt files found under $boot_dir"
 		return 1
 	fi
-	DEBUG "detached_kexec_signature_valid: ${#kexec_txt_files[@]} file(s) in $boot_dir: ${kexec_txt_files[*]}"
+	DEBUG "detached_kexec_signature_valid: ${#kexec_txt_files[@]} file(s) in $boot_dir: ${kexec_txt_files[*]##*/}"
 
 	# Try relative filenames first (cd into boot_dir) to match the signing
 	# path format used by this branch's kexec-sign-config (staging dir + relative names).
 	STATUS "Verifying /boot detached signature"
-	DEBUG "detached_kexec_signature_valid: running (cd $boot_dir && sha256sum ${kexec_txt_files[*]}) | gpgv $boot_dir/kexec.sig"
-	if (cd "$boot_dir" && sha256sum "${kexec_txt_files[@]}") \
+	DEBUG "detached_kexec_signature_valid: running (cd $boot_dir && sha256sum ${kexec_txt_files[*]##*/}) | gpgv $boot_dir/kexec.sig"
+	if (cd "$boot_dir" && sha256sum "${kexec_txt_files[@]##*/}") \
 		| gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
 		DEBUG "detached_kexec_signature_valid: signature valid (relative paths)"
 		mkdir -p /tmp/kexec
@@ -647,12 +646,8 @@ detached_kexec_signature_valid() {
 	# Backwards compatibility: the previous kexec-sign-config signed with full
 	# paths (sha256sum /boot/kexec*.txt), not relative paths.  A firmware upgrade
 	# must not invalidate an existing valid signature.
-	local kexec_txt_full=()
-	for f in "${kexec_txt_files[@]}"; do
-		kexec_txt_full+=( "$boot_dir/$f" )
-	done
-	DEBUG "detached_kexec_signature_valid: running sha256sum ${kexec_txt_full[*]} | gpgv $boot_dir/kexec.sig"
-	if sha256sum "${kexec_txt_full[@]}" \
+	DEBUG "detached_kexec_signature_valid: running sha256sum ${kexec_txt_files[*]} | gpgv $boot_dir/kexec.sig"
+	if sha256sum "${kexec_txt_files[@]}" \
 		| gpgv "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
 		DEBUG "detached_kexec_signature_valid: signature valid (full paths, legacy format)"
 		mkdir -p /tmp/kexec
