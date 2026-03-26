@@ -366,6 +366,22 @@ LOG() {
 #   All modes: console prompt in bold white to /dev/console, plain text in debug.log
 #
 # See doc/logging.md.
+
+# detect_heads_tty - resolve the active interactive terminal and export it.
+# Sets and exports HEADS_TTY and GPG_TTY.
+# Must be called at script top-level (not inside a subshell) to take effect.
+detect_heads_tty() {
+	if ! HEADS_TTY=$(tty 2>/dev/null); then
+		local _active _dev
+		_active=$(cat /sys/class/tty/console/active 2>/dev/null)
+		_dev="${_active##* }"
+		[ "$_dev" = "tty0" ] && _dev=$(cat /sys/class/tty/tty0/active 2>/dev/null || echo tty0)
+		HEADS_TTY="/dev/${_dev:-console}"
+	fi
+	export HEADS_TTY
+	export GPG_TTY="$HEADS_TTY"
+}
+
 INPUT() {
 	TRACE_FUNC
 	local prompt="$1"
@@ -2610,6 +2626,20 @@ load_keymap() {
 	if [ -f /etc/board_keys.map ]; then
 		DO_WITH_DEBUG loadkeys /etc/board_keys.map
 	fi
+}
+
+# fail_unseal - called by unseal-hotp and unseal-totp on failure.
+# If HEADS_NONFATAL_UNSEAL=y (set by callers that handle failure themselves,
+# e.g. gui-init's integrity report), log at DEBUG and return 1 so the caller
+# can decide what to do.  Otherwise DIE, which is appropriate when the unseal
+# script is run standalone and failure is unrecoverable.
+fail_unseal() {
+	TRACE_FUNC
+	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
+		DEBUG "nonfatal $(basename "$0") failure: $*"
+		return 1
+	fi
+	DIE "$*"
 }
 
 # Show an updating UTC timestamp and optional TOTP on a single refreshed line

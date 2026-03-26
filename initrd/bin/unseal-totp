@@ -5,15 +5,6 @@
 
 TOTP_SECRET="/tmp/secret/totp.key"
 
-fail_unseal() {
-	TRACE_FUNC
-	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
-		DEBUG "nonfatal unseal-totp failure: $*"
-		return 1
-	fi
-	DIE "$*"
-}
-
 fail_unseal_reset_required() {
 	TRACE_FUNC
 	# A TPM-side unseal failure generally indicates that reset/re-ownership is

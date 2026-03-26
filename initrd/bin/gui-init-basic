@@ -9,17 +9,8 @@ export BG_COLOR_MAIN_MENU="normal"
 . /etc/gui_functions
 . /tmp/config
 
-# Detect the terminal this gui-init-basic session is running on.
-# Same logic as gui-init — see comments there.
-if ! HEADS_TTY=$(tty 2>/dev/null); then
-	_active=$(cat /sys/class/tty/console/active 2>/dev/null)
-	_dev="${_active##* }"
-	[ "$_dev" = "tty0" ] && _dev=$(cat /sys/class/tty/tty0/active 2>/dev/null || echo tty0)
-	HEADS_TTY="/dev/${_dev:-console}"
-fi
-unset _active _dev
-export HEADS_TTY
-export GPG_TTY="$HEADS_TTY"
+# Detect the terminal — see detect_heads_tty in /etc/functions.
+detect_heads_tty
 
 # skip_to_menu is set if the user selects "continue to the main menu" from any
 # error, so we will indeed go to the main menu even if other errors occur.  It's
