@@ -288,6 +288,7 @@ generate_totp_hotp() {
 		STATUS "Generating new HOTP secret"
 		/bin/seal-hotpkey ||
 			DIE "Failed to generate HOTP secret"
+		STATUS_OK "HOTP secret generated"
 	elif STATUS "Generating new TOTP secret" && /bin/seal-totp "$BOARD_NAME" "$tpm_owner_password"; then
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
@@ -296,10 +297,12 @@ generate_totp_hotp() {
 			fi
 			TRACE_FUNC
 			/bin/seal-hotpkey || DIE "Failed to generate HOTP secret"
+			STATUS_OK "TOTP/HOTP secrets generated"
 		else
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
 				INPUT "Once you have scanned the QR code, press Enter to continue"
 			fi
+			STATUS_OK "TOTP secret generated"
 		fi
 		clear
 	else
@@ -823,6 +826,7 @@ reset_tpm() {
 				return 1
 			fi
 
+			STATUS "Resetting TPM"
 			tpmr reset "$tpm_owner_password"
 
 			# now that the TPM is reset, remove invalid TPM counter files

@@ -152,13 +152,14 @@ reset_nk3_secret_app() {
 	TRACE_FUNC
 
 	# Reset Nitrokey 3 Secrets app PIN with $ADMIN_PIN (default 12345678, or customised)
-	if lsusb | grep -q "20a0:42b2" && [ -x /bin/hotp_verification ]; then
-		WARN "Resetting Nitrokey 3's Secrets app with PIN. Physical presence (touch) will be required"
+	if [ "$HOTPKEY_BRANDING" = "Nitrokey 3" ] && [ -x /bin/hotp_verification ]; then
+		STATUS "Resetting Nitrokey 3 Secrets app (physical touch will be required)"
 		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
 		# Do 3 attempts to reset Nitrokey 3 Secrets app if return code is 3 (no touch)
 		for attempt in 1 2 3; do
 			if hotp_verification reset "${ADMIN_PIN}"; then
+				STATUS_OK "Nitrokey 3 Secrets app reset"
 				return 0
 			else
 				error_code=$?
@@ -343,11 +344,15 @@ keytocard_subkeys_to_smartcard() {
 	#make sure usb ready and USB Security dongle ready to communicate with
 	enable_usb
 	enable_usb_storage
+	STATUS "Accessing USB Security dongle OpenPGP smartcard"
 	gpg --card-status >/dev/null 2>&1 || DIE "Error getting GPG card status"
 
 	gpg_key_factory_reset
 
 	STATUS "Moving subkeys to smartcard"
+	if [ "$GPG_ALGO" = "RSA" ]; then
+		NOTE "Moving RSA keys to $HOTPKEY_BRANDING may take a few minutes - please be patient"
+	fi
 	{
 		echo "key 1"            #Toggle on Signature key in --edit-key mode on local keyring
 		echo "keytocard"        #Move Signature key to smartcard
@@ -375,6 +380,7 @@ keytocard_subkeys_to_smartcard() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
 	fi
+	STATUS_OK "Subkeys moved to smartcard"
 
 	TRACE_FUNC
 }
@@ -424,7 +430,7 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 	mount-usb --mode "$mode" --device "$device" --mountpoint "$mountpoint" --pass "$pass" || DIE "Error mounting thumb drive's private partition"
 
 	#Export master key and subkeys to thumb drive
-	DEBUG "Exporting master key and subkeys to private LUKS container's partition..."
+	STATUS "Exporting master key and subkeys to backup LUKS container"
 
 	gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
 		DIE "Error exporting master key to private LUKS container's partition"
@@ -434,6 +440,7 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 	cp -af ~/.gnupg "$mountpoint"/.gnupg || DIE "Error copying whole keyring to private LUKS container's partition"
 	#Unmount private LUKS container's mount point
 	umount "$mountpoint" || DIE "Error unmounting private LUKS container's mount point"
+	STATUS_OK "Master key and subkeys backed up to USB"
 
 	TRACE_FUNC
 }
@@ -469,8 +476,10 @@ export_public_key_to_thumbdrive_public_partition() {
 	#pass non-empty arguments to --pass, --mountpoint, --device, --mode
 	mount-usb --device "$device" --mode "$mode" --mountpoint "$mountpoint" || DIE "Error mounting thumb drive's public partition"
 	#TODO: reuse "Obtain GPG key ID" so that pubkey on public thumb drive partition is named after key ID
+	STATUS "Exporting public key to USB"
 	gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || DIE "Error exporting public key to thumb drive's public partition"
 	umount "$mountpoint" || DIE "Error unmounting thumb drive's public partition"
+	STATUS_OK "Public key exported to USB"
 
 	TRACE_FUNC
 }
@@ -569,14 +578,15 @@ gpg_key_factory_reset() {
 	fi
 
 	# If Nitrokey Storage is inserted, reset AES keys as well
-	if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
-		DEBUG "Nitrokey Storage detected, resetting AES keys..."
+	if [ "$HOTPKEY_BRANDING" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
+		STATUS "Resetting Nitrokey Storage AES keys"
 		hotp_verification regenerate ${ADMIN_PIN_DEF}
+		STATUS_OK "Nitrokey Storage AES keys reset"
 	fi
 
 	# Toggle forced sig (good security practice, forcing PIN request for each signature request)
 	if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
-		DEBUG "GPG toggling forcesig on since off..."
+		STATUS "Enabling forced signature PIN on smartcard"
 		{
 			echo admin            # admin menu
 			echo forcesig         # toggle forcesig
@@ -587,10 +597,12 @@ gpg_key_factory_reset() {
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
 		fi
+		STATUS_OK "Forced signature PIN enabled"
 	fi
 
 	# use p256 for key generation if requested
 	if [ "$GPG_ALGO" = "p256" ]; then
+		STATUS "Setting NIST-P256 key attributes on USB Security dongle"
 		{
 			echo admin            # admin menu
 			echo key-attr         # key attributes
@@ -609,9 +621,10 @@ gpg_key_factory_reset() {
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "Setting key to NIST-P256 in USB Security dongle failed."
 		fi
+		STATUS_OK "NIST-P256 key attributes set"
 	# fallback to RSA key generation by default
 	elif [ "$GPG_ALGO" = "RSA" ]; then
-		DEBUG "GPG setting RSA key length to ${RSA_KEY_LENGTH} bits..."
+		STATUS "Setting RSA ${RSA_KEY_LENGTH}-bit key attributes on USB Security dongle (may take a minute)"
 		# Set RSA key length
 		{
 			echo admin
@@ -631,6 +644,7 @@ gpg_key_factory_reset() {
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB Security dongle failed."
 		fi
+		STATUS_OK "RSA ${RSA_KEY_LENGTH}-bit key attributes set"
 	else
 		#Unknown GPG_ALGO
 		whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
@@ -644,6 +658,9 @@ generate_OEM_gpg_keys() {
 
 	#This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
 	STATUS "Generating GPG keys on USB Security dongle OpenPGP smartcard"
+	if [ "$GPG_ALGO" = "RSA" ]; then
+		NOTE "RSA key generation on $HOTPKEY_BRANDING may take several minutes - please be patient"
+	fi
 	{
 		echo admin               # admin menu
 		echo generate            # generate keys
@@ -666,6 +683,7 @@ generate_OEM_gpg_keys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
 	fi
+	STATUS_OK "GPG keys generated on USB Security dongle"
 
 	TRACE_FUNC
 }
@@ -673,7 +691,6 @@ generate_OEM_gpg_keys() {
 gpg_key_change_pin() {
 	TRACE_FUNC
 
-	DEBUG "Changing GPG key PIN"
 	# 1 = user PIN, 3 = admin PIN
 	PIN_TYPE=$1
 	PIN_ORIG=${2}
@@ -753,7 +770,7 @@ generate_checksums() {
 		set_default_boot_option
 	fi
 
-	DEBUG "Generating hashes"
+	STATUS "Generating /boot file hashes"
 	(
 		set -e -o pipefail
 		cd /boot
@@ -762,6 +779,7 @@ generate_checksums() {
 		print_tree >/boot/kexec_tree.txt
 	)
 	[ $? -eq 0 ] || whiptail_error_die "Error generating kexec hashes"
+	STATUS_OK "/boot file hashes generated"
 
 	# Collect relative basenames so sha256sum output is path-independent and
 	# matches what check_config produces when verifying (also uses cd+relative).
@@ -794,6 +812,7 @@ generate_checksums() {
 			cat /tmp/error
 			ret=1
 		else
+			STATUS_OK "/boot files signed and verified"
 			ret=0
 		fi
 	else
@@ -865,13 +884,31 @@ usb_security_token_capabilities_check() {
 	STATUS "Checking for USB Security dongle"
 
 	enable_usb
+
+	# Detect dongle branding if not already inherited from parent process
+	if [ -z "$HOTPKEY_BRANDING" ]; then
+		if [ -r /boot/kexec_hotp_key ]; then
+			HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
+		fi
+		case "$HOTPKEY_BRANDING" in
+			"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3"|"Librem Key")
+				: # specific branding from stored value
+				;;
+			*)
+				HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+				;;
+		esac
+		export HOTPKEY_BRANDING
+	fi
+	DEBUG "USB Security dongle detected: $HOTPKEY_BRANDING"
+
 	# ... first set board config preference
 	if [ -n "$CONFIG_GPG_ALGO" ]; then
 		GPG_ALGO=$CONFIG_GPG_ALGO
 		DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
 	fi
 	# ... overwrite with usb-token capability
-	if lsusb | grep -q "20a0:42b2"; then
+	if [ "$HOTPKEY_BRANDING" = "Nitrokey 3" ]; then
 		GPG_ALGO="p256"
 		DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
 	fi
@@ -1208,7 +1245,10 @@ else
 	#Reset Nitrokey 3 secret app
 	reset_nk3_secret_app
 	#Generate GPG key and subkeys on smartcard only
-	STATUS "Resetting USB Security dongle OpenPGP smartcard with GPG (this may take up to 3 minutes)"
+	STATUS "Resetting USB Security dongle OpenPGP smartcard with GPG"
+	if [ "$GPG_ALGO" = "RSA" ]; then
+		NOTE "RSA key setup on $HOTPKEY_BRANDING may take 10 or more minutes - please be patient"
+	fi
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
 fi
@@ -1230,8 +1270,10 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD
 	if [ "${USER_PIN}" != "${USER_PIN_DEF}" -o "${ADMIN_PIN}" != "${ADMIN_PIN_DEF}" ]; then
 		STATUS "Changing default GPG Admin PIN"
 		gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
+		STATUS_OK "GPG Admin PIN changed"
 		STATUS "Changing default GPG User PIN"
 		gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
+		STATUS_OK "GPG User PIN changed"
 	fi
 fi
 
@@ -1337,8 +1379,8 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	passphrases+="TPM Owner Password: ${TPM_PASS}\n"
 fi
 
-#if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
-if lsusb | grep -q "20a0:42b2"; then
+#if nk3 detected, we add the NK3 Secrets App PIN
+if [ "$HOTPKEY_BRANDING" = "Nitrokey 3" ]; then
 	passphrases+="Nitrokey 3 Secrets app PIN: ${ADMIN_PIN}\n"
 fi
 
