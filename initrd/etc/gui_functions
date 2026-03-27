@@ -279,7 +279,7 @@ report_integrity_measurements() {
 			hotp_state="TOKEN PRESENT"
 			STATUS_OK "USB security dongle detected"
 			# Show dongle firmware version with color coding so users know when to upgrade
-			hotpkey_fw_display "$_hotp_info" "$(cat /boot/kexec_hotp_key 2>/dev/null || echo "USB security dongle")"
+			hotpkey_fw_display "$_hotp_info" "${HOTPKEY_BRANDING:-$(detect_hotpkey_branding)}"
 		else
 			DEBUG "report_integrity_measurements: hotp_verification info failed, hotp_state=TOKEN MISSING"
 		fi
