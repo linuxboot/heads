@@ -940,13 +940,13 @@ force_unsafe_boot() {
 # gui-init start
 TRACE_FUNC
 
-# Detect dongle branding from USB VID:PID at runtime — never read a stored file.
-HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
-export HOTPKEY_BRANDING
-
 if [ -x /bin/hotp_verification ]; then
 	enable_usb
 fi
+
+# Detect dongle branding from USB VID:PID after USB is up — never read a stored file.
+HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+export HOTPKEY_BRANDING
 
 if detect_boot_device; then
 	# /boot device with installed OS found

@@ -21,10 +21,6 @@ mount_boot() {
 
 TRACE_FUNC
 
-# Detect dongle branding from USB VID:PID at runtime — never read a stored file.
-HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
-export HOTPKEY_BRANDING
-
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
 	tpmr unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" ||
@@ -53,6 +49,11 @@ mount_boot || exit 1
 counter_value=1
 
 enable_usb
+
+# Detect branding after USB is up so lsusb can see the device.
+HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+export HOTPKEY_BRANDING
+DEBUG "$HOTPKEY_BRANDING detected via USB VID:PID"
 
 TRACE_FUNC
 
