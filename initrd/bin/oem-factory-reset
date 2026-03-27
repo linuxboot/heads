@@ -884,21 +884,9 @@ usb_security_token_capabilities_check() {
 
 	enable_usb
 
-	# Detect dongle branding if not already inherited from parent process
-	if [ -z "$HOTPKEY_BRANDING" ]; then
-		if [ -r /boot/kexec_hotp_key ]; then
-			HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-		fi
-		case "$HOTPKEY_BRANDING" in
-			"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3"|"Librem Key")
-				: # specific branding from stored value
-				;;
-			*)
-				HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
-				;;
-		esac
-		export HOTPKEY_BRANDING
-	fi
+	# Always detect dongle branding from USB VID:PID — never read a stored file.
+	HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+	export HOTPKEY_BRANDING
 	DEBUG "USB Security dongle detected: $HOTPKEY_BRANDING"
 
 	# ... first set board config preference

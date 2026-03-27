@@ -6,7 +6,6 @@
 
 HOTP_SECRET="/tmp/secret/hotp.key"
 HOTP_COUNTER="/boot/kexec_hotp_counter"
-HOTP_KEY="/boot/kexec_hotp_key"
 
 mount_boot() {
 	TRACE_FUNC
@@ -22,12 +21,8 @@ mount_boot() {
 
 TRACE_FUNC
 
-# Use stored HOTP key branding; export so all child processes inherit it
-if [ -r /boot/kexec_hotp_key ]; then
-	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-else
-	HOTPKEY_BRANDING="HOTP USB Security dongle"
-fi
+# Detect dongle branding from USB VID:PID at runtime — never read a stored file.
+HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
 export HOTPKEY_BRANDING
 
 if [ "$CONFIG_TPM" = "y" ]; then
@@ -75,19 +70,10 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 	fi
 fi
 
-# Detect branding from USB VID:PID.
-# Reuse stored specific branding from /boot/kexec_hotp_key when available.
-# Re-detect if absent (first-time setup) or if value is a legacy generic name.
-case "$HOTPKEY_BRANDING" in
-	"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3"|"Librem Key")
-		DEBUG "Reusing stored $HOTPKEY_BRANDING branding from /boot/kexec_hotp_key"
-		;;
-	*)
-		HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
-		export HOTPKEY_BRANDING
-		;;
-esac
-DEBUG "$HOTPKEY_BRANDING detected (VID:PID or stored branding)"
+# Re-detect branding now that the dongle is confirmed present.
+HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+export HOTPKEY_BRANDING
+DEBUG "$HOTPKEY_BRANDING detected via USB VID:PID"
 
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
@@ -207,10 +193,6 @@ mount -o remount,rw /boot
 counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
 	DIE "Unable to create hotp counter file"
-
-# Store/overwrite HOTP USB Security dongle branding found out beforehand
-echo $HOTPKEY_BRANDING >$HOTP_KEY ||
-	DIE "Unable to store hotp key file"
 
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
 #|| DIE "Unable to create hotp counter file"

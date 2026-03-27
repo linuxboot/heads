@@ -940,23 +940,8 @@ force_unsafe_boot() {
 # gui-init start
 TRACE_FUNC
 
-# Use stored HOTP key branding from /boot/kexec_hotp_key when specific;
-# fall back to USB VID:PID detection for legacy generic names or first boot.
-if [ -r /boot/kexec_hotp_key ]; then
-	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-else
-	HOTPKEY_BRANDING="HOTP USB Security dongle"
-fi
-case "$HOTPKEY_BRANDING" in
-	"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3"|"Librem Key")
-		: # specific branding stored — reuse it
-		;;
-	*)
-		# Legacy generic name ("Nitrokey", "HOTP USB Security dongle") or absent:
-		# detect from USB VID:PID so menus show the actual device model.
-		HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
-		;;
-esac
+# Detect dongle branding from USB VID:PID at runtime — never read a stored file.
+HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
 export HOTPKEY_BRANDING
 
 if [ -x /bin/hotp_verification ]; then
