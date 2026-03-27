@@ -641,8 +641,36 @@ cache_gpg_signing_pin() {
 			while [ -z "$gpg_admin_pin" ]; do
 				INPUT "Please enter GPG Admin PIN needed to use the GPG backup thumb drive:" -r -s gpg_admin_pin
 			done
-			WARN "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
-			mount-usb --pass "$gpg_admin_pin" || DIE "Unable to mount USB with provided GPG Admin PIN"
+			# Auto-detect the LUKS partition on the backup drive.
+			# The backup created by oem-factory-reset always has exactly two partitions:
+			# partition 1 = LUKS-encrypted private key material, partition 2 = public exFAT.
+			# We identify the right partition automatically rather than asking the user to pick it.
+			STATUS "Detecting LUKS partition on GPG key backup USB drive"
+			enable_usb_storage
+			local backup_disk="" backup_luks_partition=""
+			list_usb_storage disks >/tmp/usb_backup_disks 2>/dev/null
+			if [ ! -s /tmp/usb_backup_disks ]; then
+				INPUT "Insert your GPG key backup USB drive and press Enter"
+				sleep 1
+				list_usb_storage disks >/tmp/usb_backup_disks 2>/dev/null
+				[ ! -s /tmp/usb_backup_disks ] && DIE "No USB drive found for GPG key backup"
+			fi
+			if [ "$(wc -l </tmp/usb_backup_disks)" -eq 1 ]; then
+				backup_disk="$(cat /tmp/usb_backup_disks)"
+				DEBUG "Single USB disk found: $backup_disk"
+			else
+				file_selector --show-size /tmp/usb_backup_disks "Select USB drive containing GPG key backup"
+				backup_disk="$FILE"
+			fi
+			[ -z "$backup_disk" ] && DIE "No USB drive selected for GPG key backup"
+			for backup_luks_partition in "${backup_disk}1" "${backup_disk}2" "${backup_disk}3" "${backup_disk}4"; do
+				[ -b "$backup_luks_partition" ] || { backup_luks_partition=""; continue; }
+				cryptsetup isLuks "$backup_luks_partition" 2>/dev/null && break
+				backup_luks_partition=""
+			done
+			[ -z "$backup_luks_partition" ] && DIE "No LUKS partition found on $backup_disk - is this a Heads GPG key backup drive?"
+			STATUS_OK "LUKS partition detected: $backup_luks_partition"
+			mount-usb --device "$backup_luks_partition" --pass "$gpg_admin_pin" || DIE "Unable to mount USB with provided GPG Admin PIN"
 			DEBUG "USB backup thumb drive mounted; clearing card stubs and importing private subkeys"
 			STATUS "Importing GPG private subkeys from backup thumb drive"
 			# After keytocard the local keyring has card stubs in

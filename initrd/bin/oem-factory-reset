@@ -534,7 +534,6 @@ select_thumb_drive_for_key_material() {
 			DIE "No USB storage device detected! User decided to not wipe any thumb drive"
 		fi
 	done
-	thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
 }
 
 #Wipe a thumb drive and export master key and subkeys to it
