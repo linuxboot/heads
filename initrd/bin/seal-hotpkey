@@ -75,18 +75,19 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 	fi
 fi
 
-# Detect branding from VID only on first-time setup (no stored file yet)
-if [ ! -r /boot/kexec_hotp_key ]; then
-	if lsusb | grep -q "20a0:"; then
-		HOTPKEY_BRANDING="Nitrokey"
-	elif lsusb | grep -q "316d:"; then
-		HOTPKEY_BRANDING="Librem Key"
-	else
-		HOTPKEY_BRANDING="HOTP USB Security dongle"
-	fi
-	export HOTPKEY_BRANDING
-fi
-DEBUG "HOTP USB Security dongle branding is $HOTPKEY_BRANDING"
+# Detect branding from USB VID:PID.
+# Reuse stored specific branding from /boot/kexec_hotp_key when available.
+# Re-detect if absent (first-time setup) or if value is a legacy generic name.
+case "$HOTPKEY_BRANDING" in
+	"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3"|"Librem Key")
+		DEBUG "Reusing stored $HOTPKEY_BRANDING branding from /boot/kexec_hotp_key"
+		;;
+	*)
+		HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+		export HOTPKEY_BRANDING
+		;;
+esac
+DEBUG "$HOTPKEY_BRANDING detected (VID:PID or stored branding)"
 
 # Truncate the secret if it is longer than the maximum HOTP secret
 truncate_max_bytes 20 "$HOTP_SECRET"
@@ -101,14 +102,12 @@ gpg_key_create_time="${gpg_key_create_time:-0}"
 DEBUG "Signature key was created at $(date -d "@$gpg_key_create_time")"
 now_date="$(date '+%s')"
 
-# Get the number of HOTP related PIN retry attempts remaining
-# if nk3 detected by lsusb, use different regex to get admin counter
-if lsusb | grep -q "20a0:42b2"; then
-	# Nitrokey 3: Secrets app PIN counter: 8
+# Get the number of HOTP related PIN retry attempts remaining.
+# NK3 uses "Secrets app PIN counter"; all pre-NK3 devices use "Card counters: Admin".
+if [ "$HOTPKEY_BRANDING" = "Nitrokey 3" ]; then
 	admin_pin_retries=$(echo "$hotp_token_info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	prompt_message="Secrets app"
 else
-	# <nk3
 	admin_pin_retries=$(echo "$hotp_token_info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	prompt_message="GPG Admin"
 fi
@@ -148,9 +147,9 @@ elif [ "$admin_pin_retries" -lt 3 ]; then
 	DEBUG "Not trying default PIN ($admin_pin): only $admin_pin_retries attempt(s) left"
 else
 	STATUS "Trying $prompt_message PIN to seal HOTP secret on $HOTPKEY_BRANDING"
-	#if we deal with the nk3, say to the user that touch will be required
-	if lsusb | grep -q "20a0:42b2"; then
-		NOTE "Nitrokey 3 requires physical presence : touch the dongle when prompted"
+	# NK3 requires physical touch confirmation for the initialize operation
+	if [ "$HOTPKEY_BRANDING" = "Nitrokey 3" ]; then
+		NOTE "Nitrokey 3 requires physical presence: touch the dongle when prompted"
 	fi
 	#TODO: silence the output of hotp_initialize once https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 	#hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$HOTPKEY_BRANDING" >/dev/null 2>&1
@@ -175,11 +174,17 @@ if [ "$admin_pin_status" -ne 0 ]; then
 		if [ "$tries" -eq 3 ]; then
 			# don't leak key on failure
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
-			if [ "$HOTPKEY_BRANDING" == "Nitrokey" ]; then
-				DIE "Setting HOTP secret failed after 3 attempts, to reset $prompt_message PIN, redo Re-Ownership procedure, use the Nitrokey App 2 or contact Nitrokey support"
-			else
-				DIE "Setting HOTP secret failed after 3 attempts"
-			fi
+			case "$HOTPKEY_BRANDING" in
+				"Nitrokey Pro"|"Nitrokey Storage"|"Nitrokey 3")
+					DIE "Setting HOTP secret on $HOTPKEY_BRANDING failed after 3 attempts. To reset $prompt_message PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
+					;;
+				"Librem Key")
+					DIE "Setting HOTP secret on $HOTPKEY_BRANDING failed after 3 attempts. To reset $prompt_message PIN: redo Re-Ownership or contact Purism support."
+					;;
+				*)
+					DIE "Setting HOTP secret failed after 3 attempts"
+					;;
+			esac
 		fi
 	done
 else

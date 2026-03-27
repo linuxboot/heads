@@ -486,12 +486,35 @@ pin_color() {
 	esac
 }
 
+# Detect USB security dongle branding from USB VID:PID via lsusb.
+# Sources: hotp-verification/src/device.c and targets/qemu.mk
+# Outputs the specific model name; call as: HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+# VID:PID table:
+#   20a0:42b2  Nitrokey 3 (3A Mini / 3A NFC / 3C NFC — all share this PID)
+#   20a0:4108  Nitrokey Pro / Pro 2  (Pro and Pro 2 share the same PID)
+#   20a0:4109  Nitrokey Storage / Storage 2
+#   316d:4c4b  Librem Key
+detect_hotpkey_branding() {
+	local lsusb_out
+	lsusb_out="$(lsusb)"
+	# Check NK3 (42b2) before the broader 20a0 vendor match
+	if echo "$lsusb_out" | grep -q "20a0:42b2"; then
+		echo "Nitrokey 3"
+	elif echo "$lsusb_out" | grep -q "20a0:4108"; then
+		echo "Nitrokey Pro"
+	elif echo "$lsusb_out" | grep -q "20a0:4109"; then
+		echo "Nitrokey Storage"
+	elif echo "$lsusb_out" | grep -q "316d:4c4b"; then
+		echo "Librem Key"
+	else
+		echo "HOTP USB Security dongle"
+	fi
+}
+
 # Display USB security dongle firmware version with color coding.
-# Green if the version meets the minimum known-good version for that device,
-# yellow if the firmware is older and should be upgraded.
 # Minimum versions are defined in /etc/dongle-versions for easy maintainability.
 # $1: raw output from "hotp_verification info"
-# $2: dongle branding string (e.g. "Nitrokey", "Librem Key")
+# $2: dongle branding string (e.g. "Nitrokey Pro", "Librem Key")
 hotpkey_fw_display() {
 	[ -f /tmp/hotpkey_fw_shown ] && return
 	local info="$1" branding="$2" fw_ver min_ver critical upgrade_cmd
@@ -515,20 +538,29 @@ hotpkey_fw_display() {
 		fw_ver="$(echo "$info" | grep "Firmware:" | sed 's/.*: *//')"
 		# Normalize: ensure fw_ver has 'v' prefix for consistent sort -V comparison.
 		case "$fw_ver" in v*) ;; *) fw_ver="v$fw_ver" ;; esac
-		# Flag if below the external-reprogram threshold (cannot upgrade via software)
-		if [ "$(printf '%s\n' "$fw_ver" "$HOTPKEY_REPROGRAM_BELOW" | sort -V | head -1)" != "$HOTPKEY_REPROGRAM_BELOW" ]; then
-			critical="y"
-		fi
-		upgrade_cmd="nitropy pro firmware update"
+
 		if [ "$branding" = "Librem Key" ]; then
-			if [ "$critical" = "y" ]; then
-				NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_REPROGRAM_BELOW}; requires external SWD programmer to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Purism support for servicing."
-			else
-				STATUS_OK "$branding firmware: ${fw_ver}"
-			fi
+			# Librem Key cannot be upgraded via software regardless of firmware version.
+			# Any update requires an external hardware programmer or Purism servicing.
+			NOTE "$branding firmware: ${fw_ver} - cannot be self-upgraded; contact Purism support for servicing."
 			touch /tmp/hotpkey_fw_shown
 			return
 		fi
+
+		if [ "$branding" = "Nitrokey Storage" ]; then
+			# Storage has a separate firmware codebase from Pro; minimum version not yet confirmed.
+			# Display version for awareness; skip upgrade comparison until min ver is established.
+			STATUS_OK "$branding firmware: ${fw_ver}"
+			touch /tmp/hotpkey_fw_shown
+			return
+		fi
+
+		# Nitrokey Pro / Pro 2: check against minimum and reprogram threshold.
+		# Flag if below the external-reprogram threshold (v0.10 — cannot upgrade via nitropy)
+		if [ "$(printf '%s\n' "$fw_ver" "$HOTPKEY_EXTERNAL_REPROGRAM_BELOW" | sort -V | head -1)" != "$HOTPKEY_EXTERNAL_REPROGRAM_BELOW" ]; then
+			critical="y"
+		fi
+		upgrade_cmd="nitropy nk pro firmware update"
 		min_ver="$HOTPKEY_NITROKEY_MIN_VER"
 	else
 		return
@@ -536,7 +568,7 @@ hotpkey_fw_display() {
 
 	# Green: at or above minimum.  Yellow: upgrade via nitropy.  Red: external programmer required.
 	if [ "$critical" = "y" ]; then
-		NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_REPROGRAM_BELOW}; cannot be upgraded via software. An external SWD programmer is required to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Nitrokey for servicing: https://www.nitrokey.com/support"
+		NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_EXTERNAL_REPROGRAM_BELOW}; cannot be upgraded via software. An external SWD programmer is required to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Nitrokey for servicing: https://www.nitrokey.com/support"
 	elif [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" = "$min_ver" ]; then
 		STATUS_OK "$branding firmware: ${fw_ver} (meets minimum ${min_ver})"
 	else

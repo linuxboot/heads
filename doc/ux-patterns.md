@@ -259,19 +259,19 @@ When displaying a version that has a known minimum, use the logging level that
 matches the severity — do not embed raw ANSI codes in STATUS or produce two
 separate messages for the same device:
 
-| Condition | Function | Visual result |
-| --- | --- | --- |
-| `fw_ver >= min_ver` | `STATUS_OK` | Bold green — firmware is current |
-| `fw_ver < min_ver`, nitropy upgrade available | `NOTE` with inline `\033[1;33m` on the version | Yellow version — upgrade recommended |
-| `fw_ver < reprogram_threshold`, no nitropy upgrade | `NOTE` with inline `\033[1;31m` on the version | Red version — external programmer required |
+| Device | Condition | Function | Visual result |
+| --- | --- | --- | --- |
+| NK3 / Nitrokey Pro / Pro 2 | `fw_ver >= min_ver` | `STATUS_OK` | Bold green — firmware is current |
+| NK3 / Nitrokey Pro / Pro 2 | `fw_ver < min_ver`, nitropy upgrade available | `NOTE` with inline `\033[1;33m` on the version | Yellow version — upgrade recommended |
+| Nitrokey Pro / Pro 2 | `fw_ver < HOTPKEY_EXTERNAL_REPROGRAM_BELOW` | `NOTE` with inline `\033[1;31m` on the version | Red version — external programmer required |
+| Nitrokey Storage | (any version) | `STATUS_OK` | Version shown; no min-ver comparison (Storage min ver TBD) |
+| Librem Key | (any version) | `NOTE` | Version shown with advisory to contact Purism — never self-upgradeable |
 
 One message per device, color determined by the worst applicable condition.
-Check the critical threshold before any early-return branch so all device
-types (including Librem Key) go through the same severity logic.
 
-#### Nitrokey Pro / Librem Key upgrade threshold
+#### Nitrokey Pro / Pro 2 external-reprogram threshold
 
-`HOTPKEY_REPROGRAM_BELOW="v0.11"` in `initrd/etc/dongle-versions`. Firmware
+`HOTPKEY_EXTERNAL_REPROGRAM_BELOW="v0.11"` in `initrd/etc/dongle-versions`. Firmware
 v0.10 and earlier have no DFU bootloader and cannot be upgraded via nitropy;
 the bootloader was introduced in v0.11
 ([Nitrokey Pro firmware issue #95](https://github.com/Nitrokey/nitrokey-pro-firmware/issues/95)).
@@ -279,6 +279,11 @@ The physical hardware is unchanged — this is a firmware-only gap. Devices at
 v0.10 or older continue to work normally; the red indicator informs the user
 that an external programmer (e.g. SWD/JTAG) is required to flash firmware
 up to the minimum recommended version.
+
+This threshold applies to Nitrokey Pro / Pro 2 only. Librem Key is never
+self-upgradeable regardless of firmware version (always shown as NOTE
+directing users to contact Purism support). Nitrokey Storage has a separate
+firmware codebase and is not subject to this threshold.
 
 #### Parsing hotp_verification output
 
