@@ -159,7 +159,10 @@ get_menu_option() {
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			echo "$n. $name [$kernel]"
+			# Write directly to /dev/console (same as STATUS) to avoid buffering
+			# through DO_WITH_DEBUG's tee pipe, which would cause the last option
+			# to appear after the INPUT prompt.
+			echo "$n. $name [$kernel]" >/dev/console
 		done <$TMP_MENU_FILE
 
 		INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
