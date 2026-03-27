@@ -1607,17 +1607,17 @@ prompt_tpm_owner_password() {
 		return 0
 	fi
 
-	INPUT "TPM Owner Password:" -r -s tpm_owner_password
+	INPUT "TPM Owner Passphrase:" -r -s tpm_owner_password
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner passphrase under /tmp/secret/tpm_owner_password"
 }
 
-# Prompt for a new TPM Owner Password when resetting the TPM.
-# Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
-# The password must be 1-32 characters and must be entered twice,
+# Prompt for a new TPM Owner Passphrase when resetting the TPM.
+# Returned in tpm_owner_password and cached under /tmp/secret/tpm_owner_password
+# The passphrase must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
 prompt_new_owner_password() {
 	TRACE_FUNC
@@ -1625,17 +1625,17 @@ prompt_new_owner_password() {
 	tpm_owner_password=1
 	tpm_owner_password2=2
 	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
-		INPUT "New TPM Owner Password (2 words suggested, 1-32 characters max):" -r -s tpm_owner_password
-		INPUT "Repeat chosen TPM Owner Password:" -r -s tpm_owner_password2
+		INPUT "New TPM Owner Passphrase (Diceware 2+ words, 1-32 characters max):" -r -s tpm_owner_password
+		INPUT "Repeat chosen TPM Owner Passphrase:" -r -s tpm_owner_password2
 		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
 			WARN "Passphrases entered do not match. Try again!"
 		fi
 	done
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner passphrase under /tmp/secret/tpm_owner_password"
 }
 
 check_tpm_counter() {

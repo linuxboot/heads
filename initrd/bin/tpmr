@@ -545,7 +545,7 @@ tpm2_seal() {
 		if [ "$evict_attempts" -ge 3 ]; then
 			DIE "Unable to write sealed secret to TPM NVRAM after $evict_attempts attempts"
 		fi
-		WARN "TPM owner password incorrect or TPM error - please try again (attempt $evict_attempts of 3)"
+		WARN "TPM owner passphrase incorrect or TPM error - please try again (attempt $evict_attempts of 3)"
 	done
 }
 tpm1_seal() {

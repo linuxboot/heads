@@ -86,7 +86,7 @@ INPUT "prompt text" [read-flags] [VARNAME]
 
 # Examples:
 INPUT "Enter new passphrase:" -r -s new_pass
-INPUT "Enter TPM owner password:" -r owner_pw
+INPUT "Enter TPM owner passphrase:" -r owner_pw
 INPUT "Press Enter to continue" -r _ignored
 ```
 

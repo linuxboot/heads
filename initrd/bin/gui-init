@@ -378,7 +378,7 @@ If you have just completed a factory reset, or just reflashed your BIOS,
 you should generate a new HOTP/TOTP secret.
 
 If this is the first time the system has booted, you should reset the TPM
-and set your own password.
+and set your own passphrase.
 
 If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!
 
@@ -819,7 +819,7 @@ reset_tpm() {
 	TRACE_FUNC
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if (whiptail_warning --title 'Reset the TPM' \
-			--yesno "This will clear the TPM and replace its Owner password with a new one!\n\nDo you want to proceed?" 0 80); then
+			--yesno "This will clear the TPM and replace its Owner passphrase with a new one!\n\nDo you want to proceed?" 0 80); then
 
 			if ! prompt_new_owner_password; then
 				INPUT "Press Enter to return to the menu..."

@@ -983,14 +983,14 @@ fi
 
 # show warning prompt
 if [ "$CONFIG_TPM" = "y" ]; then
-	TPM_STR="          * ERASE the TPM and own it with a password\n"
+	TPM_STR="          * ERASE the TPM and own it with a passphrase\n"
 else
 	TPM_STR=""
 fi
 if ! whiptail_warning --yesno "
         This operation will automatically:\n
 $TPM_STR
-          * ERASE any keys or passwords on the GPG smart card,\n
+          * ERASE any keys or PINs on the GPG smart card,\n
             reset it to a factory state, generate new keys\n
             and optionally set custom PIN(s)\n
           * Add the new GPG key to the firmware and reflash it\n
@@ -1026,6 +1026,9 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	INFO "The following questionnaire will help you configure the security components of your system"
 	INFO "Each prompt requires a single letter answer (Y/n)"
 	INFO "Pressing Enter selects the default answer for each prompt"
+	NOTE "For strong, memorable passphrases, consider Diceware: roll physical dice against a wordlist."
+	STATUS "Scan the QR code below for the EFF Diceware wordlist (https://www.eff.org/dice):"
+	qrenc "https://www.eff.org/dice"
 
 	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
 	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
@@ -1074,7 +1077,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="LUKS Disk Recovery Key passphrase\n"
 	fi
 	if [ "$CONFIG_TPM" = "y" ]; then
-		CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
+		CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Passphrase\n"
 	fi
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
@@ -1086,15 +1089,15 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	fi
 
 	# Inform user of security components affected for the following prompts
-	INFO "The following Security Components will be configured with defaults or further chosen PINs/passwords: $CUSTOM_PASS_AFFECTED_COMPONENTS"
+	INFO "The following Security Components will be configured with defaults or further chosen PINs/passphrases: $CUSTOM_PASS_AFFECTED_COMPONENTS"
 
-	# Prompt to change default passwords
-	INPUT "Would you like to set a single custom password to all previously stated security components? [y/N]:" -n 1 prompt_output
+	# Prompt to change default passphrases
+	INPUT "Would you like to set a single custom passphrase to all previously stated security components? [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
-		INFO "The chosen custom password must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
+		INFO "The chosen passphrase must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
 		while [[ ${#CUSTOM_SINGLE_PASS} -lt 8 ]] || [[ ${#CUSTOM_SINGLE_PASS} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-			INPUT "Enter the custom password (8-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r CUSTOM_SINGLE_PASS
+			INPUT "Enter the passphrase (8-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r CUSTOM_SINGLE_PASS
 		done
 		TPM_PASS=${CUSTOM_SINGLE_PASS}
 		USER_PIN=${CUSTOM_SINGLE_PASS}
@@ -1105,17 +1108,17 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
 		fi
 
-		# The user knows this password, we don't need to badger them to
+		# The user knows this passphrase, we don't need to badger them to
 		# record it
 		MAKE_USER_RECORD_PASSPHRASES=
 	else
-		INPUT "Would you like to set distinct PINs/passwords to configure previously stated security components? [y/N]:" -n 1 prompt_output
+		INPUT "Would you like to set distinct PINs/passphrases to configure previously stated security components? [y/N]:" -n 1 prompt_output
 		if [ "$prompt_output" == "y" \
 			-o "$prompt_output" == "Y" ]; then
-			INFO "TPM Owner Password and Admin PIN must be at least 8 chars, User PIN at least 6 chars."
+			INFO "TPM Owner Passphrase and GPG Admin PIN must be at least 8 chars, GPG User PIN at least 6 chars."
 			if [ "$CONFIG_TPM" = "y" ]; then
 				while [[ ${#TPM_PASS} -lt 8 ]]; do
-					INPUT "Enter desired TPM Owner Password (min 8 chars):" -r TPM_PASS
+					INPUT "Enter desired TPM Owner Passphrase (min 8 chars):" -r TPM_PASS
 				done
 			fi
 			while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
@@ -1129,7 +1132,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 					INPUT "Enter desired GPG User PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r USER_PIN
 				done
 			fi
-			# The user knows these passwords, we don't need to
+			# The user knows these passphrases, we don't need to
 			# badger them to record them
 			MAKE_USER_RECORD_PASSPHRASES=
 		fi
@@ -1137,7 +1140,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 
 	if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
 		# We catch here if changing LUKS Disk Recovery Key passphrase was desired
-		#  but yet undone. This is if not being covered by the single password
+		#  but yet undone. This is if not being covered by the single passphrase
 		while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
 			INPUT "Enter desired replacement for current LUKS Disk Recovery Key passphrase (min 8 chars):" -r luks_new_Disk_Recovery_Key_passphrase
 		done
@@ -1433,7 +1436,7 @@ if [ -n "$luks_new_Disk_Recovery_Key_passphrase" -o -n "$luks_new_Disk_Recovery_
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	passphrases+="TPM Owner Password: ${TPM_PASS}\n"
+	passphrases+="TPM Owner Passphrase: ${TPM_PASS}\n"
 fi
 
 #if nk3 detected, we add the NK3 Secrets App PIN
