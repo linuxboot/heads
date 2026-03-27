@@ -1,0 +1,84 @@
+# Backported from upstream flashrom (https://github.com/flashrom/flashrom),
+# originally contributed by the Dasharo/3mdeb team (SergiiDmytruk et al.).
+# See: https://review.coreboot.org/c/flashrom/+/68179
+#      https://github.com/linuxboot/heads/issues/1741
+# Adapted for flashprog 1.5 (flashprog_wp_result / flashprog_flashctx types;
+# flash->mst.opaque pointer vs flashrom's flash->mst->opaque struct embed).
+--- a/writeprotect.c	2026-02-13 13:14:40.000000000 -0500
++++ b/writeprotect.c	2026-03-18 17:59:24.705621086 -0400
+@@ -23,13 +23,32 @@
+ #include "libflashprog.h"
+ #include "chipdrivers.h"
+ #include "writeprotect.h"
++#include "programmer.h"
++
++/*
++ * Dispatch register reads/writes through the opaque master's callbacks when
++ * on a BUS_PROG programmer (e.g. ICH hwseq), falling back to SPI otherwise.
++ */
++static int wp_read_register(const struct flashctx *flash, enum flash_reg reg, uint8_t *value)
++{
++	if ((flash->chip->bustype & BUS_PROG) && flash->mst.opaque->read_register)
++		return flash->mst.opaque->read_register(flash, reg, value);
++	return spi_read_register(flash, reg, value);
++}
++
++static int wp_write_register(const struct flashctx *flash, enum flash_reg reg, uint8_t value)
++{
++	if ((flash->chip->bustype & BUS_PROG) && flash->mst.opaque->write_register)
++		return flash->mst.opaque->write_register(flash, reg, value);
++	return spi_write_register(flash, reg, value, default_wrsr_target(flash));
++}
+ 
+ /** Read and extract a single bit from the chip's registers */
+ static enum flashprog_wp_result read_bit(uint8_t *value, bool *present, struct flashctx *flash, struct reg_bit_info bit)
+ {
+ 	*present = bit.reg != INVALID_REG;
+ 	if (*present) {
+-		if (spi_read_register(flash, bit.reg, value))
++		if (wp_read_register(flash, bit.reg, value))
+ 			return FLASHPROG_WP_ERR_READ_FAILED;
+ 		*value = (*value >> bit.bit_index) & 1;
+ 	} else {
+@@ -158,7 +177,7 @@
+ 			continue;
+ 
+ 		uint8_t value;
+-		if (spi_read_register(flash, reg, &value))
++		if (wp_read_register(flash, reg, &value))
+ 			return FLASHPROG_WP_ERR_READ_FAILED;
+ 
+ 		/* Skip unnecessary register writes */
+@@ -169,7 +188,7 @@
+ 
+ 		value = (value & ~write_masks[reg]) | expected;
+ 
+-		if (spi_write_register(flash, reg, value, default_wrsr_target(flash)))
++		if (wp_write_register(flash, reg, value))
+ 			return FLASHPROG_WP_ERR_WRITE_FAILED;
+ 	}
+ 
+@@ -180,7 +199,7 @@
+ 			continue;
+ 
+ 		uint8_t value;
+-		if (spi_read_register(flash, reg, &value))
++		if (wp_read_register(flash, reg, &value))
+ 			return FLASHPROG_WP_ERR_READ_FAILED;
+ 
+ 		msg_cdbg2("%s: wp_verify reg:%u value:0x%x\n", __func__, reg, value);
+@@ -454,6 +473,14 @@
+ 	return (flash->chip != NULL) && (flash->chip->decode_range != NULL);
+ }
+ 
++bool wp_operations_available(struct flashprog_flashctx *flash)
++{
++	return (flash->chip->bustype & BUS_SPI) ||
++		((flash->chip->bustype & BUS_PROG) &&
++			flash->mst.opaque->read_register &&
++			flash->mst.opaque->write_register);
++}
++
+ enum flashprog_wp_result spi_wp_read_cfg(struct flashprog_wp_cfg *cfg, struct flashctx *flash)
+ {
+ 	struct wp_bits bits;

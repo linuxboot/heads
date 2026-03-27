@@ -2,11 +2,12 @@ modules-$(CONFIG_FLASHPROG) += flashprog
 
 flashprog_depends := pciutils $(musl_dep)
 
-flashprog_version := eb2c04185f8f471c768b742d66e4c552effdd9cb
+# https://github.com/SourceArcade/flashprog/releases/tag/v1.5 : 4a2e940c1bb7e90ca03fffeb46f5b585eff58fef
+flashprog_version := 4a2e940c1bb7e90ca03fffeb46f5b585eff58fef
 flashprog_dir := flashprog-$(flashprog_version)
 flashprog_tar := $(flashprog_dir).tar.gz
 flashprog_url := https://github.com/SourceArcade/flashprog/archive/$(flashprog_version).tar.gz
-flashprog_hash := 0d4186be9f2088d624a9a708c352d0dfafa2264e1436b11ec3cc1a350fd45a77
+flashprog_hash := bb4b15c86f086e8a1e48174b265a2246c6f7fabda110c517b1fb3c276a6b4039
 
 # Default options for flashprog
 flashprog_cfg := \

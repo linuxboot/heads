@@ -1415,7 +1415,7 @@ else
 
 	# flash updated firmware image
 	echo -e "\nAdding generated key to current firmware and re-flashing...\n"
-	if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
+	if ! /bin/flash.sh --no-backup /tmp/oem-setup.rom 2>/tmp/error; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 	fi

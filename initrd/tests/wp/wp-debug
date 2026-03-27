@@ -1,0 +1,92 @@
+#!/bin/sh
+# shellcheck disable=SC2086  # $PROG_OPTS intentionally unquoted for word splitting
+# WP debug info collector for internal Intel SPI (opaque/hwseq) programmer.
+# Run this on target hardware and paste output back for analysis.
+#
+# Usage: wp-debug [flashprog-programmer-opts]
+#   e.g. wp-debug --programmer internal
+#        wp-debug --programmer internal --ifd -i bios
+#
+# If no args given, uses CONFIG_FLASH_OPTIONS from environment (stripped to
+# programmer args only).
+
+set -e
+
+PROG_OPTS="${*}"
+
+if [ -z "$PROG_OPTS" ] && [ -n "$CONFIG_FLASH_OPTIONS" ]; then
+	PROG_OPTS="$(echo "$CONFIG_FLASH_OPTIONS" | \
+		sed 's/^flashprog[[:space:]]*//' | \
+		sed 's/--progress[[:space:]]*//')"
+fi
+
+if [ -z "$PROG_OPTS" ]; then
+	PROG_OPTS="--programmer internal"
+fi
+
+# Strip layout flags: 'flashprog wp' subcommands do not accept --ifd or -i.
+PROG_OPTS="$(echo "$PROG_OPTS" | \
+	sed 's/--ifd[[:space:]]*//' | \
+	sed 's/--image[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+	sed 's/-i[[:space:]]*[a-z][a-z]*[[:space:]]*//g' | \
+	sed 's/[[:space:]]*$//')"
+
+SEP="----------------------------------------"
+
+echo "$SEP"
+echo "flashprog WP debug report"
+echo "Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "Programmer opts: $PROG_OPTS"
+echo "$SEP"
+
+echo ""
+echo "[1] flashprog wp status"
+echo "$SEP"
+flashprog wp status $PROG_OPTS 2>&1 || echo "(exit code $?)"
+
+echo ""
+echo "[2] flashprog wp list"
+echo "$SEP"
+flashprog wp list $PROG_OPTS 2>&1 || echo "(exit code $?)"
+
+echo ""
+echo "[3] flashprog wp status --verbose (verbose - shows PRR register reads)"
+echo "$SEP"
+flashprog wp status $PROG_OPTS --verbose 2>&1 || echo "(exit code $?)"
+
+echo ""
+echo "[4] HSFS register (FLOCKDN state)"
+echo "$SEP"
+# HSFS is at offset 0x04 in the PCH SPI BAR.
+# The SPI BAR base is readable from PCI config space:
+#   Bus 0, Dev 31, Fn 5 (LPC/SPI), offset 0x10 (SPIBAR MMIO)
+# We use setpci if available, otherwise note it's unavailable.
+if command -v setpci >/dev/null 2>&1; then
+	spibar_raw="$(setpci -s 00:1f.5 0x10.L 2>/dev/null)" || spibar_raw=""
+	if [ -n "$spibar_raw" ]; then
+		echo "PCI 00:1f.5 SPIBAR (0x10): 0x${spibar_raw}"
+		# Mask off lower 12 bits (BAR flags) to get MMIO base
+		spibar_base=$(( 0x${spibar_raw} & 0xFFFFF000 ))
+		printf "SPIBAR MMIO base: 0x%x\n" "$spibar_base"
+		echo "Note: HSFS at SPIBAR+0x04 - use devmem2 or /dev/mem if available"
+	else
+		echo "setpci: could not read 00:1f.5 SPIBAR"
+	fi
+else
+	echo "setpci not available - cannot read raw SPIBAR"
+fi
+
+echo ""
+echo "[5] /proc/mtd (flash regions visible to kernel)"
+echo "$SEP"
+cat /proc/mtd 2>/dev/null || echo "(not available)"
+
+echo ""
+echo "[6] dmesg SPI/ICH lines"
+echo "$SEP"
+dmesg 2>/dev/null | grep -iE 'spi|ich|flashprog|lockdn|flockdn|protected.range' | tail -30 || echo "(dmesg not available)"
+
+echo ""
+echo "$SEP"
+echo "End of WP debug report"
+echo "$SEP"
