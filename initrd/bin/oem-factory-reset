@@ -394,6 +394,72 @@ prompt_insert_to_be_wiped_thumb_drive() {
 		DIE "Error displaying warning about having only desired to be wiped thumb drive inserted"
 }
 
+set_card_identity() {
+	TRACE_FUNC
+
+	# Determine which fields we have custom values for
+	local set_name=0 set_login=0
+	local surname given
+
+	# Name: skip if still the OEM default
+	if [ "$GPG_USER_NAME" != "OEM Key" ] && [ -n "$GPG_USER_NAME" ]; then
+		set_name=1
+		# OpenPGP card stores surname and given name separately;
+		# gpg displays them as "given surname"
+		if [[ "$GPG_USER_NAME" == *" "* ]]; then
+			given="${GPG_USER_NAME% *}"
+			surname="${GPG_USER_NAME##* }"
+		else
+			surname="$GPG_USER_NAME"
+			given=""
+		fi
+		DEBUG "Will set cardholder name: surname='$surname' given='$given'"
+	else
+		DEBUG "Skipping cardholder name: no custom name set"
+	fi
+
+	# Login: skip if still the auto-generated OEM default (oem-*@example.com)
+	if [ -n "$GPG_USER_MAIL" ] && [[ "$GPG_USER_MAIL" != oem-*@example.com ]]; then
+		set_login=1
+		DEBUG "Will set login data: '$GPG_USER_MAIL'"
+	else
+		DEBUG "Skipping login data: no custom email set"
+	fi
+
+	[ "$set_name" -eq 0 ] && [ "$set_login" -eq 0 ] && return
+
+	STATUS "Setting identity fields on OpenPGP smartcard"
+	{
+		echo "admin"
+		if [ "$set_name" -eq 1 ]; then
+			echo "name"
+			echo "${surname}"
+			echo "${given}"
+			echo "${ADMIN_PIN_DEF}"
+		fi
+		if [ "$set_login" -eq 1 ]; then
+			echo "login"
+			echo "${GPG_USER_MAIL}"
+			echo "${ADMIN_PIN_DEF}"
+		fi
+		echo "quit"
+	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
+		|| DIE "Failed to set identity fields on OpenPGP smartcard"
+
+	local summary=""
+	[ "$set_name" -eq 1 ] && summary="${given:+$given }${surname}"
+	[ "$set_login" -eq 1 ] && summary="${summary:+$summary, }${GPG_USER_MAIL}"
+	STATUS_OK "Card identity set: $summary"
+	#TODO: set card `url` field and GPG key preferred keyserver after uploading to keys.openpgp.org
+	# Two separate operations needed:
+	#   1. card `url`  — set via gpg --card-edit admin → url → <fetch_url>
+	#   2. key `keyserver` preference — set via gpg --edit-key → keyserver → <url> → save
+	#      (applies to both on-card and in-memory key paths)
+	# Requires: network access in initrd, curl, and user email verification on keyserver.
+	# Note: keys.openpgp.org hides UID until owner verifies email — upload works but key
+	# is not searchable by email until verified from a normal OS session after provisioning.
+}
+
 #export master key and subkeys to thumbdrive's private LUKS contained partition
 export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 	TRACE_FUNC
@@ -1237,6 +1303,11 @@ else
 	fi
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
+fi
+
+# Set identity fields on the OpenPGP smartcard from collected identity info
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ] || [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
+	set_card_identity
 fi
 
 # Obtain GPG key ID without printing trustdb maintenance chatter to console
