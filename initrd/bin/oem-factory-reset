@@ -1129,7 +1129,6 @@ if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=${ADMIN_PIN_DEF}; fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
 	# Prompt to insert USB drive if desired
 	INPUT "Would you like to export your public key to a USB drive? [y/N]:" -n 1 prompt_output
-	echo
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ] \
 		; then
@@ -1409,7 +1408,6 @@ while true; do
 	qrenc "$(echo -e "$passphrases")"
 	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
 	INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
-	echo
 	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
 		break
 	fi

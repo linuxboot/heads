@@ -159,10 +159,13 @@ get_menu_option() {
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			# Write directly to /dev/console (same as STATUS) to avoid buffering
-			# through DO_WITH_DEBUG's tee pipe, which would cause the last option
-			# to appear after the INPUT prompt.
-			echo "$n. $name [$kernel]" >/dev/console
+			# Use the same device routing as INPUT so option lines and the
+			# prompt share the same unbuffered fd (HEADS_TTY when in gui-init
+			# context, stderr otherwise).  Writing to stdout is wrong here
+			# because DO_WITH_DEBUG pipes stdout through tee for debug logging,
+			# making it fully buffered — the last option would appear after the
+			# INPUT prompt.
+			printf '%d. %s [%s]\n' "$n" "$name" "$kernel" >"${HEADS_TTY:-/dev/stderr}"
 		done <$TMP_MENU_FILE
 
 		INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
