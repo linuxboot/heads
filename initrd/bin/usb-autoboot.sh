@@ -13,7 +13,7 @@ set -o pipefail
 # * No automatic boot was attempted - script returns nonzero.  Continue with
 #   normal automatic boot.
 
-# These may die for failure, nonzero exit is correct (USB boot wasn't possible)
+# These may DIE for failure, nonzero exit is correct (USB boot wasn't possible)
 enable_usb
 enable_usb_storage
 
@@ -34,14 +34,13 @@ while read -u 4 -r USB_BLOCK_DEVICE; do
 	USB_DEFAULT_BOOT="$(parse_boot_options /media | head -1)"
 	if [ -n "$USB_DEFAULT_BOOT" ]; then
 		# Boot automatically, unless the user interrupts.
-		echo -e "\n\n"
-		echo "Found bootable USB: $(echo "$USB_DEFAULT_BOOT" | cut -d '|' -f 1)"
+		STATUS "Found bootable USB: $(echo "$USB_DEFAULT_BOOT" | cut -d '|' -f 1)"
 		if ! pause_automatic_boot; then
 			# User interrupted, go to boot menu
 			umount /media
 			exit 0
 		fi
-		echo -e "\n\nBooting from USB...\n\n"
+		STATUS "Booting from USB"
 		kexec-boot -b /media -e "$USB_DEFAULT_BOOT"
 		# If kexec-boot returned, the boot obviously did not occur,
 		# return nonzero below so the normal OS boot will continue.

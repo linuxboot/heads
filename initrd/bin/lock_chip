@@ -19,9 +19,8 @@ if [ -n "$APM_CNT" -a -n "$FIN_CODE" ]; then
 	# will become write protected in the range specified in the PR0 register. Once
 	# the protection is set and locked, it cannot be disabled 
 	# until the next system reset.
-	echo "Finalizing chipset Write Protection through SMI PR0 lockdown call"
+	STATUS "Finalizing chipset write protection via SMI PR0 lockdown"
 	io386 -o b -b x $APM_CNT $FIN_CODE
 else
-	echo "NOT Finalizing chipset"
-	echo "lock_chip called without valid APM_CNT and FIN_CODE defined under bin/lock_chip."
+	NOTE "NOT finalizing chipset - lock_chip called without valid APM_CNT and FIN_CODE"
 fi

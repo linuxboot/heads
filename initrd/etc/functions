@@ -18,98 +18,430 @@ esac
 
 # ------- Start of functions coming from /etc/ash_functions
 
-die() {
+# DIE - fatal error: print bold red message, wait for Enter, then exit 1.
+#
+# Console color: bold red (\033[1;31m).
+# Red is the universal "error/danger" signal; the "!!! ERROR:" text prefix
+# carries the same meaning for users who cannot distinguish red from other
+# colors, so color is an enhancement rather than the sole signal.
+# debug.log and /dev/kmsg receive plain text (no ANSI).
+# Always visible in all output modes.
+DIE() {
 	TRACE_FUNC
-	#TODO: add colors to output, here red for ERROR?
+	# Always log to debug.log regardless of output mode - fatal errors must be
+	# captured for post-mortem analysis even when the console is suppressed.
+	echo "!!! ERROR: $* !!!" >> /tmp/debug.log
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-		echo -e " !!! ERROR: $* !!!" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
-	else
-		echo -e "!!! ERROR: $* !!!" >&2
+		# debug mode: also route to kmsg for ordering with other debug output
+		echo "!!! ERROR: $* !!!" >/dev/kmsg 2>/dev/null || true
 	fi
+	# Always show on console with bold red regardless of output mode.
+	# /dev/console = kernel console (follows the console= kernel parameter),
+	# so it reaches whatever output the kernel was configured for — serial,
+	# framebuffer, BMC — without requiring any process setup and without
+	# polluting stdout or stderr so callers never need to care about redirections.
+	echo -e "\033[1;31m!!! ERROR: $* !!!\033[0m" >/dev/console 2>/dev/null
 
 	# ask user to press Enter prior to exit
-	read -r -p $'Press Enter to continue...\n\n'
+	INPUT "Press Enter to continue..."
 
 	exit 1
 }
 
-# Use warn only for output that indicates a _likely_ problem, is _actionable_ to
-# correct, and when we are able to continue with degraded functionalty.
-# Do not overuse this!  See doc/logging.md.
-warn() {
+# WARN - a likely problem the user should act on.
+#
+# Use WARN when ALL of the following are true:
+#   - There is a _likely_ problem (not a rare or remote possibility)
+#   - We are able to continue, possibly with degraded functionality
+#   - The warning is _actionable_: there is a reasonable change the user
+#     can make to silence it
+# Do NOT use WARN for:
+#   - Informational messages about normal operations (use INFO)
+#   - Rare or unlikely edge cases that are not actionable (use DEBUG)
+#   - Fatal errors where we cannot continue (use DIE)
+#
+# Console color: bold yellow (\033[1;33m).
+# Yellow is the most universally perceptible alert color across all common
+# color-deficiency types: it is bright and distinct for deuteranopes,
+# protanopes, and tritanopes alike.  The "*** WARNING:" text prefix carries
+# the meaning independently of color.
+# debug.log and /dev/kmsg receive plain text (no ANSI).
+#
+# Output modes (always visible in all modes):
+#   Quiet (CONFIG_QUIET_MODE=y):          /dev/console + debug.log
+#   Info  (CONFIG_QUIET_MODE=n):          /dev/console + debug.log
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        /dev/console + debug.log
+#
+# Do not overuse - WARN only has value when it is infrequent enough that
+# users still notice and act on it.  See doc/logging.md.
+WARN() {
 	TRACE_FUNC
-	#TODO: add colors to output, here yellow for WARNING?
+	# Always write to debug.log - complete audit trail regardless of mode.
+	echo >> /tmp/debug.log
+	echo " *** WARNING: $* ***" >> /tmp/debug.log
+	echo >> /tmp/debug.log
+	# Bold yellow to /dev/console in all modes.
+	# /dev/console = kernel console (follows console= kernel parameter): reaches
+	# serial, framebuffer, BMC — no process setup needed, callers never need to
+	# care about redirections (e.g. 2>/tmp/whiptail).
+	echo >/dev/console 2>/dev/null
+	echo -e "\033[1;33m *** WARNING: $* ***\033[0m" >/dev/console 2>/dev/null
+	echo >/dev/console 2>/dev/null
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-		echo -e " *** WARNING: $* ***" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
-	else
-		echo -e " *** WARNING: $* ***" >&2
+		# debug mode: also route to kmsg for ordering with other debug output (no ANSI - kmsg strips it)
+		echo " *** WARNING: $* ***" | tee -a /dev/kmsg >/dev/null
 	fi
 	sleep 1
 }
 
-# Use DEBUG to track decisions made in script/function logic and the context
-# relating to those decisions.  Generally, focus on decision points, because
-# straight-line execution can usually be followed without further tracing.  See
-# doc/logging.md.
+# DEBUG - decision points and developer-relevant context.
+#
+# Use DEBUG to show the information that influences logical decisions and the
+# result of those decisions.  Focus on if/else/case branches: what information
+# led to the branch, and which branch was taken.
+# Use DO_WITH_DEBUG to capture command invocations (command+args at DEBUG
+# level, stdout/stderr at LOG level) rather than calling DEBUG directly.
+# Messages may freely include internal variable names, file paths, and
+# technical subsystem details - this level targets Heads developers only.
+# Do NOT use DEBUG for:
+#   - Command output or dumps of uncontrolled length (use LOG or DO_WITH_DEBUG)
+#   - Actions a non-developer user would understand (use INFO)
+#
+# Console color: none (plain text only; targets developers reading raw output).
+# debug.log and /dev/kmsg receive plain text (no ANSI).
+# Console output goes to /dev/console (the kernel console, follows the
+# console= kernel parameter) so it reaches serial, framebuffer, BMC, etc.
+# without requiring any process setup and without polluting stdout or stderr
+# so callers never need to care about redirections.
+#
+# Output modes:
+#   Quiet (CONFIG_QUIET_MODE=y):          debug.log only (no console)
+#   Info  (CONFIG_QUIET_MODE=n):          debug.log only (no console)
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        /dev/console + debug.log
+#
+# See doc/logging.md.
 DEBUG() {
+	# Always write to debug.log - debug.log is a complete audit trail regardless of mode.
+	echo "DEBUG: $*" >> /tmp/debug.log
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
+		# debug mode: also echo to /dev/console and kmsg.
 		# fold -s -w 960 will wrap lines at 960 characters on the last space before the limit
-		echo "DEBUG: $*" | fold -s -w 960 | while read line; do
-			echo "$line" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		echo "DEBUG: $*" | fold -s -w 960 | while IFS= read -r line; do
+			echo "$line" | tee -a /dev/kmsg >/dev/null
+			echo "$line" >/dev/console 2>/dev/null
 		done
 	fi
 }
 
-# Use TRACE to trace control flow through Heads.  This is usually called by
-# TRACE_FUNC, but you can use it to additionally trace parameter values, etc.
-# Usually, use this to display unprocessed parameters that your script or
-# function received.  For information about the logic occurring in your script
-# or function, use DEBUG.  See doc/logging.md.
+# TRACE / TRACE_FUNC - execution flow through scripts and functions.
+#
+# TRACE_FUNC MUST be called as the first line of every script and function.
+# It emits the full call chain (including cross-process subprocess boundaries)
+# leading to the current location:
+#   TRACE: caller(file:line) -> ... -> current_func(file:line)
+# Use TRACE directly (in addition to TRACE_FUNC) only to show the raw
+# unprocessed parameters received by a script or function from its caller.
+# Do NOT use TRACE for logic or decisions inside the function - use DEBUG.
+# Do NOT use TRACE to show processed/interpreted values - use DEBUG.
+#
+# Console color: none (plain text only; targets developers reading raw output).
+# debug.log and /dev/kmsg receive plain text (no ANSI).
+# Console output goes to /dev/console (the kernel console, follows the
+# console= kernel parameter) so it reaches serial, framebuffer, BMC, etc.
+# without requiring any process setup and without polluting stdout or stderr
+# so callers never need to care about redirections.
+#
+# Output modes:
+#   Quiet (CONFIG_QUIET_MODE=y):                     debug.log only (no console)
+#   Info  (CONFIG_QUIET_MODE=n):                     debug.log only (no console)
+#   Debug (CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT=y): /dev/console + debug.log
+#
+# See doc/logging.md.
 TRACE() {
+	# Always write to debug.log - debug.log is a complete audit trail regardless of mode.
+	echo "TRACE: $*" >> /tmp/debug.log
 	if [ "$CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" = "y" ]; then
-		echo "TRACE: $*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		# tracing mode: also echo to /dev/console and kmsg.
+		echo "TRACE: $*" | tee -a /dev/kmsg >/dev/null
+		echo "TRACE: $*" >/dev/console 2>/dev/null
 	fi
 }
 
-# Use NOTE to explain behaviors that are _likely_ to be unexpected or confusing.
-# Unlike INFO, this cannot be hidden, as the explained behavior would be too
-# confusing without this output.
-# Don't overuse this - too much NOTE output will cause users to ignore it.  See
-# doc/logging.md.
+# NOTE - explains behaviors that are _likely_ to be unexpected or confusing
+#        to users new to Heads.
+#
+# Use NOTE only when the behavior is so unexpected that users need this
+# explanation to make sense of what they are seeing.  Examples:
+#   - An automatic reboot the user did not explicitly request
+#   - A GPG PIN prompt appearing at a point the user would not anticipate
+#   - A required action before the next step can proceed
+# Unlike INFO, NOTE cannot be hidden: it always appears in every output mode.
+# NOTE sleeps after printing to bring the message to the user's awareness
+# and ensure it is not scrolled past before they can read it.
+# Do NOT overuse: prefer INFO if the behavior is only sometimes unexpected.
+# Too many NOTE messages train users to ignore them, defeating their purpose.
+#
+# Console color: italic white NOTE: prefix (\033[3;37m).
+# White is the highest-contrast neutral hue on dark consoles (VGA/serial).
+# Italic distinguishes NOTE from bold STATUS/WARN without imposing a semantic
+# hue, satisfying WCAG 1.4.1 (color is not the sole signal; the NOTE: prefix
+# and surrounding blank lines + 3-second sleep carry meaning independently).
+# debug.log receives plain text (no ANSI).
+#
+# Output modes (always visible in all modes):
+#   Quiet (CONFIG_QUIET_MODE=y):          console + debug.log
+#   Info  (CONFIG_QUIET_MODE=n):          console + debug.log
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        console + debug.log
+#
+# See doc/logging.md.
 NOTE() {
-	#TODO: add colors to output, here blue for NOTE?
+	# Console: italic white NOTE: prefix, blank lines before/after, to /dev/console.
+	# /dev/console = kernel console (follows console= kernel parameter): reaches
+	# serial, framebuffer, BMC — no process setup needed, callers never need to
+	# care about redirections.
+	echo >/dev/console 2>/dev/null
+	echo -e "\033[3;37mNOTE:\033[0m $*" >/dev/console 2>/dev/null
+	echo >/dev/console 2>/dev/null
+	# Log file: plain text - no ANSI codes in debug.log; echo -e so \n in the
+	# message produces real newlines in the log (multi-line NOTE support).
+	echo -e "NOTE: $*" >> /tmp/debug.log
 
-	# Make sure the user sees this message: seperate it from the rest of the output
-	echo
-	echo "NOTE:" "$@" | tee -a /tmp/debug.log
-	echo
-
-	# Sleep for a second to give the user time to read the message
-	sleep 1
+	# Sleep to bring the message to the user's awareness: NOTE is infrequent
+	# and important enough that the user must not scroll past it unread
+	sleep 3
 }
 
-# Use INFO for contextual information that might make sense to non-developers,
-# but that isn't generally needed to use Heads.  Non-developers might use this
-# level to troubleshoot basic problems, so it must make sense without deep
-# knowledge of how Heads works.  See doc/logging.md.
+# STATUS - announces an action currently in progress or just completed.
+#
+# Use STATUS for progress and action announcements that all users must see
+# regardless of output mode.  Examples:
+#   - An action starting or running: "Verifying ISO", "Building initrd",
+#     "Calculating hashes - this may take a while"
+#   - Completion of a security-relevant operation: "ISO signature verified",
+#     "LUKS device unlocked", "Verified root hashes"
+#   - A boot-path milestone: "Executing default boot for $name"
+#
+# Unlike INFO, STATUS is always visible in all output modes - a user in
+# quiet mode must still be able to see what Heads is actively doing.
+# Unlike NOTE, STATUS does not sleep - it is for routine progress and action
+# confirmation, not unexpected behavior requiring deliberate user attention.
+#
+# Console color: bold only, no hue (\033[1m).
+# No color is used for STATUS by design: STATUS is the most frequent visible
+# output level and must be readable in every terminal theme (dark, light,
+# high-contrast, monochrome) without relying on color perception.  The >>
+# prefix provides semantic differentiation instead.
+# Bold ensures STATUS stands out over plain INFO/LOG text without any color.
+# Output goes to /dev/console (kernel console, follows console= kernel
+# parameter) so it reaches serial, framebuffer, BMC, etc. without requiring
+# any process setup and without polluting stdout or stderr so callers never
+# need to care about redirections (e.g. print_tree >/boot/kexec_tree.txt).
+# STATUS does NOT sleep and does NOT print blank lines: it is called frequently
+# and blank lines would make output very noisy.  Use NOTE when blank lines and
+# a sleep are needed to draw the user's attention.
+# debug.log receives plain text (no ANSI).
+#
+# Output modes (always visible in all modes):
+#   Quiet (CONFIG_QUIET_MODE=y):          /dev/console + debug.log
+#   Info  (CONFIG_QUIET_MODE=n):          /dev/console + debug.log
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        /dev/console + debug.log
+#
+# See doc/logging.md.
+STATUS() {
+	# Console: bold >> prefix to /dev/console - announces an action in progress.
+	echo -e "\033[1m >>\033[0m $*" >/dev/console 2>/dev/null
+	# Log file: plain text - no ANSI codes in debug.log
+	echo " >> $*" >> /tmp/debug.log
+}
+
+STATUS_OK() {
+	# Console: bold green "OK" prefix to /dev/console - confirms a successful result.
+	# Use STATUS_OK (not STATUS) when reporting that an operation succeeded,
+	# a verification passed, or a resource was confirmed available.
+	# Two signals make success scannable without relying on either alone:
+	#   1. "OK" text label  - readable in monochrome, on serial consoles,
+	#                         and by users with color vision deficiency
+	#   2. Bold green color - instant visual scan for sighted users
+	# (Same convention as Linux/systemd "[  OK  ]" boot messages.)
+	echo -e "\033[1;32m OK\033[0m $*" >/dev/console 2>/dev/null
+	# Log file: plain text - no ANSI codes in debug.log
+	echo " OK $*" >> /tmp/debug.log
+}
+
+# INFO - high-level operational context for non-developer users.
+#
+# INFO is what makes "Info" output mode meaningful.  A security-conscious
+# user who enables Info mode expects to see a readable audit trail of what
+# Heads is doing: what is being measured, verified, sealed, or decided.
+# Use INFO for:
+#   - TPM PCR extensions: what is being measured and when
+#     (e.g. "TPM: Extending PCR[4] with boot configuration")
+#   - High-level operational decisions driven by user configuration
+#     (e.g. "Not booting automatically, automatic boot is disabled")
+# Do NOT use INFO for:
+#   - Action progress or milestones the user must see in all modes (use STATUS)
+#   - Heads-internal details: file paths, variable values, CBFS operations,
+#     code-flow steps with no user-visible effect (use DEBUG instead)
+#   - Messages that require Heads developer knowledge to interpret (use DEBUG)
+#   - Behaviors so unexpected users need to be warned (use NOTE instead)
+#
+# Console color: green (\033[0;32m) in Info mode.
+# In Debug mode: plain text to debug.log and /dev/kmsg (no ANSI; maintains
+# ordering with DEBUG messages which also route through kmsg).
+# Console output goes to /dev/console (kernel console, follows console=
+# kernel parameter) so it reaches serial, framebuffer, BMC, etc. without
+# requiring any process setup and without polluting stdout or stderr.
+#
+# Output modes:
+#   Quiet (CONFIG_QUIET_MODE=y):          debug.log only (no console)
+#   Info  (CONFIG_QUIET_MODE=n):          /dev/console + debug.log
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        /dev/console + debug.log (via kmsg for ordering)
+#
+# See doc/logging.md.
 INFO() {
 	TRACE_FUNC
-	#TODO: add colors to output, here green for INFO?
-
-	# if not CONFIG_QUIET_MODE=y, output to console. If not, output to debug.log
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-		echo "$*" | tee -a /tmp/debug.log /dev/kmsg >/dev/null
+		# debug mode: plain to debug.log, measuring_trace.log, and kmsg -
+		# no ANSI, maintains ordering with DEBUG messages which also route through kmsg
+		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log /dev/kmsg >/dev/null
 	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then
-		echo "$*" >>/tmp/debug.log
+		# quiet mode: no console output, but captured in both logs
+		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	else
-		echo "$*"
+		# info mode: green text to /dev/console AND both log files.
+		# /dev/console = kernel console (follows console= kernel parameter):
+		# reaches serial, framebuffer, BMC — no process setup needed, callers
+		# never need to care about redirections.
+		echo -e "\033[0;32m$*\033[0m" >/dev/console 2>/dev/null
+		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	fi
 }
 
-# Write directly to the debug log (but not kmsg), never appears on console
-#  Main consumer is DO_WITH_DEBUG, which uses this to log command output
+# LOG - command output and verbose state dumps, always to debug.log only.
+#
+# Use LOG to capture raw output of commands (lsblk, lsusb, gpg --list-keys,
+# tpm2 pcrread, etc.) and any output of uncontrolled or potentially large
+# length.  LOG never appears on the console in any output mode - it is purely
+# for post-hoc analysis of a submitted debug log.
+# Prefer DO_WITH_DEBUG over calling LOG directly: DO_WITH_DEBUG captures the
+# command and its arguments at DEBUG level, and routes stdout/stderr to LOG.
+# Call LOG directly only when capturing output that is not a direct command
+# invocation (e.g. filtering another command's stderr, state summaries).
+# Do NOT use LOG for:
+#   - Short, fixed-length messages about decisions (use DEBUG)
+#   - Messages a user should ever see on console (use INFO, NOTE, or WARN)
+#
+# Output modes (never on console in any mode):
+#   Quiet (CONFIG_QUIET_MODE=y):          debug.log only
+#   Info  (CONFIG_QUIET_MODE=n):          debug.log only
+#   Debug (CONFIG_DEBUG_OUTPUT=y):        debug.log only
+#
+# See doc/logging.md.
 LOG() {
 	echo "LOG: $*" >>/tmp/debug.log
+}
+
+# INPUT - colored prompt for interactive user input.
+#
+# Direct replacement for the common pattern:
+#   echo "prompt"
+#   read [flags] VARNAME
+# The prompt is displayed bold white (\033[1;37m) to draw the user's attention.
+# Bold white is chosen for maximum contrast on VGA/dark consoles (21:1 ratio)
+# without relying on color perception - it is readable under all color
+# deficiency types and in monochrome/high-contrast terminal modes.
+# Use INPUT for all prompts that require the user to type a response.
+# Do NOT use INPUT for yes/no confirmation dialogs (use whiptail instead).
+#
+# Usage: INPUT "prompt text" [read-flags] [VARNAME]
+# Examples:
+#   INPUT "Enter LUKS passphrase:" -r -s luks_passphrase
+#   INPUT "Press any key to continue:" -n 1 -s dummy
+#   INPUT "Enter filename:" -r filename
+#
+# The read flags and VARNAME are passed through to read after the prompt
+# is displayed - any read option (e.g. -r, -s, -n N) is supported.
+#
+# Output modes (always visible in all modes):
+#   All modes: console prompt in bold white to /dev/console, plain text in debug.log
+#
+# See doc/logging.md.
+
+# detect_heads_tty - resolve the active interactive terminal and export it.
+# Sets and exports HEADS_TTY and GPG_TTY.
+# Must be called at script top-level (not inside a subshell) to take effect.
+detect_heads_tty() {
+	if ! HEADS_TTY=$(tty 2>/dev/null); then
+		local _active _dev
+		_active=$(cat /sys/class/tty/console/active 2>/dev/null)
+		_dev="${_active##* }"
+		[ "$_dev" = "tty0" ] && _dev=$(cat /sys/class/tty/tty0/active 2>/dev/null || echo tty0)
+		HEADS_TTY="/dev/${_dev:-console}"
+	fi
+	export HEADS_TTY
+	export GPG_TTY="$HEADS_TTY"
+}
+
+INPUT() {
+	TRACE_FUNC
+	local prompt="$1"
+	shift
+	# Log file: plain text - no ANSI codes in debug.log
+	echo "INPUT: $prompt" >>/tmp/debug.log
+
+	if [ -n "$HEADS_TTY" ]; then
+		# gui-init context: HEADS_TTY is the actual interactive terminal (set by
+		# gui-init after cttyhack).  Use it for both prompt output and read so
+		# that prompt and input always use the same device regardless of any
+		# stdout/stderr redirections the caller may have in effect.
+		# Print prompt with a trailing space so the cursor lands immediately after
+		# the prompt text on the same line — no blank line between prompt and input.
+		printf '\033[1;37m%s\033[0m ' "$prompt" >"$HEADS_TTY" 2>/dev/null
+		# Forward remaining args (read flags + variable name) directly to read.
+		# Note: static analyzers may report the caller's variable as "unassigned"
+		# because assignment through read "$@" indirection is not visible to them.
+		# This is a false positive - the variable is assigned correctly at runtime.
+		read "$@" <"$HEADS_TTY"
+		echo >"$HEADS_TTY" 2>/dev/null
+	else
+		# Pre-gui-init context (e.g. init's serial recovery shell launched with
+		# explicit stdin/stdout/stderr redirects to the serial device):
+		# honour the caller's redirections — use stderr for output and stdin for
+		# read so the correct device is used without hard-coding any path.
+		printf '\033[1;37m%s\033[0m ' "$prompt" >&2
+		read "$@"
+		echo >&2
+	fi
+}
+
+# Filter known harmless LVM warning noise while preserving all other stderr.
+# Messages that are expected during device scanning (e.g. "not an LVM PV") are
+# redirected to the debug log only - they are not errors and should not appear
+# on the console, especially in quiet mode.
+_filter_lvm_stderr() {
+	while IFS= read -r line; do
+		case "$line" in
+		*"Failed to set up async io, using sync io."*)
+			continue
+			;;
+		*"leaked on lvm invocation"*)
+			continue
+			;;
+		*"Cannot use "*": device is too small"* \
+		| *"Cannot use "*": device is an LV"* \
+		| *"Failed to find physical volume"*)
+			LOG "lvm: $line"
+			continue
+			;;
+		esac
+		printf '%s\n' "$line" >&2
+	done
+}
+
+# Wrapper for all runtime lvm invocations so users don't see benign async-io
+# fallback warnings, especially in quiet mode.
+run_lvm() {
+	command lvm "$@" 2> >(_filter_lvm_stderr)
 }
 
 fw_version() {
@@ -134,95 +466,276 @@ preserve_rom() {
 	for old_file in $(echo $old_files); do
 		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
 		if [ -z "$new_file" ]; then
-			echo "+++ Adding $old_file to $1"
+			DEBUG "Adding $old_file to $1"
 			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
-				die "Failed to read cbfs file from ROM"
+				DIE "Failed to read cbfs file from ROM"
 			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
-				die "Failed to write cbfs file to new ROM file"
+				DIE "Failed to write cbfs file to new ROM file"
 		fi
 	done
 }
 
-confirm_gpg_card() {
+# Color-code a PIN/security-token retry counter for the console.
+# green (3+): safe; yellow (2): one attempt used; red (<=1 or unknown): danger.
+# Works for both GPG card PIN retries and HOTP dongle (Nitrokey/Librem Key) PIN counters.
+pin_color() {
+	case "$1" in
+	[3-9]|[1-9][0-9]) printf '\033[1;32m' ;;  # green: 3 or more remaining
+	2)                 printf '\033[1;33m' ;;  # yellow: one attempt already used
+	*)                 printf '\033[1;31m' ;;  # red: 0, 1, or unknown (locked/last try)
+	esac
+}
 
-	#TODO: ideally, we ask for confirmation only once per boot session
-	#TODO: even change logic here to try first and then ask user to confirm if not found
-	#TODO: or ask GPG User PIN once and cache it for the rest of the boot session for reusal
-	# This is getting in the way of unattended stuff and GPG prompts are confusing anyway, hide them from user.
+# Detect USB security dongle branding from USB VID:PID via lsusb.
+# Sources: hotp-verification/src/device.c and targets/qemu.mk
+# Outputs the specific model name; call as: HOTPKEY_BRANDING="$(detect_hotpkey_branding)"
+# VID:PID table:
+#   20a0:42b2  Nitrokey 3 (3A Mini / 3A NFC / 3C NFC — all share this PID)
+#   20a0:4108  Nitrokey Pro / Pro 2  (Pro and Pro 2 share the same PID)
+#   20a0:4109  Nitrokey Storage / Storage 2
+#   316d:4c4b  Librem Key
+detect_hotpkey_branding() {
+	local lsusb_out
+	lsusb_out="$(lsusb)"
+	# Check NK3 (42b2) before the broader 20a0 vendor match
+	if echo "$lsusb_out" | grep -q "20a0:42b2"; then
+		echo "Nitrokey 3"
+	elif echo "$lsusb_out" | grep -q "20a0:4108"; then
+		echo "Nitrokey Pro"
+	elif echo "$lsusb_out" | grep -q "20a0:4109"; then
+		echo "Nitrokey Storage"
+	elif echo "$lsusb_out" | grep -q "316d:4c4b"; then
+		echo "Librem Key"
+	else
+		echo "HOTP USB Security dongle"
+	fi
+}
 
-	TRACE_FUNC
-	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked pinentry
-	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
-	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
-	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
-		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through pinentry"
+# Display USB security dongle firmware version with color coding.
+# Minimum versions are defined in /etc/dongle-versions for easy maintainability.
+# $1: raw output from "hotp_verification info"
+# $2: dongle branding string (e.g. "Nitrokey Pro", "Librem Key")
+hotpkey_fw_display() {
+	[ -f /tmp/hotpkey_fw_shown ] && return
+	local info="$1" branding="$2" fw_ver min_ver critical upgrade_cmd
+	critical="n"
+
+	# Load minimum recommended firmware versions
+	. /etc/dongle-versions
+
+	if echo "$info" | grep -q "Firmware Nitrokey 3:"; then
+		# NK3: "Firmware Nitrokey 3: v1.8.3"
+		fw_ver="$(echo "$info" | grep "Firmware Nitrokey 3:" | sed 's/.*: *//')"
+		min_ver="$HOTPKEY_NK3_MIN_VER"
+		# Secrets App version: developer detail only; not shown in quiet/info mode.
+		local app_ver
+		app_ver="$(echo "$info" | grep "Firmware Secrets App:" | sed 's/.*: *//')"
+		[ -n "$app_ver" ] && DEBUG "$branding Secrets App: ${app_ver}"
+		upgrade_cmd="nitropy nk3 firmware update"
+	elif echo "$info" | grep -q "Firmware:"; then
+		# Nitrokey Pro / Pro 2 / Storage / Librem Key: "<TAB>Firmware: v0.15"
+		# hotp_verification prefixes lines with a tab; omit ^ so the pattern matches.
+		fw_ver="$(echo "$info" | grep "Firmware:" | sed 's/.*: *//')"
+		# Normalize: ensure fw_ver has 'v' prefix for consistent sort -V comparison.
+		case "$fw_ver" in v*) ;; *) fw_ver="v$fw_ver" ;; esac
+
+		if [ "$branding" = "Librem Key" ]; then
+			# Librem Key cannot be upgraded via software regardless of firmware version.
+			# Any update requires an external hardware programmer or Purism servicing.
+			NOTE "$branding firmware: ${fw_ver} - cannot be self-upgraded; contact Purism support for servicing."
+			touch /tmp/hotpkey_fw_shown
+			return
+		fi
+
+		if [ "$branding" = "Nitrokey Storage" ]; then
+			# Storage has a separate firmware codebase from Pro; minimum version not yet confirmed.
+			# Display version for awareness; skip upgrade comparison until min ver is established.
+			STATUS_OK "$branding firmware: ${fw_ver}"
+			touch /tmp/hotpkey_fw_shown
+			return
+		fi
+
+		# Nitrokey Pro / Pro 2: check against minimum and reprogram threshold.
+		# Flag if below the external-reprogram threshold (v0.10 — cannot upgrade via nitropy)
+		if [ "$(printf '%s\n' "$fw_ver" "$HOTPKEY_EXTERNAL_REPROGRAM_BELOW" | sort -V | head -1)" != "$HOTPKEY_EXTERNAL_REPROGRAM_BELOW" ]; then
+			critical="y"
+		fi
+		upgrade_cmd="nitropy nk pro firmware update"
+		min_ver="$HOTPKEY_NITROKEY_MIN_VER"
+	else
 		return
 	fi
 
-	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
-		message="Please confirm that your GPG card is inserted(Y/n) or your GPG key material (b)backup thumbdrive is inserted [Y/n/b]: "
+	# Green: at or above minimum.  Yellow: upgrade via nitropy.  Red: external programmer required.
+	if [ "$critical" = "y" ]; then
+		NOTE "$branding firmware: \033[1;31m${fw_ver}\033[0m - below ${HOTPKEY_EXTERNAL_REPROGRAM_BELOW}; cannot be upgraded via software. An external SWD programmer is required to reach ${HOTPKEY_NITROKEY_MIN_VER}. Contact Nitrokey for servicing: https://www.nitrokey.com/support"
+	elif [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" = "$min_ver" ]; then
+		STATUS_OK "$branding firmware: ${fw_ver} (meets minimum ${min_ver})"
 	else
-		# Generic message if no known key material backup
-		message="Please confirm that your GPG card is inserted [Y/n]: "
+		NOTE "$branding firmware: \033[1;33m${fw_ver}\033[0m - upgrade to ${min_ver} recommended. Run on your daily OS: ${upgrade_cmd}"
+	fi
+	touch /tmp/hotpkey_fw_shown
+}
+
+# Release the exclusive CCID device lock so hotp_verification can access the
+# dongle.  Killing scdaemon alone is insufficient: gpg-agent restarts it
+# immediately.  Both must be killed; gpg-agent and scdaemon respawn on demand
+# for the next GPG operation.
+release_scdaemon() {
+	DEBUG "release_scdaemon: killing gpg-agent and scdaemon to release CCID lock"
+	killall gpg-agent scdaemon >/dev/null 2>&1 || true
+}
+
+cache_gpg_signing_pin() {
+	TRACE_FUNC
+
+	# Skip if PIN already cached for this session.
+	if [ -s /tmp/secret/gpg_pin ]; then
+		DEBUG "GPG signing PIN already cached for this session; skipping"
+		return
 	fi
 
-	read -r -n 1 -p $'\n'"$message" card_confirm
-	echo
-
-	if [ "$card_confirm" != "y" \
-		-a "$card_confirm" != "Y" \
-		-a "$card_confirm" != "b" \
-		-a -n "$card_confirm" ] \
-		; then
-		die "gpg card not confirmed"
+	#Skip prompts if we are currently using a known GPG key material Thumb drive backup and keys are unlocked
+	#TODO: probably export CONFIG_GPG_KEY_BACKUP_IN_USE but not under /etc/user.config?
+	#Toggle to come in next PR, but currently we don't have a way to toggle it back to n if config.user flashed back in rom
+	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]]; then
+		DEBUG "Using known GPG key material Thumb drive backup and keys are unlocked and useable through loopback"
+		return
 	fi
+
+	# If GPG key backup is configured, ask whether to use the dongle or the backup
+	# thumb drive.  Use a full-line read (no -n 1) so that buffered single
+	# keystrokes from previous prompts cannot silently satisfy this read.
+	local card_confirm=""
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
+		INPUT "Use your GPG security dongle (Enter/y) or backup thumb drive (b)? [Y/b]:" -n 1 -r card_confirm
+		while [ "$card_confirm" != "y" \
+			-a "$card_confirm" != "Y" \
+			-a "$card_confirm" != "b" \
+			-a -n "$card_confirm" ]; do
+			INPUT 'Invalid choice. Press Enter for dongle, type b for backup thumb drive, or x to abort:' -n 1 -r card_confirm
+			if [ "$card_confirm" = "x" ]; then
+				DIE "gpg card not confirmed"
+			fi
+		done
+		DEBUG "User key source selection: '${card_confirm}' (empty or y/Y = dongle, b = backup thumb drive)"
+	fi
+	# Non-backup case: skip the upfront confirmation entirely.  wait_for_gpg_card
+	# below does the actual check and prompts on failure.
 
 	# If user has known GPG key material Thumb drive backup and asked to use it
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" && "$card_confirm" == "b" ]]; then
+		DEBUG "Backup thumb drive path selected"
 		#Only mount and import GPG key material thumb drive backup once
 		if [ ! "$CONFIG_GPG_KEY_BACKUP_IN_USE" == "y" ]; then
-			CR_NONCE="/tmp/secret/cr_nonce"
-			CR_SIG="$CR_NONCE.sig"
+			DEBUG "Backup key not yet in use this session; proceeding with mount and import"
+			# Use a distinct path from CR_NONCE so we don't shred the nonce
+			# that gpg_auth may have already created at /tmp/secret/cr_nonce
+			# before calling confirm_gpg_card.
+			local BP_NONCE="/tmp/secret/backup_test_nonce"
+			local BP_SIG="$BP_NONCE.sig"
 
-			#Wipe any previous CR_NONCE and CR_SIG
-			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			shred -n 10 -z -u "$BP_NONCE" "$BP_SIG" >/dev/null 2>&1 || true
 
-			#Prompt user for configured GPG Admin PIN that will be passed along to mount-usb and to import gpg subkeys
 			gpg_admin_pin=""
 			while [ -z "$gpg_admin_pin" ]; do
-				read -r -s -p $'\nPlease enter GPG Admin PIN needed to use the GPG backup thumb drive: ' gpg_admin_pin
-				echo
+				INPUT "Please enter GPG Admin PIN needed to use the GPG backup thumb drive:" -r -s gpg_admin_pin
 			done
-			#prompt user to select the proper encrypted partition, which should the first one on next prompt
-			warn "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
-			mount-usb --pass "$gpg_admin_pin" || die "Unable to mount USB with provided GPG Admin PIN"
-			echo "++++ Testing detach-sign operation and verifiying against fused public key in ROM"
-			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --import /media/subkeys.sec >/dev/null 2>&1 ||
-				die "Unable to import GPG private subkeys"
-			#Do a detach signature to ensure gpg material is usable and cache passphrase to sign /boot from caller functions
-			dd if=/dev/urandom of="$CR_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
-				die "Unable to create $CR_NONCE to be detach-signed with GPG private signing subkey"
-			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") --detach-sign "$CR_NONCE" >/dev/null 2>&1 ||
-				die "Unable to detach-sign $CR_NONCE with GPG private signing subkey using GPG Admin PIN"
-			#verify detached signature against public key in rom
-			gpg --verify "$CR_SIG" "$CR_NONCE" >/dev/null 2>&1 &&
-				echo "++++ Local GPG keyring can be used to sign/encrypt/authenticate in this boot session ++++" ||
-				die "Unable to verify $CR_SIG detached signature against public key in ROM"
-			#Wipe any previous CR_NONCE and CR_SIG
-			shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" >/dev/null 2>&1 || true
+			# Auto-detect the LUKS partition on the backup drive.
+			# The backup created by oem-factory-reset always has exactly two partitions:
+			# partition 1 = LUKS-encrypted private key material, partition 2 = public exFAT.
+			# We identify the right partition automatically rather than asking the user to pick it.
+			STATUS "Detecting LUKS partition on GPG key backup USB drive"
+			enable_usb_storage
+			local backup_disk="" backup_luks_partition=""
+			list_usb_storage disks >/tmp/usb_backup_disks 2>/dev/null
+			if [ ! -s /tmp/usb_backup_disks ]; then
+				INPUT "Insert your GPG key backup USB drive and press Enter"
+				sleep 1
+				list_usb_storage disks >/tmp/usb_backup_disks 2>/dev/null
+				[ ! -s /tmp/usb_backup_disks ] && DIE "No USB drive found for GPG key backup"
+			fi
+			if [ "$(wc -l </tmp/usb_backup_disks)" -eq 1 ]; then
+				backup_disk="$(cat /tmp/usb_backup_disks)"
+				DEBUG "Single USB disk found: $backup_disk"
+			else
+				file_selector --show-size /tmp/usb_backup_disks "Select USB drive containing GPG key backup"
+				backup_disk="$FILE"
+			fi
+			[ -z "$backup_disk" ] && DIE "No USB drive selected for GPG key backup"
+			for backup_luks_partition in "${backup_disk}1" "${backup_disk}2" "${backup_disk}3" "${backup_disk}4"; do
+				[ -b "$backup_luks_partition" ] || { backup_luks_partition=""; continue; }
+				cryptsetup isLuks "$backup_luks_partition" 2>/dev/null && break
+				backup_luks_partition=""
+			done
+			[ -z "$backup_luks_partition" ] && DIE "No LUKS partition found on $backup_disk - is this a Heads GPG key backup drive?"
+			STATUS_OK "LUKS partition detected: $backup_luks_partition"
+			mount-usb --device "$backup_luks_partition" --pass "$gpg_admin_pin" || DIE "Unable to mount USB with provided GPG Admin PIN"
+			DEBUG "USB backup thumb drive mounted; clearing card stubs and importing private subkeys"
+			STATUS "Importing GPG private subkeys from backup thumb drive"
+			# After keytocard the local keyring has card stubs in
+			# private-keys-v1.d/.  gpg --import returns 0 even when it silently
+			# skips overwriting an existing stub, so the stub must be removed
+			# first.  Kill agent+scdaemon, delete all stub key files, then
+			# import so GPG writes actual private key material and the
+			# subsequent detach-sign uses the local key, not the smartcard.
+			release_scdaemon
+			find "${GNUPGHOME:-$HOME/.gnupg}/private-keys-v1.d" \
+				-name '*.key' -delete >/dev/null 2>&1 || true
+			DEBUG "Deleted card stubs from private-keys-v1.d before importing backup key"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") \
+				--import-options restore --import /media/subkeys.sec \
+				>/dev/null 2>/tmp/backup-import.log || {
+				DEBUG "GPG import failed: $(head -5 /tmp/backup-import.log 2>/dev/null)"
+				DIE "Unable to import GPG private subkeys from backup thumb drive"
+			}
+			STATUS_OK "GPG private subkeys imported from backup"
+			STATUS "Testing detach-sign and verifying against ROM-fused public key"
+			dd if=/dev/urandom of="$BP_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+				DIE "Unable to create $BP_NONCE to be detach-signed with GPG private signing subkey"
+			gpg --pinentry-mode=loopback --passphrase-file <(echo -n "${gpg_admin_pin}") \
+				--detach-sign "$BP_NONCE" \
+				>/dev/null 2>/tmp/backup-sign.log || {
+				DEBUG "GPG detach-sign failed: $(head -5 /tmp/backup-sign.log 2>/dev/null)"
+				DIE "Unable to detach-sign $BP_NONCE with GPG private signing subkey using GPG Admin PIN"
+			}
+			DEBUG "Detach-sign succeeded; verifying against ROM-fused public key"
+			if ! gpg --verify "$BP_SIG" "$BP_NONCE" >/dev/null 2>/tmp/backup-verify.log; then
+				DEBUG "GPG verify failed: $(head -5 /tmp/backup-verify.log 2>/dev/null)"
+				DIE "Unable to verify $BP_SIG detached signature against public key in ROM"
+			fi
+			STATUS_OK "Local GPG keyring is available for signing, encryption, and authentication this boot session"
+			printf '%s' "$gpg_admin_pin" >/tmp/secret/gpg_pin
+			chmod 600 /tmp/secret/gpg_pin
+			STATUS_OK "GPG Admin PIN cached for this session"
+			shred -n 10 -z -u "$BP_NONCE" "$BP_SIG" >/dev/null 2>&1 || true
 			#TODO: maybe just an export instead of setting /etc/user.config otherwise could be flashed in weird corner case situation
 			set_user_config "CONFIG_GPG_KEY_BACKUP_IN_USE" "y"
-			umount /media || die "Unable to unmount USB"
+			DEBUG "CONFIG_GPG_KEY_BACKUP_IN_USE set; unmounting backup thumb drive"
+			umount /media || DIE "Unable to unmount USB"
 			return
+		else
+			DEBUG "Backup key already in use this session (CONFIG_GPG_KEY_BACKUP_IN_USE=y); skipping mount"
 		fi
 	fi
+
+	release_scdaemon
+	# Clear any private key material left by a previous backup import (or
+	# stale stubs from a previous smartcard session) so the agent starts
+	# from a clean state.  For the smartcard path the agent re-discovers
+	# card-resident keys via scdaemon when wait_for_gpg_card runs
+	# gpg --card-status; fresh stubs are created automatically at that
+	# point.  This mirrors what the backup path does before importing.
+	find "${GNUPGHOME:-$HOME/.gnupg}/private-keys-v1.d" \
+		-name '*.key' -delete >/dev/null 2>&1 || true
+	DEBUG "Cleared private-keys-v1.d; agent will re-discover keys via scdaemon"
 
 	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
 	enable_usb
 	# Wait for USB enumeration before accessing GPG card to avoid race condition
 	wait_for_usb_devices
 
-	echo -e "\nVerifying presence of GPG card...\n"
+	STATUS "Verifying presence of GPG card"
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
@@ -230,9 +743,7 @@ confirm_gpg_card() {
 	if ! wait_for_gpg_card; then
 		DEBUG "GPG card access failed with output: $gpg_output"
 		# prompt for reinsertion and try a second time
-		read -n1 -r -p \
-			"Can't access GPG key; remove and reinsert, then press Enter to retry. " \
-			ignored
+		INPUT "Can't access GPG key; remove and reinsert, then press Enter to retry." ignored
 		# restore prev errexit state
 		if [ "$errexit" = "on" ]; then
 			set -e
@@ -240,23 +751,64 @@ confirm_gpg_card() {
 		# retry card status
 		DEBUG "Retrying gpg --card-status after reinsertion (bounded wait)"
 		wait_for_gpg_card ||
-			die "gpg card read failed"
+			DIE "gpg card read failed"
 		DEBUG "Retry succeeded"
 	fi
 
-	# Extract and display GPG PIN retry counters
+	# Read card status and display PIN retry counters before prompting.
 	# output excerpt: "PIN retry counter : 3 0 3"
 	gpg_output=$(gpg --card-status 2>&1)
 	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
 	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
 
-	echo ""
-	echo "GPG User PIN retry attempts left before becoming locked: $user_pin_retries"
-	echo "GPG Admin PIN retry attempts left before becoming locked: $admin_pin_retries"
-	echo ""
-	NOTE "Your GPG User PIN, followed by Enter key will be required for input at: 'Please unlock the card' next prompt"
-	echo ""
+	echo >/dev/console 2>/dev/null
+	STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
+	STATUS "GPG Admin PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
+
+	# Collect and validate smartcard User PIN via Heads INPUT then loopback
+	# test-sign. On success, cache the PIN so all subsequent signing calls in
+	# this session use --pinentry-mode=loopback --passphrase-file without
+	# prompting the user again.
+	SC_NONCE="/tmp/secret/sc_nonce"
+	SC_SIG="$SC_NONCE.sig"
+	shred -n 10 -z -u "$SC_NONCE" "$SC_SIG" >/dev/null 2>&1 || true
+	dd if=/dev/urandom of="$SC_NONCE" bs=20 count=1 >/dev/null 2>&1 ||
+		DIE "Unable to create nonce for smartcard PIN test-sign"
+	STATUS "Testing GPG smartcard signing to cache User PIN for this session"
+	sc_user_pin=""
+	sc_pin_tries=0
+	while [ "$sc_pin_tries" -lt 3 ]; do
+		sc_pin_tries=$(( sc_pin_tries + 1 ))
+		while [ -z "$sc_user_pin" ]; do
+			INPUT "Enter GPG User PIN for smartcard:" -r -s sc_user_pin
+		done
+		if gpg --pinentry-mode=loopback \
+				--passphrase-file <(printf '%s' "$sc_user_pin") \
+				--detach-sign "$SC_NONCE" >/dev/null 2>/tmp/sc-sign.log; then
+			gpg --verify "$SC_SIG" "$SC_NONCE" >/dev/null 2>&1 ||
+				DIE "GPG smartcard test-sign: signature verification failed"
+			printf '%s' "$sc_user_pin" >/tmp/secret/gpg_pin
+			chmod 600 /tmp/secret/gpg_pin
+			STATUS_OK "GPG User PIN cached for this session"
+			break
+		fi
+		sc_user_pin=""
+		if grep -Eiq 'bad pin|wrong pin|incorrect pin|pin incorrect|pinentry.*cancel' /tmp/sc-sign.log 2>/dev/null; then
+			if [ "$sc_pin_tries" -lt 3 ]; then
+				WARN "Incorrect GPG User PIN (attempt $sc_pin_tries/3) - please retry"
+				# Re-read counter to show updated remaining retries after the failed attempt
+				gpg_output=$(gpg --card-status 2>&1)
+				pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
+				user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
+				STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
+				continue
+			fi
+			DIE "Incorrect GPG User PIN after 3 attempts. Check remaining PIN retries."
+		fi
+		DIE "GPG smartcard test-sign failed: $(head -5 /tmp/sc-sign.log 2>/dev/null)"
+	done
+	shred -n 10 -z -u "$SC_NONCE" "$SC_SIG" >/dev/null 2>&1 || true
 
 	# restore prev errexit state
 	if [ "$errexit" = "on" ]; then
@@ -264,21 +816,18 @@ confirm_gpg_card() {
 	fi
 }
 
+confirm_gpg_card() {
+	cache_gpg_signing_pin "$@"
+}
+
 gpg_auth() {
 	if [[ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]]; then
 		TRACE_FUNC
 		# If we have a GPG key backup, we can use it to authenticate even if the card is lost
-		echo >&2 "!!!!! Please authenticate with OpenPGP smartcard/backup media to prove you are the owner of this machine !!!!!"
+		NOTE "Please authenticate with OpenPGP smartcard/backup media to prove you are the owner of this machine"
 
 		# Wipe any existing nonce and signature
 		shred -n 10 -z -u "$CR_NONCE" "$CR_SIG" 2>/dev/null || true
-
-		# In case of gpg_auth, we require confirmation of the card, so loop with confirm_gpg_card until we get it
-		false
-		while [ $? -ne 0 ]; do
-			# Call confirm_gpg_card in subshell to ensure GPG key material presence
-			(confirm_gpg_card)
-		done
 
 		# Perform a signing-based challenge-response,
 		# to authencate that the card plugged in holding
@@ -294,11 +843,15 @@ gpg_auth() {
 			count=1 \
 			bs=20 \
 			2>/dev/null ||
-			die "Unable to generate 20 random bytes"
+			DIE "Unable to generate 20 random bytes"
 
-		# Sign the nonce
+		# Sign the nonce; cache_gpg_signing_pin ensures the PIN is cached and
+		# the card is accessible before each attempt.
 		for tries in 1 2 3; do
+			until (confirm_gpg_card); do true; done
 			if gpg --digest-algo SHA256 \
+				--pinentry-mode=loopback \
+				--passphrase-file /tmp/secret/gpg_pin \
 				--detach-sign \
 				-o "$CR_SIG" \
 				"$CR_NONCE" >/dev/null 2>&1 &&
@@ -310,10 +863,12 @@ gpg_auth() {
 			else
 				shred -n 10 -z -u "$CR_SIG" 2>/dev/null || true
 				if [ "$tries" -lt 3 ]; then
-					echo >&2 "!!!!! GPG authentication failed, please try again !!!!!"
+					WARN "GPG authentication failed (attempt $tries/3), please try again"
+					# Clear cached PIN so the next attempt re-prompts for the correct PIN.
+					rm -f /tmp/secret/gpg_pin
 					continue
 				else
-					die "GPG authentication failed, please reboot and try again"
+					DIE "GPG authentication failed, please reboot and try again"
 				fi
 			fi
 		done
@@ -323,10 +878,7 @@ gpg_auth() {
 
 recovery() {
 	TRACE_FUNC
-	echo >&2 "!!!!! $*"
-
-	# Remove any temporary secret files that might be hanging around
-	# but recreate the directory so that new tools can use it.
+	# Remove any temporary secret files, but recreate the directory so that new tools can use it.
 
 	#safe to always be true. Otherwise "set -e" would make it exit here
 	shred -n 10 -z -u /tmp/secret/* 2>/dev/null || true
@@ -348,7 +900,7 @@ recovery() {
 	fi
 
 	if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
-		echo >&2 "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
+		NOTE "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
 		sleep 5
 		/bin/reboot
 	fi
@@ -363,12 +915,22 @@ recovery() {
 
 		#Guide user into enabling debug output in case of a discovered bug
 		if [ "$CONFIG_DEBUG_OUTPUT" != "y" ]; then
-			#User can enable DEBUG_OUTPUT=y and TRACE_FUNCTION_TRACING_OUTPUT=y from Configuration Options
-			NOTE "If you want to file a bug, please enable Debug mode through 'Options --> Change configuration settings > Configure Heads informational'"
+			NOTE "To file a bug report with debug logs:\n  1. Options --> Change configuration settings --> Configure $CONFIG_BRAND_NAME informational / debug output --> select Debug, save and flash firmware changes\n  2. After reboot: Options --> TPM/TOTP/HOTP Options --> Generate new TOTP/HOTP secret to reseal secrets"
 		fi
-		echo >&2 "!!!!! Starting recovery shell"
+		# display any custom recovery message just before the banner
+		if [ -n "$*" ]; then
+			WARN "$*"
+		fi
+		STATUS "Starting recovery shell"
 
-		if [ -x /bin/setsid ]; then
+		if [ -n "$RECOVERY_TTY" ]; then
+			# Reopen the serial TTY on each iteration so the new session
+			# leader acquires it as its controlling terminal automatically
+			# (POSIX: opening a TTY as session leader without O_NOCTTY sets
+			# it as the controlling terminal).  setsid -c with an inherited
+			# fd fails to respawn correctly after the first bash exits.
+			setsid /bin/bash <>"$RECOVERY_TTY" >&0 2>&0
+		elif [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/bash
 		else
 			/bin/bash
@@ -378,7 +940,7 @@ recovery() {
 
 pause_recovery() {
 	TRACE_FUNC
-	read -p $'!!! Hit enter to proceed to recovery shell !!!\n'
+	INPUT "Press Enter to proceed to recovery shell"
 	recovery $*
 }
 
@@ -440,17 +1002,19 @@ load_config_value() {
 
 enable_usb() {
 	TRACE_FUNC
+	[ "${_USB_ENABLED:-n}" = "y" ] && return
 	#insmod ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
-	insmod /lib/modules/ehci-hcd.ko || die "ehci_hcd: module load failed"
+	insmod /lib/modules/ehci-hcd.ko || DIE "ehci_hcd: module load failed"
 
 	if [ "$CONFIG_LINUX_USB_COMPANION_CONTROLLER" = y ]; then
-		insmod /lib/modules/uhci-hcd.ko || die "uhci_hcd: module load failed"
-		insmod /lib/modules/ohci-hcd.ko || die "ohci_hcd: module load failed"
-		insmod /lib/modules/ohci-pci.ko || die "ohci_pci: module load failed"
+		insmod /lib/modules/uhci-hcd.ko || DIE "uhci_hcd: module load failed"
+		insmod /lib/modules/ohci-hcd.ko || DIE "ohci_hcd: module load failed"
+		insmod /lib/modules/ohci-pci.ko || DIE "ohci_pci: module load failed"
 	fi
-	insmod /lib/modules/ehci-pci.ko || die "ehci_pci: module load failed"
-	insmod /lib/modules/xhci-hcd.ko || die "xhci_hcd: module load failed"
-	insmod /lib/modules/xhci-pci.ko || die "xhci_pci: module load failed"
+	insmod /lib/modules/ehci-pci.ko || DIE "ehci_pci: module load failed"
+	insmod /lib/modules/xhci-hcd.ko || DIE "xhci_hcd: module load failed"
+	insmod /lib/modules/xhci-pci.ko || DIE "xhci_pci: module load failed"
+	_USB_ENABLED="y"
 }
 
 # Wait for USB bus enumeration to complete after enable_usb() loads modules.
@@ -507,7 +1071,9 @@ wait_for_gpg_card() {
 	TRACE_FUNC
 	if [ ! -r /proc/uptime ]; then
 		gpg_output=$(gpg --card-status 2>&1)
-		return $?
+		local rc=$?
+		[ $rc -eq 0 ] && release_scdaemon
+		return $rc
 	fi
 
 	local start now elapsed
@@ -520,6 +1086,14 @@ wait_for_gpg_card() {
 			now=$(awk '{print $1}' /proc/uptime)
 			elapsed=$(awk -v s="$start" -v n="$now" 'BEGIN{printf "%.3f", n - s}')
 			DEBUG "gpg --card-status succeeded after ${elapsed}s (attempt $attempt)"
+			# Card output captured; release scdaemon now so the NK3's CCID
+			# session teardown begins immediately.  hotp_verification needs
+			# the same CCID interface and cannot open a session until the
+			# previous one is fully closed (~3s on NK3 firmware).  Releasing
+			# here gives the device time to recover while the caller does its
+			# own processing (e.g. user reads a dialog) before calling
+			# hotp_verification.
+			release_scdaemon
 			return 0
 		fi
 
@@ -541,14 +1115,14 @@ enable_usb_keyboard() {
 	# desktop/server), they could lock themselves out, only recoverable by
 	# hardware flash.
 	if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = y ]; then
-		insmod /lib/modules/usbhid.ko || die "usbhid: module load failed"
+		insmod /lib/modules/usbhid.ko || DIE "usbhid: module load failed"
 	fi
 }
 
 # ------- End of functions coming from /etc/ash_functions
 
 # Print <hidden> or <empty> depending on whether $1 is empty.  Useful to mask an
-# optional password parameter.
+# optional passphrase parameter.
 mask_param() {
 	if [ -z "$1" ]; then
 		echo "<empty>"
@@ -601,9 +1175,9 @@ SINK_LOG() {
 # execution of the script.  Exit statuses, stdout, and stderr are traced, but
 # they are still returned/written to the caller.
 #
-# A password parameter can be masked by passing --mask-position N before the
-# command to execute, the debug trace will just indicate whether the password
-# was empty or nonempty (which is important when use of a password is optional).
+# A passphrase parameter can be masked by passing --mask-position N before the
+# command to execute, the debug trace will just indicate whether the passphrase
+# was empty or nonempty (which is important when use of a passphrase is optional).
 # N=0 is the name of the command to be executed, N=1 is its first parameter,
 # etc.
 #
@@ -615,7 +1189,7 @@ SINK_LOG() {
 #   the mount fails
 #
 # [DO_WITH_DEBUG --mask-position 7] tpmr seal "$KEY" "$IDX" "$pcrs" "$pcrf" "$size" "$PASSWORD"
-#   ^-- trace the resulting invocation, but mask the password in the log
+#   ^-- trace the resulting invocation, but mask the passphrase in the log
 #
 # if ! [DO_WITH_DEBUG] umount "$MOUNTPOINT"; then [...]
 #   ^-- it can be used when the exit status is checked, like the condition of `if`
@@ -724,6 +1298,76 @@ pcrs() {
 	fi
 }
 
+# Marker helpers for TPM state that requires reset before reseal/generate paths.
+tpm_reset_required_marker_path() {
+	printf %s "/tmp/secret/tpm_reset_required"
+}
+
+tpm_reset_required_reason_path() {
+	printf %s "/tmp/secret/tpm_reset_required.reason"
+}
+
+tpm_reset_required_source_path() {
+	printf %s "/tmp/secret/tpm_reset_required.source"
+}
+
+tpm_reset_required_timestamp_path() {
+	printf %s "/tmp/secret/tpm_reset_required.timestamp"
+}
+
+debug_tpm_reset_required_state() {
+	TRACE_FUNC
+	local marker reason source when
+	marker="$(tpm_reset_required_marker_path)"
+	reason="$(tpm_reset_required_reason_path)"
+	source="$(tpm_reset_required_source_path)"
+	when="$(tpm_reset_required_timestamp_path)"
+
+	if [ -f "$marker" ]; then
+		DEBUG "TPM reset marker: PRESENT path=$marker"
+		DEBUG "TPM reset marker: reason=$(cat "$reason" 2>/dev/null || echo '<unset>')"
+		DEBUG "TPM reset marker: source=$(cat "$source" 2>/dev/null || echo '<unset>')"
+		DEBUG "TPM reset marker: timestamp=$(cat "$when" 2>/dev/null || echo '<unset>')"
+	else
+		DEBUG "TPM reset marker: ABSENT path=$marker"
+	fi
+}
+
+set_tpm_reset_required() {
+	TRACE_FUNC
+	local reason source
+	reason="${1:-TPM state marked invalid by unknown caller}"
+	source="${2:-unknown}"
+	mkdir -p /tmp/secret || true
+	echo "$reason" >"$(tpm_reset_required_reason_path)" 2>/dev/null || true
+	echo "$source" >"$(tpm_reset_required_source_path)" 2>/dev/null || true
+	date -u "+%Y-%m-%d %H:%M:%S UTC" >"$(tpm_reset_required_timestamp_path)" 2>/dev/null || true
+	: >"$(tpm_reset_required_marker_path)"
+	WARN "TPM reset required: $reason"
+}
+
+clear_tpm_reset_required() {
+	TRACE_FUNC
+	rm -f "$(tpm_reset_required_marker_path)"
+	rm -f "$(tpm_reset_required_reason_path)"
+	rm -f "$(tpm_reset_required_source_path)"
+	rm -f "$(tpm_reset_required_timestamp_path)"
+	STATUS_OK "TPM reset-required marker cleared"
+}
+
+tpm_reset_required() {
+	TRACE_FUNC
+	local marker
+	marker="$(tpm_reset_required_marker_path)"
+	if [ -f "$marker" ]; then
+		DEBUG "tpm_reset_required: yes"
+		debug_tpm_reset_required_state
+		return 0
+	fi
+	DEBUG "tpm_reset_required: no"
+	return 1
+}
+
 confirm_totp() {
 	TRACE_FUNC
 	prompt="$1"
@@ -765,6 +1409,24 @@ confirm_totp() {
 
 reseal_tpm_disk_decryption_key() {
 	TRACE_FUNC
+	local GPG_KEY_COUNT
+	if tpm_reset_required; then
+		WARN "Cannot reseal TPM disk decryption key while TPM state is marked invalid. Reset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		return 1
+	fi
+	# Resealing disk-unlock material eventually requires signing /boot updates;
+	# do not proceed if keyring is empty.
+	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
+	if [ "$GPG_KEY_COUNT" -eq 0 ]; then
+		DEBUG "Skipping TPM disk-key reseal: GPG keyring is empty (caller handles user guidance)"
+		return 1
+	fi
+
+	# only relevant for TPM2; TPM1 has no primary handle concept
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ ! -f "/tmp/secret/primary.handle" ]; then
+		WARN "Cannot reseal TPM disk decryption key; no TPM primary handle. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to reset the TPM first."
+		return 1
+	fi
 	#For robustness, exit early if LUKS TPM Disk Unlock Key is prohibited in board configs
 	if [ "$CONFIG_TPM_DISK_UNLOCK_KEY" == "n" ]; then
 		DEBUG "LUKS TPM Disk Unlock Key is prohibited in board configs"
@@ -779,22 +1441,23 @@ reseal_tpm_disk_decryption_key() {
 	fi
 
 	if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-		NOTE "LUKS TPM sealed Disk Unlock Key secret needs to be resealed alongside TOTP/HOTP secret"
-		echo "Resealing LUKS TPM Disk Unlock Key to be unsealed by LUKS TPM Disk Unlock Key passphrase"
-		while ! kexec-seal-key /boot; do
-			warn "Recovery Disk Encryption key passphrase/TPM Owner Password may be invalid. Please try again"
-		done
-		NOTE "LUKS header hash changed under /boot/kexec_luks_hdr_hash.txt"
-		echo "Updating checksums and signing all files under /boot/kexec.sig"
+		STATUS "Validating TPM rollback counter before resealing"
+		preflight_rollback_counter_before_reseal
+		STATUS_OK "TPM rollback counter validated"
+		STATUS "Resealing TPM Disk Unlock Key alongside TOTP/HOTP secret"
+		if ! kexec-seal-key /boot; then
+			DIE "Failed to reseal TPM Disk Unlock Key"
+		fi
 		attempt=1
 		while ! update_checksums; do
-			warn "Attempt $attempt: Checksums were not signed. Preceding errors should explain possible causes"
+			WARN "Signing attempt $attempt/3 failed"
 			if [ "$attempt" -ge 3 ]; then
-				die "Failed to sign checksums after 3 attempts"
+				DIE "Failed to sign boot hashes under /boot after 3 attempts"
 			fi
 			attempt=$((attempt + 1))
 		done
-		NOTE "Rebooting in 3 seconds to enable booting default boot option"
+		STATUS_OK "TPM Disk Unlock Key resealed and boot hashes signed"
+		STATUS "Rebooting to enable default boot option"
 		sleep 3
 		reboot
 	else
@@ -809,9 +1472,9 @@ enable_usb_storage() {
 	TRACE_FUNC
 	if ! lsmod | grep -q usb_storage; then
 		timeout=0
-		echo "Scanning for USB storage devices..."
+		STATUS "Scanning for USB storage devices"
 		insmod /lib/modules/usb-storage.ko >/dev/null 2>&1 ||
-			die "usb_storage: module load failed"
+			DIE "usb_storage: module load failed"
 		while [[ $(list_usb_storage | wc -l) -eq 0 ]]; do
 			[[ $timeout -ge 8 ]] && break
 			sleep 1
@@ -931,52 +1594,48 @@ list_usb_storage() {
 		done
 }
 
-# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
-# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed.
-# Tools should optionally accept a TPM password on the command line, since some flows need
+# Prompt for a TPM owner passphrase if it is not already cached in /tmp/secret/tpm_owner_passphrase.
+# Sets tpm_owner_passphrase variable reused in flow, and cache file used until recovery shell is accessed.
+# Tools should optionally accept a TPM passphrase on the command line, since some flows need
 # it multiple times and only one prompt is ideal.
-prompt_tpm_owner_password() {
+prompt_tpm_owner_passphrase() {
 	TRACE_FUNC
 
-	if [ -s /tmp/secret/tpm_owner_password ]; then
-		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
-		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
+	if [ -s /tmp/secret/tpm_owner_passphrase ]; then
+		DEBUG "/tmp/secret/tpm_owner_passphrase already cached in file. Reusing"
+		tpm_owner_passphrase=$(cat /tmp/secret/tpm_owner_passphrase)
 		return 0
 	fi
 
-	read -r -s -p $'\nTPM Owner Password: ' tpm_owner_password
-	echo
+	INPUT "TPM Owner Passphrase:" -r -s tpm_owner_passphrase
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
-	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_passphrase"
+	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_passphrase || DIE "Unable to cache TPM owner passphrase under /tmp/secret/tpm_owner_passphrase"
 }
 
-# Prompt for a new TPM Owner Password when resetting the TPM.
-# Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
-# The password must be 1-32 characters and must be entered twice,
+# Prompt for a new TPM Owner Passphrase when resetting the TPM.
+# Returned in tpm_owner_passphrase and cached under /tmp/secret/tpm_owner_passphrase
+# The passphrase must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
-prompt_new_owner_password() {
+prompt_new_owner_passphrase() {
 	TRACE_FUNC
-	local tpm_owner_password2
-	tpm_owner_password=1
-	tpm_owner_password2=2
-	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
-		read -r -s -p $'\nNew TPM Owner Password (2 words suggested, 1-32 characters max): ' tpm_owner_password
-		read -r -s -p $'\nRepeat chosen TPM Owner Password: ' tpm_owner_password2
-
-		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
-			echo
-			echo "Passphrases entered do not match. Try again!"
+	local tpm_owner_passphrase2
+	tpm_owner_passphrase=1
+	tpm_owner_passphrase2=2
+	while [ "$tpm_owner_passphrase" != "$tpm_owner_passphrase2" ] || [ "${#tpm_owner_passphrase}" -gt 32 ] || [ -z "$tpm_owner_passphrase" ]; do
+		INPUT "New TPM Owner Passphrase (Diceware 2+ words, 1-32 characters max):" -r -s tpm_owner_passphrase
+		INPUT "Repeat chosen TPM Owner Passphrase:" -r -s tpm_owner_passphrase2
+		if [ "$tpm_owner_passphrase" != "$tpm_owner_passphrase2" ]; then
+			WARN "Passphrases entered do not match. Try again!"
 		fi
-		echo
 	done
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
-	mkdir -p /tmp/secret || die "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || die "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_passphrase"
+	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_passphrase || DIE "Unable to cache TPM owner passphrase under /tmp/secret/tpm_owner_passphrase"
 }
 
 check_tpm_counter() {
@@ -984,7 +1643,7 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
-	tpm_password="$3"
+	tpm_passphrase="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -992,23 +1651,152 @@ check_tpm_counter() {
 		TPM_COUNTER=$(grep -Eo 'counter-[0-9a-fA-F]+' "$1" | sed -n 's/counter-//p' | head -n1 | tr -d '\n')
 		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
 	else
-		INFO "$1 does not exist; creating new TPM counter"
-		# Warn user: TPM Owner Password is required to create a new TPM counter
-		if [ ! -s /tmp/secret/tpm_owner_password ]; then
-			warn "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+		DEBUG "$1 does not exist - creating new TPM counter"
+		# Warn user: TPM owner passphrase is required to create a new TPM counter
+		if [ ! -s /tmp/secret/tpm_owner_passphrase ]; then
+			WARN "TPM Owner Passphrase is required to create a new TPM counter for /boot content rollback prevention"
 		fi
 
+		# attempt to make a new counter, capturing any stderr for debugging
+		DEBUG "Invoking tpmr counter_create with label $LABEL"
+		# run it, then record the exit status explicitly; the '!' operator
+		# cannot be used because it would hide the real return code.
 		tpmr counter_create \
-			-pwdc '' \
-			-la $LABEL |
-			tee /tmp/counter >/dev/null 2>&1 ||
-			die "Unable to create TPM counter"
+			-pwdc "${tpm_passphrase:-}" \
+			-la $LABEL \
+			> /tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
+		local rc=$?
+		if [ $rc -ne 0 ]; then
+			DEBUG "tpmr counter_create failed with status $rc"
+			# don't tell the user to reset again; the TPM was just reset
+			DIE "Unable to create TPM counter; TPM appears to be in a bad state. Perform OEM Factory Reset / re-ownership and try again."
+		fi
 		TPM_COUNTER=$(cut -d: -f1 </tmp/counter | tr -d '\n')
-		DEBUG "Created new TPM_COUNTER: '$TPM_COUNTER'"
+		DEBUG "Created new TPM counter: $TPM_COUNTER"
 	fi
 
 	if [ -z "$TPM_COUNTER" ]; then
-		die "No TPM counter could be found or created."
+		DIE "No TPM counter could be found or created."
+	fi
+}
+
+# Return the numeric value of the rollback counter stored in the given file
+# (typically /boot/kexec_rollback.txt).  Returns an empty string if the file
+# doesn't exist or doesn't contain a counter entry.
+get_rollback_counter_id() {
+	TRACE_FUNC
+	local rollback_file="$1"
+	if [ -r "$rollback_file" ]; then
+		grep -Eo 'counter-[0-9a-fA-F]+' "$rollback_file" | sed -n 's/counter-//p' | head -n1 | tr -d '\n'
+	fi
+}
+
+# Return success when /boot appears to have prior Heads trust metadata.
+# This distinguishes first ownership/fresh install from an initialized system
+# where missing TPM metadata is suspicious.
+has_prior_boot_trust_metadata() {
+	local rollback_file
+	rollback_file="${1:-/boot/kexec_rollback.txt}"
+	[ -r "$rollback_file" ] || [ -r /boot/kexec_default_hashes.txt ] || [ -r /boot/kexec.sig ]
+}
+
+# Test whether the current TPM rollback counter (the one referenced by
+# /boot/kexec_rollback.txt) can still be read.  Exit 0 if the counter can be
+# read, non-zero otherwise.  This can be used to decide whether the TPM needs a
+# full reset instead of merely resealing secrets.
+counter_readable() {
+	TRACE_FUNC
+	# rely on colon-free output in case caller wraps in DO_WITH_DEBUG
+	local id
+	id=$(get_rollback_counter_id /boot/kexec_rollback.txt)
+	if [ -n "$id" ]; then
+		if tpmr counter_read -ix "$id" >/dev/null 2>&1; then
+			return 0
+		fi
+	fi
+	return 1
+}
+
+# Validate rollback counter state before expensive operations.
+# This is a non-mutating preflight intended to fail early when the configured
+# rollback counter is clearly unusable.
+# Parameters:
+#   $1 optional rollback file path (default: /boot/kexec_rollback.txt)
+#   $2 optional explicit counter id override
+#   $3 optional on-error mode: 'DIE' (default) or 'return'
+preflight_rollback_counter_before_reseal() {
+	TRACE_FUNC
+	local rollback_file counter_id attrs_lc on_error error_file
+	rollback_file="${1:-/boot/kexec_rollback.txt}"
+	counter_id="$2"
+	on_error="${3:-DIE}"
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
+	error_file="/tmp/rollback_preflight_error"
+
+	fail_preflight() {
+		local message="$1"
+		mkdir -p /tmp/secret || true
+		: >"$reset_required_marker"
+		set_tpm_reset_required "$message" "preflight_rollback_counter_before_reseal"
+		if [ "$on_error" = "return" ]; then
+			echo "$message" >"$error_file"
+			return 1
+		fi
+		DIE "$message"
+	}
+
+	if [ "$CONFIG_TPM" != "y" ] || [ "$CONFIG_IGNORE_ROLLBACK" = "y" ]; then
+		DEBUG "Skipping rollback counter preflight: rollback checks are disabled"
+		return 0
+	fi
+
+	if [ -z "$counter_id" ]; then
+		counter_id="$(get_rollback_counter_id "$rollback_file")"
+	fi
+	if [ -z "$counter_id" ]; then
+		# If rollback metadata is missing on an already initialized system,
+		# this is an inconsistent TPM/boot state and should be handled before
+		# TOTP/HOTP recovery workflows.
+		if has_prior_boot_trust_metadata "$rollback_file"; then
+			fail_preflight "TPM rollback metadata is missing or unreadable in '$rollback_file'. System appears initialized but rollback state cannot be validated. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+			return 1
+		fi
+		DEBUG "Skipping rollback counter preflight: no counter id in $rollback_file (likely first-time initialization)"
+		return 0
+	fi
+
+	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
+	if ! tpmr counter_read -ix "$counter_id" >/dev/null 2>&1; then
+		fail_preflight "TPM rollback counter '$counter_id' cannot be read. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		return 1
+	fi
+
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		if attrs_lc="$(tpm2 nvreadpublic "0x$counter_id" 2>/dev/null | tr '[:upper:]' '[:lower:]')"; then
+			if [ -n "$attrs_lc" ]; then
+				if echo "$attrs_lc" | grep -q "ownerwrite" && ! echo "$attrs_lc" | grep -q "authwrite"; then
+					fail_preflight "TPM rollback counter '$counter_id' uses ownerwrite-only policy, which does not match $CONFIG_BRAND_NAME rollback increment path. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+					return 1
+				fi
+				if ! echo "$attrs_lc" | grep -Eq "authwrite|ownerwrite"; then
+					fail_preflight "TPM rollback counter '$counter_id' has no writable attribute. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+					return 1
+				fi
+			else
+				fail_preflight "TPM rollback counter '$counter_id' attributes are empty. TPM state is inconsistent. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+				return 1
+			fi
+		else
+			fail_preflight "TPM rollback counter '$counter_id' attributes cannot be read. TPM state is inconsistent. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+			return 1
+		fi
+	fi
+
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		DEBUG "Preflight: rollback counter $counter_id is readable and has acceptable TPM2 write attributes"
+	else
+		DEBUG "Preflight: rollback counter $counter_id is readable on TPM1"
+		DEBUG "Preflight: post OEM Factory Reset / Re-Ownership, TOTP unseal may be unavailable until a new TOTP/HOTP secret is generated"
 	fi
 }
 
@@ -1019,38 +1807,109 @@ read_tpm_counter() {
 	counter_id="$(echo "$1" | tr -d '\n')"
 	if [ ! -e /tmp/counter-"$counter_id" ]; then
 		DEBUG "Counter file /tmp/counter-$counter_id not found. Attempting to read from TPM."
-		DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" | tee /tmp/counter-"$counter_id" >/dev/null 2>&1 ||
-			die "Counter read failed for index $counter_id"
+		tpmr counter_read -ix "$counter_id" >/tmp/counter-"$counter_id" ||
+			DIE "Counter read failed for index $counter_id"
 	fi
 	DEBUG "Counter file /tmp/counter-$counter_id read successfully."
 }
 
 increment_tpm_counter() {
 	TRACE_FUNC
-	local counter_id
+	local counter_id counter_present tpm_passphrase increment_ok
 	counter_id="$(echo "$1" | tr -d '\n')"
+	tpm_passphrase="$2"
+	counter_present="n"
+	increment_ok="n"
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
+
+	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
+	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
+		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
+		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
+	fi
+
+	# TPM1 counter_increment requires owner auth in practice on this path.
+	# origin/master typically reached this with cached owner passphrase already set,
+	# but the newer reseal/update flows can call this later in the session after
+	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
+	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_passphrase" ]; then
+		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
+		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner passphrase; prompting now"
+		prompt_tpm_owner_passphrase
+		tpm_passphrase="$tpm_owner_passphrase"
+		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
+	fi
 	
 	# Check if counter exists by reading it first
+	DEBUG "reading TPM counter $counter_id"
 	if ! DO_WITH_DEBUG tpmr counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
 		DEBUG "TPM counter $counter_id could not be read before incrementing"
 		# Continue with increment attempt anyway to get detailed error messages
 	else
 		DEBUG "TPM counter $counter_id exists and was read successfully"
+		counter_present="y"
 	fi
 
-	# Try to increment the counter
-	if ! DO_WITH_DEBUG tpmr counter_increment -ix "$counter_id" -pwdc '' |
-		tee /tmp/counter-"$counter_id" >/dev/null 2>&1; then
+	# Try to increment the counter.  We normally hide the verbose
+	# output of tpmr commands to avoid overwhelming the console, but we
+	# must *not* swallow any interactive prompts.  The previous implementation
+	# redirected the entire `tpmr counter_create` invocation to a file and
+	# /dev/null, which meant that when the counter was missing the passphrase
+	# prompt could not be seen by the user even though tpmr printed it to the
+	# controlling terminal.  Instead, capture just the stdout in a temporary
+	# file while still letting stdout appear on the console (and logging
+	# stderr to debug log).
+	DEBUG "incrementing TPM counter $counter_id"
+
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		# TPM2 counters created with authwrite commonly require index auth (often
+		# empty auth) for nvincrement. Try that first, then owner auth fallback.
+		DEBUG "increment_tpm_counter: TPM2 trying index-auth nvincrement first"
+		if (set -o pipefail; DO_WITH_DEBUG --mask-position 5 \
+			tpmr counter_increment -ix "$counter_id" -pwdc "" \
+			2> >(SINK_LOG "tpm counter_increment stderr") \
+			| tee /tmp/counter-"$counter_id" >/dev/null); then
+			increment_ok="y"
+		elif [ -n "$tpm_passphrase" ]; then
+			DEBUG "increment_tpm_counter: TPM2 index-auth increment failed; trying owner-auth fallback"
+			if (set -o pipefail; DO_WITH_DEBUG --mask-position 5 \
+				tpmr counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
+				2> >(SINK_LOG "tpm counter_increment stderr") \
+				| tee /tmp/counter-"$counter_id" >/dev/null); then
+				increment_ok="y"
+			fi
+		fi
+	else
+		# TPM1 path uses owner auth in practice.
+		if (set -o pipefail; DO_WITH_DEBUG --mask-position 5 \
+			tpmr counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
+			2> >(SINK_LOG "tpm counter_increment stderr") \
+			| tee /tmp/counter-"$counter_id" >/dev/null); then
+			increment_ok="y"
+		fi
+	fi
+
+	if [ "$increment_ok" != "y" ]; then
+		if [ "$counter_present" = "y" ]; then
+			mkdir -p /tmp/secret || true
+			: >"$reset_required_marker"
+			DIE "TPM rollback counter '$counter_id' is readable but not incrementable. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		fi
 		
 		# Check if we need to create a new counter
 		DEBUG "TPM counter increment failed. Attempting to create a new counter..."
 		
-		if DO_WITH_DEBUG tpmr counter_create -pwdc '' -la 3135106223 >/tmp/new-counter 2>/dev/null; then
+		# run counter_create but tee its stdout to a file so we still see
+		# the interactive prompt and any informational messages.
+		if (set -o pipefail; DO_WITH_DEBUG --mask-position 3 \
+			tpmr counter_create -pwdc "${tpm_passphrase:-}" -la 3135106223 \
+			2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) \
+			| tee /tmp/new-counter >/dev/null); then
 			NEW_COUNTER=$(cut -d: -f1 </tmp/new-counter | tr -d '\n')
-			DEBUG "Created new TPM counter: $NEW_COUNTER. Update kexec_rollback.txt to use this counter."
+			DEBUG "Created new TPM counter: $NEW_COUNTER. (counter won't be usable without reset)"
 		fi
 		
-		die "TPM counter increment failed for rollback prevention. Please reset the TPM or update kexec_rollback.txt with a new counter."
+		DIE "TPM counter increment failed for rollback prevention. Reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to clear the counter and allow a fresh one to be created."
 	fi
 	
 	DEBUG "TPM counter incremented successfully for index $counter_id"
@@ -1059,35 +1918,53 @@ increment_tpm_counter() {
 # Check detached signature on kexec boot params
 check_config() {
 	TRACE_FUNC
+	local paramsdir="${1%%/}"
+
 	if [ ! -d /tmp/kexec ]; then
 		mkdir /tmp/kexec ||
-			die 'Failed to make kexec tmp dir'
+			DIE 'Failed to make kexec tmp dir'
 	else
 		rm -rf /tmp/kexec/* ||
-			die 'Failed to empty kexec tmp dir'
+			DIE 'Failed to empty kexec tmp dir'
 	fi
 
-	if [ ! -r $1/kexec.sig -a "$CONFIG_BASIC" != "y" ]; then
-		DEBUG "No $1/kexec.sig found"
+	DEBUG "check_config: checking $paramsdir (force=$2)"
+
+	if [ ! -r "$paramsdir/kexec.sig" -a "$CONFIG_BASIC" != "y" ]; then
+		DEBUG "check_config: no $paramsdir/kexec.sig found, skipping signature check"
 		return
 	fi
 
-	if [ $(find $1/kexec*.txt | wc -l) -eq 0 ]; then
-		DEBUG "No $1/kexec*.txt found"
+	# Collect kexec*.txt files present in paramsdir
+	local param_files=()
+	for f in "$paramsdir"/kexec*.txt; do
+		[ -e "$f" ] || continue
+		param_files+=( "$(basename "$f")" )
+	done
+	DEBUG "check_config: ${#param_files[@]} kexec*.txt file(s) in $paramsdir: ${param_files[*]}"
+
+	if [ ${#param_files[@]} -eq 0 ]; then
+		DEBUG "check_config: no kexec*.txt files found in $paramsdir, skipping"
 		return
 	fi
 
 	if [ "$2" != "force" ]; then
-		DEBUG "second param: $2 != force"
-		# Note that kexec.sig detached signature is solely verifying kexec*.txt files here!
-		if ! sha256sum $(find $1/kexec*.txt) | gpgv $1/kexec.sig -; then
-			die 'Invalid signature on kexec boot params'
+		# Verify using relative filenames (cd into paramsdir) so the sha256sum
+		# output matches exactly what was produced during signing, where the same
+		# relative names were used.  Absolute paths would differ between the
+		# signing staging dir and $paramsdir, causing a spurious mismatch.
+		STATUS "Verifying GPG signature on kexec boot params"
+		DEBUG "check_config: running (cd $paramsdir && sha256sum ${param_files[*]}) | gpgv $paramsdir/kexec.sig"
+		if ! (cd "$paramsdir" && sha256sum "${param_files[@]}") \
+			| gpgv "$paramsdir/kexec.sig" - 2> >(SINK_LOG "gpgv kexec.sig"); then
+			DIE 'Invalid signature on kexec boot params'
 		fi
 	fi
 
-	INFO "+++ Found verified kexec boot params"
-	cp $1/kexec*.txt /tmp/kexec ||
-		die "Failed to copy kexec boot params to tmp"
+	STATUS_OK "GPG signature on kexec boot params verified"
+	DEBUG "check_config: copying kexec*.txt from $paramsdir to /tmp/kexec"
+	cp "$paramsdir"/kexec*.txt /tmp/kexec ||
+		DIE "Failed to copy kexec boot params to tmp"
 }
 
 # Replace a file in a ROM (add it if the file does not exist)
@@ -1126,7 +2003,7 @@ replace_config() {
 secret_from_rom_hash() {
 	local ROM_IMAGE="/tmp/coreboot-notpm.rom"
 
-	echo -e "\nTPM not detected; measuring ROM directly\n" 1>&2
+	INFO "TPM not detected; measuring ROM directly"
 
 	# Read the ROM if we haven't read it yet
 	if [ ! -f "${ROM_IMAGE}" ]; then
@@ -1136,9 +2013,38 @@ secret_from_rom_hash() {
 	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
 }
 
+# Refresh /boot hash of the TPM2 primary handle when available.
+# This prevents a follow-up prompt to "set default boot" solely to rebuild
+# kexec_primhdl_hash.txt after TPM reset/reseal flows.
+refresh_tpm2_primary_handle_hash() {
+	TRACE_FUNC
+	local primhash_file="${1:-/boot/kexec_primhdl_hash.txt}"
+
+	if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
+		DEBUG "Skipping TPM2 primary handle hash refresh: CONFIG_TPM2_TOOLS != y"
+		return 0
+	fi
+
+	if [ ! -s /tmp/secret/primary.handle ]; then
+		DEBUG "Skipping TPM2 primary handle hash refresh: /tmp/secret/primary.handle not available"
+		return 0
+	fi
+
+	DEBUG "Refreshing TPM2 primary key handle hash into $primhash_file"
+	if ! DO_WITH_DEBUG sha256sum /tmp/secret/primary.handle >"$primhash_file"; then
+		WARN "Failed to refresh TPM2 primary key handle hash at $primhash_file"
+		return 1
+	fi
+
+	DEBUG "TPM2 primary key handle hash saved to $primhash_file"
+	return 0
+}
+
 # Update the checksums of the files in /boot and sign them
 update_checksums() {
 	TRACE_FUNC
+	local reset_required_marker="/tmp/secret/rollback_reset_required"
+	local signing_targets
 	# ensure /boot mounted
 	if ! grep -q /boot /proc/mounts; then
 		mount -o ro /boot ||
@@ -1156,7 +2062,30 @@ update_checksums() {
 			extparam=-r
 		fi
 	fi
-	if ! DO_WITH_DEBUG kexec-sign-config -p /boot -u $extparam; then
+
+	# Keep this best-effort and run it before signing while /boot is RW.
+	# Running after kexec-sign-config can fail because that path may remount
+	# /boot read-only before returning.
+	if ! refresh_tpm2_primary_handle_hash; then
+		WARN "Proceeding without refreshed TPM2 primary key handle hash"
+	fi
+
+	signing_targets="$(find /boot/kexec*.txt 2>/dev/null | tr '\n' ' ')"
+	DEBUG "update_checksums: signing targets under /boot: ${signing_targets:-<none>}"
+	DEBUG "update_checksums: rollback marker path is $reset_required_marker"
+	DEBUG "update_checksums: extparam='$extparam' CONFIG_TPM='${CONFIG_TPM:-}' CONFIG_IGNORE_ROLLBACK='${CONFIG_IGNORE_ROLLBACK:-}'"
+	DEBUG "update_checksums: signing is required because boot hashes under /boot changed (rollback counter and/or resealed secrets) and must be re-trusted"
+
+	STATUS "Signing $CONFIG_BRAND_NAME boot hashes under /boot"
+
+	# signing may prompt for TPM passphrase; avoid DO_WITH_DEBUG which
+	# severs the controlling tty for the child process.
+	DEBUG "running kexec-sign-config -p /boot -u $extparam"
+	rm -f "$reset_required_marker"
+	if ! kexec-sign-config -p /boot -u $extparam; then
+		if [ -e "$reset_required_marker" ]; then
+			DIE "TPM rollback counter state is invalid for secure rollback protection. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+		fi
 		rv=1
 	else
 		rv=0
@@ -1187,7 +2116,7 @@ escape_zero() {
 	local echar="${2:-#}"
 	local todo=""
 	local echar_hex="$(echo -n "$echar" | xxd -p -c1)"
-	[ ${#echar_hex} -eq 2 ] || die "Invalid escape character $echar passed to escape_zero(). Programming error?!"
+	[ ${#echar_hex} -eq 2 ] || DIE "Invalid escape character $echar passed to escape_zero(). Programming error?!"
 
 	echo -e -n "$prefix"
 	xxd -p -c1 | tr -d '\n' |
@@ -1244,7 +2173,7 @@ assert_signable() {
 
 	find /boot -print0 >/tmp/signable.ref
 	local del='\001-\037\134\177-\377'
-	LC_ALL=C tr -d "$del" </tmp/signable.ref >/tmp/signable.del || die "Failed to execute tr."
+	LC_ALL=C tr -d "$del" </tmp/signable.ref >/tmp/signable.del || DIE "Failed to execute tr."
 	if ! cmp -s "/tmp/signable.ref" "/tmp/signable.del" &>/dev/null; then
 		local user_out="/tmp/hash_output_mismatches"
 		local add="Please investigate!"
@@ -1309,9 +2238,9 @@ find_lvm_vg_name() {
 	mkdir -p /tmp/root-hashes-gui
 	# Try to query whether DEVICE is an LVM physical volume.  On systems
 	# without LVM the command may not exist; treat that like "not a PV".
-	if ! lvm pvs --noheadings -o vg_name "$DEVICE" >/tmp/root-hashes-gui/lvm_vg 2>/tmp/root-hashes-gui/lvm_err; then
-		# It's not an LVM PV, or lvm failed entirely.  Log stderr for debugging.
-		DEBUG "lvm pvs failed for $DEVICE, stderr:" "$(cat /tmp/root-hashes-gui/lvm_err)"
+	if ! run_lvm pvs --noheadings -o vg_name "$DEVICE" >/tmp/root-hashes-gui/lvm_vg; then
+		# It's not an LVM PV, or lvm failed entirely.
+		DEBUG "lvm pvs failed for $DEVICE"
 		# try any children shown by lsblk (handles LUKS containers with
 		# internal partitions such as dm-0, dm-1 etc).
 		if command -v lsblk >/dev/null 2>&1; then
@@ -1319,7 +2248,7 @@ find_lvm_vg_name() {
 			for part in $(lsblk -np -l -o NAME "$DEVICE" | tail -n +2); do
 				[ -b "$part" ] || continue
 				DEBUG "find_lvm_vg_name: testing child $part"
-				if lvm pvs --noheadings -o vg_name "$part" >/tmp/root-hashes-gui/lvm_vg 2>/tmp/root-hashes-gui/lvm_err; then
+				if run_lvm pvs --noheadings -o vg_name "$part" >/tmp/root-hashes-gui/lvm_vg; then
 					VG="$(awk 'NF {print $1; exit}' /tmp/root-hashes-gui/lvm_vg)"
 					[ -n "$VG" ] && { echo "$VG"; return 0; }
 				fi
@@ -1409,6 +2338,7 @@ mount_possible_boot_device() {
 	fi
 	if cryptsetup isLuks "$BOOT_DEV"; then
 		DEBUG "$BOOT_DEV is a LUKS volume, skipping"
+		LUKS_PARTITION_DETECTED="y"
 		return 1
 	fi
 	if find_lvm_vg_name "$BOOT_DEV" >/dev/null; then
@@ -1421,11 +2351,9 @@ mount_possible_boot_device() {
 
 	# Check if the partition is small (less than 2MB, which is 4096 sectors)
 	if [ "$sectors" -lt 4096 ]; then
-		TRACE_FUNC
 		DEBUG "Partition $BOOT_DEV is very small, likely BIOS boot. Skipping mount."
 		return 1
 	else
-		TRACE_FUNC
 		DEBUG "Try mounting $BOOT_DEV as /boot"
 		if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
 			if ls -d /boot/grub* >/dev/null 2>&1; then
@@ -1490,7 +2418,7 @@ detect_boot_device() {
 	done
 
 	# no valid boot device found
-	echo "Unable to locate /boot files on any mounted disk"
+	WARN "Unable to locate /boot files on any mounted disk"
 	DEBUG "detect_boot_device: failed to find a bootable device"
 	return 1
 }
@@ -1502,16 +2430,16 @@ scan_boot_options() {
 	config="$2"
 	option_file="$3"
 
-	if [ -r $option_file ]; then rm $option_file; fi
-	for i in $(find $bootdir -name "$config"); do
-		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >>$option_file
+	if [ -r "$option_file" ]; then rm "$option_file"; fi
+	for i in $(find "$bootdir" -name "$config"); do
+		DO_WITH_DEBUG kexec-parse-boot "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
-	if [ ! -s $option_file ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in $(find $bootdir -name "$config"); do
-			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >>$option_file
+	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
+		for i in $(find "$bootdir" -name "$config"); do
+			kexec-parse-bls "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
 		done
 	fi
 }
@@ -1622,12 +2550,12 @@ trap run_at_exit_handlers EXIT
 # Helper function to generate diceware passphrase
 generate_passphrase() {
 	usage_generate_passphrase() {
-		echo "Usage: generate_passphrase --dictionary|-d <dictionary_file> [--number_words|-n <num_words>] [--max_length|-m <max_size>] [--lowercase|-l]"
-		echo "Generates a passphrase using a Diceware dictionary."
-		echo "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionaries/eff_short_wordlist_2_0.txt )."
-		echo "  [--number_words|-n <num_words>]  Number of words in the passphrase (default: 3)."
-		echo "  [--max_length|-m <max_size>]  Maximum size of the passphrase (default: 256)."
-		echo "  [--lowercase|-l]  Use lowercase words (default: false)."
+		DEBUG "Usage: generate_passphrase --dictionary|-d <dictionary_file> [--number_words|-n <num_words>] [--max_length|-m <max_size>] [--lowercase|-l]"
+		DEBUG "Generates a passphrase using a Diceware dictionary."
+		DEBUG "  --dictionary|-d <dictionary_file>  Path to the Diceware dictionary file (defaults to /etc/diceware_dictionaries/eff_short_wordlist_2_0.txt )."
+		DEBUG "  [--number_words|-n <num_words>]  Number of words in the passphrase (default: 3)."
+		DEBUG "  [--max_length|-m <max_size>]  Maximum size of the passphrase (default: 256)."
+		DEBUG "  [--lowercase|-l]  Use lowercase words (default: false)."
 	}
 
 	# Helper subfunction to get a random word from the dictionary
@@ -1662,7 +2590,7 @@ generate_passphrase() {
 			;;
 		--number_words | -n)
 			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
-				warn "Invalid number of words: $2"
+				WARN "generate_passphrase: invalid number of words: $2"
 				usage_generate_passphrase
 				return 1
 			fi
@@ -1671,7 +2599,7 @@ generate_passphrase() {
 			;;
 		--max_length | -m)
 			if ! [[ "$2" =~ ^[0-9]+$ ]] || [[ "$2" -le 0 ]]; then
-				warn "Invalid maximum size: $2"
+				WARN "generate_passphrase: invalid maximum size: $2"
 				usage_generate_passphrase
 				return 1
 			fi
@@ -1679,7 +2607,7 @@ generate_passphrase() {
 			shift
 			;;
 		*)
-			warn "Unknown parameter: $1"
+			WARN "generate_passphrase: unknown parameter: $1"
 			usage_generate_passphrase
 			return 1
 			;;
@@ -1689,7 +2617,7 @@ generate_passphrase() {
 
 	# Validate dictionary file
 	if [[ -z "$dictionary_file" || ! -f "$dictionary_file" ]]; then
-		warn "Dictionary file not found or not provided: $dictionary_file"
+		WARN "generate_passphrase: dictionary file not found or not provided: $dictionary_file"
 		usage_generate_passphrase
 		return 1
 	fi
@@ -1749,7 +2677,7 @@ load_keymap() {
 			# this might mean keys map unexpectedly.  If this is
 			# desired, update or clear the keymap setting to silence
 			# the warning.
-			warn "Keymap $1 does not exist, continuing without keymap"
+			WARN "Keymap $1 does not exist, continuing without keymap"
 		fi
 	fi
 
@@ -1760,26 +2688,63 @@ load_keymap() {
 	fi
 }
 
+# fail_unseal - called by unseal-hotp and unseal-totp on failure.
+# If HEADS_NONFATAL_UNSEAL=y (set by callers that handle failure themselves,
+# e.g. gui-init's integrity report), log at DEBUG and return 1 so the caller
+# can decide what to do.  Otherwise DIE, which is appropriate when the unseal
+# script is run standalone and failure is unrecoverable.
+fail_unseal() {
+	TRACE_FUNC
+	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
+		DEBUG "nonfatal $(basename "$0") failure: $*"
+		return 1
+	fi
+	DIE "$*"
+}
+
 # Show an updating UTC timestamp and optional TOTP on a single refreshed line
 # until the user presses the Escape key. Returns 0 after ESC pressed.
 # Function name: show_totp_until_esc - clearly indicates this displays the
 # TOTP code and waits for the user to press Escape to continue.
 show_totp_until_esc() {
 	local now_str status_line current_totp ch
-	local last_totp_time=0 last_totp=""
-	printf "\n" # reserve a line for updates
+	# totp_ever_unsealed: set to 1 on first successful unseal; used to detect
+	# mid-session secret wipe (e.g. another console entered recovery shell).
+	local last_totp_time=0 last_totp="" totp_ever_unsealed=0
 
-	# Clear any pending keystrokes before we start displaying the TOTP.
-	# In particular, a stray Escape key from the previous passphrase
-	# prompt could be sitting in the input buffer and would cause the
-	# function to immediately return on the next iteration, confusing
-	# the user when they try to hit Esc again.  Drain stdin until it's
-	# empty.
-	while IFS= read -r -t 0 -n 1 junk; do :; done
+	# Use the same terminal the user is actively interacting with.
+	# HEADS_TTY is set by gui-init (after cttyhack) to the actual interactive
+	# terminal — both output (status line) and input (Esc / Enter detection)
+	# must use the same device.  Falls back to stdout/stdin (file descriptor
+	# 1/0) when HEADS_TTY is not set so that callers' redirections are
+	# respected (same behaviour as the original pre-HEADS_TTY code).
+	local interactive_tty="${HEADS_TTY}"
 
-	# Poll frequently (200ms) for responsiveness, but only refresh the
-	# displayed timestamp/TOTP when the displayed second changes. Cache
-	# the TOTP for a short interval to avoid repeated unseal calls.
+	# Serial consoles (ttyS*, ttyUSB*, ttyAMA*) do not reliably support raw-mode
+	# single-character reads: bash's "read -n 1" puts the tty into raw mode via
+	# tcsetattr, but some serial line disciplines block indefinitely despite the
+	# -t timeout.  On serial we accept Enter (line-mode read) instead of Esc.
+	local is_serial=0
+	case "$interactive_tty" in
+		/dev/ttyS*|/dev/ttyUSB*|/dev/ttyAMA*|/dev/ttyO*) is_serial=1 ;;
+	esac
+
+	if [ -n "$interactive_tty" ]; then
+		printf "\n" >"$interactive_tty" 2>/dev/null # reserve a line for updates
+	else
+		printf "\n" # reserve a line for updates
+	fi
+
+	# Drain any pending keystrokes (e.g. a stray Esc from the previous prompt).
+	# Skip on serial: "read -n 1 -t 0" also uses raw mode and would block.
+	if [ "$is_serial" = "0" ]; then
+		if [ -n "$interactive_tty" ]; then
+			while IFS= read -r -t 0 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
+		else
+			while IFS= read -r -t 0 -n 1 junk; do :; done
+		fi
+	fi
+
 	local last_sec=0
 	while :; do
 		now_str=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
@@ -1787,14 +2752,19 @@ show_totp_until_esc() {
 		now_epoch=$(date +%s)
 		local now_sec=$now_epoch
 
-		# Refresh TOTP at most once every 1 second
+		# Refresh TOTP once per second for fresh validation.
 		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
 			if [ $((now_epoch - last_totp_time)) -ge 1 ] || [ -z "$last_totp" ]; then
 				if current_totp=$(unseal-totp 2>/dev/null); then
 					last_totp="$current_totp"
 					last_totp_time=$now_epoch
+					totp_ever_unsealed=1
+				elif [ "$totp_ever_unsealed" = "1" ]; then
+					# Previously succeeded but now fails: TPM secrets were wiped
+					# mid-session (e.g. another console entered the recovery shell).
+					DIE "TOTP secret no longer accessible: TPM secrets were wiped. Boot integrity cannot be confirmed."
 				else
-					# If unseal fails, clear cached value so we retry later
+					# Never succeeded yet; clear and retry next second
 					last_totp=""
 					last_totp_time=0
 				fi
@@ -1804,8 +2774,6 @@ show_totp_until_esc() {
 		# Only update display when the second changes to avoid flicker
 		if [ "$now_sec" -ne "$last_sec" ]; then
 			last_sec=$now_sec
-			# Build an explicit TOTP field so it's clear when no code is
-			# available (initial state or unseal failure).
 			local totp_field=""
 			if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
 				if [ -n "$last_totp" ]; then
@@ -1814,19 +2782,51 @@ show_totp_until_esc() {
 					totp_field=" | TOTP unavailable"
 				fi
 			fi
-			status_line="[$now_str]${totp_field} | Press Esc to continue..."
-			printf "\r%s\033[K" "$status_line"
+			if [ "$is_serial" = "1" ]; then
+				status_line="\033[1m[$now_str]${totp_field} | Press Enter to continue...\033[0m"
+			else
+				status_line="\033[1m[$now_str]${totp_field} | Press Esc to continue...\033[0m"
+			fi
+			if [ -n "$interactive_tty" ]; then
+				printf "\r%b\033[K" "$status_line" >"$interactive_tty" 2>/dev/null
+			else
+				printf "\r%b\033[K" "$status_line"
+			fi
 		fi
 
-		# Short poll for keypress (200ms). If ESC pressed, exit and return 0.
-		if IFS= read -r -t 0.2 -n 1 ch; then
-			if [ "$ch" = $'\e' ]; then
-				# Print an extra blank line so the next prompt appears after
-				# an empty line (better UX before the passphrase prompt).
-				printf "\n\n"
-				return 0
+		if [ "$is_serial" = "1" ]; then
+			# Line-mode read: no raw mode required; times out after 1 s.
+			# Any input (Enter) continues.
+			if [ -n "$interactive_tty" ]; then
+				if IFS= read -r -t 1 ch <"$interactive_tty" 2>/dev/null; then
+					printf "\n\n" >"$interactive_tty" 2>/dev/null
+					return 0
+				fi
+			else
+				if IFS= read -r -t 1 ch; then
+					printf "\n\n"
+					return 0
+				fi
 			fi
-			# Ignore other keys and continue polling
+		else
+			# Framebuffer: raw single-char poll (200 ms).  ESC continues.
+			if [ -n "$interactive_tty" ]; then
+				if IFS= read -r -t 0.2 -n 1 ch <"$interactive_tty" 2>/dev/null; then
+					if [ "$ch" = $'\e' ]; then
+						printf "\n\n" >"$interactive_tty" 2>/dev/null
+						return 0
+					fi
+					# Ignore other keys and continue polling
+				fi
+			else
+				if IFS= read -r -t 0.2 -n 1 ch; then
+					if [ "$ch" = $'\e' ]; then
+						printf "\n\n"
+						return 0
+					fi
+					# Ignore other keys and continue polling
+				fi
+			fi
 		fi
 	done
 }

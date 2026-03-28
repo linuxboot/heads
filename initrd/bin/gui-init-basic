@@ -9,6 +9,9 @@ export BG_COLOR_MAIN_MENU="normal"
 . /etc/gui_functions
 . /tmp/config
 
+# Detect the terminal — see detect_heads_tty in /etc/functions.
+detect_heads_tty
+
 # skip_to_menu is set if the user selects "continue to the main menu" from any
 # error, so we will indeed go to the main menu even if other errors occur.  It's
 # reset when we reach the main menu so the user can retry from the main menu and
@@ -64,9 +67,8 @@ mount_boot()
 prompt_auto_default_boot()
 {
   TRACE_FUNC
-  echo -e "\n\n"
   if pause_automatic_boot; then
-    echo -e "\n\nAttempting default boot...\n\n"
+    STATUS "Attempting default boot"
     attempt_default_boot
   fi
 }

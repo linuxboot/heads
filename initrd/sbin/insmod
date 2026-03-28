@@ -16,11 +16,11 @@ fi
 
 
 if [ -z "$MODULE" ]; then
-	die "Usage: $0 module [args...]"
+	DIE "Usage: $0 module [args...]"
 fi
 
 if [ ! -r "$MODULE" ]; then
-	die "$MODULE: not found?"
+	DIE "$MODULE: not found?"
 fi
 
 # Check if module is already loaded 
@@ -45,15 +45,15 @@ if [ -z "$tpm_missing" ]; then
 	# different PCR measurement.
 	if [ -n "$*" ]; then
 		TRACE_FUNC
-		INFO "Extending with module parameters and the module's content"
+		LOG "Extending with module parameters and the module's content"
 		tpmr extend -ix "$MODULE_PCR" -ic "$*"
 		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
-		|| die "$MODULE: tpm extend failed"
+		|| DIE "$MODULE: tpm extend failed"
 	else
 		TRACE_FUNC
-		INFO "No module parameters, extending only with the module's content"
+		LOG "No module parameters, extending only with the module's content"
 		tpmr extend -ix "$MODULE_PCR" -if "$MODULE" \
-		|| die "$MODULE: tpm extend failed"
+		|| DIE "$MODULE: tpm extend failed"
 	fi
 fi
 
@@ -61,4 +61,4 @@ fi
 # the busybox insmod via the original executable
 DEBUG "Loading $MODULE with busybox insmod"
 busybox insmod "$MODULE" "$@" \
-	|| die "$MODULE: insmod failed"
+	|| DIE "$MODULE: insmod failed"

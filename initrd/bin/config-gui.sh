@@ -245,15 +245,10 @@ while true; do
 	"D")
 		CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DIRLIST)"
 
-		# Separate from prior prompt history on the terminal with two blanks
-		echo -e "\n"
-
 		if [ -n "$CURRENT_OPTION" ]; then
-			echo -e "The current list of directories to hash is $CURRENT_OPTION"
+			INFO "The current list of directories to hash is $CURRENT_OPTION"
 		fi
-		echo -e "Enter the new list of directories separated by spaces:"
-		echo -e "(Press enter with the list empty to cancel)"
-		read -r NEW_CONFIG_ROOT_DIRLIST
+		INPUT "Enter the new list of directories separated by spaces (empty to cancel):" -r NEW_CONFIG_ROOT_DIRLIST
 
 		# strip any leading forward slashes
 		NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
@@ -611,14 +606,9 @@ while true; do
 				elif [[ "$choice" == *.map ]]; then
 					SELECTED_KEYMAP="$BROWSE_DIR/$choice"
 					load_keymap "$SELECTED_KEYMAP"
-					echo
-					echo "------------------------------------------------------------"
-					echo "Keymap loaded: $SELECTED_KEYMAP"
-					echo
-					echo "You can now test your keyboard layout in this shell."
-					echo "Press Enter when done testing to continue..."
-					echo "------------------------------------------------------------"
-					read -p $'\nTest your keymap now. Press Enter to continue:\n' dummy
+					STATUS_OK "Keymap loaded: $SELECTED_KEYMAP"
+					INFO "You can now test your keyboard layout in this shell."
+					INPUT "Test your keymap now. Press Enter to continue:" dummy
 					if whiptail --title "Keep this keymap?" \
 						--yesno "Do you want to use this keymap?\n\n$SELECTED_KEYMAP" 0 70; then
 						set_user_config "CONFIG_KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"

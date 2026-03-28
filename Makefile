@@ -8,6 +8,20 @@ GIT_STATUS	:= $(shell \
 		echo dirty ; \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
+GIT_TIMESTAMP		:= $(shell git log -1 --format=%cd --date=format:'%Y%m%d-%H%M%S')
+GIT_BRANCH		:= $(shell git rev-parse --abbrev-ref HEAD | cut -c1-30)
+# Release builds: HEAD is exactly on a tag AND working tree is clean.
+# Dev builds: any untagged commit, commits ahead of a tag, or dirty tree.
+# Dev filenames include timestamp + branch for traceability without
+# polluting release filenames.
+GIT_IS_RELEASE		:= $(shell git describe --exact-match --tags HEAD >/dev/null 2>&1 \
+				&& git diff --exit-code >/dev/null 2>&1 \
+				&& echo y || echo n)
+ifeq ($(GIT_IS_RELEASE),y)
+GIT_VERSION_SUFFIX	:= $(HEADS_GIT_VERSION)
+else
+GIT_VERSION_SUFFIX	:= $(GIT_TIMESTAMP)-$(GIT_BRANCH)-$(HEADS_GIT_VERSION)
+endif
 
 # Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
 BRAND_NAME	?= Heads
@@ -108,12 +122,12 @@ include $(CONFIG)
 # https://doc.coreboot.org/tutorial/managing_local_additions.html
 -include $(pwd)/site-local/config
 
-CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(GIT_VERSION_SUFFIX)
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
 CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
 CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
 CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
-LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(GIT_VERSION_SUFFIX).rom
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y

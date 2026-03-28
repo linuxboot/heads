@@ -2,12 +2,19 @@
 set -e -o pipefail
 . /etc/functions
 
-# CBFS extraction and measurement
-#  This extraction and measurement cannot be suppressed by quiet mode, since 
-#   config.user is not yet loaded at this point.
-#  To suppress this output, set CONFIG_QUIET_MODE=y needs be be set in /etc/config
-#   which is defined at build time under board configuration file to be part of initrd.cpio
-#  This script is called from initrd/init so really early in the boot process to put files in place in initramfs
+# Board key and configuration injection from CBFS
+#  At build time, board-specific trusted keys, certificates, and configuration
+#  are injected into the firmware CBFS (heads/initrd/ namespace).  cbfs-init
+#  extracts these into the running initramfs and measures each file into the
+#  TPM to establish the board's trust chain before anything else runs.
+#
+#  cbfs-init runs before config.user is extracted and merged into /tmp/config,
+#  so logging here is governed by the board build-time /etc/config only.
+#  STATUS and STATUS_OK are always visible regardless of CONFIG_QUIET_MODE and
+#  are used for the summary bracket so the user always sees progress.
+#  Per-file detail is at DEBUG level (developer-facing).
+#  INFO calls (TPM PCR measurements) are suppressed in quiet mode - that is
+#  intentional, since quiet boards have CONFIG_QUIET_MODE=y in /etc/config.
 
 TRACE_FUNC
 
@@ -18,31 +25,36 @@ fi
 
 if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
 	# Use flashrom directly, because we don't have /tmp/config with params for flash.sh yet
-	/bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom \
-		&& CBFS_ARG=" -o /tmp/cbfs-init.rom" \
-		|| echo "Failed reading Heads configuration from flash! Some features may not be available."
+	STATUS "Reading board keys and configuration from SPI flash"
+	if /bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom; then
+		CBFS_ARG=" -o /tmp/cbfs-init.rom"
+	else
+		WARN "Failed to read board keys and configuration from SPI flash - some features may not be available"
+	fi
 fi
 
 # Load individual files
 cbfsfiles=`cbfs -t 50 -l $CBFS_ARG 2>/dev/null | grep "^heads/initrd/"`
 
+STATUS "Extracting GPG keyring, trustdb, and board configuration from firmware"
 for cbfsname in `echo $cbfsfiles`; do
 	filename=${cbfsname:12}
 	if [ ! -z "$filename" ]; then
 		mkdir -p `dirname $filename` \
-		|| die "$filename: mkdir failed"
-		INFO "Extracting CBFS file $cbfsname into $filename"
+		|| DIE "$filename: mkdir failed"
+		DEBUG "Extracting $cbfsname from firmware CBFS"
 		cbfs -t 50 $CBFS_ARG -r $cbfsname > "$filename" \
-		|| die "$filename: cbfs file read failed"
+		|| DIE "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TRACE_FUNC
-			INFO "TPM: Extending PCR[$CONFIG_PCR] with filename $filename and then its content"
+			INFO "Measuring $filename into TPM PCR[$CONFIG_PCR]"
 			# Measure both the filename and its content.  This
 			# ensures that renaming files or pivoting file content
 			# will still affect the resulting PCR measurement.
 			tpmr extend -ix "$CONFIG_PCR" -ic "$filename"
 			tpmr extend -ix "$CONFIG_PCR" -if "$filename" \
-			|| die "$filename: tpm extend failed"
+			|| DIE "$filename: tpm extend failed"
 		fi
 	fi
 done
+STATUS_OK "Board keys and configuration loaded from firmware"
