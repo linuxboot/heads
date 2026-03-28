@@ -168,26 +168,52 @@ fi
 DEBUG "Checking if $USB_MOUNT_DEVICE is a LUKS device/partition"
 if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
   DEBUG "Selected USB partition is a LUKS device"
-  #Selected USB partition is a LUKS device
-  if [ -e /dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")" ]; then
+  # Selected USB partition is a LUKS device
+  mapped_name="usb_mount_$(basename "$USB_MOUNT_DEVICE")"
+  if [ -e "/dev/mapper/${mapped_name}" ]; then
     DEBUG "Closing currently mapped LUKS device"
-    cryptsetup close "usb_mount_$(basename "$USB_MOUNT_DEVICE")"
+    cryptsetup close "${mapped_name}" || true
   fi
   DEBUG "Opening LUKS device $USB_MOUNT_DEVICE"
-  #Pass LUKS passphrase to cryptsetup only if we received one
+  # Pass LUKS passphrase to cryptsetup: if PASS provided use key-file, otherwise prompt on console
   if [ -z "$PASS" ]; then
-    #We haven't received a passphrase
-    cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" \
-    || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+    # Interactive console prompt (no whiptail passwordbox to avoid fbwhiptail issues)
+    MAX_TRIES=3
+    attempt=1
+    while [ $attempt -le $MAX_TRIES ]; do
+      echo -n "Enter passphrase for ${USB_MOUNT_DEVICE}: "
+      read -r -s PASS
+      echo
+      DEBUG "LUKS: PASS ${PASS:+non-empty} — prompting on console for ${USB_MOUNT_DEVICE} (attempt ${attempt}/${MAX_TRIES})"
+      DEBUG "LUKS: received passphrase (length=${#PASS})"
+      DEBUG "LUKS: opening mapping ${mapped_name} (attempt ${attempt})"
+      if cryptsetup open "$USB_MOUNT_DEVICE" "${mapped_name}" --key-file <(printf '%s' "$PASS") 2>/tmp/cryptsetup-open.log; then
+        DEBUG "LUKS: opening mapping ${mapped_name} succeeded"
+        break
+      else
+        DEBUG "LUKS: opening mapping ${mapped_name} failed (attempt ${attempt})"
+        # clear PASS to avoid accidental reuse
+        PASS=""
+        attempt=$((attempt + 1))
+        if [ $attempt -le $MAX_TRIES ]; then
+          echo "Passphrase incorrect — try again."
+        fi
+      fi
+    done
+    if [ $attempt -gt $MAX_TRIES ]; then
+      die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device after ${MAX_TRIES} attempts"
+    fi
   else
-    #We received a pasphrase
-    cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file <(echo -n "${PASS}") \
-    || die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+    # Non-interactive: use provided PASS via a safe key-file
+    DEBUG "LUKS: using provided passphrase via key-file"
+    if ! cryptsetup open "$USB_MOUNT_DEVICE" "${mapped_name}" --key-file <(printf '%s' "$PASS"); then
+      die "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+    fi
   fi
 
   warn "Note that you cannot boot from a mounted encrypted device"
-  DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
-  USB_MOUNT_DEVICE="/dev/mapper/"usb_mount_$(basename "$USB_MOUNT_DEVICE")""
+  DEBUG "Setting USB_MOUNT_DEVICE=/dev/mapper/${mapped_name}"
+  USB_MOUNT_DEVICE="/dev/mapper/${mapped_name}"
 else
   # Selected USB partition is not a LUKS device
   DEBUG "Selected USB partition is not a LUKS device, continuing..."
