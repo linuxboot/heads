@@ -1654,7 +1654,7 @@ check_tpm_counter() {
 		DEBUG "$1 does not exist - creating new TPM counter"
 		# Warn user: TPM Owner Password is required to create a new TPM counter
 		if [ ! -s /tmp/secret/tpm_owner_password ]; then
-			WARN "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+			WARN "TPM Owner Passphrase is required to create a new TPM counter for /boot content rollback prevention"
 		fi
 
 		# attempt to make a new counter, capturing any stderr for debugging
@@ -1833,7 +1833,7 @@ increment_tpm_counter() {
 	# but the newer reseal/update flows can call this later in the session after
 	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
 	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_password" ]; then
-		WARN "TPM Owner Password is required to update rollback counter before signing updated boot hashes."
+		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
 		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner password; prompting now"
 		prompt_tpm_owner_password
 		tpm_password="$tpm_owner_password"

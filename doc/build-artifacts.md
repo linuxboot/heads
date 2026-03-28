@@ -114,7 +114,7 @@ applies equally; no fork-specific changes are needed.
 |----------|-------|-------|
 | `HEADS_GIT_VERSION` | `git describe --abbrev=7 --tags --dirty` | Always set |
 | `GIT_TIMESTAMP` | `YYYYMMDD-HHMMSS` of last commit | Always set |
-| `GIT_BRANCH` | current branch name | Always set |
+| `GIT_BRANCH` | current branch name, truncated to 30 chars | Always set |
 | `GIT_IS_RELEASE` | `y` or `n` | `y` only on clean exact tag |
 | `GIT_VERSION_SUFFIX` | tag (release) or timestamp-branch-describe (dev) | Used in all output filenames |
 | `CB_OUTPUT_BASENAME` | `<brand>-<board>-<GIT_VERSION_SUFFIX>` | Base for all coreboot outputs |

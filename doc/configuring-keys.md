@@ -8,8 +8,10 @@ new Heads-equipped device.  It configures all security components in one pass.
 **Use a safe environment.**  Passphrases are echoed to the screen during setup.
 
 **Prepare Diceware passphrases in advance.**  Heads displays a QR code linking
-to the EFF Diceware wordlist when you enter the questionnaire.  Using physical
-dice against a wordlist produces passphrases that are both strong and memorable.
+to `osresearch.net/Configuring-Keys` when you enter the questionnaire — that
+page lists recommended word counts per secret and links to EFF Diceware.
+Using physical dice against a wordlist produces passphrases that are both
+strong and memorable.
 See [Keys](keys.md) for recommended lengths per secret.
 
 **You need:**
@@ -34,8 +36,8 @@ continue.
 PINs and passphrases (12345678 / 123456) which are publicly known.  Custom
 configuration only happens once per ownership; take the time to do it properly.
 
-When you answer N, Heads displays a **QR code for the EFF Diceware wordlist**
-— scan it with a phone to access the wordlist while entering passphrases.
+When you answer N, Heads displays a **QR code for osresearch.net/Configuring-Keys**
+— scan it with a phone for per-secret word-count guidance and EFF Diceware links.
 
 ## Questionnaire
 
