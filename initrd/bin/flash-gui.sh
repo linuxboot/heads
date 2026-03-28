@@ -71,7 +71,7 @@ while true; do
         if ! find /media ! -path '*/\.*' -type f "${FIND_ROM_EXTS[@]}" | sort -r >/tmp/filelist.txt; then
           whiptail --title 'Unable to read USB drive' \
             --msgbox "The USB drive is not readable.  Check the drive, reformat, or try a
-                    \ndifferent drive." 16 60
+                    \ndifferent drive." 0 80
           exit 1
         fi
         file_selector "/tmp/filelist.txt" "Choose the ROM to flash"
@@ -104,19 +104,19 @@ while true; do
           # check file integrity
           if ! (cd "$PKG_EXTRACT" && sha256sum -cs sha256sum.txt); then
             whiptail --title 'ROM Integrity Check Failed! ' \
-              --msgbox "Integrity check failed in\n$PKG_FILE_DISPLAY.\nDid not flash.\n\nPlease check your file (e.g. re-download).\n" 16 60
+              --msgbox "Integrity check failed in\n$PKG_FILE_DISPLAY.\nDid not flash.\n\nPlease check your file (e.g. re-download).\n" 0 0
             exit 1
           fi
 
           # The package must contain exactly one *.rom file, flash that.
           if ! PACKAGE_ROM="$(single_glob "$PKG_EXTRACT/"*."$UPDATE_PLAIN_EXT")"; then
             whiptail --title 'BIOS Image Not Found! ' \
-              --msgbox "A BIOS image was not found in\n$PKG_FILE_DISPLAY.\n\nPlease check your file (e.g. re-download).\n" 16 60
+              --msgbox "A BIOS image was not found in\n$PKG_FILE_DISPLAY.\n\nPlease check your file (e.g. re-download).\n" 0 0
             exit 1
           fi
 
           if ! whiptail_warning --title 'Flash ROM?' \
-            --yesno "This will replace your current ROM with:\n\n$PKG_FILE_DISPLAY\n\nDo you want to proceed?" 0 80; then
+            --yesno "This will replace your current ROM with:\n\n$PKG_FILE_DISPLAY\n\nDo you want to proceed?" 0 0; then
             exit 1
           fi
 
@@ -131,13 +131,13 @@ while true; do
             # while flashing.
             if ! cp "$PKG_FILE" "$PKG_EXTRACT/"; then
               whiptail --title 'Failed to read ROM' \
-                --msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\nPlease check your file (e.g. re-download).\n" 16 60
+                --msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\nPlease check your file (e.g. re-download).\n" 0 0
               exit 1
             fi
             ROM="$PKG_EXTRACT/$(basename "$PKG_FILE")"
             ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}')
             if ! (whiptail_error --title 'Flash ROM without integrity check?' \
-              --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 80); then
+              --yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 0); then
               exit 1
             fi
           else
@@ -160,7 +160,7 @@ while true; do
           /bin/flash.sh "$ROM"
         fi
         whiptail --title 'ROM Flashed Successfully' \
-          --msgbox "$PKG_FILE_DISPLAY\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 80
+          --msgbox "$PKG_FILE_DISPLAY\n\nhas been flashed successfully.\n\nPress Enter to reboot\n" 0 0
         umount /media
         /bin/reboot
       fi

@@ -67,12 +67,31 @@ The guidance paragraph is always the last line so it sits adjacent to the menu i
 
 ### Window sizing
 
-Use `0 80` for auto-height dialogs:
-- Width `80` matches the terminal column count.
-- Height `0` lets whiptail compute the required height automatically.
+**fbwhiptail (framebuffer backend)** ignores height and width arguments
+entirely — it always auto-sizes from content using its own internal layout
+constants.  Any values passed are silently discarded.
 
-Use explicit heights (e.g. `22 80`) only when the content is known to be a fixed number of lines
-and you need to constrain height to avoid a scrollable box.
+**newt (text backend)** uses the height and width arguments:
+
+- `0` height triggers `guessSize()`, which computes the minimum height from
+  content.  Use `0` for height in all dialogs.
+- `0` width also triggers `guessSize()` for width — the dialog expands to fit
+  the longest content line.  **Use `0` width only for dialogs that contain
+  dynamic strings of unpredictable length** (e.g. ROM filenames, file paths).
+- For dialogs with static text, use a fixed width (typically `80`).  This
+  produces a stable, readable layout in newt and is a no-op in fbwhiptail.
+
+In practice:
+
+```bash
+# Dynamic content (ROM filename, file path) — width must fit at runtime:
+whiptail_warning --title 'Flash ROM?' \
+    --yesno "This will replace your current ROM with:\n\n$PKG_FILE_DISPLAY\n\nDo you want to proceed?" 0 0
+
+# Static text — fixed width; fbwhiptail ignores it, newt uses it:
+whiptail_error --title 'ERROR' \
+    --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
+```
 
 ---
 

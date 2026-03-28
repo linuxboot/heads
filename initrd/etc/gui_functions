@@ -172,9 +172,10 @@ file_selector() {
 		n="$((++n))"
 
 		if [ "$SHOW_SIZE" = "y" ] && OPTION_SIZE="$(display_block_device_size "$option")"; then
-			option="$option - $OPTION_SIZE"
+			CHOICE_ARGS+=("$n" "$(basename "$option") - $OPTION_SIZE")
+		else
+			CHOICE_ARGS+=("$n" "$(basename "$option")")
 		fi
-		CHOICE_ARGS+=("$n" "$option")
 	done <"$FILE_LIST"
 
 	if [ "${#CHOICE_ARGS[@]}" -eq 0 ]; then
