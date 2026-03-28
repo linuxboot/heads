@@ -1,5 +1,23 @@
 modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
 
+
+# OFLAG: Enforce CFLAGS='-Oz' for size-focused builds; packaging/configure sets CFLAGS accordingly.
+
+
+
+
+
+# GCC_15_POWERPC_UTILS: Function pointer signature compatibility for GCC 15.1
+# powerpc-utils 1.3.5 used void (*)() function pointers for RTAS event helpers
+# even though the implementations have concrete signatures. GCC 15.1 C23
+# rejects those implicit conversions. Fixed via
+# patches/powerpc-utils-1.3.5/0001-fix-rtas-function-pointer-signatures-gcc15.patch
+# - parse_rtas_event: void *(*)(char *, int)
+# - rtas_print_event: void (*)(FILE *, void *, int)
+# - cleanup_rtas_event: void (*)(void *)
+# RTAS (Runtime Abstraction Services) is the PowerPC firmware interface; these
+# helpers must match its API. Monitor upstream for an official fix.
+
 powerpc-utils_version := 1.3.5
 powerpc-utils_dir := powerpc-utils-$(powerpc-utils_version)
 powerpc-utils_tar := powerpc-utils-$(powerpc-utils_version).tar.gz
@@ -9,7 +27,7 @@ powerpc-utils_hash := 77efe3978ac9c251c4728a35b9aebd6076583939a8e26cc7f07ffa8643
 powerpc-utils_configure := \
 	./autogen.sh && \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Oz"  \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

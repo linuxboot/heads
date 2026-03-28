@@ -1,5 +1,17 @@
 ifeq "$(CONFIG_COREBOOT)" "y"
 
+# TODO(GCC15-COREBOOT): Consider refactoring coreboot module to use standard module patterns
+# The coreboot module currently doesn't follow the standard module pattern used by other 
+# modules (with _configure, _target variables, etc.). This makes it difficult to apply
+# per-module compiler flags like those needed for GCC 15.1.0 compatibility.
+# OFLAG: No packaging-time -Oz normalization applied; coreboot applies per-version build flags and is expected to manage its own optimization flags (reproducible per-version builds).
+#  Coreboot builds commonly use `-Os` for space optimization in multiple subcomponents, but some toolchain/stage logs on PPC64 show other optimization flags too (see build/ppc64/log/coreboot-talos_2.log).
+#  Evidence: see per-board coreboot log `build/ppc64/log/coreboot-talos_2.log` for flagged compile lines.
+#
+# Current workaround: cbmem utility build in main Makefile uses CC override with 
+# -Wno-unterminated-string-initialization flag.
+# Future: Refactor to use standard module pattern or implement per-module heads_cc extension.
+
 CONFIG_COREBOOT_ROM			?= coreboot.rom
 CONFIG_COREBOOT_BOOTBLOCK	?=
 
@@ -82,6 +94,18 @@ $(eval $(call coreboot_module,24.02.01,))
 # talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 fork, so
 # there is no point preparing another coreboot module that won't be shared with
 # anything.
+
+# GCC_15_PPC64_COREBOOT: PowerPC64 dual-compiler architecture GCC 15.1 compatibility
+# PowerPC64 builds use two different compilers:
+# 1. Coreboot components (bootblock/romstage/ramstage): Big-endian, coreboot's GCC 11.2.0 - no issues
+# 2. Skiboot payload: Little-endian, Heads' GCC 15.1 musl cross-compiler - requires patches
+# Skiboot compilation fixes applied via patches/coreboot-talos_2/0003-ugly_skiboot-patch_fix_for_newer_gcc_from_musl_125.patch
+# - Adds -Wno-error=unterminated-string-initialization for hardware definition arrays
+# - Adds -Wno-error=misleading-indentation for conditional statement formatting
+# - Maintains existing -Wno-error=address-of-packed-member and -Wno-error=format-overflow
+# Rationale: Third-party skiboot firmware has minimal upstream maintenance, warning suppressions
+# more maintainable than invasive code changes. Monitor for additional GCC 16+ warnings.
+
 coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
@@ -123,6 +147,11 @@ endif
 
 coreboot_module := coreboot-$(CONFIG_COREBOOT_VERSION)
 modules-y += $(coreboot_module)
+
+
+# OFLAG: No packaging-time -Oz normalization applied; coreboot applies per-version build flags and is expected to manage its own optimization flags (reproducible per-version builds).
+
+
 # Don't make everyone type $($(coreboot_module)_dir)
 coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
