@@ -107,7 +107,7 @@ pull off on a Heads system since the boot devices are constrained.
 However, without tpmtotp in s3 it is hard to know if the system is in
 a safe state when the xscreensaver lock screen comes up.  Is it a fake
 to deceive you and steal your login password?  Maybe!  It wouldn't get
-your disk password, which is perhaps an improvement.
+your disk passphrase, which is perhaps an improvement.
 
 
 Disk key in TPM (LUKS TPM Disk Unlock Key) or user passphrase?

@@ -72,7 +72,7 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 			}
 	else
 		WARN "Hash of TPM2 primary key handle does not exist - rebuild it by setting a default OS to boot: Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default"
-		#TODO: Simplify/Automatize TPM2 firmware upgrade process. Today: upgrade, reboot, reseal(type TPM Owner Password), resign, boot
+		#TODO: Simplify/Automatize TPM2 firmware upgrade process. Today: upgrade, reboot, reseal(type TPM owner passphrase), resign, boot
 		default_failed="y"
 		DEBUG "Hash of TPM2 primary key handle does not exist under $PRIMHASH_FILE"
 	fi

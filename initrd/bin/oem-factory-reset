@@ -33,7 +33,7 @@ GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 #Circumvent Librem Key/Nitrokey HOTP firmware bug https://github.com/osresearch/heads/issues/1167
 MAX_HOTP_GPG_PIN_LENGTH=25
 
-# What are the Security components affected by custom passwords
+# What are the Security components affected by custom passphrases
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
 # Default GPG Algorithm is RSA
@@ -56,7 +56,7 @@ handle_mode() {
 		USER_PIN=$CUSTOM_SINGLE_PASS
 		ADMIN_PIN=$CUSTOM_SINGLE_PASS
 		TPM_PASS=$CUSTOM_SINGLE_PASS
-		# User doesn't know this password, really badger them to record it
+		# User doesn't know this passphrase, really badger them to record it
 		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="OEM Factory Reset Mode"
@@ -66,7 +66,7 @@ handle_mode() {
 		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		TPM_PASS=$ADMIN_PIN
-		# User doesn't know this password, really badger them to record it
+		# User doesn't know this passphrase, really badger them to record it
 		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="User Re-Ownership Mode"
@@ -1261,7 +1261,7 @@ elif [ -z "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_K
 	luks_change_passphrase
 fi
 
-## reset TPM and set password
+## reset TPM and set passphrase
 if [ "$CONFIG_TPM" = "y" ]; then
 	STATUS "Resetting TPM"
 	tpmr reset "$TPM_PASS" >/dev/null 2>/tmp/error
@@ -1461,7 +1461,7 @@ while true; do
 	whiptail --msgbox "$(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
 		$HEIGHT $WIDTH --title "Configured secrets"
 	if [ "$MAKE_USER_RECORD_PASSPHRASES" != y ]; then
-		# Passwords were user-supplied or not complex, we do not need to
+		# Passphrases were user-supplied or not complex, we do not need to
 		# badger the user to record them
 		break
 	fi
@@ -1501,6 +1501,6 @@ whiptail --msgbox "${completion_msg}" \
 # Clean LUKS secrets
 luks_secrets_cleanup
 unset luks_passphrase_changed
-unset tpm_owner_password_changed
+unset tpm_owner_passphrase_changed
 
 reboot

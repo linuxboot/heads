@@ -143,17 +143,17 @@ fi
 MIN_PASSPHRASE_LENGTH=12
 attempts=0
 while [ $attempts -lt 3 ]; do
-	key_password=""
-	INPUT "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum $MIN_PASSPHRASE_LENGTH characters):" -r -s key_password
-	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
+	key_passphrase=""
+	INPUT "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum $MIN_PASSPHRASE_LENGTH characters):" -r -s key_passphrase
+	if [ ${#key_passphrase} -lt $MIN_PASSPHRASE_LENGTH ]; then
 		attempts=$((attempts + 1))
 		WARN "Disk Unlock Key (DUK) passphrase is too short. Please try again."
 		continue
 	fi
 
-	key_password2=""
-	INPUT "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting:" -r -s key_password2
-	if [ "$key_password" != "$key_password2" ]; then
+	key_passphrase2=""
+	INPUT "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting:" -r -s key_passphrase2
+	if [ "$key_passphrase" != "$key_passphrase2" ]; then
 		attempts=$((attempts + 1))
 		WARN "Disk Unlock Key (DUK) passphrases do not match. Please try again."
 	else
@@ -294,12 +294,12 @@ tpmr calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr pcrread -a 7 "$pcrf"
 
-# tpmr seal may prompt for TPM owner password; avoid DO_WITH_DEBUG here so the
+# tpmr seal may prompt for TPM owner passphrase; avoid DO_WITH_DEBUG here so the
 # prompt remains visible on console. tpmr logs command details internally.
 STATUS "Sealing LUKS TPM Disk Unlock Key into TPM NVRAM (this may take a moment)"
 DEBUG "tpmr seal $DUK_KEY_FILE $TPM_INDEX 0,1,2,3,4,5,6,7 $pcrf $TPM_SIZE <hidden>"
 tpmr seal "$DUK_KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
-	"$TPM_SIZE" "$key_password" || DIE "Unable to write LUKS TPM Disk Unlock Key to NVRAM"
+	"$TPM_SIZE" "$key_passphrase" || DIE "Unable to write LUKS TPM Disk Unlock Key to NVRAM"
 STATUS_OK "LUKS TPM Disk Unlock Key sealed successfully"
 
 # should be okay if this fails

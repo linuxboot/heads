@@ -275,7 +275,7 @@ gate_reseal_with_integrity_report() {
 
 generate_totp_hotp() {
 	TRACE_FUNC
-	tpm_owner_password="$1" # May be empty, will prompt if needed and empty
+	tpm_owner_passphrase="$1" # May be empty, will prompt if needed and empty
 	if [ "$CONFIG_TPM" = "y" ] && tpm_reset_required; then
 		debug_tpm_reset_required_state
 		whiptail_error --title 'ERROR: TPM Reset Required' \
@@ -289,7 +289,7 @@ generate_totp_hotp() {
 		/bin/seal-hotpkey ||
 			DIE "Failed to generate HOTP secret"
 		STATUS_OK "HOTP secret generated"
-	elif STATUS "Generating new TOTP secret" && /bin/seal-totp "$BOARD_NAME" "$tpm_owner_password"; then
+	elif STATUS "Generating new TOTP secret" && /bin/seal-totp "$BOARD_NAME" "$tpm_owner_passphrase"; then
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
@@ -821,13 +821,13 @@ reset_tpm() {
 		if (whiptail_warning --title 'Reset the TPM' \
 			--yesno "This will clear the TPM and replace its Owner passphrase with a new one!\n\nDo you want to proceed?" 0 80); then
 
-			if ! prompt_new_owner_password; then
+			if ! prompt_new_owner_passphrase; then
 				INPUT "Press Enter to return to the menu..."
 				return 1
 			fi
 
 			STATUS "Resetting TPM"
-			tpmr reset "$tpm_owner_password"
+			tpmr reset "$tpm_owner_passphrase"
 
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
@@ -841,7 +841,7 @@ reset_tpm() {
 			rm -f /boot/kexec_primhdl_hash.txt
 
 			# create Heads TPM counter before any others
-			check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_password" ||
+			check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_passphrase" ||
 				DIE "Unable to find/create tpm counter"
 
 			TRACE_FUNC
@@ -850,7 +850,7 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			increment_tpm_counter "$TPM_COUNTER" "$tpm_owner_password" ||
+			increment_tpm_counter "$TPM_COUNTER" "$tpm_owner_passphrase" ||
 				DIE "Unable to increment tpm counter"
 
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
@@ -881,7 +881,7 @@ reset_tpm() {
 			# Clear stale preflight marker before generating fresh TOTP/HOTP.
 			clear_tpm_reset_required
 
-			if ! generate_totp_hotp "$tpm_owner_password"; then
+			if ! generate_totp_hotp "$tpm_owner_passphrase"; then
 				return 1
 			fi
 

@@ -31,14 +31,14 @@ for tries in 1 2 3; do
 	# type the LUKS passphrase.
 	show_totp_until_esc
 	STATUS "Unlocking LUKS with TPM Disk Unlock Key"
-	INPUT "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort):" -r -s tpm_password
-	if [ -z "$tpm_password" ]; then
+	INPUT "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort):" -r -s tpm_passphrase
+	if [ -z "$tpm_passphrase" ]; then
 		DIE "Aborting unseal disk encryption key"
 	fi
 
 	if DO_WITH_DEBUG --mask-position 6 \
 		tpmr unseal "$TPM_INDEX" "0,1,2,3,4,5,6,7" "$TPM_SIZE" \
-		"$key_file" "$tpm_password"; then
+		"$key_file" "$tpm_passphrase"; then
 		STATUS_OK "TPM Disk Unlock Key unsealed"
 		exit 0
 	fi
