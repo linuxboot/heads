@@ -1026,9 +1026,9 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	INFO "The following questionnaire will help you configure the security components of your system"
 	INFO "Each prompt requires a single letter answer (Y/n)"
 	INFO "Pressing Enter selects the default answer for each prompt"
-	NOTE "For strong, memorable passphrases, consider Diceware: roll physical dice against a wordlist."
-	STATUS "Scan the QR code below for the EFF Diceware wordlist (https://www.eff.org/dice):"
-	qrenc "https://www.eff.org/dice"
+	NOTE "Scan the QR code below for passphrase guidance (osresearch.net/Configuring-Keys):"
+	NOTE "Recommended lengths: Disk Recovery Key: 6 words  TPM Owner: 2 words  GPG PIN: 2 words"
+	qrenc "https://osresearch.net/Configuring-Keys/"
 
 	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
 	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output

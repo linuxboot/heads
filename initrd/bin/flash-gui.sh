@@ -68,7 +68,7 @@ while true; do
         fi
         # Media errors can cause this to fail (flash drive pulled, filesystem
         # corruption, etc.)
-        if ! find /media ! -path '*/\.*' -type f "${FIND_ROM_EXTS[@]}" | sort >/tmp/filelist.txt; then
+        if ! find /media ! -path '*/\.*' -type f "${FIND_ROM_EXTS[@]}" | sort -r >/tmp/filelist.txt; then
           whiptail --title 'Unable to read USB drive' \
             --msgbox "The USB drive is not readable.  Check the drive, reformat, or try a
                     \ndifferent drive." 16 60
