@@ -460,8 +460,8 @@ docker push "$docker_hub_repo:$docker_version"
 new_digest=$(./docker/get_digest.sh -y "$docker_hub_repo:$docker_version" | tail -n1)
 prev_digest=$(grep '^[^#]' docker/DOCKER_REPRO_DIGEST | head -n1)
 
-# Update the digest in the repository file
-sed -i "s|$prev_digest|$new_digest|" docker/DOCKER_REPRO_DIGEST
+# Update the digest in the repository file and CircleCI config
+sed -i "s|$prev_digest|$new_digest|" docker/DOCKER_REPRO_DIGEST .circleci/config.yml
 
 # Update the version comment in the repository file
 sed -i "s|# Version: .*|# Version: $docker_version|" docker/DOCKER_REPRO_DIGEST
