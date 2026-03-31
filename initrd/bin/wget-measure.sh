@@ -1,6 +1,6 @@
 #!/bin/bash
 # get a file and extend a TPM PCR
-. /etc/functions
+. /etc/functions.sh
 
 die() {
 	TRACE_FUNC
@@ -19,6 +19,6 @@ fi
 wget "$URL" || die "$URL: failed"
 
 FILE="`basename "$URL"`"
-tpmr extend -ix "$INDEX" -if "$FILE" || die "$FILE: tpm extend failed"
+tpmr.sh extend -ix "$INDEX" -if "$FILE" || die "$FILE: tpm extend failed"
 
 

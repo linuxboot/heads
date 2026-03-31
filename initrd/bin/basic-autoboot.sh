@@ -1,7 +1,7 @@
 #!/bin/bash
 set -o pipefail
 
-. /etc/functions
+. /etc/functions.sh
 
 BOOT_MENU_OPTIONS=/tmp/basic-autoboot-options
 

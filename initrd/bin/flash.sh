@@ -3,7 +3,7 @@
 # NOTE: This script is used on legacy-flash boards and runs with busybox ash,
 # not bash
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 echo

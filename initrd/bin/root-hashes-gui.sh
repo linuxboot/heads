@@ -8,8 +8,8 @@ ROOT_MOUNT="/root"
 ROOT_DETECT_UNSUPPORTED_REASON=""
 ROOT_SUPPORTED_LAYOUT_MSG="Filesystem support in this build:\n- ext4 (ext2/ext3 compatible)\n- xfs\n\nSupported root layouts:\n- LUKS + ext4/ext3/ext2 or xfs\n- LUKS+LVM + ext4/ext3/ext2 or xfs\n\nNot supported:\n- btrfs"
 
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 . /tmp/config
 
 export CONFIG_ROOT_DIRLIST_PRETTY=$(echo $CONFIG_ROOT_DIRLIST | sed -e 's/^/\//;s/ / \//g')
