@@ -23,7 +23,7 @@
 set -e -o pipefail
 
 . /tmp/config
-. /etc/functions
+. /etc/functions.sh
 
 if [ "$(load_config_value CONFIG_USE_BLOB_JAIL)" != "y" ]; then
 	# Blob jail not active, nothing to do

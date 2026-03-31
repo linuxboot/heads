@@ -1,8 +1,8 @@
 #!/bin/bash
 set -o pipefail
 
-. /etc/functions
-. /etc/gui_functions
+. /etc/functions.sh
+. /etc/gui_functions.sh
 
 # Automatically boot to a bootable USB medium if present.  This is for
 # unattended boot; there is no UI.

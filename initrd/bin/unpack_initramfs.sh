@@ -1,7 +1,7 @@
 #! /bin/bash
 set -e -o pipefail
 
-. /etc/functions
+. /etc/functions.sh
 
 TRACE_FUNC
 # Unpack a Linux initramfs archive.
