@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
 
 TRACE_FUNC

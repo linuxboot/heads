@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -eo pipefail
-. /etc/functions
+. /etc/functions.sh
 
 TRACE_FUNC
 
