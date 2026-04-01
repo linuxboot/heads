@@ -58,18 +58,6 @@ hwclock -l -s
 # import global functions
 . /etc/functions.sh
 
-# Capture coreboot CBMEM console log before Heads extends any PCRs.
-# This records everything firmware did (coreboot measurements, TPM init by
-# coreboot, CBFS reads) so measuring_trace.log has the full chain from firmware
-# through Heads.  Written directly to avoid flooding the console via INFO.
-if [ "$CONFIG_COREBOOT" = "y" ] && [ -x /bin/cbmem ]; then
-	{
-		echo "=== coreboot CBMEM console (captured before Heads PCR extensions) ==="
-		cbmem -L 2>/dev/null
-		echo "=== End coreboot CBMEM console ==="
-	} >>/tmp/measuring_trace.log
-fi
-
 # export user related content from cbfs
 if [ "$CONFIG_COREBOOT" = "y" ]; then
 	/bin/cbfs-init.sh
@@ -114,27 +102,27 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	TRACE_FUNC
 	dmesg -n 8
 	DEBUG "Full debug output enabled from this point: output both in dmesg and on console (equivalent of passing debug to kernel cmdline)"
-	DEBUG "DO_WITH_DEBUG std_err and std_out will be redirected to /tmp/debug.log"
+	DEBUG "NOTE: DO_WITH_DEBUG std_err and std_out will be redirected to /tmp/debug.log"
 fi
 
-# report if we are in quiet mode, tell user measurements logs available under /tmp/measuring_trace.log
+# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log
 if [ "$CONFIG_QUIET_MODE" = "y" ]; then
 	# check origin of quiet mode setting =y: if it is under /etc/config.user then early cbfs-init outputs are not suppressible
 	# if it is under /etc/config then early cbfs-init outputs are suppressible
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null; then
-		NOTE "Quiet mode enabled from board configuration: refer to /tmp/measuring_trace.log for boot measurement traces"
+		echo "Quiet mode enabled from board configuration: refer to '/tmp/debug.log' for boot measurements traces" >/dev/tty0
 	else
-		NOTE "Runtime applied Quiet mode: refer to /tmp/measuring_trace.log for boot measurement traces past this point"
-		NOTE "To suppress earlier boot measurement traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time"
+		echo "Runtime applied Quiet mode: refer to '/tmp/debug.log' for additional boot measurements traces past this point" >/dev/tty0
+		echo "To suppress earlier boot measurements traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time." >/dev/tty0
 	fi
 # If CONFIG_QUIET_MODE enabled in board config but disabled from Config->Configuration Settings
-# WARN that early boot measurements output was suppressed prior of this point
+# warn that early boot measurements output was suppressed prior of this point
 elif [ "$CONFIG_QUIET_MODE" = "n" ]; then
 	# if CONFIG_QUIET_MODE=n in /etc/config.user but CONFIG_QUIET_MODE=y in /etc/config then early cbfs-init outputs are suppressed
 	# both needs to be checked to determine if early boot measurements traces were suppressed
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null && grep -q 'CONFIG_QUIET_MODE="n"' /etc/config.user 2>/dev/null; then
-		NOTE "Early boot measurement traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)"
-		NOTE "Runtime applied Quiet mode disabled: refer to /tmp/measuring_trace.log for cbfs-init related traces prior of this point"
+		echo "Early boot measurements traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)" >/dev/tty0
+		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init related traces prior of this point" >/dev/tty0
 	fi
 fi
 
@@ -142,11 +130,15 @@ TRACE_FUNC
 
 # make sure we have sysctl requirements
 if [ ! -d /proc/sys ]; then
-	WARN "BUG: Kernel is missing CONFIG_SYSCTL=y / CONFIG_PROC_SYSCTL=y - runtime kernel tweaks cannot be applied. Please open an issue"
+	warn "BUG!!! The following requirements to apply runtime kernel tweaks are missing:"
+	warn "CONFIG_SYSCTL=y"
+	warn "CONFIG_PROC_SYSCTL=y"
+	warn "Please open an issue"
 fi
 
 if [ ! -e /proc/sys/vm/panic_on_oom ]; then
-	WARN "BUG: panic_on_oom could not be enabled - CONFIG_PROC_SYSCTL requirements missing. Please open an issue"
+	warn "BUG!!! Requirements to setup Panic when under Out Of Memory situation through PROC_SYSCTL are missing (panic_on_oom was not enabled)"
+	warn "Please open an issue"
 else
 	DEBUG "Applying panic_on_oom setting to sysctl"
 	echo 1 >/proc/sys/vm/panic_on_oom
@@ -171,7 +163,6 @@ fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Initialize tpm2 encrypted sessions here
-	STATUS "Initializing TPM encrypted session"
 	tpmr.sh startsession
 fi
 
@@ -190,13 +181,9 @@ export GPG_TTY=/dev/console
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
-	# Run in a subshell so RECOVERY_TTY doesn't leak into init's environment.
-	# Use <> (read-write open) to avoid EOF/SIGHUP on the read side and so
-	# recovery() can reopen the TTY fresh for each bash respawn.
-	(
-		RECOVERY_TTY="$CONFIG_BOOT_RECOVERY_SERIAL"
-		pause_recovery 'Serial console recovery shell'
-	) <>"$CONFIG_BOOT_RECOVERY_SERIAL" >&0 2>&0 &
+	pause_recovery 'Serial console recovery shell' \
+		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
+		>"$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
 fi
 
 # load USB modules for boards using a USB keyboard
@@ -223,14 +210,14 @@ if [ "$boot_option" = "r" ]; then
 	exit
 elif [ "$boot_option" = "o" ]; then
 	# Launch OEM Factory Reset mode
-	STATUS "Entering OEM Factory Reset mode"
+	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
 	oem-factory-reset.sh --mode oem
 	# just in case...
 	exit
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
-	NOTE "BASIC mode: tamper detection disabled"
+	echo -e "***** BASIC mode: tamper detection disabled\n" >/dev/tty0
 fi
 
 # export firmware version
@@ -255,7 +242,6 @@ fi
 
 # Perform board-specific init if present
 if [ -x /bin/board-init.sh ]; then
-	STATUS "Performing board-specific initialization"
 	/bin/board-init.sh
 fi
 
@@ -263,14 +249,14 @@ if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 else
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
-		STATUS "Network Boot: $CONFIG_BOOTSCRIPT_NETWORK"
+		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
 		$CONFIG_BOOTSCRIPT_NETWORK
-		STATUS "Network Boot completed: $CONFIG_BOOTSCRIPT_NETWORK"
+		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
 		# not blocking
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
-		STATUS "Normal boot: $CONFIG_BOOTSCRIPT"
+		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
 
 		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
 			for console in $CONFIG_BOOT_EXTRA_TTYS; do
@@ -278,15 +264,8 @@ else
 			done
 		fi
 
-		# Run the boot script under a respawn loop so that a DIE/exit inside
-		# gui-init (or any script it calls) does not kill PID 1 and oops the
-		# kernel.  cttyhack is NOT exec'd — /init stays as PID 1.
-		while true; do
-			cttyhack "$CONFIG_BOOTSCRIPT"
-			_rc=$?
-			WARN "$CONFIG_BOOTSCRIPT exited (code $_rc) - respawning"
-			sleep 2
-		done
+		#Setup a control tty so that all terminals outputs correct tty when tty is called
+		exec cttyhack "$CONFIG_BOOTSCRIPT"
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'

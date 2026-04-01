@@ -1033,7 +1033,7 @@ EOF
 			export INTEGRITY_REPORT_ALREADY_SHOWN=1
 			;;
 		o)
-			oem-factory-reset.sh
+			INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
 			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
 				rollback_preflight_failed="n"
 				BG_COLOR_MAIN_MENU="normal"
