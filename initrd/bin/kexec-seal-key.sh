@@ -6,146 +6,185 @@ set -e -o pipefail
 . /etc/functions.sh
 
 find_drk_key_slot() {
-	local temp_drk_key_slot=""
+	# Usage: find_drk_key_slot <dev> <keyslot> [<keyslot> ...]
+	# Echoes the first keyslot on <dev> that the current DISK_RECOVERY_KEY_FILE
+	# can unlock.  All dependencies are explicit; no outer-scope variables used.
+	local dev="$1"
+	shift
 	local keyslot
 
-	for keyslot in "${luks_used_keyslots[@]}"; do
-		if [ -z "$temp_drk_key_slot" ]; then
-			DEBUG "Testing LUKS key slot $keyslot against $DISK_RECOVERY_KEY_FILE for Disk Recovery Key slot..."
-			if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
-				temp_drk_key_slot="$keyslot"
-				DEBUG "Disk Recovery key slot is $temp_drk_key_slot"
-				break
-			fi
+	for keyslot in "$@"; do
+		DEBUG "Testing LUKS key slot $keyslot against $DISK_RECOVERY_KEY_FILE for Disk Recovery Key slot..."
+		if DO_WITH_DEBUG cryptsetup open --test-passphrase --key-slot "$keyslot" --key-file "$DISK_RECOVERY_KEY_FILE" "$dev"; then
+			DEBUG "Disk Recovery key slot is $keyslot"
+			echo "$keyslot"
+			return 0
 		fi
 	done
-
-	echo "$temp_drk_key_slot"
+	# No matching slot found; return 0 so set -e does not abort — caller checks
+	# for empty output.
+	return 0
 }
 
 TPM_INDEX=3
 TPM_SIZE=312
 DUK_KEY_FILE="/tmp/secret/secret.key"
-TPM_SEALED="/tmp/secret/secret.sealed"
+# TPM_SEALED is written by tpmr.sh seal internally; not used directly here.
 DISK_RECOVERY_KEY_FILE="/tmp/secret/recovery.key"
 
-. /etc/functions.sh
 . /tmp/config
 
 TRACE_FUNC
 
 paramsdir=$1
 if [ -z "$paramsdir" ]; then
-	die "Usage $0 /boot"
+	DIE "Usage $0 /boot"
 fi
 
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
-key_devices=$(cat "$KEY_DEVICES" | cut -d\  -f1 | tr '\n' ' ')
 
 if [ ! -r "$KEY_DEVICES" ]; then
-	die "No devices defined for disk encryption"
-else
-	DEBUG "Devices defined for disk encryption: $key_devices"
+	DIE "No devices defined for disk encryption"
 fi
+key_devices=$(cut -d\  -f1 "$KEY_DEVICES" | tr '\n' ' ')
+DEBUG "Devices defined for disk encryption: $key_devices"
 
 if [ -r "$KEY_LVM" ]; then
 	# Activate the LVM volume group
-	VOLUME_GROUP=$(cat $KEY_LVM)
+	VOLUME_GROUP=$(<"$KEY_LVM")
 	if [ -z "$VOLUME_GROUP" ]; then
-		die "No LVM volume group defined for activation"
+		DIE "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP ||
-		die "$VOLUME_GROUP: unable to activate volume group"
+	run_lvm vgchange -a y "$VOLUME_GROUP" ||
+		DIE "$VOLUME_GROUP: unable to activate volume group"
 else
 	DEBUG "No LVM volume group defined for activation"
 fi
 
 DEBUG "$(pcrs)"
 
-# First, collect all the LUKS devices that need to be tested
+# Ask for the DRK passphrase and test it against every selected device.
+# Devices that cannot be unlocked are reported and skipped; DUK is set up
+# only for the subset that the passphrase can actually unlock.
 luks_drk_passphrase_valid=0
 attempts=0
 
-# Ask for the DRK passphrase first, before testing any devices
+STATUS "Unlocking LUKS device(s) using the Disk Recovery Key passphrase"
 while [ $attempts -lt 3 ] && [ $luks_drk_passphrase_valid -eq 0 ]; do
-	read -r -s -p $'\nEnter LUKS Disk Recovery Key (DRK) passphrase that can unlock '"$key_devices"': ' disk_recovery_key_passphrase
-	echo
+	disk_recovery_key_passphrase=""
+	INPUT "Enter LUKS Disk Recovery Key (DRK) passphrase that can unlock $key_devices:" -r -s disk_recovery_key_passphrase
 	echo -n "$disk_recovery_key_passphrase" >"$DISK_RECOVERY_KEY_FILE"
 
-	# Test the passphrase against ALL devices before deciding if it's valid
-	all_devices_unlocked=1
-
+	# Test passphrase against ALL devices without short-circuiting so the user
+	# sees the full picture (which devices worked, which did not).
+	unlockable_devices=""
+	failed_devices=""
 	for dev in $key_devices; do
-		DEBUG "Testing $DISK_RECOVERY_KEY_FILE keyfile against $dev"
-		if ! cryptsetup open $dev --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
-			warn "Failed to unlock LUKS device $dev with the provided passphrase."
-			all_devices_unlocked=0
-			break
+		STATUS "Testing DRK passphrase against $dev..."
+		if cryptsetup open "$dev" --test-passphrase --key-file "$DISK_RECOVERY_KEY_FILE" >/dev/null 2>&1; then
+			STATUS_OK "$dev: unlocked successfully with the Disk Recovery Key passphrase"
+			unlockable_devices="$unlockable_devices $dev"
 		else
-			echo "++++++ $dev: LUKS device unlocked successfully with the DRK passphrase"
+			WARN "$dev: cannot be unlocked with the provided passphrase"
+			failed_devices="$failed_devices $dev"
 		fi
 	done
+	unlockable_devices="${unlockable_devices# }"
+	failed_devices="${failed_devices# }"
+	DEBUG "kexec-seal-key.sh: unlockable='$unlockable_devices' failed='$failed_devices'"
 
-	if [ $all_devices_unlocked -eq 1 ]; then
-		luks_drk_passphrase_valid=1
-	else
+	if [ -z "$unlockable_devices" ]; then
+		# No device could be unlocked — wrong passphrase entirely
 		attempts=$((attempts + 1))
 		if [ $attempts -eq 3 ]; then
-			die "Failed to unlock all LUKS devices with the provided passphrase after 3 attempts. Exiting..."
-		else
-			warn "Please try again."
+			DIE "Failed to unlock any LUKS device with the provided passphrase after 3 attempts."
 		fi
-	fi
-done
-
-# Now that all devices are verified with the DRK passphrase, proceed with DUK setup
-MIN_PASSPHRASE_LENGTH=12
-attempts=0
-while [ $attempts -lt 3 ]; do
-	read -r -s -p $'\nNew LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum '"$MIN_PASSPHRASE_LENGTH"' characters): ' key_password
-	echo
-	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
-		attempts=$((attempts + 1))
-		warn "Disk Unlock Key (DUK) passphrase is too short. Please try again."
+		WARN "None of the selected LUKS devices could be unlocked. Please try again."
 		continue
 	fi
 
-	read -r -s -p $'\nRepeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting: ' key_password2
-	echo
+	if [ -n "$failed_devices" ]; then
+		# Partial success: warn and ask the user to confirm skipping the failing devices
+		WARN "The following device(s) cannot be unlocked with the provided passphrase and will be skipped:"
+		WARN "  $failed_devices"
+		WARN "DUK will be set up only for: $unlockable_devices"
+		confirm_partial="Y"
+		INPUT "Continue with only the unlockable devices? [Y/n]:" -n 1 -r confirm_partial
+		if [ "$confirm_partial" = "n" ] || [ "$confirm_partial" = "N" ]; then
+			attempts=$((attempts + 1))
+			if [ $attempts -eq 3 ]; then
+				DIE "DUK setup cancelled: user declined partial device setup after 3 attempts."
+			fi
+			WARN "Please enter a passphrase valid for all desired devices, or reduce your device selection."
+			continue
+		fi
+	fi
+
+	luks_drk_passphrase_valid=1
+	key_devices="$unlockable_devices"
+done
+
+# Build the filtered device list in /tmp; written to $KEY_DEVICES in the rw
+# block near the end so all paramsdir writes happen in one mount window.
+# kexec-save-key.sh pre-mounts /boot rw before calling us, but
+# reseal_tpm_disk_decryption_key calls us directly with /boot still ro.
+DEBUG "kexec-seal-key.sh: filtering $KEY_DEVICES to unlockable devices: $key_devices"
+{
+	for dev in $key_devices; do
+		grep "^$dev " "$KEY_DEVICES" || true
+	done
+} > /tmp/kexec_key_devices_filtered.txt
+if [ ! -s /tmp/kexec_key_devices_filtered.txt ]; then
+	DIE "kexec-seal-key.sh: filtered device list is empty, cannot continue"
+fi
+
+# Proceed with DUK setup for the confirmed unlockable devices
+MIN_PASSPHRASE_LENGTH=12
+attempts=0
+while [ $attempts -lt 3 ]; do
+	key_password=""
+	INPUT "New LUKS TPM Disk Unlock Key (DUK) passphrase for booting (minimum $MIN_PASSPHRASE_LENGTH characters):" -r -s key_password
+	if [ ${#key_password} -lt $MIN_PASSPHRASE_LENGTH ]; then
+		attempts=$((attempts + 1))
+		WARN "Disk Unlock Key (DUK) passphrase is too short. Please try again."
+		continue
+	fi
+
+	key_password2=""
+	INPUT "Repeat LUKS TPM Disk Unlock Key (DUK) passphrase for booting:" -r -s key_password2
 	if [ "$key_password" != "$key_password2" ]; then
 		attempts=$((attempts + 1))
-		warn "Disk Unlock Key (DUK) passphrases do not match. Please try again."
+		WARN "Disk Unlock Key (DUK) passphrases do not match. Please try again."
 	else
 		break
 	fi
 done
 
 if [ $attempts -ge 3 ]; then
-	die "Failed to set a valid Disk Unlock Key (DUK) passphrase after 3 attempts. Exiting..."
+	DIE "Failed to set a valid Disk Unlock Key (DUK) passphrase after 3 attempts. Exiting..."
 fi
 
 # Generate key file
-echo
-echo "++++++ Generating new randomized 128 bytes key file that will be sealed/unsealed by LUKS TPM Disk Unlock Key passphrase"
+STATUS "Generating new randomized key of 128 characters for LUKS TPM Disk Unlock Key"
 dd \
 	if=/dev/urandom \
 	of="$DUK_KEY_FILE" \
 	bs=1 \
 	count=128 \
 	2>/dev/null ||
-	die "Unable to generate 128 random bytes"
+	DIE "Unable to generate random key of 128 characters"
 
 previous_luks_header_version=0
 for dev in $key_devices; do
 	# Check and store LUKS version of the devices to be used later
 	luks_version=$(cryptsetup luksDump "$dev" | grep "Version" | cut -d: -f2 | tr -d '[:space:]')
 	if [ "$luks_version" == "2" ] && [ "$previous_luks_header_version" == "1" ]; then
-		die "$dev: LUKSv2 device detected while LUKSv1 device was detected previously. Exiting..."
+		DIE "$dev: LUKSv2 device detected while LUKSv1 device was detected previously. Exiting..."
 	fi
 
 	if [ "$luks_version" == "1" ] && [ "$previous_luks_header_version" == "2" ]; then
-		die "$dev: LUKSv1 device detected while LUKSv2 device was detected previously. Exiting..."
+		DIE "$dev: LUKSv1 device detected while LUKSv2 device was detected previously. Exiting..."
 	fi
 
 	if [ "$luks_version" == "2" ]; then
@@ -163,74 +202,76 @@ for dev in $key_devices; do
 		previous_luks_header_version=1
 		DEBUG "$dev: LUKSv1 device detected"
 	else
-		die "$dev: Unsupported LUKS version $luks_version"
+		DIE "$dev: Unsupported LUKS version $luks_version"
 	fi
-
-	# drk_key_slot will be the slot number where the passphrase was tested against as valid. We will keep that slot
-	drk_key_slot="-1"
 
 	# Get all the key slots that are used on $dev
-	luks_used_keyslots=($(cryptsetup luksDump "$dev" | grep -E "$regex" | sed "$sed_command"))
+	mapfile -t luks_used_keyslots < <(cryptsetup luksDump "$dev" | grep -E "$regex" | sed "$sed_command")
 	DEBUG "$dev LUKS key slots: ${luks_used_keyslots[*]}"
 
-	#Find the key slot that can be unlocked with the provided passphrase
-	drk_key_slot=$(find_drk_key_slot)
-
-	# If we didn't find the DRK key slot, we exit (this should never happen)
-	if [ "$drk_key_slot" == "-1" ]; then
-		die "$dev: Unable to find a key slot that can be unlocked with provided passphrase. Exiting..."
+	# Find the key slot that can be unlocked with the provided passphrase.
+	# Pass keyslots explicitly so find_drk_key_slot has no outer-scope deps.
+	drk_key_slot=$(find_drk_key_slot "$dev" "${luks_used_keyslots[@]}")
+	if [ -z "$drk_key_slot" ]; then
+		DIE "$dev: Unable to find a key slot that can be unlocked with provided passphrase. Exiting..."
 	fi
 
-	# If the key slot is not the expected DUK or DRK key slot, we will ask the user to confirm the wipe
+	# Wipe all key slots except the DRK slot; the outer `if` already guarantees
+	# keyslot != drk_key_slot for every iteration, so inner re-checks are omitted.
 	for keyslot in "${luks_used_keyslots[@]}"; do
-		if [ "$keyslot" != "$drk_key_slot" ]; then
-			#set wipe_desired to no by default
-			wipe_desired="no"
+		if [ "$keyslot" = "$drk_key_slot" ]; then
+			continue
+		fi
 
-			if [ "$keyslot" != "$drk_key_slot" ] && [ "$keyslot" == "1" ]; then
-				wipe_desired="yes"
-				DEBUG "LUKS key slot $keyslot not DRK. Will wipe this DUK key slot silently"
-			elif [ "$keyslot" != "$drk_key_slot" ] && [ "$keyslot" != "$duk_keyslot" ]; then
-				# Heads expects key slot LUKSv1:7 or LUKSv2:31 to be used for TPM DUK setup.
-				#  Ask user to confirm otherwise
-				warn "LUKS key slot $keyslot is not typical ($duk_keyslot expected) for TPM Disk Unlock Key setup"
-				read -p $'Are you sure you want to wipe it? [y/N]\n' -n 1 -r
-				echo ""
-				# If user does not confirm, skip this slot
-				if [[ $REPLY =~ ^[Yy]$ ]]; then
-					wipe_desired="yes"
-				fi
-			elif [ "$keyslot" == "$duk_keyslot" ]; then
-				# If key slot is the expected DUK keyslot, we wipe it silently
-				DEBUG "LUKS key slot $keyslot is the expected DUK key slot. Will wipe this DUK key slot silently"
+		wipe_desired="no"
+		if [ "$keyslot" = "1" ]; then
+			# Slot 1 is the legacy DUK slot — wipe silently
+			wipe_desired="yes"
+			DEBUG "$dev: LUKS key slot $keyslot is legacy DUK slot, wiping silently"
+		elif [ "$keyslot" = "$duk_keyslot" ]; then
+			# Expected DUK slot — wipe silently to make room for the new key
+			wipe_desired="yes"
+			DEBUG "$dev: LUKS key slot $keyslot is the expected DUK slot, wiping silently"
+		else
+			# Unexpected occupied slot — ask before wiping
+			WARN "$dev: LUKS key slot $keyslot is occupied and not the expected DUK slot ($duk_keyslot)"
+			REPLY="N"
+			INPUT "Wipe key slot $keyslot on $dev? [y/N]:" -n 1 -r REPLY
+			if [[ $REPLY =~ ^[Yy]$ ]]; then
 				wipe_desired="yes"
 			fi
+		fi
 
-			if [ "$wipe_desired" == "yes" ] && [ "$keyslot" != "$drk_key_slot" ]; then
-				echo "++++++ $dev: Wiping LUKS key slot $keyslot"
-				DO_WITH_DEBUG cryptsetup luksKillSlot \
-					--key-file "$DISK_RECOVERY_KEY_FILE" \
-					$dev $keyslot ||
-					warn "$dev: removal of LUKS slot $keyslot failed: Continuing"
+		if [ "$wipe_desired" = "yes" ]; then
+			# Hard guard: never wipe the DRK slot regardless of how wipe_desired was set.
+			if [ "$keyslot" = "$drk_key_slot" ]; then
+				DIE "$dev: BUG: attempted to wipe DRK key slot $drk_key_slot — aborting to prevent data loss"
 			fi
+			STATUS "$dev: Wiping LUKS key slot $keyslot"
+			DO_WITH_DEBUG cryptsetup luksKillSlot \
+				--key-file "$DISK_RECOVERY_KEY_FILE" \
+				"$dev" "$keyslot" ||
+				WARN "$dev: removal of LUKS slot $keyslot failed: Continuing"
 		fi
 	done
 
-	echo "++++++ $dev: Adding LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
+	STATUS "$dev: Adding LUKS TPM Disk Unlock Key to key slot $duk_keyslot"
 	DO_WITH_DEBUG cryptsetup luksAddKey \
 		--key-file "$DISK_RECOVERY_KEY_FILE" \
-		--new-key-slot $duk_keyslot \
-		$dev "$DUK_KEY_FILE" ||
-		die "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
+		--new-key-slot "$duk_keyslot" \
+		"$dev" "$DUK_KEY_FILE" ||
+		DIE "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
 done
 
 # Now that we have setup the new keys, measure the PCRs
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-echo "$key_devices" | xargs /bin/qubes-measure-luks ||
-	die "Unable to measure the LUKS headers"
+STATUS "Measuring LUKS headers for TPM sealing policy"
+echo "$key_devices" | xargs /bin/qubes-measure-luks.sh ||
+	DIE "Unable to measure the LUKS headers"
 
+STATUS "Reading current PCR values for TPM sealing policy"
 pcrf="/tmp/secret/pcrf.bin"
 tpmr.sh pcrread 0 "$pcrf"
 tpmr.sh pcrread -a 1 "$pcrf"
@@ -238,7 +279,7 @@ tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
 # Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
-if [ "$CONFIG_USER_USB_KEYBOARD" = "y" -o -r /lib/modules/libata.ko -o -x /bin/hotp_verification ]; then
+if [ "$CONFIG_USER_USB_KEYBOARD" = "y" ] || [ -r /lib/modules/libata.ko ] || [ -x /bin/hotp_verification ]; then
 	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 	tpmr.sh pcrread -a 5 "$pcrf"
@@ -253,17 +294,25 @@ tpmr.sh calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr.sh pcrread -a 7 "$pcrf"
 
-DO_WITH_DEBUG --mask-position 7 \
-	tpmr.sh seal "$DUK_KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
-	"$TPM_SIZE" "$key_password" || die "Unable to write LUKS TPM Disk Unlock Key to NVRAM"
+# tpmr.sh seal may prompt for TPM owner password; avoid DO_WITH_DEBUG here so the
+# prompt remains visible on console. tpmr.sh logs command details internally.
+STATUS "Sealing LUKS TPM Disk Unlock Key into TPM NVRAM (this may take a moment)"
+DEBUG "tpmr.sh seal $DUK_KEY_FILE $TPM_INDEX 0,1,2,3,4,5,6,7 $pcrf $TPM_SIZE <hidden>"
+tpmr.sh seal "$DUK_KEY_FILE" "$TPM_INDEX" 0,1,2,3,4,5,6,7 "$pcrf" \
+	"$TPM_SIZE" "$key_password" || DIE "Unable to write LUKS TPM Disk Unlock Key to NVRAM"
+STATUS_OK "LUKS TPM Disk Unlock Key sealed successfully"
 
 # should be okay if this fails
 shred -n 10 -z -u "$pcrf" 2>/dev/null ||
-	warn "Failed to delete pcrf file - continuing"
+	WARN "Failed to delete pcrf file - continuing"
 shred -n 10 -z -u "$DUK_KEY_FILE" 2>/dev/null ||
-	warn "Failed to delete key file - continuing"
+	WARN "Failed to delete key file - continuing"
 
-mount -o rw,remount $paramsdir || warn "Failed to remount $paramsdir in RW - continuing"
+mount -o rw,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RW - continuing"
+cp -f /tmp/kexec_key_devices_filtered.txt "$KEY_DEVICES" ||
+	DIE "kexec-seal-key.sh: failed to update $KEY_DEVICES"
+DEBUG "kexec-seal-key.sh: $KEY_DEVICES updated"
+rm -f /tmp/kexec_key_devices_filtered.txt
 cp -f /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" ||
-	warn "Failed to copy LUKS header hashes to /boot - continuing"
-mount -o ro,remount $paramsdir || warn "Failed to remount $paramsdir in RO - continuing"
+	WARN "Failed to copy LUKS header hashes to /boot - continuing"
+mount -o ro,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RO - continuing"

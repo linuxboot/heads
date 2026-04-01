@@ -10,41 +10,35 @@ mobile_tethering()
 	#Tethering over USB for Mobile phones supporting CDC (Android Pixel 6a+, Librem phone, etc.)
 	if [ -e /lib/modules/cdc_ether.ko ]; then
 		#prompt user if he wants to enable USB tethering and skip if not
-		echo ""
-		echo "USB tethering support is available for mobile phones supporting CDC NCM/EEM tethering"
-		read -p "Do you want to enable USB tethering now? (Y/n)" -n 1 -r REPLY
-		echo ""
+		INFO "USB tethering support is available for mobile phones supporting CDC NCM/EEM tethering"
+		INPUT "Do you want to enable USB tethering now? (Y/n):" -n 1 -r REPLY
 		if [[ $REPLY =~ ^[Nn]$ ]]; then
-			echo "USB tethering not enabled, skipping..."
+			DEBUG "USB tethering not enabled, skipping"
 			return 0
 		fi
 
 		#first enable USB controllers
 		enable_usb
 
-		echo ""
-		echo "Please connect your mobile phone to a USB port and enable internet connection sharing."
-		echo "* Android: Select the 'Charging this device via USB' notification and enable tethering."
-		echo "* Linux: Set the wired connection's IPv4 method on the mobile phone to 'Shared to other computers'."
-		echo "Heads supports CDC-NCM and CDC-EEM.  Android phones using RNDIS and Apple phones are not supported."
-		echo ""
-		read -p "Press Enter to continue..." -r
+		STATUS "Please connect your mobile phone to a USB port and enable internet connection sharing"
+		STATUS "* Android: Select the 'Charging this device via USB' notification and enable tethering"
+		STATUS "* Linux: Set the wired connection's IPv4 method on the mobile phone to 'Shared to other computers'"
+		INFO "Heads supports CDC-NCM and CDC-EEM. Android phones using RNDIS and Apple phones are not supported"
+		INPUT "Press Enter to continue..."
 
 		network_modules="mii usbnet cdc_ether cdc_ncm cdc_eem"
 		for module in $(echo $network_modules); do
 			if [ -f /lib/modules/$module.ko ]; then
-				insmod /lib/modules/$module.ko
+				insmod.sh /lib/modules/$module.ko
 			fi
 		done
 
 		if ! [ -e /sys/class/net/usb0 ]; then
-			echo ""
-			echo "No tethering network interface was found."
-			echo "* Make sure the phone supports CDC-NCM or CDC-EEM.  Many, but not all, Android and Linux phones support these."
-			echo "* Android phones requiring RNDIS and Apple phones are not supported."
-			echo "* Make sure the cable used works with data and that the phone has tethering enabled."
-			echo ""
-			read -p "Press Enter to continue..." -r
+			WARN "No tethering network interface was found"
+			INFO "* Make sure the phone supports CDC-NCM or CDC-EEM. Many, but not all, Android and Linux phones support these"
+			INFO "* Android phones requiring RNDIS and Apple phones are not supported"
+			INFO "* Make sure the cable used works with data and that the phone has tethering enabled"
+			INPUT "Press Enter to continue..."
 		fi
 	fi
 }
@@ -53,18 +47,17 @@ ethernet_activation()
 {
 	TRACE_FUNC
 	#Prompt user if he wants to enable ethernet and skip if not
-	read -p "Do you want to enable Ethernet now? (Y/n)" -n 1 -r REPLY
-	echo ""
+	INPUT "Do you want to enable Ethernet now? (Y/n):" -n 1 -r REPLY
 	if [[ $REPLY =~ ^[Nn]$ ]]; then
-		echo "Ethernet not enabled, skipping..."
+		DEBUG "Ethernet not enabled, skipping"
 		return 0
 	fi
 
-	echo "Loading Ethernet network modules..."
+	STATUS "Loading Ethernet network modules"
 	network_modules="e1000 e1000e igb sfc mdio mlx4_core mlx4_en"
 	for module in $(echo $network_modules); do
 		if [ -f /lib/modules/$module.ko ]; then
-			insmod /lib/modules/$module.ko
+			insmod.sh /lib/modules/$module.ko
 		fi
 	done
 }
@@ -77,12 +70,12 @@ ethernet_activation
 
 if [ -e /sys/class/net/usb0 ]; then
 	dev=usb0
-	echo "USB tethering network interface detected as $dev"
+	STATUS "USB tethering network interface detected as $dev"
 elif [ -e /sys/class/net/eth0 ]; then
 	dev=eth0
-	echo "Ethernet network interface detected as $dev"
+	STATUS "Ethernet network interface detected as $dev"
 else
-	echo "No network interface detected, please check your hardware and board configuration"
+	WARN "No network interface detected, please check your hardware and board configuration"
 	exit 1
 fi
 
@@ -91,40 +84,39 @@ if [ -n "$dev" ]; then
 	#Randomize MAC address for maximized boards
 	if echo "$CONFIG_BOARD" | grep -q maximized; then
 		ifconfig $dev down
-		echo "Generating random MAC address..."
+		STATUS "Generating random MAC address"
 		mac=$(generate_random_mac_address)
-		echo "Assigning randomly generated MAC: $mac to $dev..."
+		STATUS "Assigning randomly generated MAC $mac to $dev"
 		ifconfig $dev hw ether $mac
 		ifconfig $dev up
 	fi
 
 	# Set up static IP if configured in board config
 	if [ ! -z "$CONFIG_BOOT_STATIC_IP" ]; then
-		echo "Setting static IP: $CONFIG_BOOT_STATIC_IP"
+		STATUS "Setting static IP: $CONFIG_BOOT_STATIC_IP"
 		ifconfig $dev $CONFIG_BOOT_STATIC_IP
-		echo "No NTP sync with static IP: no DNS server nor gateway defined, set time manually"
+		INFO "No NTP sync with static IP: no DNS server or gateway defined, set time manually"
 	# Set up DHCP if no static IP
 	elif [ -e /sbin/udhcpc ]; then
-		echo "Getting IP from first DHCP server answering. This may take a while..."
+		STATUS "Getting IP from DHCP server (this may take a while)"
 		if udhcpc -T 1 -i $dev -q; then
 			if [ -e /sbin/ntpd ]; then
 				DNS_SERVER=$(grep nameserver /etc/resolv.conf | awk -F " " {'print $2'})
 				killall ntpd 2 &>1 >/dev/null
-				echo "Attempting to sync time with NTP server: $DNS_SERVER..."
+				STATUS "Attempting NTP time sync with $DNS_SERVER"
 				if ! ntpd -d -N -n -q -p $DNS_SERVER; then
-					echo "NTP sync unsuccessful with DNS server"
-					echo "Attempting NTP time sync with pool.ntp.org..."
+					WARN "NTP sync unsuccessful with DNS server"
+					STATUS "Attempting NTP time sync with pool.ntp.org"
 					if ! ntpd -d -d -N -n -q -p pool.ntp.org; then
-						echo "NTP sync unsuccessful."
+						WARN "NTP sync unsuccessful"
 					else
-						echo "NTP time sync successful."
+						STATUS_OK "NTP time sync successful"
 					fi
 				fi
-				echo "Syncing hardware clock with system time in UTC/GMT timezone..."
+				STATUS "Syncing hardware clock with system time (UTC)"
 				hwclock -w
-				echo ""
 				date=$(date "+%Y-%m-%d %H:%M:%S %Z")
-				echo "Time: $date"
+				STATUS "Time: $date"
 			fi
 		fi
 	fi
@@ -134,7 +126,7 @@ if [ -n "$dev" ]; then
 		if [ ! -d /etc/dropbear ]; then
 			mkdir /etc/dropbear
 		fi
-		echo "Starting dropbear ssh server..."
+		STATUS "Starting dropbear SSH server"
 		# Make sure dropbear is not already running
 		killall dropbear > /dev/null 2>&1 || true
 		# Start dropbear with root login and log to stderr
@@ -142,7 +134,6 @@ if [ -n "$dev" ]; then
 		# -R create host keys
 		dropbear -B -R
 	fi
-	echo ""
-	echo "Network setup complete:"
+	STATUS_OK "Network setup complete"
 	ifconfig $dev
 fi

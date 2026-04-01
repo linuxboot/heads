@@ -102,10 +102,10 @@ unpack_first_segment() {
 			(zstd-decompress -d || true) | unpack_cpio
 			;;
 		*) # unknown
-			die "Can't decompress initramfs archive, unknown type: $magic"
+			DIE "Can't decompress initramfs archive, unknown type: $magic"
 			# The following are magic values for other compression formats
 			#  but not added because not tested.
-			# TODO: open an issue for unsupported magic number reported on die.
+			# TODO: open an issue for unsupported magic number reported on DIE.
 			# 
 			#425a*) # bzip2
 			#	DEBUG "archive segment $magic: bzip2"

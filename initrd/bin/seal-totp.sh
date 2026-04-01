@@ -20,16 +20,18 @@ TPM_PASSWORD="$2"
 TOTP_SECRET="/tmp/secret/totp.key"
 TOTP_SEALED="/tmp/secret/totp.sealed"
 
+STATUS "Generating TOTP secret"
 dd \
 	if=/dev/urandom \
 	of="$TOTP_SECRET" \
 	count=1 \
 	bs=20 \
 	2>/dev/null ||
-	die "Unable to generate 20 random bytes"
+	DIE "Unable to generate 20 random bytes"
 
 secret="$(base32 <$TOTP_SECRET)"
 pcrf="/tmp/secret/pcrf.bin"
+INFO "TPM: Reading PCR values for TOTP sealing policy"
 DEBUG "Sealing TOTP with actual state of PCR0-3"
 tpmr.sh pcrread 0 "$pcrf"
 tpmr.sh pcrread -a 1 "$pcrf"
@@ -49,8 +51,23 @@ DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not fir
 DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
 tpmr.sh pcrread -a 7 "$pcrf"
 #Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
-tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD" ||
-	die "Unable to write sealed secret to NVRAM from seal-totp"
+
+# if the board has TPM2 tools, check for the primary handle before
+# attempting to seal; a missing handle is the most common reason for
+# failure and we want to give the same message as unseal-totp.sh.
+if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ ! -f "/tmp/secret/primary.handle" ]; then
+	DIE "Unable to seal TOTP secret; no TPM primary handle. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) then generate a new TOTP secret."
+fi
+
+# perform sealing via tpmr.sh. Failures may indicate missing primary handle
+# or other TPM state issues. Avoid DO_WITH_DEBUG so interactive prompts
+# (TPM owner password on TPM1) are not hidden from the user.
+STATUS "Sealing TOTP secret to TPM NVRAM"
+if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD"; then
+	# tpmr.sh already logged details; guide user generically to reset TPM
+	DIE "Unable to seal TOTP secret to TPM NVRAM; reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) and try again."
+fi
+STATUS_OK "TOTP secret sealed to TPM successfully"
 #Make sure we clear TPM TOTP sealed if we succeed to seal TOTP
 shred -n 10 -z -u "$TOTP_SEALED" 2>/dev/null
 
@@ -59,5 +76,5 @@ url="otpauth://totp/$HOST?secret=$secret"
 DEBUG "TOTP secret output on screen (both URL and QR code)"
 qrenc "$url"
 
-echo "TOTP secret for manual input (device without camera): $secret"
+STATUS "TOTP secret for manual input (device without camera): $secret"
 secret=""

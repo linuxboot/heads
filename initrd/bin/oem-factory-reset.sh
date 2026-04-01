@@ -6,6 +6,7 @@ set -o pipefail
 ## External files sourced
 . /etc/functions.sh
 . /etc/gui_functions.sh
+. /etc/gpg_functions.sh
 . /etc/luks-functions.sh
 . /tmp/config
 
@@ -33,7 +34,7 @@ GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 #Circumvent Librem Key/Nitrokey HOTP firmware bug https://github.com/osresearch/heads/issues/1167
 MAX_HOTP_GPG_PIN_LENGTH=25
 
-# What are the Security components affected by custom passwords
+# What are the Security components affected by custom passphrases
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
 # Default GPG Algorithm is RSA
@@ -56,7 +57,7 @@ handle_mode() {
 		USER_PIN=$CUSTOM_SINGLE_PASS
 		ADMIN_PIN=$CUSTOM_SINGLE_PASS
 		TPM_PASS=$CUSTOM_SINGLE_PASS
-		# User doesn't know this password, really badger them to record it
+		# User doesn't know this passphrase, really badger them to record it
 		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="OEM Factory Reset Mode"
@@ -66,13 +67,13 @@ handle_mode() {
 		USER_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		ADMIN_PIN=$(generate_passphrase --number_words 2 --max_length $MAX_HOTP_GPG_PIN_LENGTH)
 		TPM_PASS=$ADMIN_PIN
-		# User doesn't know this password, really badger them to record it
+		# User doesn't know this passphrase, really badger them to record it
 		MAKE_USER_RECORD_PASSPHRASES=y
 
 		title_text="User Re-Ownership Mode"
 		;;
 	*)
-		warn "Unknown oem-factory-reset lauched mode, setting PINs to weak defaults"
+		WARN "Unknown oem-factory-reset.sh launched mode, setting PINs to weak defaults"
 		USER_PIN=$USER_PIN_DEF
 		ADMIN_PIN=$ADMIN_PIN_DEF
 		TPM_PASS=$ADMIN_PIN_DEF
@@ -101,7 +102,7 @@ if [[ -n "$MODE" ]]; then
 fi
 
 #Override RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards until canokey fixes
-if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
+if [[ "$CONFIG_BOARD_NAME" == qemu-* ]] && [[ "$DONGLE_BRAND" == "Canokey" ]]; then
 	DEBUG "Overriding RSA_KEY_LENGTH to 2048 bits for Canokey under qemu testing boards"
 	RSA_KEY_LENGTH=2048
 fi
@@ -114,11 +115,10 @@ SKIP_BOOT="n"
 
 ## functions
 
-die() {
-
+DIE() {
 	local msg=$1
 	if [ -n "$msg" ]; then
-		echo -e "\n$msg"
+		WARN "$msg"
 	fi
 	kill -s TERM $TOP_PID
 	exit 1
@@ -127,14 +127,14 @@ die() {
 local_whiptail_error() {
 	local msg=$1
 	if [ "$msg" = "" ]; then
-		die "whiptail error: An error msg is required"
+		DIE "whiptail error: An error msg is required"
 	fi
 	whiptail_error --msgbox "${msg}\n\n" $HEIGHT $WIDTH --title "Error"
 }
 
 whiptail_error_die() {
 	local_whiptail_error "$@"
-	die
+	DIE
 }
 
 mount_boot() {
@@ -144,7 +144,7 @@ mount_boot() {
 	if ! grep -q /boot /proc/mounts; then
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot || die "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
+			mount -o ro $CONFIG_BOOT_DEV /boot || DIE "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
 		fi
 	fi
 }
@@ -153,20 +153,19 @@ reset_nk3_secret_app() {
 	TRACE_FUNC
 
 	# Reset Nitrokey 3 Secrets app PIN with $ADMIN_PIN (default 12345678, or customised)
-	if lsusb | grep -q "20a0:42b2" && [ -x /bin/hotp_verification ]; then
-		echo
-		warn "Resetting Nitrokey 3's Secrets app with PIN. Physical presence (touch) will be required"
+	if [ "$DONGLE_BRAND" = "Nitrokey 3" ] && [ -x /bin/hotp_verification ]; then
+		STATUS "Resetting Nitrokey 3 Secrets app (physical touch will be required)"
 		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 		# Reset Nitrokey 3 secret app with PIN
 		# Do 3 attempts to reset Nitrokey 3 Secrets app if return code is 3 (no touch)
 		for attempt in 1 2 3; do
-			if /bin/hotp_verification reset "${ADMIN_PIN}"; then
-				echo
+			if hotp_verification reset "${ADMIN_PIN}"; then
+				STATUS_OK "Nitrokey 3 Secrets app reset"
 				return 0
 			else
 				error_code=$?
 				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
-					whiptail --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 secrets app reset attempt: $attempt/3"
+					whiptail_warning --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 secrets app reset attempt: $attempt/3"
 				else
 					whiptail_error_die "Nitrokey 3's Secrets app reset failed with error:$error_code. Contact Nitrokey support"
 				fi
@@ -181,7 +180,7 @@ reset_nk3_secret_app() {
 generate_inmemory_RSA_master_and_subkeys() {
 	TRACE_FUNC
 
-	echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits master key..."
+	STATUS "Generating RSA ${RSA_KEY_LENGTH}-bit master key for $DONGLE_BRAND"
 	# Generate GPG master key
 	{
 		echo "Key-Type: RSA"                     # RSA key
@@ -199,7 +198,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		whiptail_error_die "GPG Key generation failed!\n\n$ERROR"
 	fi
 
-	echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits signing subkey..."
+	STATUS "Generating RSA signing subkey for $DONGLE_BRAND"
 	# Add signing subkey
 	{
 		echo addkey            # add key in --edit-key mode
@@ -216,7 +215,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		whiptail_error_die "GPG Key signing subkey generation failed!\n\n$ERROR"
 	fi
 
-	echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits encryption subkey..."
+	STATUS "Generating RSA encryption subkey for $DONGLE_BRAND"
 	#Add encryption subkey
 	{
 		echo addkey            # add key in --edit-key mode
@@ -233,7 +232,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		whiptail_error_die "GPG Key encryption subkey generation failed!\n\n$ERROR"
 	fi
 
-	echo "Generating GPG RSA ${RSA_KEY_LENGTH} bits authentication subkey..."
+	STATUS "Generating RSA authentication subkey for $DONGLE_BRAND"
 	#Add authentication subkey
 	{
 		#Authentication subkey needs gpg in expert mode to select RSA custom mode (8)
@@ -264,7 +263,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 generate_inmemory_p256_master_and_subkeys() {
 	TRACE_FUNC
 
-	echo "Generating GPG p256 bits master key..."
+	STATUS "Generating p256 master key for $DONGLE_BRAND"
 	{
 		echo "Key-Type: ECDSA"                   # ECDSA key
 		echo "Key-Curve: nistp256"               # ECDSA key curve
@@ -285,7 +284,7 @@ generate_inmemory_p256_master_and_subkeys() {
 	#Keep Master key fingerprint for add key calls
 	MASTER_KEY_FP=$(gpg --list-secret-keys --with-colons | grep fpr | cut -d: -f10)
 
-	echo "Generating GPG nistp256 signing subkey..."
+	STATUS "Generating p256 signing subkey for $DONGLE_BRAND"
 	{
 		echo addkey       # add key in --edit-key mode
 		echo 11           # ECC own set capability
@@ -300,7 +299,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
 	fi
 
-	echo "Generating GPG nistp256 encryption subkey..."
+	STATUS "Generating p256 encryption subkey for $DONGLE_BRAND"
 	{
 		echo addkey
 		echo 12           # ECC own set capability
@@ -315,7 +314,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
 	fi
 
-	echo "Generating GPG nistp256 authentication subkey..."
+	STATUS "Generating p256 authentication subkey for $DONGLE_BRAND"
 	{
 		echo addkey       # add key in --edit-key mode
 		echo 11           # ECC own set capability
@@ -346,11 +345,12 @@ keytocard_subkeys_to_smartcard() {
 	#make sure usb ready and USB Security dongle ready to communicate with
 	enable_usb
 	enable_usb_storage
-	gpg --card-status >/dev/null 2>&1 || die "Error getting GPG card status"
+	STATUS "Accessing $DONGLE_BRAND OpenPGP smartcard"
+	gpg --card-status >/dev/null 2>&1 || DIE "Error getting GPG card status"
 
 	gpg_key_factory_reset
 
-	echo "Moving subkeys to smartcard..."
+	STATUS "Moving subkeys to $DONGLE_BRAND"
 	{
 		echo "key 1"            #Toggle on Signature key in --edit-key mode on local keyring
 		echo "keytocard"        #Move Signature key to smartcard
@@ -378,6 +378,7 @@ keytocard_subkeys_to_smartcard() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
 	fi
+	STATUS_OK "Subkeys moved to smartcard"
 
 	TRACE_FUNC
 }
@@ -388,7 +389,73 @@ prompt_insert_to_be_wiped_thumb_drive() {
 	#Whiptail warning about having only desired to be wiped thumb drive inserted
 	whiptail_warning --title 'WARNING: Please insert the thumb drive to be wiped' \
 		--msgbox "The thumb drive will be WIPED next.\n\nPlease connect only the thumb drive to be wiped and disconnect others." 0 80 ||
-		die "Error displaying warning about having only desired to be wiped thumb drive inserted"
+		DIE "Error displaying warning about having only desired to be wiped thumb drive inserted"
+}
+
+set_card_identity() {
+	TRACE_FUNC
+
+	# Determine which fields we have custom values for
+	local set_name=0 set_login=0
+	local surname given
+
+	# Name: skip if still the OEM default
+	if [ "$GPG_USER_NAME" != "OEM Key" ] && [ -n "$GPG_USER_NAME" ]; then
+		set_name=1
+		# OpenPGP card stores surname and given name separately;
+		# gpg displays them as "given surname"
+		if [[ "$GPG_USER_NAME" == *" "* ]]; then
+			given="${GPG_USER_NAME% *}"
+			surname="${GPG_USER_NAME##* }"
+		else
+			surname="$GPG_USER_NAME"
+			given=""
+		fi
+		DEBUG "Will set cardholder name: surname='$surname' given='$given'"
+	else
+		DEBUG "Skipping cardholder name: no custom name set"
+	fi
+
+	# Login: skip if still the auto-generated OEM default (oem-*@example.com)
+	if [ -n "$GPG_USER_MAIL" ] && [[ "$GPG_USER_MAIL" != oem-*@example.com ]]; then
+		set_login=1
+		DEBUG "Will set login data: '$GPG_USER_MAIL'"
+	else
+		DEBUG "Skipping login data: no custom email set"
+	fi
+
+	[ "$set_name" -eq 0 ] && [ "$set_login" -eq 0 ] && return
+
+	STATUS "Setting identity fields on OpenPGP smartcard"
+	{
+		echo "admin"
+		if [ "$set_name" -eq 1 ]; then
+			echo "name"
+			echo "${surname}"
+			echo "${given}"
+			echo "${ADMIN_PIN_DEF}"
+		fi
+		if [ "$set_login" -eq 1 ]; then
+			echo "login"
+			echo "${GPG_USER_MAIL}"
+			echo "${ADMIN_PIN_DEF}"
+		fi
+		echo "quit"
+	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit ||
+		DIE "Failed to set identity fields on OpenPGP smartcard"
+
+	local summary=""
+	[ "$set_name" -eq 1 ] && summary="${given:+$given }${surname}"
+	[ "$set_login" -eq 1 ] && summary="${summary:+$summary, }${GPG_USER_MAIL}"
+	STATUS_OK "Card identity set: $summary"
+	#TODO: set card `url` field and GPG key preferred keyserver after uploading to keys.openpgp.org
+	# Two separate operations needed:
+	#   1. card `url`  — set via gpg --card-edit admin → url → <fetch_url>
+	#   2. key `keyserver` preference — set via gpg --edit-key → keyserver → <url> → save
+	#      (applies to both on-card and in-memory key paths)
+	# Requires: network access in initrd, curl, and user email verification on keyserver.
+	# Note: keys.openpgp.org hides UID until owner verifies email — upload works but key
+	# is not searchable by email until verified from a normal OS session after provisioning.
 }
 
 #export master key and subkeys to thumbdrive's private LUKS contained partition
@@ -419,24 +486,25 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 			shift
 			;;
 		*)
-			die "Error: unknown argument: $1"
+			DIE "Error: unknown argument: $1"
 			;;
 		esac
 	done
 
-	mount-usb --mode "$mode" --device "$device" --mountpoint "$mountpoint" --pass "$pass" || die "Error mounting thumb drive's private partition"
+	mount-usb.sh --mode "$mode" --device "$device" --mountpoint "$mountpoint" --pass "$pass" || DIE "Error mounting thumb drive's private partition"
 
 	#Export master key and subkeys to thumb drive
-	DEBUG "Exporting master key and subkeys to private LUKS container's partition..."
+	STATUS "Exporting master key and subkeys to backup LUKS container"
 
 	gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
-		die "Error exporting master key to private LUKS container's partition"
+		DIE "Error exporting master key to private LUKS container's partition"
 	gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec ||
-		die "Error exporting subkeys to private LUKS container's partition"
+		DIE "Error exporting subkeys to private LUKS container's partition"
 	#copy whole keyring to thumb drive, including revocation key and trust database
-	cp -af ~/.gnupg "$mountpoint"/.gnupg || die "Error copying whole keyring to private LUKS container's partition"
+	cp -af ~/.gnupg "$mountpoint"/.gnupg || DIE "Error copying whole keyring to private LUKS container's partition"
 	#Unmount private LUKS container's mount point
-	umount "$mountpoint" || die "Error unmounting private LUKS container's mount point"
+	umount "$mountpoint" || DIE "Error unmounting private LUKS container's mount point"
+	STATUS_OK "Master key and subkeys backed up to USB"
 
 	TRACE_FUNC
 }
@@ -464,16 +532,18 @@ export_public_key_to_thumbdrive_public_partition() {
 			shift
 			;;
 		*)
-			die "Error: unknown argument: $1"
+			DIE "Error: unknown argument: $1"
 			;;
 		esac
 	done
 
 	#pass non-empty arguments to --pass, --mountpoint, --device, --mode
-	mount-usb --device "$device" --mode "$mode" --mountpoint "$mountpoint" || die "Error mounting thumb drive's public partition"
+	mount-usb.sh --device "$device" --mode "$mode" --mountpoint "$mountpoint" || DIE "Error mounting thumb drive's public partition"
 	#TODO: reuse "Obtain GPG key ID" so that pubkey on public thumb drive partition is named after key ID
-	gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || die "Error exporting public key to thumb drive's public partition"
-	umount "$mountpoint" || die "Error unmounting thumb drive's public partition"
+	STATUS "Exporting public key to USB"
+	gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || DIE "Error exporting public key to thumb drive's public partition"
+	umount "$mountpoint" || DIE "Error unmounting thumb drive's public partition"
+	STATUS_OK "Public key exported to USB"
 
 	TRACE_FUNC
 }
@@ -506,16 +576,16 @@ select_thumb_drive_for_key_material() {
 			# Obtain size of thumb drive to be wiped with fdisk
 			disk_size_bytes="$(blockdev --getsize64 "$FILE")"
 			if [ "$disk_size_bytes" -lt "$((128 * 1024 * 1024))" ]; then
-				warn "Thumb drive size is less than 128MB!"
-				warn "LUKS container needs to be at least 8MB!"
-				warn "If the next operation fails, try with a bigger thumb drive"
+				WARN "Thumb drive size is less than 128MB!"
+				WARN "LUKS container needs to be at least 8MB!"
+				WARN "If the next operation fails, try with a bigger thumb drive"
 			fi
 
 			select_luks_container_size_percent
 			thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
 
 			if ! confirm_thumb_drive_format "$FILE" "$thumb_drive_luks_percent"; then
-				warn "Thumb drive wipe aborted by user!"
+				INFO "Thumb drive wipe aborted by user"
 				continue
 			fi
 
@@ -523,12 +593,11 @@ select_thumb_drive_for_key_material() {
 			thumb_drive=$FILE
 		else
 			#No USB storage device detected
-			warn "No USB storage device detected! Aborting OEM Factory Reset / Re-Ownership"
+			WARN "No USB storage device detected! Aborting OEM Factory Reset / Re-Ownership"
 			sleep 3
-			die "No USB storage device detected! User decided to not wipe any thumb drive"
+			DIE "No USB storage device detected! User decided to not wipe any thumb drive"
 		fi
 	done
-	thumb_drive_luks_percent="$(cat /tmp/luks_container_size_percent)"
 }
 
 #Wipe a thumb drive and export master key and subkeys to it
@@ -558,7 +627,7 @@ gpg_key_factory_reset() {
 	enable_usb
 
 	# Factory reset GPG card
-	echo "GPG factory reset of USB Security dongle's OpenPGP smartcard..."
+	STATUS "GPG factory reset of $DONGLE_BRAND OpenPGP smartcard"
 	{
 		echo admin         # admin menu
 		echo factory-reset # factory reset smartcard
@@ -572,16 +641,15 @@ gpg_key_factory_reset() {
 	fi
 
 	# If Nitrokey Storage is inserted, reset AES keys as well
-	if lsusb | grep -q "20a0:4109" && [ -x /bin/hotp_verification ]; then
-		DEBUG "Nitrokey Storage detected, resetting AES keys..."
-		/bin/hotp_verification regenerate ${ADMIN_PIN_DEF}
-		DEBUG "Restarting scdaemon to remove possible exclusive lock of dongle"
-		killall -9 scdaemon
+	if [ "$DONGLE_BRAND" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
+		STATUS "Resetting Nitrokey Storage AES keys"
+		hotp_verification regenerate ${ADMIN_PIN_DEF}
+		STATUS_OK "Nitrokey Storage AES keys reset"
 	fi
 
 	# Toggle forced sig (good security practice, forcing PIN request for each signature request)
 	if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
-		DEBUG "GPG toggling forcesig on since off..."
+		STATUS "Enabling forced signature PIN on smartcard"
 		{
 			echo admin            # admin menu
 			echo forcesig         # toggle forcesig
@@ -592,10 +660,12 @@ gpg_key_factory_reset() {
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
 		fi
+		STATUS_OK "Forced signature PIN enabled"
 	fi
 
 	# use p256 for key generation if requested
 	if [ "$GPG_ALGO" = "p256" ]; then
+		STATUS "Setting NIST-P256 key attributes on $DONGLE_BRAND"
 		{
 			echo admin            # admin menu
 			echo key-attr         # key attributes
@@ -612,11 +682,12 @@ gpg_key_factory_reset() {
 			>/tmp/gpg_card_edit_output 2>&1
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key to NIST-P256 in USB Security dongle failed."
+			whiptail_error_die "Setting key to NIST-P256 in $DONGLE_BRAND failed."
 		fi
+		STATUS_OK "NIST-P256 key attributes set on $DONGLE_BRAND"
 	# fallback to RSA key generation by default
 	elif [ "$GPG_ALGO" = "RSA" ]; then
-		DEBUG "GPG setting RSA key length to ${RSA_KEY_LENGTH} bits..."
+		STATUS "Setting RSA ${RSA_KEY_LENGTH}-bit key attributes on $DONGLE_BRAND (may take a minute)"
 		# Set RSA key length
 		{
 			echo admin
@@ -634,8 +705,9 @@ gpg_key_factory_reset() {
 			>/tmp/gpg_card_edit_output 2>&1
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in USB Security dongle failed."
+			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in $DONGLE_BRAND failed."
 		fi
+		STATUS_OK "RSA ${RSA_KEY_LENGTH}-bit key attributes set on $DONGLE_BRAND"
 	else
 		#Unknown GPG_ALGO
 		whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
@@ -648,7 +720,11 @@ generate_OEM_gpg_keys() {
 	TRACE_FUNC
 
 	#This function simply generates subkeys in smartcard following smarcard config from gpg_key_factory_reset
-	echo "Generating GPG keys in USB Security dongle's OpenPGP smartcard..."
+	if [ "$GPG_ALGO" = "RSA" ]; then
+		STATUS "Generating RSA ${RSA_KEY_LENGTH}-bit keys on $DONGLE_BRAND"
+	else
+		STATUS "Generating p256 keys on $DONGLE_BRAND"
+	fi
 	{
 		echo admin               # admin menu
 		echo generate            # generate keys
@@ -671,6 +747,7 @@ generate_OEM_gpg_keys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key automatic keygen failed!\n\n$ERROR"
 	fi
+	STATUS_OK "GPG keys generated on $DONGLE_BRAND"
 
 	TRACE_FUNC
 }
@@ -678,7 +755,6 @@ generate_OEM_gpg_keys() {
 gpg_key_change_pin() {
 	TRACE_FUNC
 
-	DEBUG "Changing GPG key PIN"
 	# 1 = user PIN, 3 = admin PIN
 	PIN_TYPE=$1
 	PIN_ORIG=${2}
@@ -725,27 +801,30 @@ generate_checksums() {
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 			tpmr.sh counter_create \
-				-pwdc '' \
+				-pwdc "${TPM_PASS:-}" \
 				-la -3135106223 |
 				tee /tmp/counter >/dev/null 2>&1 ||
 				whiptail_error_die "Unable to create TPM counter"
 			TPM_COUNTER=$(cut -d: -f1 </tmp/counter)
 
-			if [ -s /tmp/counter-$TPM_COUNTER ]; then
+			[ -n "$TPM_COUNTER" ] || whiptail_error_die "Unable to parse TPM counter id"
 
-				# increment TPM counter
-				increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-					whiptail_error_die "Unable to increment tpm counter"
+			# increment TPM counter so /tmp/counter-$TPM_COUNTER is populated,
+			# then persist rollback metadata under /boot for next-boot preflight.
+			increment_tpm_counter "$TPM_COUNTER" ||
+				whiptail_error_die "Unable to increment TPM counter"
 
-				# create rollback file
-				sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt 2>/dev/null ||
-					whiptail_error_die "Unable to create rollback file"
-			fi
+			[ -s /tmp/counter-"$TPM_COUNTER" ] ||
+				whiptail_error_die "TPM counter increment did not produce counter state for rollback file"
+
+			# create rollback file
+			sha256sum /tmp/counter-"$TPM_COUNTER" >/boot/kexec_rollback.txt 2>/dev/null ||
+				whiptail_error_die "Unable to create rollback file"
 		fi
 
 		# If HOTP is enabled from board config, create HOTP counter
 		if [ -x /bin/hotp_verification ]; then
-			## needs to exist for initial call to unseal-hotp
+			## needs to exist for initial call to unseal-hotp.sh
 			echo "0" >/boot/kexec_hotp_counter
 		fi
 	fi
@@ -755,7 +834,7 @@ generate_checksums() {
 		set_default_boot_option
 	fi
 
-	DEBUG "Generating hashes"
+	STATUS "Generating /boot file hashes"
 	(
 		set -e -o pipefail
 		cd /boot
@@ -764,9 +843,16 @@ generate_checksums() {
 		print_tree >/boot/kexec_tree.txt
 	)
 	[ $? -eq 0 ] || whiptail_error_die "Error generating kexec hashes"
+	STATUS_OK "/boot file hashes generated"
 
-	param_files=$(find /boot/kexec*.txt)
-	[ -z "$param_files" ] &&
+	# Collect relative basenames so sha256sum output is path-independent and
+	# matches what check_config produces when verifying (also uses cd+relative).
+	param_files=()
+	for f in /boot/kexec*.txt; do
+		[ -e "$f" ] || continue
+		param_files+=("$(basename "$f")")
+	done
+	[ ${#param_files[@]} -eq 0 ] &&
 		whiptail_error_die "No kexec parameter files to sign"
 
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" -a "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "n" ]; then
@@ -776,19 +862,21 @@ generate_checksums() {
 		USER_PIN=$ADMIN_PIN
 	fi
 
-	DEBUG "Detach-signing boot files under kexec.sig: ${param_files}"
+	DEBUG "oem-factory-reset.sh: ${#param_files[@]} file(s) to sign (relative): ${param_files[*]}"
 
-	if sha256sum $param_files 2>/dev/null | gpg --detach-sign \
+	if (cd /boot && sha256sum "${param_files[@]}") 2>/dev/null | gpg --detach-sign \
 		--pinentry-mode loopback \
 		--passphrase-file <(echo -n "$USER_PIN") \
 		--digest-algo SHA256 \
 		-a \
 		>/boot/kexec.sig 2>/tmp/error; then
+		DEBUG "oem-factory-reset.sh: signing succeeded, running check_config /boot"
 		# successful - update the validated params
 		if ! check_config /boot >/dev/null 2>/tmp/error; then
 			cat /tmp/error
 			ret=1
 		else
+			STATUS_OK "/boot files signed and verified"
 			ret=0
 		fi
 	else
@@ -818,14 +906,14 @@ set_default_boot_option() {
 	rm $option_file 2>/dev/null
 	# parse boot options from grub.cfg
 	for i in $(find /boot -name "grub.cfg"); do
-		kexec-parse-boot "/boot" "$i" >>$option_file
+		kexec-parse-boot.sh "/boot" "$i" >>$option_file
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
 	if [ ! -s $option_file ] && [ -d "/boot/loader/entries" ]; then
 		for i in $(find /boot -name "grub.cfg"); do
-			kexec-parse-bls "/boot" "$i" "/boot/loader/entries" >>$option_file
+			kexec-parse-bls.sh "/boot" "$i" "/boot/loader/entries" >>$option_file
 		done
 	fi
 	[ ! -s $option_file ] &&
@@ -854,89 +942,25 @@ set_default_boot_option() {
 	TRACE_FUNC
 }
 
-report_integrity_measurements() {
-	TRACE_FUNC
-
-	#check for GPG key in keyring
-	GPG_KEY_COUNT=$(gpg -k 2>/dev/null | wc -l)
-	if [ "$GPG_KEY_COUNT" -ne 0 ]; then
-		# Check and report TOTP
-		# update the TOTP code every thirty seconds
-		date=$(date "+%Y-%m-%d %H:%M:%S %Z")
-		seconds=$(date "+%s")
-		half=$(expr \( "$seconds" % 60 \) / 30)
-		if [ "$CONFIG_TPM" != "y" ]; then
-			TOTP="NO TPM"
-		elif [ "$half" != "$last_half" ]; then
-			last_half=$half
-			TOTP=$(unseal-totp) >/dev/null 2>&1
-		fi
-
-		# Check and report on HOTP status
-		if [ -x /bin/hotp_verification ]; then
-			HOTP="Unverified"
-			enable_usb
-			for attempt in 1 2 3; do
-				if ! hotp_verification info >/dev/null 2>&1; then
-					whiptail_warning --title "WARNING: Please insert your HOTP enabled USB Security dongle (Attempt $attempt/3)" --msgbox "Your HOTP enabled USB Security dongle was not detected.\n\nPlease remove it and insert it again." 0 80
-				else
-					break
-				fi
-			done
-
-			if [ $attempt -eq 3 ]; then
-				die "No HOTP enabled USB Security dongle detected. Please disable 'CONFIG_HOTPKEY' in the board config and rebuild."
-			fi
-
-			# Don't output HOTP codes to screen, so as to make replay attacks harder
-			HOTP=$(unseal-hotp) >/dev/null 2>&1
-			hotp_verification check $HOTP
-			case "$?" in
-			0)
-				HOTP="Success"
-				;;
-			4)
-				HOTP="Invalid code"
-				BG_COLOR_MAIN_MENU="error"
-				;;
-			*)
-				HOTP="Error checking code, Insert USB Security dongle and retry"
-				BG_COLOR_MAIN_MENU="warning"
-				;;
-			esac
-		else
-			HOTP='N/A'
-		fi
-		# Check for detached signed digest and report on /boot integrity status
-		check_config /boot force
-		TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
-
-		if (cd /boot && sha256sum -c "$TMP_HASH_FILE" >/tmp/hash_output); then
-			HASH="OK"
-		else
-			HASH="ALTERED"
-		fi
-
-		#Show results
-		whiptail_type $BG_COLOR_MAIN_MENU --title "Measured Integrity Report" --msgbox "$date\nTOTP: $TOTP | HOTP: $HOTP\n/BOOT INTEGRITY: $HASH\n\nPress OK to continue or Ctrl+Alt+Delete to reboot" 0 80
-	fi
-
-	TRACE_FUNC
-}
-
 usb_security_token_capabilities_check() {
 	TRACE_FUNC
 
-	echo -e "\nChecking for USB Security dongle...\n"
-
 	enable_usb
+
+	# Always detect dongle branding from USB VID:PID — never read a stored file.
+	DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
+	export DONGLE_BRAND
+	DEBUG "USB Security dongle detected: $DONGLE_BRAND"
+	INFO "Detected $DONGLE_BRAND"
+	STATUS "Checking $DONGLE_BRAND capabilities"
+
 	# ... first set board config preference
 	if [ -n "$CONFIG_GPG_ALGO" ]; then
 		GPG_ALGO=$CONFIG_GPG_ALGO
 		DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
 	fi
 	# ... overwrite with usb-token capability
-	if lsusb | grep -q "20a0:42b2"; then
+	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		GPG_ALGO="p256"
 		DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
 	fi
@@ -958,14 +982,14 @@ fi
 
 # show warning prompt
 if [ "$CONFIG_TPM" = "y" ]; then
-	TPM_STR="          * ERASE the TPM and own it with a password\n"
+	TPM_STR="          * ERASE the TPM and own it with a passphrase\n"
 else
 	TPM_STR=""
 fi
 if ! whiptail_warning --yesno "
         This operation will automatically:\n
 $TPM_STR
-          * ERASE any keys or passwords on the GPG smart card,\n
+          * ERASE any keys or PINs on the GPG smart card,\n
             reset it to a factory state, generate new keys\n
             and optionally set custom PIN(s)\n
           * Add the new GPG key to the firmware and reflash it\n
@@ -978,72 +1002,70 @@ fi
 
 #Make sure /boot is mounted if board config defines default
 mount_boot
-# We show current integrity measurements status and time
-report_integrity_measurements
+# Show integrity report only when prior Heads trust metadata exists and it
+# has not already been shown to the user (e.g. when called from the report menu).
+if [ "${INTEGRITY_REPORT_ALREADY_SHOWN:-0}" = "1" ]; then
+	DEBUG "Skipping integrity report in OEM Factory Reset: already shown to user before this call"
+elif has_prior_boot_trust_metadata /boot/kexec_rollback.txt; then
+	report_integrity_measurements
+else
+	DEBUG "Skipping integrity report in OEM Factory Reset: no prior /boot trust metadata detected (fresh first-ownership path)"
+fi
 
 # Clear the screen
 clear
 
 #Prompt user for use of default configuration options
 TRACE_FUNC
-echo -e -n "Would you like to use default configuration options?\nIf N, you will be prompted for each option [Y/n]: "
-read -n 1 use_defaults
+INPUT "Would you like to use default configuration options? If N, you will be prompted for each option [Y/n]:" -n 1 use_defaults
 
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	#Give general guidance to user on how to answer prompts
-	echo
-	echo "****************************************************"
-	echo "**** Factory Reset / Re-Ownership Questionnaire ****"
-	echo "****************************************************"
-	echo "The following questionnaire will help you configure the security components of your system."
-	echo "Each prompt requires a single letter answer: eg. (Y/n)."
-	echo -e "If you don't know what to answer, pressing Enter will select the default answer for that prompt: eg. Y, above.\n"
+	STATUS "Factory Reset / Re-Ownership Questionnaire"
+	INFO "The following questionnaire will help you configure the security components of your system"
+	INFO "Each prompt requires a single letter answer (Y/n)"
+	INFO "Pressing Enter selects the default answer for each prompt"
+	TRACE_FUNC
+	DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
+	qrenc "https://diceware.dmuth.org/"
+	NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
+	NOTE "Recommended lengths: Disk Recovery Key: 6 words  TPM Owner: 2 words  GPG User PIN: 2 words"
 
 	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
-	echo -e -n "\n\nWould you like to change the current LUKS Disk Recovery Key passphrase?\n (Highly recommended if you didn't install the Operating System yourself, so that past configured passphrase would not permit to access content.\n  Note that without re-encrypting disk, a backed up header could be restored to access encrypted content with old passphrase) [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
 		luks_new_Disk_Recovery_Key_passphrase_desired=1
-		echo -e "\n"
 	fi
 
-	echo -e -n "Would you like to re-encrypt LUKS encrypted container and generate new LUKS Disk Recovery Key?\n (Highly recommended if you didn't install the operating system yourself: this would prevent any LUKS backed up header to be restored to access encrypted data) [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
 		TRACE_FUNC
 		test_luks_current_disk_recovery_key_passphrase
 		luks_new_Disk_Recovery_Key_desired=1
-		echo -e "\n"
 	fi
 
 	#Prompt to ask if user wants to generate GPG key material in memory or on smartcard
-	echo -e -n "Would you like to format an encrypted USB Thumb drive to store GPG key material?\n (Required to enable GPG authentication) [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication) [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ] \
 		; then
 		GPG_GEN_KEY_IN_MEMORY="y"
-		echo " ++++ Master key and subkeys will be generated in memory, backed up to dedicated LUKS container +++"
-		echo -e -n "Would you like in-memory generated subkeys to be copied to USB Security dongle's OpenPGP smartcard?\n (Highly recommended so the smartcard is used on daily basis and backup is kept safe, but not required) [Y/n]: "
-		read -n 1 prompt_output
-		echo
+		INFO "Master key and subkeys will be generated in memory and backed up to a dedicated LUKS container"
+		INPUT "Would you like in-memory generated subkeys to be copied to $DONGLE_BRAND's OpenPGP smartcard? (Highly recommended) [Y/n]:" -n 1 prompt_output
 		if [ "$prompt_output" == "n" \
 			-o "$prompt_output" == "N" ]; then
-			warn "Subkeys will NOT be copied to USB Security dongle's OpenPGP smartcard"
-			warn "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environements"
+			NOTE "Subkeys will NOT be copied to $DONGLE_BRAND's OpenPGP smartcard"
+			NOTE "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environments"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 		else
-			echo "++++ Subkeys will be copied to USB Security dongle's OpenPGP smartcard ++++"
-			warn "Please keep your GPG key material backup thumb drive safe"
+			INFO "Subkeys will be copied to $DONGLE_BRAND's OpenPGP smartcard"
+			NOTE "Please keep your GPG key material backup thumb drive safe"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="y"
 		fi
 	else
-		echo "GPG key material will be generated on USB Security dongle's OpenPGP smartcard without backup"
+		INFO "GPG key material will be generated on $DONGLE_BRAND's OpenPGP smartcard without backup"
 		GPG_GEN_KEY_IN_MEMORY="n"
 		GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 	fi
@@ -1056,7 +1078,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="LUKS Disk Recovery Key passphrase\n"
 	fi
 	if [ "$CONFIG_TPM" = "y" ]; then
-		CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Password\n"
+		CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Passphrase\n"
 	fi
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
@@ -1068,22 +1090,16 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	fi
 
 	# Inform user of security components affected for the following prompts
-	echo
-	echo -e "The following Security Components will be configured with defaults or further chosen PINs/passwords:
-	$CUSTOM_PASS_AFFECTED_COMPONENTS\n"
+	INFO "The following Security Components will be configured with defaults or further chosen PINs/passphrases: $CUSTOM_PASS_AFFECTED_COMPONENTS"
 
-	# Prompt to change default passwords
-	echo -e -n "Would you like to set a single custom password to all previously stated security components? [y/N]: "
-	read -n 1 prompt_output
-	echo
+	# Prompt to change default passphrases
+	INPUT "Would you like to set a single custom passphrase to all previously stated security components? [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
-		echo -e "\nThe chosen custom password must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
+		INFO "The chosen passphrase must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
 		while [[ ${#CUSTOM_SINGLE_PASS} -lt 8 ]] || [[ ${#CUSTOM_SINGLE_PASS} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-			echo -e -n "Enter the custom password: "
-			read CUSTOM_SINGLE_PASS
+			INPUT "Enter the passphrase (8-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r CUSTOM_SINGLE_PASS
 		done
-		echo
 		TPM_PASS=${CUSTOM_SINGLE_PASS}
 		USER_PIN=${CUSTOM_SINGLE_PASS}
 		ADMIN_PIN=${CUSTOM_SINGLE_PASS}
@@ -1093,40 +1109,34 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			luks_new_Disk_Recovery_Key_passphrase=${CUSTOM_SINGLE_PASS}
 		fi
 
-		# The user knows this password, we don't need to badger them to
+		# The user knows this passphrase, we don't need to badger them to
 		# record it
 		MAKE_USER_RECORD_PASSPHRASES=
 	else
-		echo -e -n "Would you like to set distinct PINs/passwords to configure previously stated security components? [y/N]: "
-		read -n 1 prompt_output
-		echo
+		INPUT "Would you like to set distinct PINs/passphrases to configure previously stated security components? [y/N]:" -n 1 prompt_output
 		if [ "$prompt_output" == "y" \
 			-o "$prompt_output" == "Y" ]; then
-			echo -e "\nThe TPM Owner Password and Admin PIN must be at least 8, the User PIN at least 6 characters in length.\n"
-			echo
+			INFO "TPM Owner Passphrase and GPG Admin PIN must be at least 8 chars, GPG User PIN at least 6 chars."
 			if [ "$CONFIG_TPM" = "y" ]; then
+				NOTE "TPM Owner Passphrase: sets TPM ownership. Recommended: 2 words"
 				while [[ ${#TPM_PASS} -lt 8 ]]; do
-					echo -e -n "Enter desired TPM Owner Password: "
-					read TPM_PASS
+					INPUT "Enter desired TPM Owner Passphrase (min 8 chars):" -r TPM_PASS
 				done
 			fi
+			NOTE "GPG Admin PIN: management tasks on USB Security dongle, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
 			while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-				echo -e -n "\nThis PIN should be between 6 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
-				echo -e -n "Enter desired GPG Admin PIN: "
-				read ADMIN_PIN
+				INPUT "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
 			done
 			#USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY not requested of if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
 			# That is, if keys were NOT generated in memory (on smartcard only) or
 			#  if keys were generated in memory but are to be moved from local keyring to smartcard
 			if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
+				NOTE "GPG User PIN: sign/encrypt content, sign hashes under Heads. 3 attempts max. DO NOT FORGET. Recommended: 2 words"
 				while [[ ${#USER_PIN} -lt 6 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-					echo -e -n "\nThis PIN should be between 6 to $MAX_HOTP_GPG_PIN_LENGTH characters in length.\n"
-					echo -e -n "Enter desired GPG User PIN: "
-					read USER_PIN
+					INPUT "Enter desired GPG User PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r USER_PIN
 				done
 			fi
-			echo
-			# The user knows these passwords, we don't need to
+			# The user knows these passphrases, we don't need to
 			# badger them to record them
 			MAKE_USER_RECORD_PASSPHRASES=
 		fi
@@ -1134,48 +1144,35 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 
 	if [ -n "$luks_new_Disk_Recovery_Key_passphrase_desired" -a -z "$luks_new_Disk_Recovery_Key_passphrase" ]; then
 		# We catch here if changing LUKS Disk Recovery Key passphrase was desired
-		#  but yet undone. This is if not being covered by the single password
-		echo -e "\nEnter desired replacement for current LUKS Disk Recovery Key passphrase (At least 8 characters long):"
+		#  but yet undone. This is if not being covered by the single passphrase
+		NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
 		while [[ ${#luks_new_Disk_Recovery_Key_passphrase} -lt 8 ]]; do
-			{
-				read -r luks_new_Disk_Recovery_Key_passphrase
-			}
+			INPUT "Enter desired replacement for current LUKS Disk Recovery Key passphrase (min 8 chars):" -r luks_new_Disk_Recovery_Key_passphrase
 		done
 		#We test that current LUKS Disk Recovery Key passphrase is known prior of going further
 		TRACE_FUNC
 		test_luks_current_disk_recovery_key_passphrase
-		echo -e "\n"
 	fi
 
 	# Prompt to change default GnuPG key information
-	echo -e -n "Would you like to set custom user information for the GnuPG key? [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Would you like to set custom user information for the GnuPG key? [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
-		echo -e "\n\n"
-		echo -e "We will generate a GnuPG (PGP) keypair identifiable with the following text form:"
-		echo -e "Real Name (Comment) email@address.org"
+		INFO "We will generate a GnuPG (PGP) keypair identifiable as: Real Name (Comment) email@address.org"
 
-		echo -e "\nEnter your Real Name (Optional):"
-		read -r GPG_USER_NAME
+		INPUT "Enter your Real Name (optional):" -r GPG_USER_NAME
 
-		echo -e "\nEnter your email@adress.org:"
-		read -r GPG_USER_MAIL
+		INPUT "Enter your email@address.org:" -r GPG_USER_MAIL
 		while ! $(expr "$GPG_USER_MAIL" : '.*@' >/dev/null); do
-			{
-				echo -e "\nEnter your email@address.org:"
-				read -r GPG_USER_MAIL
-			}
+			INPUT "Invalid email - enter your email@address.org:" -r GPG_USER_MAIL
 		done
 
-		echo -e "\nEnter Comment (Required: Use this to distinguish this key from others, e.g., its purpose or usage context. Must be 1-60 characters):"
 		while true; do
-			read -r GPG_USER_COMMENT
+			INPUT "Enter Comment (1-60 chars, distinguishes this key, e.g. its purpose):" -r GPG_USER_COMMENT
 			if [[ ${#GPG_USER_COMMENT} -ge 1 && ${#GPG_USER_COMMENT} -le 60 ]]; then
 				break
 			fi
-			echo -e "\nComment must be 1-60 characters long. Please try again:"
+			WARN "Comment must be 1-60 characters long. Please try again."
 		done
 	fi
 
@@ -1193,9 +1190,7 @@ if [ "$ADMIN_PIN" == "" ]; then ADMIN_PIN=${ADMIN_PIN_DEF}; fi
 
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
 	# Prompt to insert USB drive if desired
-	echo -e -n "\nWould you like to export your public key to an USB drive? [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Would you like to export your public key to a USB drive? [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ] \
 		; then
@@ -1203,7 +1198,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
 		# mount USB over /media only if not already mounted
 		if ! grep -q /media /proc/mounts; then
 			# mount USB in rw
-			if ! mount-usb --mode rw 2>/tmp/error; then
+			if ! mount-usb.sh --mode rw 2>/tmp/error; then
 				ERROR=$(tail -n 1 /tmp/error | fold -s)
 				whiptail_error_die "Unable to mount USB on /media:\n\n${ERROR}"
 			fi
@@ -1216,7 +1211,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ]; then
 		fi
 	else
 		GPG_EXPORT=0
-		# needed for USB Security dongle below and is ensured via mount-usb in case of GPG_EXPORT=1
+		# needed for USB Security dongle below and is ensured via mount-usb.sh in case of GPG_EXPORT=1
 		enable_usb
 	fi
 fi
@@ -1246,11 +1241,11 @@ killall gpg-agent >/dev/null 2>&1 || true
 rm -rf /.gnupg/*.kbx /.gnupg/*.gpg >/dev/null 2>&1 || true
 
 # detect and set /boot device
-echo -e "\nDetecting and setting boot device...\n"
+STATUS "Detecting and setting boot device"
 if ! detect_boot_device; then
 	SKIP_BOOT="y"
 else
-	echo -e "Boot device set to $CONFIG_BOOT_DEV\n"
+	STATUS "Boot device set to $CONFIG_BOOT_DEV"
 fi
 
 # update configs
@@ -1271,9 +1266,9 @@ elif [ -z "$luks_new_Disk_Recovery_Key_desired" -a -n "$luks_new_Disk_Recovery_K
 	luks_change_passphrase
 fi
 
-## reset TPM and set password
+## reset TPM and set passphrase
 if [ "$CONFIG_TPM" = "y" ]; then
-	echo -e "\nResetting TPM...\n"
+	STATUS "Resetting TPM"
 	tpmr.sh reset "$TPM_PASS" >/dev/null 2>/tmp/error
 fi
 if [ $? -ne 0 ]; then
@@ -1297,7 +1292,7 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
 	elif [ "$GPG_ALGO" == "p256" ]; then
 		generate_inmemory_p256_master_and_subkeys
 	else
-		die "Unsupported GPG_ALGO: $GPG_ALGO"
+		DIE "Unsupported GPG_ALGO: $GPG_ALGO"
 	fi
 	wipe_thumb_drive_and_copy_gpg_key_material "$thumb_drive" "$thumb_drive_luks_percent"
 	set_user_config "CONFIG_HAVE_GPG_KEY_BACKUP" "y"
@@ -1310,13 +1305,21 @@ else
 	#Reset Nitrokey 3 secret app
 	reset_nk3_secret_app
 	#Generate GPG key and subkeys on smartcard only
-	echo -e "\nResetting USB Security dongle's OpenPGP smartcard with GPG...\n(this may take up to 3 minutes...)\n"
+	STATUS "Resetting USB Security dongle OpenPGP smartcard with GPG"
+	if [ "$GPG_ALGO" = "RSA" ]; then
+		NOTE "RSA key generation on $DONGLE_BRAND may take 10 or more minutes - please be patient"
+	fi
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
 fi
 
-# Obtain GPG key ID
-GPG_GEN_KEY=$(gpg --list-keys --with-colons | grep "^fpr" | cut -d: -f10 | head -n1)
+# Set identity fields on the OpenPGP smartcard from collected identity info
+if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" ] || [ "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
+	set_card_identity
+fi
+
+# Obtain GPG key ID without printing trustdb maintenance chatter to console
+GPG_GEN_KEY=$(gpg --list-keys --with-colons 2>/dev/null | grep "^fpr" | cut -d: -f10 | head -n1)
 #Where to export the public key
 PUBKEY="/tmp/${GPG_GEN_KEY}.asc"
 
@@ -1330,16 +1333,18 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	#Only apply smartcard PIN change if smartcard only or if keytocard op is expected next
 	if [ "${USER_PIN}" != "${USER_PIN_DEF}" -o "${ADMIN_PIN}" != "${ADMIN_PIN_DEF}" ]; then
-		echo -e "\nChanging default GPG Admin PIN\n"
+		STATUS "Changing default GPG Admin PIN"
 		gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
-		echo -e "\nChanging default GPG User PIN\n"
+		STATUS_OK "GPG Admin PIN changed"
+		STATUS "Changing default GPG User PIN"
 		gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
+		STATUS_OK "GPG User PIN changed"
 	fi
 fi
 
 ## export pubkey to USB
 if [ "$GPG_EXPORT" != "0" ]; then
-	echo -e "\nExporting generated key to USB...\n"
+	STATUS "Exporting generated key to USB"
 	# copy to USB
 	if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -1368,18 +1373,18 @@ fi
 # Do not attempt to flash the key to ROM if we are running in QEMU based on CONFIG_BOARD_NAME matching glob pattern containing qemu-*
 # We check for qemu-* instead of ^qemu- because CONFIG_BOARD_NAME could be renamed to UNTESTED-qemu-* in a probable future
 if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
-	warn "Skipping flash of GPG key to ROM because we are running in QEMU without internal flashing support."
-	warn "Please review boards/qemu*/qemu*.md documentation to extract public key from raw disk and inject at build time"
-	warn "Also review boards/qemu*/qemu*.config to tweak CONFIG_* options you might need to turn on/off manually at build time"
+	WARN "Skipping flash of GPG key to ROM because we are running in QEMU without internal flashing support."
+	WARN "Please review boards/qemu*/qemu*.md documentation to extract public key from raw disk and inject at build time"
+	WARN "Also review boards/qemu*/qemu*.config to tweak CONFIG_* options you might need to turn on/off manually at build time"
 else
 	#We are not running in QEMU, so flash the key to ROM
 
 	## flash generated key to ROM
 	# read current firmware; show all output and capture stderr for errors
 	if echo "$CONFIG_FLASH_OPTIONS" | grep -q -- '--progress'; then
-		echo -e "\nReading current firmware (progress shown below)...\n"
+		STATUS "Reading current firmware (progress shown below)..."
 	else
-		echo -e "\nReading current firmware...\n(this may take up to two minutes...)\n"
+		STATUS "Reading current firmware... (this may take up to two minutes)"
 	fi
 	if ! /bin/flash.sh -r /tmp/oem-setup.rom 2> >(tee /tmp/error >&2); then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -1414,7 +1419,7 @@ else
 	fi
 
 	# flash updated firmware image
-	echo -e "\nAdding generated key to current firmware and re-flashing...\n"
+	STATUS "Adding generated key to firmware and re-flashing"
 	if ! /bin/flash.sh /tmp/oem-setup.rom 2>/tmp/error; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
@@ -1423,7 +1428,7 @@ fi
 
 ## sign files in /boot and generate checksums
 if [[ "$SKIP_BOOT" == "n" ]]; then
-	echo -e "\nUpdating checksums and signing all files in /boot...\n"
+	STATUS "Updating checksums and signing all files in /boot"
 	generate_checksums
 fi
 
@@ -1436,11 +1441,11 @@ if [ -n "$luks_new_Disk_Recovery_Key_passphrase" -o -n "$luks_new_Disk_Recovery_
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
-	passphrases+="TPM Owner Password: ${TPM_PASS}\n"
+	passphrases+="TPM Owner Passphrase: ${TPM_PASS}\n"
 fi
 
-#if nk3 detected, we add the NK3 Secre App PIN. Detect by product ID
-if lsusb | grep -q "20a0:42b2"; then
+#if nk3 detected, we add the NK3 Secrets App PIN
+if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 	passphrases+="Nitrokey 3 Secrets app PIN: ${ADMIN_PIN}\n"
 fi
 
@@ -1458,36 +1463,49 @@ fi
 
 # Show configured secrets in whiptail and loop until user confirms qr code was scanned
 while true; do
-	whiptail --msgbox "$(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
+	whiptail_type $BG_COLOR_MAIN_MENU --msgbox "$(echo -e "$passphrases" | fold -w $((WIDTH - 5)))" \
 		$HEIGHT $WIDTH --title "Configured secrets"
 	if [ "$MAKE_USER_RECORD_PASSPHRASES" != y ]; then
-		# Passwords were user-supplied or not complex, we do not need to
+		# Passphrases were user-supplied or not complex, we do not need to
 		# badger the user to record them
 		break
 	fi
 	#Tell user to scan the QR code containing all configured secrets
-	echo -e "\nScan the QR code below to save the secrets to a secure location"
+	STATUS "Scan the QR code below to save the secrets to a secure location"
 	qrenc "$(echo -e "$passphrases")"
 	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
-	echo -e -n "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]: "
-	read -n 1 prompt_output
-	echo
+	INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
 		break
 	fi
 done
 
 ## all done -- reboot
-whiptail --msgbox "
-    OEM Factory Reset / Re-Ownership has completed successfully\n\n
-    After rebooting, you will need to generate new TOTP/HOTP secrets\n
-    when prompted in order to complete the setup process.\n\n
-    Press Enter to reboot.\n" \
+if [ "${CONFIG_TPM_DISK_UNLOCK_KEY:-n}" = "y" ]; then
+	boot_next_steps="Then open: Options -> Boot Options -> Show OS boot menu
+and set a new default boot option.
+This step also configures/reseals the TPM Disk Unlock Key (DUK).
+"
+else
+	boot_next_steps="Then open: Options -> Boot Options -> Show OS boot menu
+and set a new default boot option.
+"
+fi
+
+completion_msg="OEM Factory Reset / Re-Ownership has completed successfully
+
+After rebooting, you will need to generate new TOTP/HOTP secrets
+when prompted in order to complete the setup process.
+
+${boot_next_steps}
+Press Enter to reboot."
+
+whiptail --msgbox "${completion_msg}" \
 	$HEIGHT $WIDTH --title "OEM Factory Reset / Re-Ownership Complete"
 
 # Clean LUKS secrets
 luks_secrets_cleanup
 unset luks_passphrase_changed
-unset tpm_owner_password_changed
+unset tpm_owner_passphrase_changed
 
-reboot
+reboot.sh

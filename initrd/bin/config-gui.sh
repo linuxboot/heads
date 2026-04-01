@@ -76,7 +76,7 @@ while true; do
 		# USB keyboard support always loads.
 		[ "$CONFIG_USB_KEYBOARD_REQUIRED" != y ] && dynamic_config_options+=(
 			'K' " $(get_config_display_action "$CONFIG_USER_USB_KEYBOARD") USB keyboard"
-		 )
+		)
 
 		# Add keyboard keymap selection option only if loadkeys and keymaps exist
 		if [ -x /bin/loadkeys ] && [ -d /usr/lib/kbd/keymaps ]; then
@@ -160,7 +160,7 @@ while true; do
 		set_config /etc/config.user "CONFIG_BOOT_DEV" "$SELECTED_FILE"
 		combine_configs
 
-		whiptail --title 'Config change successful' \
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 			--msgbox "The /boot device was successfully changed to $SELECTED_FILE" 0 80
 		;;
 	"s")
@@ -171,9 +171,9 @@ while true; do
 		if (whiptail --title 'Update ROM?' \
 			--yesno "This will reflash your BIOS with the updated version\n\nDo you want to proceed?" 0 80); then
 			/bin/flash.sh /tmp/config-gui.rom
-			whiptail --title 'BIOS Updated Successfully' \
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'BIOS Updated Successfully' \
 				--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			/bin/reboot.sh
 		else
 			exit 0
 		fi
@@ -204,11 +204,11 @@ while true; do
 
 			# reset TPM if present
 			if [ "$CONFIG_TPM" = "y" ]; then
-				/bin/tpm-reset
+				/bin/tpm-reset.sh
 			fi
-			whiptail --title 'Configuration Reset Updated Successfully' \
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Configuration Reset Updated Successfully' \
 				--msgbox "Configuration reset and BIOS updated successfully.\n\nPress Enter to reboot" 0 80
-			/bin/reboot
+			/bin/reboot.sh
 		else
 			exit 0
 		fi
@@ -239,28 +239,23 @@ while true; do
 		set_config /etc/config.user "CONFIG_ROOT_DEV" "$SELECTED_FILE"
 		combine_configs
 
-		whiptail --title 'Config change successful' \
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 			--msgbox "The root device was successfully changed to $SELECTED_FILE" 0 80
 		;;
 	"D")
 		CURRENT_OPTION="$(load_config_value CONFIG_ROOT_DIRLIST)"
 
-		# Separate from prior prompt history on the terminal with two blanks
-		echo -e "\n"
-
 		if [ -n "$CURRENT_OPTION" ]; then
-			echo -e "The current list of directories to hash is $CURRENT_OPTION"
+			INFO "The current list of directories to hash is $CURRENT_OPTION"
 		fi
-		echo -e "Enter the new list of directories separated by spaces:"
-		echo -e "(Press enter with the list empty to cancel)"
-		read -r NEW_CONFIG_ROOT_DIRLIST
+		INPUT "Enter the new list of directories separated by spaces (empty to cancel):" -r NEW_CONFIG_ROOT_DIRLIST
 
 		# strip any leading forward slashes
 		NEW_CONFIG_ROOT_DIRLIST=$(echo $NEW_CONFIG_ROOT_DIRLIST | sed -e 's/^\///;s/ \// /g')
 
 		#check if list empty
 		if [ -z "$NEW_CONFIG_ROOT_DIRLIST" ]; then
-			whiptail --title 'Config change canceled' \
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change canceled' \
 				--msgbox "Root device directory change canceled by user" 0 80
 			break
 		fi
@@ -268,7 +263,7 @@ while true; do
 		set_config /etc/config.user "CONFIG_ROOT_DIRLIST" "$NEW_CONFIG_ROOT_DIRLIST"
 		combine_configs
 
-		whiptail --title 'Config change successful' \
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 			--msgbox "The root directories to hash was successfully changed to:\n$NEW_CONFIG_ROOT_DIRLIST" 0 80
 		;;
 	"B")
@@ -294,7 +289,7 @@ while true; do
 					fi
 				fi
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "The root device will be checked at each boot." 0 80
 
 			fi
@@ -305,7 +300,7 @@ while true; do
 
 				set_user_config "CONFIG_ROOT_CHECK_AT_BOOT" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "The root device will not be checked at each boot." 0 80
 			fi
 		fi
@@ -322,7 +317,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "$CONFIG_BRAND_NAME Basic mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
 
 			fi
@@ -334,7 +329,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "$CONFIG_BRAND_NAME Basic mode has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -354,7 +349,7 @@ while true; do
 
 				set_user_config "CONFIG_RESTRICTED_BOOT" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Restricted Boot mode enabled;\nsave the config change and reboot for it to go into effect." 0 80
 
 			fi
@@ -370,7 +365,7 @@ while true; do
 				# Restricted Boot again might restore the firmware to an identical
 				# state, and there would be no evidence that it had been temporarily
 				# disabled.
-				if ! wipe-totp >/dev/null 2>/tmp/error; then
+				if ! wipe-totp.sh >/dev/null 2>/tmp/error; then
 					ERROR=$(tail -n 1 /tmp/error | fold -s)
 					whiptail_error --title 'ERROR: erasing TOTP secret' \
 						--msgbox "Erasing TOTP Secret Failed\n\n${ERROR}" 0 80
@@ -390,9 +385,9 @@ while true; do
 				replace_rom_file /tmp/config-gui.rom "heads/initrd/etc/config.user" "$FLASH_USER_CONFIG"
 
 				/bin/flash.sh /tmp/config-gui.rom
-				whiptail --title 'BIOS Updated Successfully' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'BIOS Updated Successfully' \
 					--msgbox "BIOS updated successfully.\n\nIf your keys have changed, be sure to re-sign all files in /boot\nafter you reboot.\n\nPress Enter to reboot" 0 80
-				/bin/reboot
+				/bin/reboot.sh
 			fi
 		fi
 		;;
@@ -404,7 +399,7 @@ while true; do
 
 				set_user_config "CONFIG_USE_BLOB_JAIL" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Firmware Blob Jail use has been enabled;\nsave the config change and reboot for it to go into effect." 0 80
 
 			fi
@@ -415,7 +410,7 @@ while true; do
 
 				set_user_config "CONFIG_USE_BLOB_JAIL" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Firmware Blob Jail use has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -428,7 +423,7 @@ while true; do
 		else
 			current_msg="Currently boots automatically after $CONFIG_AUTO_BOOT_TIMEOUT seconds."
 		fi
-		whiptail --title "Automatic Boot" \
+		whiptail_type $BG_COLOR_MAIN_MENU --title "Automatic Boot" \
 			--menu "$CONFIG_BRAND_NAME can boot automatically.  Select the amount of time to wait\nbefore booting.\n\n$current_msg" 0 80 10 \
 			"0" "Don't boot automatically" \
 			"1" "1 second" \
@@ -447,7 +442,7 @@ while true; do
 				current_msg="$CONFIG_BRAND_NAME will boot automatically after $new_setting seconds."
 			fi
 			set_user_config "CONFIG_AUTO_BOOT_TIMEOUT" "$new_setting"
-			whiptail --title 'Config change successful' \
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 				--msgbox "$current_msg\nSave the config change and reboot for it to go into effect." 0 80
 		fi
 		;;
@@ -461,7 +456,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Automatic default boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		else
@@ -471,7 +466,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Automatic default boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -485,7 +480,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC_USB_AUTOBOOT" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "USB automatic boot enabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		else
@@ -495,7 +490,7 @@ while true; do
 
 				set_user_config "CONFIG_BASIC_USB_AUTOBOOT" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "USB automatic boot disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -508,7 +503,7 @@ while true; do
 
 				set_user_config "CONFIG_AUTOMATIC_POWERON" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Automatic power-on enabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		else
@@ -523,7 +518,7 @@ while true; do
 				# flash this change, we'll enable it again during boot.
 				set_ec_poweron.sh n
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "Automatic power-on disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -538,7 +533,7 @@ while true; do
 
 				set_user_config "CONFIG_USER_USB_KEYBOARD" "y"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "USB Keyboard support has been enabled;\nsave the config change and reboot for it to go into effect." 0 80
 
 			fi
@@ -549,7 +544,7 @@ while true; do
 
 				set_user_config "CONFIG_USER_USB_KEYBOARD" "n"
 
-				whiptail --title 'Config change successful' \
+				whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 					--msgbox "USB Keyboard support has been disabled;\nsave the config change and reboot for it to go into effect." 0 80
 			fi
 		fi
@@ -560,7 +555,7 @@ while true; do
 
 		while true; do
 			# Guide user into finding which keyboard type he has
-			whiptail --title "Keyboard Layout Type" \
+			whiptail_type $BG_COLOR_MAIN_MENU --title "Keyboard Layout Type" \
 				--menu "Look at the first row of your keyboard and select the layout type:" 0 60 3 \
 				"qwerty" "QWERTY (most common: US, UK, etc.)" \
 				"qwertz" "QWERTZ (German, Central Europe)" \
@@ -570,16 +565,16 @@ while true; do
 
 			layout_choice=$(cat /tmp/whiptail)
 			case "$layout_choice" in
-				"Cancel"|"")
-					break
-					;;
-				"qwerty"|"qwertz"|"azerty")
-					BROWSE_DIR="$KEYMAP_ROOT/i386/$layout_choice"
-					;;
-				*)
-					whiptail --title "Invalid selection" --msgbox "Invalid layout selection." 0 40
-					break
-					;;
+			"Cancel" | "")
+				break
+				;;
+			"qwerty" | "qwertz" | "azerty")
+				BROWSE_DIR="$KEYMAP_ROOT/i386/$layout_choice"
+				;;
+			*)
+				whiptail_error --title "Invalid selection" --msgbox "Invalid layout selection." 0 40
+				break
+				;;
 			esac
 
 			while true; do
@@ -593,11 +588,11 @@ while true; do
 				menu_entries+=("Cancel" "Cancel")
 
 				if [ ${#menu_entries[@]} -le 2 ]; then
-					whiptail --title "No keymaps" --msgbox "No keymaps found in $BROWSE_DIR." 0 60
+					whiptail_error --title "No keymaps" --msgbox "No keymaps found in $BROWSE_DIR." 0 60
 					break
 				fi
 
-				whiptail --title "Select Keymap" \
+				whiptail_type $BG_COLOR_MAIN_MENU --title "Select Keymap" \
 					--menu "Select a keymap file for $layout_choice layout.\n\n(Current: ${CURRENT_KEYMAP:-none})" 0 80 18 \
 					"${menu_entries[@]}" 2>/tmp/whiptail || break
 
@@ -611,18 +606,13 @@ while true; do
 				elif [[ "$choice" == *.map ]]; then
 					SELECTED_KEYMAP="$BROWSE_DIR/$choice"
 					load_keymap "$SELECTED_KEYMAP"
-					echo
-					echo "------------------------------------------------------------"
-					echo "Keymap loaded: $SELECTED_KEYMAP"
-					echo
-					echo "You can now test your keyboard layout in this shell."
-					echo "Press Enter when done testing to continue..."
-					echo "------------------------------------------------------------"
-					read -p $'\nTest your keymap now. Press Enter to continue:\n' dummy
+					STATUS_OK "Keymap loaded: $SELECTED_KEYMAP"
+					INFO "You can now test your keyboard layout in this shell."
+					INPUT "Test your keymap now. Press Enter to continue:" dummy
 					if whiptail --title "Keep this keymap?" \
 						--yesno "Do you want to use this keymap?\n\n$SELECTED_KEYMAP" 0 70; then
 						set_user_config "CONFIG_KEYBOARD_KEYMAP" "$SELECTED_KEYMAP"
-						whiptail --title "Keymap set" --msgbox "Keymap set to:\n\n$SELECTED_KEYMAP\n\nSave the config change and reboot for it to go into effect." 0 70
+						whiptail_type $BG_COLOR_MAIN_MENU --title "Keymap set" --msgbox "Keymap set to:\n\n$SELECTED_KEYMAP\n\nSave the config change and reboot for it to go into effect." 0 70
 						break 2
 					fi
 					load_keymap "$CURRENT_KEYMAP"
@@ -641,23 +631,23 @@ while true; do
 
 		output_choice=$(cat /tmp/whiptail)
 		case "$output_choice" in
-			0)
-				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
-				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
-				set_user_config "CONFIG_QUIET_MODE" "y"
-				;;
-			1)
-				set_user_config "CONFIG_DEBUG_OUTPUT" "n"
-				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
-				set_user_config "CONFIG_QUIET_MODE" "n"
-				;;
-			2)
-				set_user_config "CONFIG_DEBUG_OUTPUT" "y"
-				set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "y"
-				set_user_config "CONFIG_QUIET_MODE" "n"
-				;;
+		0)
+			set_user_config "CONFIG_DEBUG_OUTPUT" "n"
+			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
+			set_user_config "CONFIG_QUIET_MODE" "y"
+			;;
+		1)
+			set_user_config "CONFIG_DEBUG_OUTPUT" "n"
+			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
+			set_user_config "CONFIG_QUIET_MODE" "n"
+			;;
+		2)
+			set_user_config "CONFIG_DEBUG_OUTPUT" "y"
+			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "y"
+			set_user_config "CONFIG_QUIET_MODE" "n"
+			;;
 		esac
-		whiptail --title 'Config change successful' \
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
 			--msgbox "Output level changed.\nSave the config change and reboot for it to go into effect." 0 80
 		;;
 	esac

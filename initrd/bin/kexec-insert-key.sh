@@ -11,26 +11,27 @@ TMP_KEY_LVM="/tmp/kexec/kexec_key_lvm.txt"
 INITRD="$1"
 
 if [ -z "$INITRD" ]; then
-	die "Usage: $0 /boot/initramfs... "
+	DIE "Usage: $0 /boot/initramfs... "
 fi
 
 if [ ! -r "$TMP_KEY_DEVICES" ]; then
-	die "No devices defined for disk encryption"
+	DIE "No devices defined for disk encryption"
 fi
 
 if [ -r "$TMP_KEY_LVM" ]; then
 	# Activate the LVM volume group
 	VOLUME_GROUP=$(cat $TMP_KEY_LVM)
 	if [ -z "$TMP_KEY_LVM" ]; then
-		die "No LVM volume group defined for activation"
+		DIE "No LVM volume group defined for activation"
 	fi
-	lvm vgchange -a y $VOLUME_GROUP ||
-		die "$VOLUME_GROUP: unable to activate volume group"
+	run_lvm vgchange -a y $VOLUME_GROUP ||
+		DIE "$VOLUME_GROUP: unable to activate volume group"
 fi
 
 # Measure the LUKS headers before we unseal the LUKS Disk Unlock Key from TPM
-cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks ||
-	die "LUKS measure failed"
+STATUS "Measuring LUKS headers"
+cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks.sh ||
+	DIE "LUKS measure failed"
 
 # Unpack the initrd and fixup the crypttab
 # this is a hack to split it into two parts since
@@ -42,72 +43,65 @@ mkdir -p "$INITRD_DIR/etc"
 
 if [ -e /boot/kexec_lukshdr_hash.txt ] && [ -e /tmp/luksDump.txt ]; then
 	if ! cmp -s /boot/kexec_lukshdr_hash.txt /tmp/luksDump.txt >/dev/null 2>&1; then
-		#LUKS header hash part of detached signed hash digest under boot doesn't match qubes-measure-luks tmp file
-		warn "Encrypted disk keys have changed since the TPM Disk Unlock Key was sealed. If you did not make this change, the disk may be compromised"
+		#LUKS header hash part of detached signed hash digest under boot doesn't match qubes-measure-luks.sh tmp file
+		WARN "Encrypted disk keys have changed since the TPM Disk Unlock Key was sealed. If you did not make this change, the disk may be compromised"
 		exit 1
 	else
 		#LUKS header hash part of detached signed hash digest matches
-		echo "+++ Encrypted disk keys have not been changed since sealed in TPM Disk Unlock Key"
-		#TODO: remove "+++" with boot info helper when added, same with "!!!" currently for info.
+		STATUS_OK "Encrypted disk keys have not changed since sealed in TPM Disk Unlock Key"
 	fi
 else
-	warn "Could not check for tampering of Encrypted disk keys"
-	warn "Re-seal the TPM Disk Unlock Key by re-selecting your default boot option to enable this check (Options -> Boot Options -> Show OS boot menu)."
+	WARN "Could not check for tampering of Encrypted disk keys"
+	WARN "Re-seal the TPM Disk Unlock Key by re-selecting your default boot option to enable this check (Options -> Boot Options -> Show OS boot menu)."
 fi
 
 # Attempt to unseal the Disk Unlock Key from the TPM
 # should we give this some number of tries?
 unseal_failed="n"
-if ! kexec-unseal-key "$INITRD_DIR/secret.key"; then
+if ! kexec-unseal-key.sh "$INITRD_DIR/secret.key"; then
 	unseal_failed="y"
-	echo
-	echo "!!! Failed to unseal the TPM LUKS Disk Unlock Key"
+	WARN "Failed to unseal the TPM LUKS Disk Unlock Key"
 fi
 
 # Override PCR 4 so that user can't read the key
 TRACE_FUNC
 INFO "TPM: Extending PCR[4] to prevent any future secret unsealing"
 tpmr.sh extend -ix 4 -ic generic ||
-	die 'Unable to scramble PCR'
+	DIE 'Unable to scramble PCR'
 
 # Check to continue
 if [ "$unseal_failed" = "y" ]; then
 	confirm_boot="n"
-	read \
-		-n 1 \
-		-p "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n] " \
-		confirm_boot
-	echo
+	INPUT "Do you wish to boot and use the LUKS Disk Recovery Key? [Y/n]:" -n 1 confirm_boot
 	
 	if [ "$confirm_boot" != 'y' \
 		-a "$confirm_boot" != 'Y' \
 		-a -n "$confirm_boot" ] \
 		; then
-		die "!!! Aborting boot due to failure to unseal TPM Disk Unlock Key"
+		DIE "Aborting boot due to failure to unseal TPM Disk Unlock Key"
 	fi
 fi
 
-echo
-echo '+++ Building initrd'
+STATUS "Building initrd"
 # pad the initramfs (dracut doesn't pad the last gz blob)
 # without this the kernel init/initramfs.c fails to read
 # the subsequent uncompressed/compressed cpio
 dd if="$INITRD" of="$SECRET_CPIO" bs=512 conv=sync > /dev/null 2>&1 ||
-	die "Failed to copy initrd to /tmp"
+	DIE "Failed to copy initrd to /tmp"
 
 if [ "$unseal_failed" = "n" ]; then
-	# kexec-save-default might have created crypttab overrides to be injected in initramfs through additional cpio
+	# kexec-save-default.sh might have created crypttab overrides to be injected in initramfs through additional cpio
 	if [ -r "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
-		echo "+++ $bootdir/kexec_initrd_crypttab_overrides.txt found..."
-		echo "+++ Preparing initramfs crypttab overrides as defined under $bootdir/kexec_initrd_crypttab_overrides.txt to be injected through cpio at next kexec call..."
-		# kexec-save-default has found crypttab files under initrd and saved them
+		DEBUG "$bootdir/kexec_initrd_crypttab_overrides.txt found"
+		DEBUG "Preparing initramfs crypttab overrides from $bootdir/kexec_initrd_crypttab_overrides.txt"
+		# kexec-save-default.sh has found crypttab files under initrd and saved them
 		cat "$bootdir/kexec_initrd_crypttab_overrides.txt" | while read line; do
 			crypttab_file=$(echo "$line" | awk -F ':' {'print $1'})
 			crypttab_entry=$(echo "$line" | awk -F ':' {'print $NF'})
 			# Replace each initrd crypttab file with modified entry containing /secret.key path
 			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
 			echo "$crypttab_entry" | tee -a "$INITRD_DIR/$crypttab_file" >/dev/null
-			echo "+++ initramfs's $crypttab_file will be overriden with: $crypttab_entry"
+			DEBUG "initramfs $crypttab_file will be overridden with: $crypttab_entry"
 		done
 	else
 		# No crypttab files were found under selected default boot option's initrd file
@@ -116,10 +110,10 @@ if [ "$unseal_failed" = "n" ]; then
 		for crypttab_file in $crypttab_files; do
 			mkdir -p "$INITRD_DIR/$(dirname $crypttab_file)"
 			# overwrite crypttab to mirror behavior of seal-key
-			echo "+++ The following $crypttab_file overrides will be passed through concatenated secret/initrd.cpio at kexec call:"
+			DEBUG "The following $crypttab_file overrides will be injected via cpio at kexec:"
 			for uuid in $(cat "$TMP_KEY_DEVICES" | cut -d\  -f2); do
 				# NOTE: discard operation (TRIM) is activated by default if no crypptab found in initrd
-				echo "luks-$uuid UUID=$uuid /secret.key luks,discard" | tee -a "$INITRD_DIR/$crypttab_file"
+				echo "luks-$uuid UUID=$uuid /secret.key luks,discard" >> "$INITRD_DIR/$crypttab_file"
 			done
 		done
 	fi
@@ -128,3 +122,4 @@ if [ "$unseal_failed" = "n" ]; then
 		find . -type f | cpio -H newc -o
 	) >>"$SECRET_CPIO"
 fi
+STATUS_OK "Initrd prepared for kexec boot"

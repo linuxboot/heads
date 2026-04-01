@@ -4,14 +4,16 @@
 . /etc/functions.sh
 . /tmp/config
 
-mount_boot() {
+mount_boot()
+{
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o ro /boot ||
-			recovery "Unable to mount /boot"
+	if ! grep -q /boot /proc/mounts ; then
+		mount -o ro /boot \
+			|| recovery "Unable to mount /boot"
 	fi
 }
+
 
 # Confirm we have a good TOTP unseal and ask the user for next choice
 while true; do
@@ -30,11 +32,9 @@ while true; do
 	fi
 
 	if [ "$totp_confirm" = "n" ]; then
-		echo ""
-		echo "To correct clock drift: 'date -s HH:MM:SS'"
-		echo "and save it to the RTC: 'hwclock -w'"
-		echo "then reboot and try again"
-		echo ""
+		INFO "To correct clock drift: date -s HH:MM:SS"
+		INFO "and save it to the RTC: hwclock -w"
+		INFO "then reboot and try again"
 		recovery "TOTP mismatch"
 	fi
 
@@ -53,8 +53,8 @@ while true; do
 	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
 		# Try to boot the default
 		mount_boot
-		DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" ||
-			recovery "Failed default boot"
+		DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" \
+		|| recovery "Failed default boot"
 	fi
 
 done

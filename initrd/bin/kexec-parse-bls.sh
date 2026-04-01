@@ -9,7 +9,7 @@ blsdir="$3"
 kernelopts=""
 
 if [ -z "$bootdir" -o -z "$file" ]; then
-	die "Usage: $0 /boot /boot/grub/grub.cfg blsdir"
+	DIE "Usage: $0 /boot /boot/grub/grub.cfg blsdir"
 fi
 
 reset_entry() {

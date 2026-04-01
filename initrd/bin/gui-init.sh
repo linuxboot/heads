@@ -10,11 +10,21 @@ export BG_COLOR_MAIN_MENU="normal"
 . /etc/luks-functions.sh
 . /tmp/config
 
+# Detect the terminal this gui-init session is running on.  The user
+# interacting with gui-init (via whiptail) is the source of truth for the
+# "active" terminal — prompts, GPG/pinentry, and input all go to/from there.
+# $(tty) works here because cttyhack (exec'd by /init) has already replaced
+# fd0/1/2 with the correct console device before launching this script.
+# Fall back to /sys/class/tty/console/active (last entry = preferred console,
+# same source used by systemd and busybox cttyhack) when tty is unavailable.
+detect_heads_tty
+
 # skip_to_menu is set if the user selects "continue to the main menu" from any
 # error, so we will indeed go to the main menu even if other errors occur.  It's
 # reset when we reach the main menu so the user can retry from the main menu and
 # # see errors again.
 skip_to_menu="false"
+INTEGRITY_GATE_REQUIRED="n"
 
 mount_boot() {
 	TRACE_FUNC
@@ -22,33 +32,42 @@ mount_boot() {
 	while ! grep -q /boot /proc/mounts; do
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot
-			[[ $? -eq 0 ]] && continue
+			if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+				continue
+			fi
 		fi
 
-		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options
+		# CONFIG_BOOT_DEV doesn't exist or couldn't be mounted, so give user options.
+		# LUKS_PARTITION_DETECTED is set by detect_boot_device (via mount_possible_boot_device)
+		# when it skips a LUKS partition -- reuse that result to distinguish
+		# "OS installed without separate /boot" from "no OS found at all".
 		BG_COLOR_MAIN_MENU="error"
-		whiptail_error --title "ERROR: No Bootable OS Found!" \
-			--menu "    No bootable OS was found on the default boot device $CONFIG_BOOT_DEV.
-    How would you like to proceed?" 0 80 4 \
-			'b' ' Select a new boot device' \
+		local boot_msg
+		if [ "${LUKS_PARTITION_DETECTED:-n}" = "y" ]; then
+			boot_msg="An encrypted OS was detected but no separate /boot partition was found.\n\n$CONFIG_BRAND_NAME requires a separate, unencrypted /boot partition.\n\nMost OS installers do not create this layout by default. Only DVD/live\nISOs that detect legacy boot (BIOS/CSM mode) will offer the correct\npartition scheme. Use 'Boot from USB' to boot a live ISO and reinstall\nyour OS with a separate /boot partition.\n\nHow would you like to proceed?"
+		else
+			boot_msg="No bootable OS was found on any disk.\n\n$CONFIG_BRAND_NAME requires a separate, unencrypted /boot partition\ncontaining grub configuration files.\n\nIf you are installing an OS for the first time, use 'Boot from USB' to\nboot a live ISO. Only DVD/live ISOs that detect legacy boot (BIOS/CSM)\nwill offer the correct partition scheme with a separate /boot.\n\nHow would you like to proceed?"
+		fi
+		whiptail_error --title "ERROR: No /boot Partition Found" \
+			--menu "$boot_msg" 0 80 4 \
 			'u' ' Boot from USB' \
+			'b' ' Select a new boot device' \
 			'm' ' Continue to the main menu' \
 			'x' ' Exit to recovery shell' \
 			2>/tmp/whiptail || recovery "GUI menu failed"
 
 		option=$(cat /tmp/whiptail)
 		case "$option" in
+		u)
+			exec /bin/usb-init.sh
+			;;
 		b)
-			config-gui.sh boot_device_select
-			if [ $? -eq 0 ]; then
+			if config-gui.sh boot_device_select; then
 				# update CONFIG_BOOT_DEV
+				# shellcheck source=/dev/null
 				. /tmp/config
 				BG_COLOR_MAIN_MENU="normal"
 			fi
-			;;
-		u)
-			exec /bin/usb-init.sh
 			;;
 		m)
 			skip_to_menu="true"
@@ -74,7 +93,7 @@ verify_global_hashes() {
 		return 0
 	elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]]; then
 		if (whiptail_error --title 'ERROR: Missing File!' \
-			--yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an\nolder version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to\nreturn to the main menu.\n\nWould you like to create the missing files now?" 0 80); then
+			--yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an older version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to create the missing files now?" 0 80); then
 			if update_checksums; then
 				BG_COLOR_MAIN_MENU="normal"
 				return 0
@@ -91,13 +110,13 @@ verify_global_hashes() {
 
 		# if files changed before package manager started, show stern warning
 		if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then
-			PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
+			PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' "$TMP_PACKAGE_TRIGGER_POST" | cut -f 2 -d '=' | tr -d '"')
 			TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
 
 		# if files changed after package manager started, probably caused by package manager
 		elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then
-			LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" $TMP_PACKAGE_TRIGGER_POST)
-			UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' $TMP_PACKAGE_TRIGGER_POST | cut -f 2 -d '=' | tr -d '"')
+			LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" "$TMP_PACKAGE_TRIGGER_POST")
+			UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' "$TMP_PACKAGE_TRIGGER_POST" | cut -f 2 -d '=' | tr -d '"')
 
 			if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
 				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
@@ -115,68 +134,215 @@ verify_global_hashes() {
 				less /tmp/hash_output_mismatches
 				#move outdated hash mismatch list
 				mv /tmp/hash_output_mismatches /tmp/hash_output_mismatch_old
-				TEXT="Would you like to update your checksums now?"
+				TEXT="${CHANGED_FILES_COUNT} files failed the verification process.\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
 			else
-				TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums now?"
+				TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
 			fi
 		fi
 
-		if (whiptail_error --title 'ERROR: Boot Hash Mismatch' --yesno "$TEXT" 0 80); then
-			if update_checksums; then
-				BG_COLOR_MAIN_MENU="normal"
-				return 0
-			else
-				whiptail_error --title 'ERROR' \
-					--msgbox "Failed to update checksums / sign default config" 0 80
-			fi
-		fi
-		BG_COLOR_MAIN_MENU="error"
-		return 1
+		local menu_text
+		menu_text="$TEXT"
+		while true; do
+			TRACE_FUNC
+			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
+				--menu "$menu_text\n\nChoose an action:" 0 80 3 \
+				'i' ' Investigate discrepancies -->' \
+				'u' ' Update checksums now' \
+				'm' ' Return to main menu' \
+				2>/tmp/whiptail || {
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+			}
+
+			option=$(cat /tmp/whiptail)
+			case "$option" in
+			i)
+				investigate_integrity_discrepancies
+				;;
+			u)
+				if update_checksums; then
+					BG_COLOR_MAIN_MENU="normal"
+					return 0
+				else
+					whiptail_error --title 'ERROR' \
+						--msgbox "Failed to update checksums / sign default config" 0 80
+				fi
+				;;
+			m | *)
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+				;;
+			esac
+		done
 	fi
 }
 
 prompt_update_checksums() {
 	TRACE_FUNC
+	# Signing /boot with -r increments the TPM rollback counter.  If the counter
+	# is broken or absent (tpm_reset_required), the increment will fail and DIE.
+	# The user must reset the TPM first; that flow re-creates the counter.
+	if [ "$CONFIG_TPM" = "y" ] && tpm_reset_required; then
+		whiptail_error --title 'TPM Reset Required' \
+			--msgbox "Cannot sign /boot: TPM state is inconsistent.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM), then update checksums." 0 80
+		return 1
+	fi
 	if (whiptail_warning --title 'Update Checksums and sign all files in /boot' \
 		--yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80); then
-		if ! update_checksums; then
+		if update_checksums; then
+			return 0
+		else
 			whiptail_error --title 'ERROR' \
 				--msgbox "Failed to update checksums / sign default config" 0 80
+			return 1
 		fi
 	fi
+	return 1
+}
+
+gate_reseal_with_integrity_report() {
+	TRACE_FUNC
+	local token_ok="y"
+	if tpm_reset_required; then
+		debug_tpm_reset_required_state
+		whiptail_error --title 'ERROR: TPM Reset Required' \
+			--msgbox "TPM state is inconsistent for sealing/unsealing operations.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)." 0 80
+		return 1
+	fi
+
+	if [ "$INTEGRITY_GATE_REQUIRED" != "y" ]; then
+		DEBUG "Skipping integrity gate: no TOTP/HOTP failure context"
+		return 0
+	fi
+
+	INTEGRITY_REPORT_HASH_STATE="UNKNOWN"
+	report_integrity_measurements
+	local report_rc=$?
+	DEBUG "gate_reseal_with_integrity_report: report_integrity_measurements rc=$report_rc"
+	DEBUG "gate_reseal_with_integrity_report: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
+	if [ "$INTEGRITY_REPORT_HASH_STATE" != "OK" ]; then
+		DEBUG "returned from integrity report, now running investigation"
+		if ! investigate_integrity_discrepancies; then
+			DEBUG "investigation indicated problem, aborting gate"
+			return 1
+		fi
+
+		DEBUG "gate_reseal_with_integrity_report: about to verify detached signature"
+		DEBUG "ls -l /boot/kexec.sig: $(ls -l /boot/kexec.sig 2>/dev/null || echo missing)"
+		if ! detached_kexec_signature_valid /boot; then
+			DEBUG "detached_kexec_signature_valid failed"
+			local sig_fail_msg
+			sig_fail_msg="Cannot proceed with sealing new secrets because /boot/kexec.sig could not be verified with your current keyring.\n\nTreat /boot as untrusted and recover ownership first."
+			whiptail_error --title 'ERROR: Signature Verification Failed' \
+				--msgbox "$sig_fail_msg" 0 80
+			return 1
+		fi
+	else
+		DEBUG "gate_reseal_with_integrity_report: integrity is OK, skipping investigation and detached signature verification"
+	fi
+
+	if [ -x /bin/hotp_verification ]; then
+		token_ok="n"
+		while [ "$token_ok" != "y" ]; do
+			enable_usb
+			# wait_for_gpg_card already called release_scdaemon on success,
+			# starting the NK3 CCID teardown.  This safety call covers the
+			# case where scdaemon was restarted between then and now.
+			release_scdaemon
+			STATUS "Checking USB security dongle presence before sealing"
+			DEBUG "gate_reseal_with_integrity_report: checking HOTP token presence"
+			if hotp_verification info >/dev/null 2>&1; then
+				token_ok="y"
+				STATUS_OK "USB security dongle present and accessible"
+				break
+			fi
+			DEBUG "gate_reseal_with_integrity_report: HOTP token not accessible"
+			if ! whiptail_warning --title "USB Security Dongle Required" \
+				--yes-button "Retry" --no-button "Abort" \
+				--yesno "Your USB security dongle must be present before sealing new secrets.\n\nInsert the dongle and choose Retry, or Abort." 0 80; then
+				return 1
+			fi
+		done
+	fi
+
+	if ! whiptail_warning --title 'Integrity Gate Passed' \
+		--yesno "Integrity checks completed.\n\nProceed with TOTP/HOTP reseal action?" 0 80; then
+		return 1
+	fi
+	INTEGRITY_GATE_REQUIRED="n"
+	return 0
 }
 
 generate_totp_hotp() {
 	TRACE_FUNC
-	tpm_owner_password="$1" # May be empty, will prompt if needed and empty
+	tpm_owner_passphrase="$1" # May be empty, will prompt if needed and empty
+	if [ "$CONFIG_TPM" = "y" ] && tpm_reset_required; then
+		debug_tpm_reset_required_state
+		whiptail_error --title 'ERROR: TPM Reset Required' \
+			--msgbox "Cannot generate a new TPM-backed TOTP/HOTP secret while TPM state is inconsistent.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)." 0 80
+		return 1
+	fi
 	if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
 		# If we don't have a TPM, but we have a HOTP USB Security dongle
 		TRACE_FUNC
-		echo "Generating new HOTP secret"
+		STATUS "Generating new HOTP secret"
 		/bin/seal-hotpkey.sh ||
-			die "Failed to generate HOTP secret"
-	elif echo -e "Generating new TOTP secret...\n\n" && /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_password"; then
-		echo
+			DIE "Failed to generate HOTP secret"
+	elif STATUS "Generating new TOTP secret" && /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_passphrase"; then
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
-				echo "Once you have scanned the QR code, hit Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
-				read
+				INPUT "Once you have scanned the QR code, press Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
 			fi
 			TRACE_FUNC
-			/bin/seal-hotpkey.sh || die "Failed to generate HOTP secret"
+			/bin/seal-hotpkey.sh || DIE "Failed to generate HOTP secret"
 		else
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
-				echo "Once you have scanned the QR code, hit Enter to continue"
-				read
+				INPUT "Once you have scanned the QR code, press Enter to continue"
 			fi
 		fi
-		# clear screen
-		printf "\033c"
+		clear
 	else
-		warn "Unsealing TOTP/HOTP secret from previous sealed measurements failed"
-		warn 'Try "Generate new HOTP/TOTP secret" option if you updated firmware content'
+		# seal-totp.sh already printed an explanatory error (e.g. missing
+		# primary handle) and guided the user to reset the TPM.  Don't add
+		# confusing generic warnings here, just propagate failure.
+		return 1
 	fi
+}
+
+prompt_missing_gpg_key_action() {
+	TRACE_FUNC
+	local retry_label retry_msg
+	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" = "y" ]; then
+		retry_label=' Retry (insert signing card or backup USB drive)'
+		retry_msg="Cannot sign /boot because no private GPG signing key is available (card not inserted, wiped, or key not set up).\n\nInsert your signing card or backup USB drive and retry.\n\nHow would you like to proceed?"
+	else
+		retry_label=' Retry (after connecting the correct signing card)'
+		retry_msg="Cannot sign /boot because no private GPG signing key is available (card not inserted, wiped, or key not set up).\n\nIf you have the correct signing card, insert it and retry.\n\nHow would you like to proceed?"
+	fi
+	whiptail_error --title "ERROR: GPG signing key unavailable" \
+		--menu "$retry_msg" 0 80 4 \
+		'r' "$retry_label" \
+		'F' ' OEM Factory Reset / Re-Ownership' \
+		'm' ' Return to main menu' \
+		'x' ' Exit to recovery shell' \
+		2>/tmp/whiptail || recovery "GUI menu failed"
+
+	option=$(cat /tmp/whiptail)
+	case "$option" in
+	r)
+		return 0
+		;;
+	F)
+		oem-factory-reset.sh
+		;;
+	x)
+		recovery "User requested recovery shell"
+		;;
+	m | *)
+		return 1
+		;;
+	esac
 }
 
 update_totp() {
@@ -187,38 +353,58 @@ update_totp() {
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
 	else
-		TOTP=$(unseal-totp)
+		TOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-totp.sh)
 		if [ $? -ne 0 ]; then
+			local totp_menu_text
+			INTEGRITY_GATE_REQUIRED="y"
 			BG_COLOR_MAIN_MENU="error"
 			if [ "$skip_to_menu" = "true" ]; then
 				return 1 # Already asked to skip to menu from a prior error
 			fi
 
-			DEBUG "CONFIG_TPM: $CONFIG_TPM"
-			DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
-			DEBUG "Show PCRs"
 			DEBUG "$(pcrs)"
 
+			totp_menu_text=$(
+				cat <<EOF
+ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.
+
+After OEM Factory Reset / Re-Ownership, this is expected on first boot
+until you generate a new HOTP/TOTP secret.
+
+If you have just completed a factory reset, or just reflashed your BIOS,
+you should generate a new HOTP/TOTP secret.
+
+If this is the first time the system has booted, you should reset the TPM
+and set your own passphrase.
+
+If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!
+
+How would you like to proceed?
+EOF
+			)
 			whiptail_error --title "ERROR: TOTP Generation Failed!" \
-				--menu "    ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.\n
-  If you have just completed a Factory Reset, or just reflashed
-  your BIOS, you should generate a new HOTP/TOTP secret.\n
-  If this is the first time the system has booted, you should
-  reset the TPM and set your own password.\n
-  If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n
-  How would you like to proceed?" 0 80 4 \
+				--menu "$totp_menu_text" 0 80 4 \
 				'g' ' Generate new HOTP/TOTP secret' \
-				'i' ' Ignore error and continue to main menu' \
 				'p' ' Reset the TPM' \
+				'i' ' Ignore error and continue to main menu' \
 				'x' ' Exit to recovery shell' \
 				2>/tmp/whiptail || recovery "GUI menu failed"
 
 			option=$(cat /tmp/whiptail)
 			case "$option" in
 			g)
-				if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+				if tpm_reset_required; then
+					debug_tpm_reset_required_state
+					whiptail_error --title 'ERROR: TPM Reset Required' \
+						--msgbox "Cannot generate a new TPM-backed TOTP/HOTP secret while TPM state is inconsistent.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)." 0 80
+					return 1
+				elif gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 					--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-					generate_totp_hotp && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+					if generate_totp_hotp; then
+						update_totp || true
+						BG_COLOR_MAIN_MENU="normal"
+						reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+					fi
 				fi
 				;;
 			i)
@@ -226,12 +412,16 @@ update_totp() {
 				return 1
 				;;
 			p)
-				reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+				if gate_reseal_with_integrity_report && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
 				;;
 			x)
 				recovery "User requested recovery shell"
 				;;
 			esac
+		else
+			INTEGRITY_GATE_REQUIRED="n"
 		fi
 	fi
 }
@@ -239,47 +429,118 @@ update_totp() {
 update_hotp() {
 	TRACE_FUNC
 	HOTP="Unverified"
-	if [ -x /bin/hotp_verification ]; then
-		if ! hotp_verification info; then
-			if [ "$skip_to_menu" = "true" ]; then
-				return 1 # Already asked to skip to menu from a prior error
-			fi
-			if ! whiptail_warning \
-				--title "WARNING: Please Insert Your $HOTPKEY_BRANDING" \
-				--yes-button "Retry" --no-button "Skip" \
-				--yesno "Your $HOTPKEY_BRANDING was not detected.\n\nPlease insert your $HOTPKEY_BRANDING" 0 80; then
-				HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
-				BG_COLOR_MAIN_MENU="warning"
-				return
-			fi
+	if [ ! -x /bin/hotp_verification ]; then
+		HOTP='N/A'
+		return
+	fi
+
+	local hotp_token_info hotp_exit attempt
+
+	# Ensure dongle is present; capture info for PIN counter display
+	if ! hotp_token_info="$(hotp_verification info)"; then
+		if [ "$skip_to_menu" = "true" ]; then
+			return 1 # Already asked to skip to menu from a prior error
 		fi
-		HOTP=$(unseal-hotp)
+		if ! whiptail_warning \
+			--title "WARNING: Please Insert Your $DONGLE_BRAND" \
+			--yes-button "Retry" --no-button "Skip" \
+			--yesno "Your $DONGLE_BRAND was not detected.\n\nPlease insert your $DONGLE_BRAND" 0 80; then
+			HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
+			BG_COLOR_MAIN_MENU="warning"
+			return
+		fi
+		if ! hotp_token_info="$(hotp_verification info)"; then
+			HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
+			BG_COLOR_MAIN_MENU="warning"
+			return
+		fi
+	fi
+
+	# Show dongle firmware version with color coding so users know when to upgrade
+	hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
+
+	# Unseal HOTP secret from TPM once; if this fails don't proceed at all
+	HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp.sh)
+	if [ -z "$HOTP" ]; then
+		WARN "Unable to unseal HOTP secret from TPM"
+		HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
+		BG_COLOR_MAIN_MENU="warning"
+		return
+	fi
+
+	# Try HOTP check up to 3 times.
+	# Retries handle transient USB/timing failures; a definitive code mismatch
+	# (exit 4 or 7) breaks immediately since the same code won't verify again.
+	# PIN retry count is shown only before a retry so normal boots stay silent.
+	for attempt in 1 2 3; do
 		# Don't output HOTP codes to screen, so as to make replay attacks harder
 		hotp_verification check "$HOTP"
-		case "$?" in
+		hotp_exit=$?
+		case "$hotp_exit" in
 		0)
 			HOTP="Success"
 			BG_COLOR_MAIN_MENU="normal"
+			return
 			;;
-		4 | 7) # 4: code was incorrect, 7: code was not a valid HOTP code at all
+		4 | 7) # 4: code incorrect, 7: not a valid HOTP code — no point retrying same code
 			HOTP="Invalid code"
 			BG_COLOR_MAIN_MENU="error"
+			break
+			;;
+		6) # EXIT_SLOT_NOT_PROGRAMMED — sealing was never completed or failed mid-way
+			HOTP="HOTP slot not configured"
+			BG_COLOR_MAIN_MENU="warning"
+			break
 			;;
 		*)
-			HOTP="Error checking code, Insert $HOTPKEY_BRANDING and retry"
-			BG_COLOR_MAIN_MENU="warning"
+			# Transient error (USB glitch etc.) — retry if attempts remain
+			if [ "$attempt" -lt 3 ]; then
+				WARN "HOTP check failed (attempt $attempt/3), retrying"
+			else
+				HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
+				BG_COLOR_MAIN_MENU="warning"
+			fi
 			;;
 		esac
-	else
-		HOTP='N/A'
-	fi
+	done
 
-	if [[ "$HOTP" = "Invalid code" ]]; then
-		#Do not propose to generate a new secret if there is no /boot/kexec_hotp_counter
-		# tpm unseal succeeded: so the sealed secret is correct: we should propose to reset TPM if not already
-		#  Here: the OS was most probably reinstalled since TPM can still unseal the secret
+	if [[ "$HOTP" = "HOTP slot not configured" ]]; then
+		WARN "$DONGLE_BRAND HOTP slot is not configured"
+		STATUS "Verify TOTP against your phone to confirm TPM is intact, then press Escape to continue"
+		show_totp_until_esc
+		whiptail_warning --title "HOTP Not Configured" \
+			--menu "The HOTP slot on your $DONGLE_BRAND is not configured.\n\nThis can happen if HOTP sealing was interrupted (connection error, dongle removed during setup).\n\nPlease generate a new TOTP/HOTP secret to configure it." 0 80 2 \
+			'g' ' Generate new TOTP/HOTP secret' \
+			'x' ' Exit to recovery shell' \
+			2>/tmp/whiptail || recovery "GUI menu failed"
+
+		option=$(cat /tmp/whiptail)
+		case "$option" in
+		g)
+			if gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
+				if generate_totp_hotp; then
+					update_totp || true
+					HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp.sh)
+					[ -n "$HOTP" ] && hotp_verification check "$HOTP" >/dev/null 2>&1 && HOTP="Success"
+					BG_COLOR_MAIN_MENU="normal"
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
+			fi
+			;;
+		x)
+			recovery "User requested recovery shell"
+			;;
+		esac
+		return
+	elif [[ "$HOTP" = "Invalid code" ]]; then
+		INTEGRITY_GATE_REQUIRED="y"
+		STATUS "HOTP failed - verify TOTP against your phone to confirm TPM integrity, then press Escape to continue"
+		show_totp_until_esc
+		local hotp_error_msg
+		hotp_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
 		whiptail_error --title "ERROR: HOTP Validation Failed!" \
-			--menu "ERROR: $CONFIG_BRAND_NAME couldn't validate the HOTP code.\n\nIf you just reflashed your BIOS, you should generate a new TOTP/HOTP secret.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+			--menu "$hotp_error_msg" 0 80 3 \
 			'g' ' Generate new TOTP/HOTP secret' \
 			'i' ' Ignore error and continue to main menu' \
 			'x' ' Exit to recovery shell' \
@@ -288,9 +549,15 @@ update_hotp() {
 		option=$(cat /tmp/whiptail)
 		case "$option" in
 		g)
-			if (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
+			if gate_reseal_with_integrity_report && (whiptail_warning --title 'Generate new TOTP/HOTP secret' \
 				--yesno "This will erase your old secret and replace it with a new one!\n\nDo you want to proceed?" 0 80); then
-				generate_totp_hotp && BG_COLOR_MAIN_MENU="normal" && reseal_tpm_disk_decryption_key
+				if generate_totp_hotp; then
+					update_totp || true
+					HOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-hotp.sh)
+					[ -n "$HOTP" ] && hotp_verification check "$HOTP" >/dev/null 2>&1 && HOTP="Success"
+					BG_COLOR_MAIN_MENU="normal"
+					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+				fi
 			fi
 			;;
 		i)
@@ -300,6 +567,22 @@ update_hotp() {
 			recovery "User requested recovery shell"
 			;;
 		esac
+	elif [[ "$HOTP" = "Error checking code"* ]]; then
+		INTEGRITY_GATE_REQUIRED="y"
+		STATUS "HOTP verification failed after 3 retries - verify TOTP against your phone to confirm TPM integrity, then press Escape to continue"
+		show_totp_until_esc
+		whiptail_warning --title "HOTP Verification Failed" \
+			--menu "The $DONGLE_BRAND could not be verified after multiple attempts.\n\nThis may indicate a USB connection issue or dongle problem.\n\nPlease insert your $DONGLE_BRAND and try again, or verify TOTP to continue." 0 80 2 \
+			'r' ' Retry HOTP verification' \
+			'i' ' Ignore and continue to main menu' \
+			2>/tmp/whiptail || recovery "GUI menu failed"
+		option=$(cat /tmp/whiptail)
+		case "$option" in
+		r) update_hotp ;;
+		i) INTEGRITY_GATE_REQUIRED="n" ;;
+		esac
+	else
+		INTEGRITY_GATE_REQUIRED="n"
 	fi
 }
 
@@ -339,8 +622,10 @@ check_gpg_key() {
 		if [ "$skip_to_menu" = "true" ]; then
 			return 1 # Already asked to skip to menu from a prior error
 		fi
+		local gpg_error_msg
+		gpg_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted, you should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one public key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
 		whiptail_error --title "ERROR: GPG keyring empty!" \
-			--menu "ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted,\nyou should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one\npublic key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?" 0 80 4 \
+			--menu "$gpg_error_msg" 0 80 4 \
 			'g' ' Add a GPG key to the running BIOS' \
 			'F' ' OEM Factory Reset / Re-Ownership' \
 			'i' ' Ignore error and continue to main menu' \
@@ -369,9 +654,9 @@ check_gpg_key() {
 
 prompt_auto_default_boot() {
 	TRACE_FUNC
-	echo -e "\nHOTP verification success\n\n"
+	STATUS_OK "HOTP verification success"
 	if pause_automatic_boot; then
-		echo -e "\n\nAttempting default boot...\n\n"
+		STATUS "Attempting default boot"
 		attempt_default_boot
 	fi
 }
@@ -403,7 +688,7 @@ show_main_menu() {
 		show_system_info
 		;;
 	p)
-		poweroff
+		poweroff.sh
 		;;
 	esac
 }
@@ -414,6 +699,7 @@ show_options_menu() {
 		--menu "" 0 80 10 \
 		'b' ' Boot Options -->' \
 		't' ' TPM/TOTP/HOTP Options -->' \
+		'i' ' Investigate integrity discrepancies -->' \
 		'h' ' Change system time' \
 		'u' ' Update checksums and sign all files in /boot' \
 		'c' ' Change configuration settings -->' \
@@ -435,6 +721,9 @@ show_options_menu() {
 	t)
 		show_tpm_totp_hotp_options_menu
 		;;
+	i)
+		investigate_integrity_discrepancies
+		;;
 	h)
 		change-time.sh
 		;;
@@ -451,7 +740,7 @@ show_options_menu() {
 		gpg-gui.sh
 		;;
 	F)
-		oem-factory-reset
+		oem-factory-reset.sh
 		;;
 	C)
 		luks_reencrypt
@@ -510,10 +799,17 @@ show_tpm_totp_hotp_options_menu() {
 	option=$(cat /tmp/whiptail)
 	case "$option" in
 	g)
-		generate_totp_hotp && reseal_tpm_disk_decryption_key
+		if gate_reseal_with_integrity_report && generate_totp_hotp; then
+			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+			# If reseal did not reboot (no LUKS devices), refresh display so
+			# the user sees the new TOTP/HOTP state without a manual 'r'
+			update_totp && update_hotp || true
+		fi
 		;;
 	r)
-		reset_tpm && reseal_tpm_disk_decryption_key
+		if gate_reseal_with_integrity_report && reset_tpm; then
+			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+		fi
 		;;
 	t)
 		prompt_totp_mismatch
@@ -534,31 +830,29 @@ reset_tpm() {
 	TRACE_FUNC
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if (whiptail_warning --title 'Reset the TPM' \
-			--yesno "This will clear the TPM and replace its Owner password with a new one!\n\nDo you want to proceed?" 0 80); then
+			--yesno "This will clear the TPM and replace its Owner passphrase with a new one!\n\nDo you want to proceed?" 0 80); then
 
-			if ! prompt_new_owner_password; then
-				echo "Press Enter to return to the menu..."
-				read
-				echo
+			if ! prompt_new_owner_passphrase; then
+				INPUT "Press Enter to return to the menu..."
 				return 1
 			fi
 
-			tpmr.sh reset "$tpm_owner_password"
+			tpmr.sh reset "$tpm_owner_passphrase"
 
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
 			mount -o rw,remount /boot
 			#TODO: this is really problematic, we should really remove the primary handle hash
 
-			INFO "Removing rollback and primary handle hashes under /boot"
+			STATUS "Removing rollback and primary handle hashes under /boot"
 
 			DEBUG "Removing /boot/kexec_rollback.txt and /boot/kexec_primhdl_hash.txt"
 			rm -f /boot/kexec_rollback.txt
 			rm -f /boot/kexec_primhdl_hash.txt
 
 			# create Heads TPM counter before any others
-			check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_password" ||
-				die "Unable to find/create tpm counter"
+			check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_passphrase" ||
+				DIE "Unable to find/create tpm counter"
 
 			TRACE_FUNC
 
@@ -566,29 +860,47 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			increment_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-				die "Unable to increment tpm counter"
+			increment_tpm_counter "$TPM_COUNTER" "$tpm_owner_passphrase" ||
+				DIE "Unable to increment tpm counter"
 
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
-				die "Unable to create rollback file"
+				DIE "Unable to create rollback file"
 
 			TRACE_FUNC
 			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it
-			if (whiptail --title 'TPM Reset Successfully' \
-				--yesno "Would you like to update the checksums and sign all of the files in /boot?\n\nYou will need your GPG key to continue and this will modify your disk.\n\nOtherwise the system will reboot immediately." 0 80); then
-				if ! update_checksums; then
-					whiptail_error --title 'ERROR' \
-						--msgbox "Failed to update checksums / sign default config" 0 80
+			# USB is already initialized at startup; run gpg --card-status to populate key stub.
+			wait_for_gpg_card || true
+			while true; do
+				GPG_KEY_COUNT=$(gpg -K 2>/dev/null | wc -l)
+				if [ "$GPG_KEY_COUNT" -eq 0 ]; then
+					prompt_missing_gpg_key_action || return 1
+					wait_for_gpg_card || true
+				else
+					STATUS_OK "TPM reset successful - updating /boot checksums and signatures"
+					if ! update_checksums; then
+						whiptail_error --title 'ERROR' \
+							--msgbox "Failed to update checksums / sign default config" 0 80
+						return 1
+					fi
+					break
 				fi
-			else
-				warn "TPM reset successful, but user chose not to update+sign /boot checksums. Rebooting"
-				reboot
-			fi
+			done
 			mount -o ro,remount /boot
 
-			generate_totp_hotp "$tpm_owner_password"
+			# Reset completed and reseal prerequisites were rebuilt.
+			# Clear stale preflight marker before generating fresh TOTP/HOTP.
+			clear_tpm_reset_required
+
+			if ! generate_totp_hotp "$tpm_owner_passphrase"; then
+				return 1
+			fi
+
+			if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
+				STATUS_OK "TPM reset successful - resealing TPM Disk Unlock Key (DUK)"
+				reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
+			fi
 		else
-			echo "Returning to the main menu"
+			INFO "Returning to the main menu"
 		fi
 	else
 		whiptail_error --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
@@ -638,16 +950,14 @@ force_unsafe_boot() {
 # gui-init start
 TRACE_FUNC
 
-# Use stored HOTP key branding
-if [ -r /boot/kexec_hotp_key ]; then
-	HOTPKEY_BRANDING="$(cat /boot/kexec_hotp_key)"
-else
-	HOTPKEY_BRANDING="HOTP USB Security dongle"
-fi
-
 if [ -x /bin/hotp_verification ]; then
 	enable_usb
 fi
+
+# Detect dongle branding from USB VID:PID -- must run AFTER enable_usb so lsusb
+# can see the dongle (NK3 enumerates ~1 second after USB module load).
+DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
+export DONGLE_BRAND
 
 if detect_boot_device; then
 	# /boot device with installed OS found
@@ -658,15 +968,104 @@ else
 	mount_boot
 fi
 
-# detect whether any GPG keys exist in the keyring, if not, initialize that first
-check_gpg_key
-# Even if GPG init fails, still try to update TOTP/HOTP so the main menu can
-# show the correct status.
-update_totp
-update_hotp
+# Fail early on rollback-counter inconsistencies before presenting TOTP/HOTP
+# recovery prompts. This avoids guiding users into reseal flows when TPM
+# rollback state is already invalid.
+rollback_preflight_failed="n"
+if ! preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+	rollback_preflight_failed="y"
+	BG_COLOR_MAIN_MENU="error"
+	preflight_error_msg="$(cat /tmp/rollback_preflight_error 2>/dev/null)"
+	if [ -z "$preflight_error_msg" ]; then
+		preflight_error_msg="TPM rollback counter state could not be validated."
+	fi
+	[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
 
-if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
-	prompt_auto_default_boot
+	# Show the actual diagnostic directly so the user knows exactly why.
+	# Strip the "Reset TPM from GUI..." action guidance that fail_preflight appends
+	# since the menu already offers those actions.
+	preflight_reason="${preflight_error_msg%%. Reset TPM from GUI*}"
+	[ -z "$preflight_reason" ] && preflight_reason="TPM rollback counter state could not be validated."
+
+	preflight_menu_text=$(
+		cat <<EOF
+Cannot verify TPM rollback protection.
+
+$preflight_reason
+
+Possible causes:
+ - TPM was reset or replaced
+ - /boot disk was swapped or restored
+ - TPM state tampering occurred
+
+WARNING: If none of the above were intentional, treat /boot as
+UNTRUSTED. A disk or TPM swap attack cannot be ruled out.
+Verify integrity before trusting any boot files.
+
+Recommended first step:
+ - Show integrity report (TOTP/HOTP + /boot)
+
+Choose an action:
+EOF
+	)
+	_preflight_report_shown="n"
+	while [ "$rollback_preflight_failed" = "y" ]; do
+		# After the user has seen the integrity report, drop the recommendation
+		# and mark it shown so oem-factory-reset.sh skips it.
+		if [ "$_preflight_report_shown" = "y" ]; then
+			_menu_text=$(printf '%s' "$preflight_menu_text" | sed '/^Recommended first step:/,/^$/d')
+		else
+			_menu_text="$preflight_menu_text"
+		fi
+		whiptail_error --title 'ERROR: TPM State Inconsistent' \
+			--menu "$_menu_text" 26 80 4 \
+			'i' ' Show integrity report -->' \
+			'o' ' OEM Factory Reset / Re-Ownership -->' \
+			't' ' Reset the TPM' \
+			'm' ' Continue to main menu' \
+			2>/tmp/whiptail || recovery "GUI menu failed"
+
+		option=$(cat /tmp/whiptail)
+		case "$option" in
+		i)
+			report_integrity_measurements
+			_preflight_report_shown="y"
+			export INTEGRITY_REPORT_ALREADY_SHOWN=1
+			;;
+		o)
+			oem-factory-reset.sh
+			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
+			;;
+		t)
+			if reset_tpm && preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
+			;;
+		m | *)
+			break
+			;;
+		esac
+		if [ "$rollback_preflight_failed" = "y" ]; then
+			preflight_error_msg="$(cat /tmp/rollback_preflight_error 2>/dev/null)"
+			[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
+		fi
+	done
+fi
+
+# detect whether any GPG keys exist in the keyring, if not, initialize that first
+if [ "$rollback_preflight_failed" != "y" ]; then
+	check_gpg_key
+	# Even if GPG init fails, still try to update TOTP/HOTP so the main menu can
+	# show the correct status.
+	update_totp && update_hotp
+
+	if [ "$HOTP" = "Success" -a -n "$CONFIG_AUTO_BOOT_TIMEOUT" ]; then
+		prompt_auto_default_boot
+	fi
 fi
 
 while true; do
