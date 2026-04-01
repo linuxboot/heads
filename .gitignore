@@ -1,3 +1,4 @@
+*.asc
 *.bad
 *.bz2
 *.cpio
@@ -23,3 +24,4 @@ config/*.old
 crossgcc
 typescript*
 result
+.claude/

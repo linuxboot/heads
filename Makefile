@@ -8,6 +8,20 @@ GIT_STATUS	:= $(shell \
 		echo dirty ; \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
+GIT_TIMESTAMP		:= $(shell git log -1 --format=%cd --date=format:'%Y%m%d-%H%M%S')
+GIT_BRANCH		:= $(shell git rev-parse --abbrev-ref HEAD | cut -c1-30)
+# Release builds: HEAD is exactly on a tag AND working tree is clean.
+# Dev builds: any untagged commit, commits ahead of a tag, or dirty tree.
+# Dev filenames include timestamp + branch for traceability without
+# polluting release filenames.
+GIT_IS_RELEASE		:= $(shell git describe --exact-match --tags HEAD >/dev/null 2>&1 \
+				&& git diff --exit-code >/dev/null 2>&1 \
+				&& echo y || echo n)
+ifeq ($(GIT_IS_RELEASE),y)
+GIT_VERSION_SUFFIX	:= $(HEADS_GIT_VERSION)
+else
+GIT_VERSION_SUFFIX	:= $(GIT_TIMESTAMP)-$(GIT_BRANCH)-$(HEADS_GIT_VERSION)
+endif
 
 # Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
 BRAND_NAME	?= Heads
@@ -108,12 +122,12 @@ include $(CONFIG)
 # https://doc.coreboot.org/tutorial/managing_local_additions.html
 -include $(pwd)/site-local/config
 
-CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(HEADS_GIT_VERSION)
+CB_OUTPUT_BASENAME	:= $(shell echo $(BRAND_NAME) | tr A-Z a-z)-$(BOARD)-$(GIT_VERSION_SUFFIX)
 CB_OUTPUT_FILE		:= $(CB_OUTPUT_BASENAME).rom
 CB_OUTPUT_FILE_GPG_INJ	:= $(CB_OUTPUT_BASENAME)-gpg-injected.rom
 CB_BOOTBLOCK_FILE	:= $(CB_OUTPUT_BASENAME).bootblock
 CB_UPDATE_PKG_FILE	:= $(CB_OUTPUT_BASENAME).zip
-LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(HEADS_GIT_VERSION).rom
+LB_OUTPUT_FILE		:= linuxboot-$(BOARD)-$(GIT_VERSION_SUFFIX).rom
 
 # Unless otherwise specified, we are building for heads
 CONFIG_HEADS	?= y
@@ -830,8 +844,7 @@ endif
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
-	$(initrd_tools_dir)/etc/config \
-	FORCE
+	$(initrd_tools_dir)/etc/config
 	$(call do-cpio,$@,$(initrd_tools_dir))
 	@$(RM) -rf "$(initrd_tools_dir)"
 
@@ -840,7 +853,7 @@ $(build)/$(initrd_dir)/tools.cpio: \
 #  Those defaults can be overriden by cbfs' config.user applied at init through cbfs-init.
 #   To view overriden exports at runtime, simply run 'env' and review CONFIG_ exported variables
 #   To view compilation time board's config; check /etc/config under recovery shell.
-$(initrd_tools_dir)/etc/config: FORCE
+$(initrd_tools_dir)/etc/config: $(CONFIG)
 	@mkdir -p $(dir $@)
 	$(call do,INSTALL,$(CONFIG), \
 		export \
@@ -864,12 +877,15 @@ $(initrd_tools_dir)/etc/config: FORCE
 
 # board.cpio is built from the board's initrd/ directory and contains 
 #  board-specific support scripts.
-ifeq ($(wildcard $(pwd)/boards/$(BOARD)/initrd),)
+# FORCE ensures the recipe always runs so do-cpio can show "UNCHANGED" when
+# content is unchanged (efficient rebuild while maintaining consistent output)
+BOARD_INITRD_FILES := $(shell find $(pwd)/boards/$(BOARD)/initrd -type f 2>/dev/null)
+ifeq ($(BOARD_INITRD_FILES),)
 $(build)/$(initrd_dir)/board.cpio:
 	# Only create a board.cpio if the board has a initrd directory
 	cpio -H newc -o </dev/null >"$@"
 else
-$(build)/$(initrd_dir)/board.cpio: FORCE
+$(build)/$(initrd_dir)/board.cpio: $(BOARD_INITRD_FILES) FORCE
 	$(call do-cpio,$@,$(pwd)/boards/$(BOARD)/initrd)
 endif
 
@@ -877,7 +893,11 @@ endif
 
 # heads.cpio is built from the initrd directory in the Heads tree
 #  This is heads security policies, executed by board's CONFIG_BOOTSCRIPT at init
-$(build)/$(initrd_dir)/heads.cpio: FORCE
+# FORCE ensures the recipe always runs so do-cpio can show "UNCHANGED" when
+# content is unchanged (efficient rebuild while maintaining consistent output)
+# Use find to get file list - regular files only, evaluated at make time
+HEADS_INITRD_FILES := $(shell find $(pwd)/initrd -type f 2>/dev/null)
+$(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 	$(call do-cpio,$@,$(pwd)/initrd)
 
 # --- FINAL INITRD PACKAGING ---
