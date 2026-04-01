@@ -1,6 +1,11 @@
 #!/bin/bash
 # Automated setup of TPM, GPG keys, and disk
 
+# TODO: Find a stronger mechanism for passing GPG commands that avoids the
+#       brittle --command-fd loop behavior. The current approach using
+#       "quit" relies on internal GPG behavior (keyedit.c:1510-1513, :2227-2229)
+#       and may break in future GPG versions.
+
 set -o pipefail
 
 ## External files sourced
@@ -9,6 +14,12 @@ set -o pipefail
 . /etc/gpg_functions.sh
 . /etc/luks-functions.sh
 . /tmp/config
+
+# Reset background color - may be inherited as "error" from TPM error menu
+BG_COLOR_MAIN_MENU="normal"
+
+# Allow firmware display in OEM reset context (flag may have been set during integrity report)
+rm -f /tmp/hotpkey_fw_shown
 
 TRACE_FUNC
 
@@ -30,6 +41,7 @@ ADMIN_PIN_DEF=12345678
 TPM_PASS_DEF=12345678
 GPG_GEN_KEY_IN_MEMORY="n"
 GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
+GPG_EXPORT=0
 
 #Circumvent Librem Key/Nitrokey HOTP firmware bug https://github.com/osresearch/heads/issues/1167
 MAX_HOTP_GPG_PIN_LENGTH=25
@@ -37,10 +49,11 @@ MAX_HOTP_GPG_PIN_LENGTH=25
 # What are the Security components affected by custom passphrases
 CUSTOM_PASS_AFFECTED_COMPONENTS=""
 
-# Default GPG Algorithm is RSA
-# p256 also supported (TODO: nk3 supports RSA 4096 in secure element in firmare v1.7.1. Switch!?
+# Default GPG Algorithm is RSA (key length set by RSA_KEY_LENGTH below)
+# NIST P-256 also supported for Nitrokey 3 (chose NIST P-256 when RSA was not generated into secrets app)
 GPG_ALGO="RSA"
-# Default RSA key length is 3072 bits for OEM key gen. 4096 are way longer to generate in smartcard
+# Default RSA key length is 3072 bits for OEM key gen
+# 4096 are way longer to generate in smartcard
 RSA_KEY_LENGTH=3072
 
 # If we use complex generated passphrases, we will really try hard to make the
@@ -49,6 +62,7 @@ MAKE_USER_RECORD_PASSPHRASES=
 
 # Function to handle --mode parameter
 handle_mode() {
+	TRACE_FUNC
 	local mode=$1
 	case $mode in
 	oem)
@@ -125,6 +139,7 @@ DIE() {
 }
 
 local_whiptail_error() {
+	TRACE_FUNC
 	local msg=$1
 	if [ "$msg" = "" ]; then
 		DIE "whiptail error: An error msg is required"
@@ -193,6 +208,8 @@ generate_inmemory_RSA_master_and_subkeys() {
 		echo "Passphrase: ${ADMIN_PIN}"          # Admin PIN
 		echo "%commit"                           # Commit changes
 	} | DO_WITH_DEBUG gpg --expert --batch --command-fd=0 --status-fd=1 --pinentry-mode=loopback --generate-key >/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG on-card RSA key generation output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key generation failed!\n\n$ERROR"
@@ -205,11 +222,12 @@ generate_inmemory_RSA_master_and_subkeys() {
 		echo 4                 # RSA (sign only)
 		echo ${RSA_KEY_LENGTH} # Signing key size set to RSA_KEY_LENGTH
 		echo 0                 # No expiration date
-		echo ${ADMIN_PIN}      # Local keyring admin pin
-		echo y                 # confirm
+		echo ${ADMIN_PIN}      # Local keyring admin pin (passphrase requested before key creation, no confirm prompt)
 		echo save              # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG RSA signing subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key signing subkey generation failed!\n\n$ERROR"
@@ -222,11 +240,12 @@ generate_inmemory_RSA_master_and_subkeys() {
 		echo 6                 # RSA (encrypt only)
 		echo ${RSA_KEY_LENGTH} # Encryption key size set to RSA_KEY_LENGTH
 		echo 0                 # No expiration date
-		echo ${ADMIN_PIN}      # Local keyring admin pin
-		echo y                 # confirm
+		echo ${ADMIN_PIN}      # Local keyring admin pin (passphrase requested before key creation, no confirm prompt)
 		echo save              # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG RSA encryption subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key encryption subkey generation failed!\n\n$ERROR"
@@ -246,24 +265,26 @@ generate_inmemory_RSA_master_and_subkeys() {
 		echo Q                 # Quit
 		echo ${RSA_KEY_LENGTH} # Authentication key size set to RSA_KEY_LENGTH
 		echo 0                 # No expiration date
-		echo ${ADMIN_PIN}      # Local keyring admin pin
-		echo y                 # confirm
+		echo ${ADMIN_PIN}      # Local keyring admin pin (passphrase requested before key creation, no confirm prompt)
 		echo save              # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --expert --edit-key "${GPG_USER_MAIL}" \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG RSA authentication subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key authentication subkey generation failed!\n\n$ERROR"
 	fi
 }
 
-#Generate a gpg master key: no expiration date, p256 key (ECC)
+#Generate a gpg master key: no expiration date, NIST P-256 key (ECC)
 #This key will be used to sign 3 subkeys: encryption, authentication and signing
 #The master key and subkeys will be copied to backup, and the subkeys moved from memory keyring to the smartcard
 generate_inmemory_p256_master_and_subkeys() {
 	TRACE_FUNC
 
-	STATUS "Generating p256 master key for $DONGLE_BRAND"
+	STATUS "Generating NIST P-256 master key for $DONGLE_BRAND"
+	DEBUG "GPG batch key generation: Key-Type=ECDSA, Key-Curve=nistp256, Key-Usage=cert"
 	{
 		echo "Key-Type: ECDSA"                   # ECDSA key
 		echo "Key-Curve: nistp256"               # ECDSA key curve
@@ -276,15 +297,17 @@ generate_inmemory_p256_master_and_subkeys() {
 		echo "%commit"                           # Commit changes
 	} | DO_WITH_DEBUG gpg --expert --batch --command-fd=0 --status-fd=1 --pinentry-mode=loopback --generate-key \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG p256 master key generation output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
-		whiptail_error_die "GPG p256 Key generation failed!\n\n$ERROR"
+		whiptail_error_die "GPG NIST P-256 Key generation failed!\n\n$ERROR"
 	fi
 
 	#Keep Master key fingerprint for add key calls
 	MASTER_KEY_FP=$(gpg --list-secret-keys --with-colons | grep fpr | cut -d: -f10)
 
-	STATUS "Generating p256 signing subkey for $DONGLE_BRAND"
+	STATUS "Generating NIST P-256 signing subkey for $DONGLE_BRAND"
 	{
 		echo addkey       # add key in --edit-key mode
 		echo 11           # ECC own set capability
@@ -294,27 +317,30 @@ generate_inmemory_p256_master_and_subkeys() {
 		echo ${ADMIN_PIN} # Local keyring admin pin
 		echo save         # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG p256 signing subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
 	fi
 
-	STATUS "Generating p256 encryption subkey for $DONGLE_BRAND"
+	STATUS "Generating NIST P-256 encryption subkey for $DONGLE_BRAND"
 	{
 		echo addkey
 		echo 12           # ECC own set capability
-		echo Q            # Quit
 		echo 3            # P-256
 		echo 0            # No validity/expiration date
 		echo ${ADMIN_PIN} # Local keyring admin pin
 		echo save         # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG p256 encryption subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
 	fi
 
-	STATUS "Generating p256 authentication subkey for $DONGLE_BRAND"
+	STATUS "Generating NIST P-256 authentication subkey for $DONGLE_BRAND"
 	{
 		echo addkey       # add key in --edit-key mode
 		echo 11           # ECC own set capability
@@ -326,6 +352,8 @@ generate_inmemory_p256_master_and_subkeys() {
 		echo ${ADMIN_PIN} # Local keyring admin pin
 		echo save         # save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key ${MASTER_KEY_FP} >/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG p256 authentication subkey output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
@@ -356,24 +384,23 @@ keytocard_subkeys_to_smartcard() {
 		echo "keytocard"        #Move Signature key to smartcard
 		echo "1"                #Select Signature key key slot on smartcard
 		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
-		echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
-		echo "0"                #No expiration date
+		echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN (prompted once; scdaemon caches it for subsequent keytocard ops)
 		echo "key 1"            #Toggle off Signature key
 		echo "key 2"            #Toggle on Encryption key
 		echo "keytocard"        #Move Encryption key to smartcard
 		echo "2"                #Select Encryption key key slot on smartcard
-		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
-		echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
+		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN (card PIN already cached by scdaemon)
 		echo "key 2"            #Toggle off Encryption key
 		echo "key 3"            #Toggle on Authentication key
 		echo "keytocard"        #Move Authentication key to smartcard
 		echo "3"                #Select Authentication key slot on smartcard
-		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
-		echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN
+		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN (card PIN still cached by scdaemon)
 		echo "key 3"            #Toggle off Authentication key
 		echo "save"             #Save changes and commit to keyring
 	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG keytocard output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
@@ -433,12 +460,13 @@ set_card_identity() {
 			echo "name"
 			echo "${surname}"
 			echo "${given}"
-			echo "${ADMIN_PIN_DEF}"
+			# scdaemon caches the admin PIN from the preceding keytocard/generate
+			# session; name and login do not re-prompt for it
 		fi
 		if [ "$set_login" -eq 1 ]; then
 			echo "login"
 			echo "${GPG_USER_MAIL}"
-			echo "${ADMIN_PIN_DEF}"
+			# scdaemon admin PIN still cached; no re-prompt needed
 		fi
 		echo "quit"
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit ||
@@ -496,10 +524,18 @@ export_master_key_subkeys_and_revocation_key_to_private_LUKS_container() {
 	#Export master key and subkeys to thumb drive
 	STATUS "Exporting master key and subkeys to backup LUKS container"
 
-	gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec ||
+	if gpg --export-secret-key --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/privkey.sec 2>/tmp/gpg_export_err; then
+		DEBUG "GPG master key export succeeded"
+	else
+		DEBUG "GPG master key export failed: $(cat /tmp/gpg_export_err)"
 		DIE "Error exporting master key to private LUKS container's partition"
-	gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec ||
+	fi
+	if gpg --export-secret-subkeys --armor --pinentry-mode loopback --passphrase="${pass}" "${GPG_USER_MAIL}" >"$mountpoint"/subkeys.sec 2>/tmp/gpg_export_err; then
+		DEBUG "GPG subkeys export succeeded"
+	else
+		DEBUG "GPG subkeys export failed: $(cat /tmp/gpg_export_err)"
 		DIE "Error exporting subkeys to private LUKS container's partition"
+	fi
 	#copy whole keyring to thumb drive, including revocation key and trust database
 	cp -af ~/.gnupg "$mountpoint"/.gnupg || DIE "Error copying whole keyring to private LUKS container's partition"
 	#Unmount private LUKS container's mount point
@@ -541,7 +577,12 @@ export_public_key_to_thumbdrive_public_partition() {
 	mount-usb.sh --device "$device" --mode "$mode" --mountpoint "$mountpoint" || DIE "Error mounting thumb drive's public partition"
 	#TODO: reuse "Obtain GPG key ID" so that pubkey on public thumb drive partition is named after key ID
 	STATUS "Exporting public key to USB"
-	gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc || DIE "Error exporting public key to thumb drive's public partition"
+	if gpg --export --armor "${GPG_USER_MAIL}" >"$mountpoint"/pubkey.asc 2>/tmp/gpg_export_err; then
+		DEBUG "GPG public key export succeeded"
+	else
+		DEBUG "GPG public key export failed: $(cat /tmp/gpg_export_err)"
+		DIE "Error exporting public key to thumb drive's public partition"
+	fi
 	umount "$mountpoint" || DIE "Error unmounting thumb drive's public partition"
 	STATUS_OK "Public key exported to USB"
 
@@ -635,6 +676,8 @@ gpg_key_factory_reset() {
 		echo yes           # confirm
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG factory-reset output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
@@ -656,6 +699,8 @@ gpg_key_factory_reset() {
 			echo ${ADMIN_PIN_DEF} # local keyring PIN
 		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		TRACE_FUNC
+		DEBUG "GPG forcesig toggle output: $(cat /tmp/gpg_card_edit_output)"
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
@@ -663,7 +708,7 @@ gpg_key_factory_reset() {
 		STATUS_OK "Forced signature PIN enabled"
 	fi
 
-	# use p256 for key generation if requested
+	# use NIST P-256 for key generation if requested
 	if [ "$GPG_ALGO" = "p256" ]; then
 		STATUS "Setting NIST-P256 key attributes on $DONGLE_BRAND"
 		{
@@ -680,6 +725,8 @@ gpg_key_factory_reset() {
 			echo ${ADMIN_PIN_DEF} # local keyring PIN
 		} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		TRACE_FUNC
+		DEBUG "GPG NIST-P256 key-attr output: $(cat /tmp/gpg_card_edit_output)"
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "Setting key to NIST-P256 in $DONGLE_BRAND failed."
@@ -703,6 +750,8 @@ gpg_key_factory_reset() {
 			echo ${ADMIN_PIN_DEF}  #Local keyring PIN
 		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		TRACE_FUNC
+		DEBUG "GPG RSA key-attr output: $(cat /tmp/gpg_card_edit_output)"
 		if [ $? -ne 0 ]; then
 			ERROR=$(cat /tmp/gpg_card_edit_output)
 			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in $DONGLE_BRAND failed."
@@ -723,7 +772,7 @@ generate_OEM_gpg_keys() {
 	if [ "$GPG_ALGO" = "RSA" ]; then
 		STATUS "Generating RSA ${RSA_KEY_LENGTH}-bit keys on $DONGLE_BRAND"
 	else
-		STATUS "Generating p256 keys on $DONGLE_BRAND"
+		STATUS "Generating NIST P-256 keys on $DONGLE_BRAND"
 	fi
 	{
 		echo admin               # admin menu
@@ -738,6 +787,8 @@ generate_OEM_gpg_keys() {
 		echo ${USER_PIN_DEF}     # Default user PIN since we just factory reset
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG on-card key generation output: $(cat /tmp/gpg_card_edit_output)"
 	#This outputs to console \
 	# "gpg: checking the trustdb"
 	# "gpg: 3 marginal(s) needed, 1 complete(s) needed, PGP trust model"
@@ -771,6 +822,8 @@ gpg_key_change_pin() {
 		echo q
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	TRACE_FUNC
+	DEBUG "GPG PIN change output: $(cat /tmp/gpg_card_edit_output)"
 	if [ $? -ne 0 ]; then
 		ERROR=$(cat /tmp/gpg_card_edit_output | fold -s)
 		whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
@@ -863,6 +916,8 @@ generate_checksums() {
 	fi
 
 	DEBUG "oem-factory-reset.sh: ${#param_files[@]} file(s) to sign (relative): ${param_files[*]}"
+	DEBUG "oem-factory-reset.sh: signing with USER_PIN='$USER_PIN' (length=${#USER_PIN})"
+	TRACE_FUNC
 
 	if (cd /boot && sha256sum "${param_files[@]}") 2>/dev/null | gpg --detach-sign \
 		--pinentry-mode loopback \
@@ -880,6 +935,7 @@ generate_checksums() {
 			ret=0
 		fi
 	else
+		DEBUG "oem-factory-reset.sh: signing failed: $(cat /tmp/error)"
 		cat /tmp/error
 		ret=1
 	fi
@@ -951,7 +1007,13 @@ usb_security_token_capabilities_check() {
 	DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
 	export DONGLE_BRAND
 	DEBUG "USB Security dongle detected: $DONGLE_BRAND"
-	INFO "Detected $DONGLE_BRAND"
+	# Only show generic "Detected" if no specific brand was identified
+	if [ "$DONGLE_BRAND" = "USB Security dongle" ]; then
+		INFO "Detected $DONGLE_BRAND"
+	else
+		# Specific brand detected - firmware version will be shown below
+		:
+	fi
 	STATUS "Checking $DONGLE_BRAND capabilities"
 
 	# ... first set board config preference
@@ -960,13 +1022,34 @@ usb_security_token_capabilities_check() {
 		DEBUG "Setting GPG_ALGO to (board-)configured: $CONFIG_GPG_ALGO"
 	fi
 	# ... overwrite with usb-token capability
+	# Nitrokey chose NIST P-256 when RSA was not generated into secrets app - TODO: review with lago changes
+	# Canokey and other dongles use default RSA (see default GPG_ALGO above)
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		GPG_ALGO="p256"
 		DEBUG "Nitrokey 3 detected: Setting GPG_ALGO to: $GPG_ALGO"
 	fi
 
-	#TODO: put everything related to USB Security dongle here
+	# Show firmware version for USB Security dongle
+	# Also capture firmware version for timing guidance in key generation message
+	# Wait for gpg card to be ready before hotp_verification
+	wait_for_gpg_card
+	DONGLE_FW_VERSION=""
+	if [ -x /bin/hotp_verification ]; then
+		if hotp_token_info="$(hotp_verification info 2>/dev/null)"; then
+			hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
+			# Capture firmware version for timing guidance
+			if echo "$hotp_token_info" | grep -q "Firmware Nitrokey 3:"; then
+				DONGLE_FW_VERSION="$(echo "$hotp_token_info" | grep "Firmware Nitrokey 3:" | sed 's/.*: *//')"
+			elif echo "$hotp_token_info" | grep -q "Firmware:"; then
+				DONGLE_FW_VERSION="$(echo "$hotp_token_info" | grep "Firmware:" | sed 's/.*: *//')"
+				case "$DONGLE_FW_VERSION" in v*) ;; *) DONGLE_FW_VERSION="v$DONGLE_FW_VERSION" ;; esac
+			fi
+			DEBUG "Dongle firmware version: $DONGLE_FW_VERSION"
+		fi
+	fi
 }
+
+# usb_security_token_capabilities_check now handles all USB Security dongle logic
 
 ## main script start
 
@@ -1029,13 +1112,13 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
 	qrenc "https://diceware.dmuth.org/"
 	NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
-	NOTE "Recommended lengths: Disk Recovery Key: 6 words  TPM Owner: 2 words  GPG User PIN: 2 words"
 
 	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
 	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
 		luks_new_Disk_Recovery_Key_passphrase_desired=1
+		NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
 	fi
 
 	INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
@@ -1044,6 +1127,9 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		TRACE_FUNC
 		test_luks_current_disk_recovery_key_passphrase
 		luks_new_Disk_Recovery_Key_desired=1
+		if [ "$luks_new_Disk_Recovery_Key_passphrase_desired" != "1" ]; then
+			NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+		fi
 	fi
 
 	#Prompt to ask if user wants to generate GPG key material in memory or on smartcard
@@ -1081,9 +1167,17 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="TPM Owner Passphrase\n"
 	fi
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "y" ]; then
-		CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
+		if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+			CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as NK3 Secrets app PIN / GPG Admin PIN)\n"
+		else
+			CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Key material backup passphrase (Same as GPG Admin PIN)\n"
+		fi
 	fi
-	CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
+	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+		CUSTOM_PASS_AFFECTED_COMPONENTS+="NK3 Secrets app PIN / GPG Admin PIN\n"
+	else
+		CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG Admin PIN\n"
+	fi
 	# Only show GPG User PIN as affected component if GPG_GEN_KEY_IN_MEMORY not requested or GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
 	if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 		CUSTOM_PASS_AFFECTED_COMPONENTS+="GPG User PIN\n"
@@ -1123,10 +1217,17 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 					INPUT "Enter desired TPM Owner Passphrase (min 8 chars):" -r TPM_PASS
 				done
 			fi
-			NOTE "GPG Admin PIN: management tasks on USB Security dongle, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
-			while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-				INPUT "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
-			done
+			if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+				NOTE "NK3 Secrets app PIN / GPG Admin PIN: seals HOTP measurements and manages OpenPGP card. 3 attempts max. DO NOT FORGET. Recommended: 2 words"
+				while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+					INPUT "Enter desired NK3 Secrets app PIN / GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
+				done
+			else
+				NOTE "GPG Admin PIN: management tasks on USB Security dongle, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
+				while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
+					INPUT "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
+				done
+			fi
 			#USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY not requested of if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
 			# That is, if keys were NOT generated in memory (on smartcard only) or
 			#  if keys were generated in memory but are to be moved from local keyring to smartcard
@@ -1229,14 +1330,32 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD
 
 	#Now that USB Security dongle is detected, we can check its capabilities and limitations
 	usb_security_token_capabilities_check
+
+	# Adjust RSA key size based on dongle capabilities
+	# Yubikey: Uses faster onboard crypto, can handle 4096-bit RSA in reasonable time
+	# - Source: Yubikey 5 Series technical manual (~5s for 4096-bit RSA key gen)
+	# - Source: Yubico forum shows RSA-2048 at ~475ms, 4096-bit ~1-2s (https://forum.yubico.com/viewtopic9d4a.html?p=4515)
+	# Other dongles (Librem Key, Nitrokey Pro/Storage): Use slower STM32 chip
+	# - Source: Nitrokey Pro uses STM32F4, RSA is software-based, very slow
+	# - Source: User testing shows ~10 min for 3072-bit RSA on Librem Key v0.10
+	# TODO: This 4096-bit change for Yubikey is untested - user requested to add with source verification
+	if [ "$DONGLE_BRAND" = "Yubikey" ]; then
+		DEBUG "Yubikey detected: using 4096-bit RSA key length (faster onboard crypto)"
+		RSA_KEY_LENGTH=4096
+	elif [ "$DONGLE_BRAND" = "Canokey" ]; then
+		# Canokey has limited RSA key size support, use 2048-bit for reliability
+		DEBUG "Canokey detected: using 2048-bit RSA key length (limited key size support)"
+		RSA_KEY_LENGTH=2048
+	fi
 fi
 
 assert_signable
 
 # Action time...
 
-# clear gpg-agent cache so that next gpg calls doesn't have past keyring in memory
-killall gpg-agent >/dev/null 2>&1 || true
+# clear gpg-agent and scdaemon cache so that next gpg calls don't have stale state
+# scdaemon holds exclusive CCID lock to dongle - must be killed to allow fresh card access
+killall gpg-agent scdaemon >/dev/null 2>&1 || true
 # clear local keyring
 rm -rf /.gnupg/*.kbx /.gnupg/*.gpg >/dev/null 2>&1 || true
 
@@ -1305,9 +1424,35 @@ else
 	#Reset Nitrokey 3 secret app
 	reset_nk3_secret_app
 	#Generate GPG key and subkeys on smartcard only
-	STATUS "Resetting USB Security dongle OpenPGP smartcard with GPG"
 	if [ "$GPG_ALGO" = "RSA" ]; then
-		NOTE "RSA key generation on $DONGLE_BRAND may take 10 or more minutes - please be patient"
+		DEBUG "RSA key length: $RSA_KEY_LENGTH bits"
+		if [ "$RSA_KEY_LENGTH" -ge 3072 ]; then
+			# Provide firmware-aware timing guidance
+			# Old Nitrokey Pro/Pro 2 firmware (< v0.15) and Librem Key (any version)
+			# have slower RSA key generation (around 10 minutes for 3072-bit)
+			# Yubikey uses faster onboard crypto, reasonable time even at 4096-bit
+			timing_msg=""
+			if [ "$DONGLE_BRAND" = "Yubikey" ]; then
+				# Yubikey handles 4096-bit RSA quickly (~5 seconds)
+				timing_msg="may take a minute or two"
+			elif [ "$DONGLE_BRAND" = "Librem Key" ]; then
+				timing_msg="may take several minutes (up to 10 minutes on older USB Security dongles)"
+			elif [ "$DONGLE_BRAND" = "Nitrokey Pro" ] || [ "$DONGLE_BRAND" = "Nitrokey Storage" ]; then
+				# Check if older firmware (before v0.15 had optimizations)
+				if [ -n "$DONGLE_FW_VERSION" ]; then
+					if [ "$(printf '%s\n' "$DONGLE_FW_VERSION" "v0.15" | sort -V | head -1)" != "v0.15" ]; then
+						timing_msg="may take several minutes (up to 10 minutes on older USB Security dongles)"
+					else
+						timing_msg="may take several minutes"
+					fi
+				else
+					timing_msg="may take several minutes"
+				fi
+			else
+				timing_msg="may take several minutes"
+			fi
+			NOTE "RSA ${RSA_KEY_LENGTH}-bit key generation on $DONGLE_BRAND ${timing_msg} - please be patient"
+		fi
 	fi
 	gpg_key_factory_reset
 	generate_OEM_gpg_keys
@@ -1333,9 +1478,17 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	#Only apply smartcard PIN change if smartcard only or if keytocard op is expected next
 	if [ "${USER_PIN}" != "${USER_PIN_DEF}" -o "${ADMIN_PIN}" != "${ADMIN_PIN_DEF}" ]; then
-		STATUS "Changing default GPG Admin PIN"
+		if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+			STATUS "Changing default NK3 Secrets app PIN / GPG Admin PIN"
+		else
+			STATUS "Changing default GPG Admin PIN"
+		fi
 		gpg_key_change_pin "3" "${ADMIN_PIN_DEF}" "${ADMIN_PIN}"
-		STATUS_OK "GPG Admin PIN changed"
+		if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+			STATUS_OK "NK3 Secrets app PIN / GPG Admin PIN changed"
+		else
+			STATUS_OK "GPG Admin PIN changed"
+		fi
 		STATUS "Changing default GPG User PIN"
 		gpg_key_change_pin "1" "${USER_PIN_DEF}" "${USER_PIN}"
 		STATUS_OK "GPG User PIN changed"
@@ -1343,14 +1496,23 @@ if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD
 fi
 
 ## export pubkey to USB
+# Note: The thumb drive's public partition was already exported in
+# wipe_thumb_drive_and_copy_gpg_key_material(). This block is for exporting
+# to a DIFFERENT USB drive if user wants a separate copy (not the thumb drive).
 if [ "$GPG_EXPORT" != "0" ]; then
-	STATUS "Exporting generated key to USB"
-	# copy to USB
-	if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
-		ERROR=$(tail -n 1 /tmp/error | fold -s)
-		whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
+	# The thumb drive is already unmounted at this point, so /media is not mounted
+	# Only attempt export if /media is actually mounted (different drive inserted)
+	if grep -q /media /proc/mounts 2>/dev/null; then
+		STATUS "Exporting generated key to USB"
+		if ! cp "${PUBKEY}" "/media/${GPG_GEN_KEY}.asc" 2>/tmp/error; then
+			ERROR=$(tail -n 1 /tmp/error | fold -s)
+			whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
+		fi
+		mount -o remount,ro /media 2>/dev/null
+		umount /media 2>/dev/null || true
+	else
+		INFO "Skipping separate USB export - public key already saved to thumb drive's public partition"
 	fi
-	mount -o remount,ro /media 2>/dev/null
 fi
 
 # ensure key imported locally
@@ -1507,5 +1669,23 @@ whiptail --msgbox "${completion_msg}" \
 luks_secrets_cleanup
 unset luks_passphrase_changed
 unset tpm_owner_passphrase_changed
+
+# Clean any stale files in /media from previous sessions (only when not mounted)
+# This removes residual files from previous runs when /media wasn't mounted
+if ! grep -q /media /proc/mounts 2>/dev/null; then
+	rm -rf /media/* 2>/dev/null || true
+fi
+
+# Ensure /media is unmounted before reboot to prevent USB drive corruption
+# Force unmount /media and close any LUKS mappings that might block it
+umount /media 2>/dev/null || true
+# Close any remaining LUKS mappings (these can block umount)
+for dev in /dev/mapper/usb_mount_*; do
+	[ -e "$dev" ] && cryptsetup close "$(basename "$dev")" 2>/dev/null || true
+done
+# Sync to ensure all writes are flushed
+sync
+# Final attempt to unmount after closing LUKS
+umount /media 2>/dev/null || true
 
 reboot.sh

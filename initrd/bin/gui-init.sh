@@ -832,7 +832,7 @@ reset_tpm() {
 		if (whiptail_warning --title 'Reset the TPM' \
 			--yesno "This will clear the TPM and replace its Owner passphrase with a new one!\n\nDo you want to proceed?" 0 80); then
 
-			if ! prompt_new_owner_passphrase; then
+			if ! prompt_new_owner_password; then
 				INPUT "Press Enter to return to the menu..."
 				return 1
 			fi

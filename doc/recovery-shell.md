@@ -92,3 +92,9 @@ If you modified `/boot` or reflashed firmware, return to the GUI and:
 1. Generate new TOTP/HOTP secret (`Options -> Generate new HOTP/TOTP secret`).
 2. Update checksums and sign `/boot` (`Options -> Update checksums and sign all files in /boot`).
 3. Optionally re-seal the TPM Disk Unlock Key by selecting a default boot option.
+
+## PIN Caching
+
+When exiting and re-entering the recovery shell, secrets are wiped and TTY is
+re-detected on each iteration. This forces re-authentication (GPG PIN prompt)
+on each entry, preventing cached credential reuse across shell sessions.
