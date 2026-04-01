@@ -1,0 +1,42 @@
+# Minimum recommended firmware versions for USB security dongles.
+#
+# Update these values when a new minimum known-good firmware is established.
+# Sourced by initrd/etc/functions (hotpkey_fw_display) at runtime.
+#
+# Version strings must be prefixed with 'v' and use dot notation (e.g. v1.8.3)
+# so that sort -V ordering works correctly for the comparison in hotpkey_fw_display.
+
+# Nitrokey 3 (NK3) - VID:PID 20a0:42b2 (3A Mini / 3A NFC / 3C NFC all share this PID)
+# Identified by "Firmware Nitrokey 3: vX.Y.Z" in hotp_verification info output.
+HOTPKEY_NK3_MIN_VER="v1.8.3"
+HOTPKEY_NK3_LATEST_VER="v1.8.3"
+
+# Nitrokey Pro / Nitrokey Pro 2 - VID:PID 20a0:4108 (Pro and Pro 2 share the same PID)
+# Identified by "	Firmware: vX.Y" in hotp_verification info output (tab-indented).
+# Note: Nitrokey Pro and Pro 2 cannot be distinguished by USB ID alone.
+HOTPKEY_NITROKEY_MIN_VER="v0.15"
+HOTPKEY_NITROKEY_LATEST_VER="v0.15"
+
+# Nitrokey Storage / Nitrokey Storage 2 - VID:PID 20a0:4109
+# Identified by "	Firmware: vX.Y" in hotp_verification info output (same format as Pro).
+# Note: Storage has its own firmware tree separate from Nitrokey Pro.
+# TODO: confirm minimum recommended firmware version for Storage / Storage 2 upstream.
+HOTPKEY_STORAGE_MIN_VER=""
+HOTPKEY_STORAGE_LATEST_VER=""
+
+# Librem Key - VID:PID 316d:4c4b
+# Identified by "	Firmware: vX.Y" in hotp_verification info output (same format as Pro).
+# Note: Librem Key is a Nitrokey Pro rebrand sharing the same firmware base and version space.
+# Note: Librem Key CANNOT be upgraded via software regardless of firmware version.
+#       Any firmware update requires external hardware programmer or Purism servicing.
+#       HOTPKEY_EXTERNAL_REPROGRAM_BELOW does not apply to Librem Key.
+HOTPKEY_LIBREM_LATEST_VER="v0.10"
+
+# Firmware version below which Nitrokey Pro / Pro 2 CANNOT be upgraded via nitropy.
+# v0.10 is the last firmware requiring an external programmer; v0.11+ can be upgraded
+# in-system via nitropy.
+# Source: https://github.com/Nitrokey/nitrokey-pro-firmware/issues/95
+# Note: This threshold applies to Nitrokey Pro / Pro 2 only.
+#       Librem Key is never self-upgradeable (see above).
+#       Nitrokey Storage has a separate firmware codebase and version space.
+HOTPKEY_EXTERNAL_REPROGRAM_BELOW="v0.11"
