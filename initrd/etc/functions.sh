@@ -721,6 +721,10 @@ cache_gpg_signing_pin() {
 			set_user_config "CONFIG_GPG_KEY_BACKUP_IN_USE" "y"
 			DEBUG "CONFIG_GPG_KEY_BACKUP_IN_USE set; unmounting backup thumb drive"
 			umount /media || DIE "Unable to unmount USB"
+			# Close any LUKS mapping that may have been opened
+			for dev in /dev/mapper/usb_mount_*; do
+				[ -e "$dev" ] && cryptsetup close "$(basename "$dev")" 2>/dev/null || true
+			done
 			return
 		else
 			DEBUG "Backup key already in use this session (CONFIG_GPG_KEY_BACKUP_IN_USE=y); skipping mount"
@@ -792,7 +796,7 @@ cache_gpg_signing_pin() {
 	while [ "$sc_pin_tries" -lt 3 ]; do
 		sc_pin_tries=$((sc_pin_tries + 1))
 		while [ -z "$sc_user_pin" ]; do
-			INPUT "Enter GPG User PIN for smartcard:" -r -s sc_user_pin
+			INPUT "Enter $DONGLE_BRAND User PIN:" -r -s sc_user_pin
 		done
 		if gpg --pinentry-mode=loopback \
 			--passphrase-file <(printf '%s' "$sc_user_pin") \
@@ -1606,7 +1610,7 @@ list_usb_storage() {
 }
 
 # Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
-# Sets tpm_owner_password variable reused in flow, and cache file used until recovery shell is accessed.
+# Sets tpm_owner_passphrase variable reused in flow, and cache file used until recovery shell is accessed.
 # Tools should optionally accept a TPM password on the command line, since some flows need
 # it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
@@ -1614,16 +1618,16 @@ prompt_tpm_owner_password() {
 
 	if [ -s /tmp/secret/tpm_owner_password ]; then
 		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
-		tpm_owner_password=$(cat /tmp/secret/tpm_owner_password)
+		tpm_owner_passphrase=$(cat /tmp/secret/tpm_owner_password)
 		return 0
 	fi
 
-	INPUT "TPM Owner Password:" -r -s tpm_owner_password
+	INPUT "TPM Owner Password:" -r -s tpm_owner_passphrase
 
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
 }
 
 # Prompt for a new TPM Owner Password when resetting the TPM.
@@ -1633,12 +1637,12 @@ prompt_tpm_owner_password() {
 prompt_new_owner_password() {
 	TRACE_FUNC
 	local tpm_owner_password2
-	tpm_owner_password=1
+	tpm_owner_passphrase=1
 	tpm_owner_password2=2
-	while [ "$tpm_owner_password" != "$tpm_owner_password2" ] || [ "${#tpm_owner_password}" -gt 32 ] || [ -z "$tpm_owner_password" ]; do
-		INPUT "New TPM Owner Password (2 words suggested, 1-32 characters max):" -r -s tpm_owner_password
+	while [ "$tpm_owner_passphrase" != "$tpm_owner_password2" ] || [ "${#tpm_owner_passphrase}" -gt 32 ] || [ -z "$tpm_owner_passphrase" ]; do
+		INPUT "New TPM Owner Password (2 words suggested, 1-32 characters max):" -r -s tpm_owner_passphrase
 		INPUT "Repeat chosen TPM Owner Password:" -r -s tpm_owner_password2
-		if [ "$tpm_owner_password" != "$tpm_owner_password2" ]; then
+		if [ "$tpm_owner_passphrase" != "$tpm_owner_password2" ]; then
 			WARN "Passphrases entered do not match. Try again!"
 		fi
 	done
@@ -1646,7 +1650,7 @@ prompt_new_owner_password() {
 	# Cache the password externally to be reused by who needs it
 	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
 }
 
 check_tpm_counter() {
@@ -1847,7 +1851,7 @@ increment_tpm_counter() {
 		WARN "TPM Owner Password is required to update rollback counter before signing updated boot hashes."
 		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner password; prompting now"
 		prompt_tpm_owner_password
-		tpm_password="$tpm_owner_password"
+		tpm_password="$tpm_owner_passphrase"
 		DEBUG "increment_tpm_counter: TPM1 owner password obtained and cached"
 	fi
 

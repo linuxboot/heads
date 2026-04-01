@@ -12,7 +12,7 @@ version.  Without HOTP, Heads falls back to TPMTOTP (smartphone-based).
 |--------|---------|------|-------|
 | Nitrokey Pro 2 | Yes | Yes | Full support |
 | Nitrokey Storage 2 | Yes | Yes | Full support |
-| Nitrokey 3 | Yes | Yes | Full support; p256 ECC available |
+| Nitrokey 3 | Yes | Yes | Full support; NIST P-256 ECC available |
 | Purism Librem Key | Yes | Yes | Full support; rebranded NK Pro |
 | YubiKey 5 Series | Yes | No | OpenPGP signing only; no HOTP |
 | Nitrokey Pro (v1, fw < 0.8) | Yes | Limited | Older firmware may report no HOTP support; test before use |
