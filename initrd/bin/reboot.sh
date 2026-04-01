@@ -17,13 +17,25 @@ echo u > /proc/sysrq-trigger
 # enter a recovery shell. Accept 'r' or 'R' to enter recovery, any other
 # key continues to the final reboot.
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
-	read -r -n 1 -s -p "Press any key to continue reboot or 'r' to go to recovery shell: " REPLY
-	echo
+	INPUT "Press any key to continue reboot or 'r' to go to recovery shell:" -r -n 1 -s REPLY
 	if [ "$REPLY" = "r" ] || [ "$REPLY" = "R" ]; then
 		recovery "Reboot call bypassed to go into recovery shell to debug"
 	fi
-	DEBUG "DEBUG: TPM shutdown and filesystem operations complete"
-	read -r -p "Press Enter to issue final reboot syscall: "
+	DEBUG "TPM shutdown and filesystem operations complete"
+	INPUT "Press Enter to issue final reboot syscall:"
+fi
+
+# On qemu-* boards, reboot is broken (q35 bug) - use poweroff instead.
+# TODO: revisit when qemu q35 reboot is fixed upstream.
+# Always offer a recovery shell first so state can be inspected.
+if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
+	_reboot_choice=""
+	INPUT "QEMU board - press Enter to poweroff, or 'r' to open a recovery shell first:" -r -n 1 -s _reboot_choice
+	if [ "$_reboot_choice" = "r" ] || [ "$_reboot_choice" = "R" ]; then
+		recovery "Entering recovery shell before poweroff (QEMU board)"
+	fi
+	poweroff.sh
+	exit
 fi
 
 # Use busybox reboot explicitly (symlinks removed to avoid conflicts)

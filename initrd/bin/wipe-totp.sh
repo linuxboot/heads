@@ -10,5 +10,5 @@ TPM_SIZE=312
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	tpmr.sh destroy "$TPM_NVRAM_SPACE" "$TPM_SIZE" \
-		|| die "Unable to wipe sealed secret"
+		|| DIE "Unable to wipe sealed secret"
 fi

@@ -16,7 +16,7 @@ while getopts "b:d:p:i:" arg; do
 done
 
 if [ -z "$bootdir" -o -z "$index" ]; then
-	die "Usage: $0 -b /boot -i menu_option "
+	DIE "Usage: $0 -b /boot -i menu_option "
 fi
 
 if [ -z "$paramsdev" ]; then
@@ -38,7 +38,7 @@ PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
-lvm_suggest=$(lvm vgscan 2>/dev/null | awk -F '"' {'print $1'} | tail -n +2)
+lvm_suggest=$(run_lvm vgscan 2>/dev/null | awk -F '"' {'print $1'} | tail -n +2)
 num_lvm=$(echo "$lvm_suggest" | wc -l)
 if [ "$num_lvm" -eq 1 ] && [ -n "$lvm_suggest" ]; then
 	lvm_volume_group="$lvm_suggest"
@@ -91,36 +91,41 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 		declare -a key_lvms_array
 
 		while [ $selected_lvms_not_existing -ne 0 ]; do
-			{
-				# Read the user input and store it in a variable
-				read \
-					-p "Encrypted LVMs? (choose between/all: $lvm_suggest): " \
-					key_lvms
+			# Read the user input and store it in a variable
+			INPUT "Encrypted LVMs? (type 'all' to select all, or space-separated subset of: $lvm_suggest):" -r key_lvms
 
-				# Split the user input by spaces and add each element to the array
-				IFS=' ' read -r -a key_lvms_array <<<"$key_lvms"
+			# 'all' expands to every discovered LVM
+			if [ "$key_lvms" = "all" ]; then
+				key_lvms="$lvm_suggest"
+				DEBUG "User chose 'all' LVMs: $key_lvms"
+				selected_lvms_not_existing=0
+				continue
+			fi
 
-				# Loop through the array and check if each element is in the lvms_array
-				valid=1
-				for lvm in "${key_lvms_array[@]}"; do
-					if [[ ! ${lvms_array[$lvm]+_} ]]; then
-						# If not found, set the flag to indicate invalid input
-						valid=0
-						break
-					fi
-				done
+			# Split the user input by spaces and validate each element
+			IFS=' ' read -r -a key_lvms_array <<<"$key_lvms"
 
-				# If valid, set the flag to indicate valid input
-				if [[ $valid -eq 1 ]]; then
-					selected_lvms_not_existing=0
+			if [ ${#key_lvms_array[@]} -eq 0 ]; then
+				continue
+			fi
+
+			valid=1
+			for lvm in "${key_lvms_array[@]}"; do
+				if [[ ! ${lvms_array[$lvm]+_} ]]; then
+					valid=0
+					break
 				fi
-			}
+			done
+
+			if [[ $valid -eq 1 ]]; then
+				selected_lvms_not_existing=0
+			fi
 		done
 	elif [ "$num_lvms" -eq 1 ]; then
-		echo "Single Encrypted LVM found at $lvm_suggest."
+		INFO "Single Encrypted LVM found at $lvm_suggest"
 		key_lvms=$lvm_suggest
 	else
-		echo "No encrypted LVMs found."
+		DEBUG "No encrypted LVMs found"
 	fi
 
 	# Create an associative array to store the suggested devices and their paths
@@ -140,36 +145,41 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 		declare -a key_devices_array
 
 		while [ $selected_luksdevs_not_existing -ne 0 ]; do
-			{
-				# Read the user input and store it in a variable
-				read \
-					-p "Encrypted devices? (choose between/all: $devices_suggest): " \
-					key_devices
+			# Read the user input and store it in a variable
+			INPUT "Encrypted devices? (type 'all' to select all, or space-separated subset of: $devices_suggest):" -r key_devices
 
-				# Split the user input by spaces and add each element to the array
-				IFS=' ' read -r -a key_devices_array <<<"$key_devices"
+			# 'all' expands to every discovered LUKS device
+			if [ "$key_devices" = "all" ]; then
+				key_devices="$devices_suggest"
+				DEBUG "User chose 'all' LUKS devices: $key_devices"
+				selected_luksdevs_not_existing=0
+				continue
+			fi
 
-				# Loop through the array and check if each element is in the devices_array
-				valid=1
-				for device in "${key_devices_array[@]}"; do
-					if [[ ! ${devices_array[$device]+_} ]]; then
-						# If not found, set the flag to indicate invalid input
-						valid=0
-						break
-					fi
-				done
+			# Split the user input by spaces and validate each element
+			IFS=' ' read -r -a key_devices_array <<<"$key_devices"
 
-				# If valid, set the flag to indicate valid input
-				if [[ $valid -eq 1 ]]; then
-					selected_luksdevs_not_existing=0
+			if [ ${#key_devices_array[@]} -eq 0 ]; then
+				continue
+			fi
+
+			valid=1
+			for device in "${key_devices_array[@]}"; do
+				if [[ ! ${devices_array[$device]+_} ]]; then
+					valid=0
+					break
 				fi
-			}
+			done
+
+			if [[ $valid -eq 1 ]]; then
+				selected_luksdevs_not_existing=0
+			fi
 		done
 	elif [ "$num_devices" -eq 1 ]; then
-		echo "Single Encrypted Disk found at $devices_suggest."
+		INFO "Single Encrypted Disk found at $devices_suggest"
 		key_devices=$devices_suggest
 	else
-		echo "No encrypted devices found."
+		DEBUG "No encrypted devices found"
 	fi
 
 	DEBUG "Multiple LUKS devices selected: $key_devices"
@@ -177,12 +187,12 @@ prompt_for_existing_encrypted_lvms_or_disks() {
 }
 
 if [ ! -r "$TMP_MENU_FILE" ]; then
-	die "No menu options available, please run kexec-select-boot"
+	DIE "No menu options available, please run kexec-select-boot.sh"
 fi
 
 entry=$(head -n $index $TMP_MENU_FILE | tail -1)
 if [ -z "$entry" ]; then
-	die "Invalid menu index $index"
+	DIE "Invalid menu index $index"
 fi
 
 save_key="n"
@@ -193,11 +203,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 	#check if $KEY_DEVICES file exists and is not empty
 	if [ -r "$KEY_DEVICES" ] && [ -s "$KEY_DEVICES" ]; then
 		DEBUG "LUKS TPM Disk Unlock Key was previously set up from $KEY_DEVICES"
-		read \
-			-n 1 \
-			-p "Do you want to reseal a Disk Unlock Key in the TPM [y/N]: " \
-			change_key_confirm
-		echo
+		INPUT "Do you want to reseal a Disk Unlock Key in the TPM [y/N]:" -n 1 change_key_confirm
 
 		if [ "$change_key_confirm" = "y" \
 			-o "$change_key_confirm" = "Y" ]; then
@@ -219,12 +225,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 		fi
 	else
 		DEBUG "No previous LUKS TPM Disk Unlock Key was set up, confirming to add a Disk Unlock Key (DUK) to the TPM"
-		read \
-			-n 1 \
-			-p "Do you wish to add a disk encryption key to the TPM [y/N]: " \
-			add_key_confirm
-		#TODO: still not convinced: disk encryption key? decryption key? everywhere TPM Disk Unlock Key. Confusing even more?
-		echo
+		INPUT "Do you wish to add a LUKS TPM Disk Unlock Key (DUK) to the TPM [y/N]:" -n 1 add_key_confirm
 
 		if [ "$add_key_confirm" = "y" \
 			-o "$add_key_confirm" = "Y" ]; then
@@ -236,11 +237,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 	if [ "$save_key" = "y" ]; then
 		if [ -n "$old_key_devices" ] || [ -n "$old_lvm_volume_group" ]; then
 			DEBUG "Previous LUKS TPM Disk Unlock Key was set up for $old_key_devices $old_lvm_volume_group"
-			read \
-				-n 1 \
-				-p "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" \
-				reuse_past_devices
-			echo
+			INPUT "Do you want to reuse configured Encrypted LVM groups/Block devices? (Y/n):" -n 1 reuse_past_devices
 			if [ "$reuse_past_devices" = "y" ] || [ "$reuse_past_devices" = "Y" ] || [ -z "$reuse_past_devices" ]; then
 				if [ -z "$key_devices" ] && [ -n "$old_key_devices" ]; then
 					key_devices="$old_key_devices"
@@ -263,8 +260,8 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 		else
 			save_key_params="$save_key_params $key_devices"
 		fi
-		kexec-save-key $save_key_params ||
-			die "Failed to save the LUKS TPM Disk Unlock Key"
+		kexec-save-key.sh $save_key_params ||
+			DIE "Failed to save the LUKS TPM Disk Unlock Key"
 	fi
 fi
 
@@ -273,28 +270,47 @@ mount -o rw,remount $paramsdev
 
 if [ ! -d $paramsdir ]; then
 	mkdir -p $paramsdir ||
-		die "Failed to create params directory"
+		DIE "Failed to create params directory"
 fi
+
+# All writes go to a staging directory; files are moved to their final
+# locations only after kexec-sign-config.sh succeeds.  This prevents a failed
+# signing attempt from leaving /boot with updated config but no matching
+# signature.
+stagedir=$(mktemp -d /tmp/kexec-default-XXXXXX)
+cleanup_stagedir() { rm -rf "$stagedir"; }
+trap cleanup_stagedir EXIT
+DEBUG "Staging directory created: $stagedir"
+
+# Seed staging with existing kexec*.txt so sign-config signs everything
+for f in "$paramsdir"/kexec*.txt; do
+	[ -e "$f" ] && cp "$f" "$stagedir/"
+done
+# Seed staging with existing crypttab overrides if present
+[ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ] && \
+	cp "$bootdir/kexec_initrd_crypttab_overrides.txt" "$stagedir/"
+DEBUG "Seeded $stagedir with existing config files from $paramsdir"
 
 if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 	if [ -f /tmp/secret/primary.handle ]; then
 		DEBUG "Hashing TPM2 primary key handle..."
-		sha256sum /tmp/secret/primary.handle > "$PRIMHASH_FILE" ||
-			die "ERROR: Failed to Hash TPM2 primary key handle!"
-		DEBUG "TPM2 primary key handle hash saved to $PRIMHASH_FILE"
+		sha256sum /tmp/secret/primary.handle > "$stagedir/kexec_primhdl_hash.txt" ||
+			DIE "ERROR: Failed to Hash TPM2 primary key handle!"
+		DEBUG "TPM2 primary key handle hash written to $stagedir/kexec_primhdl_hash.txt"
 	else
-		die "ERROR: TPM2 primary key handle file does not exist!"
+		DIE "ERROR: TPM2 primary key handle file does not exist!"
 	fi
 fi
 
-rm $paramsdir/kexec_default.*.txt 2>/dev/null || true
-echo "$entry" >$ENTRY_FILE
+# Remove old kexec_default.*.txt from staging; new entry written below
+rm "$stagedir"/kexec_default.*.txt 2>/dev/null || true
+echo "$entry" >"$stagedir/kexec_default.$index.txt"
 (
-	cd $bootdir && kexec-boot -b "$bootdir" -e "$entry" -f |
-		xargs sha256sum >$HASH_FILE
-) || die "Failed to create hashes of boot files"
-if [ ! -r $ENTRY_FILE -o ! -r $HASH_FILE ]; then
-	die "Failed to write default config"
+	cd $bootdir && kexec-boot.sh -b "$bootdir" -e "$entry" -f |
+		xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
+) || DIE "Failed to create hashes of boot files"
+if [ ! -r "$stagedir/kexec_default.$index.txt" -o ! -r "$stagedir/kexec_default_hashes.txt" ]; then
+	DIE "Failed to write default config to staging"
 fi
 
 if [ "$save_key" = "y" ]; then
@@ -302,15 +318,15 @@ if [ "$save_key" = "y" ]; then
 	initrd_decompressed="/tmp/initrd_extract"
 	mkdir -p "$initrd_decompressed"
 	# Get initrd filename selected to be default initrd that OS could be using to configure LUKS on boot by deploying crypttab files
-	current_default_initrd=$(cat /boot/kexec_default_hashes.txt | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
+	current_default_initrd=$(cat "$stagedir/kexec_default_hashes.txt" | grep initr | awk -F " " {'print $NF'} | sed 's/\.\//\/boot\//g')
 
-	echo "+++ Extracting current selected default boot's $current_default_initrd to find crypttab files..."
+	DEBUG "Extracting $current_default_initrd to find crypttab files"
 	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed"
 	crypttab_files=$(find "$initrd_decompressed" | grep crypttab 2>/dev/null) || true
 
 	if [ ! -z "$crypttab_files" ]; then
 		DEBUG "Found crypttab files in $current_default_initrd"
-		rm -f $bootdir/kexec_initrd_crypttab_overrides.txt || true
+		rm -f "$stagedir/kexec_initrd_crypttab_overrides.txt" || true
 
 		#Parsing each crypttab file found
 		echo "$crypttab_files" | while read crypttab_file; do
@@ -324,20 +340,20 @@ if [ "$save_key" = "y" ]; then
 			modified_crypttab_entries=$(echo "$current_crypttab_entries" | sed 's/none/\/secret.key/g')
 			DEBUG "Modified crypttab entries $final_initrd_filepath:$modified_crypttab_entries"
 			echo "$modified_crypttab_entries" | while read modified_crypttab_entry; do
-				echo "$final_initrd_filepath:$modified_crypttab_entry" >>$bootdir/kexec_initrd_crypttab_overrides.txt
+				echo "$final_initrd_filepath:$modified_crypttab_entry" >>"$stagedir/kexec_initrd_crypttab_overrides.txt"
 			done
 		done
 
 		#insert current default boot's initrd crypttab locations into tracking file to be overwritten into initramfs at kexec-inject-key
-		echo "+++ The following OS crypttab file:entry were modified from default boot's initrd:"
-		cat $bootdir/kexec_initrd_crypttab_overrides.txt
-		echo "+++ Heads added /secret.key in those entries and saved them under $bootdir/kexec_initrd_crypttab_overrides.txt"
-		echo "+++ Those overrides will be part of detached signed digests and used to prepare cpio injected at kexec of selected default boot entry."
+		STATUS "The following OS crypttab entries were modified from default boot's initrd:"
+		cat "$stagedir/kexec_initrd_crypttab_overrides.txt"
+		STATUS_OK "Heads added /secret.key to those entries and saved overrides for signing"
+		DEBUG "Crypttab overrides will be included in signed digests and injected via cpio at kexec"
 	else
-		echo "+++ No crypttab file found in extracted initrd. A generic crypttab will be generated"
-		if [ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ]; then
-			echo "+++ Removing $bootdir/kexec_initrd_crypttab_overrides.txt"
-			rm -f "$bootdir/kexec_initrd_crypttab_overrides.txt"
+		INFO "No crypttab found in initrd; a generic crypttab will be generated"
+		if [ -e "$stagedir/kexec_initrd_crypttab_overrides.txt" ]; then
+			DEBUG "Removing stale $stagedir/kexec_initrd_crypttab_overrides.txt (no crypttab found in initrd)"
+			rm -f "$stagedir/kexec_initrd_crypttab_overrides.txt"
 		fi
 	fi
 
@@ -354,8 +370,22 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	fi
 fi
 if [ "$CONFIG_BASIC" != "y" ]; then
-	DO_WITH_DEBUG kexec-sign-config -p $paramsdir $extparam ||
-		die "Failed to sign default config"
+	DO_WITH_DEBUG kexec-sign-config.sh -p "$stagedir" $extparam ||
+		DIE "Failed to sign default config"
 fi
+# Signing succeeded; move all staged files to their final locations.
+# kexec-sign-config.sh may have remounted $paramsdev ro; remount rw for the moves.
+mount -o rw,remount $paramsdev
+rm "$paramsdir"/kexec_default.*.txt 2>/dev/null || true
+for f in "$stagedir"/*; do
+	[ -e "$f" ] || continue
+	fname="$(basename "$f")"
+	if [ "$fname" = "kexec_initrd_crypttab_overrides.txt" ]; then
+		mv "$f" "$bootdir/$fname"
+	else
+		mv "$f" "$paramsdir/$fname"
+	fi
+done
+DEBUG "Staged files from $stagedir moved to $paramsdir (crypttab overrides to $bootdir)"
 # switch back to ro mode
 mount -o ro,remount $paramsdev

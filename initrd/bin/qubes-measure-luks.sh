@@ -4,22 +4,22 @@
 . /etc/functions.sh
 
 TRACE_FUNC
-DEBUG "Arguments passed to qubes-measure-luks: $@"
+DEBUG "Arguments passed to qubes-measure-luks.sh: $@"
 
 # Measure the LUKS headers into PCR 6
 for dev in "$@"; do
 	DEBUG "Storing LUKS header for $dev into /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g')"
 	cryptsetup luksHeaderBackup $dev \
 		--header-backup-file /tmp/lukshdr-$(echo "$dev" | sed 's/\//_/g') ||
-		die "$dev: Unable to read LUKS header"
+		DIE "$dev: Unable to read LUKS header"
 done
 
 DEBUG "Hashing LUKS headers into /tmp/luksDump.txt"
-sha256sum /tmp/lukshdr-* >/tmp/luksDump.txt || die "Unable to hash LUKS headers"
+sha256sum /tmp/lukshdr-* >/tmp/luksDump.txt || DIE "Unable to hash LUKS headers"
 DEBUG "Removing /tmp/lukshdr-*"
 rm /tmp/lukshdr-*
 
 TRACE_FUNC
 INFO "TPM: Extending PCR[6] with hash of LUKS headers from /tmp/luksDump.txt"
 tpmr.sh extend -ix 6 -if /tmp/luksDump.txt ||
-	die "Unable to extend PCR"
+	DIE "Unable to extend PCR"
