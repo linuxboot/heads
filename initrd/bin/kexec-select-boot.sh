@@ -20,30 +20,30 @@ force_boot="n"
 skip_confirm="n"
 while getopts "b:d:p:a:r:c:uimgfs" arg; do
 	case $arg in
-		b) bootdir="$OPTARG" ;;
-		d) paramsdev="$OPTARG" ;;
-		p) paramsdir="$OPTARG" ;;
-		a) add="$OPTARG" ;;
-		r) remove="$OPTARG" ;;
-		c) config="$OPTARG" ;;
-		u) unique="y" ;;
-		m) force_menu="y" ;;
-		i)
-			valid_hash="y"
-			valid_rollback="y"
-			;;
-		g) gui_menu="y" ;;
-		f)
-			force_boot="y"
-			valid_hash="y"
-			valid_rollback="y"
-			;;
-		s) skip_confirm="y" ;;
+	b) bootdir="$OPTARG" ;;
+	d) paramsdev="$OPTARG" ;;
+	p) paramsdir="$OPTARG" ;;
+	a) add="$OPTARG" ;;
+	r) remove="$OPTARG" ;;
+	c) config="$OPTARG" ;;
+	u) unique="y" ;;
+	m) force_menu="y" ;;
+	i)
+		valid_hash="y"
+		valid_rollback="y"
+		;;
+	g) gui_menu="y" ;;
+	f)
+		force_boot="y"
+		valid_hash="y"
+		valid_rollback="y"
+		;;
+	s) skip_confirm="y" ;;
 	esac
 done
 
 if [ -z "$bootdir" ]; then
-	die "Usage: $0 -b /boot"
+	DIE "Usage: $0 -b /boot"
 fi
 
 if [ -z "$paramsdev" ]; then
@@ -64,28 +64,25 @@ if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		#PRIMHASH_FILE (normally /boot/kexec_primhdl_hash.txt) exists and is not empty
 		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
 			{
-				echo "FATAL: Hash of TPM2 primary key handle mismatch!"
-				warn "If you have not intentionally regenerated TPM2 primary key,"
-				warn "your system may have been compromised"
+				WARN "Hash of TPM2 primary key handle mismatch - if you have not intentionally regenerated the TPM2 primary key, your system may have been compromised"
 				DEBUG "Hash of TPM2 primary key handle mismatched for $PRIMHASH_FILE"
 				DEBUG "Contents of $PRIMHASH_FILE:"
 				DEBUG "$(cat $PRIMHASH_FILE)"
+				DIE "Hash of TPM2 primary key handle mismatch ($PRIMHASH_FILE). If you did not intentionally regenerate the TPM2 primary key, this may indicate compromise."
 			}
 	else
-		warn "Hash of TPM2 primary key handle does not exist"
-		warn "Please rebuild the TPM2 primary key handle hash by setting a default OS to boot."
-		warn "Select Options-> Boot Options -> Show OS Boot Menu -> <Pick OS> -> Make default"
-		#TODO: Simplify/Automatize TPM2 firmware upgrade process. Today: upgrade, reboot, reseal(type TPM Owner Password), resign, boot
+		WARN "Hash of TPM2 primary key handle does not exist - rebuild it by setting a default OS to boot: Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default"
+		#TODO: Simplify/Automatize TPM2 firmware upgrade process. Today: upgrade, reboot, reseal(type TPM owner passphrase), resign, boot
 		default_failed="y"
 		DEBUG "Hash of TPM2 primary key handle does not exist under $PRIMHASH_FILE"
 	fi
 fi
 
 verify_global_hashes() {
-	INFO "+++ Checking verified boot hash file "
+	STATUS "Checking verified boot hash file"
 	# Check the hashes of all the files
 	if verify_checksums "$bootdir" "$gui_menu"; then
-		INFO "+++ Verified boot hashes "
+		STATUS_OK "Verified boot hashes"
 		valid_hash='y'
 		valid_global_hash='y'
 	else
@@ -94,23 +91,23 @@ verify_global_hashes() {
 			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 		fi
-		die "$TMP_HASH_FILE: boot hash mismatch"
+		DIE "$TMP_HASH_FILE: boot hash mismatch"
 	fi
 	# If user enables it, check root hashes before boot as well
 	if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
 		if root-hashes-gui.sh -c; then
-			echo "+++ Verified root hashes, continuing boot "
+			STATUS_OK "Verified root hashes, continuing boot"
 			# if user re-signs, it wipes out saved options, so scan the boot directory and generate
 			if [ ! -r "$TMP_MENU_FILE" ]; then
 				scan_options
 			fi
 		else
-			# root-hashes-gui.sh handles the GUI error menu, just die here
+			# root-hashes-gui.sh handles the GUI error menu, just DIE here
 			if [ "$gui_menu" = "y" ]; then
 				whiptail_error --title 'ERROR: Root Hash Mismatch' \
 					--msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
 			fi
-			die "root hash mismatch, see /tmp/hash_output_mismatches for details"
+			DIE "root hash mismatch, see /tmp/hash_output_mismatches for details"
 		fi
 	fi
 }
@@ -120,14 +117,14 @@ verify_rollback_counter() {
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
 
 	if [ -z "$TPM_COUNTER" ]; then
-		die "$TMP_ROLLBACK_FILE: TPM counter not found. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
+		DIE "$TMP_ROLLBACK_FILE: TPM counter not found. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 	fi
 
 	read_tpm_counter $TPM_COUNTER >/dev/null 2>&1 ||
-		die "Failed to read TPM counter. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
+		DIE "Failed to read TPM counter. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 
 	sha256sum -c $TMP_ROLLBACK_FILE >/dev/null 2>&1 ||
-		die "Invalid TPM counter state. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
+		DIE "Invalid TPM counter state. Please reset TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
 
 	valid_rollback="y"
 }
@@ -136,42 +133,45 @@ first_menu="y"
 get_menu_option() {
 	num_options=$(cat $TMP_MENU_FILE | wc -l)
 	if [ $num_options -eq 0 ]; then
-		die "No boot options"
+		DIE "No boot options"
 	fi
 
 	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
 		option_index=1
 	elif [ "$gui_menu" = "y" ]; then
-		MENU_OPTIONS=""
+		MENU_OPTIONS=()
 		n=0
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			name=$(echo $name | tr " " "_")
-			MENU_OPTIONS="$MENU_OPTIONS $n ${name} "
+			MENU_OPTIONS+=("$n" "$name")
 		done <$TMP_MENU_FILE
 
-		whiptail --title "Select your boot option" \
+		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
 			--menu "Choose the boot option [1-$n, a to abort]:" 0 80 8 \
-			-- $MENU_OPTIONS \
-			2>/tmp/whiptail || die "Aborting boot attempt"
+			-- "${MENU_OPTIONS[@]}" \
+			2>/tmp/whiptail || DIE "Aborting boot attempt"
 
 		option_index=$(cat /tmp/whiptail)
 	else
-		echo "+++ Select your boot option:"
+		STATUS "Select your boot option:"
 		n=0
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			echo "$n. $name [$kernel]"
+			# Use the same device routing as INPUT so option lines and the
+			# prompt share the same unbuffered fd (HEADS_TTY when in gui-init
+			# context, stderr otherwise).  Writing to stdout is wrong here
+			# because DO_WITH_DEBUG pipes stdout through tee for debug logging,
+			# making it fully buffered — the last option would appear after the
+			# INPUT prompt.
+			printf '%d. %s [%s]\n' "$n" "$name" "$kernel" >"${HEADS_TTY:-/dev/stderr}"
 		done <$TMP_MENU_FILE
 
-		read \
-			-p "Choose the boot option [1-$n, a to abort]: " \
-			option_index
+		INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
 
 		if [ "$option_index" = "a" ]; then
-			die "Aborting boot attempt"
+			DIE "Aborting boot attempt"
 		fi
 	fi
 	first_menu="n"
@@ -187,18 +187,14 @@ confirm_menu_option() {
 		whiptail_warning --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
-			2>/tmp/whiptail || die "Aborting boot attempt"
+			2>/tmp/whiptail || DIE "Aborting boot attempt"
 
 		option_confirm=$(cat /tmp/whiptail)
 	else
-		echo "+++ Please confirm the boot details for $name:"
-		echo $option
+		STATUS "Confirm boot details for $name:"
+		INFO "$option"
 
-		read \
-			-n 1 \
-			-p "Confirm selection by pressing 'y', make default with 'd': " \
-			option_confirm
-		echo
+		INPUT "Confirm selection by pressing 'y', make default with 'd':" -n 1 option_confirm
 	fi
 }
 
@@ -208,11 +204,11 @@ parse_option() {
 }
 
 scan_options() {
-	INFO "+++ Scanning for unsigned boot options"
+	STATUS "Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
 	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
-		die "Failed to parse any boot options"
+		DIE "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
 		sort -r $option_file | uniq >$TMP_MENU_FILE
@@ -223,28 +219,24 @@ scan_options() {
 
 save_default_option() {
 	if [ "$gui_menu" != "y" ]; then
-		read \
-			-n 1 \
-			-p "Saving a default will modify the disk. Proceed? (Y/n): " \
-			default_confirm
-		echo
+		INPUT "Saving a default will modify the disk. Proceed? (Y/n):" -n 1 default_confirm
 	fi
 
 	[ "$default_confirm" = "" ] && default_confirm="y"
 	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
-		if kexec-save-default \
+		if kexec-save-default.sh \
 			-b "$bootdir" \
 			-d "$paramsdev" \
 			-p "$paramsdir" \
 			-i "$option_index" \
 			; then
-			echo "+++ Saved defaults to device"
+			STATUS_OK "Saved defaults to device"
 
 			default_failed="n"
 			force_menu="n"
 			return
 		else
-			echo "Failed to save defaults"
+			WARN "Failed to save defaults"
 		fi
 	fi
 
@@ -265,17 +257,17 @@ default_select() {
 			whiptail_error --title 'ERROR: Boot Entry Has Changed' \
 				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80
 		fi
-		warn "Boot entry has changed - please set a new default"
+		WARN "Boot entry has changed - please set a new default"
 		return
 	fi
 	parse_option
 
 	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Enforce that default option hashes are valid
-		INFO "+++ Checking verified default boot hash file "
+		STATUS "Checking verified default boot hash file"
 		# Check the hashes of all the files
 		if (cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
-			echo "+++ Verified default boot hashes "
+			STATUS_OK "Verified default boot hashes"
 			valid_hash='y'
 		else
 			if [ "$gui_menu" = "y" ]; then
@@ -286,9 +278,9 @@ default_select() {
 		fi
 	fi
 
-	echo "+++ Executing default boot for $name:"
+	STATUS "Executing default boot for $name"
 	do_boot
-	warn "Failed to boot default option"
+	WARN "Failed to boot default option"
 }
 
 user_select() {
@@ -315,7 +307,7 @@ user_select() {
 			true
 		else
 			NOTE "Rebooting to start the new default option"
-			reboot
+			reboot.sh
 		fi
 	fi
 
@@ -324,29 +316,29 @@ user_select() {
 
 do_boot() {
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
-		die "!!! Missing required rollback counter state"
+		DIE "Missing required rollback counter state"
 	fi
 
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
-		die "!!! Missing required boot hashes"
+		DIE "Missing required boot hashes"
 	fi
 
-	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ]; then
-		INITRD=$(kexec-boot -b "$bootdir" -e "$option" -i) ||
-			die "!!! Failed to extract the initrd from boot option"
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ] && [ "$force_boot" != "y" ]; then
+		INITRD=$(kexec-boot.sh -b "$bootdir" -e "$option" -i) ||
+			DIE "Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then
-			die "!!! No initrd file found in boot option"
+			DIE "No initrd file found in boot option"
 		fi
 
-		kexec-insert-key $INITRD ||
-			die "!!! Failed to prepare TPM Disk Unlock Key for boot"
+		kexec-insert-key.sh $INITRD ||
+			DIE "Failed to prepare TPM Disk Unlock Key for boot"
 
-		kexec-boot -b "$bootdir" -e "$option" \
+		kexec-boot.sh -b "$bootdir" -e "$option" \
 			-a "$add" -r "$remove" -o "/tmp/secret/initrd.cpio" ||
-			die "!!! Failed to boot w/ options: $option"
+			DIE "Failed to boot w/ options: $option"
 	else
-		kexec-boot -b "$bootdir" -e "$option" -a "$add" -r "$remove" ||
-			die "!!! Failed to boot w/ options: $option"
+		kexec-boot.sh -b "$bootdir" -e "$option" -a "$add" -r "$remove" ||
+			DIE "Failed to boot w/ options: $option"
 	fi
 }
 
@@ -383,7 +375,7 @@ while true; do
 			TRACE_FUNC
 			INFO "TPM: Extending PCR[4] to prevent further secret unsealing"
 			tpmr.sh extend -ix 4 -ic generic ||
-				die "Failed to extend TPM PCR[4]"
+				DIE "Failed to extend TPM PCR[4]"
 		fi
 	fi
 
@@ -400,7 +392,7 @@ while true; do
 			verify_global_hashes
 
 			if [ "$valid_global_hash" = "n" ]; then
-				die "Failed to verify global hashes"
+				DIE "Failed to verify global hashes"
 			fi
 		fi
 
@@ -424,4 +416,4 @@ while true; do
 	fi
 done
 
-die "!!! Shouldn't get here"
+DIE "Shouldn't get here"

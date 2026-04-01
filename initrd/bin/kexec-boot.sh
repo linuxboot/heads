@@ -22,7 +22,7 @@ while getopts "b:e:r:a:o:fi" arg; do
 done
 
 if [ -z "$bootdir" -o -z "$entry" ]; then
-	die "Usage: $0 -b /boot -e 'kexec params|...|...'"
+	DIE "Usage: $0 -b /boot -e 'kexec params|...|...'"
 fi
 
 bootdir="${bootdir%%/}"
@@ -47,7 +47,7 @@ fix_file_path() {
 	filepath="$bootdir$firstval"
 
 	if ! [ -r $filepath ]; then
-		die "Failed to find file $firstval"
+		DIE "Failed to find file $firstval"
 	fi
 }
 
@@ -92,7 +92,7 @@ do
 			kexeccmd="$kexeccmd -l $filepath"
 			DEBUG "kexeccmd= $kexeccmd"
 		else
-			DEBUG "unknown kexectype!!!!"
+			DEBUG "unknown kexectype"
 			kexeccmd="$kexeccmd -l $filepath"
 		fi
 	fi
@@ -143,26 +143,25 @@ if [ "$adjusted_cmd_line" = "n" ]; then
 	if [ "$kexectype" = "elf" ]; then
 		kexeccmd="$kexeccmd --append=\"$cmdadd\""
 	else
-		die "Failed to add required kernel commands: $cmdadd"
+		DIE "Failed to add required kernel commands: $cmdadd"
 	fi
 fi
 
 if [ "$dryrun" = "y" ]; then exit 0; fi
 
-echo "Loading the new kernel:"
-echo "$kexeccmd"
+STATUS "Loading the new kernel"
+DEBUG "kexec command: $kexeccmd"
 # DO_WITH_DEBUG captures the debug output from stderr to the log, we don't need
 # it on the console as well
 DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null \
-|| die "Failed to load the new kernel"
+|| DIE "Failed to load the new kernel"
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 	#Ask user if they want to continue booting without echoing back the input (-s)
-	read -s -n 1 -p "[DEBUG] Continue booting? [Y/n]: " debug_boot_confirm
-	echo
+	INPUT "[DEBUG] Continue booting? [Y/n]:" -s -n 1 debug_boot_confirm
 	if [ "${debug_boot_confirm^^}" = N ]; then
 		# abort
-		die "Boot aborted"
+		DIE "Boot aborted"
 	fi
 fi
 
@@ -171,8 +170,13 @@ if [ "$CONFIG_TPM" = "y" ]; then
 fi
 
 if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
-	lock_chip
+	lock_chip.sh
 fi
 
-echo "Starting the new kernel"
+if [ "$CONFIG_BRAND_NAME" = "Heads" ]; then
+	STATUS_OK "Heads firmware job done - handing off to your OS. Consider donating: https://opencollective.com/insurgo"
+	qrenc "https://opencollective.com/insurgo"
+else
+	STATUS_OK "$CONFIG_BRAND_NAME firmware job done - starting your OS"
+fi
 exec kexec -e
