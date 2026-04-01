@@ -8,22 +8,22 @@
 
 TRACE_FUNC
 
-MODULE="$1"
-shift
+MODULE="$1"; shift
 
 if [ -z "$MODULE_PCR" ]; then
 	MODULE_PCR=5
 fi
 
+
 if [ -z "$MODULE" ]; then
-	die "Usage: $0 module [args...]"
+	DIE "Usage: $0 module [args...]"
 fi
 
 if [ ! -r "$MODULE" ]; then
-	die "$MODULE: not found?"
+	DIE "$MODULE: not found?"
 fi
 
-# Check if module is already loaded
+# Check if module is already loaded 
 #  Transform module name changing _ for - and trailing .ko if present
 #  Unify lsmod output to use - instead of _ for comparison
 module_name=$(basename "$MODULE" | sed 's/_/-/g' | sed 's/\.ko$//')
@@ -45,20 +45,20 @@ if [ -z "$tpm_missing" ]; then
 	# different PCR measurement.
 	if [ -n "$*" ]; then
 		TRACE_FUNC
-		INFO "Extending with module parameters and the module's content"
+		LOG "Extending with module parameters and the module's content"
 		tpmr.sh extend -ix "$MODULE_PCR" -ic "$*"
-		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" ||
-			die "$MODULE: tpm extend failed"
+		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| DIE "$MODULE: tpm extend failed"
 	else
 		TRACE_FUNC
-		INFO "No module parameters, extending only with the module's content"
-		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" ||
-			die "$MODULE: tpm extend failed"
+		LOG "No module parameters, extending only with the module's content"
+		tpmr.sh extend -ix "$MODULE_PCR" -if "$MODULE" \
+		|| DIE "$MODULE: tpm extend failed"
 	fi
 fi
 
-# Since we have replaced the real insmod, we must invoke
+# Since we have replaced the real insmod.sh, we must invoke
 # the busybox insmod via the original executable
 DEBUG "Loading $MODULE with busybox insmod"
-busybox insmod "$MODULE" "$@" ||
-	die "$MODULE: insmod failed"
+busybox insmod "$MODULE" "$@" \
+	|| DIE "$MODULE: insmod failed"
