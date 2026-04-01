@@ -489,6 +489,7 @@ pin_color() {
 # Sources: hotp-verification/src/device.c and targets/qemu.mk
 # USB Security dongle (OpenPGP smart card) VID:PID table:
 #   20a0:42b2  Nitrokey 3 (3A Mini / 3A NFC / 3C NFC - all share this PID)
+#   20a0:42d4  Canokey QEMU
 #   20a0:4108  Nitrokey Pro / Pro 2  (Pro and Pro 2 share the same PID)
 #   20a0:4109  Nitrokey Storage / Storage 2
 #   316d:4c4b  Librem Key
@@ -498,22 +499,34 @@ pin_color() {
 #   1050:0115  Yubikey 4/5 (OTP+U2F+CCID) - FIDO+CCID
 #   1050:0404  Yubikey 5 (FIDO+CCID)
 detect_usb_security_dongle_branding() {
+	TRACE_FUNC
 	local lsusb_out
 	lsusb_out="$(lsusb)"
+	DEBUG "lsusb output: $lsusb_out"
 	# Check NK3 (42b2) before the broader 20a0 vendor match
 	if echo "$lsusb_out" | grep -q "20a0:42b2"; then
+		DEBUG "Detected Nitrokey 3 (20a0:42b2)"
 		echo "Nitrokey 3"
+	elif echo "$lsusb_out" | grep -q "20a0:42d4"; then
+		DEBUG "Detected Canokey QEMU (20a0:42d4)"
+		echo "Canokey"
 	elif echo "$lsusb_out" | grep -q "20a0:4108"; then
+		DEBUG "Detected Nitrokey Pro (20a0:4108)"
 		echo "Nitrokey Pro"
 	elif echo "$lsusb_out" | grep -q "20a0:4109"; then
+		DEBUG "Detected Nitrokey Storage (20a0:4109)"
 		echo "Nitrokey Storage"
 	elif echo "$lsusb_out" | grep -q "316d:4c4b"; then
+		DEBUG "Detected Librem Key (316d:4c4b)"
 		echo "Librem Key"
 	elif echo "$lsusb_out" | grep -q "16d0:21dc"; then
+		DEBUG "Detected Canokey (16d0:21dc)"
 		echo "Canokey"
 	elif echo "$lsusb_out" | grep -q "1050:"; then
+		DEBUG "Detected Yubikey (1050:*)"
 		echo "Yubikey"
 	else
+		DEBUG "No known USB Security dongle detected"
 		echo "USB Security dongle"
 	fi
 }
@@ -542,6 +555,14 @@ hotpkey_fw_display() {
 		local app_ver
 		app_ver="$(echo "$info" | grep "Firmware Secrets App:" | sed 's/.*: *//')"
 		[ -n "$app_ver" ] && extras=" (Secrets App: ${app_ver})"
+		# Display Nitrokey 3 firmware version - check if below minimum
+		if [ "$(printf '%s\n' "$fw_ver" "$min_ver" | sort -V | head -1)" != "$min_ver" ]; then
+			NOTE "$branding firmware: \033[1;33m${fw_ver}\033[0m${extras} (minimum: ${min_ver}, latest known: ${latest_ver}) - upgrade recommended"
+		else
+			STATUS_OK "$branding firmware: ${fw_ver}${extras} (minimum: ${min_ver}, latest known: ${latest_ver})"
+		fi
+		touch /tmp/hotpkey_fw_shown
+		return
 	elif echo "$info" | grep -q "Firmware:"; then
 		# Nitrokey Pro / Storage / Librem Key: "<TAB>Firmware: v0.15"
 		# hotp_verification prefixes lines with a tab; omit ^ so the pattern matches.
@@ -748,6 +769,9 @@ cache_gpg_signing_pin() {
 	pin_retry_counters=$(echo "$gpg_output" | grep 'PIN retry counter' | awk -F': ' '{print $2}')
 	user_pin_retries=$(echo "$pin_retry_counters" | awk '{print $1}')
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
+
+	# Re-detect dongle branding after card is detected (may have been too early in gui-init.sh)
+	export DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
 
 	echo >/dev/console 2>/dev/null
 	STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
