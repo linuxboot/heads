@@ -4,6 +4,8 @@
 # the trusted key database, and execute it to mount
 # the /boot filesystem
 
+. /etc/functions.sh
+
 dev="$1"
 offset="$2"
 
@@ -24,11 +26,7 @@ fi
 #
 dev_size_file="/sys/class/block/`basename $dev`/size"
 if [ ! -r "$dev_size_file" ]; then
-	echo >&2 '!!!!!'
-	echo >&2 '!!!!! $dev file $dev_size_file not found'
-	echo >&2 '!!!!! Dropping to recovery shell'
-	echo >&2 '!!!!!'
-	exit -1
+	recovery "Device size file $dev_size_file not found"
 fi
 
 dev_blocks=`cat "$dev_size_file"`
@@ -37,22 +35,14 @@ dev_blocks=`cat "$dev_size_file"`
 # Extract the signed file from the hard disk image
 #
 if ! dd if="$dev" of="$cmd_sig" bs=512 skip="`expr $dev_blocks - 1`" > /dev/null 2>&1; then
-	echo >&2 '!!!!!'
-	echo >&2 '!!!!! Boot block extraction failed'
-	echo >&2 '!!!!! Dropping to recovery shell'
-	echo >&2 '!!!!!'
-	exit -1
+	recovery "Boot block extraction failed"
 fi
 
 #
 # Validate the file
 #
-if ! gpgv --keyring /trustedkeys.gpg "$cmd_sig"; then
-	echo >&2 '!!!!!'
-	echo >&2 '!!!!! GPG signature on block failed'
-	echo >&2 '!!!!! Dropping to recovery shell'
-	echo >&2 '!!!!!'
-	exit -1
+if ! gpgv.sh --keyring /trustedkeys.gpg "$cmd_sig"; then
+	recovery "GPG signature on boot block failed"
 fi
 
 #
