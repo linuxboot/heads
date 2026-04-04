@@ -893,33 +893,33 @@ gpg_auth() {
 
 recovery() {
 	TRACE_FUNC
-	# Remove any temporary secret files, but recreate the directory so that new tools can use it.
-
-	#safe to always be true. Otherwise "set -e" would make it exit here
-	shred -n 10 -z -u /tmp/secret/* 2>/dev/null || true
-	rm -rf /tmp/secret
-	mkdir -p /tmp/secret
-
-	# ensure /tmp/config exists for recovery scripts that depend on it
-	touch /tmp/config
-	. /tmp/config
-
-	# Log board and firmware/EC versions in one go.  ec_version() will
-	# return an empty string if nothing is available, so the output is still
-	# well-formed even on systems without an EC version string.
-	DEBUG "Board $CONFIG_BOARD - version $(fw_version) EC_VER: $(ec_version)"
-
-	if [ "$CONFIG_TPM" = "y" ]; then
-		INFO "TPM: Extending PCR[4] to prevent any further secret unsealing"
-		tpmr.sh extend -ix 4 -ic recovery
-	fi
-
 	if [ "$CONFIG_RESTRICTED_BOOT" = y ]; then
 		NOTE "Restricted Boot enabled, recovery console disabled, rebooting in 5 seconds"
 		sleep 5
 		/bin/reboot.sh
 	fi
 	while [ true ]; do
+		# Re-detect TTY on each iteration so INPUT uses the correct device
+		detect_heads_tty
+
+		# Wipe secrets at start of each iteration to ensure fresh state
+		#safe to always be true. Otherwise "set -e" would make it exit here
+		shred -n 10 -z -u /tmp/secret/* 2>/dev/null || true
+		rm -rf /tmp/secret
+		mkdir -p /tmp/secret
+
+		# ensure /tmp/config exists for recovery scripts that depend on it
+		touch /tmp/config
+		. /tmp/config
+
+		# Log board and firmware/EC versions in one go
+		DEBUG "Board $CONFIG_BOARD - version $(fw_version) EC_VER: $(ec_version)"
+
+		if [ "$CONFIG_TPM" = "y" ]; then
+			INFO "TPM: Extending PCR[4] to prevent any further secret unsealing"
+			tpmr.sh extend -ix 4 -ic recovery
+		fi
+
 		#Going to recovery shell should be authenticated if supported
 		gpg_auth
 
