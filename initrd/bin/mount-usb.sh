@@ -113,6 +113,23 @@ else
 	if [ $(cat /tmp/usb_block_devices | wc -l) -eq 1 ]; then
 		USB_MOUNT_DEVICE="$(cat /tmp/usb_block_devices)"
 	fi
+	# When a passphrase is provided and multiple devices are present,
+	# auto-select the LUKS partition (e.g. GPG backup drive: LUKS private + exFAT public).
+	# This avoids burdening the user with selecting the right partition.
+	if [ -z "$USB_MOUNT_DEVICE" ] && [ -n "$PASS" ]; then
+		luks_dev=""
+		luks_count=0
+		while IFS= read -r dev; do
+			if cryptsetup isLuks "$dev" 2>/dev/null; then
+				luks_dev="$dev"
+				luks_count=$((luks_count + 1))
+			fi
+		done </tmp/usb_block_devices
+		if [ "$luks_count" -eq 1 ]; then
+			DEBUG "Auto-selected LUKS partition: $luks_dev (passphrase provided)"
+			USB_MOUNT_DEVICE="$luks_dev"
+		fi
+	fi
 	# otherwise, let the user pick
 	if [ -z ${USB_MOUNT_DEVICE} ]; then
 		>/tmp/usb_disk_list
