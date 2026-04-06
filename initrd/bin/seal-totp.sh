@@ -50,7 +50,7 @@ DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not fir
 # pcr 7 is containing measurements of user injected stuff in cbfs
 DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
 tpmr.sh pcrread -a 7 "$pcrf"
-#Make sure we clear the TPM Owner Password from memory in case it failed to be used to seal TOTP
+#Make sure we clear the TPM Owner Passphrase from memory in case it failed to be used to seal TOTP
 
 # if the board has TPM2 tools, check for the primary handle before
 # attempting to seal; a missing handle is the most common reason for
@@ -61,9 +61,9 @@ fi
 
 # perform sealing via tpmr.sh. Failures may indicate missing primary handle
 # or other TPM state issues. Avoid DO_WITH_DEBUG so interactive prompts
-# (TPM owner password on TPM1) are not hidden from the user.
+# (TPM owner passphrase on TPM1) are not hidden from the user.
 STATUS "Sealing TOTP secret to TPM NVRAM"
-if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSWORD"; then
+if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSPHRASE"; then
 	# tpmr.sh already logged details; guide user generically to reset TPM
 	DIE "Unable to seal TOTP secret to TPM NVRAM; reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) and try again."
 fi

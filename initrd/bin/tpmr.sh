@@ -213,7 +213,7 @@ replay_pcr() {
 	if [ "$alg" = "sha256" ]; then alg_digits=64; fi
 	shift 2
 	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
-		$(echo "$log" | awk -v alg=$alg -v pcr=$pcr -f <(echo $AWK_PROG)) $@)
+		$(echo "$log" | awk -v alg="$alg" -v pcr="$pcr" -f <(echo "$AWK_PROG")) "$@")
 	echo $replayed_pcr | hex2bin
 	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
 	# To manually introspect current PCR values:
@@ -309,32 +309,39 @@ tpm2_counter_inc() {
 
 tpm1_counter_create() {
 	TRACE_FUNC
-	# tpmr.sh handles the TPM Owner Password (from cache or prompt), but all
-	# other parameters for TPM1 are passed directly, and TPM2 mimics the
-	# TPM1 interface.
-	prompt_tpm_owner_password
-	TMP_ERR_FILE=$(mktemp)
-	if ! tpm counter_create -pwdo "$(cat "/tmp/secret/tpm_owner_password")" "$@" 2>"$TMP_ERR_FILE"; then
-		DEBUG "Failed to create counter from tpm1_counter_create. Wiping /tmp/secret/tpm_owner_password"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_password
-		# Log the contents of the temporary error file
-		while IFS= read -r line; do
-			DEBUG "tpm1 stderr: $line"
-		done <"$TMP_ERR_FILE"
+	local attempt=0
+	while true; do
+		attempt=$((attempt + 1))
+		prompt_tpm_owner_password
+		tpm_owner_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
+		TMP_ERR_FILE=$(mktemp)
+		if tpm counter_create -pwdo "$tpm_owner_passphrase" "$@" 2>"$TMP_ERR_FILE"; then
+			rm -f "$TMP_ERR_FILE"
+			return 0
+		fi
+		tmp_err_content="$(cat "$TMP_ERR_FILE")"
 		rm -f "$TMP_ERR_FILE"
-		DIE "Unable to create counter from tpm1_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
-	fi
-	rm -f "$TMP_ERR_FILE"
+		DEBUG "Failed attempt $attempt to create counter from tpm1_counter_create. Stderr: $tmp_err_content"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if [ "$attempt" -ge 3 ]; then
+				DIE "Unable to create counter from tpm1_counter_create after 3 attempts. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
+			WARN "Counter creation failed (bad passphrase?). Retrying..."
+		else
+			DIE "Unable to create counter from tpm1_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+		fi
+	done
 }
 
 tpm2_counter_create() {
 	TRACE_FUNC
-	pwd=""    # owner password from argument
-	label=""  # label argument
+	pass=""  # owner passphrase from argument
+	label="" # label argument
 	while true; do
 		case "$1" in
 		-pwdc)
-			pwd="$2"
+			pass="$2"
 			shift 2
 			;;
 		-la)
@@ -347,33 +354,44 @@ tpm2_counter_create() {
 		esac
 	done
 
-	# if caller supplied a password use it, otherwise prompt / use cache
-	if [ -n "$pwd" ]; then
-		tpm_owner_password="$pwd"
-		# cache it so other functions can reuse without prompting
-		mkdir -p "$SECRET_DIR" || true
-		echo -n "$tpm_owner_password" >/tmp/secret/tpm_owner_password 2>/dev/null || true
-	else
-		prompt_tpm_owner_password
-	fi
-
 	rand_index="1$(dd if=/dev/urandom bs=1 count=3 2>/dev/null | xxd -pc3)"
-	# capture stderr to a temp file for visibility
-	TMP_ERR_FILE=$(mktemp)
-	if ! tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
-		-P "$(tpm2_password_hex "$tpm_owner_password")" "0x$rand_index" \
-		2>"$TMP_ERR_FILE" >/dev/null; then
-		DEBUG "Failed to create counter from tpm2_counter_create. Wiping /tmp/secret/tpm_owner_password"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_password
-		# log the TPM2 stderr output
-		while IFS= read -r line; do
-			DEBUG "tpm2 stderr: $line"
-		done <"$TMP_ERR_FILE"
+
+	local attempt=0
+	while true; do
+		attempt=$((attempt + 1))
+		if [ -n "$pass" ]; then
+			tpm_owner_passphrase="$pass"
+			mkdir -p "$SECRET_DIR" || true
+			echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_passphrase 2>/dev/null || true
+		else
+			prompt_tpm_owner_password
+			tpm_owner_passphrase="$tpm_owner_passphrase"
+		fi
+
+		TMP_ERR_FILE=$(mktemp)
+		if tpm2 nvdefine -C o -s 8 -a "ownerread|authread|authwrite|nt=1" \
+			-P "$(tpm2_password_hex "$tpm_owner_passphrase")" "0x$rand_index" \
+			2>"$TMP_ERR_FILE" >/dev/null; then
+			rm -f "$TMP_ERR_FILE"
+			echo "$rand_index: (valid after an increment)"
+			return 0
+		fi
+		tmp_err_content="$(cat "$TMP_ERR_FILE")"
 		rm -f "$TMP_ERR_FILE"
-		DIE "Unable to create counter from tpm2_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
-	fi
-	rm -f "$TMP_ERR_FILE"
-	echo "$rand_index: (valid after an increment)"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		DEBUG "tpm2_counter_create attempt $attempt failed. Stderr: $tmp_err_content"
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if [ -n "$pass" ]; then
+				DIE "Counter creation failed with provided passphrase. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
+			if [ "$attempt" -ge 3 ]; then
+				DIE "Unable to create counter from tpm2_counter_create after 3 attempts. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
+			WARN "Counter creation failed (bad passphrase?). Retrying..."
+		else
+			DIE "Unable to create counter from tpm2_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+		fi
+	done
 }
 
 tpm2_startsession() {
@@ -461,10 +479,10 @@ tpm2_seal() {
 	index="$2"
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	pcrf="$4"
-	sealed_size="$5"  # Not used for TPM2
-	pass="$6"         # May be empty to seal with no password
-	tpm_password="$7" # Owner password - will prompt if needed and not empty
-	# TPM Owner Password is always needed for TPM2.
+	sealed_size="$5"    # Not used for TPM2
+	pass="$6"           # May be empty to seal with no password
+	tpm_passphrase="$7" # Owner passphrase - will prompt if needed and not empty
+	# TPM Owner Passphrase is always needed for TPM2.
 
 	# bail early if the TPM hasn't been reset and we lack a primary handle.
 	if [ ! -f "$PRIMARY_HANDLE_FILE" ]; then
@@ -524,28 +542,33 @@ tpm2_seal() {
 	DO_WITH_DEBUG tpm2 load -Q -C "$PRIMARY_HANDLE_FILE" \
 		-u "$SECRET_DIR/$bname.pub" -r "$SECRET_DIR/$bname.priv" \
 		-c "$SECRET_DIR/$bname.seal.ctx"
-	# Retry loop: evictcontrol requires the TPM owner password; allow the
-	# user to re-enter it if it is wrong rather than dying immediately.
-	local evict_attempts=0
+
+	local attempt=0
 	while true; do
-		evict_attempts=$((evict_attempts + 1))
+		attempt=$((attempt + 1))
 		prompt_tpm_owner_password
-		# remove possible data occupying this handle (failure is expected when
-		# the handle doesn't exist yet, so ignore errors)
-		DO_WITH_DEBUG --mask-position 6 tpm2 evictcontrol -Q -C o \
-			-P "$(tpm2_password_hex "$tpm_owner_password")" \
-			-c "$handle" >/dev/null 2>&1 || true
+		tpm_owner_passphrase="$tpm_owner_passphrase"
+		tmp_err_file="$(mktemp)"
+		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_passphrase")" \
+			-c "$handle" 2>"$tmp_err_file" || true
 		if DO_WITH_DEBUG --mask-position 6 \
-			tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_password")" \
-			-c "$SECRET_DIR/$bname.seal.ctx" "$handle" >/dev/null 2>&1; then
-			break
+			tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_passphrase")" \
+			-c "$SECRET_DIR/$bname.seal.ctx" "$handle" 2>"$tmp_err_file"; then
+			rm -f "$tmp_err_file"
+			return 0
 		fi
-		DEBUG "tpm2_seal: evictcontrol failed (attempt $evict_attempts), wiping cached TPM owner password"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_password 2>/dev/null
-		if [ "$evict_attempts" -ge 3 ]; then
-			DIE "Unable to write sealed secret to TPM NVRAM after $evict_attempts attempts"
+		tmp_err_content="$(cat "$tmp_err_file")"
+		rm -f "$tmp_err_file"
+		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm2_seal. Stderr: $tmp_err_content"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if [ "$attempt" -ge 3 ]; then
+				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts. Reset the TPM and try again."
+			fi
+			WARN "Failed to write sealed secret (bad passphrase?). Retrying..."
+		else
+			DIE "Unable to write sealed secret to TPM NVRAM. Reset the TPM and try again."
 		fi
-		WARN "TPM owner password incorrect or TPM error - please try again (attempt $evict_attempts of 3)"
 	done
 }
 tpm1_seal() {
@@ -556,17 +579,17 @@ tpm1_seal() {
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
 	pcrf="$4"
 	sealed_size="$5"
-	pass="$6"               # May be empty to seal with no password
-	tpm_owner_password="$7" # Owner password - will prompt if needed and not empty
+	pass="$6"                 # May be empty to seal with no password
+	tpm_owner_passphrase="$7" # Owner passphrase - will prompt if needed and not empty
 
 	sealed_file="$SECRET_DIR/tpm1_seal_sealed.bin"
 	at_exit cleanup_shred "$sealed_file"
 
 	POLICY_ARGS=()
 
-	DEBUG "tpm1_seal arguments: file=$file index=$index pcrl=$pcrl pcrf=$pcrf sealed_size=$sealed_size pass=$(mask_param "$pass") tpm_owner_password=$(mask_param "$tpm_owner_password")"
+	DEBUG "tpm1_seal arguments: file=$file index=$index pcrl=$pcrl pcrf=$pcrf sealed_size=$sealed_size pass=$(mask_param "$pass") tpm_owner_passphrase=$(mask_param "$tpm_owner_passphrase")"
 
-	# If a password was given, add it to the policy arguments
+	# If a passphrase was given, add it to the policy arguments
 	if [ "$pass" ]; then
 		POLICY_ARGS+=(-pwdd "$pass")
 	fi
@@ -589,53 +612,61 @@ tpm1_seal() {
 		"${POLICY_ARGS[@]}"
 	DEBUG "tpm1_seal: sealed blob created at $sealed_file (size=$(wc -c <"$sealed_file" 2>/dev/null || echo 0) bytes), target nv index=$index"
 
-	# try it without the TPM Owner Password first
-	tmp_err_write="$(mktemp)"
-	if ! tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write"; then
-		while IFS= read -r line; do
-			DEBUG "tpm1_seal nv_writevalue(pre-define) stderr: $line"
-		done <"$tmp_err_write"
-		if grep -qi 'illegal index' "$tmp_err_write"; then
-			DEBUG "tpm1_seal: nv index $index is not defined yet (Illegal index); attempting nv_definespace"
+	local attempt=0
+	while true; do
+		attempt=$((attempt + 1))
+		tmp_err_write="$(mktemp)"
+		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write"; then
+			rm -f "$tmp_err_write"
+			return 0
 		fi
+		tmp_err_content="$(cat "$tmp_err_write")"
 		rm -f "$tmp_err_write"
-		# to create an nvram space we need the TPM Owner Password
-		# and the TPM physical presence must be asserted.
-		#
-		# The permissions are 0 since there is nothing special
-		# about the sealed file
+		if ! echo "$tmp_err_content" | grep -qi 'illegal index'; then
+			DEBUG "tpm1_seal nv_writevalue(pre-define) stderr: $tmp_err_content"
+			DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal (unexpected error). Wiping /tmp/secret/tpm_owner_passphrase"
+			shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+			DIE "Unable to write sealed secret to TPM NVRAM"
+		fi
+		DEBUG "tpm1_seal: nv index $index is not defined yet (Illegal index); attempting nv_definespace"
+
 		tpm physicalpresence -s ||
 			{
 				WARN "Unable to assert physical presence"
 			}
 
 		prompt_tpm_owner_password
-
+		tpm_owner_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
 		tmp_err_define="$(mktemp)"
 		if ! DO_WITH_DEBUG --mask-position 7 tpm nv_definespace -in "$index" -sz "$sealed_size" \
-			-pwdo "$tpm_owner_password" -per 0 2>"$tmp_err_define"; then
-			while IFS= read -r line; do
-				DEBUG "tpm1_seal nv_definespace stderr: $line"
-			done <"$tmp_err_define"
+			-pwdo "$tpm_owner_passphrase" -per 0 2>"$tmp_err_define"; then
+			tmp_err_define_content="$(cat "$tmp_err_define")"
+			rm -f "$tmp_err_define"
+			DEBUG "tpm1_seal nv_definespace stderr: $tmp_err_define_content"
 			WARN "Unable to define TPM NVRAM space; trying anyway"
+		else
+			rm -f "$tmp_err_define"
 		fi
-		rm -f "$tmp_err_define"
 
 		tmp_err_write_after_define="$(mktemp)"
-		tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write_after_define" ||
-			{
-				while IFS= read -r line; do
-					DEBUG "tpm1_seal nv_writevalue(post-define) stderr: $line"
-				done <"$tmp_err_write_after_define"
-				rm -f "$tmp_err_write_after_define"
-				DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_password"
-				shred -n 10 -z -u /tmp/secret/tpm_owner_password
-				DIE "Unable to write sealed secret to TPM NVRAM"
-			}
+		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write_after_define"; then
+			rm -f "$tmp_err_write_after_define"
+			return 0
+		fi
+		tmp_err_content="$(cat "$tmp_err_write_after_define")"
 		rm -f "$tmp_err_write_after_define"
-	else
-		rm -f "$tmp_err_write"
-	fi
+		DEBUG "tpm1_seal nv_writevalue(post-define) stderr: $tmp_err_content"
+		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_passphrase"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if [ "$attempt" -ge 3 ]; then
+				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
+			fi
+			WARN "Failed to write sealed secret (bad passphrase?). Retrying..."
+		else
+			DIE "Unable to write sealed secret to TPM NVRAM"
+		fi
+	done
 }
 
 # Unseal a file sealed by tpm2_seal.  The PCR list must be provided, the
@@ -766,25 +797,25 @@ tpm1_unseal() {
 	fi
 }
 
-# cache_owner_password <password>
-# Store the TPM owner password in SECRET_DIR for the current boot session.
-# The original callers wrote the password to a file directly; the helper
+# cache_owner_passphrase <passphrase>
+# Store the TPM owner passphrase in SECRET_DIR for the current boot session.
+# The original callers wrote the passphrase to a file directly; the helper
 # provides identical behaviour and keeps the code DRY.
 cache_owner_password() {
 	TRACE_FUNC
 	mkdir -p "$SECRET_DIR"
-	DEBUG "Caching TPM Owner Password to $SECRET_DIR/tpm_owner_password"
-	printf '%s' "$1" >"$SECRET_DIR/tpm_owner_password"
+	DEBUG "Caching TPM Owner Passphrase to $SECRET_DIR/tpm_owner_passphrase"
+	printf '%s' "$1" >"$SECRET_DIR/tpm_owner_passphrase"
 }
 
 # Reset a TPM2 device for Heads.  (Previous versions in origin/master put the
 # comment about caching directly in this function, which is preserved below.)
 tpm2_reset() {
 	TRACE_FUNC
-	tpm_owner_password="$1"
-	# output TPM Owner Password to a file to be reused in this boot session until recovery shell/reboot
+	tpm_owner_passphrase="$1"
+	# output TPM Owner Passphrase to a file to be reused in this boot session until recovery shell/reboot
 	# (using cache_owner_password() to avoid duplicating the write logic)
-	cache_owner_password "$tpm_owner_password"
+	cache_owner_password "$tpm_owner_passphrase"
 
 	# 1. Ensure TPM2_Clear is allowed: clear disableClear via platform hierarchy.
 	#    This makes future clears (Owner/Lockout) possible and avoids a 'no clear' stuck state.
@@ -801,31 +832,31 @@ tpm2_reset() {
 	fi
 
 	# 3. Re-own the TPM for Heads: set new owner and endorsement auth.
-	# don't echo the owner password in debug logs
+	# don't echo the owner passphrase in debug logs
 	# hide the owner auth hex (argument index 4)
-	if ! DO_WITH_DEBUG --mask-position 4 tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1; then
+	if ! DO_WITH_DEBUG --mask-position 4 tpm2 changeauth -c owner "$(tpm2_password_hex "$tpm_owner_passphrase")" >/dev/null 2>&1; then
 		LOG "tpm2_reset: unable to set owner auth"
 		return 1
 	fi
 
-	# mask endorsement password too (argument index 4)
-	if ! DO_WITH_DEBUG --mask-position 4 tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1; then
+	# mask endorsement passphrase too (argument index 4)
+	if ! DO_WITH_DEBUG --mask-position 4 tpm2 changeauth -c endorsement "$(tpm2_password_hex "$tpm_owner_passphrase")" >/dev/null 2>&1; then
 		LOG "tpm2_reset: unable to set endorsement auth"
 		return 1
 	fi
 
 	# 4. Create and persist Heads primary key.
-	# hide owner password during primary creation (argument index 11)
+	# hide owner passphrase during primary creation (argument index 11)
 	if ! DO_WITH_DEBUG --mask-position 11 tpm2 createprimary -C owner -g sha256 -G "${CONFIG_PRIMARY_KEY_TYPE:-rsa}" \
 		-c "$SECRET_DIR/primary.ctx" \
-		-P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1; then
+		-P "$(tpm2_password_hex "$tpm_owner_passphrase")" >/dev/null 2>&1; then
 		LOG "tpm2_reset: unable to create primary"
 		return 1
 	fi
 
-	# and hide password when evicting the primary handle (argument index 8)
+	# and hide passphrase when evicting the primary handle (argument index 8)
 	if ! DO_WITH_DEBUG --mask-position 8 tpm2 evictcontrol -C owner -c "$SECRET_DIR/primary.ctx" "$PRIMARY_HANDLE" \
-		-P "$(tpm2_password_hex "$tpm_owner_password")" >/dev/null 2>&1; then
+		-P "$(tpm2_password_hex "$tpm_owner_passphrase")" >/dev/null 2>&1; then
 		LOG "tpm2_reset: unable to persist primary"
 		shred -u "$SECRET_DIR/primary.ctx" >/dev/null 2>&1
 		return 1
@@ -840,7 +871,7 @@ tpm2_reset() {
 	# * --max-tries=10: Allow 10 failures before lockout.  This allows the
 	#   user to quickly "burst" 10 failures without significantly impacting
 	#   the rate allowed for a dictionary attacker.
-	#   Most TPM2 flows ask for the TPM Owner Password 2-4 times, so this allows
+	#   Most TPM2 flows ask for the TPM Owner Passphrase 2-4 times, so this allows
 	#   a handful of mistypes and some headroom for an expected unseal
 	#   failure if firmware is updated.
 	#   Remember that an auth failure is also counted any time an unclean
@@ -856,8 +887,8 @@ tpm2_reset() {
 		--max-tries=10 \
 		--recovery-time=3600 \
 		--lockout-recovery-time=0 \
-		--auth="session:$ENC_SESSION_FILE" >/dev/null 2>&1 \
-		|| LOG "tpm2_reset: unable to set dictionary lockout parameters"
+		--auth="session:$ENC_SESSION_FILE" >/dev/null 2>&1 ||
+		LOG "tpm2_reset: unable to set dictionary lockout parameters"
 
 	# 6. Set a random DA lockout password so DA reset requires another TPM reset.
 	# The default lockout password is empty, so we must set this, and we
@@ -869,10 +900,10 @@ tpm2_reset() {
 
 tpm1_reset() {
 	TRACE_FUNC
-	tpm_owner_password="$1"
-	# output tpm_owner_password to a file to be reused in this boot session until recovery shell/reboot
+	tpm_owner_passphrase="$1"
+	# output tpm_owner_passphrase to a file to be reused in this boot session until recovery shell/reboot
 	# (using cache_owner_password() under the hood)
-	cache_owner_password "$tpm_owner_password"
+	cache_owner_password "$tpm_owner_passphrase"
 
 	# 1. Request physical presence and enable TPM.
 	DO_WITH_DEBUG tpm physicalpresence -s >/dev/null 2>&1 || LOG "tpm1_reset: unable to set physical presence"
@@ -890,8 +921,8 @@ tpm1_reset() {
 	# Re-enable after clear (some platforms require this).
 	DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || LOG "tpm1_reset: unable to physicalenable after clear"
 
-	# 3. Take ownership with the new TPM owner password.
-	if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_password" >/dev/null 2>&1; then
+	# 3. Take ownership with the new TPM owner passphrase.
+	if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
 		LOG "tpm1_reset: tpm takeown failed after forceclear"
 		return 1
 	fi
@@ -998,7 +1029,7 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	*)
 		# Keep passthrough raw here: callers decide whether to wrap with
 		# DO_WITH_DEBUG (and --mask-position when passing secrets).
-		DEBUG "Direct translation from tpmr.sh to tpm1 call"	
+		DEBUG "Direct translation from tpmr.sh to tpm1 call"
 		exec tpm "$@"
 		;;
 	esac

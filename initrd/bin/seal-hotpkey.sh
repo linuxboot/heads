@@ -51,8 +51,7 @@ counter_value=1
 enable_usb
 
 # Detect branding after USB is up so lsusb can see the device.
-DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
-export DONGLE_BRAND
+detect_usb_security_dongle_branding
 DEBUG "$DONGLE_BRAND detected via USB VID:PID"
 
 TRACE_FUNC
@@ -72,8 +71,7 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 fi
 
 # Re-detect branding now that the dongle is confirmed present.
-DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
-export DONGLE_BRAND
+detect_usb_security_dongle_branding
 DEBUG "$DONGLE_BRAND detected via USB VID:PID"
 
 # Truncate the secret if it is longer than the maximum HOTP secret
@@ -109,13 +107,13 @@ hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
 show_pin_retries() {
 	local info
 	info="$(hotp_verification info 2>/dev/null)" || true
-	if [ "$prompt_message" = "Secrets app" ]; then
+	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	else
 		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	fi
 	admin_pin_retries="${admin_pin_retries:-0}"
-	STATUS "$DONGLE_BRAND $prompt_message PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
+	STATUS "$DONGLE_BRAND GPG Admin PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 }
 
 # Try using factory default admin PIN for 1 month following OEM reset to ease
@@ -133,7 +131,7 @@ if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
 elif [ "$admin_pin_retries" -lt 3 ]; then
 	DEBUG "Not trying default PIN ($admin_pin): only $admin_pin_retries attempt(s) left"
 else
-	STATUS "Trying $prompt_message PIN to seal HOTP secret on $DONGLE_BRAND"
+	STATUS "Trying GPG Admin PIN to seal HOTP secret on $DONGLE_BRAND"
 	# NK3 requires physical touch confirmation for the initialize operation
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		NOTE "Nitrokey 3 requires physical presence: touch the dongle when prompted"
@@ -151,9 +149,9 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	for tries in 1 2 3; do
 		show_pin_retries
 		if [ "$tries" -eq 1 ]; then
-			INPUT "Enter your $DONGLE_BRAND $prompt_message PIN (attempt $tries/3):" -r -s admin_pin
+			INPUT "Enter your $DONGLE_BRAND GPG Admin PIN (attempt $tries/3):" -r -s admin_pin
 		else
-			INPUT "Wrong PIN - re-enter your $DONGLE_BRAND $prompt_message PIN (attempt $tries/3):" -r -s admin_pin
+			INPUT "Wrong PIN - re-enter your $DONGLE_BRAND GPG Admin PIN (attempt $tries/3):" -r -s admin_pin
 		fi
 		if hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND"; then
 			break
@@ -163,10 +161,10 @@ if [ "$admin_pin_status" -ne 0 ]; then
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 			case "$DONGLE_BRAND" in
 			"Nitrokey Pro" | "Nitrokey Storage" | "Nitrokey 3")
-				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset $prompt_message PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
+				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset GPG Admin PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
 				;;
 			"Librem Key")
-				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset $prompt_message PIN: redo Re-Ownership or contact Purism support."
+				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset GPG Admin PIN: redo Re-Ownership or contact Purism support."
 				;;
 			*)
 				DIE "Setting HOTP secret failed after 3 attempts"
@@ -177,7 +175,7 @@ if [ "$admin_pin_status" -ne 0 ]; then
 else
 	# Default PIN was accepted — security reminder, not a fatal error.
 	# NOTE prints blank lines before/after and is always visible; no INPUT needed.
-	NOTE "Default $prompt_message PIN detected.  Change it via Options --> OEM Factory Reset / Re-Ownership."
+	NOTE "Default GPG Admin PIN detected.  Change it via Options --> OEM Factory Reset / Re-Ownership."
 fi
 
 # HOTP key no longer needed
