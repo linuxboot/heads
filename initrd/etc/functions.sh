@@ -677,7 +677,6 @@ cache_gpg_signing_pin() {
 			while [ -z "$gpg_admin_pin" ]; do
 				INPUT "Please enter GPG Admin PIN needed to use the GPG backup thumb drive:" -r -s gpg_admin_pin
 			done
-			WARN "Please select encrypted LUKS on GPG key material backup thumb drive (not public labeled one)"
 			mount-usb.sh --pass "$gpg_admin_pin" || DIE "Unable to mount USB with provided GPG Admin PIN"
 			DEBUG "USB backup thumb drive mounted; clearing card stubs and importing private subkeys"
 			STATUS "Importing GPG private subkeys from backup thumb drive"
