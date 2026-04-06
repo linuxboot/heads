@@ -506,28 +506,28 @@ detect_usb_security_dongle_branding() {
 	# Check NK3 (42b2) before the broader 20a0 vendor match
 	if echo "$lsusb_out" | grep -q "20a0:42b2"; then
 		DEBUG "Detected Nitrokey 3 (20a0:42b2)"
-		echo "Nitrokey 3"
+		export DONGLE_BRAND="Nitrokey 3"
 	elif echo "$lsusb_out" | grep -q "20a0:42d4"; then
 		DEBUG "Detected Canokey QEMU (20a0:42d4)"
-		echo "Canokey"
+		export DONGLE_BRAND="Canokey"
 	elif echo "$lsusb_out" | grep -q "20a0:4108"; then
 		DEBUG "Detected Nitrokey Pro (20a0:4108)"
-		echo "Nitrokey Pro"
+		export DONGLE_BRAND="Nitrokey Pro"
 	elif echo "$lsusb_out" | grep -q "20a0:4109"; then
 		DEBUG "Detected Nitrokey Storage (20a0:4109)"
-		echo "Nitrokey Storage"
+		export DONGLE_BRAND="Nitrokey Storage"
 	elif echo "$lsusb_out" | grep -q "316d:4c4b"; then
 		DEBUG "Detected Librem Key (316d:4c4b)"
-		echo "Librem Key"
+		export DONGLE_BRAND="Librem Key"
 	elif echo "$lsusb_out" | grep -q "16d0:21dc"; then
 		DEBUG "Detected Canokey (16d0:21dc)"
-		echo "Canokey"
+		export DONGLE_BRAND="Canokey"
 	elif echo "$lsusb_out" | grep -q "1050:"; then
 		DEBUG "Detected Yubikey (1050:*)"
-		echo "Yubikey"
+		export DONGLE_BRAND="Yubikey"
 	else
 		DEBUG "No known USB Security dongle detected"
-		echo "USB Security dongle"
+		export DONGLE_BRAND="USB Security dongle"
 	fi
 }
 
@@ -774,7 +774,7 @@ cache_gpg_signing_pin() {
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
 
 	# Re-detect dongle branding after card is detected (may have been too early in gui-init.sh)
-	export DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
+	detect_usb_security_dongle_branding
 
 	echo >/dev/console 2>/dev/null
 	STATUS "GPG User PIN retries remaining: $(pin_color "$user_pin_retries")${user_pin_retries}\033[0m"
@@ -795,7 +795,7 @@ cache_gpg_signing_pin() {
 	while [ "$sc_pin_tries" -lt 3 ]; do
 		sc_pin_tries=$((sc_pin_tries + 1))
 		while [ -z "$sc_user_pin" ]; do
-			INPUT "Enter $DONGLE_BRAND User PIN:" -r -s sc_user_pin
+			INPUT "Enter $DONGLE_BRAND GPG User PIN:" -r -s sc_user_pin
 		done
 		if gpg --pinentry-mode=loopback \
 			--passphrase-file <(printf '%s' "$sc_user_pin") \
@@ -1608,48 +1608,48 @@ list_usb_storage() {
 		done
 }
 
-# Prompt for a TPM Owner Password if it is not already cached in /tmp/secret/tpm_owner_password.
+# Prompt for a TPM Owner Passphrase if it is not already cached in /tmp/secret/tpm_owner_passphrase.
 # Sets tpm_owner_passphrase variable reused in flow, and cache file used until recovery shell is accessed.
-# Tools should optionally accept a TPM password on the command line, since some flows need
+# Tools should optionally accept a TPM passphrase on the command line, since some flows need
 # it multiple times and only one prompt is ideal.
 prompt_tpm_owner_password() {
 	TRACE_FUNC
 
-	if [ -s /tmp/secret/tpm_owner_password ]; then
-		DEBUG "/tmp/secret/tpm_owner_password already cached in file. Reusing"
-		tpm_owner_passphrase=$(cat /tmp/secret/tpm_owner_password)
+	if [ -s /tmp/secret/tpm_owner_passphrase ]; then
+		DEBUG "/tmp/secret/tpm_owner_passphrase already cached in file. Reusing"
+		tpm_owner_passphrase=$(cat /tmp/secret/tpm_owner_passphrase)
 		return 0
 	fi
 
-	INPUT "TPM Owner Password:" -r -s tpm_owner_passphrase
+	INPUT "TPM Owner Passphrase:" -r -s tpm_owner_passphrase
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_passphrase"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM owner_password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_passphrase || DIE "Unable to cache TPM owner_passphrase under /tmp/secret/tpm_owner_passphrase"
 }
 
-# Prompt for a new TPM Owner Password when resetting the TPM.
-# Returned in tpm_owner_passpword and cached under /tpm/secret/tpm_owner_password
-# The password must be 1-32 characters and must be entered twice,
+# Prompt for a new TPM Owner Passphrase when resetting the TPM.
+# Returned in tpm_owner_passphrase and cached under /tmp/secret/tpm_owner_passphrase
+# The passphrase must be 1-32 characters and must be entered twice,
 # the script will loop until this is met.
 prompt_new_owner_password() {
 	TRACE_FUNC
-	local tpm_owner_password2
+	local tpm_owner_passphrase2
 	tpm_owner_passphrase=1
-	tpm_owner_password2=2
-	while [ "$tpm_owner_passphrase" != "$tpm_owner_password2" ] || [ "${#tpm_owner_passphrase}" -gt 32 ] || [ -z "$tpm_owner_passphrase" ]; do
-		INPUT "New TPM Owner Password (2 words suggested, 1-32 characters max):" -r -s tpm_owner_passphrase
-		INPUT "Repeat chosen TPM Owner Password:" -r -s tpm_owner_password2
-		if [ "$tpm_owner_passphrase" != "$tpm_owner_password2" ]; then
+	tpm_owner_passphrase2=2
+	while [ "$tpm_owner_passphrase" != "$tpm_owner_passphrase2" ] || [ "${#tpm_owner_passphrase}" -gt 32 ] || [ -z "$tpm_owner_passphrase" ]; do
+		INPUT "New TPM Owner Passphrase (2 words suggested, 1-32 characters max):" -r -s tpm_owner_passphrase
+		INPUT "Repeat chosen TPM Owner Passphrase:" -r -s tpm_owner_passphrase2
+		if [ "$tpm_owner_passphrase" != "$tpm_owner_passphrase2" ]; then
 			WARN "Passphrases entered do not match. Try again!"
 		fi
 	done
 
-	# Cache the password externally to be reused by who needs it
-	DEBUG "Caching TPM Owner Password to /tmp/secret/tpm_owner_password"
+	# Cache the passphrase externally to be reused by who needs it
+	DEBUG "Caching TPM Owner Passphrase to /tmp/secret/tpm_owner_passphrase"
 	mkdir -p /tmp/secret || DIE "Unable to create /tmp/secret"
-	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_password || DIE "Unable to cache TPM password under /tmp/secret/tpm_owner_password"
+	echo -n "$tpm_owner_passphrase" >/tmp/secret/tpm_owner_passphrase || DIE "Unable to cache TPM passphrase under /tmp/secret/tpm_owner_passphrase"
 }
 
 check_tpm_counter() {
@@ -1657,7 +1657,7 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
-	tpm_password="$3"
+	tpm_passphrase="$3"
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -1666,9 +1666,9 @@ check_tpm_counter() {
 		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
 	else
 		DEBUG "$1 does not exist - creating new TPM counter"
-		# Warn user: TPM Owner Password is required to create a new TPM counter
-		if [ ! -s /tmp/secret/tpm_owner_password ]; then
-			WARN "TPM Owner Password is required to create a new TPM counter for /boot content rollback prevention"
+		# Warn user: TPM Owner Passphrase is required to create a new TPM counter
+		if [ ! -s /tmp/secret/tpm_owner_passphrase ]; then
+			WARN "TPM Owner Passphrase is required to create a new TPM counter for /boot content rollback prevention"
 		fi
 
 		# attempt to make a new counter, capturing any stderr for debugging
@@ -1676,8 +1676,8 @@ check_tpm_counter() {
 		# run it, then record the exit status explicitly; the '!' operator
 		# cannot be used because it would hide the real return code.
 		tpmr.sh counter_create \
-			-pwdc "${tpm_password:-}" \
-			-la $LABEL \
+			-pwdc "${tpm_passphrase:-}" \
+			-la "$LABEL" \
 			>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
 		local rc=$?
 		if [ $rc -ne 0 ]; then
@@ -1829,29 +1829,29 @@ read_tpm_counter() {
 
 increment_tpm_counter() {
 	TRACE_FUNC
-	local counter_id counter_present tpm_password increment_ok
+	local counter_id counter_present tpm_passphrase increment_ok
 	counter_id="$(echo "$1" | tr -d '\n')"
-	tpm_password="$2"
+	tpm_passphrase="$2"
 	counter_present="n"
 	increment_ok="n"
 	local reset_required_marker="/tmp/secret/rollback_reset_required"
 
-	# Prefer explicit password, otherwise reuse cached TPM owner password.
-	if [ -z "$tpm_password" ] && [ -s /tmp/secret/tpm_owner_password ]; then
-		tpm_password="$(cat /tmp/secret/tpm_owner_password)"
-		DEBUG "increment_tpm_counter: using cached TPM owner password"
+	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
+	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
+		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
+		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
 	fi
 
 	# TPM1 counter_increment requires owner auth in practice on this path.
-	# origin/master typically reached this with cached owner password already set,
+	# origin/master typically reached this with cached owner passphrase already set,
 	# but the newer reseal/update flows can call this later in the session after
 	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
-	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_password" ]; then
-		WARN "TPM Owner Password is required to update rollback counter before signing updated boot hashes."
-		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner password; prompting now"
+	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_passphrase" ]; then
+		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
+		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner passphrase; prompting now"
 		prompt_tpm_owner_password
-		tpm_password="$tpm_owner_passphrase"
-		DEBUG "increment_tpm_counter: TPM1 owner password obtained and cached"
+		tpm_passphrase="$tpm_owner_passphrase"
+		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
 	fi
 
 	# Check if counter exists by reading it first
@@ -1887,12 +1887,12 @@ increment_tpm_counter() {
 				tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
-		elif [ -n "$tpm_password" ]; then
+		elif [ -n "$tpm_passphrase" ]; then
 			DEBUG "increment_tpm_counter: TPM2 index-auth increment failed; trying owner-auth fallback"
 			if (
 				set -o pipefail
 				DO_WITH_DEBUG --mask-position 5 \
-					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_password}" \
+					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
 					2> >(SINK_LOG "tpm counter_increment stderr") |
 					tee /tmp/counter-"$counter_id" >/dev/null
 			); then
@@ -1904,7 +1904,7 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
-				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_password:-}" \
+				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
 				2> >(SINK_LOG "tpm counter_increment stderr") |
 				tee /tmp/counter-"$counter_id" >/dev/null
 		); then
@@ -1927,7 +1927,7 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 3 \
-				tpmr.sh counter_create -pwdc "${tpm_password:-}" -la 3135106223 \
+				tpmr.sh counter_create -pwdc "${tpm_passphrase:-}" -la 3135106223 \
 				2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) |
 				tee /tmp/new-counter >/dev/null
 		); then

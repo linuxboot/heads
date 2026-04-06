@@ -1004,8 +1004,7 @@ usb_security_token_capabilities_check() {
 	enable_usb
 
 	# Always detect dongle branding from USB VID:PID — never read a stored file.
-	DONGLE_BRAND="$(detect_usb_security_dongle_branding)"
-	export DONGLE_BRAND
+	detect_usb_security_dongle_branding
 	DEBUG "USB Security dongle detected: $DONGLE_BRAND"
 	# Only show generic "Detected" if no specific brand was identified
 	if [ "$DONGLE_BRAND" = "USB Security dongle" ]; then
