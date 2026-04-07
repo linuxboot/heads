@@ -1,0 +1,17 @@
+#!/bin/bash
+# Boot a USB installation
+
+. /etc/functions.sh
+. /tmp/config
+
+TRACE_FUNC
+
+if [ "$CONFIG_TPM" = "y" ]; then
+	# Extend PCR4 as soon as possible
+	INFO "TPM: Extending PCR[4] for USB boot"
+	tpmr.sh extend -ix 4 -ic usb
+fi
+
+STATUS "Scanning USB for boot media"
+DO_WITH_DEBUG media-scan.sh usb
+recovery "Something failed during USB boot"

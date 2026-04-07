@@ -56,9 +56,9 @@ If you're unsure about what kind of issue you're looking at or whether it's an a
 - Link to related issues or discussions.
 - Provide a clear description of the changes and their purpose.
 - Be responsive to feedback and prepared to make adjustments.
-- **Important**: All commits to linuxboot/heads (*not heads-wiki!*) must be signed. 
-  - For instructions, see: [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)
-  - If you won't GPG-sign your commits (GitHub signature doesn't count), they will get signed by a maintainer after a successful review, but it's strongly preferred you do it yourself.
+- **Important**: All commits to linuxboot/heads (*not heads-wiki!*) must be:
+  - **GPG-signed** (`git commit -S`). For instructions, see: [Signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits). If you won't GPG-sign your commits (GitHub signature doesn't count), they will get signed by a maintainer after a successful review, but it's strongly preferred you do it yourself.
+  - **Signed-off** (`git commit -s`) with a `Signed-off-by:` trailer for [DCO](https://developercertificate.org/) compliance. Commits missing this trailer will fail the DCO check in CI.
 
 ## GitHub Repositories
 

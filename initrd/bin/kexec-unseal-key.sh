@@ -1,0 +1,49 @@
+#!/bin/bash
+# This will unseal and unecncrypt the drive encryption key from the TPM
+# The TOTP secret will be shown to the user on each encryption attempt.
+# It will then need to be bundled into initrd that is booted with Qubes.
+set -e -o pipefail
+. /etc/functions.sh
+
+TPM_INDEX=3
+TPM_SIZE=312
+
+. /etc/functions.sh
+
+TRACE_FUNC
+
+mkdir -p /tmp/secret
+
+key_file="$1"
+
+if [ -z "$key_file" ]; then
+	key_file="/tmp/secret/secret.key"
+fi
+
+DEBUG "CONFIG_TPM: $CONFIG_TPM"
+DEBUG "CONFIG_TPM2_TOOLS: $CONFIG_TPM2_TOOLS"
+DEBUG "Show PCRs"
+DEBUG "$(pcrs)"
+
+for tries in 1 2 3; do
+	# Show updating timestamp/TOTP until user presses Esc to continue to the
+	# passphrase prompt. This gives the user context while they prepare to
+	# type the LUKS passphrase.
+	show_totp_until_esc
+	STATUS "Unlocking LUKS with TPM Disk Unlock Key"
+	INPUT "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort):" -r -s tpm_password
+	if [ -z "$tpm_password" ]; then
+		DIE "Aborting unseal disk encryption key"
+	fi
+
+	if DO_WITH_DEBUG --mask-position 6 \
+		tpmr.sh unseal "$TPM_INDEX" "0,1,2,3,4,5,6,7" "$TPM_SIZE" \
+		"$key_file" "$tpm_password"; then
+		STATUS_OK "TPM Disk Unlock Key unsealed"
+		exit 0
+	fi
+
+	WARN "Unable to unseal LUKS Disk Unlock Key from TPM"
+done
+
+DIE "Retry count exceeded..."

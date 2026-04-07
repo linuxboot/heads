@@ -1,0 +1,808 @@
+#!/bin/bash
+# Shell functions for common operations using fbwhiptail
+. /etc/functions.sh
+
+# Pause for the configured timeout before booting automatically.  Returns 0 to
+# continue with automatic boot, nonzero if user interrupted.
+pause_automatic_boot() {
+	TRACE_FUNC
+	if IFS= read -t "$CONFIG_AUTO_BOOT_TIMEOUT" -s -n 1 -r -p \
+		$'Automatic boot in '"$CONFIG_AUTO_BOOT_TIMEOUT"$' seconds unless interrupted by keypress...\n'; then
+		return 1 # Interrupt automatic boot
+	fi
+	return 0 # Continue with automatic boot
+}
+
+mount_usb() {
+	TRACE_FUNC
+	# Unmount any previous USB device
+	if grep -q /media /proc/mounts; then
+		umount /media || DIE "Unable to unmount /media"
+	fi
+	# Mount the USB boot device
+	mount-usb.sh && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+	if [ $USB_FAILED -ne 0 ]; then
+		whiptail_error --title 'USB Drive Missing' \
+			--msgbox "Insert your USB drive and press Enter to continue." 0 80
+		mount-usb.sh && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+		if [ $USB_FAILED -ne 0 ]; then
+			whiptail_error --title 'ERROR: Mounting /media Failed' \
+				--msgbox "Unable to mount USB device" 0 80
+			exit 1
+		fi
+	fi
+}
+
+# -- Display related functions --
+
+# Rebuild "$@" into global _WHIPTAIL_ARGS, wrapping the body text argument
+# (the one immediately following --msgbox, --yesno, --menu, --inputbox, etc.)
+# through printf '%b' | fold -s -w 76 so \n escapes are expanded and long
+# lines fit inside an 80-column dialog.  All other arguments are passed
+# through unchanged.  Callers must not be called recursively.
+_whiptail_preprocess_args() {
+	_WHIPTAIL_ARGS=()
+	local _wrap_next=0 _arg
+	for _arg in "$@"; do
+		if [ "$_wrap_next" = 1 ]; then
+			_WHIPTAIL_ARGS+=("$(printf '%b' "$_arg" | fold -s -w 76)")
+			_wrap_next=0
+		else
+			_WHIPTAIL_ARGS+=("$_arg")
+			case "$_arg" in
+			--msgbox | --yesno | --menu | --inputbox | --passwordbox | --checklist | --radiolist)
+				_wrap_next=1
+				;;
+			esac
+		fi
+	done
+}
+
+# Produce a whiptail prompt with 'warning' background, works for fbwhiptail and newt
+whiptail_warning() {
+	TRACE_FUNC
+	_whiptail_preprocess_args "$@"
+	if [ -x /bin/fbwhiptail ]; then
+		DEBUG "whiptail_warning: whiptail $BG_COLOR_WARNING $*"
+		whiptail $BG_COLOR_WARNING "${_WHIPTAIL_ARGS[@]}"
+	else
+		DEBUG "whiptail_warning: NEWT_COLORS=root=,$TEXT_BG_COLOR_WARNING whiptail $*"
+		env NEWT_COLORS="root=,$TEXT_BG_COLOR_WARNING" whiptail "${_WHIPTAIL_ARGS[@]}"
+	fi
+}
+
+# Produce a whiptail prompt with 'error' background, works for fbwhiptail and newt
+whiptail_error() {
+	TRACE_FUNC
+	_whiptail_preprocess_args "$@"
+	if [ -x /bin/fbwhiptail ]; then
+		DEBUG "whiptail_error: whiptail $BG_COLOR_ERROR $*"
+		whiptail $BG_COLOR_ERROR "${_WHIPTAIL_ARGS[@]}"
+	else
+		DEBUG "whiptail_error: NEWT_COLORS=root=,$TEXT_BG_COLOR_ERROR whiptail $*"
+		env NEWT_COLORS="root=,$TEXT_BG_COLOR_ERROR" whiptail "${_WHIPTAIL_ARGS[@]}"
+	fi
+}
+
+# Produce a whiptail prompt of the given type - 'error', 'warning', or 'normal'
+whiptail_type() {
+	TRACE_FUNC
+	local TYPE="$1"
+	shift
+	DEBUG "whiptail_type: type=$TYPE args=$*"
+	case "$TYPE" in
+	error)
+		whiptail_error "$@"
+		;;
+	warning)
+		whiptail_warning "$@"
+		;;
+	normal)
+		_whiptail_preprocess_args "$@"
+		DEBUG "whiptail_type: whiptail $*"
+		whiptail "${_WHIPTAIL_ARGS[@]}"
+		;;
+	esac
+}
+
+# Create display text for a size in bytes in either MB or GB, unit selected
+# automatically, rounded to nearest
+display_size() {
+	TRACE_FUNC
+	local size_bytes unit_divisor unit_symbol
+	size_bytes="$1"
+
+	# If it's less than 1 GB, display MB
+	if [ "$((size_bytes))" -lt "$((1024 * 1024 * 1024))" ]; then
+		unit_divisor=$((1024 * 1024))
+		unit_symbol="MB"
+	else
+		unit_divisor=$((1024 * 1024 * 1024))
+		unit_symbol="GB"
+	fi
+
+	# Divide by the unit divisor and round to nearest
+	echo "$(((size_bytes + unit_divisor / 2) / unit_divisor)) $unit_symbol"
+}
+
+# Create display text for the size of a block device using MB or GB, rounded to
+# nearest
+display_block_device_size() {
+	TRACE_FUNC
+	local block_dev disk_size_bytes
+	block_dev="$1"
+
+	# Obtain size of thumb drive to be wiped with fdisk
+	if ! disk_size_bytes="$(blockdev --getsize64 "$block_dev")"; then
+		exit 1
+	fi
+
+	display_size "$disk_size_bytes"
+}
+
+# Display a menu to select a file from a list.  Pass the name of a file
+# containing the list.
+# --show-size: Append sizes of files listed.  Currently only supports block
+#   devices.
+# $1: Name of file listing files that can be chosen (one per line)
+# $2: Optional prompt message
+# $3: Optional prompt title
+#
+# Success: Sets FILE with the selected file
+# User aborted: Exits successfully with FILE empty
+# No entries in list: Displays error and exits unsuccessfully
+file_selector() {
+	TRACE_FUNC
+
+	local FILE_LIST MENU_MSG MENU_TITLE CHOICE_ARGS SHOW_SIZE OPTION_SIZE option_index
+
+	FILE=""
+
+	if [ "$1" = "--show-size" ]; then
+		SHOW_SIZE=y
+		shift
+	fi
+
+	FILE_LIST=$1
+	MENU_MSG=${2:-"Choose the file"}
+	MENU_TITLE=${3:-"Select your File"}
+
+	CHOICE_ARGS=()
+	n=0
+	while read option; do
+		n="$((++n))"
+
+		if [ "$SHOW_SIZE" = "y" ] && OPTION_SIZE="$(display_block_device_size "$option")"; then
+			option="$option - $OPTION_SIZE"
+		fi
+		CHOICE_ARGS+=("$n" "$option")
+	done <"$FILE_LIST"
+
+	if [ "${#CHOICE_ARGS[@]}" -eq 0 ]; then
+		whiptail_error --title 'ERROR: No Files Found' \
+			--msgbox "No Files found matching the pattern. Aborting." 0 80
+		exit 1
+	fi
+
+	CHOICE_ARGS+=(a Abort)
+
+	# create file menu options
+	option_index=""
+	while [ -z "$option_index" ]; do
+		whiptail --title "${MENU_TITLE}" \
+			--menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+			-- "${CHOICE_ARGS[@]}" \
+			2>/tmp/whiptail || DIE "Aborting"
+
+		option_index=$(cat /tmp/whiptail)
+
+		if [ "$option_index" != "a" ]; then
+			FILE="$(head -n "$option_index" "$FILE_LIST" | tail -1)"
+		fi
+	done
+}
+
+show_system_info() {
+	TRACE_FUNC
+	# ensure EC_VER is populated; this mirrors the behaviour of the
+	# init script which exports EC_VER early, but calling the helper
+	# here makes the GUI menu self‑contained.
+	if [ -z "$EC_VER" ]; then
+		EC_VER=$(ec_version)
+	fi
+	battery_status="$(print_battery_state)"
+
+	memtotal=$(cat /proc/meminfo | grep 'MemTotal' | tr -s ' ' | cut -f2 -d ' ')
+	memtotal=$((${memtotal} / 1024 / 1024 + 1))
+	cpustr=$(cat /proc/cpuinfo | grep 'model name' | uniq | sed -r 's/\(R\)//;s/\(TM\)//;s/CPU //;s/model name.*: //')
+	kernel=$(uname -s -r)
+
+	local ec_ver_line=""
+	[ -n "$EC_VER" ] && ec_ver_line="
+	EC_VER: ${EC_VER}"
+
+	local disk_info="$(disk_info_sysfs)"
+	DEBUG "disk_info=\n${disk_info}"
+
+	local msgbox="${BOARD_NAME}
+
+	FW_VER: ${FW_VER}${ec_ver_line}
+	Kernel: ${kernel}
+
+	CPU: ${cpustr}
+	Microcode: $(cat /proc/cpuinfo | grep microcode | uniq | cut -d':' -f2 | tr -d ' ')
+	RAM: ${memtotal} GB
+	$battery_status
+	${disk_info}
+	"
+
+	local msgbox_rm_tabs=$(echo "$msgbox" | tr -d "\t")
+
+	whiptail_type $BG_COLOR_MAIN_MENU --title 'System Info' \
+		--msgbox "$msgbox_rm_tabs" 0 80
+}
+
+# Show measured integrity report including TOTP/HOTP status and /boot integrity.
+report_integrity_measurements() {
+	TRACE_FUNC
+	local date_now hash_state msg menu_msg totp_state hotp_state signature_state sig_status sig_detail sig_guidance report_body report_option signing_key_state
+
+	date_now=$(date "+%Y-%m-%d %H:%M:%S %Z")
+	totp_state="N/A"
+	hotp_state="N/A"
+	DEBUG "integrity report generated at $date_now"
+	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		totp_state="UNAVAILABLE"
+		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
+			DEBUG "report_integrity_measurements: unsealing integrity TOTP from TPM"
+			if HEADS_NONFATAL_UNSEAL=y tpmr.sh unseal 4d47 0,1,2,3,4,7 312 /tmp/secret/integrity_totp_key >/dev/null 2>&1; then
+				truncate_max_bytes 20 /tmp/secret/integrity_totp_key >/dev/null 2>&1
+				if totp </tmp/secret/integrity_totp_key >/tmp/secret/integrity_totp 2>/dev/null; then
+					totp_state="$(cat /tmp/secret/integrity_totp 2>/dev/null)"
+				else
+					totp_state="ERROR"
+				fi
+			fi
+		fi
+		shred -n 10 -z -u /tmp/secret/integrity_totp_key /tmp/secret/integrity_totp 2>/dev/null
+		DEBUG "report_integrity_measurements: totp_state=$totp_state"
+	fi
+
+	if [ -x /bin/hotp_verification ]; then
+		enable_usb
+		STATUS "Checking USB security dongle presence"
+		local _dongle_brand _hotp_info
+		_dongle_brand="$(detect_usb_security_dongle_branding)"
+		DEBUG "report_integrity_measurements: querying HOTP token info"
+		if _hotp_info="$(hotp_verification info 2>/dev/null)"; then
+			hotp_state="TOKEN PRESENT"
+			STATUS_OK "USB security dongle detected"
+			hotpkey_fw_display "$_hotp_info" "$_dongle_brand"
+		elif [ "$_dongle_brand" != "USB Security dongle" ]; then
+			hotp_state="TOKEN INCOMPATIBLE"
+			DEBUG "report_integrity_measurements: $_dongle_brand detected but HOTP verification failed"
+		else
+			hotp_state="TOKEN MISSING"
+			DEBUG "report_integrity_measurements: hotp_verification info failed, hotp_state=TOKEN MISSING"
+		fi
+	fi
+
+	# Detached signature trust must be established before any hash files are trusted.
+	signature_state="UNVERIFIED"
+	if [ ! -r /boot/kexec.sig ]; then
+		signature_state="MISSING SIGNATURE FILE"
+		hash_state="UNTRUSTED (DETACHED SIGNATURE MISSING)"
+		DEBUG "report_integrity_measurements: /boot/kexec.sig is missing"
+		sig_detail="/boot/kexec.sig does not exist - /boot files cannot be verified as authentic."
+		sig_guidance="If unexpected, stop and restore a known-good /boot. If expected, choose: Investigate discrepancies -> Update checksums now."
+	elif detached_kexec_signature_valid /boot; then
+		signature_state="VERIFIED"
+		# detached_kexec_signature_valid confirms trust of kexec*.txt; load those trusted references.
+		check_config /boot force
+		TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+		TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
+		if [ -r "$TMP_HASH_FILE" ] && [ -r "$TMP_TREE_FILE" ] && verify_checksums /boot n; then
+			hash_state="OK"
+		else
+			hash_state="ALTERED OR UNKNOWN"
+		fi
+		sig_detail="ROM-fused public key authenticated /boot/kexec.sig - all /boot files match the signed hashes."
+		sig_guidance="No signature fix needed."
+	else
+		sig_status="$(detached_kexec_signature_failure_status /boot)"
+		case "$sig_status" in
+		MALFORMED)
+			signature_state="SIGNATURE FILE IS BROKEN"
+			hash_state="UNTRUSTED (SIGNATURE FILE IS BROKEN)"
+			sig_detail="/boot/kexec.sig cannot be parsed - the file appears corrupted or truncated."
+			sig_guidance="If unexpected, stop and restore a known-good /boot. If expected, choose: Investigate discrepancies -> Update checksums now."
+			;;
+		BAD)
+			signature_state="SIGNATURE DOES NOT MATCH BOOT FILES"
+			hash_state="UNTRUSTED (SIGNATURE DOES NOT MATCH FILES)"
+			sig_detail="The signature does not match the current /boot files - files may have been altered since last signed."
+			sig_guidance="If unexpected, stop and investigate tampering. If expected, choose: Investigate discrepancies -> Update checksums now."
+			;;
+		UNKNOWN_KEY)
+			local _signer_info
+			_signer_info="$(detached_kexec_signature_signer_info)"
+			signature_state="SIGNED BY UNTRUSTED KEY"
+			hash_state="UNTRUSTED - content cannot be verified"
+			if [ -n "$_signer_info" ]; then
+				sig_detail="/boot was signed by an untrusted key (${_signer_info}). The files cannot be verified and must be treated as compromised. Possible causes: disk swap, /boot signed on a different machine, or firmware reflashed with a new key."
+				sig_guidance="Only re-sign if you can independently confirm /boot is in expected state, knowing it was signed by ${_signer_info}. If in doubt, restore /boot from a trusted backup. Do NOT re-sign blindly - that would bless a potentially compromised /boot. For intentional re-ownership or a fresh OS install, perform OEM Factory Reset / Re-Ownership."
+			else
+				sig_detail="/boot was signed by an untrusted key (signer identity could not be determined). The files cannot be verified and must be treated as compromised. Possible causes: disk swap, /boot signed on a different machine, or firmware reflashed with a new key."
+				sig_guidance="Treat /boot as compromised and restore from a trusted backup. Do NOT re-sign unverified files - that would bless a potentially compromised /boot. For intentional re-ownership or a fresh OS install, perform OEM Factory Reset / Re-Ownership."
+			fi
+			;;
+		*)
+			signature_state="SIGNATURE CHECK FAILED"
+			hash_state="UNTRUSTED (DETACHED SIGNATURE INVALID)"
+			sig_detail="The signature check failed for an unknown reason."
+			sig_guidance="If this was NOT expected, stop and investigate. Only choose Update checksums after you trust the current /boot files."
+			;;
+		esac
+		DEBUG "report_integrity_measurements: detached signature status=$sig_status detail=$(detached_kexec_signature_failure_detail_one_line)"
+	fi
+	INTEGRITY_REPORT_HASH_STATE="$hash_state"
+
+	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
+	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
+	STATUS "Verifying OpenPGP signing key on USB security dongle"
+	enable_usb
+	gpg_output=""
+	local _card_detected=0
+	if wait_for_gpg_card 2>/dev/null; then
+		_card_detected=1
+	else
+		whiptail_type "$BG_COLOR_MAIN_MENU" --title 'Signing Card Check' \
+			--msgbox "Please insert your OpenPGP signing card (USB security key), then press OK." 0 80
+		if wait_for_gpg_card 2>/dev/null; then
+			_card_detected=1
+		fi
+	fi
+
+	# Determine signing key state from card-status output (gpg_output set by wait_for_gpg_card).
+	local _card_sig_fpr _rom_fprs signing_key_guidance
+	if [ "$_card_detected" -eq 0 ]; then
+		signing_key_state="NO DONGLE DETECTED"
+		signing_key_guidance="No USB security dongle detected. Insert the correct dongle and retry, or perform OEM Factory Reset / Re-Ownership."
+	else
+		_card_sig_fpr=$(echo "$gpg_output" |
+			awk -F: '/Signature key/ {gsub(/[[:space:]]/,"",$2); print $2; exit}')
+		if [ -z "$_card_sig_fpr" ] || [ "$_card_sig_fpr" = "[none]" ]; then
+			signing_key_state="DONGLE NOT PROVISIONED"
+			signing_key_guidance="USB security dongle is connected but has no signing key (unprovisioned or wiped). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
+		else
+			_rom_fprs=$(gpg --with-colons --list-keys 2>/dev/null |
+				awk -F: '/^fpr/ {print $10}')
+			if echo "$_rom_fprs" | grep -qF "$_card_sig_fpr"; then
+				signing_key_state="DONGLE MATCHES ROM-TRUSTED KEY"
+				signing_key_guidance=""
+			else
+				signing_key_state="DONGLE KEY NOT ROM-TRUSTED"
+				signing_key_guidance="USB security dongle has a signing key that does not match this firmware's trusted key. OEM Factory Reset / Re-Ownership is required to establish new trusted ownership."
+			fi
+		fi
+	fi
+	DEBUG "report_integrity_measurements: signing_key_state=$signing_key_state card_sig_fpr=${_card_sig_fpr:-none}"
+
+	# Build display-friendly variants of TOTP/HOTP state for the report
+	local totp_display hotp_display
+	case "$totp_state" in
+	UNAVAILABLE)
+		totp_display="SEALED SECRET UNAVAILABLE - Reseal required (expected after TPM reset, re-ownership, or firmware update)"
+		;;
+	ERROR)
+		totp_display="ERROR - TOTP calculation failed"
+		;;
+	*)
+		totp_display="$totp_state"
+		;;
+	esac
+	case "$hotp_state" in
+	"TOKEN MISSING")
+		hotp_display="TOKEN NOT CONNECTED"
+		;;
+	"TOKEN PRESENT")
+		hotp_display="TOKEN CONNECTED (presence confirmed)"
+		;;
+	"TOKEN INCOMPATIBLE")
+		hotp_display="TOKEN INCOMPATIBLE ($_dongle_brand does not support HOTP)"
+		;;
+	*)
+		hotp_display="$hotp_state"
+		;;
+	esac
+
+	local action_guidance
+	if [ -n "$signing_key_guidance" ]; then
+		action_guidance="$signing_key_guidance"
+	else
+		action_guidance="$sig_guidance"
+	fi
+	report_body="Date: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\nDongle key: $signing_key_state\n\nAction: $action_guidance"
+	if [ "$hash_state" != "OK" ]; then
+		report_body="$report_body\n\nIf /boot integrity is not OK, investigate before sealing new secrets or performing TPM reset or re-ownership."
+	fi
+	DEBUG "report_integrity_measurements: totp=$totp_state hotp=$hotp_state signature=$signature_state hash=$hash_state"
+	DEBUG "report_integrity_measurements: signature_detail=$sig_detail"
+	DEBUG "report_integrity_measurements: signature_guidance=$sig_guidance signing_key_guidance=$signing_key_guidance"
+	DEBUG "report_integrity_measurements: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
+	if [ "$totp_state" = "UNAVAILABLE" ] && [ "$hash_state" = "OK" ] && [ "$signing_key_state" = "DONGLE MATCHES ROM-TRUSTED KEY" ]; then
+		DEBUG "report_integrity_measurements: TOTP unseal unavailable but /boot integrity is OK; reseal/update flows may proceed after user confirmation"
+		report_body="$report_body\n\nNote: /boot is intact - generate a new HOTP/TOTP secret to restore real-time boot attestation."
+	fi
+	msg="Measured Integrity Report\n\n$report_body"
+	# menu_msg omits the guidance paragraphs to keep the dialog within terminal height
+	menu_msg="Measured Integrity Report\n\nDate: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\nDongle key: $signing_key_state\n\nChoose an action:"
+
+	if [ "$hash_state" = "OK" ] && [ "$signing_key_state" = "DONGLE MATCHES ROM-TRUSTED KEY" ]; then
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+			--msgbox "$msg" 0 80
+		return 0
+	elif [ "$hash_state" = "OK" ] && [ "$signing_key_state" != "DONGLE MATCHES ROM-TRUSTED KEY" ]; then
+		# /boot is intact but no private key - direct path is OEM Factory Reset / Re-Ownership
+		while true; do
+			whiptail_type "$BG_COLOR_MAIN_MENU" --title 'Measured Integrity Report' \
+				--menu "$msg" 0 80 2 \
+				'o' ' OEM Factory Reset / Re-Ownership -->' \
+				'c' ' Continue to main menu' \
+				2>/tmp/whiptail || return 0
+			report_option=$(cat /tmp/whiptail)
+			case "$report_option" in
+			o)
+				INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+				return 0
+				;;
+			c | *)
+				return 0
+				;;
+			esac
+		done
+	fi
+
+	if [ "$signing_key_state" = "DONGLE KEY NOT ROM-TRUSTED" ]; then
+		while true; do
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+				--menu "$menu_msg" 0 80 4 \
+				'i' ' Investigate discrepancies -->' \
+				'r' ' Replace GPG key in current ROM and reflash' \
+				'o' ' OEM Factory Reset / Re-Ownership' \
+				'c' ' Continue' \
+				2>/tmp/whiptail || return 0
+			report_option=$(cat /tmp/whiptail)
+			case "$report_option" in
+			i)
+				if investigate_integrity_discrepancies; then
+					report_integrity_measurements
+					return
+				fi
+				;;
+			r)
+				gpg_replace_key_reflash
+				;;
+			o)
+				INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+				return 0
+				;;
+			*)
+				return 0
+				;;
+			esac
+		done
+	else
+		while true; do
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
+				--menu "$menu_msg" 0 80 2 \
+				'i' ' Investigate discrepancies -->' \
+				'c' ' Continue' \
+				2>/tmp/whiptail || return 0
+			report_option=$(cat /tmp/whiptail)
+			case "$report_option" in
+			i)
+				if investigate_integrity_discrepancies; then
+					report_integrity_measurements
+					return
+				fi
+				;;
+			*)
+				return 0
+				;;
+			esac
+		done
+	fi
+}
+
+investigate_integrity_discrepancies() {
+	TRACE_FUNC
+	local changed_files changed_count details sig_details sig_status
+	local sig_trust_state investigation_option inv_msg
+
+	# Signature trust must be established first. If detached signature is not
+	# trusted, checksum success must not be treated as clean integrity.
+	sig_trust_state="untrusted"
+	if detached_kexec_signature_valid /boot; then
+		sig_trust_state="trusted"
+	fi
+	DEBUG "investigate_integrity_discrepancies: signature trust state=$sig_trust_state"
+
+	if [ "$sig_trust_state" = "trusted" ]; then
+		check_config /boot force
+		TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+		TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
+		if verify_checksums /boot y; then
+			DEBUG "investigate_integrity_discrepancies: detached signature verified and verify_checksums returned success"
+			whiptail_type $BG_COLOR_MAIN_MENU --title 'Integrity Investigation' \
+				--msgbox 'No integrity discrepancies are currently detected for /boot.' 0 80
+			return 0
+		fi
+		DEBUG "investigate_integrity_discrepancies: detached signature verified but verify_checksums reported discrepancies"
+	else
+		DEBUG "investigate_integrity_discrepancies: detached signature not trusted; treating /boot as untrusted regardless of checksum output"
+	fi
+
+	if [ "$sig_trust_state" = "trusted" ]; then
+		changed_files=$(grep -v 'OK$' /tmp/hash_output 2>/dev/null | cut -f1 -d ':' | sed '/^$/d')
+		if [ -z "$changed_files" ] && [ -r /tmp/hash_output ]; then
+			changed_files=$(sed '/^$/d' /tmp/hash_output)
+		fi
+		DEBUG "investigate_integrity_discrepancies: raw changed_files list=$changed_files"
+	else
+		if [ ! -r /boot/kexec.sig ]; then
+			sig_details="Signature file is missing"
+		else
+			sig_status="$(detached_kexec_signature_failure_status /boot)"
+			sig_details="$(detached_kexec_signature_failure_detail_one_line)"
+			[ -n "$sig_details" ] || sig_details="Signature verification failed"
+			case "$sig_status" in
+			MALFORMED)
+				sig_details="Signature file is damaged or not a valid signature (${sig_details})"
+				;;
+			BAD)
+				sig_details="Signature does not match current /boot files (${sig_details})"
+				;;
+			UNKNOWN_KEY)
+				sig_details="Signature uses a key this firmware does not trust (${sig_details})"
+				;;
+			*)
+				sig_details="Signature verification failed (${sig_details})"
+				;;
+			esac
+		fi
+		changed_files="Signature problem: $sig_details"
+		DEBUG "investigate_integrity_discrepancies: signature issue details=$sig_details"
+	fi
+
+	if [ -z "$changed_files" ]; then
+		whiptail_error --title 'Integrity Investigation' \
+			--msgbox 'Integrity is not OK, but no detailed mismatch list is available.' 0 80
+		return 1
+	fi
+
+	# details remains relative; user is told paths are under /boot
+	details=$(printf '%s\n' "$changed_files" | sort -u)
+	changed_count=$(printf '%s\n' "$details" | wc -l | tr -d ' ')
+	DEBUG "integrity: changed_count=$changed_count"
+	DEBUG "integrity: details=$details"
+
+	if [ "$sig_trust_state" = "trusted" ]; then
+		inv_msg="Integrity mismatches were detected.\n\nDetached signature on /boot/kexec.sig verified successfully.\n\nChoose an action:"
+	else
+		inv_msg="Integrity mismatches were detected.\n\nDetached signature on /boot/kexec.sig could not be verified.\n\nTreat /boot as untrusted unless you explicitly expected these changes.\n\nChoose an action:"
+	fi
+
+	while true; do
+		whiptail_error --title 'Integrity Investigation' \
+			--menu "$inv_msg" 0 80 5 \
+			'd' ' Show mismatch details -->' \
+			's' ' Show detached signed output -->' \
+			'u' ' Update checksums now' \
+			'r' ' Drop to recovery shell (view discrepancies)' \
+			'c' ' Continue' \
+			2>/tmp/whiptail || return 1
+
+		investigation_option=$(cat /tmp/whiptail)
+		case "$investigation_option" in
+		s)
+			show_detached_signed_kexec_output
+			;;
+		d)
+			if [ "$changed_count" -gt 12 ]; then
+				printf '%s\n' "$details" >/tmp/hash_output_mismatches
+				echo 'Type "q" to exit the list and return.' >>/tmp/hash_output_mismatches
+				whiptail_error --title 'Integrity Investigation' \
+					--msgbox "${changed_count} discrepancy entries found.\n\nPress OK to review the full list." 0 80
+				less /tmp/hash_output_mismatches
+			else
+				whiptail_error --title 'Integrity Investigation' \
+					--msgbox "Discrepancy entries detected:\n\n${details}" 0 80
+			fi
+			;;
+		r)
+			local msg
+			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount /boot read-write:\n    mount -o rw,remount /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the '"${CONFIG_BRAND_NAME}"$' menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; '"${CONFIG_BRAND_NAME}"$' will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
+			recovery "$msg"
+			;;
+		u)
+			prompt_update_checksums && return 0
+			;;
+		*)
+			return 0
+			;;
+		esac
+	done
+}
+
+detached_kexec_signature_valid() {
+	TRACE_FUNC
+	local boot_dir="$1"
+
+	[ -n "$boot_dir" ] || boot_dir="/boot"
+	boot_dir="${boot_dir%%/}"
+
+	if [ "$CONFIG_BASIC" = "y" ]; then
+		return 1
+	fi
+
+	if [ ! -r "$boot_dir/kexec.sig" ]; then
+		DEBUG "detached_kexec_signature_valid: no $boot_dir/kexec.sig"
+		return 1
+	fi
+
+	# Collect full paths once; derive relative names via ##*/ where needed.
+	local kexec_txt_files=()
+	for f in "$boot_dir"/kexec*.txt; do
+		[ -e "$f" ] || continue
+		kexec_txt_files+=("$f")
+	done
+	if [ ${#kexec_txt_files[@]} -eq 0 ]; then
+		DEBUG "detached_kexec_signature_valid: no kexec*.txt files found under $boot_dir"
+		return 1
+	fi
+	DEBUG "detached_kexec_signature_valid: ${#kexec_txt_files[@]} file(s) in $boot_dir: ${kexec_txt_files[*]##*/}"
+
+	# Try relative filenames first (cd into boot_dir) to match the signing
+	# path format used by this branch's kexec-sign-config.sh (staging dir + relative names).
+	STATUS "Verifying /boot detached signature"
+	DEBUG "detached_kexec_signature_valid: running (cd $boot_dir && sha256sum ${kexec_txt_files[*]##*/}) | gpgv.sh $boot_dir/kexec.sig"
+	if (cd "$boot_dir" && sha256sum "${kexec_txt_files[@]##*/}") |
+		gpgv.sh "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
+		DEBUG "detached_kexec_signature_valid: signature valid (relative paths)"
+		mkdir -p /tmp/kexec
+		cp "$boot_dir"/kexec*.txt /tmp/kexec 2>/dev/null || true
+		return 0
+	fi
+	DEBUG "detached_kexec_signature_valid: relative-path check failed; retrying with full paths (legacy format)"
+	DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
+
+	# Backwards compatibility: the previous kexec-sign-config.sh signed with full
+	# paths (sha256sum /boot/kexec*.txt), not relative paths.  A firmware upgrade
+	# must not invalidate an existing valid signature.
+	DEBUG "detached_kexec_signature_valid: running sha256sum ${kexec_txt_files[*]} | gpgv.sh $boot_dir/kexec.sig"
+	if sha256sum "${kexec_txt_files[@]}" |
+		gpgv.sh "$boot_dir/kexec.sig" - >/tmp/integrity_sigcheck 2>&1; then
+		DEBUG "detached_kexec_signature_valid: signature valid (full paths, legacy format)"
+		mkdir -p /tmp/kexec
+		cp "$boot_dir"/kexec*.txt /tmp/kexec 2>/dev/null || true
+		return 0
+	fi
+	DEBUG "detached_kexec_signature_valid: both relative and full-path checks failed"
+	DEBUG "$(sed -n '1,20p' /tmp/integrity_sigcheck)"
+	return 1
+}
+
+detached_kexec_signature_failure_status() {
+	TRACE_FUNC
+	local boot_dir="$1"
+
+	[ -n "$boot_dir" ] || boot_dir="/boot"
+	if [ ! -r "$boot_dir/kexec.sig" ]; then
+		echo "MISSING"
+		return 0
+	fi
+
+	if grep -Eiq 'no valid openpgp data found' /tmp/integrity_sigcheck 2>/dev/null; then
+		echo "MALFORMED"
+		return 0
+	fi
+	if grep -Eiq 'bad signature' /tmp/integrity_sigcheck 2>/dev/null; then
+		echo "BAD"
+		return 0
+	fi
+	if grep -Eiq 'no public key|can.t check signature: no public key' /tmp/integrity_sigcheck 2>/dev/null; then
+		echo "UNKNOWN_KEY"
+		return 0
+	fi
+
+	echo "INVALID"
+}
+
+detached_kexec_signature_failure_detail_one_line() {
+	TRACE_FUNC
+	local line
+
+	if [ ! -r /boot/kexec.sig ]; then
+		echo "/boot/kexec.sig is missing"
+		return 0
+	fi
+
+	line="$(grep -Eim1 'no valid openpgp data found|bad signature|no public key|can.t check signature' /tmp/integrity_sigcheck 2>/dev/null)"
+	if [ -z "$line" ]; then
+		line="$(sed -n '1p' /tmp/integrity_sigcheck 2>/dev/null)"
+	fi
+
+	echo "$line" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
+}
+
+detached_kexec_signature_signer_info() {
+	# Parse gpgv output in /tmp/integrity_sigcheck to extract signer key fingerprint
+	# and signing date. Returns empty string if not parseable.
+	# gpgv output for unknown key:
+	#   gpgv: Signature made Wed Mar 11 19:53:41 2026 UTC
+	#   gpgv:                using RSA key 8E2364E3F305AACEDFFBB61C03E3D64DDA3E571B
+	#   gpgv: Can't check signature: No public key
+	local date_str key_id
+	date_str="$(grep -im1 'signature made' /tmp/integrity_sigcheck 2>/dev/null |
+		sed 's/.*[Ss]ignature made[[:space:]]*//' |
+		sed 's/[[:space:]]*$//')"
+	key_id="$(grep -im1 'using .* key' /tmp/integrity_sigcheck 2>/dev/null |
+		sed 's/.*using [A-Za-z0-9]* key[[:space:]]*//' |
+		sed 's/[[:space:]]*$//')"
+	if [ -n "$key_id" ] && [ -n "$date_str" ]; then
+		echo "fingerprint $key_id, signed on $date_str, owner unknown (key not in firmware keyring)"
+	elif [ -n "$key_id" ]; then
+		echo "fingerprint $key_id, date unknown, owner unknown (key not in firmware keyring)"
+	fi
+}
+
+show_detached_signed_kexec_output() {
+	TRACE_FUNC
+	local signed_files signed_count
+
+	signed_files=$(find /tmp/kexec/kexec*.txt 2>/dev/null | sort)
+	if [ -z "$signed_files" ]; then
+		whiptail_error --title 'Signed Output' \
+			--msgbox 'No verified detached signed output is available to display.' 0 80
+		return 1
+	fi
+
+	: >/tmp/integrity_signed_output
+	for signed_file in $signed_files; do
+		echo "===== $(basename "$signed_file") =====" >>/tmp/integrity_signed_output
+		cat "$signed_file" >>/tmp/integrity_signed_output
+		echo >>/tmp/integrity_signed_output
+	done
+
+	signed_count=$(wc -l </tmp/integrity_signed_output)
+	if [ "$signed_count" -gt 20 ]; then
+		echo 'Type "q" to exit the list and return.' >>/tmp/integrity_signed_output
+		less /tmp/integrity_signed_output
+	else
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'Signed Output' \
+			--msgbox "$(cat /tmp/integrity_signed_output)" 0 80
+	fi
+}
+
+# Get "Enable" or "Disable" to display in the configuration menu, based on a
+# setting value
+get_config_display_action() {
+	TRACE_FUNC
+	[ "$1" = "y" ] && echo "Disable" || echo "Enable"
+}
+
+# Invert a config value
+invert_config() {
+	TRACE_FUNC
+	[ "$1" = "y" ] && echo "n" || echo "y"
+}
+
+# Get "Enable" or "Disable" for a config that internally is inverted (because it
+# disables a behavior that is on by default).
+get_inverted_config_display_action() {
+	TRACE_FUNC
+	get_config_display_action "$(invert_config "$1")"
+}

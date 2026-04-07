@@ -1,30 +1,26 @@
 #!/bin/bash
 #change time using hwclock and date -s
+. /etc/functions.sh
+. /tmp/config
 
 clear
 
-echo "The system time is: $(date "+%Y-%m-%d %H:%M:%S %Z")"
-echo
-echo "Please enter the current date and time in UTC"
-echo "To find the current date and time in UTC, please check https://time.is/UTC"
-echo
+STATUS "System time: $(date "+%Y-%m-%d %H:%M:%S %Z")"
+STATUS "Please enter the current date and time in UTC"
+INFO "To find the current UTC time: https://time.is/UTC"
 
 get_date () {
     local field_name min max
     field_name="$1"
     min="$2"
     max="$3"
-    echo -n "Enter the current $field_name [$min-$max]: "
-    read -r value
-    echo
+    INPUT "Enter the current $field_name [$min-$max]:" -r value
 
     #must be a number between $2 and $3
     while [[ ! $value =~ ^[0-9]+$ ]] || [[ ${value#0} -lt $min ]] || [[ ${value#0} -gt $max ]];
     do
-        echo "Please try again, it must be a number from $min to $max."
-        echo -n "Enter the current $field_name [$min-$max]: "
-        read -r value
-        echo
+        WARN "Please try again, it must be a number from $min to $max."
+        INPUT "Enter the current $field_name [$min-$max]:" -r value
     done
 
     # Pad with zeroes to length of maximum value.
@@ -56,18 +52,13 @@ enter_time_and_change()
 }
 
 while ! enter_time_and_change; do
-    echo "Could not set the date to $year-$month-$day $hour:$min:$sec"
-    read -rp "Try again? [Y/n]: " try_again_confirm
+    WARN "Could not set the date to $year-$month-$day $hour:$min:$sec"
+    INPUT "Try again? [Y/n]:" -n 1 -r try_again_confirm
     if [ "${try_again_confirm^^}" = N ]; then
             exit 1
     fi
-    echo
 done
 
 hwclock -w
-echo "The system date has been sucessfully set to $year-$month-$day $hour:$min:$sec UTC"
-echo
-
-echo "Press Enter to return to the menu"
-echo
-read -r nothing
+STATUS_OK "System date set to $year-$month-$day $hour:$min:$sec UTC"
+INPUT "Press Enter to return to the menu"
