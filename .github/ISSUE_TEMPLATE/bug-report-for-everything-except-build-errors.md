@@ -101,7 +101,8 @@ assignees: ''
 
 4. What version of Heads/coreboot are you running?
    - Navigate to **Options → System Information** on the running device and paste the **full version string** here (including the git commit hash).
-   - Alternatively, provide the GitHub commit ID if building from source.
+   - Alternatively, provide the **exact ROM filename** (e.g. `heads-x230-20260327-202007-my-branch-v0.2.1-42-g0b9d8e4.rom`) — it encodes the build timestamp, branch, and commit and is the fastest way to identify your build.
+   - Or provide the GitHub commit ID if building from source.
 
 5. In building the rom, where did you get the blobs?
     - [ ] No blobs required

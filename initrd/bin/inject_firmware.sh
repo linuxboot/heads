@@ -23,7 +23,7 @@
 set -e -o pipefail
 
 . /tmp/config
-. /etc/functions
+. /etc/functions.sh
 
 if [ "$(load_config_value CONFIG_USE_BLOB_JAIL)" != "y" ]; then
 	# Blob jail not active, nothing to do
@@ -51,7 +51,7 @@ done
 # awk will happily pass through a binary file, so look for the match we want
 # before modifying init to ensure it's a shell script and not an ELF, etc.
 if ! grep -E -q '^exec run-init .*\$\{rootmnt\}' "$INITRD_ROOT/init"; then
-	warn "Can't apply firmware blob jail, unknown init script"
+	WARN "Can't apply firmware blob jail, unknown init script"
 	exit 0
 fi
 

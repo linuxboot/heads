@@ -135,8 +135,8 @@ CONFIG_COREBOOT_CONFIG ?= config/coreboot-$(BOARD).config
 CONFIG_COREBOOT_LOCALVERSION ?= "$(BRAND_NAME)-$(HEADS_GIT_VERSION)"
 CONFIG_COREBOOT_SMBIOS_PRODUCT_NAME ?= $(BOARD)
 
-# Ensure that touching the config file will force a rebuild
-$(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG)
+# Ensure that touching the config file or initrd will force a rebuild
+$(build)/$(coreboot_dir)/.configured: $(CONFIG_COREBOOT_CONFIG) $(build)/$(BOARD)/initrd.cpio.xz
 
 # Select the coreboot version to use for the toolchain
 ifeq "$($(coreboot_module)_toolchain)" ""
@@ -155,6 +155,14 @@ endif
 
 $(coreboot_module)_configure := \
 	mkdir -p "$(build)/$(coreboot_dir)"; \
+	if [ -f "$(build)/$(coreboot_dir)/coreboot.rom" ]; then \
+		initrd_hash=$$(sha256sum $(build)/$(BOARD)/initrd.cpio.xz | cut -d' ' -f1); \
+		if [ ! -f "$(build)/$(coreboot_dir)/.initrd_hash" ] || [ "$$(cat $(build)/$(coreboot_dir)/.initrd_hash)" != "$$initrd_hash" ]; then \
+			echo "INFO: initrd changed, cleaning coreboot board build dir to force rebuild with new version string"; \
+			rm -rf $(build)/$(coreboot_dir)/*; \
+			echo "$$initrd_hash" > $(build)/$(coreboot_dir)/.initrd_hash; \
+		fi; \
+	fi; \
 	$(call install_config,$(pwd)/$(CONFIG_COREBOOT_CONFIG),$(build)/$(coreboot_dir)/.config); \
 	sed -i '/^CONFIG_LOCALVERSION/d' $(build)/$(coreboot_dir)/.config; \
 	echo 'CONFIG_LOCALVERSION=$(CONFIG_COREBOOT_LOCALVERSION)' >> $(build)/$(coreboot_dir)/.config; \

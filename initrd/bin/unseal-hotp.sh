@@ -1,0 +1,91 @@
+#!/bin/bash
+# Retrieve the sealed file and counter from the NVRAM, unseal it and compute the hotp
+
+. /etc/functions.sh
+
+HOTP_SECRET="/tmp/secret/hotp.key"
+HOTP_COUNTER="/boot/kexec_hotp_counter"
+
+mount_boot_or_die() {
+	TRACE_FUNC
+	# Mount local disk if it is not already mounted
+	if ! grep -q /boot /proc/mounts; then
+		mount -o ro /boot ||
+			DIE "Unable to mount /boot"
+	fi
+}
+
+TRACE_FUNC
+
+# Store counter in file instead of TPM for now, as it conflicts with Heads
+# config TPM counter as TPM 1.2 can only increment one counter between reboots
+# get current value of HOTP counter in TPM, create if absent
+mount_boot_or_die
+
+#check_tpm_counter $HOTP_COUNTER hotp \
+#|| DIE "Unable to find/create TPM counter"
+#counter="$TPM_COUNTER"
+#
+#counter_value=$(read_tpm_counter $counter | cut -f2 -d ' ' | awk 'gsub("^000e","")')
+#
+
+#if HOTP_COUNTER is not present, bail out
+if [ ! -f $HOTP_COUNTER ]; then
+	fail_unseal "HOTP counter file not found. If you just reinstalled an OS, you need to reseal the HOTP secret" || exit 1
+fi
+
+# Read the counter from the file
+counter_value=$(cat "$HOTP_COUNTER" 2>/dev/null)
+
+if [ "$counter_value" == "" ]; then
+	fail_unseal "Unable to read HOTP counter" || exit 1
+fi
+
+#counter_value=$(printf "%d" 0x${counter_value})
+if [ "$CONFIG_TPM" = "y" ]; then
+	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+		# ensure primary handle exists before any TPM2 operation, to keep
+		# messaging consistent with unseal-totp.sh
+		if [ ! -f "/tmp/secret/primary.handle" ]; then
+			fail_unseal "Unable to unseal HOTP secret from TPM; no TPM primary handle. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI)." || exit 1
+		fi
+	fi
+	DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
+	# debug unseal too; no password argument
+	if ! DO_WITH_DEBUG tpmr.sh unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"; then
+		if counter_readable; then
+			fail_unseal "Unable to unseal HOTP secret from TPM; TPM rollback counter intact. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal." || exit 1
+		else
+			fail_unseal "Unable to unseal HOTP secret from TPM; TPM rollback counter broken or missing, reset TPM (see Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and then generate a new secret." || exit 1
+		fi
+	fi
+else
+	# without a TPM, generate a secret based on the SHA-256 of the ROM
+	secret_from_rom_hash >"$HOTP_SECRET" || fail_unseal "Reading ROM failed" || exit 1
+fi
+
+# Truncate the secret if it is longer than the maximum HOTP secret
+truncate_max_bytes 20 "$HOTP_SECRET"
+
+if ! hotp $counter_value <"$HOTP_SECRET"; then
+	shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
+	fail_unseal 'Unable to compute HOTP hash?' || exit 1
+fi
+
+shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
+
+#Incrementing counter under $HOTP_COUNTER
+#
+# If for whatever reason, this counter is 5 counts different then on HOTP USB Security dongle, HOTP unseal fails.
+#Note: HOTP_COUNTER="/boot/kexec_hotp_counter" is not detached signed under kexec.sig since it changes
+#
+# TODO: figure out a better alternative then a counter that can be modified on disk
+#   As of now, this counter isincreased only in the validated presence of the HOTP dongle being connected per callers
+mount -o remount,rw /boot
+DEBUG "Incrementing HOTP counter under $HOTP_COUNTER"
+counter_value=$(expr $counter_value + 1)
+echo $counter_value >$HOTP_COUNTER ||
+	fail_unseal "Unable to create hotp counter file" || exit 1
+mount -o remount,ro /boot
+
+exit 0

@@ -3,20 +3,18 @@
 # NOTE: This script is used on legacy-flash boards and runs with busybox ash,
 # not bash
 set -e -o pipefail
-. /etc/functions
+. /etc/functions.sh
 . /tmp/config
-
-echo
 
 TRACE_FUNC
 
 case "$CONFIG_FLASH_OPTIONS" in
   "" )
-    die "ERROR: No flash options have been configured!\n\nEach board requires specific CONFIG_FLASH_OPTIONS options configured. It's unsafe to flash without them.\n\nAborting."
+    DIE "ERROR: No flash options have been configured!\n\nEach board requires specific CONFIG_FLASH_OPTIONS options configured. It's unsafe to flash without them.\n\nAborting."
   ;;
   * )
     DEBUG "Flash options detected: $CONFIG_FLASH_OPTIONS"
-    echo "Board $CONFIG_BOARD detected with flash options configured. Continuing..."
+    INFO "Board $CONFIG_BOARD detected with flash options configured"
   ;;
 esac
 
@@ -34,20 +32,20 @@ flash_rom() {
     fi
     # persist serial number from CBFS
     if cbfs.sh -r serial_number > /tmp/serial 2>/dev/null; then
-      echo "Persisting system serial"
+      STATUS "Persisting system serial"
       cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
       cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
     fi
     # persist PCHSTRP9 from flash descriptor
     if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
-      echo "Persisting PCHSTRP9"
+      STATUS "Persisting PCHSTRP9"
       $CONFIG_FLASH_OPTIONS -r /tmp/ifd.bin --ifd -i fd >/dev/null 2>&1 \
-      || die "Failed to read flash descriptor"
+      || DIE "Failed to read flash descriptor"
       dd if=/tmp/ifd.bin bs=1 count=4 skip=292 of=/tmp/pchstrp9.bin >/dev/null 2>&1
       dd if=/tmp/pchstrp9.bin bs=1 count=4 seek=292 of=/tmp/${CONFIG_BOARD}.rom conv=notrunc >/dev/null 2>&1
     fi
 
-    warn "Do not power off computer.  Updating firmware, this will take a few minutes"
+    WARN "Do not power off computer.  Updating firmware, this will take a few minutes"
     $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
       || recovery "$ROM: Flash failed"
   fi
@@ -69,7 +67,7 @@ else
 fi
 
 if [ ! -e "$ROM" ]; then
-    die "Usage: $0 [-c|-r] <path/to/image.(rom|tgz)>"
+    DIE "Usage: $0 [-c|-r] <path/to/image.(rom|tgz)>"
 fi
 
 if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
@@ -77,12 +75,12 @@ if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
         rm -rf /tmp/verified_rom
         mkdir /tmp/verified_rom
 
-        tar -C /tmp/verified_rom -xf $ROM || die "Rom archive $ROM could not be extracted"
+        tar -C /tmp/verified_rom -xf $ROM || DIE "Rom archive $ROM could not be extracted"
     if ! (cd /tmp/verified_rom/ && sha256sum -cs sha256sum.txt); then
-            die "Provided tgz image did not pass hash verification"
+            DIE "Provided tgz image did not pass hash verification"
         fi
 
-        echo "Reading current flash and building an update image"
+        STATUS "Reading current flash and building update image"
         $CONFIG_FLASH_OPTIONS -r /tmp/flash.sh.bak \
             || recovery "Read of flash has failed"
 
@@ -97,7 +95,7 @@ if [ "$READ" -eq 0 ] && [ "${ROM##*.}" = tgz ]; then
 
         ROM=/tmp/flash.sh.bak
     else
-        die "$CONFIG_BOARD doesn't support tgz image format"
+        DIE "$CONFIG_BOARD doesn't support tgz image format"
     fi
 fi
 
