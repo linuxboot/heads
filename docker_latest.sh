@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Source shared docker helper functions
 # shellcheck source=docker/common.sh
