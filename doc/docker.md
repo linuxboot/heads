@@ -43,6 +43,22 @@ it automatically when present.
 If you plan to manage disk images or use `qemu-img` snapshots on the host (outside
 containers), install the `qemu-utils` package locally (which provides `qemu-img`).
 
+### Alternative: Using Nix directly without Docker
+
+You can also use Nix to enter a development shell or build Heads directly without Docker:
+
+```bash
+# Enter a development shell with all dependencies
+nix develop
+
+# Or run a single command in the environment
+nix develop --command make BOARD=x230-hotp-maximized
+```
+
+Note: `nix develop` provides QEMU, `swtpm`, and other required dependencies in the shell
+environment, so separate host installs are not needed for this workflow. The Docker
+workflow is still recommended for its canonical isolation and reproducibility benefits.
+
 ---
 
 ## Docker wrapper scripts
@@ -146,6 +162,8 @@ and mount your `${HOME}/.Xauthority` (if present); if the file is missing the he
 warn and will not attempt automatic cookie creation (GUI may fail).
 
 ### `./docker_local_dev.sh`
+
+**`HEADS_FORCE_DOCKER_REBUILD=1`** — force rebuild from flake.nix/flake.lock regardless of git status. Also attempts to delete the cached nix store result/link before rebuilding. Takes precedence over `HEADS_SKIP_DOCKER_REBUILD=1`.
 
 **`HEADS_SKIP_DOCKER_REBUILD=1`** — skip automatically rebuilding the local image when
 `flake.nix`/`flake.lock` are dirty.
@@ -365,7 +383,7 @@ echo 'experimental-features = nix-command flakes' >>~/.config/nix/nix.conf
 
 ```bash
 # Manual
-nix --print-build-logs --verbose build .#dockerImage && docker load < result
+nix build --print-build-logs --verbose --out-link docker/result .#dockerImage && docker load -i docker/result
 
 # Via helper (rebuilds automatically when flake files are dirty)
 ./docker_local_dev.sh
@@ -436,7 +454,7 @@ reproducible.
 You have either:
 
 - Built a local Docker image with `./docker_local_dev.sh` (produces `linuxboot/heads:dev-env`), or
-- Built from `nix build .#dockerImage` (results in `result` symlink loadable via `docker load`)
+- Built from `nix build --out-link docker/result .#dockerImage` (results in `docker/result` symlink loadable via `docker load -i docker/result`)
 
 ### Method 1: Automated check during build (recommended)
 
@@ -449,10 +467,38 @@ HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh
 
 # Example output when digests MATCH (reproducible build):
 # === Reproducibility Check ===
-# Local image  (linuxboot/heads:dev-env): sha256:5f890f3d...
-# Remote image (tlaurion/heads-dev-env:latest): sha256:5f890f3d...
-# ✓ MATCH: Local build is reproducible!
+# Local image (linuxboot/heads:dev-env):   sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
+# Remote image (tlaurion/heads-dev-env:latest): sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
+# (via registry+jq)
+# ✓ MATCH: Config digests identical (bit-for-bit reproducible)
+# Config digest: sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
+# Note: manifest digest differs from config (normal - manifest includes metadata)
+# Docker Hub: https://hub.docker.com/layers/tlaurion/heads-dev-env/latest/images/sha256-5f890f3d...
+# === End Reproducibility Check ===
 ```
+
+### Understanding config digest vs manifest digest
+
+Docker images have two different digests that serve different purposes:
+
+- **Config digest** (authoritative): SHA256 hash of the image's config JSON — the actual build
+  contents (layers, env, entrypoint). Shown as Image ID in `docker images` and
+  `docker inspect --format='{{.Id}}'`.
+- **Manifest digest**: SHA256 hash of the manifest JSON — wraps the config digest plus layer
+  blob references and media types. Shown in Docker Hub layer URLs.
+
+**For reproducibility verification, the config digest is authoritative** because it represents
+the actual build contents. The manifest can change (e.g., when metadata is added) while the
+config stays the same.
+
+To verify manually on Docker Hub:
+
+1. Run the check with `HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh`
+2. Note the **Config digest** value shown
+3. Go to the Docker Hub tags page: `https://hub.docker.com/r/{repo}/tags`
+4. Click your tag (e.g., `latest`)
+5. The URL will be `https://hub.docker.com/layers/{repo}/{tag}/images/sha256-{digest}` - this shows the **manifest digest**
+6. The config digest should match what the script reported (fetched via registry API)
 
 To test against a **specific version tag** instead of `:latest`:
 
@@ -463,17 +509,28 @@ HEADS_CHECK_REPRODUCIBILITY=1 \
 
 # Example output when digests DIFFER (expected for different versions):
 # === Reproducibility Check ===
-# Local image  (linuxboot/heads:dev-env): sha256:5f890f3d...
-# Remote image (tlaurion/heads-dev-env:v0.2.6): sha256:75af4c81...
-# ✗ MISMATCH: Local build differs from remote
-#   (This is expected if Nix/flake.lock versions differ or if uncommitted changes exist)
+# Local image (linuxboot/heads:dev-env):   sha256:5f890f3d...
+# Remote image (tlaurion/heads-dev-env:v0.2.7): sha256:75af4c81...
+# (via registry+jq)
+# ✗ MISMATCH: Config digests differ
+# === End Reproducibility Check ===
+#
+# If remote config digest cannot be fetched, falls back to pulling the image:
+# === Reproducibility Check ===
+# Local image (linuxboot/heads:dev-env):   sha256:5f890f3d...
+# Could not fetch remote image config digest via registry; falling back to 'docker pull' to compare image IDs (progress will be shown).
+# Tip: Install jq and curl for faster registry-based checks (no pull needed).
+# Pulling remote image (progress will be shown)...
+# Remote image (pulled tlaurion/heads-dev-env:v0.2.6): sha256:75af4c81...
+# ✗ MISMATCH: Image IDs differ after pull.
+#   Local:  sha256:5f890f3d...
+#   Remote: sha256:75af4c81...
+# === End Reproducibility Check ===
 ```
 
-Note: Docker images can have two different identifiers: a local image ID and a registry
-manifest digest. If a local image has no `RepoDigests` entry, the reproducibility check
-will compare image IDs (and may pull the remote tag) instead of manifest digests to avoid
-false mismatches. This can happen for locally built images that have not been pulled from
-a registry.
+Note: The reproducibility check compares **config digests** (what matters for reproducibility).
+The script also shows manifest digests for reference - these can differ from config digests
+because manifest includes additional metadata. The config digest is authoritative.
 
 ### Method 2: Standalone reproducibility check
 
@@ -616,8 +673,8 @@ git commit --signoff -m "Bump nix develop based docker image to $docker_version"
 nix develop --ignore-environment --command true
 
 # Build the new Docker image
-nix build .#dockerImage
-docker load < result
+nix build --out-link docker/result .#dockerImage
+docker load -i docker/result
 
 # Verify you can extract the digest (flake.nix/flake.lock must be committed)
 docker inspect --format='{{.Id}}' linuxboot/heads:dev-env
@@ -658,7 +715,7 @@ git push origin docker/squash-docker-changes
 
 ### Maintainer checklist
 
-1. **Reproducibility**: Before pushing, verify `nix build .#dockerImage` produces a deterministic result (`flake.nix` and `flake.lock` must be committed and clean).
+1. **Reproducibility**: Before pushing, verify `nix build --out-link docker/result .#dockerImage` produces a deterministic result (`flake.nix` and `flake.lock` must be committed and clean).
 2. **Digest verification**: After pushing, use `./docker/check_reproducibility.sh` to verify local and remote digests match.
 3. **Supply chain**: Pin digest in `docker/DOCKER_REPRO_DIGEST` and `.circleci/config.yml` to ensure all builds reference an immutable, auditable image.
 4. **Documentation**: Update the version comment in `docker/DOCKER_REPRO_DIGEST` so users know which image version is pinned.
