@@ -10,6 +10,8 @@ ifeq "$(BOARD)" "novacustom-v540tu"
 DASHARO_EC_BOARD_MODEL := v540tu
 else ifeq "$(BOARD)" "novacustom-v560tu"
 DASHARO_EC_BOARD_MODEL := v560tu
+else ifeq "$(BOARD)" "novacustom-nv4x_adl"
+DASHARO_EC_BOARD_MODEL := nv4x_adl
 else
 $(error "$(BOARD): no Dasharo EC board model mapping defined")
 endif
