@@ -77,6 +77,14 @@ coreboot-24.02.01_hash := e56f5c0c9008bfdec1c4be6409ac093680140f9441efd3d5e47bde
 coreboot-blobs-24.02.01_hash := 8d03b82cd2b2593473d4cd511c7bef7fdd43839237f6c37a8383161660c14427
 $(eval $(call coreboot_module,24.02.01,))
 
+coreboot-24.12_hash := dd211bdd914509aea7526348db13cf8b809acd0e2214da6c6b008975f04587ed
+coreboot-blobs-24.12_hash := e75a788fa4910d48c42e9997ff55f27aaa06dc2999bab9b60483172ea587e7c0
+$(eval $(call coreboot_module,24.12,))
+
+coreboot-25.03_hash := 9182f84c0bf869cb97601594edd50f5891e97b9dc34c0e158bce2cf9ed51175a
+coreboot-blobs-25.03_hash := 03e8f565f73b932f942f08f0058d37080e1d2b0ce866596c25e607d14d1e95f0
+$(eval $(call coreboot_module,25.03,))
+
 # coreboot git forks
 
 # talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 fork, so
@@ -91,18 +99,36 @@ coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,24.02.01))
 
-# NovaCustom NV4xPZ, NS5xPU, V560TU boards are based on Dasharo
-# coreboot fork, based on upstream coreboot version 24.02
-coreboot-dasharo_repo := https://github.com/dasharo/coreboot
-coreboot-dasharo_commit_hash := 94e5f5d5b808cf8d8fd5c70d4ef6a08a054f8986
-$(eval $(call coreboot_module,dasharo,24.02.01))
-#coreboot-dasharo_patch_version := unreleased
+# Dasharo forks - based on various coreboot upstream releases
+# IMPORTANT: Dasharo forks CANNOT share toolchains with upstream coreboot releases
+# or with each other. Dasharo uses custom FSP packages (3rdparty/dasharo-blobs/)
+# with different/missing headers vs upstream (e.g. MemInfoHob.h, FirmwareVersionInfoHob.h).
+# Each Dasharo fork therefore builds its own crossgcc toolchain (empty second arg).
 
-# MSI boards are based on Dasharo, this commit hash should be pinned to
-# the most recent MSI release.
-coreboot-dasharo_msi_repo := https://github.com/dasharo/coreboot
-coreboot-dasharo_msi_commit_hash := a5a05f133471c0463609631b599cdd88a623561f # This is `msi_ms7e06_v0.9.4` tag, effectively same as `msi_ms7d25_v1.1.6`.
-$(eval $(call coreboot_module,dasharo_msi,24.02.01))
+# NovaCustom V560TU/V540TU (Meteor Lake)
+#  Tag: novacustom_v56x_mtl_igpu_v1.0.1 (SHA: 6de027d1)
+coreboot-dasharo_v56_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_v56_commit_hash := 6de027d1f0a62753182237ce3d793e5ba0395139
+$(eval $(call coreboot_module,dasharo_v56,))
+coreboot-dasharo_v56_patch_version := unreleased
+
+# NovaCustom NV4x ADL / NitroPad NS50
+#  Tag: novacustom_nv4x_adl_v1.8.0 (SHA: 281a7fec)
+coreboot-dasharo_nv4x_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_nv4x_commit_hash := 281a7fec1a1e7aed781b12a096c2fc0f87dc51b5
+$(eval $(call coreboot_module,dasharo_nv4x,))
+
+# MSI Z790 boards
+#  Tag: msi_ms7e06_v0.9.4 (SHA: a5a05f13)
+coreboot-dasharo_msi_z790_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_msi_z790_commit_hash := a5a05f133471c0463609631b599cdd88a623561f
+$(eval $(call coreboot_module,dasharo_msi_z790,))
+
+# MSI Z690 boards
+#  Tag: msi_ms7d25_v1.1.6 (SHA: be7d58da)
+coreboot-dasharo_msi_z690_repo := https://github.com/dasharo/coreboot
+coreboot-dasharo_msi_z690_commit_hash := be7d58dac9365d8981dbb1f5c6bbbcce35df8636
+$(eval $(call coreboot_module,dasharo_msi_z690,))
 
 # T480 is based on coreboot ~25.09 release
 #  coreboot 25.09 doesn't include Thunderbolt support and support of the lower USB-C port which is still under review at https://review.coreboot.org/c/coreboot/+/75286 and https://review.coreboot.org/c/coreboot/+/88490
@@ -128,6 +154,7 @@ coreboot_dir := $($(coreboot_module)_dir)
 coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
+$(coreboot_module)_depends += $(if $(CONFIG_DASHARO_EC), dasharo-ec)
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -172,6 +199,7 @@ $(coreboot_module)_configure := \
 		sed -i '/^CONFIG_MAINBOARD_SMBIOS_MANUFACTURER/d' $(build)/$(coreboot_dir)/.config; \
 		echo 'CONFIG_MAINBOARD_SMBIOS_MANUFACTURER="$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)"' >> $(build)/$(coreboot_dir)/.config; \
 	fi; \
+	sed -i 's|@COREBOOT_BUILD_DIR@|$(build)/$(coreboot_dir)|g' "$(build)/$(coreboot_dir)/.config"; \
 	$(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
@@ -290,7 +318,7 @@ coreboot.save_in_defconfig_format_in_place:
 		olddefconfig && \
 	$(MAKE) \
 		-C "$(build)/$(coreboot_base_dir)" \
- 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
 		savedefconfig && \
 	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
 
