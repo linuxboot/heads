@@ -130,8 +130,22 @@ detect_iso_boot_method() {
 	return 0
 }
 
+resolve_grub_vars() {
+	local params="$1"
+	local iso_path="$2"
+	local resolved=""
+
+	resolved="${params//\$\{iso_path\}/$iso_path}"
+	resolved="${resolved//\$\{isofile\}/$iso_path}"
+	resolved="${resolved//\$iso_path/$iso_path}"
+	resolved="${resolved//\$isofile/$iso_path}"
+
+	echo "$resolved"
+}
+
 inspect_iso_boot_config() {
 	local grub_cfg="$1"
+	local iso_path="$2"
 	local boot_params=""
 
 	[ -f "$grub_cfg" ] || return 1
@@ -164,6 +178,10 @@ inspect_iso_boot_config() {
 			;;
 		esac
 	done <"$grub_cfg"
+
+	if [ -n "$iso_path" ]; then
+		boot_params=$(resolve_grub_vars "$boot_params" "$iso_path")
+	fi
 
 	echo "$boot_params"
 	return 0
@@ -212,7 +230,7 @@ fi
 
 if [ -z "$BOOT_METHODS" ]; then
 	for cfg in $(find /boot -name '*.cfg' -type f 2>/dev/null); do
-		EXTRACTED_PARAMS=$(inspect_iso_boot_config "$cfg")
+		EXTRACTED_PARAMS=$(inspect_iso_boot_config "$cfg" "/${ISO_PATH}")
 		[ -n "$EXTRACTED_PARAMS" ] && break
 	done
 	DEBUG "Extracted boot params from GRUB: $EXTRACTED_PARAMS"
