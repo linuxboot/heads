@@ -11,13 +11,19 @@ printfiles="n"
 printinitrd="n"
 while getopts "b:e:r:a:o:fi" arg; do
 	case $arg in
-		b) bootdir="$OPTARG" ;;
-		e) entry="$OPTARG" ;;
-		r) cmdremove="$OPTARG" ;;
-		a) cmdadd="$OPTARG" ;;
-		o) override_initrd="$OPTARG" ;;
-		f) dryrun="y"; printfiles="y" ;;
-		i) dryrun="y"; printinitrd="y" ;;
+	b) bootdir="$OPTARG" ;;
+	e) entry="$OPTARG" ;;
+	r) cmdremove="$OPTARG" ;;
+	a) cmdadd="$OPTARG" ;;
+	o) override_initrd="$OPTARG" ;;
+	f)
+		dryrun="y"
+		printfiles="y"
+		;;
+	i)
+		dryrun="y"
+		printinitrd="y"
+		;;
 	esac
 done
 
@@ -27,9 +33,14 @@ fi
 
 bootdir="${bootdir%%/}"
 
-kexectype=`echo $entry | cut -d\| -f2`
-kexecparams=`echo $entry | cut -d\| -f3- | tr '|' '\n'`
+kexectype=$(echo $entry | cut -d\| -f2)
+kexecparams=$(echo $entry | cut -d\| -f3- | tr '|' '\n')
 kexeccmd="kexec"
+
+DEBUG "kexec-boot.sh: entry='$entry'"
+DEBUG "kexec-boot.sh: kexectype='$kexectype'"
+DEBUG "kexec-boot.sh: kexecparams='$kexecparams'"
+DEBUG "kexec-boot.sh: cmdadd='$cmdadd'"
 
 cmdadd="$CONFIG_BOOT_KERNEL_ADD $cmdadd"
 cmdremove="$CONFIG_BOOT_KERNEL_REMOVE $cmdremove"
@@ -53,6 +64,7 @@ fix_file_path() {
 
 adjusted_cmd_line="n"
 adjust_cmd_line() {
+	DEBUG "adjust_cmd_line: original cmdline='$cmdline'"
 	if [ -n "$cmdremove" ]; then
 		for i in $cmdremove; do
 			cmdline=$(echo $cmdline | sed "s/\b$i\b//g")
@@ -60,22 +72,23 @@ adjust_cmd_line() {
 	fi
 
 	if [ -n "$cmdadd" ]; then
+		DEBUG "adjust_cmd_line: cmdadd='$cmdadd'"
 		cmdline="$cmdline $cmdadd"
+		DEBUG "adjust_cmd_line: final cmdline='$cmdline'"
 	fi
 	adjusted_cmd_line="y"
 }
 
-if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#If expecting debug output, have kexec load (-l) output debug info
 	kexeccmd="$kexeccmd -d"
 fi
 
 module_number="1"
-while read line
-do
-	key=`echo $line | cut -d\  -f1`
-	firstval=`echo $line | cut -d\  -f2`
-	restval=`echo $line | cut -d\  -f3-`
+while read line; do
+	key=$(echo $line | cut -d\  -f1)
+	firstval=$(echo $line | cut -d\  -f2)
+	restval=$(echo $line | cut -d\  -f3-)
 	if [ "$key" = "kernel" ]; then
 		fix_file_path
 		if [ "$kexectype" = "xen" ]; then
@@ -112,7 +125,7 @@ do
 				fi
 			fi
 		fi
-		module_number=`expr $module_number + 1`
+		module_number=$(expr $module_number + 1)
 		kexeccmd="$kexeccmd --module \"$filepath $cmdline\""
 	fi
 	if [ "$key" = "initrd" ]; then
@@ -135,7 +148,7 @@ do
 		adjust_cmd_line
 		kexeccmd="$kexeccmd --append=\"$cmdline\""
 	fi
-done << EOF
+done <<EOF
 $kexecparams
 EOF
 
@@ -153,10 +166,10 @@ STATUS "Loading the new kernel"
 DEBUG "kexec command: $kexeccmd"
 # DO_WITH_DEBUG captures the debug output from stderr to the log, we don't need
 # it on the console as well
-DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null \
-|| DIE "Failed to load the new kernel"
+DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null ||
+	DIE "Failed to load the new kernel"
 
-if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#Ask user if they want to continue booting without echoing back the input (-s)
 	INPUT "[DEBUG] Continue booting? [Y/n]:" -s -n 1 debug_boot_confirm
 	if [ "${debug_boot_confirm^^}" = N ]; then
