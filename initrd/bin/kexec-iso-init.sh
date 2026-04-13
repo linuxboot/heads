@@ -111,7 +111,7 @@ detect_initrd_boot_support() {
 		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "live.media|live-media"; then
 			supported_boot="${supported_boot}live-media= "
 		fi
-		if find "$tmpdir" -type f 2>/dev/null | grep -qE "boot=live|rd.live.image|rd.live.squash"; then
+		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "boot=live|rd.live.image|rd.live.squash"; then
 			supported_boot="${supported_boot}boot=live "
 		fi
 		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "boot.casper|casper"; then
@@ -134,8 +134,8 @@ detect_initrd_boot_support() {
 	fi
 }
 
-extract_grub_boot_params() {
-	for cfg in $(find /boot -name 'grub.cfg' -type f 2>/dev/null); do
+extract_boot_params_from_cfg() {
+	for cfg in $(find /boot -name '*.cfg' -type f 2>/dev/null); do
 		[ -r "$cfg" ] || continue
 		local boot_params=""
 		while IFS= read -r line; do
@@ -143,9 +143,24 @@ extract_grub_boot_params() {
 			*boot=live* | *rd.live.image* | *rd.live.squashimg=*)
 				boot_params="${boot_params}boot=live "
 				;;
+			*iso-scan/filename=* | *findiso=*)
+				boot_params="${boot_params}iso-scan/findiso "
+				;;
+			*live-media=* | *live.media=*)
+				boot_params="${boot_params}live-media= "
+				;;
+			*boot=casper* | *casper*)
+				boot_params="${boot_params}boot=casper "
+				;;
+			*inst.stage2=* | *inst.repo=*)
+				boot_params="${boot_params}anaconda "
+				;;
+			*nixos*)
+				boot_params="${boot_params}nixos "
+				;;
 			esac
 		done <"$cfg"
-		[ -n "$boot_params" ] && echo "grub:$boot_params" && return 0
+		[ -n "$boot_params" ] && echo "cfg:$boot_params" && return 0
 	done
 	return 1
 }
@@ -153,11 +168,11 @@ extract_grub_boot_params() {
 STATUS "Detecting USB filesystem and boot method support..."
 SUPPORTED_FSES=""
 SUPPORTED_BOOT=""
-GRUB_BOOT=""
+CFG_BOOT=""
 DETECTED_METHODS=""
 
 SUPPORTED_FSES=$(detect_initrd_boot_support 2>/dev/null | grep "^fs:" | sed 's/^fs://')
-GRUB_BOOT=$(extract_grub_boot_params 2>/dev/null | grep "^grub:" | sed 's/^grub://')
+CFG_BOOT=$(extract_boot_params_from_cfg 2>/dev/null | grep "^cfg:" | sed 's/^cfg://')
 
 if [ -n "$SUPPORTED_FSES" ]; then
 	DEBUG "Initrd supports USB filesystems: $SUPPORTED_FSES"
@@ -178,9 +193,9 @@ if [ -n "$SUPPORTED_BOOT" ]; then
 	DETECTED_METHODS="$SUPPORTED_BOOT"
 	DEBUG "Initrd supports boot methods: $DETECTED_METHODS"
 else
-	if [ -n "$GRUB_BOOT" ]; then
-		DETECTED_METHODS="$GRUB_BOOT"
-		DEBUG "GRUB config indicates boot methods: $DETECTED_METHODS"
+	if [ -n "$CFG_BOOT" ]; then
+		DETECTED_METHODS="$CFG_BOOT"
+		DEBUG "Boot config (*.cfg) indicates boot methods: $DETECTED_METHODS"
 	fi
 fi
 
