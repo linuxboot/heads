@@ -62,14 +62,9 @@ fi
 
 check_hybrid_iso() {
 	local iso_path="$1"
-	local mbr_sig=$(dd if="$iso_path" bs=2 skip=255 count=2 2>/dev/null | xxd -p)
+	local mbr_sig=$(dd if="$iso_path" bs=1 skip=510 count=2 2>/dev/null | xxd -p)
 	if [ "$mbr_sig" = "55aa" ]; then
-		local efi_magic=$(dd if="$iso_path" bs=1 skip=135 count=8 2>/dev/null | xxd -p)
-		if [ -n "$efi_magic" ]; then
-			echo "hybrid"
-		else
-			echo "cdrom"
-		fi
+		echo "hybrid"
 	else
 		echo "cdrom"
 	fi
