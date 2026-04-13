@@ -5,14 +5,14 @@
 # - https://wiki.archlinux.org/title/ISO_Spring_(%27Loop%27_device)
 # - https://a1ive.github.io/grub2_loopback.html
 #
-# Boot Methods (detected via initrd strings analysis):
-# - Dracut-based (USB file boot): iso-scan/filename=, findiso=, live-media=, boot=casper
-#   Works: Ubuntu, Debian Live, Tails, NixOS, Fedora Workstation Live, PureOS, Kicksecure
-# - Anaconda-based: inst.stage2=hd:LABEL=, inst.repo=hd:LABEL=
-#   Requires block device (CD-ROM or dd'd USB) - typically CANNOT boot from ISO file
-#   Examples: Fedora Silverblue, Fedora Server, Qubes OS
+# Boot Methods: Pass iso-scan/filename=, fromiso=, img_loop=, etc. via kexec.
+# The ISO initrd picks what it needs. Hybrid ISOs (MBR sig 0x55AA) can boot from USB file.
 #
-# For Anaconda ISOs: dd if=image.iso of=/dev/sdX or use distribution media tool.
+# Known compatible: Ubuntu, Debian Live, Tails, NixOS, Fedora Workstation Live,
+#   PureOS, Kicksecure (Dracut-based, boot=live, iso-scan)
+# Known incompatible: Fedora Silverblue, Fedora Server, Qubes OS (Anaconda-based,
+#   inst.stage2= requires block device or dd). Use dd or distribution media tool.
+#
 # See: https://github.com/linuxboot/heads/issues/2008
 set -e -o pipefail
 . /etc/functions.sh
@@ -78,79 +78,9 @@ STATUS "Checking ISO boot capability..."
 ISO_BOOT_TYPE=$(check_hybrid_iso "$MOUNTED_ISO_PATH")
 DEBUG "ISO boot type: $ISO_BOOT_TYPE"
 
-if [ "$ISO_BOOT_TYPE" != "hybrid" ]; then
-	DEBUG "Non-hybrid ISO detected (CD-ROM only)"
-fi
-
 STATUS "Mounting ISO and booting"
 mount -t iso9660 -o loop $MOUNTED_ISO_PATH /boot ||
 	DIE '$MOUNTED_ISO_PATH: Unable to mount /boot'
-
-detect_iso_boot_method() {
-	local method=""
-	local found=0
-
-	for path in $(find /boot -name 'initrd*' -type f 2>/dev/null | head -5); do
-		[ -r "$path" ] || continue
-		tmpdir=$(mktemp -d)
-		/bin/bash /bin/unpack_initramfs.sh "$path" "$tmpdir" 2>/dev/null
-
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "iso.scan|findiso"; then
-			method="${method}iso-scan/findiso "
-			found=1
-		fi
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "live.media|live-media"; then
-			method="${method}live-media= "
-			found=1
-		fi
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "inst.stage2|inst\.stage2"; then
-			method="${method}inst.stage2= "
-			found=1
-		fi
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "inst.repo"; then
-			method="${method}inst.repo= "
-			found=1
-		fi
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "boot.casper|live-boot|casper"; then
-			method="${method}boot=casper "
-			found=1
-		fi
-		if find "$tmpdir" -type f 2>/dev/null | xargs strings 2>/dev/null | grep -qE "nixos"; then
-			method="${method}nixos "
-			found=1
-		fi
-		rm -rf "$tmpdir"
-	done
-
-	if [ $found -eq 0 ]; then
-		return 1
-	fi
-	echo "$method"
-	return 0
-}
-
-STATUS "Detecting ISO boot method..."
-BOOT_METHODS=$(detect_iso_boot_method) || BOOT_METHODS=""
-
-if [ -n "$BOOT_METHODS" ]; then
-	DEBUG "Detected boot methods: $BOOT_METHODS"
-else
-	WARN "ISO may not boot from USB file: no boot support detected in initrd"
-	if [ -x /bin/whiptail ]; then
-		if ! whiptail_warning --title 'ISO BOOT COMPATIBILITY WARNING' --yesno \
-			"ISO boot from USB file may not work.\n\nThis ISO does not have iso-scan/findiso/live-media in its initrd - it was designed for CD/DVD or dd-to-USB.\n\nKernel parameters passed externally may not be sufficient.\n\nTry:\n- Use distribution-specific ISO (e.g., Debian hd-media)\n- Write ISO directly to USB with dd\n- Use a live USB image\n\nDo you want to proceed anyway?" \
-			0 80; then
-			DIE "ISO boot cancelled - unsupported ISO on USB file"
-		fi
-	else
-		INPUT "Proceed with boot anyway? [y/N]:" -n 1 response
-		[ "$response" != "y" ] && [ "$response" != "Y" ] && DIE "ISO boot cancelled - unsupported ISO on USB file"
-	fi
-fi
-
-if echo "$BOOT_METHODS" | grep -qE "anaconda|inst.repo|inst.stage2"; then
-	DEBUG "Anaconda-based ISO detected (inst.stage2=)"
-fi
 
 DEV_UUID=$(blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
 ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH img_dev=/dev/disk/by-uuid/$DEV_UUID iso-scan/filename=/${ISO_PATH} img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
