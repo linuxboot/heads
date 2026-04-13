@@ -38,6 +38,15 @@ fix_path() {
 	fi
 }
 
+strip_unresolved_iso_vars() {
+	if echo "$append" | grep -q '\${iso_path}' 2>/dev/null; then
+		append=$(echo "$append" | sed 's/iso-scan\/filename=\${iso_path}//g')
+		append=$(echo "$append" | sed 's/findiso=\${iso_path}//g')
+		DEBUG "strip_unresolved_iso_vars: removed \${iso_path} variants"
+		DEBUG "strip_unresolved_iso_vars: append now = $append"
+	fi
+}
+
 # GRUB kernel lines (linux/multiboot) can include a command line.  Check whether
 # the file path exists in $bootdir.
 check_path() {
@@ -139,6 +148,7 @@ grub_entry() {
 			DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
 			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
 			append=`echo $trimcmd | cut -d\  -f3-`
+			strip_unresolved_iso_vars
 			;;
 		initrd*)
 			# Trim off device specification as above

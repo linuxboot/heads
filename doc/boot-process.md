@@ -118,7 +118,49 @@ menu, system info, power off.
 
 ---
 
-## Stage 3: kexec-select-boot
+## Stage 2b: USB ISO Boot (`kexec-iso-init.sh`)
+
+When booting from an ISO file on USB media, `kexec-iso-init.sh` handles:
+
+1. **Signature verification**: Check for `.sig` or `.asc` detached signature
+2. **Mount ISO**: Mount the ISO file as loopback device
+3. **Detect USB filesystem**: Get filesystem type from USB stick (ext4/vfat/exfat)
+4. **Validate initrd support**: Check ISO initrd supports:
+   - USB storage drivers
+   - Loopback device
+   - Filesystem of USB stick
+   - Boot quirk script to find ISO on USB (findiso/live-media/boot=casper)
+5. **Warning dialog**: If ISO may not boot, show warning and allow cancel
+
+### Known Compatible ISOs (tested 2026-04)
+
+| Distribution | Boot Param | USB FS | Status |
+|--------------|------------|--------|--------|
+| Ubuntu Desktop | iso-scan/filename | ext4/vfat/exfat | works |
+| Debian Live kde/xfce | findiso | ext4/vfat/exfat | works |
+| Tails standard | live-media=removable | ext4/vfat | works |
+| Tails exfat-support ISO | live-media=removable | exfat | works |
+| Fedora Workstation | boot=casper / rd.live.image | ext4/vfat | works |
+| Fedora Silverblue | inst.stage2= / inst.repo= | ext4/vfat | works |
+| Qubes OS R4.3+ | inst.repo=hd:LABEL= | ext4/vfat | works |
+| NixOS | findiso | ext4/vfat/exfat | works |
+| PureOS | boot=casper | ext4/vfat/exfat | works |
+
+### Known Incompatible ISOs
+
+| Distribution | Reason | Workaround |
+|--------------|--------|------------|
+| Debian DVD | CD-only design, no USB boot | `dd` or use Debian netinst |
+
+**Fedora Silverblue / Qubes OS**: These use Anaconda installer with `inst.stage2=` or `inst.repo=` parameters. The initrd includes Dracut's iso-scan module which can find ISO files on USB when the correct LABEL/UUID is provided. Works with ISO file boot when USB has matching label.
+
+### References
+
+- [GRUB2 loopback ISO boot](https://a1ive.github.io/grub2_loopback.html)
+- [Arch Linux ISO Boot](https://wiki.archlinux.org/title/ISO_Spring_(%27Loop%27_device))
+- [Debian USB creation](https://wiki.debian.org/DebianInstaller/CreateUSBMedia)
+
+---
 
 Called from the boot menu. Responsible for final verification and OS handoff.
 
