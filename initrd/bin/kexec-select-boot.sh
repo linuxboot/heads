@@ -194,7 +194,8 @@ confirm_menu_option() {
 		STATUS "Confirm boot details for $name:"
 		INFO "$option"
 
-		INPUT "Confirm selection by pressing 'y', make default with 'd':" -n 1 option_confirm
+		INPUT "Confirm selection by pressing 'Y' or 'd' to make default [Y,d]:" -n 1 option_confirm
+		[ -z "$option_confirm" ] && option_confirm="y"
 	fi
 }
 
@@ -219,11 +220,11 @@ scan_options() {
 
 save_default_option() {
 	if [ "$gui_menu" != "y" ]; then
-		INPUT "Saving a default will modify the disk. Proceed? (Y/n):" -n 1 default_confirm
+		INPUT "Saving a default will modify the disk. Proceed? [Y/n]:" -n 1 default_confirm
+		[ -z "$default_confirm" ] && default_confirm="y"
 	fi
 
-	[ "$default_confirm" = "" ] && default_confirm="y"
-	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
+	if [[ "$default_confirm" = [yY] ]]; then
 		if kexec-save-default.sh \
 			-b "$bootdir" \
 			-d "$paramsdev" \
@@ -287,7 +288,7 @@ user_select() {
 	# No default expected boot parameters, ask user
 
 	option_confirm=""
-	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]; do
+	while [[ "$option_confirm" != [yY] && "$option_confirm" != "d" ]]; do
 		get_menu_option
 		# In force boot mode, no need offer the option to set a default, just boot
 		if [[ "$force_boot" = "y" || "$skip_confirm" = "y" ]]; then
