@@ -6,13 +6,13 @@
 # - https://a1ive.github.io/grub2_loopback.html
 #
 # Boot Methods (detected via initrd strings analysis):
-# - Dracut-based: iso-scan/filename=, findiso=, live-media=, boot=casper
-#   Works: Ubuntu, Debian Live, Tails, NixOS, Fedora Workstation Live, PureOS
+# - Dracut-based (USB file boot): iso-scan/filename=, findiso=, live-media=, boot=casper
+#   Works: Ubuntu, Debian Live, Tails, NixOS, Fedora Workstation Live, PureOS, Kicksecure
 # - Anaconda-based: inst.stage2=hd:LABEL=, inst.repo=hd:LABEL=
-#   Requires block device (CD-ROM or dd'd USB) - CANNOT boot from ISO file
-#   Examples: Fedora Silverblue, Fedora Server, Qubes OS, Kicksecure
+#   Requires block device (CD-ROM or dd'd USB) - typically CANNOT boot from ISO file
+#   Examples: Fedora Silverblue, Fedora Server, Qubes OS
 #
-# Anaconda ISOs require: dd if=image.iso of=/dev/sdX or distribution media tool.
+# For Anaconda ISOs: dd if=image.iso of=/dev/sdX or use distribution media tool.
 # See: https://github.com/linuxboot/heads/issues/2008
 set -e -o pipefail
 . /etc/functions.sh
@@ -129,97 +129,22 @@ detect_iso_boot_method() {
 	return 0
 }
 
-resolve_grub_vars() {
-	local params="$1"
-	local iso_path="$2"
-	local resolved=""
-
-	resolved="${params//\$\{iso_path\}/$iso_path}"
-	resolved="${resolved//\$\{isofile\}/$iso_path}"
-	resolved="${resolved//\$iso_path/$iso_path}"
-	resolved="${resolved//\$isofile/$iso_path}"
-
-	echo "$resolved"
-}
-
-inspect_iso_boot_config() {
-	local grub_cfg="$1"
-	local iso_path="$2"
-	local boot_params=""
-
-	[ -f "$grub_cfg" ] || return 1
-
-	while IFS= read -r line; do
-		case "$line" in
-		*inst.stage2=*)
-			params="${line##*inst.stage2=}"
-			params="${params%% *}"
-			[ -n "$params" ] && boot_params="${boot_params} inst.stage2=${params}"
-			;;
-		*inst.repo=*)
-			params="${line##*inst.repo=}"
-			params="${params%% *}"
-			[ -n "$params" ] && boot_params="${boot_params} inst.repo=${params}"
-			;;
-		*live-media=*)
-			params="${line##*live-media=}"
-			params="${params%% *}"
-			[ -n "$params" ] && boot_params="${boot_params} live-media=${params}"
-			;;
-		*iso-scan/filename=* | *findiso=*)
-			params="${line##*iso-scan/filename=}"
-			[ "$params" = "$line" ] && params="${line##*findiso=}"
-			params="${params%% *}"
-			[ -n "$params" ] && boot_params="${boot_params} iso-scan/filename=${params}"
-			;;
-		*boot=casper*)
-			boot_params="${boot_params} boot=casper"
-			;;
-		esac
-	done <"$grub_cfg"
-
-	if [ -n "$iso_path" ]; then
-		boot_params=$(resolve_grub_vars "$boot_params" "$iso_path")
-	fi
-
-	echo "$boot_params"
-	return 0
-}
-
 STATUS "Detecting ISO boot method..."
 BOOT_METHODS=$(detect_iso_boot_method) || BOOT_METHODS=""
-EXTRACTED_PARAMS=""
 
 if [ -n "$BOOT_METHODS" ]; then
 	DEBUG "Detected boot methods: $BOOT_METHODS"
 else
-	DEBUG "No built-in ISO boot support in initrd; checking GRUB config..."
-
-	for cfg in $(find /boot -name '*.cfg' -type f 2>/dev/null); do
-		[ -r "$cfg" ] || continue
-		if grep -qE "iso.scan|findiso|live.media=|boot=casper" "$cfg" 2>/dev/null; then
-			BOOT_METHODS="${BOOT_METHODS}grub "
-			break
+	WARN "ISO may not boot from USB file: no boot support detected in initrd"
+	if [ -x /bin/whiptail ]; then
+		if ! whiptail_warning --title 'ISO BOOT COMPATIBILITY WARNING' --yesno \
+			"ISO boot from USB file may not work.\n\nThis ISO does not have iso-scan/findiso/live-media in its initrd - it was designed for CD/DVD or dd-to-USB.\n\nKernel parameters passed externally may not be sufficient.\n\nTry:\n- Use distribution-specific ISO (e.g., Debian hd-media)\n- Write ISO directly to USB with dd\n- Use a live USB image\n\nDo you want to proceed anyway?" \
+			0 80; then
+			DIE "ISO boot cancelled - unsupported ISO on USB file"
 		fi
-		if grep -qE "inst.repo=|inst.stage2=" "$cfg" 2>/dev/null; then
-			BOOT_METHODS="${BOOT_METHODS}anaconda "
-		fi
-	done
-
-	if [ -n "$BOOT_METHODS" ]; then
-		DEBUG "Found boot support: $BOOT_METHODS"
 	else
-		WARN "ISO may not boot from USB file: no boot support in initrd"
-		if [ -x /bin/whiptail ]; then
-			if ! whiptail_warning --title 'ISO BOOT COMPATIBILITY WARNING' --yesno \
-				"ISO boot from USB file may not work.\n\nThis ISO does not have iso-scan/findiso/live-media in its initrd - it was designed for CD/DVD or dd-to-USB.\n\nKernel parameters passed externally may not be sufficient.\n\nTry:\n- Use distribution-specific ISO (e.g., Debian hd-media)\n- Write ISO directly to USB with dd\n- Use a live USB image\n\nDo you want to proceed anyway?" \
-				0 80; then
-				DIE "ISO boot cancelled - unsupported ISO on USB file"
-			fi
-		else
-			INPUT "Proceed with boot anyway? [y/N]:" -n 1 response
-			[ "$response" != "y" ] && [ "$response" != "Y" ] && DIE "ISO boot cancelled - unsupported ISO on USB file"
-		fi
+		INPUT "Proceed with boot anyway? [y/N]:" -n 1 response
+		[ "$response" != "y" ] && [ "$response" != "Y" ] && DIE "ISO boot cancelled - unsupported ISO on USB file"
 	fi
 fi
 
@@ -227,15 +152,6 @@ if echo "$BOOT_METHODS" | grep -qE "anaconda|inst.repo|inst.stage2"; then
 	DEBUG "Anaconda-based ISO detected (inst.stage2=)"
 fi
 
-if [ -z "$BOOT_METHODS" ]; then
-	for cfg in $(find /boot -name '*.cfg' -type f 2>/dev/null); do
-		EXTRACTED_PARAMS=$(inspect_iso_boot_config "$cfg" "/${ISO_PATH}")
-		[ -n "$EXTRACTED_PARAMS" ] && break
-	done
-	DEBUG "Extracted boot params from GRUB: $EXTRACTED_PARAMS"
-fi
-
-# Detect USB stick filesystem and validate initrd supports it
 DEV_UUID=$(blkid $DEV | tail -1 | tr " " "\n" | grep UUID | cut -d\" -f2)
 ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH img_dev=/dev/disk/by-uuid/$DEV_UUID iso-scan/filename=/${ISO_PATH} img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
 REMOVE=""
