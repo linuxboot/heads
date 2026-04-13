@@ -139,6 +139,20 @@ grub_entry() {
 			DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
 			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
 			append=`echo $trimcmd | cut -d\  -f3-`
+
+			# Strip unresolved GRUB variables that would expand to empty and break kexec.
+			# These create malformed params like "iso-scan/filename=" with orphaned paths.
+			append=$(echo "$append" | sed \
+				-e 's|iso-scan/filename=${[^}]*}| |g' \
+				-e 's|iso-scan/filename=$[a-zA-Z_][a-zA-Z0-9_]*| |g' \
+				-e 's|iso-scan/filename=| |g' \
+				-e 's|findiso=${[^}]*}| |g' \
+				-e 's|findiso=$[a-zA-Z_][a-zA-Z0-9_]*| |g' \
+				-e 's|findiso=| |g' \
+				-e 's|  *| |g' \
+				-e 's|^ ||' \
+				-e 's| $||')
+
 			;;
 		initrd*)
 			# Trim off device specification as above
