@@ -20,7 +20,7 @@ reset_entry() {
 	append=""
 }
 
-filedir=`dirname $file`
+filedir=$(dirname $file)
 DEBUG "filedir= $filedir"
 bootdir="${bootdir%%/}"
 DEBUG "bootdir= $bootdir"
@@ -40,8 +40,12 @@ fix_path() {
 
 strip_unresolved_iso_vars() {
 	if echo "$append" | grep -q '\${iso_path}' 2>/dev/null; then
-		append=$(echo "$append" | sed 's/iso-scan\/filename=\${iso_path}//g')
-		append=$(echo "$append" | sed 's/findiso=\${iso_path}//g')
+		append=$(echo "$append" | sed 's/iso-scan\/filename=\${iso_path} *//g')
+		append=$(echo "$append" | sed 's/findiso=\${iso_path} *//g')
+		append=$(echo "$append" | sed 's/iso-scan\/filename= *//g')
+		append=$(echo "$append" | sed 's/findiso= *//g')
+		append=$(echo "$append" | sed 's/  */ /g')
+		append=$(echo "$append" | sed 's/^ *//;s/ *$//')
 		DEBUG "strip_unresolved_iso_vars: removed \${iso_path} variants"
 		DEBUG "strip_unresolved_iso_vars: append now = $append"
 	fi
@@ -55,7 +59,7 @@ check_path() {
 	firstval="$(echo "$checkpath" | cut -d\  -f1)"
 	if ! [ -r "$bootdir$firstval" ]; then
 		DEBUG "$bootdir$firstval doesn't exist"
-		return 1; 
+		return 1
 	fi
 	return 0
 }
@@ -71,25 +75,25 @@ echo_entry() {
 	entry="$name|$kexectype|kernel $path"
 
 	case "$kexectype" in
-		elf)
-			if [ -n "$initrd" ]; then
-				for init in $(echo $initrd | tr ',' ' '); do
-					fix_path $init
-					# The initrd must also exist
-					if ! check_path "$path"; then return; fi
-					entry="$entry|initrd $path"
-				done
-			fi
-			if [ -n "$append" ]; then
-				entry="$entry|append $append"
-			fi
-			;;
-		multiboot|xen)
-			entry="$entry$modules"
-			;;
-		*)
-			return
-			;;
+	elf)
+		if [ -n "$initrd" ]; then
+			for init in $(echo $initrd | tr ',' ' '); do
+				fix_path $init
+				# The initrd must also exist
+				if ! check_path "$path"; then return; fi
+				entry="$entry|initrd $path"
+			done
+		fi
+		if [ -n "$append" ]; then
+			entry="$entry|append $append"
+		fi
+		;;
+	multiboot | xen)
+		entry="$entry$modules"
+		;;
+	*)
+		return
+		;;
 	esac
 
 	# Double-expand here in case there are variables in the kernel
@@ -100,16 +104,17 @@ echo_entry() {
 
 search_entry() {
 	case $line in
-		menuentry* | MENUENTRY* )
-			state="grub"
-			reset_entry
-			name=`echo $line | tr "'" "\"" | cut -d\" -f 2`
-			;;
+	menuentry* | MENUENTRY*)
+		state="grub"
+		reset_entry
+		name=$(echo $line | tr "'" "\"" | cut -d\" -f 2)
+		;;
 
-		label* | LABEL* )
-			state="syslinux"
-			reset_entry
-			name=`echo $line | cut -c6- `
+	label* | LABEL*)
+		state="syslinux"
+		reset_entry
+		name=$(echo $line | cut -c6-)
+		;;
 	esac
 }
 
@@ -121,40 +126,40 @@ grub_entry() {
 	fi
 
 	# add info to menuentry
-	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
-	cmd=`echo $trimcmd | cut -d\  -f1`
-	val=`echo $trimcmd | cut -d\  -f2-`
+	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo $trimcmd | cut -d\  -f1)
+	val=$(echo $trimcmd | cut -d\  -f2-)
 	case $cmd in
-		multiboot*)
-			# TODO: differentiate between Xen and other multiboot kernels
-			kexectype="xen"
-			kernel="$val"
-			DEBUG " grub_entry multiboot kernel= $kernel"
-			;;
-		module*)
-			case $val in
-				--nounzip*) val=`echo $val | cut -d\  -f2-` ;;
-			esac
-			fix_path $val
-			modules="$modules|module $path"
-			DEBUG " grub_entry linux modules= $modules"
-			;;
-		linux*)
-			# Some configs have a device specification in the kernel
-			# or initrd path.  Assume this would be /boot and remove
-			# it.  Keep the '/' following the device, since this
-			# path is relative to the device root, not the config
-			# location.
-			DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
-			kernel=`echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2`
-			append=`echo $trimcmd | cut -d\  -f3-`
-			strip_unresolved_iso_vars
-			;;
-		initrd*)
-			# Trim off device specification as above
-			initrd="$(echo "$val" | sed "s/([^)]*)//g")"
-			DEBUG " grub_entry: linux initrd= $initrd"
-			;;
+	multiboot*)
+		# TODO: differentiate between Xen and other multiboot kernels
+		kexectype="xen"
+		kernel="$val"
+		DEBUG " grub_entry multiboot kernel= $kernel"
+		;;
+	module*)
+		case $val in
+		--nounzip*) val=$(echo $val | cut -d\  -f2-) ;;
+		esac
+		fix_path $val
+		modules="$modules|module $path"
+		DEBUG " grub_entry linux modules= $modules"
+		;;
+	linux*)
+		# Some configs have a device specification in the kernel
+		# or initrd path.  Assume this would be /boot and remove
+		# it.  Keep the '/' following the device, since this
+		# path is relative to the device root, not the config
+		# location.
+		DEBUG " grub_entry : linux trimcmd prior of kernel/append parsing: $trimcmd"
+		kernel=$(echo $trimcmd | sed "s/([^)]*)//g" | cut -d\  -f2)
+		append=$(echo $trimcmd | cut -d\  -f3-)
+		strip_unresolved_iso_vars
+		;;
+	initrd*)
+		# Trim off device specification as above
+		initrd="$(echo "$val" | sed "s/([^)]*)//g")"
+		DEBUG " grub_entry: linux initrd= $initrd"
+		;;
 	esac
 }
 
@@ -166,10 +171,10 @@ syslinux_end() {
 		newappend=""
 		for param in $append; do
 			case $param in
-				initrd=*)
-					initrd=`echo $param | cut -d\= -f2`
-					;;
-				*) newappend="$newappend $param" ;;
+			initrd=*)
+				initrd=$(echo $param | cut -d\= -f2)
+				;;
+			*) newappend="$newappend $param" ;;
 			esac
 		done
 		append="${newappend##' '}"
@@ -181,87 +186,86 @@ syslinux_end() {
 }
 
 syslinux_multiboot_append() {
-	splitval=`echo "${val// --- /|}" | tr '|' '\n'`
-	while read line
-	do
+	splitval=$(echo "${val// --- /|}" | tr '|' '\n')
+	while read line; do
 		if [ -z "$kernel" ]; then
 			kernel="$line"
 		else
 			fix_path $line
 			modules="$modules|module $path"
 		fi
-	done << EOF
+	done <<EOF
 $splitval
 EOF
 }
 
 syslinux_entry() {
 	case $line in
-		"")
-			syslinux_end
-			return
-			;;
-		label* | LABEL* )
-			syslinux_end
-			search_entry
-			return
-			;;
+	"")
+		syslinux_end
+		return
+		;;
+	label* | LABEL*)
+		syslinux_end
+		search_entry
+		return
+		;;
 	esac
 
 	# add info to menuentry
-	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
-	cmd=`echo $trimcmd | cut -d\  -f1`
-	val=`echo $trimcmd | cut -d\  -f2-`
+	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo $trimcmd | cut -d\  -f1)
+	val=$(echo $trimcmd | cut -d\  -f2-)
 	case $trimcmd in
-		menu* | MENU* )
-			cmd2=`echo $trimcmd | cut -d \  -f2`
-			if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
-				name=`echo $trimcmd | cut -c11- | tr -d '^'`
-			fi
+	menu* | MENU*)
+		cmd2=$(echo $trimcmd | cut -d \  -f2)
+		if [ "$cmd2" = "label" -o "$cmd2" = "LABEL" ]; then
+			name=$(echo $trimcmd | cut -c11- | tr -d '^')
+		fi
+		;;
+	linux* | LINUX* | kernel* | KERNEL*)
+		case $val in
+		# TODO: differentiate between Xen and other multiboot kernels
+		*mboot.c32) kexectype="xen" ;;
+		*.c32)
+			# skip this entry
+			state="search"
 			;;
-		linux* | LINUX* | kernel* | KERNEL* )
-			case $val in
-				# TODO: differentiate between Xen and other multiboot kernels
-				*mboot.c32) kexectype="xen" ;;
-				*.c32)
-					# skip this entry
-					state="search"
-					;;
-				*)
-					kernel="$val"
-					DEBUG "kernel= $kernel"
-			esac
+		*)
+			kernel="$val"
+			DEBUG "kernel= $kernel"
 			;;
-		initrd* | INITRD* )
-			initrd="$val"
-			DEBUG "initrd= $initrd"
-			;;
-		append* | APPEND* )
-			if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
-				syslinux_multiboot_append
-			else
-				append="$val"
-				DEBUG "append= $append"
-			fi
-			;;
+		esac
+		;;
+	initrd* | INITRD*)
+		initrd="$val"
+		DEBUG "initrd= $initrd"
+		;;
+	append* | APPEND*)
+		if [ "$kexectype" = "multiboot" -o "$kexectype" = "xen" ]; then
+			syslinux_multiboot_append
+		else
+			append="$val"
+			DEBUG "append= $append"
+		fi
+		;;
 	esac
 }
 
 state="search"
-while read line
-do
+while read line; do
 	case $state in
-		search)
-			search_entry
-			;;
-		grub)
-			grub_entry
-			;;
-		syslinux)
-			syslinux_entry
-			;;
+	search)
+		search_entry
+		;;
+	grub)
+		grub_entry
+		;;
+	syslinux)
+		syslinux_entry
+		;;
 	esac
-done < "$file"
+done <"$file"
 
 # handle EOF case
 if [ "$state" = "syslinux" ]; then

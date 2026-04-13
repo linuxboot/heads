@@ -181,21 +181,28 @@ get_menu_option() {
 }
 
 confirm_menu_option() {
+	DEBUG "confirm_menu_option: gui_menu=$gui_menu name=$name"
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+		DEBUG "confirm_menu_option: showing whiptail with kernel summary"
 		whiptail_warning --title "Confirm boot details" \
 			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
-			2>/tmp/whiptail || DIE "Aborting boot attempt"
+			2>/tmp/whiptail
+		if [ $? -ne 0 ]; then
+			DEBUG "confirm_menu_option: whiptail returned non-zero"
+			DIE "Aborting boot attempt"
+		fi
 
 		option_confirm=$(cat /tmp/whiptail)
+		DEBUG "confirm_menu_option: user selected=$option_confirm"
 	else
 		STATUS "Confirm boot details for $name:"
 		INFO "$option"
 
-		INPUT "Confirm selection by pressing 'Y' or 'd' to make default [Y,d]:" -n 1 option_confirm
-		[ -z "$option_confirm" ] && option_confirm="y"
+		INPUT "Confirm selection by pressing 'y', make default with 'd':" -n 1 option_confirm
+		DEBUG "confirm_menu_option: user entered=$option_confirm"
 	fi
 }
 
@@ -220,11 +227,11 @@ scan_options() {
 
 save_default_option() {
 	if [ "$gui_menu" != "y" ]; then
-		INPUT "Saving a default will modify the disk. Proceed? [Y/n]:" -n 1 default_confirm
-		[ -z "$default_confirm" ] && default_confirm="y"
+		INPUT "Saving a default will modify the disk. Proceed? (Y/n):" -n 1 default_confirm
 	fi
 
-	if [[ "$default_confirm" = [yY] ]]; then
+	[ "$default_confirm" = "" ] && default_confirm="y"
+	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
 		if kexec-save-default.sh \
 			-b "$bootdir" \
 			-d "$paramsdev" \
@@ -286,14 +293,18 @@ default_select() {
 
 user_select() {
 	# No default expected boot parameters, ask user
+	DEBUG "user_select: force_boot=$force_boot skip_confirm=$skip_confirm"
 
 	option_confirm=""
-	while [[ "$option_confirm" != [yY] && "$option_confirm" != "d" ]]; do
+	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]; do
 		get_menu_option
+		DEBUG "user_select: selected option_index=$option_index"
 		# In force boot mode, no need offer the option to set a default, just boot
 		if [[ "$force_boot" = "y" || "$skip_confirm" = "y" ]]; then
+			DEBUG "user_select: skip confirm, calling do_boot"
 			do_boot
 		else
+			DEBUG "user_select: calling confirm_menu_option"
 			confirm_menu_option
 		fi
 
