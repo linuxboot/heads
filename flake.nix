@@ -161,6 +161,12 @@
 
           # Git configuration for safe directory access.
           echo -e '[safe]\n\tdirectory = *\n' > /root/.gitconfig
+
+          # Prefer IPv4 over IPv6 for wget/curl downloads
+          echo "precedence ::ffff:0:0/96  100" > /etc/gai.conf
+
+          # Set shorter timeout for wget
+          echo "timeout = 10" >> /etc/wgetrc
         '';
       };
     });
