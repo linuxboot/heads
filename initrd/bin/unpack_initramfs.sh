@@ -69,21 +69,18 @@ unpack_first_segment() {
 		# lib/decompress.c (gzip)
 		case "$magic" in
 		00*)
-			DEBUG "archive segment $magic: uncompressed cpio"
 			# Skip zero bytes and copy the first nonzero byte
 			consume_zeros
 			# Copy the remaining data
 			cat
 			;;
 		303730373031* | 303730373032*) # plain cpio
-			DEBUG "archive segment $magic: plain cpio"
 			# Unpack the plain cpio, this stops reading after the trailer
 			unpack_cpio
 			# Copy the remaining data
 			cat
 			;;
 		1f8b* | 1f9e*) # gzip
-			DEBUG "archive segment $magic: gzip"
 			# gunzip won't stop when reaching the end of the gzipped member,
 			# so we can't read another segment after this.  We can't
 			# reasonably determine the member length either, this requires
@@ -91,11 +88,9 @@ unpack_first_segment() {
 			gunzip | unpack_cpio
 			;;
 		fd37*) # xz
-			DEBUG "archive segment $magic: xz"
 			unxz | unpack_cpio
 			;;
 		28b5*) # zstd
-			DEBUG "archive segment $magic: zstd"
 			# Like gunzip, this will not stop when reaching the end of the
 			# frame, and determining the frame length requires walking all
 			# of its blocks.
@@ -106,7 +101,7 @@ unpack_first_segment() {
 			# The following are magic values for other compression formats
 			#  but not added because not tested.
 			# TODO: open an issue for unsupported magic number reported on DIE.
-			# 
+			#
 			#425a*) # bzip2
 			#	DEBUG "archive segment $magic: bzip2"
 			#	bunzip2 | unpack_cpio
@@ -127,12 +122,9 @@ unpack_first_segment() {
 		esac
 	) <"$unpack_archive" >"$rest_archive"
 
-	orig_size="$(stat -c %s "$unpack_archive")"
-	rest_size="$(stat -c %s "$rest_archive")"
-	DEBUG "archive segment $magic: $((orig_size - rest_size)) bytes"
 }
 
-DEBUG "Unpacking $INITRAMFS_ARCHIVE to $DEST_DIR"
+TRACE "Unpacking $INITRAMFS_ARCHIVE to $DEST_DIR"
 
 next_archive="$INITRAMFS_ARCHIVE"
 rest_archive="/tmp/unpack_initramfs_rest"

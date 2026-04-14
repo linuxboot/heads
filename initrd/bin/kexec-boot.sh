@@ -162,11 +162,13 @@ fi
 
 if [ "$dryrun" = "y" ]; then exit 0; fi
 
+DEBUG "kexec-boot.sh: cmdadd='$cmdadd'"
+DEBUG "kexec-boot.sh: cmdremove='$cmdremove'"
 STATUS "Loading the new kernel"
 DEBUG "kexec command: $kexeccmd"
-# DO_WITH_DEBUG captures the debug output from stderr to the log, we don't need
-# it on the console as well
-DO_WITH_DEBUG eval "$kexeccmd" 2>/dev/null ||
+DEBUG "kexec-boot: executing kexec with adjusted_cmd_line=$adjusted_cmd_line kexectype=$kexectype"
+echo "Loading kernel with: $kexeccmd" >/dev/console
+DO_WITH_DEBUG eval "$kexeccmd" ||
 	DIE "Failed to load the new kernel"
 
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then

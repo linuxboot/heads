@@ -184,8 +184,9 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+		kernel_path=$(echo "$kernel" | sed 's/^kernel \([^|]*\).*/\1/')
 		whiptail_warning --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
+			--menu "Confirm the boot details for $name:\n\n$(echo "$kernel_path" | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || DIE "Aborting boot attempt"
 
@@ -194,8 +195,7 @@ confirm_menu_option() {
 		STATUS "Confirm boot details for $name:"
 		INFO "$option"
 
-		INPUT "Confirm selection by pressing 'Y' or 'd' to make default [Y,d]:" -n 1 option_confirm
-		[ -z "$option_confirm" ] && option_confirm="y"
+		INPUT "Confirm selection by pressing 'y', make default with 'd':" -n 1 option_confirm
 	fi
 }
 
@@ -220,11 +220,11 @@ scan_options() {
 
 save_default_option() {
 	if [ "$gui_menu" != "y" ]; then
-		INPUT "Saving a default will modify the disk. Proceed? [Y/n]:" -n 1 default_confirm
-		[ -z "$default_confirm" ] && default_confirm="y"
+		INPUT "Saving a default will modify the disk. Proceed? (Y/n):" -n 1 default_confirm
 	fi
 
-	if [[ "$default_confirm" = [yY] ]]; then
+	[ "$default_confirm" = "" ] && default_confirm="y"
+	if [[ "$default_confirm" = "y" || "$default_confirm" = "Y" ]]; then
 		if kexec-save-default.sh \
 			-b "$bootdir" \
 			-d "$paramsdev" \
@@ -288,7 +288,7 @@ user_select() {
 	# No default expected boot parameters, ask user
 
 	option_confirm=""
-	while [[ "$option_confirm" != [yY] && "$option_confirm" != "d" ]]; do
+	while [ "$option_confirm" != "y" -a "$option_confirm" != "d" ]; do
 		get_menu_option
 		# In force boot mode, no need offer the option to set a default, just boot
 		if [[ "$force_boot" = "y" || "$skip_confirm" = "y" ]]; then
