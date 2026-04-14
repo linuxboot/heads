@@ -199,7 +199,6 @@ $(coreboot_module)_configure := \
 		sed -i '/^CONFIG_MAINBOARD_SMBIOS_MANUFACTURER/d' $(build)/$(coreboot_dir)/.config; \
 		echo 'CONFIG_MAINBOARD_SMBIOS_MANUFACTURER="$(CONFIG_COREBOOT_SMBIOS_MANUFACTURER)"' >> $(build)/$(coreboot_dir)/.config; \
 	fi; \
-	sed -i 's|@COREBOOT_BUILD_DIR@|$(build)/$(coreboot_dir)|g' "$(build)/$(coreboot_dir)/.config"; \
 	$(MAKE) olddefconfig \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
