@@ -89,7 +89,6 @@ jobs:
             - nix-docker-heads-modules-ppc64-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             - nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             - nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            # Cache for musl-cross-make module digest (rarely modified).
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
