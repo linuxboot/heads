@@ -5,13 +5,20 @@ modules-y += dasharo-ec
 dasharo-ec_repo := https://github.com/Dasharo/ec
 dasharo-ec_commit_hash := d198b641195e60e13afc17be9464e4f402d1c2fa
 
+# Strip UNTESTED_/EOL_ prefix for board model mapping
+_DASHARO_EC_BOARD := $(patsubst EOL_%,%,$(patsubst UNTESTED_%,%,$(BOARD)))
+
 # Map BOARD to the EC board model
-ifeq "$(BOARD)" "novacustom-v540tu"
-DASHARO_EC_BOARD_MODEL := v540tu
-else ifeq "$(BOARD)" "novacustom-v560tu"
-DASHARO_EC_BOARD_MODEL := v560tu
+ifeq "$(_DASHARO_EC_BOARD)" "novacustom-v540tu"
+	DASHARO_EC_BOARD_MODEL := v540tu
+else ifeq "$(_DASHARO_EC_BOARD)" "novacustom-v560tu"
+	DASHARO_EC_BOARD_MODEL := v560tu
+else ifeq "$(_DASHARO_EC_BOARD)" "novacustom-nv4x_adl"
+	DASHARO_EC_BOARD_MODEL := nv4x_adl
+else ifeq "$(_DASHARO_EC_BOARD)" "nitropad-ns50"
+	DASHARO_EC_BOARD_MODEL := ns5x_adl
 else
-$(error "$(BOARD): no Dasharo EC board model mapping defined")
+	$(error "$(BOARD): no Dasharo EC board model mapping defined")
 endif
 
 dasharo-ec_version := $(dasharo-ec_commit_hash)
@@ -32,8 +39,8 @@ dasharo-ec_target := BOARD=novacustom/$(DASHARO_EC_BOARD_MODEL)
 # Copy ec.rom from the dynamic build path to a stable location and pad to
 # 128KB as required by coreboot. Runs after the module make completes.
 $(build)/$(dasharo-ec_dir)/ec.rom: $(build)/$(dasharo-ec_dir)/.build
-	sh -c 'cp $(build)/$(dasharo-ec_dir)/build/novacustom/$(DASHARO_EC_BOARD_MODEL)/*/ec.rom $@'
-	dd if=/dev/zero of=$@ bs=1 seek=128k count=0
+	cp $(build)/$(dasharo-ec_dir)/build/novacustom/$(DASHARO_EC_BOARD_MODEL)/*/ec.rom $@
+	truncate --size=128KiB $@
 
 # Copy ec.rom into the coreboot source tree before coreboot builds.
 # coreboot_base_dir (coreboot-dasharo) is shared between v540tu and v560tu, so
