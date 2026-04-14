@@ -7,8 +7,7 @@ BACKUP_MIRRORS=(
 	https://storage.puri.st/heads-packages/
 )
 
-usage()
-{
+usage() {
 	cat <<USAGE_END
 usage:
 	$0 <url> <file> <digest>
@@ -36,17 +35,17 @@ TMP_FILE="$2.tmp"
 WGET="${WGET:-wget}"
 
 case "$(echo -n "$DIGEST" | wc -c)" in
-	64)
-		SHASUM=sha256sum
-		;;
-	40)
-		# coreboot crossgcc archives have SHA-1 digests from coreboot
-		SHASUM=sha1sum
-		;;
-	*)
-		echo "Unknown digest for $FILE: $DIGEST" >&2
-		exit 1
-		;;
+64)
+	SHASUM=sha256sum
+	;;
+40)
+	# coreboot crossgcc archives have SHA-1 digests from coreboot
+	SHASUM=sha1sum
+	;;
+*)
+	echo "Unknown digest for $FILE: $DIGEST" >&2
+	exit 1
+	;;
 esac
 
 download() {
@@ -57,10 +56,10 @@ download() {
 	elif ! echo "$DIGEST $TMP_FILE" | "$SHASUM" --check -; then
 		echo "File from $download_url does not match expected digest" >&2
 	else
-		mv "$TMP_FILE" "$FILE"	# Matches, keep this file
+		mv "$TMP_FILE" "$FILE" # Matches, keep this file
 		return 0
 	fi
-	rm -f "$TMP_FILE"	# Wasn't downloaded or failed check
+	rm -f "$TMP_FILE" # Wasn't downloaded or failed check
 	return 1
 }
 
@@ -75,6 +74,11 @@ rm -f "$FILE" "$TMP_FILE"
 # Try the primary source
 download "$URL" && exit 0
 
+# Log mirror fallback for developer awareness
+MIRROR_LOG="${MIRROR_LOG:-build/mirror_fallbacks.log}"
+mkdir -p "$(dirname "$MIRROR_LOG")"
+echo "$(date -Iseconds) MIRROR_FALLBACK primary=$URL" >>"$MIRROR_LOG"
+
 # Shuffle the mirrors so we try each equally
 readarray -t BACKUP_MIRRORS < <(shuf -e "${BACKUP_MIRRORS[@]}")
 
@@ -86,7 +90,10 @@ archive="$(basename "$FILE")"
 echo "Try mirrors for $archive" >&2
 
 for mirror in "${BACKUP_MIRRORS[@]}"; do
-	download "$mirror$archive" && exit 0
+	if download "$mirror$archive"; then
+		echo "$(date -Iseconds) MIRROR_USED mirror=$mirror$archive" >>"$MIRROR_LOG"
+		exit 0
+	fi
 done
 
 # All mirrors failed
