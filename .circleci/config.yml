@@ -15,7 +15,7 @@ commands:
           command: |
             echo "Sourcing /devenv.sh since docker entrypoint doesn't do it as expected"
             source /devenv.sh
-            rm -rf build/<< parameters.arch >>/<< parameters.target >>/* build/<< parameters.arch >>/log/*
+            rm -rf build/<< parameters.arch >>/log/*
             #Pass AVAILABLE_MEM_GB=8 to respect CircleCI free tier RAM assignation, which otherwise randomly fails. See Makefile calculations.
             # Without AVAILABLE_MEM_GB=8: CircleCI passes '-j36 --load-average=54'
             # With AVAILABLE_MEM_GB=8: CircleCI passes '-j8 --load-average=12'
@@ -48,8 +48,8 @@ commands:
 jobs:
   prep_env:
     docker:
-      # Docker image: tlaurion/heads-dev-env:v0.2.7
-      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -80,13 +80,15 @@ jobs:
             # Cache for matching modules digest, validated to be exactly the same as in GitHub current commit.
             # This cache was made on top of below caches, if previously existing.
             # If no module definition changed, we reuse this one
-            - nix-docker-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-
+            # x86 caches
+            - nix-docker-heads-modules-x86-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-make-x86-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-make-x86-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             # Cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
-            - nix-docker-heads-coreboot-musl-cross-make-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-
-            # Cache for musl-cross-make module digest (rarely modified).
-            - nix-docker-heads-musl-cross-make-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            # ppc64 caches
+            - nix-docker-heads-modules-ppc64-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
@@ -124,8 +126,8 @@ jobs:
 
   build_and_persist:
     docker:
-      # Docker image: tlaurion/heads-dev-env:v0.2.7
-      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -153,8 +155,8 @@ jobs:
 
   build:
     docker:
-      # Docker image: tlaurion/heads-dev-env:v0.2.7
-      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
     resource_class: large
     working_directory: ~/heads
     parameters:
@@ -173,10 +175,10 @@ jobs:
           target: <<parameters.target>>
           subcommand: <<parameters.subcommand>>
 
-  save_cache:
+  save_cache_x86:
     docker:
-      # Docker image: tlaurion/heads-dev-env:v0.2.7
-      - image: tlaurion/heads-dev-env@sha256:5f890f3d1b6b57f9e567191695df003a2ee880f084f5dfe7a5633e3e8f937479
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
     resource_class: large
     working_directory: ~/heads
     steps:
@@ -185,35 +187,72 @@ jobs:
       - save_cache:
           # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-docker-heads-musl-cross-make-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-musl-cross-make-x86-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
-            - crossgcc
-            - packages
+            - crossgcc/x86
+            - packages/x86
       - save_cache:
           # Generate cache for the same coreboot and musl-cross-make modules definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
-          key: nix-docker-heads-coreboot-musl-cross-make-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-coreboot-musl-cross-make-x86-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/ppc64/coreboot-talos_2
-            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
             - build/x86/coreboot-4.11
             - build/x86/coreboot-24.02.01
             - build/x86/coreboot-25.09
-            - build/x86/coreboot-dasharo
+            - build/x86/coreboot-dasharo_v56
+            - build/x86/coreboot-dasharo_nv4x
+            - build/x86/coreboot-dasharo_msi_z790
+            - build/x86/coreboot-dasharo_msi_z690
             - build/x86/coreboot-purism
             - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
-            - crossgcc
-            - packages
+            - crossgcc/x86
+            - packages/x86
       - save_cache:
           # Generate cache for the exact same modules definitions if hash is not previously existing
-          key: nix-docker-heads-modules-and-patches-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          key: nix-docker-heads-modules-x86-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build
-            - crossgcc
-            - install
-            - packages
+            - build/x86
+            - install/x86
+            - crossgcc/x86
+            - packages/x86
+
+
+
+  save_cache_ppc64:
+    docker:
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
+    resource_class: large
+    working_directory: ~/heads
+    steps:
+      - attach_workspace:
+          at: ~/heads
+      - save_cache:
+          # Generate cache for the same musl-cross-make module definition if hash is not previously existing
+          # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
+          key: nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - crossgcc/ppc64
+            - packages/ppc64
+      - save_cache:
+          # Generate cache for the same coreboot and musl-cross-make modules definition if hash is not previously existing
+          # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
+          key: nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - build/ppc64/coreboot-talos_2
+            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - crossgcc/ppc64
+            - packages/ppc64
+      - save_cache:
+          # Generate cache for the exact same modules definitions if hash is not previously existing
+          key: nix-docker-heads-modules-ppc64-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+          paths:
+            - build/ppc64
+            - install/ppc64
+            - crossgcc/ppc64
+            - packages/ppc64
 
 workflows:
   version: 2
@@ -250,13 +289,13 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # coreboot purism: based on coreboot 24.02.01, reuse dasharo 24.02.01 crossgcc
+      # coreboot purism: builds 24.02.01 toolchain, all librem boards share it
       - build_and_persist:
           name: librem_14
           target: librem_14
           subcommand: ""
           requires:
-            - novacustom-nv4x_adl
+            - x86-musl-cross-make
 
       # t480 is based on 25.09 coreboot release, not sharing any buildstack from now, depend on muscl-cross cache
       - build_and_persist:
@@ -283,7 +322,7 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # dasharo_msi
+      # dasharo_msi: builds its own toolchain, msi_z690a_ddr5 depends on it
       - build_and_persist:
           name: UNTESTED_msi_z690a_ddr4
           target: UNTESTED_msi_z690a_ddr4
@@ -291,12 +330,29 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # Cache one workspace per architecture
-      # Make sure workspace caches are chainloaded and the last in chain for an arch is saved
-      - save_cache:
+      # Dasharo forks: each fork builds its own toolchain (FSP header incompatibilities)
+      # - novacustom-nv4x_adl: builds dasharo_nv4x toolchain, nitropad-ns50 reuses it
+      # - novacustom-v560tu: builds dasharo_v56 toolchain, v540tu reuses it
+      # - UNTESTED_msi_z690a_ddr4: builds dasharo_msi_z690 toolchain, msi_z690a_ddr5 reuses it
+      # - UNTESTED_msi_z790p_ddr4: builds dasharo_msi_z790 toolchain, msi_z790p_ddr5 reuses it
+
+      # x86: combines x86 workspaces and saves x86 cache
+      # Workspaces combined: x86-musl-cross-make, novacustom-nv4x_adl, librem_14,
+      #                      EOL_t480-hotp-maximized, EOL_librem_l1um, UNTESTED_msi_z690a_ddr4
+      - save_cache_x86:
+          requires:
+            - x86-musl-cross-make
+            - novacustom-nv4x_adl
+            - librem_14
+            - EOL_t480-hotp-maximized
+            - EOL_librem_l1um
+            - UNTESTED_msi_z690a_ddr4
+
+      # ppc64: combines ppc64 workspaces and saves ppc64 cache
+      # Workspaces combined: ppc64-musl-cross-make, UNTESTED_talos-2
+      - save_cache_ppc64:
           requires:
             - UNTESTED_talos-2
-            - EOL_t480-hotp-maximized
 
       # Those onboarding new boards should add their entries below.
       # coreboot 25.09 boards
@@ -482,8 +538,7 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # coreboot purism
-      # librem boards
+      # librem boards: share purism 24.02.01 toolchain with librem_14
       - build:
           name: EOL_librem_13v2
           target: EOL_librem_13v2
@@ -562,7 +617,7 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # dasharo release, share 24.02.01 utils/crossgcc
+      # Dasharo nv4x: shares dasharo_nv4x toolchain with novacustom-nv4x_adl
       - build:
           name: UNTESTED_nitropad-ns50
           target: UNTESTED_nitropad-ns50
@@ -570,22 +625,23 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      #NovaCustom v56 boards are based on coreboot 24.02.01 fork, so depend on nv4x_adl
+      # NovaCustom v56: builds dasharo_v56 toolchain
       - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
           subcommand: ""
           requires:
-            - novacustom-nv4x_adl
+            - x86-musl-cross-make
 
+      # NovaCustom v56: shares dasharo_v56 toolchain with novacustom-v560tu
       - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
           subcommand: ""
           requires:
-            - novacustom-nv4x_adl
+            - novacustom-v560tu
 
-      # dasharo_msi
+      # Dasharo msi_z690: shares dasharo_msi_z690 toolchain with UNTESTED_msi_z690a_ddr4
       - build:
           name: UNTESTED_msi_z690a_ddr5
           target: UNTESTED_msi_z690a_ddr5
@@ -593,16 +649,18 @@ workflows:
           requires:
             - UNTESTED_msi_z690a_ddr4
 
+      # Dasharo msi_z790: builds dasharo_msi_z790 toolchain
       - build:
           name: UNTESTED_msi_z790p_ddr4
           target: UNTESTED_msi_z790p_ddr4
           subcommand: ""
           requires:
-            - UNTESTED_msi_z690a_ddr4
+            - x86-musl-cross-make
 
+      # Dasharo msi_z790: shares dasharo_msi_z790 toolchain with UNTESTED_msi_z790p_ddr4
       - build:
           name: msi_z790p_ddr5
           target: msi_z790p_ddr5
           subcommand: ""
           requires:
-            - UNTESTED_msi_z690a_ddr4
+            - UNTESTED_msi_z790p_ddr4
