@@ -125,6 +125,7 @@ jobs:
             - nix-docker-heads-coreboot-musl-cross-make-x86-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             - nix-docker-heads-musl-cross-make-x86-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - persist_to_workspace:
+          workspace: x86
           root: ~/heads
           paths:
             - packages/x86
@@ -148,6 +149,7 @@ jobs:
             - nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
             - nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - persist_to_workspace:
+          workspace: ppc64
           root: ~/heads
           paths:
             - packages/ppc64
@@ -165,6 +167,9 @@ jobs:
       arch:
         type: string
         default: x86
+      workspace:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -172,11 +177,13 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: << parameters.workspace >>
       - build_board:
           arch: << parameters.arch >>
           target: << parameters.target >>
           subcommand: << parameters.subcommand >>
       - persist_to_workspace:
+          workspace: << parameters.workspace >>
           root: ~/heads
           paths:
             - packages/<< parameters.arch >>
@@ -194,6 +201,9 @@ jobs:
       arch:
         type: string
         default: x86
+      workspace:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -201,6 +211,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: << parameters.workspace >>
       - build_board:
           arch: <<parameters.arch>>
           target: <<parameters.target>>
@@ -215,6 +226,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: x86
       - save_cache:
           # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
@@ -259,6 +271,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: ppc64
       - save_cache:
           # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
@@ -310,6 +323,7 @@ workflows:
       - build_and_persist:
           name: ppc64-musl-cross-make
           arch: ppc64
+          workspace: ppc64
           target: UNTESTED_talos-2
           subcommand: "musl-cross-make"
           requires:
@@ -346,6 +360,7 @@ workflows:
       - build_and_persist:
           name: UNTESTED_talos-2
           arch: ppc64
+          workspace: ppc64
           target: UNTESTED_talos-2
           subcommand: ""
           requires:
