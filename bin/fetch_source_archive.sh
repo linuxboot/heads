@@ -75,6 +75,11 @@ rm -f "$FILE" "$TMP_FILE"
 # Try the primary source
 download "$URL" && exit 0
 
+# Log mirror fallback for developer awareness
+MIRROR_LOG="${MIRROR_LOG:-build/mirror_fallbacks.log}"
+mkdir -p "$(dirname "$MIRROR_LOG")"
+echo "$(date -Iseconds) MIRROR_FALLBACK primary=$URL" >>"$MIRROR_LOG"
+
 # Shuffle the mirrors so we try each equally
 readarray -t BACKUP_MIRRORS < <(shuf -e "${BACKUP_MIRRORS[@]}")
 
@@ -86,7 +91,10 @@ archive="$(basename "$FILE")"
 echo "Try mirrors for $archive" >&2
 
 for mirror in "${BACKUP_MIRRORS[@]}"; do
-	download "$mirror$archive" && exit 0
+	if download "$mirror$archive"; then
+		echo "$(date -Iseconds) MIRROR_USED mirror=$mirror$archive" >>"$MIRROR_LOG"
+		exit 0
+	fi
 done
 
 # All mirrors failed
