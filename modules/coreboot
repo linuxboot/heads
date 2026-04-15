@@ -330,6 +330,15 @@ coreboot.save_in_oldconfig_format_in_place:
 		olddefconfig \
 	&& mv "$(build)/$(coreboot_dir)/.config" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
 
+coreboot.save_in_defconfig_format_backup:
+	mkdir -p "$(build)/$(coreboot_dir)" && \
+	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
+	$(MAKE) \
+		-C "$(build)/$(coreboot_base_dir)" \
+		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		savedefconfig && \
+	cp "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig"
+
 coreboot.modify_defconfig_in_place:
 	mkdir -p "$(build)/$(coreboot_dir)" && \
 	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
