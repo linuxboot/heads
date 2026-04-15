@@ -74,21 +74,6 @@ jobs:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
             find ./flake.lock modules/musl-cross-make* -type f | sort -h | xargs sha256sum > ./tmpDir/musl-cross-make.sha256sums
-      - restore_cache:
-          # First matched/found key wins and following keys are not tried
-          keys:
-            # Cache for matching modules digest, validated to be exactly the same as in GitHub current commit.
-            # This cache was made on top of below caches, if previously existing.
-            # If no module definition changed, we reuse this one
-            # x86 caches
-            - nix-docker-heads-modules-x86-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            - nix-docker-heads-coreboot-musl-cross-make-x86-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            - nix-docker-heads-musl-cross-make-x86-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            # Cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
-            # ppc64 caches
-            - nix-docker-heads-modules-ppc64-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            - nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
-            - nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
       - run:
           name: Download and neuter xx20 ME (keep generated GBE and extracted IFD in tree)
           command: |
@@ -124,6 +109,63 @@ jobs:
           paths:
             - .
 
+  x86-prep:
+    docker:
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
+    resource_class: large
+    working_directory: ~/heads
+    steps:
+      - attach_workspace:
+          at: ~/heads
+      - restore_cache:
+          # First matched/found key wins and following keys are not tried
+          # Cache for matching modules digest, validated to be exactly the same as in GitHub current commit.
+          # This cache was made on top of below caches, if previously existing.
+          keys:
+            - nix-docker-heads-modules-x86-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-make-x86-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-make-x86-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+      # persist_to_workspace only runs on cache hit (when: on_success)
+      # because if cache misses, directories don't exist yet
+      - persist_to_workspace:
+          when: on_success
+          workspace: x86
+          root: ~/heads
+          paths:
+            - packages/x86
+            - build/x86
+            - crossgcc/x86
+            - install/x86
+
+  ppc64-prep:
+    docker:
+      # Docker image: tlaurion/heads-dev-env:v0.2.9
+      - image: tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de
+    resource_class: large
+    working_directory: ~/heads
+    steps:
+      - attach_workspace:
+          at: ~/heads
+      - restore_cache:
+          # First matched/found key wins and following keys are not tried
+          # Cache for coreboot module (and patches) and musl-cross-make digests (coreboot: triannual release)
+          keys:
+            - nix-docker-heads-modules-ppc64-{{ checksum "./tmpDir/all_modules_and_patches.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-coreboot-musl-cross-make-ppc64-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+            - nix-docker-heads-musl-cross-make-ppc64-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
+      # persist_to_workspace only runs on cache hit (when: on_success)
+      # because if cache misses, directories don't exist yet
+      - persist_to_workspace:
+          when: on_success
+          workspace: ppc64
+          root: ~/heads
+          paths:
+            - packages/ppc64
+            - build/ppc64
+            - crossgcc/ppc64
+            - install/ppc64
+
   build_and_persist:
     docker:
       # Docker image: tlaurion/heads-dev-env:v0.2.9
@@ -134,6 +176,9 @@ jobs:
       arch:
         type: string
         default: x86
+      workspace:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -141,11 +186,13 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: << parameters.workspace >>
       - build_board:
           arch: << parameters.arch >>
           target: << parameters.target >>
           subcommand: << parameters.subcommand >>
       - persist_to_workspace:
+          workspace: << parameters.workspace >>
           root: ~/heads
           paths:
             - packages/<< parameters.arch >>
@@ -163,6 +210,9 @@ jobs:
       arch:
         type: string
         default: x86
+      workspace:
+        type: string
+        default: x86
       target:
         type: string
       subcommand:
@@ -170,6 +220,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: << parameters.workspace >>
       - build_board:
           arch: <<parameters.arch>>
           target: <<parameters.target>>
@@ -184,6 +235,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: x86
       - save_cache:
           # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
@@ -228,6 +280,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/heads
+          workspace: ppc64
       - save_cache:
           # Generate cache for the same musl-cross-make module definition if hash is not previously existing
           # CircleCI removed their wildcard support, so we have to list precise versions to cache in directory names
@@ -260,6 +313,12 @@ workflows:
     max_auto_reruns: 3
     jobs:
       - prep_env
+      - x86-prep:
+          requires:
+            - prep_env
+      - ppc64-prep:
+          requires:
+            - prep_env
 
       # This step builds musl-cross-make for x86 architecture, which will be used by subsequent x86 board builds
       - build_and_persist:
@@ -267,16 +326,17 @@ workflows:
           target: EOL_t480-hotp-maximized
           subcommand: "musl-cross-make"
           requires:
-            - prep_env
+            - x86-prep
 
       # This step builds musl-cross-make for ppc64 architecture, which will be used by subsequent ppc64 board builds
       - build_and_persist:
           name: ppc64-musl-cross-make
           arch: ppc64
+          workspace: ppc64
           target: UNTESTED_talos-2
           subcommand: "musl-cross-make"
           requires:
-            - prep_env
+            - ppc64-prep
 
       # Below, sequentially build one board for each coreboot version.
       # The last board in the sequence is the dependency for the parallel boards built at the end, and also save_cache.
@@ -309,6 +369,7 @@ workflows:
       - build_and_persist:
           name: UNTESTED_talos-2
           arch: ppc64
+          workspace: ppc64
           target: UNTESTED_talos-2
           subcommand: ""
           requires:
