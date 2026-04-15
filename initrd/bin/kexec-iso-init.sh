@@ -218,7 +218,7 @@ if [ -z "$DETECTED_METHODS" ]; then
 	fi
 fi
 
-ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH img_dev=/dev/disk/by-uuid/$DEV_UUID iso-scan/filename=/${ISO_PATH} img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
+ADD="fromiso=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH img_dev=/dev/disk/by-uuid/$DEV_UUID iso-scan/filename=/${ISO_PATH} img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH live-media=/dev/disk/by-uuid/$DEV_UUID/$ISO_PATH live-media-path=casper"
 REMOVE=""
 
 paramsdir="/media/kexec_iso/$ISO_PATH"
