@@ -23,6 +23,10 @@ rm -f /tmp/hotpkey_fw_shown
 
 TRACE_FUNC
 
+# Enable USB and detect branding early — $DONGLE_BRAND is used throughout this script.
+enable_usb
+detect_usb_security_dongle_branding
+
 # use TERM to exit on error
 trap "exit 1" TERM
 export TOP_PID=$$
@@ -180,7 +184,7 @@ reset_nk3_secret_app() {
 			else
 				error_code=$?
 				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
-					whiptail_warning --msgbox "Nitrokey 3 requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "Nk3 secrets app reset attempt: $attempt/3"
+					whiptail_warning --msgbox "$DONGLE_BRAND requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "$DONGLE_BRAND secrets app reset attempt: $attempt/3"
 				else
 					whiptail_error_die "Nitrokey 3's Secrets app reset failed with error:$error_code. Contact Nitrokey support"
 				fi
@@ -1043,7 +1047,7 @@ usb_security_token_capabilities_check() {
 				DONGLE_FW_VERSION="$(echo "$hotp_token_info" | grep "Firmware:" | sed 's/.*: *//')"
 				case "$DONGLE_FW_VERSION" in v*) ;; *) DONGLE_FW_VERSION="v$DONGLE_FW_VERSION" ;; esac
 			fi
-			DEBUG "Dongle firmware version: $DONGLE_FW_VERSION"
+			DEBUG "$DONGLE_BRAND firmware version: $DONGLE_FW_VERSION"
 		fi
 	fi
 }
@@ -1222,7 +1226,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 					INPUT "Enter desired NK3 Secrets app PIN / GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
 				done
 			else
-				NOTE "GPG Admin PIN: management tasks on USB Security dongle, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
+				NOTE "GPG Admin PIN: management tasks on $DONGLE_BRAND, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
 				while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
 					INPUT "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
 				done
@@ -1320,10 +1324,10 @@ fi
 if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 	enable_usb
 	if ! gpg --card-status >/dev/null 2>&1; then
-		local_whiptail_error "Can't access USB Security dongle; \nPlease remove and reinsert, then press Enter."
+		local_whiptail_error "Can't access $DONGLE_BRAND; \nPlease remove and reinsert, then press Enter."
 		if ! gpg --card-status >/dev/null 2>/tmp/error; then
 			ERROR=$(tail -n 1 /tmp/error | fold -s)
-			whiptail_error_die "Unable to detect USB Security dongle:\n\n${ERROR}"
+			whiptail_error_die "Unable to detect $DONGLE_BRAND:\n\n${ERROR}"
 		fi
 	fi
 
@@ -1605,7 +1609,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	passphrases+="TPM Owner Passphrase: ${TPM_PASS}\n"
 fi
 
-#if nk3 detected, we add the NK3 Secrets App PIN
+#if nk3 detected, we add the NK3 Secrets app PIN
 if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 	passphrases+="Nitrokey 3 Secrets app PIN: ${ADMIN_PIN}\n"
 fi
