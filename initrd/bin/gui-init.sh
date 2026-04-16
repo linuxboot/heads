@@ -249,17 +249,17 @@ gate_reseal_with_integrity_report() {
 			# starting the NK3 CCID teardown.  This safety call covers the
 			# case where scdaemon was restarted between then and now.
 			release_scdaemon
-			STATUS "Checking USB security dongle presence before sealing"
+			STATUS "Checking $DONGLE_BRAND presence before sealing"
 			DEBUG "gate_reseal_with_integrity_report: checking HOTP token presence"
 			if hotp_verification info >/dev/null 2>&1; then
 				token_ok="y"
-				STATUS_OK "USB security dongle present and accessible"
+				STATUS_OK "$DONGLE_BRAND present and accessible"
 				break
 			fi
 			DEBUG "gate_reseal_with_integrity_report: HOTP token not accessible"
-			if ! whiptail_warning --title "USB Security Dongle Required" \
+			if ! whiptail_warning --title "$DONGLE_BRAND Required" \
 				--yes-button "Retry" --no-button "Abort" \
-				--yesno "Your USB security dongle must be present before sealing new secrets.\n\nInsert the dongle and choose Retry, or Abort." 0 80; then
+				--yesno "Your $DONGLE_BRAND must be present before sealing new secrets.\n\nInsert the dongle and choose Retry, or Abort." 0 80; then
 				return 1
 			fi
 		done
@@ -292,7 +292,7 @@ generate_totp_hotp() {
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
-				INPUT "Once you have scanned the QR code, press Enter to configure your HOTP USB Security dongle (e.g. Librem Key or Nitrokey)"
+				INPUT "Once you have scanned the QR code, press Enter to configure your $DONGLE_BRAND"
 			fi
 			TRACE_FUNC
 			/bin/seal-hotpkey.sh || DIE "Failed to generate HOTP secret"
@@ -314,11 +314,11 @@ prompt_missing_gpg_key_action() {
 	TRACE_FUNC
 	local retry_label retry_msg
 	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" = "y" ]; then
-		retry_label=' Retry (insert signing card or backup USB drive)'
-		retry_msg="Cannot sign /boot because no private GPG signing key is available (card not inserted, wiped, or key not set up).\n\nInsert your signing card or backup USB drive and retry.\n\nHow would you like to proceed?"
+		retry_label=" Retry (insert $DONGLE_BRAND or backup USB drive)"
+		retry_msg="Cannot sign /boot because no private GPG signing key is available ($DONGLE_BRAND not inserted, wiped, or key not set up).\n\nInsert your $DONGLE_BRAND or backup USB drive and retry.\n\nHow would you like to proceed?"
 	else
-		retry_label=' Retry (after connecting the correct signing card)'
-		retry_msg="Cannot sign /boot because no private GPG signing key is available (card not inserted, wiped, or key not set up).\n\nIf you have the correct signing card, insert it and retry.\n\nHow would you like to proceed?"
+		retry_label=" Retry (after connecting $DONGLE_BRAND)"
+		retry_msg="Cannot sign /boot because no private GPG signing key is available ($DONGLE_BRAND not inserted, wiped, or key not set up).\n\nInsert your $DONGLE_BRAND and retry.\n\nHow would you like to proceed?"
 	fi
 	whiptail_error --title "ERROR: GPG signing key unavailable" \
 		--menu "$retry_msg" 0 80 4 \
