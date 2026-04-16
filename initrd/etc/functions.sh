@@ -500,6 +500,11 @@ pin_color() {
 #   1050:0404  Yubikey 5 (FIDO+CCID)
 detect_usb_security_dongle_branding() {
 	TRACE_FUNC
+	# Skip if DONGLE_BRAND already set to a specific brand.
+	# Re-runs if DONGLE_BRAND is unset or the generic fallback, so detection
+	# can refresh on first call or after a boot where no dongle was present.
+	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
+	enable_usb
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -644,7 +649,7 @@ cache_gpg_signing_pin() {
 	# keystrokes from previous prompts cannot silently satisfy this read.
 	local card_confirm=""
 	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
-		INPUT "Use your GPG security dongle (Enter/y) or backup thumb drive (b)? [Y/b]:" -n 1 -r card_confirm
+		INPUT "Use your $DONGLE_BRAND (Enter/y) or backup thumb drive (b)? [Y/b]:" -n 1 -r card_confirm
 		while [ "$card_confirm" != "y" \
 			-a "$card_confirm" != "Y" \
 			-a "$card_confirm" != "b" \
@@ -831,6 +836,8 @@ cache_gpg_signing_pin() {
 }
 
 confirm_gpg_card() {
+	enable_usb
+	detect_usb_security_dongle_branding
 	cache_gpg_signing_pin "$@"
 }
 

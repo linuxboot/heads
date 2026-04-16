@@ -253,6 +253,10 @@ report_integrity_measurements() {
 	DEBUG "integrity report generated at $date_now"
 	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
 
+	# Detect branding and initialize USB (detect_usb_security_dongle_branding calls
+	# enable_usb internally and guards against redundant re-detection).
+	detect_usb_security_dongle_branding
+
 	if [ "$CONFIG_TPM" = "y" ]; then
 		totp_state="UNAVAILABLE"
 		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
@@ -271,21 +275,19 @@ report_integrity_measurements() {
 	fi
 
 	if [ -x /bin/hotp_verification ]; then
-		enable_usb
-		STATUS "Checking USB security dongle presence"
-		local _dongle_brand _hotp_info
-		_dongle_brand="$(detect_usb_security_dongle_branding)"
+		STATUS "Checking $DONGLE_BRAND presence"
+		local _hotp_info
 		DEBUG "report_integrity_measurements: querying HOTP token info"
 		if _hotp_info="$(hotp_verification info 2>/dev/null)"; then
-			hotp_state="TOKEN PRESENT"
-			STATUS_OK "USB security dongle detected"
-			hotpkey_fw_display "$_hotp_info" "$_dongle_brand"
-		elif [ "$_dongle_brand" != "USB Security dongle" ]; then
-			hotp_state="TOKEN INCOMPATIBLE"
-			DEBUG "report_integrity_measurements: $_dongle_brand detected but HOTP verification failed"
+			hotp_state="$DONGLE_BRAND PRESENT"
+			STATUS_OK "$DONGLE_BRAND detected"
+			hotpkey_fw_display "$_hotp_info" "$DONGLE_BRAND"
+		elif [ "$DONGLE_BRAND" != "USB Security dongle" ]; then
+			hotp_state="$DONGLE_BRAND INCOMPATIBLE"
+			DEBUG "report_integrity_measurements: $DONGLE_BRAND detected but HOTP verification failed"
 		else
-			hotp_state="TOKEN MISSING"
-			DEBUG "report_integrity_measurements: hotp_verification info failed, hotp_state=TOKEN MISSING"
+			hotp_state="$DONGLE_BRAND MISSING"
+			DEBUG "report_integrity_measurements: hotp_verification info failed, hotp_state=$hotp_state"
 		fi
 	fi
 
@@ -351,7 +353,7 @@ report_integrity_measurements() {
 
 	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
 	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
-	STATUS "Verifying OpenPGP signing key on USB security dongle"
+	STATUS "Verifying signing key on $DONGLE_BRAND"
 	enable_usb
 	gpg_output=""
 	local _card_detected=0
@@ -359,7 +361,7 @@ report_integrity_measurements() {
 		_card_detected=1
 	else
 		whiptail_type "$BG_COLOR_MAIN_MENU" --title 'Signing Card Check' \
-			--msgbox "Please insert your OpenPGP signing card (USB security key), then press OK." 0 80
+			--msgbox "Please insert your $DONGLE_BRAND and press OK." 0 80
 		if wait_for_gpg_card 2>/dev/null; then
 			_card_detected=1
 		fi
@@ -368,14 +370,14 @@ report_integrity_measurements() {
 	# Determine signing key state from card-status output (gpg_output set by wait_for_gpg_card).
 	local _card_sig_fpr _rom_fprs signing_key_guidance
 	if [ "$_card_detected" -eq 0 ]; then
-		signing_key_state="NO DONGLE DETECTED"
-		signing_key_guidance="No USB security dongle detected. Insert the correct dongle and retry, or perform OEM Factory Reset / Re-Ownership."
+		signing_key_state="NO $DONGLE_BRAND DETECTED"
+		signing_key_guidance="No $DONGLE_BRAND detected. Insert the correct dongle and retry, or perform OEM Factory Reset / Re-Ownership."
 	else
 		_card_sig_fpr=$(echo "$gpg_output" |
 			awk -F: '/Signature key/ {gsub(/[[:space:]]/,"",$2); print $2; exit}')
 		if [ -z "$_card_sig_fpr" ] || [ "$_card_sig_fpr" = "[none]" ]; then
 			signing_key_state="DONGLE NOT PROVISIONED"
-			signing_key_guidance="USB security dongle is connected but has no signing key (unprovisioned or wiped). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
+			signing_key_guidance="$DONGLE_BRAND is connected but has no signing key (unprovisioned or wiped). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
 		else
 			_rom_fprs=$(gpg --with-colons --list-keys 2>/dev/null |
 				awk -F: '/^fpr/ {print $10}')
@@ -384,7 +386,7 @@ report_integrity_measurements() {
 				signing_key_guidance=""
 			else
 				signing_key_state="DONGLE KEY NOT ROM-TRUSTED"
-				signing_key_guidance="USB security dongle has a signing key that does not match this firmware's trusted key. OEM Factory Reset / Re-Ownership is required to establish new trusted ownership."
+				signing_key_guidance="$DONGLE_BRAND has a signing key that does not match this firmware's trusted key. OEM Factory Reset / Re-Ownership is required to establish new trusted ownership."
 			fi
 		fi
 	fi
@@ -404,14 +406,14 @@ report_integrity_measurements() {
 		;;
 	esac
 	case "$hotp_state" in
-	"TOKEN MISSING")
-		hotp_display="TOKEN NOT CONNECTED"
+	*"MISSING")
+		hotp_display="$DONGLE_BRAND NOT CONNECTED"
 		;;
-	"TOKEN PRESENT")
-		hotp_display="TOKEN CONNECTED (presence confirmed)"
+	*"PRESENT")
+		hotp_display="$DONGLE_BRAND CONNECTED (presence confirmed)"
 		;;
-	"TOKEN INCOMPATIBLE")
-		hotp_display="TOKEN INCOMPATIBLE ($_dongle_brand does not support HOTP)"
+	*"INCOMPATIBLE")
+		hotp_display="$DONGLE_BRAND INCOMPATIBLE ($DONGLE_BRAND does not support HOTP)"
 		;;
 	*)
 		hotp_display="$hotp_state"
@@ -424,7 +426,7 @@ report_integrity_measurements() {
 	else
 		action_guidance="$sig_guidance"
 	fi
-	report_body="Date: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\nDongle key: $signing_key_state\n\nAction: $action_guidance"
+	report_body="Date: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\n$DONGLE_BRAND key: $signing_key_state\n\nAction: $action_guidance"
 	if [ "$hash_state" != "OK" ]; then
 		report_body="$report_body\n\nIf /boot integrity is not OK, investigate before sealing new secrets or performing TPM reset or re-ownership."
 	fi
@@ -438,7 +440,7 @@ report_integrity_measurements() {
 	fi
 	msg="Measured Integrity Report\n\n$report_body"
 	# menu_msg omits the guidance paragraphs to keep the dialog within terminal height
-	menu_msg="Measured Integrity Report\n\nDate: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\nDongle key: $signing_key_state\n\nChoose an action:"
+	menu_msg="Measured Integrity Report\n\nDate: $date_now\nTOTP: $totp_display\nHOTP: $hotp_display\n\nBoot signature (/boot/kexec.sig): $signature_state\n$sig_detail\nBoot files: $hash_state\n$DONGLE_BRAND key: $signing_key_state\n\nChoose an action:"
 
 	if [ "$hash_state" = "OK" ] && [ "$signing_key_state" = "DONGLE MATCHES ROM-TRUSTED KEY" ]; then
 		whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
