@@ -88,7 +88,8 @@ DEBUG "Signature key was created at $(date -d "@$gpg_key_create_time")"
 now_date="$(date '+%s')"
 
 # Get the number of HOTP related PIN retry attempts remaining.
-# NK3 uses "Secrets app PIN counter"; all pre-NK3 devices use "Card counters: Admin".
+# NK3 uses "Secrets app PIN counter" (factory default: 8 attempts);
+# all pre-NK3 devices use "Card counters: Admin" (factory default: 3 attempts).
 if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 	admin_pin_retries=$(echo "$hotp_token_info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	prompt_message="Secrets app"
@@ -103,6 +104,8 @@ DEBUG "HOTP related PIN retry counter is $admin_pin_retries"
 hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
 
 # Re-query and display the current PIN retry counter before each manual prompt.
+# Updates the global $admin_pin_retries (no local keyword) so callers can use
+# the fresh value for decisions (e.g. max_attempts calculation below).
 # prompt_message is already set for the device type (NK3 vs older), reuse it.
 show_pin_retries() {
 	local info
@@ -113,7 +116,7 @@ show_pin_retries() {
 		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	fi
 	admin_pin_retries="${admin_pin_retries:-0}"
-	STATUS "$DONGLE_BRAND GPG Admin PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
+	STATUS "$DONGLE_BRAND ${prompt_message} PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 }
 
 # Try using factory default admin PIN for 1 month following OEM reset to ease
@@ -131,7 +134,7 @@ if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
 elif [ "$admin_pin_retries" -lt 3 ]; then
 	DEBUG "Not trying default PIN ($admin_pin): only $admin_pin_retries attempt(s) left"
 else
-	STATUS "Trying GPG Admin PIN to seal HOTP secret on $DONGLE_BRAND"
+	STATUS "Trying ${prompt_message} PIN to seal HOTP secret on $DONGLE_BRAND"
 	# NK3 requires physical touch confirmation for the initialize operation
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		NOTE "Nitrokey 3 requires physical presence: touch the dongle when prompted"
@@ -144,30 +147,71 @@ fi
 
 if [ "$admin_pin_status" -ne 0 ]; then
 
+	# If the default PIN was tried and failed, we consumed 1 attempt.
+	# Re-read the counter and limit user attempts accordingly.
+	# Leave at least 1 attempt unconsumed to avoid accidental lockout.
+	#
+	# max_attempts calculation:
+	# - Read current retry counter (may be lower if default PIN consumed 1)
+	# - Subtract 1 to preserve one final attempt for the user
+	# - Cap at 3 to match the pre-NK3 factory default, so the user experience
+	#   is consistent regardless of device.
+	# - If the counter read is unreliable (0 or 1), fall back to 3 attempts
+	#   so the user is never blocked from sealing.
+	#
+	# Example outcomes for NK3 (factory default: 8):
+	#   Default PIN skipped (key >1 month old)        -> max_attempts = min(8-1, 3) = 3
+	#   Default PIN tried & failed (8 -> 7 remaining) -> max_attempts = min(7-1, 3) = 3
+	#   Default PIN tried & failed (4 -> 3 remaining) -> max_attempts = min(3-1, 3) = 2
+	#   Default PIN tried & failed (2 -> 1 remaining) -> max_attempts = 3 (fallback, don't block)
+	#   Counter read failed (0 or empty)              -> max_attempts = 3 (fallback, don't block)
+	#
+	# Example outcomes for pre-NK3 (factory default: 3):
+	#   Default PIN skipped (key >1 month old)        -> max_attempts = min(3-1, 3) = 2
+	#   Default PIN tried & failed (3 -> 2 remaining) -> max_attempts = min(2-1, 3) = 1
+	#   Counter read failed (0 or empty)              -> max_attempts = 3 (fallback, don't block)
+	# Re-read counter without displaying (loop will show it)
+	info="$(hotp_verification info 2>/dev/null)" || true
+	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
+		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
+	else
+		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
+	fi
+	admin_pin_retries="${admin_pin_retries:-0}"
+	if [ "$admin_pin_retries" -ge 2 ]; then
+		max_attempts=$((admin_pin_retries - 1))
+		[ "$max_attempts" -gt 3 ] && max_attempts=3
+	else
+		max_attempts=3
+	fi
+
 	# prompt user for PIN; re-query counter before each attempt so the user
 	# sees the decremented count after a wrong PIN (same pattern as kexec-sign-config.sh)
-	for tries in 1 2 3; do
+	for tries in $(seq 1 $max_attempts); do
 		show_pin_retries
 		if [ "$tries" -eq 1 ]; then
-			INPUT "Enter your $DONGLE_BRAND GPG Admin PIN (attempt $tries/3):" -r -s admin_pin
+			INPUT "Enter your $DONGLE_BRAND ${prompt_message} PIN (attempt $tries/$max_attempts):" -r -s admin_pin
 		else
-			INPUT "Wrong PIN - re-enter your $DONGLE_BRAND GPG Admin PIN (attempt $tries/3):" -r -s admin_pin
+			INPUT "Wrong PIN - re-enter your $DONGLE_BRAND ${prompt_message} PIN (attempt $tries/$max_attempts):" -r -s admin_pin
 		fi
 		if hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND"; then
 			break
 		fi
-		if [ "$tries" -eq 3 ]; then
+		if [ "$tries" -eq "$max_attempts" ]; then
 			# don't leak key on failure
 			shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 			case "$DONGLE_BRAND" in
-			"Nitrokey Pro" | "Nitrokey Storage" | "Nitrokey 3")
-				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset GPG Admin PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
+			"Nitrokey 3")
+				DIE "Setting HOTP secret on $DONGLE_BRAND failed after $max_attempts attempts. To reset ${prompt_message} PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
+				;;
+			"Nitrokey Pro" | "Nitrokey Storage")
+				DIE "Setting HOTP secret on $DONGLE_BRAND failed after $max_attempts attempts. To reset GPG Admin PIN: redo Re-Ownership, or use Nitrokey App 2, or contact Nitrokey support."
 				;;
 			"Librem Key")
-				DIE "Setting HOTP secret on $DONGLE_BRAND failed after 3 attempts. To reset GPG Admin PIN: redo Re-Ownership or contact Purism support."
+				DIE "Setting HOTP secret on $DONGLE_BRAND failed after $max_attempts attempts. To reset GPG Admin PIN: redo Re-Ownership or contact Purism support."
 				;;
 			*)
-				DIE "Setting HOTP secret failed after 3 attempts"
+				DIE "Setting HOTP secret failed after $max_attempts attempts"
 				;;
 			esac
 		fi
@@ -175,7 +219,7 @@ if [ "$admin_pin_status" -ne 0 ]; then
 else
 	# Default PIN was accepted — security reminder, not a fatal error.
 	# NOTE prints blank lines before/after and is always visible; no INPUT needed.
-	NOTE "Default GPG Admin PIN detected.  Change it via Options --> OEM Factory Reset / Re-Ownership."
+	NOTE "Default ${prompt_message} PIN detected.  Change it via Options --> OEM Factory Reset / Re-Ownership."
 fi
 
 # HOTP key no longer needed
