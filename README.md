@@ -37,6 +37,11 @@ Heads codebase. Start here:
 | [doc/qemu.md](doc/qemu.md) | QEMU board targets for development and testing |
 | [doc/wp-notes.md](doc/wp-notes.md) | Flash write-protection status per board |
 | [doc/BOARDS_AND_TESTERS.md](doc/BOARDS_AND_TESTERS.md) | Supported boards and their maintainers/testers |
+| [doc/prerequisites.md](doc/prerequisites.md) | USB security dongles (HOTP/TPMTOTP), OS requirements, flashing methods |
+| [doc/faq.md](doc/faq.md) | Common questions: UEFI vs coreboot, TPM, LUKS, threat models |
+| [doc/keys.md](doc/keys.md) | All keys and secrets: TPM owner, GPG PINs, Disk Recovery Key, LUKS DUK |
+| [doc/development.md](doc/development.md) | Commit conventions, coding standards, testing checklist |
+| [doc/build-freshness.md](doc/build-freshness.md) | Debugging stale builds: initrd.cpio.xz composition, verification |
 
 For user-facing documentation and guides, see [Heads-wiki](https://osresearch.net).
 
@@ -56,10 +61,17 @@ provided Docker wrappers — no host-side QEMU or swtpm installation is needed.
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
 
+**No hardware required for testing** — Docker provides the full build stack
+and QEMU runtime with software TPM (swtpm) and the bundled `canokey-qemu`
+virtual OpenPGP smartcard. Build and test entirely in software before flashing real hardware.
+
 For full details — wrapper scripts, Nix local dev, reproducibility verification, and
 maintainer workflow — see **[doc/docker.md](doc/docker.md)**.
 
 For QEMU board testing see **[doc/qemu.md](doc/qemu.md)**.
+
+For troubleshooting build issues see **[doc/faq.md](doc/faq.md)** and
+**[doc/build-freshness.md](doc/build-freshness.md)**.
 
 ## General notes on reproducible builds
 
@@ -78,19 +90,24 @@ There are still dependencies on the build system's coreutils in
 `/bin` and `/usr/bin/`, but any problems should be detectable if you
 end up with a different hash than the official builds.
 
-The various components that are downloaded are in the `./modules`
-directory and include:
+## Key components
 
-* [musl-libc](https://www.musl-libc.org/)
-* [busybox](https://busybox.net/)
-* [kexec](https://wiki.archlinux.org/index.php/kexec)
-* [mbedtls](https://tls.mbed.org/)
-* [tpmtotp](https://trmm.net/Tpmtotp)
-* [coreboot](https://www.coreboot.org/)
-* [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup)
-* [lvm2](https://sourceware.org/lvm2/)
-* [gnupg](https://www.gnupg.org/)
-* [Linux kernel](https://kernel.org)
+Heads builds a curated set of packages (from `modules/`). Key components
+enabled by most board configs include:
+
+* [musl-cross-make](https://github.com/richfelker/musl-cross-make) — cross-compiler toolchain
+* [coreboot](https://www.coreboot.org/) — minimal firmware replacing vendor BIOS/UEFI
+* [Linux](https://kernel.org) — minimal kernel payload (no built-in initramfs; boots with external initrd such as `initrd.cpio.xz`)
+* [busybox](https://busybox.net/) — core utilities
+* [kexec](https://wiki.archlinux.org/index.php/kexec) — boot OS from /boot
+* [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup) — LUKS disk encryption
+* [GPG](https://www.gnupg.org/) — /boot signature verification
+* [mbedtls](https://tls.mbed.org/) — cryptography for TPM operations
+* [tpmtotp](https://trmm.net/Tpmtotp) — TPM-based TOTP/HOTP attestation
+
+The full build also includes: lvm2, tpm2-tools, flashrom/flashprog, dropbear (SSH),
+fbwhiptail (GUI), qrencode, and many others. See individual `modules/*` files and
+board configs for the complete picture.
 
 We also recommend installing [Qubes OS](https://www.qubes-os.org/),
 although there Heads can `kexec` into any Linux or
