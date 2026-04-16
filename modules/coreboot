@@ -94,10 +94,10 @@ coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
 
-# coreboot-purism is based on 24.02.01 - reuse that toolchain.
+# coreboot-purism: builds its own complete toolchain (no dependency on 24.02.01)
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
-$(eval $(call coreboot_module,purism,24.02.01))
+$(eval $(call coreboot_module,purism,))
 
 # Dasharo forks - based on various coreboot upstream releases
 # IMPORTANT: Dasharo forks CANNOT share toolchains with upstream coreboot releases
