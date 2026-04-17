@@ -500,6 +500,22 @@ pin_color() {
 #   1050:0404  Yubikey 5 (FIDO+CCID)
 detect_usb_security_dongle_branding() {
 	TRACE_FUNC
+	local usb_was_enabled="${_USB_ENABLED:-n}"
+	# Fast path: avoid USB re-init and lsusb scan when branding is already known
+	# and USB has already been initialized in this process.
+	if [ "$DONGLE_BRAND" != "USB Security dongle" ] \
+		&& [ -n "$DONGLE_BRAND" ] \
+		&& [ "$usb_was_enabled" = "y" ]; then
+		return
+	fi
+
+	# Child scripts can inherit DONGLE_BRAND while _USB_ENABLED resets, so always
+	# initialize USB unless the fast path above was taken.
+	enable_usb
+	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
+
+	# If branding is already specific, USB is now ready and no re-scan is needed.
+	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -644,7 +660,7 @@ cache_gpg_signing_pin() {
 	# keystrokes from previous prompts cannot silently satisfy this read.
 	local card_confirm=""
 	if [ "$CONFIG_HAVE_GPG_KEY_BACKUP" == "y" ]; then
-		INPUT "Use your GPG security dongle (Enter/y) or backup thumb drive (b)? [Y/b]:" -n 1 -r card_confirm
+		INPUT "Use your $DONGLE_BRAND (Enter/y) or backup thumb drive (b)? [Y/b]:" -n 1 -r card_confirm
 		while [ "$card_confirm" != "y" \
 			-a "$card_confirm" != "Y" \
 			-a "$card_confirm" != "b" \
@@ -831,6 +847,8 @@ cache_gpg_signing_pin() {
 }
 
 confirm_gpg_card() {
+	enable_usb
+	detect_usb_security_dongle_branding
 	cache_gpg_signing_pin "$@"
 }
 
