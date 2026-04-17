@@ -13,7 +13,7 @@ git commit -S -s -m "component: short description"
 
 ### Message Format
 
-```
+```text
 component: short imperative description (72 chars max)
 
 Optional body explaining the why, not the what.  Wrap at 72 chars.
@@ -32,14 +32,14 @@ Add a `Co-Authored-By:` trailer only on commits whose **primary content is
 collaborative documentation** (`doc/*.md` writing).  Never add it to code
 fixes, features, or refactors.
 
-```
+```text
 Co-Authored-By: Name <email@example.com>
 ```
 
 ## Documentation: `doc/*.md` vs `heads-wiki`
 
 | Location | Purpose | Signing required |
-|----------|---------|-----------------|
+| -------- | ------- | ---------------- |
 | `doc/*.md` in this repo | Developer-facing: architecture, patterns, internals, build conventions | Yes (same as all commits) |
 | `linuxboot/heads-wiki` | User-facing: installation, configuration, how-to guides published at osresearch.net | No (lower bar for contribution) |
 
@@ -49,6 +49,9 @@ user installs, configures, or operates a Heads-equipped device.
 
 Over time, `doc/*.md` and the wiki may overlap; the canonical user-facing
 source is the wiki.
+
+For CI internals, cache layering, and workspace-vs-cache behavior, see
+[circleci.md](circleci.md).
 
 ## Build Artifacts
 
@@ -86,6 +89,8 @@ When touching the Makefile or build system:
 - [ ] Verify dev build filename includes timestamp + branch
 - [ ] Verify a locally-tagged clean commit produces the short filename
 - [ ] Verify `.zip` package extracts and `sha256sum -c` passes
+- [ ] If changing `.circleci/config.yml`, verify the documented cache/workspace
+  behavior in [circleci.md](circleci.md) still matches the pipeline
 
 ## Coding Conventions
 
