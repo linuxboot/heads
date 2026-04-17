@@ -140,6 +140,19 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
+# KGPE-D16 uses the AGESA-based 15h fork, derived from coreboot 4.11.
+# Advantages of using the 15h.org 4.11 fork include:
+#  - improved RAM initialization
+#  - support for up to 512 GB
+#  - high-quality fan control
+# Pinned to commit 1afdea5572e4908c51c5b4bed43fcdc2a98fd768 from
+# https://git.15h.org/mrothfuss/coreboot-15h/src/branch/4.11_wip-tpm
+coreboot-15h_repo := https://git.15h.org/mrothfuss/coreboot-15h.git
+coreboot-15h_commit_hash := 1afdea5572e4908c51c5b4bed43fcdc2a98fd768
+$(eval $(call coreboot_module,15h,))
+coreboot-15h_toolchain_build_args := BUILD_LANGUAGES=c
+
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")

@@ -526,6 +526,67 @@ workflows:
           requires:
             - x86-musl-cross-make
 
+      # 15h.org AGESA fork
+      - x86_coreboot:
+          name: UNTESTED_kgpe-d16_workstation-tpm1
+          target: UNTESTED_kgpe-d16_workstation-tpm1
+          subcommand: ""
+          coreboot_dir: coreboot-15h
+          requires:
+            - x86-musl-cross-make
+
+      # 15h.org AGESA fork: seed is kgpe-d16_workstation-tpm1 (x86_coreboot job above)
+      # coreboot fam15h - TPM1 variants
+      - build:
+          name: UNTESTED_kgpe-d16_workstation-usb_keyboard-tpm1
+          target: UNTESTED_kgpe-d16_workstation-usb_keyboard-tpm1
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm1
+
+      - build:
+          name: UNTESTED_kgpe-d16_server-tpm1
+          target: UNTESTED_kgpe-d16_server-tpm1
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm1
+
+      - build:
+          name: UNTESTED_kgpe-d16_server-whiptail-tpm1
+          target: UNTESTED_kgpe-d16_server-whiptail-tpm1
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm1
+
+      # coreboot fam15h - TPM2 variants (use 15h fork cache from tpm1 seed)
+      - build:
+          name: UNTESTED_kgpe-d16_workstation-tpm2
+          target: UNTESTED_kgpe-d16_workstation-tpm2
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm1
+
+      - build:
+          name: UNTESTED_kgpe-d16_workstation-usb_keyboard-tpm2
+          target: UNTESTED_kgpe-d16_workstation-usb_keyboard-tpm2
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm2
+
+      - build:
+          name: UNTESTED_kgpe-d16_server-tpm2
+          target: UNTESTED_kgpe-d16_server-tpm2
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm2
+
+      - build:
+          name: UNTESTED_kgpe-d16_server-whiptail-tpm2
+          target: UNTESTED_kgpe-d16_server-whiptail-tpm2
+          subcommand: ""
+          requires:
+            - UNTESTED_kgpe-d16_workstation-tpm2
+
       # Those onboarding new boards should add their entries below.
       # coreboot 25.09 boards
       - build:
