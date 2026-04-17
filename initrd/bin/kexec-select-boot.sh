@@ -184,8 +184,9 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+		kernel_path=$(echo "$kernel" | sed 's/^kernel \([^|]*\).*/\1/')
 		whiptail_warning --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
+			--menu "Confirm the boot details for $name:\n\n$(echo "$kernel_path" | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || DIE "Aborting boot attempt"
 

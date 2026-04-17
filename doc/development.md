@@ -104,3 +104,75 @@ When touching the Makefile or build system:
 
 See [ux-patterns.md](ux-patterns.md) for `INPUT`, `STATUS`/`STATUS_OK`,
 `DO_WITH_DEBUG`, `HEADS_TTY` routing, and PIN caching conventions.
+
+## Testing ISO Boot Logic from Host
+
+ISO boot scripts (`kexec-iso-init.sh`, `kexec-parse-boot.sh`, `kexec-select-boot.sh`)
+can be tested directly against mounted ISOs without building or running QEMU.
+
+### Heads Runtime Environment
+
+Heads runtime uses:
+
+- **Busybox** (unconditional) — coreutils (ls, cp, mv, dd, find, grep, sed, awk, etc.)
+- **Bash** (`CONFIG_BASH=y` by default) — full bash for scripting
+- **Shell shebang** — `#!/bin/bash` in scripts (bash is always available)
+- **Tools** — kexec, blkid, cpio, xz, zstd, gzip for ISO boot handling
+
+See `config/busybox.config` for busybox features and `boards/*/` for module selection.
+
+### Mount ISO and Test
+
+```bash
+# Mount an ISO (fuseiso works without root)
+mkdir -p /tmp/iso-test/kicksecure
+fuseiso -p /path/to/Kicksecure-LXQt-18.1.4.2.Intel_AMD64.iso /tmp/iso-test/kicksecure
+
+# Test initrd path extraction from GRUB configs
+bootdir="/tmp/iso-test/kicksecure"
+for cfg in $(find "$bootdir" -name '*.cfg' -type f 2>/dev/null); do
+  grep -E "^[ 	]*initrd[ 	]" "$cfg" | while read line; do
+    echo "$line" | awk '{for(i=1;i<=NF;i++) if($i=="initrd") print $(i+1)}'
+  done
+done
+
+# Test initramfs unpacking
+bash initrd/bin/unpack_initramfs.sh \
+  /tmp/iso-test/kicksecure/live/initrd.img-6.12.69+deb13-amd64 \
+  /tmp/initrd-unpacked
+
+# Test GRUB config parsing (kexec-parse-boot.sh logic)
+bootdir="/tmp/iso-test/kicksecure"
+for cfg in $(find "$bootdir" -name '*.cfg' -type f 2>/dev/null); do
+  bash initrd/bin/kexec-parse-boot.sh "$bootdir" "$cfg"
+done
+
+# Cleanup
+fusermount -u /tmp/iso-test/kicksecure
+```
+
+### Key Differences from Heads Runtime
+
+| Aspect | Heads Runtime | Host Testing |
+|--------|-------------|--------------|
+| Root filesystem | Read-only initramfs | Full system |
+| `/boot` mount | FUSE/loopback of ISO | Direct ISO mount |
+| `blkid` output | ISO9660 with UUID | Same |
+| Device paths | `/dev/sda` etc | Same |
+| `unpack_initramfs.sh` | Works the same | Works the same |
+| Bash | Full bash available | Same |
+| Busybox awk | Limited regex (no `[[:space:]]`) | Use `[ \t]` instead |
+| TPM/PCR | N/A | N/A |
+| GPG keys | Different | Different |
+
+### What Can Be Tested
+
+- ✅ GRUB/ISOLINUX config parsing (`kexec-parse-boot.sh`)
+- ✅ Initrd path extraction from configs
+- ✅ Initramfs unpacking and module scanning
+- ✅ Boot method detection (boot=live, casper, etc.)
+- ✅ Path handling (`/boot` prefix stripping)
+- ❌ Actual `kexec` kernel loading
+- ❌ TPM PCR extending
+- ❌ Whiptail/GUI dialogs
+- ❌ FUSE mount behavior inside initrd
