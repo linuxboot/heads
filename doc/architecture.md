@@ -98,6 +98,8 @@ The top-level `Makefile` orchestrates:
 - Final ROM image: coreboot ROM with Linux + initrd payload embedded
 
 Reproducible builds are achieved via Nix-pinned Docker images. See [docker.md](docker.md).
+The CI pipeline's workspace and cache behavior is documented in
+[circleci.md](circleci.md).
 
 ---
 
