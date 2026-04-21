@@ -1,5 +1,22 @@
 #!/bin/bash
-# Launches kexec from saved configuration entries
+# Execute kexec to boot an OS kernel from parsed boot configuration
+#
+# This script takes a boot entry (from kexec-parse-boot.sh) and executes
+# kexec to load and boot the OS kernel. It handles:
+# - ELF kernels (standard Linux)
+# - Multiboot kernels (Xen)
+# - Initial ramdisks (initrd)
+# - Kernel command line modification (add/remove parameters)
+#
+# Options:
+#   -b  Boot directory (e.g., /boot)
+#   -e  Entry string (name|kexectype|kernel path[|initrd][|append])
+#   -r  Parameters to remove from cmdline
+#   -a  Parameters to add to cmdline
+#   -o  Override initrd path
+#   -f  Dry run: print files only
+#   -i  Dry run: print initrd only
+#
 set -e -o pipefail
 . /tmp/config
 . /etc/functions.sh
@@ -65,6 +82,8 @@ fix_file_path() {
 adjusted_cmd_line="n"
 adjust_cmd_line() {
 	DEBUG "adjust_cmd_line: original cmdline='$cmdline'"
+	cmdline=$(echo "$cmdline" | sed 's/---.*$//' | xargs)
+	DEBUG "adjust_cmd_line: after stripping --- separator='$cmdline'"
 	if [ -n "$cmdremove" ]; then
 		for i in $cmdremove; do
 			cmdline=$(echo $cmdline | sed "s/\b$i\b//g")
@@ -164,6 +183,7 @@ if [ "$dryrun" = "y" ]; then exit 0; fi
 
 DEBUG "kexec-boot.sh: cmdadd='$cmdadd'"
 DEBUG "kexec-boot.sh: cmdremove='$cmdremove'"
+DEBUG "kexec-boot.sh: final cmdline='$cmdline'"
 STATUS "Loading the new kernel"
 DEBUG "kexec command: $kexeccmd"
 DEBUG "kexec-boot: executing kexec with adjusted_cmd_line=$adjusted_cmd_line kexectype=$kexectype"

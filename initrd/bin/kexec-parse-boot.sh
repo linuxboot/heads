@@ -1,4 +1,14 @@
 #!/bin/bash
+# Parse boot loader configs (GRUB, syslinux, ISOLINUX) to extract boot entries
+#
+# This script parses boot configuration files to build a list of boot entries
+# that can be used by kexec-boot.sh to boot an OS. It handles:
+# - GRUB config files (grub.cfg)
+# - SYSLINUX/ISOLINUX config files (isolinux.cfg, syslinux.cfg)
+# - Multiboot kernels (Xen)
+#
+# Output format: name|kexectype|kernel path[|initrd path][|append params]
+#
 set -e -o pipefail
 . /etc/functions.sh
 
