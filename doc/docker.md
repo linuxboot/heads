@@ -5,7 +5,7 @@ environment. Docker images are built with Nix since
 [PR #1661](https://github.com/linuxboot/heads/pull/1661).
 
 See also: [General reproducible-build notes](../README.md#general-notes-on-reproducible-builds),
-[QEMU testing](qemu.md).
+[QEMU testing](qemu.md), [CircleCI pipeline notes](circleci.md).
 
 ---
 
