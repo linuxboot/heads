@@ -45,7 +45,7 @@ for iso in "$ISO_DIR"/*.iso; do
 	# Create patched parser that uses our stub
 	PATCHED_PARSER="/tmp/sim_parser_$$.sh"
 	sed 's|\. /etc/functions\.sh|. /tmp/host_etc/functions.sh|' \
-		/home/user/heads-master/initrd/bin/kexec-parse-boot.sh >"$PATCHED_PARSER"
+		./initrd/bin/kexec-parse-boot.sh >"$PATCHED_PARSER"
 	chmod +x "$PATCHED_PARSER"
 
 	# Parse all non-EFI configs

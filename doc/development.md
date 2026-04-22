@@ -172,7 +172,39 @@ fusermount -u /tmp/iso-test/kicksecure
 - ✅ Initramfs unpacking and module scanning
 - ✅ Boot method detection (boot=live, casper, etc.)
 - ✅ Path handling (`/boot` prefix stripping)
+- ⚠️  Combined boot params (injected params tested conceptually, not end-to-end)
 - ❌ Actual `kexec` kernel loading
 - ❌ TPM PCR extending
 - ❌ Whiptail/GUI dialogs
 - ❌ FUSE mount behavior inside initrd
+
+### Test Suite: `tests/iso-parser/run.sh`
+
+The test suite validates ISO boot compatibility:
+
+```bash
+cd tests/iso-parser
+./run.sh                    # test all ISOs
+./run.sh /path/to/iso.iso   # test single ISO
+```
+
+Output shows:
+- **First section**: ISO metadata (entries count, hybrid MBR, sample boot params)
+- **Second section**: Initramfs boot support detection (mechanisms found, compatibility)
+
+Compatibility status:
+- **OK**: Known boot mechanism detected → should work via kexec-ISO-boot
+- **WARN**: No known mechanism detected → may work but unverified
+- **SKIP**: Installer ISO → use dd/Ventoy instead
+
+The test scans both:
+1. **Initrd content** (primary): Unpacks initrd and searches for boot mechanisms
+2. **Config files** (fallback): Greps *.cfg for known boot params
+
+Runtime injection (not tested):
+- `findiso=`, `fromiso=`, `iso-scan/filename=`, `img_dev=`, `img_loop=`
+- `live-media=`, `boot=live`, `boot=casper`
+
+These are injected unconditionally by `kexec-iso-init.sh` and combined with
+parsed params in `kexec-boot.sh`. Duplicates resolve naturally (kernel uses
+last value).
