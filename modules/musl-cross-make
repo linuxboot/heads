@@ -10,6 +10,13 @@ musl-cross-make_url := https://github.com/richfelker/musl-cross-make/archive/$(m
 musl-cross-make_tar := musl-cross-make-$(musl-cross-make_version).tar.gz
 musl-cross-make_hash := 15b8e0a287d738a46e069e90d67a8d96213b357b79aaf3e8cf0cd40e4b230d9e
 
+# Auto-detect crossgcc from cache restore before checking CROSS env var
+CROSS_PATH := $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
+CROSS_CHECK := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-gcc
+
+ifneq "$(wildcard $(CROSS_CHECK))" ""
+CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
+endif
 
 ifneq "$(CROSS)" ""
 

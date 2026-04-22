@@ -25,3 +25,4 @@ crossgcc
 typescript*
 result
 .claude/
+tmpDir/
