@@ -18,11 +18,11 @@
 # Compatibility status:
 # - OK: Known boot mechanism detected, should work
 # - WARN: No known mechanism detected, may work but unverified
-# - SKIP: Installer ISO - use dd/Ventoy instead
+# - SKIP: Installer ISO - use dd instead
 #
 # Tested ISOs (2026-04):
 # - Ubuntu Desktop, Debian Live, Tails, Fedora Live, NixOS, PureOS, Kicksecure: OK
-# - Debian DVD installer: SKIP (use dd/Ventoy)
+# - Debian DVD installer: SKIP (use dd)
 # - TinyCore/CorePlus: WARN (unverified)
 
 set -e
@@ -182,7 +182,7 @@ check_compatibility() {
 	local status=""
 	local note=""
 	case "$supported" in
-	installer*) status="SKIP" ; note=" (use dd/Ventoy)" ;;
+	installer*) status="SKIP" ; note=" (use dd)" ;;
 	anaconda*) status="WARN" ; note=" (block device req)" ;;
 	std) status="WARN" ;;
 	"") status="WARN" ;;

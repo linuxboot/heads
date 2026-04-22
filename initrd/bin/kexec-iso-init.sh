@@ -25,7 +25,7 @@
 # If no mechanism is detected, the user is warned that the ISO may not
 # support booting from ISO file on USB, and is given alternative options:
 # - Write ISO directly to USB with dd
-# - Use Ventoy in USB emulation mode
+# - Write ISO directly to USB with dd
 # - Boot from real DVD drive
 #
 set -e -o pipefail
@@ -262,11 +262,29 @@ extract_boot_params_from_cfg() {
 # ============================================================================
 # Main detection flow
 # ============================================================================
-# Step 1: Scan initrd for supported boot mechanisms
-# Step 2: If no boot method found, fall back to cfg file scanning
+# Step 1: Check if ISO is an installer (not bootable from USB file)
+# Step 2: Scan initrd for USB filesystem support and boot mechanisms
 # Step 3: Check USB filesystem compatibility
 # Step 4: If no known mechanism found, warn user with guidance
 # ============================================================================
+
+STATUS "Detecting ISO type..."
+if [ -d "/boot/install.amd" ] || [ -d "/boot/install" ]; then
+	if [ -f "/boot/install.amd/vmlinuz" ] || [ -f "/boot/install/vmlinuz" ]; then
+		WARN "This appears to be an installer ISO"
+		WARN "Installer ISOs do not support booting from ISO file on USB"
+		if [ -x /bin/whiptail ]; then
+			if ! whiptail_warning --title 'INSTALLER ISO NOT SUPPORTED' --yesno \
+				"This ISO is an installer and does not support booting from ISO file on USB.\n\nInstaller ISOs only work when written directly to USB with dd or when used as a DVD.\n\nTo use this ISO:\n- Linux: sudo cp image.iso /dev/sdX\n- Windows/Mac: Use Rufus in DD mode\n\nDo you want to try anyway?" \
+				0 80; then
+				DIE "Installer ISO - write to USB with dd"
+			fi
+		else
+			INPUT "Installer ISO - may not work from USB file. Try anyway? [y/N]:" -n 1 response
+			[ "$response" != "y" ] && [ "$response" != "Y" ] && DIE "Installer ISO - write to USB with dd"
+		fi
+	fi
+fi
 
 STATUS "Detecting USB filesystem and boot method support..."
 SUPPORTED_FSES=""
@@ -312,7 +330,7 @@ if [ -z "$DETECTED_METHODS" ]; then
 	WARN "ISO may not boot from USB file: no supported boot method detected"
 	if [ -x /bin/whiptail ]; then
 		if ! whiptail_warning --title 'ISO BOOT NOT SUPPORTED' --yesno \
-			"This ISO does not support booting from ISO file on USB.\n\nThe initrd does not include boot-from-ISO mechanisms (no live-boot, casper, fromiso, iso-scan, anaconda, or nixos support detected).\n\nTo use this ISO, write the hybrid image directly to a USB flash drive:\n\nLinux: sudo cp image.iso /dev/sdX (Be cautious!)\nWindows/Mac: Use Rufus, select DD mode (NOT ISO mode)\n\nWrite to whole-disk device (NOT a partition, e.g. /dev/sdX not /dev/sdX1),\nthen boot from USB device directly (not as ISO file).\n\nSee Debian wiki: https://wiki.debian.org/DebianInstall" \
+			"This ISO does not support booting from ISO file on USB.\n\nThe initrd does not include boot-from-ISO mechanisms (no live-boot, casper, fromiso, iso-scan, anaconda, or nixos support detected).\n\nTo use this ISO, write the hybrid image directly to a USB flash drive:\n\nLinux: sudo cp image.iso /dev/sdX (Be cautious!)\nWindows/Mac: Use Rufus, select DD mode (NOT ISO mode)\n\nWrite to whole-disk device (NOT a partition, e.g. /dev/sdX not /dev/sdX1),\nthen boot from USB device directly (not as ISO file)." \
 			0 80; then
 			DIE "ISO boot cancelled - initrd does not support USB file boot"
 		fi
@@ -327,34 +345,19 @@ fi
 # ============================================================================
 # Boot parameter injection
 # ============================================================================
-# Inject all known boot-from-ISO parameters. The ISO's initrd will use
+# Inject minimal boot-from-ISO parameters. The ISO's initrd will use
 # whichever parameters it understands and ignore the rest.
 #
-# Parameters injected (covering all major boot systems):
-# - findiso, fromiso, iso-scan/filename: Dracut standard
-# - img_dev, img_loop: additional Dracut variants
-# - iso: alternative parameter
-# - live-media, live-media-path: live-boot parameters
-# - boot=live, boot=casper: casper/live-boot parameters
+# We inject iso-scan/filename as the primary parameter - this is
+# the most widely supported boot-from-ISO parameter across distros.
+# Other parameters (findiso, fromiso, img_dev, etc.) are injected
+# as fallback for distros that need them.
 # ============================================================================
 
 ISO_DEV="/dev/disk/by-uuid/$DEV_UUID"
 ISO_PATH_ABS="/$ISO_PATH"
 
-base_params="findiso=$ISO_DEV/$ISO_PATH fromiso=$ISO_DEV/$ISO_PATH iso-scan/filename=$ISO_PATH_ABS img_dev=$ISO_DEV img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
-
-add_params=""
-if echo "$DETECTED_METHODS" | grep -q "casper"; then
-	add_params="$add_params boot=casper live-media-path=casper"
-fi
-if echo "$DETECTED_METHODS" | grep -q "boot-live"; then
-	add_params="$add_params boot=live"
-fi
-if echo "$DETECTED_METHODS" | grep -q "live-media"; then
-	add_params="$add_params live-media=$ISO_DEV/$ISO_PATH"
-fi
-
-ADD="$base_params $add_params"
+ADD="iso-scan/filename=$ISO_PATH_ABS findiso=$ISO_DEV/$ISO_PATH fromiso=$ISO_DEV/$ISO_PATH img_dev=$ISO_DEV img_loop=$ISO_PATH iso=$DEV_UUID/$ISO_PATH"
 DEBUG "Injecting boot params: $ADD"
 REMOVE=""
 
