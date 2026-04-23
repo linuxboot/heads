@@ -144,7 +144,11 @@ get_menu_option() {
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			MENU_OPTIONS+=("$n" "$name")
+			if [ -n "$params" ]; then
+				MENU_OPTIONS+=("$n" "$name ($params)")
+			else
+				MENU_OPTIONS+=("$n" "$name")
+			fi
 		done <$TMP_MENU_FILE
 
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
@@ -165,7 +169,7 @@ get_menu_option() {
 			# because DO_WITH_DEBUG pipes stdout through tee for debug logging,
 			# making it fully buffered — the last option would appear after the
 			# INPUT prompt.
-			printf '%d. %s [%s]\n' "$n" "$name" "$kernel" >"${HEADS_TTY:-/dev/stderr}"
+			printf '%d. %s %s [%s]\n' "$n" "$name" "${params:+($params)}" "$kernel" >"${HEADS_TTY:-/dev/stderr}"
 		done <$TMP_MENU_FILE
 
 		INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
@@ -184,8 +188,9 @@ confirm_menu_option() {
 	if [ "$gui_menu" = "y" ]; then
 		default_text="Make default"
 		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+		kernel_path=$(echo "$kernel" | sed 's/^kernel \([^|]*\).*/\1/')
 		whiptail_warning --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
+			--menu "Confirm the boot details for $name:\n\n$(echo "$kernel_path" | fold -s -w 80) \n\n" 0 80 8 \
 			-- 'd' "${default_text}" 'y' "Boot one time" \
 			2>/tmp/whiptail || DIE "Aborting boot attempt"
 
@@ -201,6 +206,7 @@ confirm_menu_option() {
 parse_option() {
 	name=$(echo $option | cut -d\| -f1)
 	kernel=$(echo $option | cut -d\| -f3)
+	params=$(echo $option | cut -d\| -f5 | sed 's/append //' | xargs)
 }
 
 scan_options() {
@@ -211,10 +217,12 @@ scan_options() {
 		DIE "Failed to parse any boot options"
 	fi
 	if [ "$unique" = 'y' ]; then
-		sort -r $option_file | uniq >$TMP_MENU_FILE
+		sed 's/|append \([^|]*\)---[^|]*/|append \1/g' "$option_file" | sort -r | uniq >"$TMP_MENU_FILE"
 	else
 		cp $option_file $TMP_MENU_FILE
 	fi
+	DEBUG "Parsed boot options for user selection:"
+	cat "$TMP_MENU_FILE" | while read line; do DEBUG "  Option: $line"; done
 }
 
 save_default_option() {

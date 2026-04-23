@@ -2479,6 +2479,9 @@ scan_boot_options() {
 
 	if [ -r "$option_file" ]; then rm "$option_file"; fi
 	for i in $(find "$bootdir" -name "$config"); do
+		case "$i" in
+		*EFI* | *efi* | *x86_64-efi*) continue ;;
+		esac
 		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files

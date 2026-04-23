@@ -1,15 +1,13 @@
 #!/bin/bash
 set -e -o pipefail
 . /etc/functions.sh
-TRACE_FUNC
-
 bootdir="$1"
 file="$2"
 blsdir="$3"
 kernelopts=""
 
 if [ -z "$bootdir" -o -z "$file" ]; then
-	DIE "Usage: $0 /boot /boot/grub/grub.cfg blsdir"
+	DIE "Usage: $0 /boot /path/to/grub.cfg blsdir"
 fi
 
 reset_entry() {
@@ -21,7 +19,7 @@ reset_entry() {
 	append="$kernelopts"
 }
 
-filedir=`dirname $file`
+filedir=$(dirname $file)
 bootdir="${bootdir%%/}"
 bootlen="${#bootdir}"
 appenddir="${filedir:$bootlen}"
@@ -62,41 +60,39 @@ echo_entry() {
 
 bls_entry() {
 	# add info to menuentry
-	trimcmd=`echo $line | tr '\t ' ' ' | tr -s ' '`
-	cmd=`echo $trimcmd | cut -d\  -f1`
-	val=`echo $trimcmd | cut -d\  -f2-`
+	trimcmd=$(echo $line | tr '\t ' ' ' | tr -s ' ')
+	cmd=$(echo "$trimcmd" | sed 's/^[[:space:]]*//' | cut -d\  -f1)
+	val=$(echo "$trimcmd" | sed 's/^[[:space:]]*//' | cut -d\  -f2-)
 	case $cmd in
-		title)
-			name=$val
-			;;
-		linux*)
-			kernel=${val#"$bootdir"}
-			;;
-		initrd*)
-			initrd=${val#"$bootdir"}
-			;;
-		options)
-			# default is "options $kernelopts"
-			# need to substitute that variable if set in .cfg/grubenv
-			append=`echo "$val" | sed "s@\\$kernelopts@$kernelopts@"`
-			;;
+	title)
+		name=$val
+		;;
+	linux*)
+		kernel=${val#"$bootdir"}
+		;;
+	initrd*)
+		initrd=${val#"$bootdir"}
+		;;
+	options)
+		# default is "options $kernelopts"
+		# need to substitute that variable if set in .cfg/grubenv
+		append=$(echo "$val" | sed "s@\$kernelopts@$kernelopts@")
+		;;
 	esac
 }
 
 # This is the default append value if no options field in bls entry
-grep -q "set default_kernelopts" "$file" && 
-	kernelopts=`grep "set default_kernelopts" "$file" |
-		tr "'" "\"" | cut -d\" -f 2`
+grep -q "set default_kernelopts" "$file" &&
+	kernelopts=$(grep "set default_kernelopts" "$file" |
+		tr "'" "\"" | cut -d\" -f 2)
 [ -f "$grubenv" ] && grep -q "^kernelopts" "$grubenv" &&
-	kernelopts=`grep "^kernelopts" "$grubenv" | tr '@' '_' | cut -d= -f 2-`
+	kernelopts=$(grep "^kernelopts" "$grubenv" | tr '@' '_' | cut -d= -f 2-)
 reset_entry
 find $blsdir -type f -name \*.conf |
-while read f
-do
-	while read line
-	do
-		bls_entry
-	done < "$f"
-	echo_entry
-	reset_entry
-done
+	while read f; do
+		while read line; do
+			bls_entry
+		done <"$f"
+		echo_entry
+		reset_entry
+	done
