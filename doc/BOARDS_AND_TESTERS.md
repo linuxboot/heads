@@ -82,7 +82,7 @@ Desktops / Servers
 ==
 - [ ] Optiplex 7010/9010 SFF/DT (Ivy Bridge: Intel 3rd Gen CPU): @tlaurion(owns DT variant)
 - [ ] HP Z220 CMT (Ivy Bridge: Intel 3rd Gen CPU): @d-wid
-- [ ] KGPE-D16 (Bulldozer: AMD Family 15h CPU) – dropped in coreboot 4.12: @arhabd @Tonux599 @zifxify
+- [ ] KGPE-D16 (Bulldozer: AMD Family 15h CPU) - dropped in coreboot 4.12, brought back in 15h fork: @arhabd @zifxify
 - [ ] Librem L1UM v1 (Broadwell: Intel 5th Gen CPU): @JonathonHall-Purism
 - [ ] Librem L1UM v2 (Coffee Lake: Intel 9th Gen CPU): @JonathonHall-Purism
 - [ ] Librem mini v1 (Whiskey Lake: Intel 8th Gen CPU : ESU ends 03/31/2026): @JonathonHall-Purism
