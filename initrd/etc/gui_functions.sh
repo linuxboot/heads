@@ -253,8 +253,8 @@ report_integrity_measurements() {
 	DEBUG "integrity report generated at $date_now"
 	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
 
-	# Detect branding and initialize USB (detect_usb_security_dongle_branding calls
-	# enable_usb internally and guards against redundant re-detection).
+	# Enable USB first for proper branding detection (user-initiated, won't break DUK unseal)
+	enable_usb
 	detect_usb_security_dongle_branding
 
 	if [ "$CONFIG_TPM" = "y" ]; then
