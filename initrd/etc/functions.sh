@@ -514,6 +514,26 @@ detect_usb_security_dongle_branding() {
 	enable_usb
 	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
 
+	# Wait for known USB dongle VID to appear in sysfs (max 3s).
+	# Known VIDs: 20a0 (Nitrokey/Canokey QEMU), 316d (Librem Key), 16d0 (Canokey), 1050 (Yubikey)
+	local start_dongle_wait=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+	while :; do
+		if ls /sys/bus/usb/devices/*/idVendor 2>/dev/null | \
+			xargs grep -l -E "20a0|316d|16d0|1050" 2>/dev/null | grep -q .; then
+			DEBUG "USB security dongle VID detected in sysfs"
+			break
+		fi
+
+		# Timeout after 3 seconds
+		local now=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+		if [ -n "$now" ] && [ -n "$start_dongle_wait" ]; then
+			if awk -v s="$start_dongle_wait" -v n="$now" 'BEGIN{exit (n - s > 3.0) ? 0 : 1}'; then
+				DEBUG "Timeout waiting for USB security dongle VID after 3s"
+				break
+			fi
+		fi
+	done
+
 	# If branding is already specific, USB is now ready and no re-scan is needed.
 	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
 	local lsusb_out

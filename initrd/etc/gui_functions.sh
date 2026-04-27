@@ -253,8 +253,8 @@ report_integrity_measurements() {
 	DEBUG "integrity report generated at $date_now"
 	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
 
-	# Detect branding and initialize USB (detect_usb_security_dongle_branding calls
-	# enable_usb internally and guards against redundant re-detection).
+	# Enable USB first for proper branding detection (user-initiated, won't break DUK unseal)
+	enable_usb
 	detect_usb_security_dongle_branding
 
 	if [ "$CONFIG_TPM" = "y" ]; then
@@ -354,7 +354,6 @@ report_integrity_measurements() {
 	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
 	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
 	STATUS "Verifying signing key on $DONGLE_BRAND"
-	enable_usb
 	gpg_output=""
 	local _card_detected=0
 	if wait_for_gpg_card 2>/dev/null; then
