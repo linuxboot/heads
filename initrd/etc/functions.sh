@@ -498,6 +498,17 @@ pin_color() {
 #   1050:0114  Yubikey 4/5 (OTP+U2F+CCID) - OTP+CCID only
 #   1050:0115  Yubikey 4/5 (OTP+U2F+CCID) - FIDO+CCID
 #   1050:0404  Yubikey 5 (FIDO+CCID)
+
+# Detect USB security dongle branding (Nitrokey, Yubikey, Canokey, etc.) from VID:PID.
+# This function intentionally does NOT load USB modules automatically - it only scans for
+# known dongles when USB is already enabled. Callers that need USB (HOTP/GPG/LUKS operations)
+# must call enable_usb() first.
+#
+# REGRESSION FIX: Previously, this function always called enable_usb() which loaded USB
+# kernel modules (ehci-hcd, xhci-hcd, etc.). These modules extend PCR5 in the TPM.
+# The Disk Unlock Key (DUK) for LUKS is sealed to PCR5=0 (no modules loaded). If USB
+# modules load at boot before DUK unseal, PCR5 mismatch occurs and unseal fails.
+# On boards without HOTP support, USB should NOT load at boot - only when needed.
 detect_usb_security_dongle_branding() {
 	TRACE_FUNC
 	local usb_was_enabled="${_USB_ENABLED:-n}"
@@ -509,14 +520,23 @@ detect_usb_security_dongle_branding() {
 		return
 	fi
 
-	# Child scripts can inherit DONGLE_BRAND while _USB_ENABLED resets, so always
-	# initialize USB unless the fast path above was taken.
-	enable_usb
-	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
+	# If USB is not enabled, do NOT auto-load modules here (PCR5 extension).
+	# Callers that need the dongle (HOTP/GPG/LUKS) must call enable_usb first.
+	# This prevents unnecessary PCR5 extensions at boot that break DUK unseal.
+	if [ "$usb_was_enabled" != "y" ]; then
+		DEBUG "detect_usb_security_dongle_branding: USB not enabled, setting default branding"
+		export DONGLE_BRAND="USB Security dongle"
+		return
+	fi
+	wait_for_usb_devices
+
+	# If branding is already specific, USB is now ready and no re-scan is needed.
+	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
 
 	# Wait for known USB dongle VID to appear in sysfs (max 3s).
 	# Known VIDs: 20a0 (Nitrokey/Canokey QEMU), 316d (Librem Key), 16d0 (Canokey), 1050 (Yubikey)
 	local start_dongle_wait=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+	local iterations=0
 	while :; do
 		if ls /sys/bus/usb/devices/*/idVendor 2>/dev/null | \
 			xargs grep -l -E "20a0|316d|16d0|1050" 2>/dev/null | grep -q .; then
@@ -524,18 +544,24 @@ detect_usb_security_dongle_branding() {
 			break
 		fi
 
-		# Timeout after 3 seconds
-		local now=$(awk '{print $1}' /proc/uptime 2>/dev/null)
-		if [ -n "$now" ] && [ -n "$start_dongle_wait" ]; then
-			if awk -v s="$start_dongle_wait" -v n="$now" 'BEGIN{exit (n - s > 3.0) ? 0 : 1}'; then
-				DEBUG "Timeout waiting for USB security dongle VID after 3s"
-				break
+		# Timeout after 3 seconds (or 30 iterations as hard fallback)
+		iterations=$((iterations + 1))
+		if [ "$iterations" -ge 30 ]; then
+			DEBUG "Timeout waiting for USB security dongle VID (iteration cap reached)"
+			break
+		fi
+		if [ -n "$start_dongle_wait" ]; then
+			local now=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+			if [ -n "$now" ]; then
+				if awk -v s="$start_dongle_wait" -v n="$now" 'BEGIN{exit (n - s > 3.0) ? 0 : 1}'; then
+					DEBUG "Timeout waiting for USB security dongle VID after 3s"
+					break
+				fi
 			fi
 		fi
+		sleep 0.1
 	done
 
-	# If branding is already specific, USB is now ready and no re-scan is needed.
-	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -953,7 +979,7 @@ recovery() {
 		DEBUG "Board $CONFIG_BOARD - version $(fw_version) EC_VER: $(ec_version)"
 
 		if [ "$CONFIG_TPM" = "y" ]; then
-			INFO "TPM: Extending PCR[4] to prevent any further secret unsealing"
+			INFO "TPM: Extending PCR[4] with content of string 'recovery' to prevent further secret unsealing"
 			tpmr.sh extend -ix 4 -ic recovery
 		fi
 
@@ -973,6 +999,13 @@ recovery() {
 		if [ -n "$*" ]; then
 			WARN "$*"
 		fi
+
+		# Show PCR state when entering recovery shell
+		INFO "TPM: PCR state on entering recovery shell:"
+		pcrs | while IFS= read -r line; do
+			INFO "$line"
+		done
+
 		STATUS "Starting recovery shell"
 
 		if [ -n "$RECOVERY_TTY" ]; then
@@ -1344,7 +1377,7 @@ DEBUG_STACK() {
 
 pcrs() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-		tpm2 pcrread sha256
+		tpm2 pcrread sha256 2>&1 | grep -v '^sha256:'
 	elif [ "$CONFIG_TPM" = "y" ]; then
 		head -8 /sys/class/tpm/tpm0/pcrs
 	fi

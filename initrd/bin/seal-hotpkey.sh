@@ -141,8 +141,12 @@ else
 	fi
 	#TODO: silence the output of hotp_initialize once https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 	#hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND" >/dev/null 2>&1
+	STATUS "Writing HOTP secret to $DONGLE_BRAND"
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND"
 	admin_pin_status="$?"
+	if [ "$admin_pin_status" -eq 0 ]; then
+		STATUS_OK "HOTP secret written to $DONGLE_BRAND"
+	fi
 fi
 
 if [ "$admin_pin_status" -ne 0 ]; then

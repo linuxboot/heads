@@ -257,8 +257,8 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	LOG "TPM: PCR[$index] after extend: $(tpm2 pcrread "sha256:$index" 2>&1)"
-	LOG "TPM: Extended PCR[$index] with hash $hash"
+	INFO "TPM: Extended PCR[$index] with hash $hash"
+	INFO "TPM: PCR[$index] after extend: $(tpm2 pcrread "sha256:$index" 2>&1 | tail -1)"
 }
 
 tpm2_counter_read() {
@@ -718,7 +718,7 @@ tpm2_unseal() {
 	# stderr; capture stderr to log.
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
 		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
-		INFO "Unable to unseal secret from TPM NVRAM"
+		WARN "Unable to unseal secret from TPM NVRAM"
 
 		# should succeed, exit if it doesn't
 		exit 1
@@ -948,7 +948,7 @@ tpm2_kexec_finalize() {
 	# Add a random passphrase to platform hierarchy to prevent TPM2 from
 	# being cleared in the OS.
 	# This passphrase is only effective before the next boot.
-	STATUS "Locking TPM2 platform hierarchy"
+	INFO "TPM: Locking TPM2 platform hierarchy"
 	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none 2>/dev/null | xxd -p)
 	tpm2 changeauth -c platform "$randpass" ||
 		WARN "Failed to lock platform hierarchy of TPM2"
@@ -996,20 +996,23 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	extend)
 		# Check if we extend with a hash or a file
 		if [ "$4" = "-if" ]; then
-			DEBUG "TPM: Will extend PCR[$3] hash content of file $5"
 			hash="$(sha1sum "$5" | cut -d' ' -f1)"
+			INFO "TPM: Extending PCR[$3] with content of $5 (hash: $hash)"
 		elif [ "$4" = "-ic" ]; then
 			string=$(echo -n "$5")
-			DEBUG "TPM: Will extend PCR[$3] with hash of filename $string"
 			hash="$(echo -n "$5" | sha1sum | cut -d' ' -f1)"
+			INFO "TPM: Extending PCR[$3] with content of string '$5' (hash: $hash)"
 		fi
 
 		TRACE_FUNC
-		INFO "TPM: Extending PCR[$3] with hash $hash"
-
 		# Silence stdout/stderr, they're only useful for debugging
 		# and DO_WITH_DEBUG captures them
 		DO_WITH_DEBUG exec tpm "$@" &>/dev/null
+
+		# Read PCR value after extend (TPM1 uses SHA1, read from sysfs)
+		pcr_value=$(grep -i "PCR-0*$3:" /sys/class/tpm/tpm0/pcrs | head -1 | cut -d: -f2 | tr -d ' ')
+		INFO "TPM: PCR[$3] after extend: $pcr_value"
+		INFO "TPM: Extended PCR[$3] with hash $hash"
 		;;
 	seal)
 		shift
@@ -1022,7 +1025,9 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		;;
 	reset)
 		shift
+		INFO "TPM: Resetting TPM"
 		tpm1_reset "$@"
+		STATUS_OK "TPM reset completed"
 		;;
 	kexec_finalize) ;; # Nothing on TPM1.
 	shutdown) ;;       # Nothing on TPM1.
@@ -1050,9 +1055,19 @@ pcrsize)
 calcfuturepcr)
 	replay_pcr "sha256" "$@"
 	;;
-extend)
+	extend)
 	TRACE_FUNC
-	INFO "TPM: Extending PCR[$2] with $4"
+	# Show INFO message with what's being extended for auditability
+	# -ic: extend with string, -if: extend with file content
+	if [ "$3" = "-ic" ]; then
+		# -ic: the string is passed directly
+		hash="$(echo -n "$4" | sha256sum | cut -d' ' -f1)"
+		INFO "TPM: Extending PCR[$2] with content of string '$4' (hash: $hash)"
+	else
+		# -if: the file content is used
+		hash="$(sha256sum "$4" | cut -d' ' -f1)"
+		INFO "TPM: Extending PCR[$2] with content of $4 (hash: $hash)"
+	fi
 	tpm2_extend "$@"
 	;;
 counter_read)
@@ -1077,7 +1092,9 @@ unseal)
 	tpm2_unseal "$@"
 	;;
 reset)
+	INFO "TPM: Resetting TPM"
 	tpm2_reset "$@"
+	STATUS_OK "TPM reset completed"
 	;;
 kexec_finalize)
 	tpm2_kexec_finalize "$@"

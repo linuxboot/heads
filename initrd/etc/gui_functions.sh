@@ -280,7 +280,6 @@ report_integrity_measurements() {
 		DEBUG "report_integrity_measurements: querying HOTP token info"
 		if _hotp_info="$(hotp_verification info 2>/dev/null)"; then
 			hotp_state="$DONGLE_BRAND PRESENT"
-			STATUS_OK "$DONGLE_BRAND detected"
 			hotpkey_fw_display "$_hotp_info" "$DONGLE_BRAND"
 		elif [ "$DONGLE_BRAND" != "USB Security dongle" ]; then
 			hotp_state="$DONGLE_BRAND INCOMPATIBLE"
@@ -376,13 +375,14 @@ report_integrity_measurements() {
 			awk -F: '/Signature key/ {gsub(/[[:space:]]/,"",$2); print $2; exit}')
 		if [ -z "$_card_sig_fpr" ] || [ "$_card_sig_fpr" = "[none]" ]; then
 			signing_key_state="DONGLE NOT PROVISIONED"
-			signing_key_guidance="$DONGLE_BRAND is connected but has no signing key (unprovisioned or wiped). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
+			signing_key_guidance="$DONGLE_BRAND is connected but has no signing key (unprovisioned). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
 		else
 			_rom_fprs=$(gpg --with-colons --list-keys 2>/dev/null |
 				awk -F: '/^fpr/ {print $10}')
 			if echo "$_rom_fprs" | grep -qF "$_card_sig_fpr"; then
 				signing_key_state="DONGLE MATCHES ROM-TRUSTED KEY"
 				signing_key_guidance=""
+				STATUS_OK "Signing key verified on $DONGLE_BRAND"
 			else
 				signing_key_state="DONGLE KEY NOT ROM-TRUSTED"
 				signing_key_guidance="$DONGLE_BRAND has a signing key that does not match this firmware's trusted key. OEM Factory Reset / Re-Ownership is required to establish new trusted ownership."

@@ -76,5 +76,5 @@ url="otpauth://totp/$HOST?secret=$secret"
 DEBUG "TOTP secret output on screen (both URL and QR code)"
 qrenc "$url"
 
-STATUS "TOTP secret for manual input (device without camera): $secret"
+NOTE "TOTP secret for manual input (device without camera): $secret"
 secret=""
