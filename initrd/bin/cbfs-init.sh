@@ -24,10 +24,12 @@ if [ -z "$CONFIG_PCR" ]; then
 fi
 
 if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
-	# Use flashrom directly, because we don't have /tmp/config with params for flash.sh yet
-	STATUS "Reading board keys and configuration from SPI flash"
+	# Workaround: cbfs cannot read CBFS directly on rom_hole boards
+	# See: https://github.com/osresearch/flashtools/issues/10
+	STATUS "Reading SPI flash with flashprog (rom_hole workaround)..."
 	if /bin/flashprog -p internal --fmap -i COREBOOT -i FMAP -r /tmp/cbfs-init.rom; then
 		CBFS_ARG=" -o /tmp/cbfs-init.rom"
+		STATUS_OK "ROM read"
 	else
 		WARN "Failed to read board keys and configuration from SPI flash - some features may not be available"
 	fi
@@ -47,7 +49,6 @@ for cbfsname in `echo $cbfsfiles`; do
 		|| DIE "$filename: cbfs file read failed"
 		if [ "$CONFIG_TPM" = "y" ]; then
 			TRACE_FUNC
-			INFO "Measuring $filename into TPM PCR[$CONFIG_PCR]"
 			# Measure both the filename and its content.  This
 			# ensures that renaming files or pivoting file content
 			# will still affect the resulting PCR measurement.
@@ -57,4 +58,4 @@ for cbfsname in `echo $cbfsfiles`; do
 		fi
 	fi
 done
-STATUS_OK "Board keys and configuration loaded from firmware"
+STATUS_OK "GPG keyring, trustdb, and board configuration extracted from firmware"
