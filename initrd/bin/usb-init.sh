@@ -8,7 +8,7 @@ TRACE_FUNC
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	# Extend PCR4 as soon as possible
-	INFO "TPM: Extending PCR[4] for USB boot"
+	INFO "TPM: Extending PCR[4] with content of string 'usb' for USB boot"
 	tpmr.sh extend -ix 4 -ic usb
 fi
 
