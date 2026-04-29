@@ -52,6 +52,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 	fi
 	DEBUG "Unsealing HOTP secret reuses TOTP sealed secret..."
 	# debug unseal too; no password argument
+	STATUS "Unsealing HOTP secret from TPM"
 	if ! DO_WITH_DEBUG tpmr.sh unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET"; then
 		if counter_readable; then
 			fail_unseal "Unable to unseal HOTP secret from TPM; TPM rollback counter intact. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal." || exit 1
@@ -59,6 +60,7 @@ if [ "$CONFIG_TPM" = "y" ]; then
 			fail_unseal "Unable to unseal HOTP secret from TPM; TPM rollback counter broken or missing, reset TPM (see Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and then generate a new secret." || exit 1
 		fi
 	fi
+	STATUS_OK "HOTP secret unsealed from TPM"
 else
 	# without a TPM, generate a secret based on the SHA-256 of the ROM
 	secret_from_rom_hash >"$HOTP_SECRET" || fail_unseal "Reading ROM failed" || exit 1

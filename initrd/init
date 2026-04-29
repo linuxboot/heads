@@ -105,24 +105,24 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	DEBUG "NOTE: DO_WITH_DEBUG std_err and std_out will be redirected to /tmp/debug.log"
 fi
 
-# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log
+# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log and /tmp/measuring_trace.log
 if [ "$CONFIG_QUIET_MODE" = "y" ]; then
 	# check origin of quiet mode setting =y: if it is under /etc/config.user then early cbfs-init outputs are not suppressible
 	# if it is under /etc/config then early cbfs-init outputs are suppressible
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null; then
-		echo "Quiet mode enabled from board configuration: refer to '/tmp/debug.log' for boot measurements traces" >/dev/tty0
+		STATUS_OK "Quiet mode enabled from board configuration: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for boot traces"
 	else
-		echo "Runtime applied Quiet mode: refer to '/tmp/debug.log' for additional boot measurements traces past this point" >/dev/tty0
-		echo "To suppress earlier boot measurements traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time." >/dev/tty0
+		STATUS_OK "Runtime applied Quiet mode: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for additional boot traces past this point"
+		STATUS_OK "To suppress earlier boot traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time."
 	fi
 # If CONFIG_QUIET_MODE enabled in board config but disabled from Config->Configuration Settings
-# warn that early boot measurements output was suppressed prior of this point
+# warn that early boot measurements output was suppressed prior to this point
 elif [ "$CONFIG_QUIET_MODE" = "n" ]; then
 	# if CONFIG_QUIET_MODE=n in /etc/config.user but CONFIG_QUIET_MODE=y in /etc/config then early cbfs-init outputs are suppressed
-	# both needs to be checked to determine if early boot measurements traces were suppressed
+	# both needs to be checked to determine if early boot measurement traces were suppressed
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null && grep -q 'CONFIG_QUIET_MODE="n"' /etc/config.user 2>/dev/null; then
-		echo "Early boot measurements traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)" >/dev/tty0
-		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init related traces prior of this point" >/dev/tty0
+		STATUS_OK "Early boot traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)"
+		STATUS_OK "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for cbfs-init related traces prior to this point"
 	fi
 fi
 
