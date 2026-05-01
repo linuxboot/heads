@@ -1987,7 +1987,8 @@ increment_tpm_counter() {
 		if [ "$counter_present" = "y" ]; then
 			mkdir -p /tmp/secret || true
 			: >"$reset_required_marker"
-			DIE "TPM rollback counter '$counter_id' is readable but not incrementable. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+			WARN "TPM rollback counter '$counter_id' is readable but not incrementable"
+			return 1
 		fi
 
 		# Check if we need to create a new counter
@@ -2006,7 +2007,8 @@ increment_tpm_counter() {
 			DEBUG "Created new TPM counter: $NEW_COUNTER. (counter won't be usable without reset)"
 		fi
 
-		DIE "TPM counter increment failed for rollback prevention. Reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to clear the counter and allow a fresh one to be created."
+		WARN "TPM counter increment failed for rollback prevention"
+		return 1
 	fi
 
 	DEBUG "TPM counter incremented successfully for index $counter_id"

@@ -103,8 +103,10 @@ if [ "$rollback" = "y" ]; then
 
 	# Increment the TPM counter
 	DEBUG "rollback=y: Incrementing counter $TPM_COUNTER."
-	increment_tpm_counter $TPM_COUNTER ||
-		DIE "$paramsdir: Unable to increment tpm counter"
+	increment_tpm_counter $TPM_COUNTER || {
+		WARN "$paramsdir: Unable to increment tpm counter"
+		return 1
+	}
 
 	# Ensure the incremented counter file exists
 	incremented_counter_file="/tmp/counter-$TPM_COUNTER"

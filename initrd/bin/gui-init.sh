@@ -862,8 +862,10 @@ reset_tpm() {
 			DEBUG "TPM_COUNTER: $TPM_COUNTER"
 			#TPM_COUNTER can be empty
 
-			increment_tpm_counter "$TPM_COUNTER" "$tpm_owner_passphrase" ||
-				DIE "Unable to increment tpm counter"
+			increment_tpm_counter "$TPM_COUNTER" "$tpm_owner_passphrase" || {
+				WARN "Unable to increment tpm counter"
+				return 1
+			}
 
 			DO_WITH_DEBUG sha256sum /tmp/counter-$TPM_COUNTER >/boot/kexec_rollback.txt ||
 				DIE "Unable to create rollback file"

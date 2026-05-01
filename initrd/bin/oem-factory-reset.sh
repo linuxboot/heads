@@ -876,8 +876,10 @@ generate_checksums() {
 
 			# increment TPM counter so /tmp/counter-$TPM_COUNTER is populated,
 			# then persist rollback metadata under /boot for next-boot preflight.
-			increment_tpm_counter "$TPM_COUNTER" ||
-				whiptail_error_die "Unable to increment TPM counter"
+			increment_tpm_counter "$TPM_COUNTER" || {
+				WARN "Unable to increment TPM counter"
+				return 1
+			}
 
 			[ -s /tmp/counter-"$TPM_COUNTER" ] ||
 				whiptail_error_die "TPM counter increment did not produce counter state for rollback file"
