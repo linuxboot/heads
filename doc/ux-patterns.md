@@ -186,6 +186,26 @@ that seals new TPM secrets. It verifies:
 If either check fails, the user is shown an error and the sealing operation is aborted.
 This prevents new TOTP/HOTP/DUK secrets from being sealed against a potentially compromised `/boot`.
 
+### Gate bypass for "Reset the TPM"
+
+When the integrity gate fails specifically because `tpm_reset_required` is set (the
+TPM has stale counters that need clearing), the "Reset the TPM" option in both the
+TOTP failure whiptail menu and the TPM/TOTP/HOTP options whiptail menu uses a
+gate-bypass pattern to allow the reset to proceed:
+
+```bash
+# If the gate failed *because* TPM reset is required (stale counters),
+# proceed to reset_tpm() which clears them and creates a fresh one.
+if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm; then
+    reseal_tpm_disk_decryption_key
+fi
+```
+
+Without this bypass, selecting "Reset the TPM" triggers the integrity gate,
+which calls `check_tpm_counter` which hits "out of resources" and collapses
+the flow — the reset never executes.  The `|| tpm_reset_required` lets the
+reset proceed when the gate failure is itself a symptom of needing the reset.
+
 ---
 
 ## GPG User PIN caching

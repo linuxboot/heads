@@ -248,6 +248,8 @@ fi
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	recovery 'Boot script missing?  Entering recovery shell'
 else
+	# Run network boot once at startup (before the respawn loop).
+	# The script may be long-running; we don't restart it.
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
 		$CONFIG_BOOTSCRIPT_NETWORK
@@ -256,16 +258,19 @@ else
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
-		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+		#Never DIE in init, respawn Boot Scripts
+		while true; do
+			echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
 
-		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
-			for console in $CONFIG_BOOT_EXTRA_TTYS; do
-				setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
-			done
-		fi
+			if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
+				for console in $CONFIG_BOOT_EXTRA_TTYS; do
+					setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
+				done
+			fi
 
-		#Setup a control tty so that all terminals outputs correct tty when tty is called
-		exec cttyhack "$CONFIG_BOOTSCRIPT"
+			#Setup a control tty so that all terminals outputs correct tty when tty is called
+			exec cttyhack "$CONFIG_BOOTSCRIPT"
+		done
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'

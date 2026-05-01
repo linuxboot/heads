@@ -629,7 +629,15 @@ investigate_integrity_discrepancies() {
 			recovery "$msg"
 			;;
 		u)
+			# "Update checksums now" from the integrity investigation
+			# whiptail menu.  If update_checksums set tpm_reset_required
+			# (e.g. check_tpm_counter hit "out of resources"),
+			# return 1 to exit the investigation loop and return to
+			# the main menu instead of looping back here.
 			prompt_update_checksums && return 0
+			if tpm_reset_required; then
+				return 1
+			fi
 			;;
 		*)
 			return 0

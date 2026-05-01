@@ -1753,6 +1753,16 @@ check_tpm_counter() {
 		local rc=$?
 		if [ $rc -ne 0 ]; then
 			DEBUG "tpmr.sh counter_create failed with status $rc"
+			# Signal to prompt_update_checksums that TPM reset is needed so
+			# the user sees the gate before retrying "sign /boot".
+			set_tpm_reset_required \
+				"TPM counter creation failed (exit $rc): $(head -c 200 /tmp/counter 2>/dev/null | tr '\n' ' ')" \
+				"check_tpm_counter"
+			# "out of resources" (0x15) means TPM has too many counters from a
+			# previous run.  The user must reset the TPM to clear them.
+			if grep -qi 'out of resources' /tmp/counter 2>/dev/null; then
+				DIE "TPM has too many counters (out of resources). Reset the TPM from the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
 			# don't tell the user to reset again; the TPM was just reset
 			DIE "Unable to create TPM counter; TPM appears to be in a bad state. Perform OEM Factory Reset / re-ownership and try again."
 		fi
@@ -1949,12 +1959,17 @@ increment_tpm_counter() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		# TPM2 counters created with authwrite commonly require index auth (often
 		# empty auth) for nvincrement. Try that first, then owner auth fallback.
+		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
+		# | SINK_LOG "$1 stderr") and stdout (tee >(SINK_LOG "$1 stdout")).
+		# Redirecting DO_WITH_DEBUG's own fd 2 to /dev/null is intentional:
+		# DO_WITH_DEBUG produces no stderr of its own, and the actual command
+		# stderr is already handled inside DO_WITH_DEBUG.
 		DEBUG "increment_tpm_counter: TPM2 trying index-auth nvincrement first"
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
+				2>/dev/null |
 				tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
@@ -1964,7 +1979,7 @@ increment_tpm_counter() {
 				set -o pipefail
 				DO_WITH_DEBUG --mask-position 5 \
 					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
-					2> >(SINK_LOG "tpm counter_increment stderr") |
+					2>/dev/null |
 					tee /tmp/counter-"$counter_id" >/dev/null
 			); then
 				increment_ok="y"
@@ -1972,12 +1987,17 @@ increment_tpm_counter() {
 		fi
 	else
 		# TPM1 path uses owner auth in practice.
+		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
+		# We must capture stdout to detect failures properly.
+		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
+		# | SINK_LOG "$1 stderr") and stdout (tee >(SINK_LOG "$1 stdout")).
+		# Redirecting DO_WITH_DEBUG's own fd 2 to /dev/null is intentional: the
+		# actual command stderr is already handled inside DO_WITH_DEBUG.
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
-				tee /tmp/counter-"$counter_id" >/dev/null
+					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
 		fi

@@ -311,6 +311,29 @@ Failure conditions and their diagnostic messages:
 | TPM2: counter has `ownerwrite` but not `authwrite` | "TPM counter has invalid security policy." |
 | TPM2: counter has neither `authwrite` nor `ownerwrite` | "TPM counter is not writable." |
 | TPM2: counter attributes empty or unreadable | "TPM counter policy is corrupted." |
+| TPM1: `counter_create` failed with "out of resources" (0x15) | "TPM has too many counters (out of resources). Reset the TPM from the GUI menu..." |
+
+When `check_tpm_counter` calls `tpmr counter_create` and it fails, the function
+calls `set_tpm_reset_required` to create the `/tmp/secret/tpm_reset_required`
+marker.  This gates `prompt_update_checksums` on subsequent invocations,
+preventing the user from retrying "sign /boot" until the TPM is reset.
+
+The "out of resources" (TPM 1.2 error 0x15) case occurs when the TPM already
+has a counter from a prior firmware session but `/boot/kexec_rollback.txt` is
+missing (e.g. after a firmware reflash that changed the boot partition layout).
+The only safe recovery is to reset the TPM from the GUI menu, which clears all
+counters and creates a fresh one.
+
+### TPM 1.2 stdout quirk (tpmtotp)
+
+The tpmtotp C toolkit (`counter_create.c`, `unsealfile.c`, `sealfile2.c` and
+others) prints ALL output — both success and error messages — via `printf()` to
+**stdout**, NOT stderr.  This is a quirk of the tpmtotp codebase.
+
+All `tpm1_*` functions in `tpmr.sh` must therefore capture stdout (not just
+stderr) to detect failures.  Use `>"$file" 2>&1` to capture both streams,
+and run TPM commands in subshells with `set +e` to avoid `set -e` killing the
+script on non-zero exit codes.
 
 The exact diagnostic message from `fail_preflight` is shown directly in the
 error dialog — **not** a vague paraphrase. This tells the user and any support

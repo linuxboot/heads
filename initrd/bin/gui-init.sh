@@ -191,11 +191,19 @@ prompt_update_checksums() {
 		--yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80); then
 		if update_checksums; then
 			return 0
+		fi
+		# update_checksums may have set the TPM-reset-required marker
+		# during its execution (e.g. check_tpm_counter hit "out of
+		# resources").  Show the targeted TPM message instead of the
+		# generic failure so the user knows exactly what to do.
+		if tpm_reset_required; then
+			whiptail_error --title 'TPM Reset Required' \
+				--msgbox "Cannot sign /boot: TPM state is inconsistent.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM), then update checksums." 0 80
 		else
 			whiptail_error --title 'ERROR' \
 				--msgbox "Failed to update checksums / sign default config" 0 80
-			return 1
 		fi
+		return 1
 	fi
 	return 1
 }
@@ -411,8 +419,13 @@ EOF
 				skip_to_menu="true"
 				return 1
 				;;
+			# "Reset the TPM" from the TOTP failure whiptail menu.
+			# The gate runs first to verify /boot integrity.  If the gate
+			# fails *because* TPM reset is required (e.g. stale counters),
+			# the || tpm_reset_required bypass lets reset_tpm() proceed —
+			# it clears counters and creates a fresh one.
 			p)
-				if gate_reseal_with_integrity_report && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+				if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 				;;
@@ -808,8 +821,11 @@ show_tpm_totp_hotp_options_menu() {
 			update_totp && update_hotp || true
 		fi
 		;;
+	# "Reset the TPM" from the TPM/TOTP/HOTP options whiptail menu.
+	# Same gate-bypass pattern: if the gate fails because TPM
+	# reset is required, proceed to reset_tpm() anyway.
 	r)
-		if gate_reseal_with_integrity_report && reset_tpm; then
+		if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 		fi
 		;;
@@ -839,7 +855,18 @@ reset_tpm() {
 				return 1
 			fi
 
-			tpmr.sh reset "$tpm_owner_passphrase"
+			# Verify TPM reset succeeded before proceeding to counter
+			# creation, signing, TOTP generation, and DUK resealing.
+			# A failed reset would leave the TPM in an inconsistent state
+			# (old passphrase with unknown PCRs), causing confusing errors
+			# downstream.  Show the actual error to the user and return
+			# to the menu.
+			if ! tpmr.sh reset "$tpm_owner_passphrase" 2>/tmp/error; then
+				ERROR=$(tail -n 1 /tmp/error | fold -s)
+				whiptail_error --title 'ERROR' \
+					--msgbox "Error resetting TPM:\n\n${ERROR}" 0 80
+				return 1
+			fi
 
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
