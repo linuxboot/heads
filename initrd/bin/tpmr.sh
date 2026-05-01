@@ -571,9 +571,26 @@ tpm2_seal() {
 		fi
 	done
 }
+# tpm1_seal - Seal a file to TPM1 NVRAM.
+#
+# NVRAM Flow:
+# 1. Create sealed blob from file + PCR policy (tpm sealfile2)
+# 2. Try to write blob to NVRAM index (tpm nv_writevalue)
+# 3. If write fails (index doesn't exist), create NVRAM space (tpm nv_definespace)
+# 4. Retry write after defining space
+#
+# Exit code handling:
+# - Script uses 'set -e', so we capture TPM exit codes in subshells to avoid
+#   premature exit. Some TPM implementations return exit code 2 (index doesn't
+#   exist) with empty stderr on first write - we handle this by defining NVRAM.
+# - Exit code 0: success
+# - Exit code 2: index doesn't exist (normal on first seal after TPM reset)
+# - Exit code 3+: other errors (permission denied, bad passphrase, etc.)
+#
+# PCR policy: At seal time, PCR5 is IGNORED (not measured) - only relevant for HOTP.
 tpm1_seal() {
 	TRACE_FUNC
-	local tmp_err_write tmp_err_define tmp_err_write_after_define
+	local tmp_err_write tmp_err_define
 	file="$1"
 	index="$2"
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
@@ -612,17 +629,25 @@ tpm1_seal() {
 		"${POLICY_ARGS[@]}"
 	DEBUG "tpm1_seal: sealed blob created at $sealed_file (size=$(wc -c <"$sealed_file" 2>/dev/null || echo 0) bytes), target nv index=$index"
 
-	local attempt=0
-	while true; do
-		attempt=$((attempt + 1))
-		tmp_err_write="$(mktemp)"
-		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write"; then
-			rm -f "$tmp_err_write"
-			return 0
-		fi
-		tmp_err_content="$(cat "$tmp_err_write")"
-		rm -f "$tmp_err_write"
-		if ! echo "$tmp_err_content" | grep -qi 'illegal index'; then
+	tmp_err_write="$(mktemp)"
+	(
+		set +e
+		tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write"
+		echo $? > "$tmp_err_write.exit"
+	)
+	tpm_result=$(cat "$tmp_err_write.exit")
+	tmp_err_content="$(cat "$tmp_err_write")"
+	rm -f "$tmp_err_write" "$tmp_err_write.exit"
+	DEBUG "tpm1_seal: nv_writevalue result=$tpm_result, stderr='$tmp_err_content'"
+
+	if [ "$tpm_result" = "0" ]; then
+		DEBUG "tpm1_seal: nv_writevalue succeeded"
+		return 0
+	fi
+
+		# Continue if: exit code is 2 (index doesn't exist) OR stderr contains "illegal index"
+		# Otherwise: unexpected error, die
+		if [ "$tpm_result" != "2" ] && ! echo "$tmp_err_content" | grep -qi 'illegal index'; then
 			DEBUG "tpm1_seal nv_writevalue(pre-define) stderr: $tmp_err_content"
 			DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal (unexpected error). Wiping /tmp/secret/tpm_owner_passphrase"
 			shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
@@ -638,35 +663,45 @@ tpm1_seal() {
 		prompt_tpm_owner_password
 		tpm_owner_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
 		tmp_err_define="$(mktemp)"
-		if ! DO_WITH_DEBUG --mask-position 7 tpm nv_definespace -in "$index" -sz "$sealed_size" \
-			-pwdo "$tpm_owner_passphrase" -per 0 2>"$tmp_err_define"; then
-			tmp_err_define_content="$(cat "$tmp_err_define")"
-			rm -f "$tmp_err_define"
+		(
+			set +e
+			DO_WITH_DEBUG --mask-position 7 tpm nv_definespace -in "$index" -sz "$sealed_size" \
+				-pwdo "$tpm_owner_passphrase" -per 0 2>"$tmp_err_define"
+			echo $? > "$tmp_err_define.exit"
+		)
+		define_result=$(cat "$tmp_err_define.exit")
+		tmp_err_define_content="$(cat "$tmp_err_define")"
+		rm -f "$tmp_err_define" "$tmp_err_define.exit"
+
+		if [ "$define_result" != "0" ]; then
 			DEBUG "tpm1_seal nv_definespace stderr: $tmp_err_define_content"
-			WARN "Unable to define TPM NVRAM space; trying anyway"
-		else
-			rm -f "$tmp_err_define"
+			if echo "$tmp_err_define_content" | grep -qi 'illegal index'; then
+				DEBUG "tpm1_seal: index $index already exists, retrying write"
+			else
+				WARN "Unable to define TPM NVRAM space; trying anyway"
+			fi
 		fi
 
 		tmp_err_write_after_define="$(mktemp)"
-		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write_after_define"; then
-			rm -f "$tmp_err_write_after_define"
+		(
+			set +e
+			tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write_after_define"
+			echo $? > "$tmp_err_write_after_define.exit"
+		)
+		write_result=$(cat "$tmp_err_write_after_define.exit")
+		tmp_err_content="$(cat "$tmp_err_write_after_define")"
+		rm -f "$tmp_err_write_after_define" "$tmp_err_write_after_define.exit"
+
+		if [ "$write_result" = "0" ]; then
+			DEBUG "tpm1_seal: nv_writevalue succeeded after define"
 			return 0
 		fi
-		tmp_err_content="$(cat "$tmp_err_write_after_define")"
-		rm -f "$tmp_err_write_after_define"
 		DEBUG "tpm1_seal nv_writevalue(post-define) stderr: $tmp_err_content"
-		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_passphrase"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
 		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
-			if [ "$attempt" -ge 3 ]; then
-				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
-			fi
-			WARN "Failed to write sealed secret (bad passphrase?). Retrying..."
-		else
-			DIE "Unable to write sealed secret to TPM NVRAM"
+			DIE "Unable to write sealed secret to TPM NVRAM (bad passphrase?)"
 		fi
-	done
+		DIE "Unable to write sealed secret to TPM NVRAM"
 }
 
 # Unseal a file sealed by tpm2_seal.  The PCR list must be provided, the
