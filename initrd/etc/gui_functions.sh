@@ -253,7 +253,10 @@ report_integrity_measurements() {
 	DEBUG "integrity report generated at $date_now"
 	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
 
-	# Enable USB first for proper branding detection (user-initiated, won't break DUK unseal)
+	# enable_usb extends PCR5, but this function is only called when
+	# unsealing already failed (or rollback validation failed).  Any
+	# subsequent seal requires a reboot, so stale PCR5 from USB is
+	# never sealed against.
 	enable_usb
 	detect_usb_security_dongle_branding
 

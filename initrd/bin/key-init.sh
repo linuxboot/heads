@@ -22,11 +22,13 @@ if [ -d /.gnupg/keys ]; then
 	# This is legacy location for user's keys. cbfs-init takes for granted that keyring and trustdb are in /.gnupg
 	#  oem-factory-reset.sh generates keyring and trustdb which cbfs-init dumps to /.gnupg
 	# TODO: Remove individual key imports. This is still valid for distro keys only below.
+	DEBUG "Importing $(ls /.gnupg/keys/*.key /.gnupg/keys/*.asc 2>/dev/null | wc -l) user GPG key(s) from /.gnupg/keys"
 	STATUS "Importing user GPG keys"
 	gpg --import /.gnupg/keys/*.key  /.gnupg/keys/*.asc 2>/dev/null || WARN "Importing user's keys failed"
 fi
 
 # Import OS distribution signing keys used to authenticate ISO boots
+DEBUG "Importing $(ls /etc/distro/keys/* 2>/dev/null | wc -l) distro signing key(s)"
 STATUS "Loading OS distribution signing keys for ISO boot authentication"
 gpg --homedir=/etc/distro/ --import /etc/distro/keys/* 2>/dev/null || WARN "Importing distro keys failed"
 #Set distro keys trust level to ultimate (trust anything that was signed with these keys)
@@ -34,5 +36,6 @@ gpg --homedir=/etc/distro/ --list-keys --fingerprint --with-colons|sed -E -n -e 
 gpg --homedir=/etc/distro/ --update-trust 2>/dev/null || WARN "Updating distro keys trust failed"
 
 # Add user's key so self-signed ISOs can also be booted from USB
+DEBUG "Exporting user GPG keys to distro keyring for self-signed ISO support"
 STATUS "Adding user GPG key as trusted for ISO signing"
 gpg --export | gpg --homedir=/etc/distro/ --import 2>/dev/null || WARN "Adding user's keys to distro keys failed"

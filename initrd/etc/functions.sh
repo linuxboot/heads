@@ -1847,12 +1847,14 @@ preflight_rollback_counter_before_reseal() {
 
 	if [ -z "$counter_id" ]; then
 		counter_id="$(get_rollback_counter_id "$rollback_file")"
+		DEBUG "Preflight: rollback counter_id=$counter_id from $rollback_file"
 	fi
 	if [ -z "$counter_id" ]; then
 		# If rollback metadata is missing on an already initialized system,
 		# this is an inconsistent TPM/boot state and should be handled before
 		# TOTP/HOTP recovery workflows.
 		if has_prior_boot_trust_metadata "$rollback_file"; then
+			DEBUG "Preflight: prior boot trust metadata exists but counter file missing — /boot swap or restore suspected"
 			fail_preflight "Boot integrity counter file missing. This means /boot was restored or swapped. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 			return 1
 		fi
@@ -1862,26 +1864,32 @@ preflight_rollback_counter_before_reseal() {
 
 	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
 	if ! tpmr.sh counter_read -ix "$counter_id" >/dev/null 2>&1; then
+		DEBUG "Preflight: counter_read $counter_id failed (counter missing, unreadable, or TPM mismatch)"
 		fail_preflight "TPM integrity counter cannot be read. Possible cause: TPM was swapped or reset. This could indicate a TPM swap attack. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 		return 1
 	fi
 
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		if attrs_lc="$(tpm2 nvreadpublic "0x$counter_id" 2>/dev/null | tr '[:upper:]' '[:lower:]')"; then
+			DEBUG "Preflight: TPM2 counter $counter_id public attributes: $attrs_lc"
 			if [ -n "$attrs_lc" ]; then
 				if echo "$attrs_lc" | grep -q "ownerwrite" && ! echo "$attrs_lc" | grep -q "authwrite"; then
+					DEBUG "Preflight: counter $counter_id has ownerwrite without authwrite — invalid for HOTP"
 					fail_preflight "TPM counter has invalid security policy. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 					return 1
 				fi
 				if ! echo "$attrs_lc" | grep -Eq "authwrite|ownerwrite"; then
+					DEBUG "Preflight: counter $counter_id has no write attribute (authwrite or ownerwrite)"
 					fail_preflight "TPM counter is not writable. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 					return 1
 				fi
 			else
+				DEBUG "Preflight: counter $counter_id public attributes empty — policy corrupted"
 				fail_preflight "TPM counter policy is corrupted. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 				return 1
 			fi
 		else
+			DEBUG "Preflight: tpm2 nvreadpublic $counter_id failed — cannot read counter policy"
 			fail_preflight "Cannot read TPM counter policy. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 			return 1
 		fi

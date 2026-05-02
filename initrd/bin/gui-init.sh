@@ -90,8 +90,10 @@ verify_global_hashes() {
 	TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
 	if verify_checksums /boot; then
+		DEBUG "clean_boot_check: boot hashes match kexec.sig signature — system integrity OK"
 		return 0
 	elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]]; then
+		DEBUG "clean_boot_check: hash/tree files missing under /boot — first boot or upgrade detected"
 		if (whiptail_error --title 'ERROR: Missing File!' \
 			--yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an older version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to create the missing files now?" 0 80); then
 			if update_checksums; then
@@ -252,6 +254,7 @@ gate_reseal_with_integrity_report() {
 	if [ -x /bin/hotp_verification ]; then
 		token_ok="n"
 		while [ "$token_ok" != "y" ]; do
+			DEBUG "gate_reseal_with_integrity_report: enabling USB for $DONGLE_BRAND HOTP token verification"
 			enable_usb
 			# wait_for_gpg_card already called release_scdaemon on success,
 			# starting the NK3 CCID teardown.  This safety call covers the
@@ -360,6 +363,7 @@ update_totp() {
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
 	else
+		DEBUG "update_totp: unsealing TOTP secret from TPM"
 		TOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-totp.sh)
 		if [ $? -ne 0 ]; then
 			local totp_menu_text
@@ -451,6 +455,7 @@ update_hotp() {
 
 	# Ensure dongle is present; capture info for PIN counter display
 	STATUS "Checking $DONGLE_BRAND presence"
+	DEBUG "update_hotp: querying $DONGLE_BRAND HOTP token (hotp_verification info)"
 	if ! hotp_token_info="$(hotp_verification info)"; then
 		if [ "$skip_to_menu" = "true" ]; then
 			return 1 # Already asked to skip to menu from a prior error
@@ -463,12 +468,14 @@ update_hotp() {
 			BG_COLOR_MAIN_MENU="warning"
 			return
 		fi
+		DEBUG "update_hotp: retrying $DONGLE_BRAND HOTP token after user inserted dongle"
 		if ! hotp_token_info="$(hotp_verification info)"; then
 			HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
 			BG_COLOR_MAIN_MENU="warning"
 			return
 		fi
 	fi
+	DEBUG "update_hotp: $DONGLE_BRAND HOTP token info: $(echo "$hotp_token_info" | tr '\n' ' ')"
 
 	# Show dongle firmware version with color coding so users know when to upgrade
 	hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
@@ -488,9 +495,11 @@ update_hotp() {
 	# PIN retry count is shown only before a retry so normal boots stay silent.
 	for attempt in 1 2 3; do
 		# Don't output HOTP codes to screen, so as to make replay attacks harder
-		STATUS "Verifying HOTP code"
+		STATUS "Verifying HOTP code (attempt $attempt/3)"
+		DEBUG "update_hotp: calling hotp_verification check (attempt $attempt/3)"
 		hotp_verification check "$HOTP"
 		hotp_exit=$?
+		DEBUG "update_hotp: hotp_verification check exited with code $hotp_exit"
 		case "$hotp_exit" in
 		0)
 			HOTP="Success"
@@ -899,6 +908,7 @@ reset_tpm() {
 			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it.
 			# NOTE: At seal time, PCR5 is IGNORED (not measured) - only used on HOTP board variants. So USB
 			# modules loading here don't affect DUK seal. GPG card needs USB to be enabled first.
+			DEBUG "reset_tpm: enabling USB for GPG card signing and dongle detection"
 			enable_usb
 			wait_for_gpg_card || true
 			while true; do
@@ -976,6 +986,7 @@ force_unsafe_boot() {
 TRACE_FUNC
 
 if [ -x /bin/hotp_verification ]; then
+	DEBUG "gui-init: HOTP verification supported, enabling USB for security dongle detection"
 	enable_usb
 fi
 
@@ -984,9 +995,11 @@ fi
 detect_usb_security_dongle_branding
 
 if detect_boot_device; then
+	DEBUG "Boot device detected; running clean boot integrity check"
 	# /boot device with installed OS found
 	clean_boot_check
 else
+	DEBUG "No boot device auto-detected; falling back to interactive mount_boot"
 	# can't determine /boot device or no OS installed,
 	# so fall back to interactive selection
 	mount_boot
@@ -1078,6 +1091,8 @@ EOF
 			[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
 		fi
 	done
+else
+	DEBUG "Rollback preflight OK: TPM counter validated successfully"
 fi
 
 # detect whether any GPG keys exist in the keyring, if not, initialize that first

@@ -146,6 +146,7 @@ fi
 
 # set CONFIG_TPM dynamically off before init if no TPM device is present
 if [ ! -e /dev/tpm0 ]; then
+	DEBUG "No TPM device (/dev/tpm0) found; disabling CONFIG_TPM and CONFIG_TPM2_TOOLS"
 	CONFIG_TPM='n'
 	CONFIG_TPM2_TOOLS='n'
 fi
@@ -162,6 +163,7 @@ else
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
+	DEBUG "TPM enabled: initializing TPM2 encrypted sessions"
 	# Initialize tpm2 encrypted sessions here
 	tpmr.sh startsession
 fi
@@ -180,6 +182,7 @@ export GPG_TTY=/dev/console
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+	DEBUG "Recovery serial console enabled on $CONFIG_BOOT_RECOVERY_SERIAL"
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
 	pause_recovery 'Serial console recovery shell' \
 		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
@@ -188,6 +191,7 @@ fi
 
 # load USB modules for boards using a USB keyboard
 if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
+	DEBUG "USB keyboard required by board or user config; loading USB modules"
 	enable_usb
 fi
 
@@ -204,11 +208,13 @@ read \
 echo
 
 if [ "$boot_option" = "r" ]; then
+	DEBUG "User requested recovery shell (key 'r')"
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
 	exit
 elif [ "$boot_option" = "o" ]; then
+	DEBUG "User requested OEM Factory Reset mode (key 'o')"
 	# Launch OEM Factory Reset mode
 	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
 	oem-factory-reset.sh --mode oem
@@ -217,6 +223,7 @@ elif [ "$boot_option" = "o" ]; then
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
+	DEBUG "BASIC mode: tamper detection bypassed, overriding boot script"
 	echo -e "***** BASIC mode: tamper detection disabled\n" >/dev/tty0
 fi
 
@@ -236,21 +243,27 @@ fi
 setconsolefont.sh
 
 if [ "$CONFIG_BASIC" = "y" ]; then
+	DEBUG "Overriding boot script to gui-init-basic.sh, disabling HOTP"
 	CONFIG_BOOTSCRIPT=/bin/gui-init-basic.sh
 	export CONFIG_HOTPKEY=n
 fi
 
 # Perform board-specific init if present
 if [ -x /bin/board-init.sh ]; then
+	DEBUG "Running board-specific init: /bin/board-init.sh"
 	/bin/board-init.sh
+else
+	DEBUG "No board-init.sh found; skipping board-specific init"
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+	DEBUG "No boot script found (CONFIG_BOOTSCRIPT=$CONFIG_BOOTSCRIPT, CONFIG_BOOTSCRIPT_NETWORK=$CONFIG_BOOTSCRIPT_NETWORK); entering recovery"
 	recovery 'Boot script missing?  Entering recovery shell'
 else
 	# Run network boot once at startup (before the respawn loop).
 	# The script may be long-running; we don't restart it.
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+		DEBUG "Starting network boot script: $CONFIG_BOOTSCRIPT_NETWORK"
 		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
 		$CONFIG_BOOTSCRIPT_NETWORK
 		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
@@ -258,6 +271,7 @@ else
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
+		DEBUG "Entering boot script respawn loop: $CONFIG_BOOTSCRIPT"
 		#Never DIE in init, respawn Boot Scripts
 		while true; do
 			echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
@@ -268,8 +282,9 @@ else
 				done
 			fi
 
-			#Setup a control tty so that all terminals outputs correct tty when tty is called
-			exec cttyhack "$CONFIG_BOOTSCRIPT"
+			# Attach boot script to a controlling tty: ensures `tty` reports the
+			# real terminal device, I/O routes correctly, and job control works.
+			cttyhack "$CONFIG_BOOTSCRIPT"
 		done
 	else
 		# wait for boot via network to occur

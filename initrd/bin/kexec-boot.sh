@@ -166,6 +166,7 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
+	DEBUG "Flushing TPM contexts and locking platform hierarchy before kexec"
 	tpmr.sh kexec_finalize
 fi
 
