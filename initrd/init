@@ -272,19 +272,39 @@ else
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
 		DEBUG "Entering boot script respawn loop: $CONFIG_BOOTSCRIPT"
-		#Never DIE in init, respawn Boot Scripts
+
+		#Never DIE in init: PID-track all boot script instances and
+		#restart only the ones that died.  Uses `wait` to sleep until
+		#a child exits rather than polling a single blocking instance.
 		while true; do
 			echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
 
+			# Main console: cttyhack sets up the controlling terminal.
+			main_pid_file="/tmp/bootscript_pid_main"
+			main_pid=$(cat "$main_pid_file" 2>/dev/null)
+			if [ -z "$main_pid" ] || ! kill -0 "$main_pid" 2>/dev/null; then
+				DEBUG "Starting boot script on main console"
+				cttyhack "$CONFIG_BOOTSCRIPT" &
+				echo $! >"$main_pid_file"
+			fi
+
+			# Extra TTYs: agetty provides separate session + controlling
+			# terminal per console (avoids shared-ctty GPG issues).
 			if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
 				for console in $CONFIG_BOOT_EXTRA_TTYS; do
-					setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
+					pid_file="/tmp/bootscript_pid_${console//\//_}"
+					pid=$(cat "$pid_file" 2>/dev/null)
+					if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+						DEBUG "Starting agetty on $console"
+						setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
+						echo $! >"$pid_file"
+					fi
 				done
 			fi
 
-			# Attach boot script to a controlling tty: ensures `tty` reports the
-			# real terminal device, I/O routes correctly, and job control works.
-			cttyhack "$CONFIG_BOOTSCRIPT"
+			# Wait for any boot script instance to die before checking
+			# which one needs restart.  Prevents busy-polling.
+			wait
 		done
 	else
 		# wait for boot via network to occur
