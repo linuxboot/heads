@@ -60,6 +60,7 @@ ethernet_activation()
 			insmod.sh /lib/modules/$module.ko
 		fi
 	done
+	STATUS_OK "Ethernet network modules loaded"
 }
 
 # bring up the ethernet interface
@@ -113,10 +114,10 @@ if [ -n "$dev" ]; then
 						STATUS_OK "NTP time sync successful"
 					fi
 				fi
-				STATUS "Syncing hardware clock with system time (UTC)"
-				hwclock -w
-				date=$(date "+%Y-%m-%d %H:%M:%S %Z")
-				STATUS "Time: $date"
+			STATUS "Syncing hardware clock with system time (UTC)"
+			hwclock -w
+			date=$(date "+%Y-%m-%d %H:%M:%S %Z")
+			STATUS_OK "Hardware clock synced: $date"
 			fi
 		fi
 	fi
@@ -133,6 +134,7 @@ if [ -n "$dev" ]; then
 		# -B background
 		# -R create host keys
 		dropbear -B -R
+		STATUS_OK "Dropbear SSH server started"
 	fi
 	STATUS_OK "Network setup complete"
 	ifconfig $dev

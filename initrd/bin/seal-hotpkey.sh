@@ -61,6 +61,7 @@ DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
 
 # While making sure the key is inserted, capture the status so we can check how
 # many PIN attempts remain
+DEBUG "Querying $DONGLE_BRAND HOTP token status (hotp_verification info)"
 if ! hotp_token_info="$(hotp_verification info)"; then
 	INPUT "Insert your $DONGLE_BRAND and press Enter to configure it"
 	if ! hotp_token_info="$(hotp_verification info)"; then
@@ -69,6 +70,7 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 		DIE "Unable to find $DONGLE_BRAND"
 	fi
 fi
+DEBUG "$DONGLE_BRAND HOTP token info retrieved: $(echo "$hotp_token_info" | head -1)"
 
 # Re-detect branding now that the dongle is confirmed present.
 detect_usb_security_dongle_branding
@@ -101,6 +103,7 @@ fi
 admin_pin_retries="${admin_pin_retries:-0}"
 DEBUG "HOTP related PIN retry counter is $admin_pin_retries"
 # Show dongle firmware version with color coding so users know when to upgrade
+DEBUG "Querying $DONGLE_BRAND firmware and Secrets App versions"
 hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
 
 # Re-query and display the current PIN retry counter before each manual prompt.
@@ -109,6 +112,7 @@ hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
 # prompt_message is already set for the device type (NK3 vs older), reuse it.
 show_pin_retries() {
 	local info
+	DEBUG "show_pin_retries: re-querying $DONGLE_BRAND PIN retry counter"
 	info="$(hotp_verification info 2>/dev/null)" || true
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
@@ -141,8 +145,12 @@ else
 	fi
 	#TODO: silence the output of hotp_initialize once https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 	#hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND" >/dev/null 2>&1
+	STATUS "Writing HOTP secret to $DONGLE_BRAND"
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND"
 	admin_pin_status="$?"
+	if [ "$admin_pin_status" -eq 0 ]; then
+		STATUS_OK "HOTP secret written to $DONGLE_BRAND"
+	fi
 fi
 
 if [ "$admin_pin_status" -ne 0 ]; then
@@ -171,6 +179,7 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	#   Default PIN tried & failed (3 -> 2 remaining) -> max_attempts = min(2-1, 3) = 1
 	#   Counter read failed (0 or empty)              -> max_attempts = 3 (fallback, don't block)
 	# Re-read counter without displaying (loop will show it)
+	DEBUG "Re-reading $DONGLE_BRAND PIN counter after default PIN attempt"
 	info="$(hotp_verification info 2>/dev/null)" || true
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')

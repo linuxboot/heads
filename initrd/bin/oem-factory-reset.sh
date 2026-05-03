@@ -218,6 +218,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key generation failed!\n\n$ERROR"
 	fi
+	STATUS_OK "RSA ${RSA_KEY_LENGTH}-bit master key generated"
 
 	STATUS "Generating RSA signing subkey for $DONGLE_BRAND"
 	# Add signing subkey
@@ -236,6 +237,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key signing subkey generation failed!\n\n$ERROR"
 	fi
+	STATUS_OK "RSA signing subkey generated"
 
 	STATUS "Generating RSA encryption subkey for $DONGLE_BRAND"
 	#Add encryption subkey
@@ -254,6 +256,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key encryption subkey generation failed!\n\n$ERROR"
 	fi
+	STATUS_OK "RSA encryption subkey generated"
 
 	STATUS "Generating RSA authentication subkey for $DONGLE_BRAND"
 	#Add authentication subkey
@@ -279,6 +282,7 @@ generate_inmemory_RSA_master_and_subkeys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG Key authentication subkey generation failed!\n\n$ERROR"
 	fi
+	STATUS_OK "RSA authentication subkey generated"
 }
 
 #Generate a gpg master key: no expiration date, NIST P-256 key (ECC)
@@ -307,6 +311,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		ERROR=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "GPG NIST P-256 Key generation failed!\n\n$ERROR"
 	fi
+	STATUS_OK "NIST P-256 master key generated"
 
 	#Keep Master key fingerprint for add key calls
 	MASTER_KEY_FP=$(gpg --list-secret-keys --with-colons | grep fpr | cut -d: -f10)
@@ -327,6 +332,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 signing key to master key\n\n${ERROR_MSG}"
 	fi
+	STATUS_OK "NIST P-256 signing subkey generated"
 
 	STATUS "Generating NIST P-256 encryption subkey for $DONGLE_BRAND"
 	{
@@ -343,6 +349,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 encryption key to master key\n\n${ERROR_MSG}"
 	fi
+	STATUS_OK "NIST P-256 encryption subkey generated"
 
 	STATUS "Generating NIST P-256 authentication subkey for $DONGLE_BRAND"
 	{
@@ -362,6 +369,7 @@ generate_inmemory_p256_master_and_subkeys() {
 		ERROR_MSG=$(cat /tmp/gpg_card_edit_output)
 		whiptail_error_die "Failed to add ECC nistp256 authentication key to master key\n\n${ERROR_MSG}"
 	fi
+	STATUS_OK "NIST P-256 authentication subkey generated"
 
 }
 
@@ -1050,6 +1058,7 @@ usb_security_token_capabilities_check() {
 			DEBUG "$DONGLE_BRAND firmware version: $DONGLE_FW_VERSION"
 		fi
 	fi
+	STATUS_OK "$DONGLE_BRAND capabilities checked"
 }
 
 # usb_security_token_capabilities_check now handles all USB Security dongle logic
@@ -1108,9 +1117,9 @@ INPUT "Would you like to use default configuration options? If N, you will be pr
 if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	#Give general guidance to user on how to answer prompts
 	STATUS "Factory Reset / Re-Ownership Questionnaire"
-	INFO "The following questionnaire will help you configure the security components of your system"
-	INFO "Each prompt requires a single letter answer (Y/n)"
-	INFO "Pressing Enter selects the default answer for each prompt"
+	NOTE "The following questionnaire will help you configure the security components of your system"
+	NOTE "Each prompt requires a single letter answer (Y/n)"
+	NOTE "Pressing Enter selects the default answer for each prompt"
 	TRACE_FUNC
 	DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
 	qrenc "https://diceware.dmuth.org/"
@@ -1141,7 +1150,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 		-o "$prompt_output" == "Y" ] \
 		; then
 		GPG_GEN_KEY_IN_MEMORY="y"
-		INFO "Master key and subkeys will be generated in memory and backed up to a dedicated LUKS container"
+		NOTE "Master key and subkeys will be generated in memory and backed up to a dedicated LUKS container"
 		INPUT "Would you like in-memory generated subkeys to be copied to $DONGLE_BRAND's OpenPGP smartcard? (Highly recommended) [Y/n]:" -n 1 prompt_output
 		if [ "$prompt_output" == "n" \
 			-o "$prompt_output" == "N" ]; then
@@ -1149,12 +1158,12 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			NOTE "Your GPG key material backup thumb drive should be cloned to a second thumb drive for redundancy for production environments"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 		else
-			INFO "Subkeys will be copied to $DONGLE_BRAND's OpenPGP smartcard"
+			NOTE "Subkeys will be copied to $DONGLE_BRAND's OpenPGP smartcard"
 			NOTE "Please keep your GPG key material backup thumb drive safe"
 			GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="y"
 		fi
 	else
-		INFO "GPG key material will be generated on $DONGLE_BRAND's OpenPGP smartcard without backup"
+		NOTE "GPG key material will be generated on $DONGLE_BRAND's OpenPGP smartcard without backup"
 		GPG_GEN_KEY_IN_MEMORY="n"
 		GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD="n"
 	fi
@@ -1367,7 +1376,7 @@ STATUS "Detecting and setting boot device"
 if ! detect_boot_device; then
 	SKIP_BOOT="y"
 else
-	STATUS "Boot device set to $CONFIG_BOOT_DEV"
+	STATUS_OK "Boot device set to $CONFIG_BOOT_DEV"
 fi
 
 # update configs
@@ -1390,12 +1399,11 @@ fi
 
 ## reset TPM and set passphrase
 if [ "$CONFIG_TPM" = "y" ]; then
-	STATUS "Resetting TPM"
 	tpmr.sh reset "$TPM_PASS" >/dev/null 2>/tmp/error
-fi
-if [ $? -ne 0 ]; then
-	ERROR=$(tail -n 1 /tmp/error | fold -s)
-	whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
+	if [ $? -ne 0 ]; then
+		ERROR=$(tail -n 1 /tmp/error | fold -s)
+		whiptail_error_die "Error resetting TPM:\n\n${ERROR}"
+	fi
 fi
 
 # clear local keyring
@@ -1511,6 +1519,7 @@ if [ "$GPG_EXPORT" != "0" ]; then
 			ERROR=$(tail -n 1 /tmp/error | fold -s)
 			whiptail_error_die "Key export error: unable to copy ${GPG_GEN_KEY}.asc to /media:\n\n$ERROR"
 		fi
+		STATUS_OK "Generated key exported to USB"
 		mount -o remount,ro /media 2>/dev/null
 		umount /media 2>/dev/null || true
 	else
@@ -1555,6 +1564,7 @@ else
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error reading current firmware:\n\n$ERROR"
 	fi
+	STATUS_OK "Current firmware read successfully"
 	if [ ! -s /tmp/oem-setup.rom ]; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error reading current firmware:\n\n$ERROR"
@@ -1589,12 +1599,14 @@ else
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
 		whiptail_error_die "Error flashing updated firmware image:\n\n$ERROR"
 	fi
+	STATUS_OK "Firmware updated and flashed successfully"
 fi
 
 ## sign files in /boot and generate checksums
 if [[ "$SKIP_BOOT" == "n" ]]; then
 	STATUS "Updating checksums and signing all files in /boot"
 	generate_checksums
+	STATUS_OK "Checksums updated and files signed"
 fi
 
 # passphrases set to be empty first
@@ -1636,7 +1648,7 @@ while true; do
 		break
 	fi
 	#Tell user to scan the QR code containing all configured secrets
-	STATUS "Scan the QR code below to save the secrets to a secure location"
+	NOTE "Scan the QR code below to save the secrets to a secure location"
 	qrenc "$(echo -e "$passphrases")"
 	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
 	INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output

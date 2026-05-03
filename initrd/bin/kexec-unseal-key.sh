@@ -29,6 +29,7 @@ for tries in 1 2 3; do
 	# Show updating timestamp/TOTP until user presses Esc to continue to the
 	# passphrase prompt. This gives the user context while they prepare to
 	# type the LUKS passphrase.
+	DEBUG "kexec-unseal-key: displaying fresh TOTP code (attempt $tries/3)"
 	show_totp_until_esc
 	STATUS "Unlocking LUKS with TPM Disk Unlock Key"
 	INPUT "Enter LUKS TPM Disk Unlock Key passphrase (blank to abort):" -r -s tpm_password
@@ -36,6 +37,7 @@ for tries in 1 2 3; do
 		DIE "Aborting unseal disk encryption key"
 	fi
 
+	DEBUG "kexec-unseal-key: attempting DUK unseal from TPM (attempt $tries/3)"
 	if DO_WITH_DEBUG --mask-position 6 \
 		tpmr.sh unseal "$TPM_INDEX" "0,1,2,3,4,5,6,7" "$TPM_SIZE" \
 		"$key_file" "$tpm_password"; then

@@ -105,24 +105,24 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	DEBUG "NOTE: DO_WITH_DEBUG std_err and std_out will be redirected to /tmp/debug.log"
 fi
 
-# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log
+# report if we are in quiet mode, tell user measurements logs available under /tmp/debug.log and /tmp/measuring_trace.log
 if [ "$CONFIG_QUIET_MODE" = "y" ]; then
 	# check origin of quiet mode setting =y: if it is under /etc/config.user then early cbfs-init outputs are not suppressible
 	# if it is under /etc/config then early cbfs-init outputs are suppressible
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null; then
-		echo "Quiet mode enabled from board configuration: refer to '/tmp/debug.log' for boot measurements traces" >/dev/tty0
+		STATUS_OK "Quiet mode enabled from board configuration: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for boot traces"
 	else
-		echo "Runtime applied Quiet mode: refer to '/tmp/debug.log' for additional boot measurements traces past this point" >/dev/tty0
-		echo "To suppress earlier boot measurements traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time." >/dev/tty0
+		STATUS_OK "Runtime applied Quiet mode: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for additional boot traces past this point"
+		STATUS_OK "To suppress earlier boot traces, enable CONFIG_QUIET_MODE=y in your board configuration at build time."
 	fi
 # If CONFIG_QUIET_MODE enabled in board config but disabled from Config->Configuration Settings
-# warn that early boot measurements output was suppressed prior of this point
+# warn that early boot measurements output was suppressed prior to this point
 elif [ "$CONFIG_QUIET_MODE" = "n" ]; then
 	# if CONFIG_QUIET_MODE=n in /etc/config.user but CONFIG_QUIET_MODE=y in /etc/config then early cbfs-init outputs are suppressed
-	# both needs to be checked to determine if early boot measurements traces were suppressed
+	# both needs to be checked to determine if early boot measurement traces were suppressed
 	if grep -q 'CONFIG_QUIET_MODE="y"' /etc/config 2>/dev/null && grep -q 'CONFIG_QUIET_MODE="n"' /etc/config.user 2>/dev/null; then
-		echo "Early boot measurements traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)" >/dev/tty0
-		echo "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' for cbfs-init related traces prior of this point" >/dev/tty0
+		STATUS_OK "Early boot traces were suppressed per CONFIG_QUIET_MODE=y in your board configuration at build time (/etc/config)"
+		STATUS_OK "Runtime applied Quiet mode disabled: refer to '/tmp/debug.log' and '/tmp/measuring_trace.log' for cbfs-init related traces prior to this point"
 	fi
 fi
 
@@ -146,6 +146,7 @@ fi
 
 # set CONFIG_TPM dynamically off before init if no TPM device is present
 if [ ! -e /dev/tpm0 ]; then
+	DEBUG "No TPM device (/dev/tpm0) found; disabling CONFIG_TPM and CONFIG_TPM2_TOOLS"
 	CONFIG_TPM='n'
 	CONFIG_TPM2_TOOLS='n'
 fi
@@ -162,6 +163,7 @@ else
 fi
 
 if [ "$CONFIG_TPM" = "y" ]; then
+	DEBUG "TPM enabled: initializing TPM2 encrypted sessions"
 	# Initialize tpm2 encrypted sessions here
 	tpmr.sh startsession
 fi
@@ -180,6 +182,7 @@ export GPG_TTY=/dev/console
 
 # Setup recovery serial shell
 if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
+	DEBUG "Recovery serial console enabled on $CONFIG_BOOT_RECOVERY_SERIAL"
 	stty -F "$CONFIG_BOOT_RECOVERY_SERIAL" 115200
 	pause_recovery 'Serial console recovery shell' \
 		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
@@ -188,6 +191,7 @@ fi
 
 # load USB modules for boards using a USB keyboard
 if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
+	DEBUG "USB keyboard required by board or user config; loading USB modules"
 	enable_usb
 fi
 
@@ -204,11 +208,13 @@ read \
 echo
 
 if [ "$boot_option" = "r" ]; then
+	DEBUG "User requested recovery shell (key 'r')"
 	# Start an interactive shell
 	recovery 'User requested recovery shell'
 	# just in case...
 	exit
 elif [ "$boot_option" = "o" ]; then
+	DEBUG "User requested OEM Factory Reset mode (key 'o')"
 	# Launch OEM Factory Reset mode
 	echo -e "***** Entering OEM Factory Reset mode\n" >/dev/tty0
 	oem-factory-reset.sh --mode oem
@@ -217,6 +223,7 @@ elif [ "$boot_option" = "o" ]; then
 fi
 
 if [ "$CONFIG_BASIC" = "y" ]; then
+	DEBUG "BASIC mode: tamper detection bypassed, overriding boot script"
 	echo -e "***** BASIC mode: tamper detection disabled\n" >/dev/tty0
 fi
 
@@ -236,19 +243,27 @@ fi
 setconsolefont.sh
 
 if [ "$CONFIG_BASIC" = "y" ]; then
+	DEBUG "Overriding boot script to gui-init-basic.sh, disabling HOTP"
 	CONFIG_BOOTSCRIPT=/bin/gui-init-basic.sh
 	export CONFIG_HOTPKEY=n
 fi
 
 # Perform board-specific init if present
 if [ -x /bin/board-init.sh ]; then
+	DEBUG "Running board-specific init: /bin/board-init.sh"
 	/bin/board-init.sh
+else
+	DEBUG "No board-init.sh found; skipping board-specific init"
 fi
 
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+	DEBUG "No boot script found (CONFIG_BOOTSCRIPT=$CONFIG_BOOTSCRIPT, CONFIG_BOOTSCRIPT_NETWORK=$CONFIG_BOOTSCRIPT_NETWORK); entering recovery"
 	recovery 'Boot script missing?  Entering recovery shell'
 else
+	# Run network boot once at startup (before the respawn loop).
+	# The script may be long-running; we don't restart it.
 	if [ -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
+		DEBUG "Starting network boot script: $CONFIG_BOOTSCRIPT_NETWORK"
 		echo '***** Network Boot:' $CONFIG_BOOTSCRIPT_NETWORK
 		$CONFIG_BOOTSCRIPT_NETWORK
 		echo '***** Network Boot Completed:' $CONFIG_BOOTSCRIPT_NETWORK
@@ -256,16 +271,41 @@ else
 	fi
 
 	if [ -x "$CONFIG_BOOTSCRIPT" ]; then
-		echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
+		DEBUG "Entering boot script respawn loop: $CONFIG_BOOTSCRIPT"
 
-		if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
-			for console in $CONFIG_BOOT_EXTRA_TTYS; do
-				setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
-			done
-		fi
+		#Never DIE in init: PID-track all boot script instances and
+		#restart only the ones that died.  Uses `wait` to sleep until
+		#a child exits rather than polling a single blocking instance.
+		while true; do
+			echo '***** Normal boot:' $CONFIG_BOOTSCRIPT
 
-		#Setup a control tty so that all terminals outputs correct tty when tty is called
-		exec cttyhack "$CONFIG_BOOTSCRIPT"
+			# Main console: cttyhack sets up the controlling terminal.
+			main_pid_file="/tmp/bootscript_pid_main"
+			main_pid=$(cat "$main_pid_file" 2>/dev/null)
+			if [ -z "$main_pid" ] || ! kill -0 "$main_pid" 2>/dev/null; then
+				DEBUG "Starting boot script on main console"
+				cttyhack "$CONFIG_BOOTSCRIPT" &
+				echo $! >"$main_pid_file"
+			fi
+
+			# Extra TTYs: agetty provides separate session + controlling
+			# terminal per console (avoids shared-ctty GPG issues).
+			if [ -x /bin/setsid ] && [ -x /bin/agetty ]; then
+				for console in $CONFIG_BOOT_EXTRA_TTYS; do
+					pid_file="/tmp/bootscript_pid_${console//\//_}"
+					pid=$(cat "$pid_file" 2>/dev/null)
+					if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+						DEBUG "Starting agetty on $console"
+						setsid agetty -aroot -l"$CONFIG_BOOTSCRIPT" "$console" linux &
+						echo $! >"$pid_file"
+					fi
+				done
+			fi
+
+			# Wait for any boot script instance to die before checking
+			# which one needs restart.  Prevents busy-polling.
+			wait
+		done
 	else
 		# wait for boot via network to occur
 		pause_recovery 'Override network boot. Entering recovery shell'

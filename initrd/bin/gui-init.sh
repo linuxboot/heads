@@ -90,8 +90,10 @@ verify_global_hashes() {
 	TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
 	if verify_checksums /boot; then
+		DEBUG "clean_boot_check: boot hashes match kexec.sig signature — system integrity OK"
 		return 0
 	elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]]; then
+		DEBUG "clean_boot_check: hash/tree files missing under /boot — first boot or upgrade detected"
 		if (whiptail_error --title 'ERROR: Missing File!' \
 			--yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an older version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to create the missing files now?" 0 80); then
 			if update_checksums; then
@@ -191,11 +193,19 @@ prompt_update_checksums() {
 		--yesno "You have chosen to update the checksums and sign all of the files in /boot.\n\nThis means that you trust that these files have not been tampered with.\n\nYou will need your GPG key available, and this change will modify your disk.\n\nDo you want to continue?" 0 80); then
 		if update_checksums; then
 			return 0
+		fi
+		# update_checksums may have set the TPM-reset-required marker
+		# during its execution (e.g. check_tpm_counter hit "out of
+		# resources").  Show the targeted TPM message instead of the
+		# generic failure so the user knows exactly what to do.
+		if tpm_reset_required; then
+			whiptail_error --title 'TPM Reset Required' \
+				--msgbox "Cannot sign /boot: TPM state is inconsistent.\n\nReset the TPM first (Options -> TPM/TOTP/HOTP Options -> Reset the TPM), then update checksums." 0 80
 		else
 			whiptail_error --title 'ERROR' \
 				--msgbox "Failed to update checksums / sign default config" 0 80
-			return 1
 		fi
+		return 1
 	fi
 	return 1
 }
@@ -244,16 +254,17 @@ gate_reseal_with_integrity_report() {
 	if [ -x /bin/hotp_verification ]; then
 		token_ok="n"
 		while [ "$token_ok" != "y" ]; do
+			DEBUG "gate_reseal_with_integrity_report: enabling USB for $DONGLE_BRAND HOTP token verification"
 			enable_usb
 			# wait_for_gpg_card already called release_scdaemon on success,
 			# starting the NK3 CCID teardown.  This safety call covers the
 			# case where scdaemon was restarted between then and now.
 			release_scdaemon
-			STATUS "Checking $DONGLE_BRAND presence before sealing"
 			DEBUG "gate_reseal_with_integrity_report: checking HOTP token presence"
+			STATUS "Checking $DONGLE_BRAND presence before sealing"
 			if hotp_verification info >/dev/null 2>&1; then
-				token_ok="y"
 				STATUS_OK "$DONGLE_BRAND present and accessible"
+				token_ok="y"
 				break
 			fi
 			DEBUG "gate_reseal_with_integrity_report: HOTP token not accessible"
@@ -285,10 +296,9 @@ generate_totp_hotp() {
 	if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
 		# If we don't have a TPM, but we have a HOTP USB Security dongle
 		TRACE_FUNC
-		STATUS "Generating new HOTP secret"
 		/bin/seal-hotpkey.sh ||
 			DIE "Failed to generate HOTP secret"
-	elif STATUS "Generating new TOTP secret" && /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_passphrase"; then
+	elif /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_passphrase"; then
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
@@ -353,6 +363,7 @@ update_totp() {
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
 	else
+		DEBUG "update_totp: unsealing TOTP secret from TPM"
 		TOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-totp.sh)
 		if [ $? -ne 0 ]; then
 			local totp_menu_text
@@ -362,6 +373,7 @@ update_totp() {
 				return 1 # Already asked to skip to menu from a prior error
 			fi
 
+			DEBUG "TPM state at TOTP failure:"
 			DEBUG "$(pcrs)"
 
 			totp_menu_text=$(
@@ -411,8 +423,13 @@ EOF
 				skip_to_menu="true"
 				return 1
 				;;
+			# "Reset the TPM" from the TOTP failure whiptail menu.
+			# The gate runs first to verify /boot integrity.  If the gate
+			# fails *because* TPM reset is required (e.g. stale counters),
+			# the || tpm_reset_required bypass lets reset_tpm() proceed —
+			# it clears counters and creates a fresh one.
 			p)
-				if gate_reseal_with_integrity_report && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+				if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 				;;
@@ -437,6 +454,8 @@ update_hotp() {
 	local hotp_token_info hotp_exit attempt
 
 	# Ensure dongle is present; capture info for PIN counter display
+	STATUS "Checking $DONGLE_BRAND presence"
+	DEBUG "update_hotp: querying $DONGLE_BRAND HOTP token (hotp_verification info)"
 	if ! hotp_token_info="$(hotp_verification info)"; then
 		if [ "$skip_to_menu" = "true" ]; then
 			return 1 # Already asked to skip to menu from a prior error
@@ -449,12 +468,14 @@ update_hotp() {
 			BG_COLOR_MAIN_MENU="warning"
 			return
 		fi
+		DEBUG "update_hotp: retrying $DONGLE_BRAND HOTP token after user inserted dongle"
 		if ! hotp_token_info="$(hotp_verification info)"; then
 			HOTP="Error checking code, Insert $DONGLE_BRAND and retry"
 			BG_COLOR_MAIN_MENU="warning"
 			return
 		fi
 	fi
+	DEBUG "update_hotp: $DONGLE_BRAND HOTP token info: $(echo "$hotp_token_info" | tr '\n' ' ')"
 
 	# Show dongle firmware version with color coding so users know when to upgrade
 	hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
@@ -474,12 +495,16 @@ update_hotp() {
 	# PIN retry count is shown only before a retry so normal boots stay silent.
 	for attempt in 1 2 3; do
 		# Don't output HOTP codes to screen, so as to make replay attacks harder
+		STATUS "Verifying HOTP code (attempt $attempt/3)"
+		DEBUG "update_hotp: calling hotp_verification check (attempt $attempt/3)"
 		hotp_verification check "$HOTP"
 		hotp_exit=$?
+		DEBUG "update_hotp: hotp_verification check exited with code $hotp_exit"
 		case "$hotp_exit" in
 		0)
 			HOTP="Success"
 			BG_COLOR_MAIN_MENU="normal"
+			STATUS_OK "HOTP code verified"
 			return
 			;;
 		4 | 7) # 4: code incorrect, 7: not a valid HOTP code — no point retrying same code
@@ -654,7 +679,6 @@ check_gpg_key() {
 
 prompt_auto_default_boot() {
 	TRACE_FUNC
-	STATUS_OK "HOTP verification success"
 	if pause_automatic_boot; then
 		STATUS "Attempting default boot"
 		attempt_default_boot
@@ -806,8 +830,11 @@ show_tpm_totp_hotp_options_menu() {
 			update_totp && update_hotp || true
 		fi
 		;;
+	# "Reset the TPM" from the TPM/TOTP/HOTP options whiptail menu.
+	# Same gate-bypass pattern: if the gate fails because TPM
+	# reset is required, proceed to reset_tpm() anyway.
 	r)
-		if gate_reseal_with_integrity_report && reset_tpm; then
+		if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 		fi
 		;;
@@ -837,7 +864,18 @@ reset_tpm() {
 				return 1
 			fi
 
-			tpmr.sh reset "$tpm_owner_passphrase"
+			# Verify TPM reset succeeded before proceeding to counter
+			# creation, signing, TOTP generation, and DUK resealing.
+			# A failed reset would leave the TPM in an inconsistent state
+			# (old passphrase with unknown PCRs), causing confusing errors
+			# downstream.  Show the actual error to the user and return
+			# to the menu.
+			if ! tpmr.sh reset "$tpm_owner_passphrase" 2>/tmp/error; then
+				ERROR=$(tail -n 1 /tmp/error | fold -s)
+				whiptail_error --title 'ERROR' \
+					--msgbox "Error resetting TPM:\n\n${ERROR}" 0 80
+				return 1
+			fi
 
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
@@ -867,8 +905,11 @@ reset_tpm() {
 				DIE "Unable to create rollback file"
 
 			TRACE_FUNC
-			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it
-			# USB is already initialized at startup; run gpg --card-status to populate key stub.
+			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it.
+			# NOTE: At seal time, PCR5 is IGNORED (not measured) - only used on HOTP board variants. So USB
+			# modules loading here don't affect DUK seal. GPG card needs USB to be enabled first.
+			DEBUG "reset_tpm: enabling USB for GPG card signing and dongle detection"
+			enable_usb
 			wait_for_gpg_card || true
 			while true; do
 				GPG_KEY_COUNT=$(gpg -K 2>/dev/null | wc -l)
@@ -876,7 +917,6 @@ reset_tpm() {
 					prompt_missing_gpg_key_action || return 1
 					wait_for_gpg_card || true
 				else
-					STATUS_OK "TPM reset successful - updating /boot checksums and signatures"
 					if ! update_checksums; then
 						whiptail_error --title 'ERROR' \
 							--msgbox "Failed to update checksums / sign default config" 0 80
@@ -896,14 +936,9 @@ reset_tpm() {
 			fi
 
 			if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-				STATUS_OK "TPM reset successful - resealing TPM Disk Unlock Key (DUK)"
 				reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 			fi
-		else
-			INFO "Returning to the main menu"
 		fi
-	else
-		whiptail_error --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
 	fi
 }
 
@@ -951,6 +986,7 @@ force_unsafe_boot() {
 TRACE_FUNC
 
 if [ -x /bin/hotp_verification ]; then
+	DEBUG "gui-init: HOTP verification supported, enabling USB for security dongle detection"
 	enable_usb
 fi
 
@@ -959,9 +995,11 @@ fi
 detect_usb_security_dongle_branding
 
 if detect_boot_device; then
+	DEBUG "Boot device detected; running clean boot integrity check"
 	# /boot device with installed OS found
 	clean_boot_check
 else
+	DEBUG "No boot device auto-detected; falling back to interactive mount_boot"
 	# can't determine /boot device or no OS installed,
 	# so fall back to interactive selection
 	mount_boot
@@ -1053,6 +1091,8 @@ EOF
 			[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
 		fi
 	done
+else
+	DEBUG "Rollback preflight OK: TPM counter validated successfully"
 fi
 
 # detect whether any GPG keys exist in the keyring, if not, initialize that first

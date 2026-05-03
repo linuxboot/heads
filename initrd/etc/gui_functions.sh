@@ -253,8 +253,12 @@ report_integrity_measurements() {
 	DEBUG "integrity report generated at $date_now"
 	STATUS "Preparing Measured Integrity Report - hashing and verifying /boot"
 
-	# Detect branding and initialize USB (detect_usb_security_dongle_branding calls
-	# enable_usb internally and guards against redundant re-detection).
+	# enable_usb extends PCR5.  This is safe because:
+	# - Main-menu paths (integrity investigation loops): the user must
+	#   exit and reboot before any subsequent reseal.
+	# - OEM reset path: TPM is fully reset before new keys are sealed,
+	#   so stale PCR5 from USB is never sealed against.
+	enable_usb
 	detect_usb_security_dongle_branding
 
 	if [ "$CONFIG_TPM" = "y" ]; then
@@ -280,7 +284,6 @@ report_integrity_measurements() {
 		DEBUG "report_integrity_measurements: querying HOTP token info"
 		if _hotp_info="$(hotp_verification info 2>/dev/null)"; then
 			hotp_state="$DONGLE_BRAND PRESENT"
-			STATUS_OK "$DONGLE_BRAND detected"
 			hotpkey_fw_display "$_hotp_info" "$DONGLE_BRAND"
 		elif [ "$DONGLE_BRAND" != "USB Security dongle" ]; then
 			hotp_state="$DONGLE_BRAND INCOMPATIBLE"
@@ -354,7 +357,6 @@ report_integrity_measurements() {
 	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
 	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
 	STATUS "Verifying signing key on $DONGLE_BRAND"
-	enable_usb
 	gpg_output=""
 	local _card_detected=0
 	if wait_for_gpg_card 2>/dev/null; then
@@ -377,13 +379,14 @@ report_integrity_measurements() {
 			awk -F: '/Signature key/ {gsub(/[[:space:]]/,"",$2); print $2; exit}')
 		if [ -z "$_card_sig_fpr" ] || [ "$_card_sig_fpr" = "[none]" ]; then
 			signing_key_state="DONGLE NOT PROVISIONED"
-			signing_key_guidance="$DONGLE_BRAND is connected but has no signing key (unprovisioned or wiped). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
+			signing_key_guidance="$DONGLE_BRAND is connected but has no signing key (unprovisioned). Provision the dongle with the signing subkey, or perform OEM Factory Reset / Re-Ownership to start fresh with a new key."
 		else
 			_rom_fprs=$(gpg --with-colons --list-keys 2>/dev/null |
 				awk -F: '/^fpr/ {print $10}')
 			if echo "$_rom_fprs" | grep -qF "$_card_sig_fpr"; then
 				signing_key_state="DONGLE MATCHES ROM-TRUSTED KEY"
 				signing_key_guidance=""
+				STATUS_OK "Signing key verified on $DONGLE_BRAND"
 			else
 				signing_key_state="DONGLE KEY NOT ROM-TRUSTED"
 				signing_key_guidance="$DONGLE_BRAND has a signing key that does not match this firmware's trusted key. OEM Factory Reset / Re-Ownership is required to establish new trusted ownership."
@@ -630,7 +633,15 @@ investigate_integrity_discrepancies() {
 			recovery "$msg"
 			;;
 		u)
+			# "Update checksums now" from the integrity investigation
+			# whiptail menu.  If update_checksums set tpm_reset_required
+			# (e.g. check_tpm_counter hit "out of resources"),
+			# return 1 to exit the investigation loop and return to
+			# the main menu instead of looping back here.
 			prompt_update_checksums && return 0
+			if tpm_reset_required; then
+				return 1
+			fi
 			;;
 		*)
 			return 0

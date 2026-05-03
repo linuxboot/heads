@@ -39,9 +39,9 @@ if [ ! -r /sys/class/tpm/tpm0/pcrs -o ! -x /bin/tpm ]; then
 fi
 
 if [ -z "$tpm_missing" ]; then
-	INFO "TPM: Extending PCR[$MODULE_PCR] with $MODULE and parameters '$*' before loading"
+	INFO "TPM: Extending PCR[$MODULE_PCR] with content of module file '$MODULE' and parameters '$*' before loading"
 	# Extend with the module parameters (even if they are empty) and the
-	# module. Changing the parameters or the module content will result in a
+	# module content. Changing the parameters or the module content will result in a
 	# different PCR measurement.
 	if [ -n "$*" ]; then
 		TRACE_FUNC

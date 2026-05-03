@@ -10,6 +10,13 @@ This makes it a complete diagnostic artifact that can be shared with developers 
 without requiring the user to reproduce the problem in debug mode first.
 Console visibility is what varies by mode - the log file never loses information.
 
+**`/tmp/measuring_trace.log` captures INFO-level output emitted by `INFO()`, including in Quiet mode.**
+This file isolates TPM measurements, sealing operations, and other security-critical
+audit trails from the general debug noise. It is written to by the `INFO()` function
+alongside `/tmp/debug.log` (both files receive the same INFO output regardless of console output mode).
+Use this file when you need to audit Heads' security operations without wading
+through all DEBUG/TRACE output.
+
 ## Log Levels
 
 In order from "most verbose" to "least verbose":
@@ -101,30 +108,37 @@ Use this in situations like:
 
 ## INFO
 
-INFO is for contextual information that may be of interest to end users, but that is not required
-for use of Heads.
+INFO is for technical/security operations that advanced users want to see.
 
-INFO always goes to debug.log. It is shown on the console in info and debug modes, and suppressed
-from the console in quiet mode (where the log file serves as the post-mortem record).
+INFO always goes to debug.log. It is shown on the console in **info** mode via `/dev/console`,
+routed via `/dev/kmsg` in **debug** mode (so on-console visibility depends on kernel console settings),
+and suppressed from the console in **quiet** mode (where the log file serves as the post-mortem record).
 
-Users might use this to troubleshoot Heads configuration or behavior, but this should not require
-knowledge of Heads implementation or developer experience.
+INFO is for operations that:
+- Are technically detailed (TPM PCR extends, key generation, cryptographic operations)
+- Advanced users want to see when troubleshooting
+- Are NOT hand-off guidance (use NOTE for that)
+- Are NOT developer-facing logic tracing (use DEBUG for that)
 
 For example:
 
-* "Why can't I enable USB keyboard support?" `INFO "Not showing USB keyboard option, USB keyboard is always enabled for this board"`
-* "Why isn't Heads booting automatically?" `INFO "Not booting automatically, automatic boot is disabled in user settings"`
-* "Why didn't Heads prompt me for a password?" `INFO "Password has not been changed, using default"`
+* `INFO "TPM: Extending PCR[4] with string 'text' (hash: abc123...)"` — string extend
+* `INFO "TPM: Extending PCR[4] with content of /path/file (hash: abc123...)"` — file content extend
+* `INFO "Measuring /boot/vmlinuz into TPM PCR[4]"` — integrity measurement start
+* `INFO "TPM: PCR[4] after extend: 0x..."` — PCR state after extend
+* `STATUS "Measuring TPM Disk Unlock Key (DUK) into PCR[6]"` — action announcement (PCR[6] for LUKS sealing)
 
-These do not include highly technical details.
-They can include configuration values or context, _but_ they should refer to configuration settings
-using the user-facing names in the configuration menus.
+Do NOT use INFO for:
+
+* User guidance or hand-off instructions — use **NOTE** (sleeps 3s, italic white, cannot be hidden)
+* High-level user-facing explanations — use **NOTE** or **STATUS**
+* Developer-facing logic/decisions — use **DEBUG**
 
 Use this in situations like:
 
-* Showing very high level decision-making information, understandable for users not familiar with
-  Heads implementation
-* Explaining a behavior that could reasonably be unexpected for some users
+* Reporting technical security operations (TPM extends, measurements, sealing)
+* Showing advanced configuration values that power users care about
+* Operations that belong in debug.log and info-mode console for audit/diagnostic purposes
 
 ## console
 
@@ -142,8 +156,8 @@ Avoid using this, and change existing console output to INFO, STATUS, or another
 STATUS is for action announcements - operations that are starting or in progress - that all users
 must see regardless of output mode.
 
-A STATUS message typically precedes a STATUS_OK, WARN, or DIE: it announces the start of something
-that has an outcome. If there is no outcome to report, consider INFO instead.
+A STATUS message typically precedes STATUS_OK, WARN, or DIE: it announces the start of something
+that has an outcome (success, actionable problem, or fatal error). If there is no outcome to report, consider INFO instead.
 
 Use STATUS when an action is beginning or underway:
 
@@ -182,17 +196,12 @@ The console renders `OK message` (with a leading space) in bold green; debug.log
 
 ## NOTE
 
-NOTE is for contextual information explaining something that is _likely_ to be unexpected or
-confusing to users new to Heads.
+NOTE is for **user guidance that needs attention** — it sleeps 3 seconds and prints
+blank lines before/after so users cannot scroll past it unread.
 
-Unlike INFO, it cannot be hidden from the console. Use this only if the behavior is likely to be
-unexpected or confusing to many users. If it is only possibly unexpected, consider INFO instead.
+NOTE uses **italic white** (`\033[3;37m`) and cannot be hidden from console in any output mode.
 
-Do not overuse this above INFO. Adding too much output at NOTE causes users to ignore it.
-
-NOTE always goes to debug.log.
-
-Two specific patterns where NOTE is the right level:
+Use NOTE for two specific patterns:
 
 **Security reminders** — advice about consequences or risks the user should not overlook,
 but that do not indicate a current problem:
@@ -208,6 +217,12 @@ tool's prompts or output rather than Heads-formatted messages:
 * "Nitrokey 3 requires physical presence: touch the dongle when prompted" - hardware-level event
 * "Please authenticate with OpenPGP smartcard/backup media" - gpg auth flow follows
 
+**Questionnaire/setup guidance** — when walking users through configuration steps:
+
+* "The following questionnaire will help you configure the security components of your system"
+* "Each prompt requires a single letter answer (Y/n)"
+* "Master key and subkeys will be generated in memory and backed up to a dedicated LUKS container"
+
 For example:
 
 * "Proceeding with unsigned ISO boot" - booting without a verified signature is unexpected and
@@ -215,13 +230,17 @@ For example:
 * "TOTP secret no longer accessible: TPM secrets were wiped" - mid-session secret loss requires
   immediate user attention.
 
+Unlike INFO (technical operations for advanced users), NOTE is for **user-facing guidance**
+that requires the user's attention and cannot be hidden.
+
+Do not overuse this above INFO. Adding too much output at NOTE causes users to ignore it.
+
 ## WARN
 
 WARN is for output that indicates a problem. We think the user should act on it, but we are able
 to continue, possibly with degraded functionality.
 
 This is appropriate when _all_ of the following are true:
-
 * there is a _likely_ problem
 * we are able to continue, possibly with degraded functionality
 * the warning is _actionable_ - there is a reasonable change that could silence the warning
@@ -234,6 +253,9 @@ Warnings are only appropriate if we are able to continue operating.
 Warnings must be _actionable_ - only WARN if there is a reasonable change the user can make.
 
 WARN always goes to debug.log.
+
+**WARN sleeps 1 second** and prints blank lines before/after (like NOTE) so users
+cannot scroll past it unread. WARN uses **bold yellow** (`\033[1;33m`).
 
 For example:
 
@@ -279,26 +301,32 @@ setup wizards, debug paths) where a full whiptail dialog would be out of place.
 
 Users can choose one of three output levels for console information.
 **`/tmp/debug.log` always captures all levels regardless of the chosen output level.**
+**`/tmp/measuring_trace.log` captures INFO-level output emitted by `INFO()` in all modes (including Quiet).**
 
-* **Quiet** - Minimal console output. STATUS, NOTE, WARN and DIE always appear. INFO is suppressed.
+* **Quiet** - Minimal console output. STATUS, NOTE, WARN and DIE always appear. INFO is suppressed on console.
+  `INFO()` output is still captured in `/tmp/debug.log` and `/tmp/measuring_trace.log` for post-mortem analysis.
   Use this for production/unattended systems where the log file is the post-mortem record.
 * **Info** - Show information about operations in Heads. INFO and above appear on console.
+  INFO also goes to `/tmp/measuring_trace.log` for audit trails.
   Use this for interactive use where the user is watching the screen.
 * **Debug** - Show detailed information suitable for debugging Heads. TRACE and DEBUG also appear
-  on console. Use this when actively developing or diagnosing Heads.
+  on console. INFO goes to `/tmp/measuring_trace.log` and `/dev/kmsg`.
+  Use this when actively developing or diagnosing Heads.
 
 Console output styling - chosen for accessibility across color-deficiency types (WCAG 1.4.1:
 color is never the sole signal; text prefixes carry meaning independently):
 
-| Level     | Style        | ANSI code    | Rationale                                                                                                           |
-|-----------|--------------|--------------|---------------------------------------------------------------------------------------------------------------------|
-| DIE       | bold red     | `\033[1;31m` | Red = universal danger signal; `!!! ERROR:` prefix is the semantic carrier                                          |
-| WARN      | bold yellow  | `\033[1;33m` | Most universally perceptible alert color across deuteranopia, protanopia, tritanopia                                |
-| NOTE      | italic white | `\033[3;37m` | White = highest-contrast neutral on dark consoles; italic separates NOTE from bold STATUS/WARN, no semantic hue     |
-| STATUS    | bold only    | `\033[1m`    | In-progress actions - bold without hue readable in every terminal theme; `>>` prefix differentiates semantically    |
-| STATUS_OK | bold green   | `\033[1;32m` | Confirmed success - green is universally understood as success; scannable at a glance against plain bold STATUS     |
-| INFO      | green        | `\033[0;32m` | Standard informational color; INFO is optional context, its absence on console is harmless                          |
-| INPUT     | bold white   | `\033[1;37m` | Maximum contrast (21:1) on VGA/dark consoles; no color dependency, readable under all deficiency types              |
+| Level     | Style        | ANSI code    | Sleep | Blank lines | Quiet mode | Purpose |
+|-----------|--------------|--------------|-------|-------------|------------|---------|
+| DIE       | bold red     | `\033[1;31m` | 0s    | Yes         | Visible    | Fatal errors - execution stops |
+| WARN      | bold yellow  | `\033[1;33m` | 1s    | Yes         | Visible    | Actionable problems - degraded operation |
+| NOTE      | italic white | `\033[3;37m` | 3s    | Yes         | Visible    | User guidance needing attention |
+| STATUS    | bold only    | `\033[1m`    | 0s    | No          | Visible    | In-progress action announcements |
+| STATUS_OK | bold green   | `\033[1;32m` | 0s    | No          | Visible    | Confirmed success outcomes |
+| INFO      | green        | `\033[0;32m` | 0s    | No          | Suppressed | Technical operations for advanced users |
+| INPUT     | bold white   | `\033[1;37m` | 0s    | No*         | Visible    | Interactive input prompts |
+
+\* INPUT prints a newline after user input, not before.
 
 debug.log and /dev/kmsg always receive plain text without ANSI codes.
 
@@ -310,17 +338,22 @@ This means callers never need to care about redirections: a caller that does
 Similarly, scripts that use stdout for a structured protocol can safely call STATUS,
 STATUS_OK, and any other logging function — log output never appears on stdout.
 
-NOTE, WARN and DIE print a blank line before and after the message so they stand out visually
-from surrounding output. STATUS and STATUS_OK do **not** — they are called frequently and blank
-lines would make output very noisy. Use NOTE when a sleep and blank lines are needed.
+NOTE (3s), WARN (1s), and DIE (0s) print blank lines before and after the message
+so they stand out visually from surrounding output.
+STATUS and STATUS_OK do **not** — they are called frequently and blank
+lines would make output very noisy.
 INPUT displays the prompt inline (no leading blank line); the cursor stays on the same line as the prompt.
+A blank line is printed after the user's input to separate it from subsequent output.
 
 ### None / Quiet - minimal console output
 
-| Sink           | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
-|----------------|-----|-------|-------|------|--------|-----------|------|------|-----|
-| Console        |     |       |       |      | Yes    | Yes       | Yes  | Yes  | Yes |
-| /tmp/debug.log | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| Sink                     | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
+|--------------------------|-----|-------|-------|------|--------|-----------|------|------|-----|
+| Console                  |     |       |       |      | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/debug.log          | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/measuring_trace.log |     |       |       | Yes  |        |           |      |      |     |
+
+In Quiet mode, INFO-level output is suppressed on console but still captured in both log files.
 
 Quiet output is specified with:
 
@@ -332,10 +365,13 @@ CONFIG_QUIET_MODE=y
 
 ### Info
 
-| Sink           | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
-|----------------|-----|-------|-------|------|--------|-----------|------|------|-----|
-| Console        |     |       |       | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
-| /tmp/debug.log | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| Sink                     | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
+|--------------------------|-----|-------|-------|------|--------|-----------|------|------|-----|
+| Console                  |     |       |       | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/debug.log          | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/measuring_trace.log |     |       |       | Yes  |        |           |      |      |     |
+
+In Info mode, INFO appears on console and is captured in both log files.
 
 Info output is enabled with:
 
@@ -347,10 +383,17 @@ CONFIG_QUIET_MODE=n
 
 ### Debug
 
-| Sink           | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
-|----------------|-----|-------|-------|------|--------|-----------|------|------|-----|
-| Console        |     | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
-| /tmp/debug.log | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| Sink                     | LOG | TRACE | DEBUG | INFO | STATUS | STATUS_OK | NOTE | WARN | DIE |
+|--------------------------|-----|-------|-------|------|--------|-----------|------|------|-----|
+| Console                  |     | Yes*  | Yes   | [**] | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/debug.log          | Yes | Yes   | Yes   | Yes  | Yes    | Yes       | Yes  | Yes  | Yes |
+| /tmp/measuring_trace.log |     |       |       | Yes  |        |           |      |      |     |
+
+In Debug mode, INFO goes to `/tmp/measuring_trace.log` and `/dev/kmsg` (not `/dev/console`).
+On-console visibility depends on kernel `printk` settings forwarding kmsg to the console.
+\* TRACE requires `CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT=y` (set automatically with Debug mode).
+
+[**] INFO in Debug mode routes through `/dev/kmsg` (not `/dev/console`); on-console visibility depends on kernel `printk` settings forwarding kmsg to the console.
 
 Debug output is enabled with:
 

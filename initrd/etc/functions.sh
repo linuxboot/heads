@@ -498,6 +498,17 @@ pin_color() {
 #   1050:0114  Yubikey 4/5 (OTP+U2F+CCID) - OTP+CCID only
 #   1050:0115  Yubikey 4/5 (OTP+U2F+CCID) - FIDO+CCID
 #   1050:0404  Yubikey 5 (FIDO+CCID)
+
+# Detect USB security dongle branding (Nitrokey, Yubikey, Canokey, etc.) from VID:PID.
+# This function intentionally does NOT load USB modules automatically - it only scans for
+# known dongles when USB is already enabled. Callers that need USB (HOTP/GPG/LUKS operations)
+# must call enable_usb() first.
+#
+# REGRESSION FIX: Previously, this function always called enable_usb() which loaded USB
+# kernel modules (ehci-hcd, xhci-hcd, etc.). These modules extend PCR5 in the TPM.
+# The Disk Unlock Key (DUK) for LUKS is sealed to PCR5=0 (no modules loaded). If USB
+# modules load at boot before DUK unseal, PCR5 mismatch occurs and unseal fails.
+# On boards without HOTP support, USB should NOT load at boot - only when needed.
 detect_usb_security_dongle_branding() {
 	TRACE_FUNC
 	local usb_was_enabled="${_USB_ENABLED:-n}"
@@ -509,13 +520,48 @@ detect_usb_security_dongle_branding() {
 		return
 	fi
 
-	# Child scripts can inherit DONGLE_BRAND while _USB_ENABLED resets, so always
-	# initialize USB unless the fast path above was taken.
-	enable_usb
-	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
+	# If USB is not enabled, do NOT auto-load modules here (PCR5 extension).
+	# Callers that need the dongle (HOTP/GPG/LUKS) must call enable_usb first.
+	# This prevents unnecessary PCR5 extensions at boot that break DUK unseal.
+	if [ "$usb_was_enabled" != "y" ]; then
+		DEBUG "detect_usb_security_dongle_branding: USB not enabled, setting default branding"
+		export DONGLE_BRAND="USB Security dongle"
+		return
+	fi
+	wait_for_usb_devices
 
 	# If branding is already specific, USB is now ready and no re-scan is needed.
 	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
+
+	# Wait for known USB dongle VID to appear in sysfs (max 3s).
+	# Known VIDs: 20a0 (Nitrokey/Canokey QEMU), 316d (Librem Key), 16d0 (Canokey), 1050 (Yubikey)
+	local start_dongle_wait=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+	local iterations=0
+	while :; do
+		if ls /sys/bus/usb/devices/*/idVendor 2>/dev/null | \
+			xargs grep -l -E "20a0|316d|16d0|1050" 2>/dev/null | grep -q .; then
+			DEBUG "USB security dongle VID detected in sysfs"
+			break
+		fi
+
+		# Timeout after 3 seconds (or 30 iterations as hard fallback)
+		iterations=$((iterations + 1))
+		if [ "$iterations" -ge 30 ]; then
+			DEBUG "Timeout waiting for USB security dongle VID (iteration cap reached)"
+			break
+		fi
+		if [ -n "$start_dongle_wait" ]; then
+			local now=$(awk '{print $1}' /proc/uptime 2>/dev/null)
+			if [ -n "$now" ]; then
+				if awk -v s="$start_dongle_wait" -v n="$now" 'BEGIN{exit (n - s > 3.0) ? 0 : 1}'; then
+					DEBUG "Timeout waiting for USB security dongle VID after 3s"
+					break
+				fi
+			fi
+		fi
+		sleep 0.1
+	done
+
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -933,7 +979,7 @@ recovery() {
 		DEBUG "Board $CONFIG_BOARD - version $(fw_version) EC_VER: $(ec_version)"
 
 		if [ "$CONFIG_TPM" = "y" ]; then
-			INFO "TPM: Extending PCR[4] to prevent any further secret unsealing"
+			INFO "TPM: Extending PCR[4] with content of string 'recovery' to prevent further secret unsealing"
 			tpmr.sh extend -ix 4 -ic recovery
 		fi
 
@@ -953,6 +999,13 @@ recovery() {
 		if [ -n "$*" ]; then
 			WARN "$*"
 		fi
+
+		# Show PCR state when entering recovery shell
+		INFO "TPM: PCR state on entering recovery shell:"
+		pcrs | while IFS= read -r line; do
+			INFO "$line"
+		done
+
 		STATUS "Starting recovery shell"
 
 		if [ -n "$RECOVERY_TTY" ]; then
@@ -1324,7 +1377,7 @@ DEBUG_STACK() {
 
 pcrs() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-		tpm2 pcrread sha256
+		tpm2 pcrread sha256 2>&1 | grep -v '^sha256:'
 	elif [ "$CONFIG_TPM" = "y" ]; then
 		head -8 /sys/class/tpm/tpm0/pcrs
 	fi
@@ -1700,6 +1753,16 @@ check_tpm_counter() {
 		local rc=$?
 		if [ $rc -ne 0 ]; then
 			DEBUG "tpmr.sh counter_create failed with status $rc"
+			# Signal to prompt_update_checksums that TPM reset is needed so
+			# the user sees the gate before retrying "sign /boot".
+			set_tpm_reset_required \
+				"TPM counter creation failed (exit $rc): $(head -c 200 /tmp/counter 2>/dev/null | tr '\n' ' ')" \
+				"check_tpm_counter"
+			# "out of resources" (0x15) means TPM has too many counters from a
+			# previous run.  The user must reset the TPM to clear them.
+			if grep -qi 'out of resources' /tmp/counter 2>/dev/null; then
+				DIE "TPM has too many counters (out of resources). Reset the TPM from the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
 			# don't tell the user to reset again; the TPM was just reset
 			DIE "Unable to create TPM counter; TPM appears to be in a bad state. Perform OEM Factory Reset / re-ownership and try again."
 		fi
@@ -1784,12 +1847,14 @@ preflight_rollback_counter_before_reseal() {
 
 	if [ -z "$counter_id" ]; then
 		counter_id="$(get_rollback_counter_id "$rollback_file")"
+		DEBUG "Preflight: rollback counter_id=$counter_id from $rollback_file"
 	fi
 	if [ -z "$counter_id" ]; then
 		# If rollback metadata is missing on an already initialized system,
 		# this is an inconsistent TPM/boot state and should be handled before
 		# TOTP/HOTP recovery workflows.
 		if has_prior_boot_trust_metadata "$rollback_file"; then
+			DEBUG "Preflight: prior boot trust metadata exists but counter file missing — /boot swap or restore suspected"
 			fail_preflight "Boot integrity counter file missing. This means /boot was restored or swapped. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 			return 1
 		fi
@@ -1799,26 +1864,32 @@ preflight_rollback_counter_before_reseal() {
 
 	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
 	if ! tpmr.sh counter_read -ix "$counter_id" >/dev/null 2>&1; then
+		DEBUG "Preflight: counter_read $counter_id failed (counter missing, unreadable, or TPM mismatch)"
 		fail_preflight "TPM integrity counter cannot be read. Possible cause: TPM was swapped or reset. This could indicate a TPM swap attack. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 		return 1
 	fi
 
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		if attrs_lc="$(tpm2 nvreadpublic "0x$counter_id" 2>/dev/null | tr '[:upper:]' '[:lower:]')"; then
+			DEBUG "Preflight: TPM2 counter $counter_id public attributes: $attrs_lc"
 			if [ -n "$attrs_lc" ]; then
 				if echo "$attrs_lc" | grep -q "ownerwrite" && ! echo "$attrs_lc" | grep -q "authwrite"; then
+					DEBUG "Preflight: counter $counter_id has ownerwrite without authwrite — invalid for HOTP"
 					fail_preflight "TPM counter has invalid security policy. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 					return 1
 				fi
 				if ! echo "$attrs_lc" | grep -Eq "authwrite|ownerwrite"; then
+					DEBUG "Preflight: counter $counter_id has no write attribute (authwrite or ownerwrite)"
 					fail_preflight "TPM counter is not writable. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 					return 1
 				fi
 			else
+				DEBUG "Preflight: counter $counter_id public attributes empty — policy corrupted"
 				fail_preflight "TPM counter policy is corrupted. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 				return 1
 			fi
 		else
+			DEBUG "Preflight: tpm2 nvreadpublic $counter_id failed — cannot read counter policy"
 			fail_preflight "Cannot read TPM counter policy. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 			return 1
 		fi
@@ -1896,12 +1967,17 @@ increment_tpm_counter() {
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		# TPM2 counters created with authwrite commonly require index auth (often
 		# empty auth) for nvincrement. Try that first, then owner auth fallback.
+		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
+		# | SINK_LOG "$1 stderr") and stdout (tee >(SINK_LOG "$1 stdout")).
+		# Redirecting DO_WITH_DEBUG's own fd 2 to /dev/null is intentional:
+		# DO_WITH_DEBUG produces no stderr of its own, and the actual command
+		# stderr is already handled inside DO_WITH_DEBUG.
 		DEBUG "increment_tpm_counter: TPM2 trying index-auth nvincrement first"
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
+				2>/dev/null |
 				tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
@@ -1911,7 +1987,7 @@ increment_tpm_counter() {
 				set -o pipefail
 				DO_WITH_DEBUG --mask-position 5 \
 					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
-					2> >(SINK_LOG "tpm counter_increment stderr") |
+					2>/dev/null |
 					tee /tmp/counter-"$counter_id" >/dev/null
 			); then
 				increment_ok="y"
@@ -1919,12 +1995,17 @@ increment_tpm_counter() {
 		fi
 	else
 		# TPM1 path uses owner auth in practice.
+		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
+		# We must capture stdout to detect failures properly.
+		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
+		# | SINK_LOG "$1 stderr") and stdout (tee >(SINK_LOG "$1 stdout")).
+		# Redirecting DO_WITH_DEBUG's own fd 2 to /dev/null is intentional: the
+		# actual command stderr is already handled inside DO_WITH_DEBUG.
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
-				tee /tmp/counter-"$counter_id" >/dev/null
+					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
 		fi

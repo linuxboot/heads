@@ -1,5 +1,17 @@
 #!/bin/bash
 # TPM Wrapper - to unify tpm and tpm2 subcommands
+#
+# NOTE: tpmtotp C code (counter_create.c, unsealfile.c, sealfile2.c, etc.)
+# prints ALL output (both success and error messages) via printf() to stdout,
+# NOT stderr.  This is a quirk of the tpmtotp toolkit.  When capturing
+# output or errors from tpm commands, we must capture stdout (not just stderr).
+#
+# TPM2 error codes caught by auth-retry grep patterns.
+# Reference: TCG TPM2 Part 2 (Structures), Table 18 — TPM_RC (Response Codes)
+# https://trustedcomputinggroup.org/resource/tpm-library-specification/
+#   0x98e  TPM_RC_AUTH_FAIL       — wrong password, retry allowed
+#   0x149  TPM_RC_AUTH_UNAVAILABLE — auth handle wrong for entity (e.g. owner
+#           hierarchy auth vs. NV index auth with authwrite attribute)
 
 . /etc/functions.sh
 
@@ -257,8 +269,8 @@ tpm2_extend() {
 		esac
 	done
 	tpm2 pcrextend "$index:sha256=$hash"
-	LOG "TPM: PCR[$index] after extend: $(tpm2 pcrread "sha256:$index" 2>&1)"
-	LOG "TPM: Extended PCR[$index] with hash $hash"
+	INFO "TPM: Extended PCR[$index] with hash $hash"
+	INFO "TPM: PCR[$index] after extend: $(tpm2 pcrread "sha256:$index" 2>&1 | tail -1)"
 }
 
 tpm2_counter_read() {
@@ -279,9 +291,21 @@ tpm2_counter_read() {
 	echo "$index: $hex_val"
 }
 
+# tpm2_counter_inc - Increment a TPM2 counter.
+#
+# Auth behaviour:
+#   -pwdc ""       : try bare nvincrement (index auth — counters created by
+#                    nvdefine have empty NV index auth).  On failure, prompt for
+#                    owner passphrase and retry with owner auth up to 3 times.
+#   -pwdc <pass>   : use owner auth — retry up to 3 times on auth failure,
+#                    re-prompting passphrase.
+#   (no -pwdc)     : try bare nvincrement first, then prompt and retry as above.
+#
+# Retry is consistent with tpm2_seal and tpm2_counter_create which also
+# re-prompt and retry on authorization failures.
 tpm2_counter_inc() {
 	TRACE_FUNC
-	local index pwd
+	local index pwd should_retry="n"
 	local inc_args=()
 	while true; do
 		case "$1" in
@@ -291,6 +315,10 @@ tpm2_counter_inc() {
 			;;
 		-pwdc)
 			pwd="$2"
+			# Only retry when a non-empty passphrase was provided (owner
+			# auth).  Empty passphrase (index auth) is intentionally
+			# unauth'd — no passphrase to re-prompt.
+			[ -n "$pwd" ] && should_retry="y"
 			shift 2
 			;;
 		*)
@@ -298,40 +326,153 @@ tpm2_counter_inc() {
 			;;
 		esac
 	done
-	if [ -n "$pwd" ]; then
-		inc_args=(-C o -P "$(tpm2_password_hex "$pwd")")
-	fi
-	tpm2 nvincrement "${inc_args[@]}" "0x$index" >/dev/console || return 1
-	local hex_val
-	hex_val="$(tpm2 nvread 0x"$index" | xxd -pc8)" || return 1
-	echo "$index: $hex_val"
+	local attempt=0
+	local index_auth_tried="n"  # bare nvincrement without -C/-P uses NV index handle auth
+	while true; do
+		attempt=$((attempt + 1))
+		if [ -n "$pwd" ]; then
+			inc_args=(-C o -P "$(tpm2_password_hex "$pwd")")
+		elif [ "$index_auth_tried" = "n" ]; then
+			index_auth_tried="y"
+			# Counters created by nvdefine without -p have empty NV index auth.
+			# For nvincrement, when -C isn't explicitly passed, tpm2-tools uses
+			# the NV index handle to authorize (per tpm2_nvincrement man page).
+			# Try this first before falling back to -C o (owner hierarchy auth).
+			if tpm2 nvincrement "0x$index" 2>/dev/null >/dev/console; then
+				local hex_val
+				hex_val="$(tpm2 nvread 0x"$index" | xxd -pc8)" || return 1
+				echo "$index: $hex_val"
+				return 0
+			fi
+			prompt_tpm_owner_password
+			pwd="$tpm_owner_passphrase"
+			inc_args=(-C o -P "$(tpm2_password_hex "$pwd")")
+			should_retry="y"
+		else
+			prompt_tpm_owner_password
+			pwd="$tpm_owner_passphrase"
+			inc_args=(-C o -P "$(tpm2_password_hex "$pwd")")
+			should_retry="y"
+		fi
+		TMP_ERR_FILE=$(mktemp)
+		if tpm2 nvincrement "${inc_args[@]}" "0x$index" 2>"$TMP_ERR_FILE" >/dev/console; then
+			rm -f "$TMP_ERR_FILE"
+			local hex_val
+			hex_val="$(tpm2 nvread 0x"$index" | xxd -pc8)" || return 1
+			echo "$index: $hex_val"
+			return 0
+		fi
+		tmp_err_content="$(cat "$TMP_ERR_FILE")"
+		rm -f "$TMP_ERR_FILE"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
+		DEBUG "tpm2_counter_inc attempt $attempt failed. Stderr: $tmp_err_content"
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149'; then
+			if [ "$should_retry" != "y" ]; then
+				DIE "Unable to increment TPM2 counter. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
+			if [ "$attempt" -ge 3 ]; then
+				DIE "Unable to increment TPM2 counter after 3 attempts. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			fi
+			WARN "Failed to increment TPM counter (bad passphrase?). Retrying..."
+			pwd=""  # force re-prompt
+		else
+			DIE "Unable to increment TPM2 counter. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+		fi
+	done
 }
 
-tpm1_counter_create() {
-	TRACE_FUNC
+# _tpm1_auth_retry - Shared retry helper for TPM1 commands needing owner auth.
+#
+# Executes a TPM1 command with owner auth, re-prompting and retrying up to
+# 3 times on authorization failures.  Writes the command's stdout to the
+# function's stdout on success.
+#
+# Caching behaviour: prompt_tpm_owner_password reuses a previously-cached
+# passphrase (/tmp/secret/tpm_owner_passphrase) if one exists.  Callers like
+# increment_tpm_counter pre-prompt and cache, so the first attempt reuses
+# that value — no double-prompt on the happy path.  On auth failure the
+# cache is shredded; the next iteration's prompt_tpm_owner_password will
+# actually ask the user for fresh input.
+#
+# NOTE: tpmtotp C code prints ALL output (success and errors) via printf()
+# to stdout, NOT stderr.  We capture stdout to detect failures.
+#
+# Usage: _tpm1_auth_retry <label> <pass_flag> <cmd...>
+#   <label>:     short name for debug messages (e.g. "counter_create")
+#   <pass_flag>: tpmtotp passphrase flag ('-pwdo' or '-pwdc')
+#   <cmd...>:    the tpm command and its arguments (without passphrase).
+#                "$pass_flag" "$tpm_owner_passphrase" is appended.
+_tpm1_auth_retry() {
+	local label="$1" pass_flag="$2"
+	shift 2
 	local attempt=0
 	while true; do
 		attempt=$((attempt + 1))
 		prompt_tpm_owner_password
 		tpm_owner_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
-		TMP_ERR_FILE=$(mktemp)
-		if tpm counter_create -pwdo "$tpm_owner_passphrase" "$@" 2>"$TMP_ERR_FILE"; then
-			rm -f "$TMP_ERR_FILE"
+		local tmp_out_file
+		tmp_out_file=$(mktemp)
+		if "$@" "$pass_flag" "$tpm_owner_passphrase" >"$tmp_out_file" 2>&1; then
+			DEBUG "_tpm1_auth_retry $label: success output: $(cat "$tmp_out_file")"
+			cat "$tmp_out_file"
+			rm -f "$tmp_out_file"
 			return 0
 		fi
-		tmp_err_content="$(cat "$TMP_ERR_FILE")"
-		rm -f "$TMP_ERR_FILE"
-		DEBUG "Failed attempt $attempt to create counter from tpm1_counter_create. Stderr: $tmp_err_content"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		local tmp_out_content
+		tmp_out_content="$(cat "$tmp_out_file")"
+		rm -f "$tmp_out_file"
+		DEBUG "Failed attempt $attempt in _tpm1_auth_retry $label. Output: $tmp_out_content"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
+		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
 			if [ "$attempt" -ge 3 ]; then
-				DIE "Unable to create counter from tpm1_counter_create after 3 attempts. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+				DIE "TPM $label failed after 3 attempts. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
 			fi
-			WARN "Counter creation failed (bad passphrase?). Retrying..."
+			WARN "$label failed (bad passphrase?). Retrying..."
 		else
-			DIE "Unable to create counter from tpm1_counter_create. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
+			DIE "TPM $label failed. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
 		fi
 	done
+}
+
+# tpm1_counter_create - Create a TPM1 rollback counter.
+#
+# Delegates to _tpm1_auth_retry for passphrase-driven retry on auth failure.
+# Args: [-la <label>]  (passphrase handled by helper)
+tpm1_counter_create() {
+	TRACE_FUNC
+	_tpm1_auth_retry "counter_create" "-pwdo" tpm counter_create "$@"
+}
+
+# tpm1_counter_read - Read a TPM1 counter value.
+#
+# NOTE: tpmtotp counter_read does not require auth on TPM1, so this is a
+# simple passthrough.  Previously counter_read fell through to the catch-all
+# 'exec tpm "$@"' in the TPM1 dispatch; wrapping it in a named function
+# improves auditability and allows future per-command enhancements.
+tpm1_counter_read() {
+	TRACE_FUNC
+	tpm counter_read "$@"
+}
+
+# tpm1_counter_increment - Increment a TPM1 rollback counter.
+#
+# Delegates to _tpm1_auth_retry for passphrase-driven retry on auth failure.
+# This prevents a single typo in the TPM Owner Passphrase from killing the
+# sealing/boot flow.
+#
+# Args: -ix <index> [ -pwdc <passphrase> ]
+# The passphrase is consumed by the helper; -ix is forwarded to the TPM command.
+tpm1_counter_increment() {
+	TRACE_FUNC
+	local counter_id=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			-ix) counter_id="$2"; shift 2 ;;
+			-pwdc) shift 2 ;;  # passphrase handled by _tpm1_auth_retry
+			*) shift ;;
+		esac
+	done
+	_tpm1_auth_retry "counter_increment" "-pwdc" tpm counter_increment -ix "$counter_id"
 }
 
 tpm2_counter_create() {
@@ -378,9 +519,9 @@ tpm2_counter_create() {
 		fi
 		tmp_err_content="$(cat "$TMP_ERR_FILE")"
 		rm -f "$TMP_ERR_FILE"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 		DEBUG "tpm2_counter_create attempt $attempt failed. Stderr: $tmp_err_content"
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149'; then
 			if [ -n "$pass" ]; then
 				DIE "Counter creation failed with provided passphrase. Please reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) and try again."
 			fi
@@ -560,7 +701,7 @@ tpm2_seal() {
 		tmp_err_content="$(cat "$tmp_err_file")"
 		rm -f "$tmp_err_file"
 		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm2_seal. Stderr: $tmp_err_content"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts. Reset the TPM and try again."
@@ -571,9 +712,25 @@ tpm2_seal() {
 		fi
 	done
 }
+# tpm1_seal - Seal a file to TPM1 NVRAM.
+#
+# NVRAM Flow:
+# 1. Create sealed blob from file + PCR policy (tpm sealfile2)
+# 2. Try to write blob to NVRAM index (tpm nv_writevalue)
+# 3. If write fails (index doesn't exist), create NVRAM space (tpm nv_definespace)
+# 4. Retry write after defining space
+#
+# Exit code handling:
+# - Script uses 'set -e', so we capture TPM exit codes in subshells to avoid
+#   premature exit. Some TPM implementations return exit code 2 (index doesn't
+#   exist) with empty stderr on first write - we handle this by defining NVRAM.
+# - Exit code 0: success
+# - Exit code 2: index doesn't exist (normal on first seal after TPM reset)
+# - Exit code 3+: other errors (permission denied, bad passphrase, etc.)
+#
+# PCR policy: At seal time, PCR5 is IGNORED (not measured) - only relevant for HOTP.
 tpm1_seal() {
 	TRACE_FUNC
-	local tmp_err_write tmp_err_define tmp_err_write_after_define
 	file="$1"
 	index="$2"
 	pcrl="$3" #0,1,2,3,4,5,6,7 (does not include algorithm prefix)
@@ -612,53 +769,70 @@ tpm1_seal() {
 		"${POLICY_ARGS[@]}"
 	DEBUG "tpm1_seal: sealed blob created at $sealed_file (size=$(wc -c <"$sealed_file" 2>/dev/null || echo 0) bytes), target nv index=$index"
 
+	tmp_out_write="$(mktemp)"
+	(
+		set +e
+		# Capture stdout+stderr: tpmtotp C code prints errors to stdout via printf
+		tpm nv_writevalue -in "$index" -if "$sealed_file" >"$tmp_out_write" 2>&1
+		echo $? > "$tmp_out_write.exit"
+	)
+	tpm_result=$(cat "$tmp_out_write.exit")
+	tmp_out_content="$(cat "$tmp_out_write")"
+	rm -f "$tmp_out_write" "$tmp_out_write.exit"
+	DEBUG "tpm1_seal: nv_writevalue result=$tpm_result, output='$tmp_out_content'"
+
+	if [ "$tpm_result" = "0" ]; then
+		DEBUG "tpm1_seal: nv_writevalue succeeded"
+		return 0
+	fi
+
+	# Continue if: exit code is 2 (index doesn't exist) OR output contains "illegal index".
+	# Otherwise: unexpected error, die.
+	if [ "$tpm_result" != "2" ] && ! echo "$tmp_out_content" | grep -qi 'illegal index'; then
+		DEBUG "tpm1_seal nv_writevalue(pre-define) output: $tmp_out_content"
+		DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal (unexpected error). Wiping /tmp/secret/tpm_owner_passphrase"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
+		DIE "Unable to write sealed secret to TPM NVRAM"
+	fi
+	DEBUG "tpm1_seal: nv index $index is not defined yet (Illegal index); attempting nv_definespace"
+
+	tpm physicalpresence -s ||
+		{
+			WARN "Unable to assert physical presence"
+		}
+
+	# NVRAM define+write retry loop: if the passphrase is wrong (e.g. typo),
+	# re-prompt and retry up to 3 times, consistent with tpm1_counter_create
+	# and tpm2_seal.  This prevents a single mistyped TPM Owner Passphrase
+	# from killing the sealing flow.
 	local attempt=0
 	while true; do
 		attempt=$((attempt + 1))
-		tmp_err_write="$(mktemp)"
-		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write"; then
-			rm -f "$tmp_err_write"
-			return 0
-		fi
-		tmp_err_content="$(cat "$tmp_err_write")"
-		rm -f "$tmp_err_write"
-		if ! echo "$tmp_err_content" | grep -qi 'illegal index'; then
-			DEBUG "tpm1_seal nv_writevalue(pre-define) stderr: $tmp_err_content"
-			DEBUG "Failed to write sealed secret to NVRAM from tpm1_seal (unexpected error). Wiping /tmp/secret/tpm_owner_passphrase"
-			shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
-			DIE "Unable to write sealed secret to TPM NVRAM"
-		fi
-		DEBUG "tpm1_seal: nv index $index is not defined yet (Illegal index); attempting nv_definespace"
-
-		tpm physicalpresence -s ||
-			{
-				WARN "Unable to assert physical presence"
-			}
-
 		prompt_tpm_owner_password
 		tpm_owner_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
-		tmp_err_define="$(mktemp)"
-		if ! DO_WITH_DEBUG --mask-position 7 tpm nv_definespace -in "$index" -sz "$sealed_size" \
-			-pwdo "$tpm_owner_passphrase" -per 0 2>"$tmp_err_define"; then
-			tmp_err_define_content="$(cat "$tmp_err_define")"
-			rm -f "$tmp_err_define"
-			DEBUG "tpm1_seal nv_definespace stderr: $tmp_err_define_content"
-			WARN "Unable to define TPM NVRAM space; trying anyway"
-		else
-			rm -f "$tmp_err_define"
-		fi
+		DO_WITH_DEBUG --mask-position 7 tpm nv_definespace -in "$index" -sz "$sealed_size" \
+			-pwdo "$tpm_owner_passphrase" -per 0 >/dev/null 2>&1 || true
+		# Ignore definespace errors — the space may already exist or fail silently.
+		# The subsequent nv_writevalue is the real success/failure test.
 
-		tmp_err_write_after_define="$(mktemp)"
-		if tpm nv_writevalue -in "$index" -if "$sealed_file" 2>"$tmp_err_write_after_define"; then
-			rm -f "$tmp_err_write_after_define"
+		tmp_out_write_after_define="$(mktemp)"
+		(
+			set +e
+			tpm nv_writevalue -in "$index" -if "$sealed_file" >"$tmp_out_write_after_define" 2>&1
+			echo $? > "$tmp_out_write_after_define.exit"
+		)
+		write_result=$(cat "$tmp_out_write_after_define.exit")
+		tmp_out_content="$(cat "$tmp_out_write_after_define")"
+		rm -f "$tmp_out_write_after_define" "$tmp_out_write_after_define.exit"
+		DEBUG "tpm1_seal: nv_writevalue(post-define) attempt $attempt result=$write_result, output='$tmp_out_content'"
+
+		if [ "$write_result" = "0" ]; then
+			DEBUG "tpm1_seal: nv_writevalue succeeded after define"
 			return 0
 		fi
-		tmp_err_content="$(cat "$tmp_err_write_after_define")"
-		rm -f "$tmp_err_write_after_define"
-		DEBUG "tpm1_seal nv_writevalue(post-define) stderr: $tmp_err_content"
-		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm1_seal. Wiping /tmp/secret/tpm_owner_passphrase"
-		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		DEBUG "tpm1_seal nv_writevalue(post-define) output: $tmp_out_content"
+		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
+		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
 			fi
@@ -718,7 +892,7 @@ tpm2_unseal() {
 	# stderr; capture stderr to log.
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
 		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
-		INFO "Unable to unseal secret from TPM NVRAM"
+		WARN "Unable to unseal secret from TPM NVRAM"
 
 		# should succeed, exit if it doesn't
 		exit 1
@@ -767,34 +941,48 @@ tpm1_unseal() {
 	rm -f "$tmp_err_read"
 
 	PASS_ARGS=()
-	if [ "$pass" ]; then
+
+	if [ -n "$pass" ]; then
 		PASS_ARGS=(-pwdd "$pass")
 	fi
 
+	# NOTE: tpmtotp C code (unsealfile.c, counter_create.c, etc.) prints
+	# ALL output (success and errors) via printf() to stdout, NOT stderr.
+	# This is a quirk of the tpmtotp toolkit.  We must capture stdout
+	# to detect failure messages like "Error Decryption failure from TPM_Unseal".
+	# Also: redirection order matters: >"$file" 2>&1 sends stdout to file, stderr follows.
+	# We use a tmp file + variable to avoid set -e killing the function on failure.
+	TMP_UNSEAL_OUT=$(mktemp)
+	at_exit cleanup_shred "$TMP_UNSEAL_OUT"
+	unseal_ok="n"
+
 	if [ -n "$pass" ]; then
-		if ! DO_WITH_DEBUG --mask-position 7 tpm unsealfile \
-			-if "$sealed_file" \
-			-of "$file" \
-			"${PASS_ARGS[@]}" \
-			-hk 40000000; then
-			if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
-				DEBUG "nonfatal tpm1_unseal failure: unable to unseal TPM NVRAM blob"
-				return 1
-			fi
-			DIE "Unable to unseal secret from TPM NVRAM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
-		fi
+		# Run in subshell with set +e to avoid set -e killing the script on failure
+		( set +e
+			DO_WITH_DEBUG --mask-position 7 tpm unsealfile \
+				-if "$sealed_file" \
+				-of "$file" \
+				"${PASS_ARGS[@]}" \
+				-hk 40000000 >"$TMP_UNSEAL_OUT" 2>&1 ) && unseal_ok="y"
 	else
-		if ! DO_WITH_DEBUG tpm unsealfile \
-			-if "$sealed_file" \
-			-of "$file" \
-			-hk 40000000; then
-			if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
-				DEBUG "nonfatal tpm1_unseal failure: unable to unseal TPM NVRAM blob"
-				return 1
-			fi
-			DIE "Unable to unseal secret from TPM NVRAM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
-		fi
+		# Run in subshell with set +e to avoid set -e killing the script on failure
+		( set +e
+			DO_WITH_DEBUG tpm unsealfile \
+				-if "$sealed_file" \
+				-of "$file" \
+				-hk 40000000 >"$TMP_UNSEAL_OUT" 2>&1 ) && unseal_ok="y"
 	fi
+
+	if [ "$unseal_ok" = "y" ]; then
+		DEBUG "tpm1_unseal: unseal succeeded"
+		return 0
+	fi
+	DEBUG "tpm1_unseal unsealfile output: $(cat "$TMP_UNSEAL_OUT")"
+	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
+		DEBUG "nonfatal tpm1_unseal failure: unable to unseal TPM NVRAM blob"
+		return 1
+	fi
+	DIE "Unable to unseal secret from TPM NVRAM. Use the GUI menu (Options -> TPM/TOTP/HOTP Options -> Generate new TOTP/HOTP secret) to reseal."
 }
 
 # cache_owner_passphrase <passphrase>
@@ -948,7 +1136,7 @@ tpm2_kexec_finalize() {
 	# Add a random passphrase to platform hierarchy to prevent TPM2 from
 	# being cleared in the OS.
 	# This passphrase is only effective before the next boot.
-	STATUS "Locking TPM2 platform hierarchy"
+	INFO "TPM: Locking TPM2 platform hierarchy"
 	randpass=$(dd if=/dev/urandom bs=4 count=1 status=none 2>/dev/null | xxd -p)
 	tpm2 changeauth -c platform "$randpass" ||
 		WARN "Failed to lock platform hierarchy of TPM2"
@@ -985,6 +1173,14 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		replay_pcr "sha1" "$@"
 		;;
+	counter_read)
+		shift
+		tpm1_counter_read "$@"
+		;;
+	counter_increment)
+		shift
+		tpm1_counter_increment "$@"
+		;;
 	counter_create)
 		shift
 		tpm1_counter_create "$@"
@@ -996,20 +1192,23 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 	extend)
 		# Check if we extend with a hash or a file
 		if [ "$4" = "-if" ]; then
-			DEBUG "TPM: Will extend PCR[$3] hash content of file $5"
 			hash="$(sha1sum "$5" | cut -d' ' -f1)"
+			INFO "TPM: Extending PCR[$3] with content of $5 (hash: $hash)"
 		elif [ "$4" = "-ic" ]; then
 			string=$(echo -n "$5")
-			DEBUG "TPM: Will extend PCR[$3] with hash of filename $string"
 			hash="$(echo -n "$5" | sha1sum | cut -d' ' -f1)"
+			INFO "TPM: Extending PCR[$3] with content of string '$5' (hash: $hash)"
 		fi
 
 		TRACE_FUNC
-		INFO "TPM: Extending PCR[$3] with hash $hash"
-
 		# Silence stdout/stderr, they're only useful for debugging
 		# and DO_WITH_DEBUG captures them
 		DO_WITH_DEBUG exec tpm "$@" &>/dev/null
+
+		# Read PCR value after extend (TPM1 uses SHA1, read from sysfs)
+		pcr_value=$(grep -i "PCR-0*$3:" /sys/class/tpm/tpm0/pcrs | head -1 | cut -d: -f2 | tr -d ' ')
+		INFO "TPM: PCR[$3] after extend: $pcr_value"
+		INFO "TPM: Extended PCR[$3] with hash $hash"
 		;;
 	seal)
 		shift
@@ -1022,7 +1221,9 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		;;
 	reset)
 		shift
+		INFO "TPM: Resetting TPM"
 		tpm1_reset "$@"
+		STATUS_OK "TPM reset completed"
 		;;
 	kexec_finalize) ;; # Nothing on TPM1.
 	shutdown) ;;       # Nothing on TPM1.
@@ -1050,9 +1251,19 @@ pcrsize)
 calcfuturepcr)
 	replay_pcr "sha256" "$@"
 	;;
-extend)
+	extend)
 	TRACE_FUNC
-	INFO "TPM: Extending PCR[$2] with $4"
+	# Show INFO message with what's being extended for auditability
+	# -ic: extend with string, -if: extend with file content
+	if [ "$3" = "-ic" ]; then
+		# -ic: the string is passed directly
+		hash="$(echo -n "$4" | sha256sum | cut -d' ' -f1)"
+		INFO "TPM: Extending PCR[$2] with content of string '$4' (hash: $hash)"
+	else
+		# -if: the file content is used
+		hash="$(sha256sum "$4" | cut -d' ' -f1)"
+		INFO "TPM: Extending PCR[$2] with content of $4 (hash: $hash)"
+	fi
 	tpm2_extend "$@"
 	;;
 counter_read)
@@ -1077,7 +1288,9 @@ unseal)
 	tpm2_unseal "$@"
 	;;
 reset)
+	INFO "TPM: Resetting TPM"
 	tpm2_reset "$@"
+	STATUS_OK "TPM reset completed"
 	;;
 kexec_finalize)
 	tpm2_kexec_finalize "$@"

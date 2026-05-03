@@ -20,6 +20,6 @@ DEBUG "Removing /tmp/lukshdr-*"
 rm /tmp/lukshdr-*
 
 TRACE_FUNC
-INFO "TPM: Extending PCR[6] with hash of LUKS headers from /tmp/luksDump.txt"
+INFO "TPM: Extending PCR[6] with content of /tmp/luksDump.txt (hash of TPM Disk Unlock Key headers)"
 tpmr.sh extend -ix 6 -if /tmp/luksDump.txt ||
 	DIE "Unable to extend PCR"
