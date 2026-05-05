@@ -9,7 +9,7 @@ See also: [architecture.md](architecture.md), [boot-process.md](boot-process.md)
 
 ## tpmr — unified TPM abstraction
 
-`initrd/bin/tpmr` is a shell script wrapper that presents a single interface
+`initrd/bin/tpmr.sh` is a shell script wrapper that presents a single interface
 over both TPM 1.2 (`tpm` / `trousers`) and TPM 2.0 (`tpm2-tools`). All Heads
 scripts call `tpmr` rather than invoking `tpm` or `tpm2` directly.
 
@@ -224,7 +224,7 @@ after normal init, before any recovery shell entry).
 
 ### Recovery PCR extension
 
-When a recovery shell is entered, `initrd/etc/functions` extends PCR 4 with
+When a recovery shell is entered, `initrd/etc/functions.sh` extends PCR 4 with
 the string `"recovery"`. This permanently invalidates TOTP and LUKS DUK
 unsealing for the rest of the boot session — the TPM will refuse to unseal
 secrets that were sealed against the normal-boot PCR 4 value.
@@ -283,11 +283,11 @@ validates the counter is readable from TPM, ensuring secrets can actually be
 unsealed.
 
 The counter is created during OEM Factory Reset by `check_tpm_counter` in
-`initrd/etc/functions`.
+`initrd/etc/functions.sh`.
 
 ### Counter state file
 
-`read_tpm_counter` in `initrd/etc/functions` reads the counter from the TPM
+`read_tpm_counter` in `initrd/etc/functions.sh` reads the counter from the TPM
 and writes the result to `/tmp/counter-<index>`. The format is
 `<hex_index>: <hex_value>`.
 
@@ -359,13 +359,13 @@ policy, or investigating why a seal/unseal operation fails.
 | --- | --- | --- |
 | Which coreboot PCRs are active on a board | `config/coreboot-<board>.config` | `CONFIG_PCR_SRTM`, `CONFIG_TPM_INIT_RAMSTAGE`, `CONFIG_TPM_MEASURED_BOOT_INIT_BOOTBLOCK`, `CONFIG_INTEL_TXT` |
 | Which coreboot version / fork a board uses | `modules/coreboot` + `boards/<board>/` | `CONFIG_COREBOOT_VERSION` in board config selects the coreboot source defined in `modules/coreboot` |
-| LUKS DUK sealing policy (which PCRs) | `initrd/bin/kexec-seal-key` | `tpmr seal` call and surrounding `pcrread` / `calcfuturepcr` calls; DEBUG comments explain each PCR |
-| TOTP/HOTP sealing policy (which PCRs) | `initrd/bin/seal-totp` | `tpmr seal` call; DEBUG messages explain why PCR 5 and PCR 6 are excluded |
-| PCR 4 (boot mode) tracking | `initrd/bin/usb-init`, `initrd/bin/kexec-insert-key`, `initrd/etc/functions` | `tpmr extend` calls with `"usb"`, `"generic"`, `"recovery"` |
+| LUKS DUK sealing policy (which PCRs) | `initrd/bin/kexec-seal-key.sh` | `tpmr seal` call and surrounding `pcrread` / `calcfuturepcr` calls; DEBUG comments explain each PCR |
+| TOTP/HOTP sealing policy (which PCRs) | `initrd/bin/seal-totp.sh` | `tpmr seal` call; DEBUG messages explain why PCR 5 and PCR 6 are excluded |
+| PCR 4 (boot mode) tracking | `initrd/bin/usb-init.sh`, `initrd/bin/kexec-insert-key.sh`, `initrd/etc/functions.sh` | `tpmr extend` calls with `"usb"`, `"generic"`, `"recovery"` |
 | PCR 5 (kernel modules) | `initrd/sbin/insmod` | `MODULE_PCR` variable; default `MODULE_PCR=5`; each `insmod` extends PCR 5 |
-| PCR 6 (LUKS header) | `initrd/bin/qubes-measure-luks` | `tpmr extend` call against `/tmp/luksDump.txt` |
-| PCR 7 (CBFS / ROM files) | `initrd/bin/cbfs-init`, `initrd/bin/uefi-init` | `CONFIG_PCR` variable; default `CONFIG_PCR=7`; each extracted file extends PCR 7 |
-| Rollback counter logic | `initrd/etc/functions` | `check_tpm_counter`, `read_tpm_counter`, `counter_increment` |
+| PCR 6 (LUKS header) | `initrd/bin/qubes-measure-luks.sh` | `tpmr extend` call against `/tmp/luksDump.txt` |
+| PCR 7 (CBFS / ROM files) | `initrd/bin/cbfs-init.sh`, `initrd/bin/uefi-init.sh` | `CONFIG_PCR` variable; default `CONFIG_PCR=7`; each extracted file extends PCR 7 |
+| Rollback counter logic | `initrd/etc/functions.sh` | `check_tpm_counter`, `read_tpm_counter`, `counter_increment` |
 
 ### Adding a new board
 

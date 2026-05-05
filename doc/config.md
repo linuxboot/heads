@@ -42,7 +42,7 @@ These are not intended to be changed in user config.
 
 | Variable | Purpose |
 |---|---|
-| CONFIG_BOARD | Internal name of the board being built.  Avoid testing this for specific boards in initrd/, instead add a customization point and override it with boards/<name>/initrd/bin/<file>.  (For example, boards/librem_mini_v2/initrd/bin/board-init.sh.) |
+| CONFIG_BOARD | Internal name of the board being built.  Avoid testing this for specific boards in initrd/, instead add a customization point and override it with boards/<name>/initrd/bin/.sh<file>.  (For example, boards/librem_mini_v2/initrd/bin/board-init.sh.) |
 | CONFIG_BOARD_NAME | Display name of the board being built.  Use this to show the board name to the user. |
 | CONFIG_BRAND_NAME | Brand name to use to refer to the firmware itself.  Upstream, this is "Heads".  For example, "Heads main menu", "Enable Heads debug tracing", etc.  Distributions can override this to their specific brand name (usually in site-local/config). |
 
