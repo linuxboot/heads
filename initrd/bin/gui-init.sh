@@ -981,11 +981,10 @@ TRACE_FUNC
 
 if [ -x /bin/hotp_verification ]; then
 	enable_usb
+	# Detect dongle branding from USB VID:PID -- must run AFTER enable_usb so lsusb
+	# can see the dongle (NK3 enumerates ~1 second after USB module load).
+	detect_usb_security_dongle_branding
 fi
-
-# Detect dongle branding from USB VID:PID -- must run AFTER enable_usb so lsusb
-# can see the dongle (NK3 enumerates ~1 second after USB module load).
-detect_usb_security_dongle_branding
 
 if detect_boot_device; then
 	# /boot device with installed OS found
