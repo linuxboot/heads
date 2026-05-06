@@ -165,15 +165,19 @@ if [ $attempts -ge 3 ]; then
 	DIE "Failed to set a valid Disk Unlock Key (DUK) passphrase after 3 attempts. Exiting..."
 fi
 
-# Generate key file
-STATUS "Generating new randomized key of 128 characters for LUKS TPM Disk Unlock Key"
+# Generate key file: 128 bytes from /dev/urandom = 1024 bits of entropy.
+# This provides a brute-force space of 2^1024 possible values. An attacker
+# would need to try ~2^1023 guesses on average. Even at an absurd 10^12 guesses/second,
+# this would require ~2^1023/10^12 seconds — vastly longer than the age of the universe.
+# See doc/tpm.md and doc/security-model.md for full entropy analysis.
+STATUS "Generating new 128-byte random key for LUKS TPM Disk Unlock Key"
 dd \
 	if=/dev/urandom \
 	of="$DUK_KEY_FILE" \
 	bs=1 \
 	count=128 \
 	2>/dev/null ||
-	DIE "Unable to generate random key of 128 characters"
+	DIE "Unable to generate random key of 128 bytes"
 STATUS_OK "LUKS TPM Disk Unlock Key generated"
 
 previous_luks_header_version=0

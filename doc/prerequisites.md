@@ -17,14 +17,19 @@ version.  Without HOTP, Heads falls back to TPMTOTP (smartphone-based).
 | YubiKey 5 Series | Yes | No | OpenPGP signing only; no HOTP |
 | Nitrokey Pro (v1, fw < 0.8) | Yes | Limited | Older firmware may report no HOTP support; test before use |
 
-Heads detects dongle branding at runtime via USB VID:PID:
+Heads detects dongle branding at runtime via USB VID:PID.
+
+Source of truth for IDs is `initrd/etc/dongle-versions`.
 
 | VID:PID | Dongle |
 |---------|--------|
 | `20a0:42b2` | Nitrokey 3 |
+| `20a0:42d4` | Canokey (QEMU) |
 | `20a0:4108` | Nitrokey Pro |
 | `20a0:4109` | Nitrokey Storage |
 | `316d:4c4b` | Purism Librem Key |
+| `16d0:21dc` | Canokey |
+| `1050:*` | YubiKey |
 
 ## HOTP vs. TPMTOTP
 

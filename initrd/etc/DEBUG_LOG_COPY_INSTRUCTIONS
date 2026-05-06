@@ -1,10 +1,13 @@
 Welcome to the Recovery Shell!
 
-- /tmp/debug.log: contains corresponding log level (Quiet/Info/Debug) debug traces
-	- Read them locally through: 'less /tmp/debug/log'
-- If you faced a bug:
-	- Preformat/connect a ext3/ext4/fat32/exfat USB thumb drive, and then:
-	- 'mount-usb.sh --mode rw' # Mounts a connected USB drive in Read+Write mode
-	- 'cp /tmp/debug.log /media' # copy the log to mounted Read+Write partition under /media
-	- 'umount /media' # Makes sure buffered write operations are done and "ejects" the USB drive
-- Share the debug.log with the developers.
+- /tmp/debug.log: detailed runtime logs in all output modes.
+- /tmp/measuring_trace.log: INFO-level security/measurement log in all output modes.
+	- Read locally with:
+	  - 'less /tmp/debug.log'
+	  - 'less /tmp/measuring_trace.log'
+- If you hit a bug:
+	- Connect an ext3/ext4/fat32/exfat USB thumb drive, then run:
+	  - 'mount-usb.sh --mode rw' # mount USB read-write at /media
+	  - 'cp /tmp/debug.log /tmp/measuring_trace.log /media/' # copy both logs
+	  - 'umount /media' # flush writes and safely unmount
+- Share both log files with developers.
