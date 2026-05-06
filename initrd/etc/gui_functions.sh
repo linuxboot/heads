@@ -354,7 +354,7 @@ report_integrity_measurements() {
 	# Check signing key: try card immediately (USB already up); only prompt if not accessible.
 	# wait_for_gpg_card sets global gpg_output to the card-status output on success.
 	STATUS "Verifying signing key on $DONGLE_BRAND"
-	enable_usb
+	# enable_usb is called internally by wait_for_gpg_card
 	gpg_output=""
 	local _card_detected=0
 	if wait_for_gpg_card 2>/dev/null; then

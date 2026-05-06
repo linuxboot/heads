@@ -48,9 +48,7 @@ mount_boot || exit 1
 
 counter_value=1
 
-enable_usb
-
-# Detect branding after USB is up so lsusb can see the device.
+# Detect branding (enable_usb is called internally)
 detect_usb_security_dongle_branding
 DEBUG "$DONGLE_BRAND detected via USB VID:PID"
 

@@ -980,9 +980,7 @@ force_unsafe_boot() {
 TRACE_FUNC
 
 if [ -x /bin/hotp_verification ]; then
-	enable_usb
-	# Detect dongle branding from USB VID:PID -- must run AFTER enable_usb so lsusb
-	# can see the dongle (NK3 enumerates ~1 second after USB module load).
+	# HOTP required by board config, always detect branding
 	detect_usb_security_dongle_branding
 fi
 
