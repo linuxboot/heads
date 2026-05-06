@@ -499,6 +499,122 @@ pin_color() {
 #   1050:0115  Yubikey 4/5 (OTP+U2F+CCID) - FIDO+CCID
 #   1050:0404  Yubikey 5 (FIDO+CCID)
 
+# Returns 0 if the given tty path is a serial console.
+heads_tty_is_serial() {
+	case "$1" in
+	/dev/ttyS* | /dev/ttyUSB* | /dev/ttyAMA* | /dev/ttyO*) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+# Returns 0 if a known USB security dongle VID is present in sysfs.
+# Known VIDs: 20a0 (Nitrokey/Canokey QEMU), 316d (Librem Key), 16d0 (Canokey), 1050 (Yubikey)
+usb_security_dongle_vid_present() {
+	grep -l -E "20a0|316d|16d0|1050" /sys/bus/usb/devices/*/idVendor 2>/dev/null | grep -q .
+}
+
+# Wait up to 15 seconds for a known USB security dongle VID to appear in sysfs.
+# Displays a countdown line updated in place (mirrors show_totp_until_esc pattern).
+# Framebuffer: any key cancels. Serial (ttyS*, ttyUSB*, ttyAMA*, ttyO*): Enter cancels.
+# Returns 0 if a dongle VID is detected, 1 if timed out or cancelled.
+wait_for_usb_security_dongle_vid() {
+	TRACE_FUNC
+	local interactive_tty="${HEADS_TTY}"
+	local is_serial=0
+	local deadline remaining ch status_line last_remaining=""
+
+	if heads_tty_is_serial "$interactive_tty"; then
+		is_serial=1
+	fi
+
+	# Reserve a countdown line; drain stray input on framebuffer.
+	if [ -n "$interactive_tty" ]; then
+		printf "\n" >"$interactive_tty" 2>/dev/null
+	else
+		printf "\n"
+	fi
+	if [ "$is_serial" = "0" ]; then
+		if [ -n "$interactive_tty" ]; then
+			while IFS= read -r -t 0 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
+		else
+			while IFS= read -r -t 0 -n 1 junk; do :; done
+		fi
+	fi
+
+	deadline=$(( $(date +%s) + 15 ))
+
+	while :; do
+		# Exit immediately when a known VID appears.
+		if usb_security_dongle_vid_present; then
+			if [ -n "$interactive_tty" ]; then
+				printf "\n\n" >"$interactive_tty" 2>/dev/null
+			else
+				printf "\n\n"
+			fi
+			DEBUG "USB security dongle VID detected in sysfs (countdown wait)"
+			return 0
+		fi
+
+		remaining=$(( deadline - $(date +%s) ))
+		if [ "$remaining" -le 0 ]; then
+			if [ -n "$interactive_tty" ]; then
+				printf "\n\n" >"$interactive_tty" 2>/dev/null
+			else
+				printf "\n\n"
+			fi
+			DEBUG "Timeout waiting for USB security dongle VID after 15s"
+			return 1
+		fi
+
+		# Rewrite countdown only when the value changes to avoid flicker.
+		if [ "$remaining" != "$last_remaining" ]; then
+			last_remaining="$remaining"
+			local sec_display
+			sec_display=$(printf "%02d" "$remaining")
+			if [ "$is_serial" = "1" ]; then
+				status_line="\033[1mWaiting for USB security dongle... ${sec_display}s | Press Enter to skip\033[0m"
+			else
+				status_line="\033[1mWaiting for USB security dongle... ${sec_display}s | Press Esc to skip\033[0m"
+			fi
+			if [ -n "$interactive_tty" ]; then
+				printf "\r%b\033[K" "$status_line" >"$interactive_tty" 2>/dev/null
+			else
+				printf "\r%b\033[K" "$status_line"
+			fi
+		fi
+
+		if [ "$is_serial" = "1" ]; then
+			if [ -n "$interactive_tty" ]; then
+				if IFS= read -r -t 1 ch <"$interactive_tty" 2>/dev/null; then
+					printf "\n\n" >"$interactive_tty" 2>/dev/null
+					DEBUG "User cancelled USB dongle wait (Enter on serial)"
+					return 1
+				fi
+			else
+				if IFS= read -r -t 1 ch; then
+					printf "\n\n"
+					DEBUG "User cancelled USB dongle wait (Enter on serial)"
+					return 1
+				fi
+			fi
+		else
+			if [ -n "$interactive_tty" ]; then
+				if IFS= read -r -t 0.2 -n 1 ch <"$interactive_tty" 2>/dev/null; then
+					printf "\n\n" >"$interactive_tty" 2>/dev/null
+					DEBUG "User cancelled USB dongle wait (key on framebuffer)"
+					return 1
+				fi
+			else
+				if IFS= read -r -t 0.2 -n 1 ch; then
+					printf "\n\n"
+					DEBUG "User cancelled USB dongle wait (key on framebuffer)"
+					return 1
+				fi
+			fi
+		fi
+	done
+}
+
 # Detect USB security dongle branding (Nitrokey, Yubikey, Canokey, etc.) from VID:PID.
 # This function intentionally does NOT load USB modules automatically - it only scans for
 # known dongles when USB is already enabled. Callers that need USB (HOTP/GPG/LUKS operations)
@@ -531,42 +647,11 @@ detect_usb_security_dongle_branding() {
 	fi
 	wait_for_usb_devices
 
+	# Wait up to 15s for a known dongle VID to appear; user can press Esc (fb) or Enter (serial) to skip.
+	# Best-effort wait only — branding detection continues via lsusb regardless.
+	wait_for_usb_security_dongle_vid || true
 	# If branding is already specific, USB is now ready and no re-scan is needed.
 	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
-
-	# Wait for known USB dongle VID to appear in sysfs (max 3s).
-	# Known VIDs: 20a0 (Nitrokey/Canokey QEMU), 316d (Librem Key), 16d0 (Canokey), 1050 (Yubikey)
-	local start_dongle_wait=$(awk '{print $1}' /proc/uptime 2>/dev/null)
-	local iterations=0
-	while :; do
-		if ls /sys/bus/usb/devices/*/idVendor 2>/dev/null | \
-			xargs grep -l -E "20a0|316d|16d0|1050" 2>/dev/null | grep -q .; then
-			DEBUG "USB security dongle VID detected in sysfs"
-			break
-		fi
-
-		# Timeout after 3 seconds (or 30 iterations as hard fallback)
-		iterations=$((iterations + 1))
-		if [ "$iterations" -ge 30 ]; then
-			DEBUG "Timeout waiting for USB security dongle VID (iteration cap reached)"
-			break
-		fi
-		if [ -n "$start_dongle_wait" ]; then
-			local now=$(awk '{print $1}' /proc/uptime 2>/dev/null)
-			if [ -n "$now" ]; then
-				if awk -v s="$start_dongle_wait" -v n="$now" 'BEGIN{exit (n - s > 3.0) ? 0 : 1}'; then
-					DEBUG "Timeout waiting for USB security dongle VID after 3s"
-					break
-				fi
-			fi
-		fi
-		sleep 0.1
-	done
-	# If branding is already specific, USB is now ready and no re-scan is needed.
-	if [ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ]; then
-		DEBUG "Branding already specific ($DONGLE_BRAND), skipping lsusb scan"
-		return
-	fi
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -2842,9 +2927,9 @@ show_totp_until_esc() {
 	# tcsetattr, but some serial line disciplines block indefinitely despite the
 	# -t timeout.  On serial we accept Enter (line-mode read) instead of Esc.
 	local is_serial=0
-	case "$interactive_tty" in
-	/dev/ttyS* | /dev/ttyUSB* | /dev/ttyAMA* | /dev/ttyO*) is_serial=1 ;;
-	esac
+	if heads_tty_is_serial "$interactive_tty"; then
+		is_serial=1
+	fi
 
 	if [ -n "$interactive_tty" ]; then
 		printf "\n" >"$interactive_tty" 2>/dev/null # reserve a line for updates
