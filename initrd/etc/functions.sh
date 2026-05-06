@@ -506,6 +506,7 @@ detect_usb_security_dongle_branding() {
 	if [ "$DONGLE_BRAND" != "USB Security dongle" ] \
 		&& [ -n "$DONGLE_BRAND" ] \
 		&& [ "$usb_was_enabled" = "y" ]; then
+		DEBUG "Fast path: DONGLE_BRAND='$DONGLE_BRAND' already known, USB was enabled"
 		return
 	fi
 
@@ -515,7 +516,10 @@ detect_usb_security_dongle_branding() {
 	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
 
 	# If branding is already specific, USB is now ready and no re-scan is needed.
-	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
+	if [ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ]; then
+		DEBUG "Branding already specific ($DONGLE_BRAND), skipping lsusb scan"
+		return
+	fi
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -757,8 +761,7 @@ cache_gpg_signing_pin() {
 		-name '*.key' -delete >/dev/null 2>&1 || true
 	DEBUG "Cleared private-keys-v1.d; agent will re-discover keys via scdaemon"
 
-	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
-	enable_usb
+	# USB will be enabled by wait_for_gpg_card() and detect_usb_security_dongle_branding()
 	# Wait for USB enumeration before accessing GPG card to avoid race condition
 	wait_for_usb_devices
 
@@ -847,7 +850,7 @@ cache_gpg_signing_pin() {
 }
 
 confirm_gpg_card() {
-	enable_usb
+	# enable_usb is called internally by detect_usb_security_dongle_branding
 	detect_usb_security_dongle_branding
 	cache_gpg_signing_pin "$@"
 }
@@ -1034,7 +1037,7 @@ load_config_value() {
 
 enable_usb() {
 	TRACE_FUNC
-	[ "${_USB_ENABLED:-n}" = "y" ] && return
+	[ "${_USB_ENABLED:-n}" = "y" ] && { DEBUG "USB already enabled, skipping"; return; }
 	#insmod.sh ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
 	insmod.sh /lib/modules/ehci-hcd.ko || DIE "ehci_hcd: module load failed"
 
@@ -1046,7 +1049,8 @@ enable_usb() {
 	insmod.sh /lib/modules/ehci-pci.ko || DIE "ehci_pci: module load failed"
 	insmod.sh /lib/modules/xhci-hcd.ko || DIE "xhci_hcd: module load failed"
 	insmod.sh /lib/modules/xhci-pci.ko || DIE "xhci_pci: module load failed"
-	_USB_ENABLED="y"
+	export _USB_ENABLED="y"
+	DEBUG "USB modules loaded, _USB_ENABLED=y"
 }
 
 # Wait for USB bus enumeration to complete after enable_usb() loads modules.
