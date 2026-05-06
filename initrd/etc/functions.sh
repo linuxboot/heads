@@ -1035,6 +1035,7 @@ load_config_value() {
 enable_usb() {
 	TRACE_FUNC
 	[ "${_USB_ENABLED:-n}" = "y" ] && return
+	DEBUG "enable_usb: loading USB modules (first time)"
 	#insmod.sh ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
 	insmod.sh /lib/modules/ehci-hcd.ko || DIE "ehci_hcd: module load failed"
 
@@ -1046,7 +1047,8 @@ enable_usb() {
 	insmod.sh /lib/modules/ehci-pci.ko || DIE "ehci_pci: module load failed"
 	insmod.sh /lib/modules/xhci-hcd.ko || DIE "xhci_hcd: module load failed"
 	insmod.sh /lib/modules/xhci-pci.ko || DIE "xhci_pci: module load failed"
-	_USB_ENABLED="y"
+	export _USB_ENABLED="y"
+	DEBUG "enable_usb: USB modules loaded, _USB_ENABLED=y"
 }
 
 # Wait for USB bus enumeration to complete after enable_usb() loads modules.
