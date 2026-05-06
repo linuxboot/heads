@@ -1095,6 +1095,14 @@ recovery() {
 			INFO "$line"
 		done
 
+		# Drain any queued serial input before starting the interactive shell.
+		# This avoids stale bytes being interpreted as bash commands on entry.
+		if [ -n "$RECOVERY_TTY" ]; then
+			while IFS= read -r -t 0 -n 1 _junk <"$RECOVERY_TTY" 2>/dev/null; do :; done
+		else
+			while IFS= read -r -t 0 -n 1 _junk 2>/dev/null; do :; done
+		fi
+
 		STATUS "Starting recovery shell"
 
 		if [ -n "$RECOVERY_TTY" ]; then
@@ -1115,7 +1123,43 @@ recovery() {
 pause_recovery() {
 	TRACE_FUNC
 	INPUT "Press Enter to proceed to recovery shell"
-	recovery $*
+
+	# Re-detect TTY so INPUT uses the correct device
+	detect_heads_tty
+
+	if [ "$CONFIG_TPM" = "y" ]; then
+		INFO "TPM: Extending PCR[4] with content of string 'recovery' to prevent further secret unsealing"
+		tpmr.sh extend -ix 4 -ic recovery
+	fi
+
+	gpg_auth
+
+	if [ -n "$*" ]; then
+		WARN "$*"
+	fi
+
+	INFO "TPM: PCR state on entering recovery shell:"
+	pcrs | while IFS= read -r line; do
+		INFO "$line"
+	done
+
+	# Drain any queued serial input before starting the interactive shell.
+	# This avoids stale bytes being interpreted as bash commands on entry.
+	if [ -n "$RECOVERY_TTY" ]; then
+		while IFS= read -r -t 0 -n 1 _junk <"$RECOVERY_TTY" 2>/dev/null; do :; done
+	else
+		while IFS= read -r -t 0 -n 1 _junk 2>/dev/null; do :; done
+	fi
+
+	STATUS "Starting recovery shell"
+
+	if [ -n "$RECOVERY_TTY" ]; then
+		setsid /bin/bash <>"$RECOVERY_TTY" >&0 2>&0
+	elif [ -x /bin/setsid ]; then
+		/bin/setsid -c /bin/bash
+	else
+		/bin/bash
+	fi
 }
 
 combine_configs() {
