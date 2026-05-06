@@ -300,9 +300,11 @@ else
 				done
 			fi
 
-			# Wait for any boot script instance to die before checking
-			# which one needs restart.  Prevents busy-polling.
-			wait
+			# Wait for the first child exit when supported; otherwise
+			# fall back to light polling so dead children get respawned.
+			if ! wait -n 2>/dev/null; then
+				sleep 1
+			fi
 		done
 	else
 		# wait for boot via network to occur

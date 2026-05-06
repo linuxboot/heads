@@ -6,6 +6,19 @@
 # Version strings must be prefixed with 'v' and use dot notation (e.g. v1.8.3)
 # so that sort -V ordering works correctly for the comparison in hotpkey_fw_display.
 
+# USB VID/PID source-of-truth for runtime branding detection.
+# Used by initrd/etc/functions.sh:
+#   - usb_security_dongle_vid_present (VID pre-check during bounded wait)
+#   - detect_usb_security_dongle_branding (brand mapping from lsusb output)
+USB_SECURITY_DONGLE_VIDS="20a0 316d 16d0 1050"
+USB_SECURITY_DONGLE_NK3_VIDPID="20a0:42b2"
+USB_SECURITY_DONGLE_CANOKEY_QEMU_VIDPID="20a0:42d4"
+USB_SECURITY_DONGLE_NITROKEY_PRO_VIDPID="20a0:4108"
+USB_SECURITY_DONGLE_NITROKEY_STORAGE_VIDPID="20a0:4109"
+USB_SECURITY_DONGLE_LIBREM_KEY_VIDPID="316d:4c4b"
+USB_SECURITY_DONGLE_CANOKEY_VIDPID="16d0:21dc"
+USB_SECURITY_DONGLE_YUBIKEY_VID_PREFIX="1050:"
+
 # Nitrokey 3 (NK3) - VID:PID 20a0:42b2 (3A Mini / 3A NFC / 3C NFC all share this PID)
 # Identified by "Firmware Nitrokey 3: vX.Y.Z" in hotp_verification info output.
 HOTPKEY_NK3_MIN_VER="v1.8.3"

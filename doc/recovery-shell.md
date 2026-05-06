@@ -7,6 +7,9 @@ gives direct access to block devices, GPG, TPM tools, and flash utilities.
 
 - At power-on: press `r` repeatedly during the Heads splash screen.
 - From the Heads GUI: `Options -> Recovery Shell`.
+- If `CONFIG_BOOT_RECOVERY_SERIAL` is enabled by the board config, `/init`
+  starts a serial `pause_recovery` path that waits for Enter, then launches
+  recovery on that serial TTY.
 
 ## Limitations
 
