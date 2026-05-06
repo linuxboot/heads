@@ -509,10 +509,12 @@ detect_usb_security_dongle_branding() {
 		return
 	fi
 
-	# Child scripts can inherit DONGLE_BRAND while _USB_ENABLED resets, so always
-	# initialize USB unless the fast path above was taken.
-	enable_usb
-	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
+	# Caller is responsible for enabling USB before calling this function.
+	# This avoids extending PCR-5 unconditionally during early boot.
+	[ "$usb_was_enabled" != "y" ] && return
+
+	# USB is enabled, now detect branding from lsusb output
+	# (USB modules already loaded by caller)
 
 	# If branding is already specific, USB is now ready and no re-scan is needed.
 	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
@@ -790,6 +792,7 @@ cache_gpg_signing_pin() {
 	admin_pin_retries=$(echo "$pin_retry_counters" | awk '{print $3}')
 
 	# Re-detect dongle branding after card is detected (may have been too early in gui-init.sh)
+	enable_usb
 	detect_usb_security_dongle_branding
 
 	echo >/dev/console 2>/dev/null

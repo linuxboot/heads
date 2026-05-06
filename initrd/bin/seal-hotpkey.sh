@@ -71,6 +71,7 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 fi
 
 # Re-detect branding now that the dongle is confirmed present.
+enable_usb
 detect_usb_security_dongle_branding
 DEBUG "$DONGLE_BRAND detected via USB VID:PID"
 
