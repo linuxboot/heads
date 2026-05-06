@@ -1101,6 +1101,10 @@ wait_for_usb_devices() {
 # Sets global gpg_output with the last command output.
 wait_for_gpg_card() {
 	TRACE_FUNC
+
+	#make sure usb is enabled before trying to access the card
+	enable_usb
+
 	if [ ! -r /proc/uptime ]; then
 		gpg_output=$(gpg --card-status 2>&1)
 		local rc=$?
