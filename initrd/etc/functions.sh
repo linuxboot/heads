@@ -765,7 +765,7 @@ cache_gpg_signing_pin() {
 	# Wait for USB enumeration before accessing GPG card to avoid race condition
 	wait_for_usb_devices
 
-	STATUS "Verifying presence of GPG card"
+	STATUS "Verifying presence of USB Security dongle"
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
