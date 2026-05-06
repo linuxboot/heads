@@ -9,7 +9,8 @@ GIT_STATUS	:= $(shell \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
 GIT_TIMESTAMP		:= $(shell git log -1 --format=%cd --date=format:'%Y%m%d-%H%M%S')
-GIT_BRANCH		:= $(shell git rev-parse --abbrev-ref HEAD | cut -c1-30)
+# Keep branch identifier path-safe for artifact filenames (e.g. feature/foo -> feature_foo).
+GIT_BRANCH		:= $(shell git rev-parse --abbrev-ref HEAD | tr '/[[:space:]]' '_' | cut -c1-30)
 # Release builds: HEAD is exactly on a tag AND working tree is clean.
 # Dev builds: any untagged commit, commits ahead of a tag, or dirty tree.
 # Dev filenames include timestamp + branch for traceability without
