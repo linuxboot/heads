@@ -53,15 +53,15 @@ execution. Source lives in `initrd/`.
 
 | Subsystem | Key files | Purpose |
 | --- | --- | --- |
-| Init / boot flow | `initrd/init`, `initrd/bin/gui-init` | System initialization and main GUI loop |
-| TPM abstraction | `initrd/bin/tpmr` | Unified TPM 1.2 / TPM 2.0 wrapper |
-| Boot signing | `initrd/bin/kexec-sign-config` | GPG-sign /boot files, create checksums |
-| Boot verification | `initrd/bin/kexec-select-boot` | Verify checksums, select and kexec the OS |
-| LUKS key sealing | `initrd/bin/kexec-seal-key` | Seal disk encryption key to TPM |
-| TOTP/HOTP | `initrd/bin/seal-totp`, `seal-hotpkey` | Seal attestation secrets to TPM |
-| OEM reset | `initrd/bin/oem-factory-reset` | Full re-ownership: GPG, TPM, TOTP, checksums |
+| Init / boot flow | `initrd/init`, `initrd/bin/gui-init.sh` | System initialization and main GUI loop |
+| TPM abstraction | `initrd/bin/tpmr.sh` | Unified TPM 1.2 / TPM 2.0 wrapper |
+| Boot signing | `initrd/bin/kexec-sign-config.sh` | GPG-sign /boot files, create checksums |
+| Boot verification | `initrd/bin/kexec-select-boot.sh` | Verify checksums, select and kexec the OS |
+| LUKS key sealing | `initrd/bin/kexec-seal-key.sh` | Seal disk encryption key to TPM |
+| TOTP/HOTP | `initrd/bin/seal-totp.sh`, `initrd/bin/seal-hotpkey.sh` | Seal attestation secrets to TPM |
+| OEM reset | `initrd/bin/oem-factory-reset.sh` | Full re-ownership: GPG, TPM, TOTP, checksums |
 | Config GUI | `initrd/bin/config-gui.sh` | Runtime configuration menus |
-| Functions lib | `initrd/etc/functions` | Shared utilities: logging, INPUT, TPM helpers |
+| Functions lib | `initrd/etc/functions.sh` | Shared utilities: logging, INPUT, TPM helpers |
 | GUI lib | `initrd/etc/gui_functions` | Whiptail wrappers, integrity report |
 
 ---
@@ -74,7 +74,7 @@ Three-layer hierarchy:
 2. **`/etc/config.user`** — User overrides extracted from CBFS at runtime
 3. **`/tmp/config`** — Combined result, sourced during boot
 
-`combine_configs()` in `initrd/etc/functions` merges these by concatenating
+`combine_configs()` in `initrd/etc/functions.sh` merges these by concatenating
 `/etc/config*` into `/tmp/config`. User settings in CBFS take precedence
 because they appear last in the concatenation.
 

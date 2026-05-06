@@ -506,6 +506,7 @@ detect_usb_security_dongle_branding() {
 	if [ "$DONGLE_BRAND" != "USB Security dongle" ] \
 		&& [ -n "$DONGLE_BRAND" ] \
 		&& [ "$usb_was_enabled" = "y" ]; then
+		DEBUG "Fast path: DONGLE_BRAND='$DONGLE_BRAND' already known, USB was enabled"
 		return
 	fi
 
@@ -515,7 +516,10 @@ detect_usb_security_dongle_branding() {
 	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
 
 	# If branding is already specific, USB is now ready and no re-scan is needed.
-	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
+	if [ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ]; then
+		DEBUG "Branding already specific ($DONGLE_BRAND), skipping lsusb scan"
+		return
+	fi
 	local lsusb_out
 	lsusb_out="$(lsusb)"
 	DEBUG "lsusb output: $lsusb_out"
@@ -757,12 +761,11 @@ cache_gpg_signing_pin() {
 		-name '*.key' -delete >/dev/null 2>&1 || true
 	DEBUG "Cleared private-keys-v1.d; agent will re-discover keys via scdaemon"
 
-	# setup the USB so we can reach the USB Security dongle's OpenPGP smartcard
-	enable_usb
+	# USB will be enabled by wait_for_gpg_card() and detect_usb_security_dongle_branding()
 	# Wait for USB enumeration before accessing GPG card to avoid race condition
 	wait_for_usb_devices
 
-	STATUS "Verifying presence of GPG card"
+	STATUS "Verifying presence of USB Security dongle"
 	# ensure we don't exit without retrying
 	errexit=$(set -o | grep errexit | awk '{print $2}')
 	set +e
@@ -847,7 +850,7 @@ cache_gpg_signing_pin() {
 }
 
 confirm_gpg_card() {
-	enable_usb
+	# enable_usb is called internally by detect_usb_security_dongle_branding
 	detect_usb_security_dongle_branding
 	cache_gpg_signing_pin "$@"
 }
@@ -1034,7 +1037,7 @@ load_config_value() {
 
 enable_usb() {
 	TRACE_FUNC
-	[ "${_USB_ENABLED:-n}" = "y" ] && return
+	[ "${_USB_ENABLED:-n}" = "y" ] && { DEBUG "USB already enabled, skipping"; return; }
 	#insmod.sh ehci_hcd prior of uhdc_hcd and ohci_hcd to suppress dmesg warning
 	insmod.sh /lib/modules/ehci-hcd.ko || DIE "ehci_hcd: module load failed"
 
@@ -1046,7 +1049,8 @@ enable_usb() {
 	insmod.sh /lib/modules/ehci-pci.ko || DIE "ehci_pci: module load failed"
 	insmod.sh /lib/modules/xhci-hcd.ko || DIE "xhci_hcd: module load failed"
 	insmod.sh /lib/modules/xhci-pci.ko || DIE "xhci_pci: module load failed"
-	_USB_ENABLED="y"
+	export _USB_ENABLED="y"
+	DEBUG "USB modules loaded, _USB_ENABLED=y"
 }
 
 # Wait for USB bus enumeration to complete after enable_usb() loads modules.
@@ -1101,6 +1105,10 @@ wait_for_usb_devices() {
 # Sets global gpg_output with the last command output.
 wait_for_gpg_card() {
 	TRACE_FUNC
+
+	#make sure usb is enabled before trying to access the card
+	enable_usb
+
 	if [ ! -r /proc/uptime ]; then
 		gpg_output=$(gpg --card-status 2>&1)
 		local rc=$?
@@ -1693,13 +1701,30 @@ check_tpm_counter() {
 		DEBUG "Invoking tpmr.sh counter_create with label $LABEL"
 		# run it, then record the exit status explicitly; the '!' operator
 		# cannot be used because it would hide the real return code.
-		tpmr.sh counter_create \
-			-pwdc "${tpm_passphrase:-}" \
-			-la "$LABEL" \
-			>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
-		local rc=$?
+		# Capture stdout (TPM1 errors print to stdout via tpmtotp printf).
+		# Stderr (TPM2 errors) goes to SINK_LOG for debugging.
+		# Wrapped in subshell to avoid set -e killing the script on non-zero exit.
+		(
+			set +e
+			tpmr.sh counter_create \
+				-pwdc "${tpm_passphrase:-}" \
+				-la "$LABEL" \
+				>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
+			echo $? > /tmp/counter_create_rc
+		)
+		local rc=$(cat /tmp/counter_create_rc)
 		if [ $rc -ne 0 ]; then
 			DEBUG "tpmr.sh counter_create failed with status $rc"
+			# "out of resources" (TPM 1.2 error 0x15) is a generic resource
+			# exhaustion error (TPM_RESOURCES: "insufficient internal resources").
+			# The user must reset the TPM to release internal resources.
+			# Only set tpm_reset_required for this case, not for auth failures.
+			if grep -qiE 'out of resources|0x15' /tmp/counter 2>/dev/null; then
+				set_tpm_reset_required \
+					"TPM counter creation failed (exit $rc): $(head -c 200 /tmp/counter 2>/dev/null | tr '\n' ' ')" \
+					"check_tpm_counter"
+				DIE "TPM out of resources (0x15). Reset the TPM through the Heads menu: Options -> TPM/TOTP/HOTP Options -> Reset the TPM"
+			fi
 			# don't tell the user to reset again; the TPM was just reset
 			DIE "Unable to create TPM counter; TPM appears to be in a bad state. Perform OEM Factory Reset / re-ownership and try again."
 		fi
@@ -1854,6 +1879,12 @@ increment_tpm_counter() {
 	increment_ok="n"
 	local reset_required_marker="/tmp/secret/rollback_reset_required"
 
+	# Check if counter is readable; if so, mark it present so the
+	# "readable but not incrementable" branch below can set rollback_reset_required.
+	if tpmr.sh counter_read -ix "$counter_id" >/dev/null 2>&1; then
+		counter_present="y"
+	fi
+
 	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
@@ -1872,16 +1903,6 @@ increment_tpm_counter() {
 		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
 	fi
 
-	# Check if counter exists by reading it first
-	DEBUG "reading TPM counter $counter_id"
-	if ! DO_WITH_DEBUG tpmr.sh counter_read -ix "$counter_id" >/tmp/counter-check 2>/dev/null; then
-		DEBUG "TPM counter $counter_id could not be read before incrementing"
-		# Continue with increment attempt anyway to get detailed error messages
-	else
-		DEBUG "TPM counter $counter_id exists and was read successfully"
-		counter_present="y"
-	fi
-
 	# Try to increment the counter.  We normally hide the verbose
 	# output of tpmr.sh commands to avoid overwhelming the console, but we
 	# must *not* swallow any interactive prompts.  The previous implementation
@@ -1894,37 +1915,32 @@ increment_tpm_counter() {
 	DEBUG "incrementing TPM counter $counter_id"
 
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-		# TPM2 counters created with authwrite commonly require index auth (often
-		# empty auth) for nvincrement. Try that first, then owner auth fallback.
-		DEBUG "increment_tpm_counter: TPM2 trying index-auth nvincrement first"
-		if (
-			set -o pipefail
-			DO_WITH_DEBUG --mask-position 5 \
-				tpmr.sh counter_increment -ix "$counter_id" -pwdc "" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
-				tee /tmp/counter-"$counter_id" >/dev/null
-		); then
-			increment_ok="y"
-		elif [ -n "$tpm_passphrase" ]; then
-			DEBUG "increment_tpm_counter: TPM2 index-auth increment failed; trying owner-auth fallback"
-			if (
-				set -o pipefail
-				DO_WITH_DEBUG --mask-position 5 \
-					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
-					2> >(SINK_LOG "tpm counter_increment stderr") |
-					tee /tmp/counter-"$counter_id" >/dev/null
-			); then
-				increment_ok="y"
-			fi
-		fi
-	else
-		# TPM1 path uses owner auth in practice.
+		# TPM2: counter_increment tries bare nvincrement (index auth) first,
+		# then retries with owner auth using -pwdc value if provided.
+		# One call suffices; the function handles both internally.
+		DEBUG "increment_tpm_counter: TPM2 incrementing counter $counter_id"
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
-				2> >(SINK_LOG "tpm counter_increment stderr") |
+				2>/dev/null |
 				tee /tmp/counter-"$counter_id" >/dev/null
+		); then
+			increment_ok="y"
+		fi
+	else
+		# TPM1 path uses owner auth in practice.
+		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
+		# We must capture stdout to detect failures properly.
+		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
+		# | SINK_LOG "$1 stderr") and stdout (tee >(SINK_LOG "$1 stdout")).
+		# Redirecting DO_WITH_DEBUG's own fd 2 to /dev/null is intentional: the
+		# actual command stderr is already handled inside DO_WITH_DEBUG.
+		if (
+			set -o pipefail
+			DO_WITH_DEBUG --mask-position 5 \
+				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
+					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
 		fi
