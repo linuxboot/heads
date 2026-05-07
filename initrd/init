@@ -188,7 +188,7 @@ fi
 
 # load USB modules for boards using a USB keyboard
 if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
-	enable_usb
+	enable_usb_keyboard
 fi
 
 # Set the keyboard keymap if defined, file exists, and loadkeys is available
