@@ -1316,12 +1316,12 @@ enable_usb_keyboard() {
 	# For resiliency, test CONFIG_USB_KEYBOARD_REQUIRED explicitly rather
 	# than having it imply CONFIG_USER_USB_KEYBOARD at build time.
 	# Otherwise, if a user got CONFIG_USER_USB_KEYBOARD=n in their
-	# config.user by mistake (say, by copying config.user from a laptop to a
-	# desktop/server), they could lock themselves out, only recoverable by
-	# hardware flash.
+	# config.user by mistake, they could lock themselves out.
 	if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = y ]; then
-		insmod.sh /lib/modules/usbhid.ko || DIE "usbhid: module load failed"
-	fi
+	enable_usb
+	wait_for_usb_devices
+	insmod.sh /lib/modules/usbhid.ko || DIE "usbhid: module load failed"
+fi
 }
 
 # ------- End of functions coming from /etc/ash_functions
