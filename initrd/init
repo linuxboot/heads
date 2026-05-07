@@ -191,7 +191,7 @@ fi
 
 # load USB modules for boards using a USB keyboard
 if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
-	DEBUG "USB keyboard required by board or user config; loading USB modules"
+	WARN "USB keyboard required by board or user config; loading USB modules"
 	enable_usb_keyboard
 fi
 
