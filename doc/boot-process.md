@@ -43,9 +43,9 @@ kexec  ← hands off to OS kernel
 3. Runs `cbfs-init` to extract user configuration from CBFS into `/etc/config.user`.
 4. Calls `combine_configs()` to merge all `/etc/config*` files into `/tmp/config`,
    then sources `/tmp/config` so all subsequent scripts see the merged settings.
-5. If `CONFIG_BOOT_RECOVERY_SERIAL` is set, starts `pause_recovery` on that
-  serial TTY (`/dev/ttyS*`) and waits for Enter before launching the recovery
-  shell there.
+5. If `CONFIG_BOOT_RECOVERY_SERIAL` is set, starts a background `pause_recovery`
+  path on that serial TTY (`/dev/ttyS*`) that waits for Enter and then launches
+  the recovery shell there.
 6. Checks for a quick `r` keypress (100 ms timeout) to drop to a recovery shell
    before any GUI starts.
 7. Starts `cttyhack $CONFIG_BOOTSCRIPT` (default: `/bin/gui-init`) under a PID 1
