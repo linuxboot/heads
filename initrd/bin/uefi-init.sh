@@ -19,7 +19,7 @@ if [ -n "$GUID" ]; then
 	|| DIE "Failed to read config GUID from ROM"
 
 	if [ "$CONFIG_TPM" = "y" ]; then
-		INFO "TPM: Extending PCR[$CONFIG_PCR] with UEFI configuration"
+		INFO "TPM: Extending PCR[$CONFIG_PCR] with content of $TMPFILE (UEFI configuration)"
 		tpmr.sh extend -ix "$CONFIG_PCR" -if $TMPFILE \
 		|| DIE "$GUID: tpm extend failed"
 	fi

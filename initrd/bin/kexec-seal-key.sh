@@ -165,15 +165,20 @@ if [ $attempts -ge 3 ]; then
 	DIE "Failed to set a valid Disk Unlock Key (DUK) passphrase after 3 attempts. Exiting..."
 fi
 
-# Generate key file
-STATUS "Generating new randomized key of 128 characters for LUKS TPM Disk Unlock Key"
+# Generate key file: 128 bytes from /dev/urandom = 1024 bits of entropy.
+# This provides a brute-force space of 2^1024 possible values. An attacker
+# would need to try ~2^1023 guesses on average. Even at an absurd 10^12 guesses/second,
+# this would require ~2^1023/10^12 seconds — vastly longer than the age of the universe.
+# See doc/tpm.md and doc/security-model.md for full entropy analysis.
+STATUS "Generating new 128-byte random key for LUKS TPM Disk Unlock Key"
 dd \
 	if=/dev/urandom \
 	of="$DUK_KEY_FILE" \
 	bs=1 \
 	count=128 \
 	2>/dev/null ||
-	DIE "Unable to generate random key of 128 characters"
+	DIE "Unable to generate random key of 128 bytes"
+STATUS_OK "LUKS TPM Disk Unlock Key generated"
 
 previous_luks_header_version=0
 for dev in $key_devices; do
@@ -261,15 +266,17 @@ for dev in $key_devices; do
 		--new-key-slot "$duk_keyslot" \
 		"$dev" "$DUK_KEY_FILE" ||
 		DIE "$dev: Unable to add LUKS TPM Disk Unlock Key to LUKS key slot $duk_keyslot"
+	STATUS_OK "$dev: LUKS TPM Disk Unlock Key added to slot $duk_keyslot"
 done
 
 # Now that we have setup the new keys, measure the PCRs
 # We don't care what ends up in PCR 6; we just want
 # to get the /tmp/luksDump.txt file.  We use PCR16
 # since it should still be zero
-STATUS "Measuring LUKS headers for TPM sealing policy"
+STATUS "Measuring TPM Disk Unlock Key (DUK) for sealing policy (PCR[6])"
 echo "$key_devices" | xargs /bin/qubes-measure-luks.sh ||
 	DIE "Unable to measure the LUKS headers"
+STATUS_OK "TPM Disk Unlock Key (DUK) measured for sealing policy (PCR[6])"
 
 STATUS "Reading current PCR values for TPM sealing policy"
 pcrf="/tmp/secret/pcrf.bin"
@@ -293,6 +300,7 @@ DEBUG "Precomputing TPM future value for PCR6 sealing/unsealing of LUKS TPM Disk
 tpmr.sh calcfuturepcr 6 "/tmp/luksDump.txt" >>"$pcrf"
 # We take into consideration user files in cbfs
 tpmr.sh pcrread -a 7 "$pcrf"
+STATUS_OK "PCR values read for TPM sealing policy"
 
 # tpmr.sh seal may prompt for TPM owner password; avoid DO_WITH_DEBUG here so the
 # prompt remains visible on console. tpmr.sh logs command details internally.

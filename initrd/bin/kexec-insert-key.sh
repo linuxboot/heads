@@ -29,7 +29,7 @@ if [ -r "$TMP_KEY_LVM" ]; then
 fi
 
 # Measure the LUKS headers before we unseal the LUKS Disk Unlock Key from TPM
-STATUS "Measuring LUKS headers"
+STATUS "Measuring TPM Disk Unlock Key (DUK) into PCR[6])"
 cat "$TMP_KEY_DEVICES" | cut -d\  -f1 | xargs /bin/qubes-measure-luks.sh ||
 	DIE "LUKS measure failed"
 
@@ -65,7 +65,7 @@ fi
 
 # Override PCR 4 so that user can't read the key
 TRACE_FUNC
-INFO "TPM: Extending PCR[4] to prevent any future secret unsealing"
+INFO "TPM: Extending PCR[4] with content of string 'generic' to prevent secret unsealing"
 tpmr.sh extend -ix 4 -ic generic ||
 	DIE 'Unable to scramble PCR'
 

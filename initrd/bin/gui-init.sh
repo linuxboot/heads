@@ -224,29 +224,36 @@ gate_reseal_with_integrity_report() {
 	fi
 
 	INTEGRITY_REPORT_HASH_STATE="UNKNOWN"
+	STATUS "Running integrity report before resealing secrets"
 	report_integrity_measurements
 	local report_rc=$?
 	DEBUG "gate_reseal_with_integrity_report: report_integrity_measurements rc=$report_rc"
 	DEBUG "gate_reseal_with_integrity_report: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
 	if [ "$INTEGRITY_REPORT_HASH_STATE" != "OK" ]; then
 		DEBUG "returned from integrity report, now running investigation"
+		STATUS "Investigating integrity discrepancies before resealing"
 		if ! investigate_integrity_discrepancies; then
 			DEBUG "investigation indicated problem, aborting gate"
+			WARN "Integrity investigation did not clear discrepancies; reseal action aborted"
 			return 1
 		fi
 
 		DEBUG "gate_reseal_with_integrity_report: about to verify detached signature"
+		STATUS "Verifying /boot detached signature before resealing"
 		DEBUG "ls -l /boot/kexec.sig: $(ls -l /boot/kexec.sig 2>/dev/null || echo missing)"
 		if ! detached_kexec_signature_valid /boot; then
 			DEBUG "detached_kexec_signature_valid failed"
+			WARN "Detached signature verification failed; refusing reseal action"
 			local sig_fail_msg
 			sig_fail_msg="Cannot proceed with sealing new secrets because /boot/kexec.sig could not be verified with your current keyring.\n\nTreat /boot as untrusted and recover ownership first."
 			whiptail_error --title 'ERROR: Signature Verification Failed' \
 				--msgbox "$sig_fail_msg" 0 80
 			return 1
 		fi
+		STATUS_OK "Integrity checks passed for reseal prerequisites"
 	else
 		DEBUG "gate_reseal_with_integrity_report: integrity is OK, skipping investigation and detached signature verification"
+		STATUS_OK "Integrity checks passed for reseal prerequisites"
 	fi
 
 	if [ -x /bin/hotp_verification ]; then
@@ -257,11 +264,11 @@ gate_reseal_with_integrity_report() {
 			# starting the NK3 CCID teardown.  This safety call covers the
 			# case where scdaemon was restarted between then and now.
 			release_scdaemon
-			STATUS "Checking $DONGLE_BRAND presence before sealing"
 			DEBUG "gate_reseal_with_integrity_report: checking HOTP token presence"
+			STATUS "Checking $DONGLE_BRAND presence before sealing"
 			if hotp_verification info >/dev/null 2>&1; then
-				token_ok="y"
 				STATUS_OK "$DONGLE_BRAND present and accessible"
+				token_ok="y"
 				break
 			fi
 			DEBUG "gate_reseal_with_integrity_report: HOTP token not accessible"
@@ -293,10 +300,9 @@ generate_totp_hotp() {
 	if [ "$CONFIG_TPM" != "y" ] && [ -x /bin/hotp_verification ]; then
 		# If we don't have a TPM, but we have a HOTP USB Security dongle
 		TRACE_FUNC
-		STATUS "Generating new HOTP secret"
 		/bin/seal-hotpkey.sh ||
 			DIE "Failed to generate HOTP secret"
-	elif STATUS "Generating new TOTP secret" && /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_passphrase"; then
+	elif /bin/seal-totp.sh "$BOARD_NAME" "$tpm_owner_passphrase"; then
 		if [ -x /bin/hotp_verification ]; then
 			# If we have a TPM and a HOTP USB Security dongle
 			if [ "$CONFIG_TOTP_SKIP_QRCODE" != y ]; then
@@ -370,6 +376,7 @@ update_totp() {
 				return 1 # Already asked to skip to menu from a prior error
 			fi
 
+			DEBUG "TPM state at TOTP failure:"
 			DEBUG "$(pcrs)"
 
 			totp_menu_text=$(
@@ -450,6 +457,7 @@ update_hotp() {
 	local hotp_token_info hotp_exit attempt
 
 	# Ensure dongle is present; capture info for PIN counter display
+	STATUS "Checking $DONGLE_BRAND presence"
 	if ! hotp_token_info="$(hotp_verification info)"; then
 		if [ "$skip_to_menu" = "true" ]; then
 			return 1 # Already asked to skip to menu from a prior error
@@ -487,12 +495,14 @@ update_hotp() {
 	# PIN retry count is shown only before a retry so normal boots stay silent.
 	for attempt in 1 2 3; do
 		# Don't output HOTP codes to screen, so as to make replay attacks harder
+		STATUS "Verifying HOTP code"
 		hotp_verification check "$HOTP"
 		hotp_exit=$?
 		case "$hotp_exit" in
 		0)
 			HOTP="Success"
 			BG_COLOR_MAIN_MENU="normal"
+			STATUS_OK "HOTP code verified"
 			return
 			;;
 		4 | 7) # 4: code incorrect, 7: not a valid HOTP code — no point retrying same code
@@ -667,7 +677,6 @@ check_gpg_key() {
 
 prompt_auto_default_boot() {
 	TRACE_FUNC
-	STATUS_OK "HOTP verification success"
 	if pause_automatic_boot; then
 		STATUS "Attempting default boot"
 		attempt_default_boot
@@ -896,16 +905,22 @@ reset_tpm() {
 				DIE "Unable to create rollback file"
 
 			TRACE_FUNC
-			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it
-			# USB is already initialized at startup; run gpg --card-status to populate key stub.
-			wait_for_gpg_card || true
+			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it.
+			# NOTE: At seal time, PCR5 is IGNORED (not measured) - only used on HOTP board variants. So USB
+			# modules loading here don't affect DUK seal. GPG card needs USB to be enabled first.
+			STATUS "Preparing USB and GPG signing key access for /boot signing"
+			enable_usb
+			if wait_for_gpg_card; then
+				STATUS_OK "USB initialized and GPG card is accessible for /boot signing"
+			else
+				WARN "GPG card was not accessible during /boot signing preparation; retrying through key checks"
+			fi
 			while true; do
 				GPG_KEY_COUNT=$(gpg -K 2>/dev/null | wc -l)
 				if [ "$GPG_KEY_COUNT" -eq 0 ]; then
 					prompt_missing_gpg_key_action || return 1
 					wait_for_gpg_card || true
 				else
-					STATUS_OK "TPM reset successful - updating /boot checksums and signatures"
 					if ! update_checksums; then
 						whiptail_error --title 'ERROR' \
 							--msgbox "Failed to update checksums / sign default config" 0 80
@@ -925,14 +940,9 @@ reset_tpm() {
 			fi
 
 			if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
-				STATUS_OK "TPM reset successful - resealing TPM Disk Unlock Key (DUK)"
 				reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 			fi
-		else
-			INFO "Returning to the main menu"
 		fi
-	else
-		whiptail_error --title 'ERROR: No TPM Detected' --msgbox "This device does not have a TPM.\n\nPress OK to return to the Main Menu" 0 80
 	fi
 }
 

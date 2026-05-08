@@ -204,7 +204,7 @@ parse_option() {
 }
 
 scan_options() {
-	STATUS "Scanning for unsigned boot options"
+	STATUS "Scanning for boot options"
 	option_file="/tmp/kexec_options.txt"
 	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
@@ -373,7 +373,7 @@ while true; do
 		if [ ! -r "$TMP_KEY_DEVICES" ]; then
 			# Extend PCR4 as soon as possible
 			TRACE_FUNC
-			INFO "TPM: Extending PCR[4] to prevent further secret unsealing"
+			INFO "TPM: Extending PCR[4] with content of string 'generic' to prevent secret unsealing"
 			tpmr.sh extend -ix 4 -ic generic ||
 				DIE "Failed to extend TPM PCR[4]"
 		fi
