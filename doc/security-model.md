@@ -420,7 +420,7 @@ creating additional hardware binding:
 
 The LUKS Disk Unlock Key (DUK) is a random binary key that:
 
-1. Is generated from `/dev/urandom` by `kexec-seal-key` (128 characters — 1024 bits of entropy).
+1. Is generated from `/dev/urandom` by `kexec-seal-key` (128 bytes — 1024 bits of entropy, i.e. a $2^{1024}$ brute-force space).
 2. Is sealed to TPM NVRAM with PCR policy `0,1,2,3,4,5,6,7`.
 3. Is added as a LUKS key slot alongside the user's Disk Recovery Key (DRK).
 4. At boot, `kexec-insert-key` unseals it and injects it into a minimal

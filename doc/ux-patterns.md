@@ -118,6 +118,11 @@ output and `read` use that device — bypassing any stdout/stderr redirections t
 When `HEADS_TTY` is unset, the prompt goes to stderr and `read` uses stdin (serial recovery shell
 convention).
 
+On dual-console setups (for example qemu boards that also enable
+`CONFIG_BOOT_RECOVERY_SERIAL`), `detect_heads_tty` prefers a non-recovery
+active console for gui-init interaction when possible. This avoids routing
+gui-init inline prompts to the recovery serial shell TTY.
+
 **Do not use INPUT for yes/no choices** — use `whiptail_warning --yesno` or
 `whiptail_error --yesno` for those so the user has a clear graphical dialog.
 
@@ -303,6 +308,13 @@ This threshold applies to Nitrokey Pro / Pro 2 only. Librem Key is never
 self-upgradeable regardless of firmware version (always shown as NOTE
 directing users to contact Purism support). Nitrokey Storage has a separate
 firmware codebase and is not subject to this threshold.
+
+#### Centralized dongle VID/PID mapping
+
+USB dongle VID/PID detection IDs are centralized in `initrd/etc/dongle-versions`.
+`detect_usb_security_dongle_branding` and `usb_security_dongle_vid_present` in
+`initrd/etc/functions.sh` read those values so additions/changes are made in one
+place instead of hardcoded in multiple functions.
 
 #### Parsing hotp_verification output
 

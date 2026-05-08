@@ -11,6 +11,93 @@ git commit -S -s -m "component: short description"
 - **`-S`** — GPG-sign the commit (required; see [CONTRIBUTING.md](../CONTRIBUTING.md))
 - **`-s`** — add `Signed-off-by:` trailer for [DCO](https://developercertificate.org/) compliance (required; CI enforces this)
 
+### Enforce Signing In This Repository
+
+Git allows repository-local config to override your global config.  Verify and
+enforce signing in this clone during onboarding:
+
+```bash
+# Require cryptographic commit signatures in this repository
+git config commit.gpgsign true
+
+# Confirm effective values and where they come from
+git config --show-origin --get-all commit.gpgsign
+git config --show-origin --get-all user.signingkey
+```
+
+### Select The Correct Signing Key Fingerprint
+
+Use the full 40-hex fingerprint (not a short key ID) and ensure the UID email
+matches your Git commit email.
+
+```bash
+# List secret keys with full fingerprints
+gpg --list-secret-keys --keyid-format=long
+
+# Show your configured commit email
+git config user.email
+```
+
+Choose the fingerprint for the key whose UID matches `git config user.email`,
+then configure Git to use that exact fingerprint:
+
+```bash
+# Use the full fingerprint shown by gpg
+git config user.signingkey <FULL_40_HEX_FINGERPRINT>
+
+# Optional: set globally instead of repo-local
+git config --global user.signingkey <FULL_40_HEX_FINGERPRINT>
+```
+
+Verify the effective configuration and signature status:
+
+```bash
+git config --show-origin --get-all user.signingkey
+git commit --allow-empty -S -s -m "test: verify signing setup"
+git log -1 --show-signature
+```
+
+### Use The Factory Reset / Re-Ownership Public Key In Dev Cycles
+
+`OEM Factory Reset / Re-Ownership` already exports a public key to USB for you:
+
+- In-memory key backup path: public partition contains `pubkey.asc`
+- Separate USB export path: file is named `<fingerprint>.asc`
+
+Import that exported public key into your developer workstation keyring, then
+point Git signing at the same fingerprint used by the corresponding private key
+material (dongle or restored backup keyring):
+
+```bash
+# Import the exported ownership key
+gpg --import /path/to/pubkey.asc
+
+# Confirm full fingerprint and UID
+gpg --list-keys --fingerprint --keyid-format=long
+
+# Use the full 40-hex fingerprint shown above
+git config user.signingkey <FULL_40_HEX_FINGERPRINT>
+git config commit.gpgsign true
+```
+
+For repeated development/contribution cycles on new systems, reuse the exported
+public key file from ownership provisioning as your canonical reference, and
+verify with:
+
+```bash
+git log -1 --show-signature
+```
+
+Expected output for `commit.gpgsign` should include `true` for `.git/config`
+or for your global config, and must not include `false`.
+
+If you already created unsigned commits, rewrite them before opening a PR:
+
+```bash
+# Re-sign all commits ahead of upstream/master (keeps Signed-off-by trailers)
+git rebase -S --rebase-merges origin/master
+```
+
 ### Message Format
 
 ```text

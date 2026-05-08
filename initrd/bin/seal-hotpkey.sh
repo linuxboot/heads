@@ -23,11 +23,15 @@ TRACE_FUNC
 
 if [ "$CONFIG_TPM" = "y" ]; then
 	DEBUG "Sealing HOTP secret reuses TOTP sealed secret..."
+	STATUS "Unsealing HOTP secret from TPM"
 	tpmr.sh unseal 4d47 0,1,2,3,4,7 312 "$HOTP_SECRET" ||
 		DIE "Unable to unseal HOTP secret"
+	STATUS_OK "HOTP secret unsealed from TPM"
 else
 	# without a TPM, generate a secret based on the SHA-256 of the ROM
+	STATUS "Deriving HOTP secret from ROM hash"
 	secret_from_rom_hash >"$HOTP_SECRET" || DIE "Reading ROM failed"
+	STATUS_OK "HOTP secret derived from ROM hash"
 fi
 
 # Store counter in file instead of TPM for now, as it conflicts with Heads
@@ -48,9 +52,13 @@ mount_boot || exit 1
 
 counter_value=1
 
-# Detect branding (enable_usb is called internally)
+# HOTP configuration requires USB token access.
+STATUS "Preparing USB security dongle access for HOTP configuration"
+enable_usb
+# Detect branding from current USB state
 detect_usb_security_dongle_branding
 DEBUG "$DONGLE_BRAND detected via USB VID:PID"
+STATUS_OK "$DONGLE_BRAND detection ready for HOTP configuration"
 
 TRACE_FUNC
 
@@ -59,6 +67,7 @@ DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
 
 # While making sure the key is inserted, capture the status so we can check how
 # many PIN attempts remain
+STATUS "Checking $DONGLE_BRAND presence for HOTP setup"
 if ! hotp_token_info="$(hotp_verification info)"; then
 	INPUT "Insert your $DONGLE_BRAND and press Enter to configure it"
 	if ! hotp_token_info="$(hotp_verification info)"; then
@@ -67,6 +76,7 @@ if ! hotp_token_info="$(hotp_verification info)"; then
 		DIE "Unable to find $DONGLE_BRAND"
 	fi
 fi
+STATUS_OK "$DONGLE_BRAND is present for HOTP setup"
 
 # Re-detect branding now that the dongle is confirmed present.
 detect_usb_security_dongle_branding
@@ -139,8 +149,12 @@ else
 	fi
 	#TODO: silence the output of hotp_initialize once https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
 	#hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND" >/dev/null 2>&1
+	STATUS "Writing HOTP secret to $DONGLE_BRAND"
 	hotp_initialize "$admin_pin" $HOTP_SECRET $counter_value "$DONGLE_BRAND"
 	admin_pin_status="$?"
+	if [ "$admin_pin_status" -eq 0 ]; then
+		STATUS_OK "HOTP secret written to $DONGLE_BRAND"
+	fi
 fi
 
 if [ "$admin_pin_status" -ne 0 ]; then

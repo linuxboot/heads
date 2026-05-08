@@ -457,49 +457,13 @@ workflows:
           requires:
             - x86_blobs
 
-      # ── x86 coreboot fork seeds ───────────────────────────────────────────
+      # ── x86 coreboot fork seeds (alphabetical by board target) ──────────────
       # Chain: x86_musl_cross_make -> x86_coreboot (linear per fork)
       # Each seed builds its coreboot fork and saves fork-specific cache.
       # No fan-in -> no workspace collision.
 
-      # dasharo_nv4x fork
-      - x86_coreboot:
-          name: novacustom-nv4x_adl
-          target: novacustom-nv4x_adl
-          subcommand: ""
-          coreboot_dir: coreboot-dasharo_nv4x
-          requires:
-            - x86-musl-cross-make
-
-      # dasharo_v56 fork
-      - x86_coreboot:
-          name: novacustom-v560tu
-          target: novacustom-v560tu
-          subcommand: ""
-          coreboot_dir: coreboot-dasharo_v56
-          requires:
-            - x86-musl-cross-make
-
-      # purism fork
-      - x86_coreboot:
-          name: librem_14
-          target: librem_14
-          subcommand: ""
-          coreboot_dir: coreboot-purism
-          requires:
-            - x86-musl-cross-make
-
-        # 25.09 fork
-        # Seed workspace for downstream 25.09 boards and x86_save_modules_cache.
-      - x86_coreboot:
-          name: EOL_t480-hotp-maximized
-          target: EOL_t480-hotp-maximized
-          subcommand: ""
-          coreboot_dir: coreboot-25.09
-          requires:
-            - x86-musl-cross-make
-
       # 4.11 fork
+      # Downstream boards: (none — standalone)
       - x86_coreboot:
           name: EOL_librem_l1um
           target: EOL_librem_l1um
@@ -508,7 +472,18 @@ workflows:
           requires:
             - x86-musl-cross-make
 
+      # 25.09 fork — builds coreboot-25.09 toolchain
+      # Downstream boards: (all 28 board builds below)
+      - x86_coreboot:
+          name: EOL_t480-hotp-maximized
+          target: EOL_t480-hotp-maximized
+          subcommand: ""
+          coreboot_dir: coreboot-25.09
+          requires:
+            - x86-musl-cross-make
+
       # dasharo_msi_z690 fork
+      # Downstream boards: UNTESTED_msi_z690a_ddr5
       - x86_coreboot:
           name: UNTESTED_msi_z690a_ddr4
           target: UNTESTED_msi_z690a_ddr4
@@ -518,6 +493,7 @@ workflows:
             - x86-musl-cross-make
 
       # dasharo_msi_z790 fork
+      # Downstream boards: msi_z790p_ddr5
       - x86_coreboot:
           name: UNTESTED_msi_z790p_ddr4
           target: UNTESTED_msi_z790p_ddr4
@@ -526,18 +502,62 @@ workflows:
           requires:
             - x86-musl-cross-make
 
-      # Those onboarding new boards should add their entries below.
-      # coreboot 25.09 boards
+      # dasharo_nv4x fork
+      # Downstream boards: UNTESTED_nitropad-ns50
+      - x86_coreboot:
+          name: novacustom-nv4x_adl
+          target: novacustom-nv4x_adl
+          subcommand: ""
+          coreboot_dir: coreboot-dasharo_nv4x
+          requires:
+            - x86-musl-cross-make
+
+      # dasharo_v56 fork
+      # Downstream boards: novacustom-v540tu
+      - x86_coreboot:
+          name: novacustom-v560tu
+          target: novacustom-v560tu
+          subcommand: ""
+          coreboot_dir: coreboot-dasharo_v56
+          requires:
+            - x86-musl-cross-make
+
+      # purism fork — builds coreboot-purism toolchain
+      # Downstream boards: EOL_librem_13v2, EOL_librem_13v4, EOL_librem_15v3, EOL_librem_15v4,
+      #   librem_11, librem_l1um_v2, librem_mini, librem_mini_v2
+      - x86_coreboot:
+          name: librem_14
+          target: librem_14
+          subcommand: ""
+          coreboot_dir: coreboot-purism
+          requires:
+            - x86-musl-cross-make
+
+      # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
-          name: EOL_x220-hotp-maximized
-          target: EOL_x220-hotp-maximized
+          name: EOL_optiplex-7010_9010-hotp-maximized
+          target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_x220-maximized
-          target: EOL_x220-maximized
+          name: EOL_optiplex-7010_9010-maximized
+          target: EOL_optiplex-7010_9010-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_optiplex-7010_9010_TXT-hotp-maximized
+          target: EOL_optiplex-7010_9010_TXT-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_optiplex-7010_9010_TXT-maximized
+          target: EOL_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -564,101 +584,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_x230-maximized
-          target: EOL_x230-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_optiplex-7010_9010-maximized
-          target: EOL_optiplex-7010_9010-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_optiplex-7010_9010-hotp-maximized
-          target: EOL_optiplex-7010_9010-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_optiplex-7010_9010_TXT-maximized
-          target: EOL_optiplex-7010_9010_TXT-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_optiplex-7010_9010_TXT-hotp-maximized
-          target: EOL_optiplex-7010_9010_TXT-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      # Runs in parallel with other 25.09 board builds.
-
-      - build:
-          name: EOL_x230-hotp-maximized_usb-kb
-          target: EOL_x230-hotp-maximized_usb-kb
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_x230-maximized-fhd_edp
-          target: EOL_x230-maximized-fhd_edp
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_x230-hotp-maximized-fhd_edp
-          target: EOL_x230-hotp-maximized-fhd_edp
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_w530-hotp-maximized
-          target: EOL_w530-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
           name: EOL_t430-maximized
           target: EOL_t430-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_w530-maximized
-          target: EOL_w530-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_UNTESTED_t530-maximized
-          target: EOL_UNTESTED_t530-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_UNTESTED_t530-hotp-maximized
-          target: EOL_UNTESTED_t530-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_t440p-maximized
-          target: EOL_t440p-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
@@ -671,98 +598,12 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_w541-maximized
-          target: EOL_w541-maximized
+          name: EOL_t440p-maximized
+          target: EOL_t440p-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
 
-      - build:
-          name: EOL_w541-hotp-maximized
-          target: EOL_w541-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: qemu-coreboot-fbwhiptail-tpm2-hotp
-          target: qemu-coreboot-fbwhiptail-tpm2-hotp
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_z220-cmt-maximized
-          target: EOL_z220-cmt-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      - build:
-          name: EOL_z220-cmt-hotp-maximized
-          target: EOL_z220-cmt-hotp-maximized
-          subcommand: ""
-          requires:
-            - EOL_t480-hotp-maximized
-
-      # librem boards: use coreboot-purism fork (librem_14 builds the fork's toolchain)
-      - build:
-          name: EOL_librem_13v2
-          target: EOL_librem_13v2
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: EOL_librem_15v3
-          target: EOL_librem_15v3
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: EOL_librem_13v4
-          target: EOL_librem_13v4
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: EOL_librem_15v4
-          target: EOL_librem_15v4
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_mini
-          target: librem_mini
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_mini_v2
-          target: librem_mini_v2
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_11
-          target: librem_11
-          subcommand: ""
-          requires:
-            - librem_14
-
-      - build:
-          name: librem_l1um_v2
-          target: librem_l1um_v2
-          subcommand: ""
-          requires:
-            - librem_14
-
-      # t480 is based on 25.09 coreboot release
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
@@ -784,7 +625,169 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized
 
-      # Dasharo nv4x: shares dasharo_nv4x toolchain with novacustom-nv4x_adl
+      - build:
+          name: EOL_UNTESTED_t530-hotp-maximized
+          target: EOL_UNTESTED_t530-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_UNTESTED_t530-maximized
+          target: EOL_UNTESTED_t530-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w530-hotp-maximized
+          target: EOL_w530-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w530-maximized
+          target: EOL_w530-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w541-hotp-maximized
+          target: EOL_w541-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_w541-maximized
+          target: EOL_w541-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x220-hotp-maximized
+          target: EOL_x220-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x220-maximized
+          target: EOL_x220-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x230-hotp-maximized
+          target: EOL_x230-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x230-hotp-maximized-fhd_edp
+          target: EOL_x230-hotp-maximized-fhd_edp
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x230-maximized
+          target: EOL_x230-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_x230-maximized-fhd_edp
+          target: EOL_x230-maximized-fhd_edp
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_z220-cmt-hotp-maximized
+          target: EOL_z220-cmt-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: EOL_z220-cmt-maximized
+          target: EOL_z220-cmt-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      - build:
+          name: qemu-coreboot-fbwhiptail-tpm2-hotp
+          target: qemu-coreboot-fbwhiptail-tpm2-hotp
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized
+
+      # ── purism boards (alphabetical) ──────────────────────────────────────
+      - build:
+          name: EOL_librem_13v2
+          target: EOL_librem_13v2
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: EOL_librem_13v4
+          target: EOL_librem_13v4
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: EOL_librem_15v3
+          target: EOL_librem_15v3
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: EOL_librem_15v4
+          target: EOL_librem_15v4
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_11
+          target: librem_11
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_l1um_v2
+          target: librem_l1um_v2
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_mini
+          target: librem_mini
+          subcommand: ""
+          requires:
+            - librem_14
+
+      - build:
+          name: librem_mini_v2
+          target: librem_mini_v2
+          subcommand: ""
+          requires:
+            - librem_14
+
+      # ── Dasharo nv4x ─────────────────────────────────────────────────────
       - build:
           name: UNTESTED_nitropad-ns50
           target: UNTESTED_nitropad-ns50
@@ -792,7 +795,7 @@ workflows:
           requires:
             - novacustom-nv4x_adl
 
-      # NovaCustom v56: shares dasharo_v56 toolchain with novacustom-v560tu
+      # ── NovaCustom v56 ──────────────────────────────────────────────────
       - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
@@ -800,7 +803,7 @@ workflows:
           requires:
             - novacustom-v560tu
 
-      # Dasharo msi_z690: shares dasharo_msi_z690 toolchain with UNTESTED_msi_z690a_ddr4
+      # ── Dasharo msi_z690 ────────────────────────────────────────────────
       - build:
           name: UNTESTED_msi_z690a_ddr5
           target: UNTESTED_msi_z690a_ddr5
@@ -808,7 +811,7 @@ workflows:
           requires:
             - UNTESTED_msi_z690a_ddr4
 
-      # Dasharo msi_z790: shares dasharo_msi_z790 toolchain with UNTESTED_msi_z790p_ddr4
+      # ── Dasharo msi_z790 ────────────────────────────────────────────────
       - build:
           name: msi_z790p_ddr5
           target: msi_z790p_ddr5

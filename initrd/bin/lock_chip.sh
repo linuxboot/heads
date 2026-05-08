@@ -21,6 +21,7 @@ if [ -n "$APM_CNT" -a -n "$FIN_CODE" ]; then
 	# until the next system reset.
 	STATUS "Finalizing chipset write protection via SMI PR0 lockdown"
 	io386 -o b -b x $APM_CNT $FIN_CODE
+	STATUS_OK "Chipset write protection locked"
 else
 	NOTE "NOT finalizing chipset - lock_chip.sh called without valid APM_CNT and FIN_CODE"
 fi
