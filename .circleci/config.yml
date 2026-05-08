@@ -535,10 +535,6 @@ workflows:
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
-<<<<<<< HEAD
-          name: EOL_optiplex-7010_9010-hotp-maximized
-          target: EOL_optiplex-7010_9010-hotp-maximized
-=======
           name: EOL_m900_tower-hotp-maximized
           target: EOL_m900_tower-hotp-maximized
           subcommand: ""
@@ -553,9 +549,8 @@ workflows:
             - EOL_t480-hotp-maximized
 
       - build:
-          name: EOL_x220-hotp-maximized
-          target: EOL_x220-hotp-maximized
->>>>>>> 42015cef (add m900_tower board)
+          name: EOL_optiplex-7010_9010-hotp-maximized
+          target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized
