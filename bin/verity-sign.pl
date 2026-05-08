@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
 # Generate dm-verity hashes and sign the root hash
 #
+# Not currently used by any board, but kept as a reference for
+# future QubesOS support when dom0 roots become stateless.
+#
 # Output looks like
 #
 # VERITY header information for hdd.img
@@ -26,7 +29,7 @@ veritysetup \
 	--hash-offset $[$size*1024*1024] \
 	--data-blocks $[$size*1024*1024/4096] \
 	format hdd.img hdd.img \
-| ./verity-sign /dev/sda1 \
+| ./verity-sign.pl /dev/sda1 \
 | gpg --clearsign \
 | tee hdd.table
 

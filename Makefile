@@ -399,7 +399,7 @@ define do-cpio =
 			-H newc \
 			-o \
 		) \
-		| ./bin/cpio-clean \
+		| ./bin/cpio-clean.pl \
 		> "$1.tmp" \
 	)
 	@if ! cmp --quiet "$1.tmp" "$1" ; then \
@@ -909,7 +909,7 @@ $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 
 $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 	$(call do,CPIO-XZ  ,$@,\
-	$(pwd)/bin/cpio-clean \
+	$(pwd)/bin/cpio-clean.pl \
 		$^ \
 	| xz \
 		--check=crc32 \
