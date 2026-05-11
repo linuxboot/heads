@@ -122,6 +122,97 @@ menu, system info, power off.
 
 ---
 
+## Stage 2b: USB ISO Boot (`kexec-iso-init.sh`)
+
+When booting from an ISO file on USB media, `kexec-iso-init.sh` handles the ISO
+boot flow. It is invoked from the "USB ISO Boot" option in the main menu.
+
+### Flow
+
+1. **Signature verification**: Check for `.sig` or `.asc` detached signature
+2. **Mount ISO**: Mount the ISO file as loopback device at `/boot`
+3. **Layer 1 — initramfs fs compatibility check** (`check_initrd_fs_compat`):
+   Before presenting boot options, verify the ISO's initramfs contains kernel
+   modules for the USB partition's filesystem (ext4/vfat/exfat).  If the initrd
+   can't read the USB filesystem, the kernel won't find the ISO after kexec.
+   - Parsing boot configs for initrd paths (instead of searching the whole ISO)
+   - Unpacking each initrd and checking for required `.ko` files and
+     `modules.builtin`
+   - Each initrd gets its own independent `[OK]` / `[!]` / (blank) marker in
+     `/tmp/kexec_initrd_compat.txt` (the per-initrd flag `initrd_supports_fs` is tracked
+     separately from the global `any_supported` flag, so no initrd is silently
+     skipped)
+   - `[OK]` = initrd has the needed module as `.ko`, has it in
+     `modules.builtin`, or has no `.ko` files at all (minimal initrd with
+     everything built into the kernel — nothing to check against).
+   - `[!]`  = initrd has loadable kernel modules but none for the USB
+     filesystem type.  No built-in assumption — we report what we find.
+   - Read-only filesystems (iso9660/squashfs/udf) and unmapped fstypes skip
+   - All initrds are checked (no early break) so the compat file is complete.
+4. **Layer 2 — loopback.cfg fast path**: If the ISO has a `loopback.cfg`, parse
+   it and resolve GRUB variables (`${iso_path}`, `${isofile}`) to extract the
+   ISO kernel params from loopback entries.
+5. **Boot param injection**: When Layer 2 resolves nothing (no GRUB vars found
+   in loopback.cfg), all common ISO boot methods are injected unconditionally
+   as kernel ADD params so the ISO initrd can pick whichever it supports:
+   - `iso-scan/filename=/$ISO_PATH` — Ubuntu casper, Fedora dracut
+   - `findiso=/$ISO_PATH` — Debian live-boot, NixOS stage-1
+   - `img_dev=/dev/disk/by-uuid/$DEV_UUID` — block device containing the ISO
+   - `img_loop=$ISO_PATH` — loopback file path (relative)
+   - `iso=$DEV_UUID/$ISO_PATH` — UUID/path alternative
+   - `live-media=/dev/disk/by-uuid/$DEV_UUID` — device filter (casper, live-boot)
+   The kernel ignores parameters it doesn't understand.
+   `fromiso=` is intentionally not injected because it conflicts with `findiso=`
+   in Debian live-boot's `check_dev()` — `fromiso` mounts the ISO, then `findiso`
+   looks for the ISO file inside the mounted ISO (not found), unmounts it,
+   leaving orphaned loop devices that get re-scanned → infinite loop.
+   `findiso=` alone covers Debian and NixOS.
+   `live-media-path=` is intentionally not injected because the default differs
+   per distro (`/live` for Debian, `/casper` for Ubuntu/PureOS, `/LiveOS` for
+   Fedora); leaving it unset lets each distro use its own default.
+6. **Layer 3 — kexec-select-boot**: Launch the standard boot menu with `-u`
+   (unique entries, dedup sorted by name).
+
+### Initrd compatibility markers in the boot menu
+
+During Layer 1, `check_initrd_fs_compat` writes per-initrd results to
+`/tmp/kexec_initrd_compat.txt`.  `kexec-select-boot` reads this file and shows
+`[OK]` or `[!]` at the start of each menu line (before the entry name):
+
+| Marker | Meaning | Behavior |
+|--------|---------|----------|
+| `[OK]` | Initrd has the USB fs module (as .ko or modules.builtin) | Boot should work |
+| `[!]`  | Initrd has loadable modules but none for the USB fs type | May fail after kexec |
+| (blank) | Initrd has zero .ko files — can't verify either way | Assume OK (minimal initrd) |
+| (none) | Entry has no initrd (memtest, etc.) | No filesystem dependency |
+
+A `NOTE` (3-second sleep, cannot scroll past) is displayed before the menu
+explaining the legend.  Markers follow `doc/logging.md` accessibility rules:
+text-based, serial-safe, not color-dependent.
+
+### Compatibility note for ext4 and vfat
+
+Initrds with no `.ko` files at all get no marker at all (blank) — we can't
+verify either way, so nothing is displayed.
+
+### Boot param injection
+
+When Layer 2 (loopback.cfg) resolves no GRUB variables, the following
+parameters are injected unconditionally so the ISO initrd can find the USB
+partition and the ISO file after kexec, regardless of which distribution's
+init system it uses:
+
+| Parameter | Example | Used by |
+|-----------|---------|---------|
+| `iso-scan/filename=` | `/ISOs/foo.iso` | Ubuntu casper, Fedora dracut |
+| `findiso=` | `/ISOs/foo.iso` | Debian live-boot, NixOS stage-1 |
+| `img_dev=` | `/dev/disk/by-uuid/UUID` | Block device hint |
+| `img_loop=` | `ISOs/foo.iso` | Loopback path |
+| `iso=` | `UUID/ISOs/foo.iso` | Alternative path |
+| `live-media=` | `/dev/disk/by-uuid/UUID` | Device filter (casper, live-boot) |
+
+---
+
 ## Stage 3: kexec-select-boot
 
 Called from the boot menu. Responsible for final verification and OS handoff.

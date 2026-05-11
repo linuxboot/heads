@@ -87,7 +87,7 @@ Changes to user configuration are persisted by reflashing the ROM (CBFS operatio
 The top-level `Makefile` orchestrates:
 
 - Cross-compiler (`musl-cross-make`, target: `x86_64-linux-musl` or `powerpc64le-linux-musl`)
-- Modules (coreboot, Linux, busybox, GPG, cryptsetup, kexec, LVM2, …)
+- Modules (coreboot, Linux, busybox, GPG, cryptsetup, kexec, LVM2, zstd, … — see [modules.md](modules.md) for the full list)
 - Six CPIO archives assembled into the initrd:
   1. `dev.cpio` — device nodes
   2. `modules.cpio` — kernel modules
