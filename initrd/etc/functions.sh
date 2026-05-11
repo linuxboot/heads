@@ -25,11 +25,22 @@ esac
 # colors, so color is an enhancement rather than the sole signal.
 # debug.log and /dev/kmsg receive plain text (no ANSI).
 # Always visible in all output modes.
+# Strip ANSI escape sequences from stdin for clean log output.
+# All logging functions that write to debug.log MUST route through this
+# so the log file stays plain text as documented in doc/logging.md.
+# Console output (which /dev/console) is NOT affected — ANSI stays in
+# the console stream where terminals render it.
+_strip_ansi() {
+	local _esc
+	_esc="$(printf '%b' '\033')"
+	sed "s/${_esc}\[[0-9;]*[a-zA-Z]//g"
+}
+
 DIE() {
 	TRACE_FUNC
 	# Always log to debug.log regardless of output mode - fatal errors must be
 	# captured for post-mortem analysis even when the console is suppressed.
-	echo "!!! ERROR: $* !!!" >>/tmp/debug.log
+	echo "!!! ERROR: $* !!!" | _strip_ansi >>/tmp/debug.log
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		# debug mode: also route to kmsg for ordering with other debug output
 		echo "!!! ERROR: $* !!!" >/dev/kmsg 2>/dev/null || true
@@ -77,7 +88,7 @@ WARN() {
 	TRACE_FUNC
 	# Always write to debug.log - complete audit trail regardless of mode.
 	echo >>/tmp/debug.log
-	echo " *** WARNING: $* ***" >>/tmp/debug.log
+	echo " *** WARNING: $* ***" | _strip_ansi >>/tmp/debug.log
 	echo >>/tmp/debug.log
 	# Bold yellow to /dev/console in all modes.
 	# /dev/console = kernel console (follows console= kernel parameter): reaches
@@ -203,7 +214,7 @@ NOTE() {
 	echo >/dev/console 2>/dev/null
 	# Log file: plain text - no ANSI codes in debug.log; echo -e so \n in the
 	# message produces real newlines in the log (multi-line NOTE support).
-	echo -e "NOTE: $*" >>/tmp/debug.log
+	echo -e "NOTE: $*" | _strip_ansi >>/tmp/debug.log
 
 	# Sleep to bring the message to the user's awareness: NOTE is infrequent
 	# and important enough that the user must not scroll past it unread
@@ -250,7 +261,7 @@ STATUS() {
 	# Console: bold >> prefix to /dev/console - announces an action in progress.
 	echo -e "\033[1m >>\033[0m $*" >/dev/console 2>/dev/null
 	# Log file: plain text - no ANSI codes in debug.log
-	echo " >> $*" >>/tmp/debug.log
+	echo " >> $*" | _strip_ansi >>/tmp/debug.log
 }
 
 STATUS_OK() {
@@ -264,7 +275,7 @@ STATUS_OK() {
 	# (Same convention as Linux/systemd "[  OK  ]" boot messages.)
 	echo -e "\033[1;32m OK\033[0m $*" >/dev/console 2>/dev/null
 	# Log file: plain text - no ANSI codes in debug.log
-	echo " OK $*" >>/tmp/debug.log
+	echo " OK $*" | _strip_ansi >>/tmp/debug.log
 }
 
 # INFO - high-level operational context for non-developer users.
@@ -302,17 +313,17 @@ INFO() {
 	if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 		# debug mode: plain to debug.log, measuring_trace.log, and kmsg -
 		# no ANSI, maintains ordering with DEBUG messages which also route through kmsg
-		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log /dev/kmsg >/dev/null
+		echo "INFO: $*" | _strip_ansi | tee -a /tmp/debug.log /tmp/measuring_trace.log /dev/kmsg >/dev/null
 	elif [ "$CONFIG_QUIET_MODE" = "y" ]; then
 		# quiet mode: no console output, but captured in both logs
-		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
+		echo "INFO: $*" | _strip_ansi | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	else
 		# info mode: green text to /dev/console AND both log files.
 		# /dev/console = kernel console (follows console= kernel parameter):
 		# reaches serial, framebuffer, BMC — no process setup needed, callers
 		# never need to care about redirections.
 		echo -e "\033[0;32m$*\033[0m" >/dev/console 2>/dev/null
-		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
+		echo "INFO: $*" | _strip_ansi | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	fi
 }
 
@@ -2660,6 +2671,9 @@ scan_boot_options() {
 
 	if [ -r "$option_file" ]; then rm "$option_file"; fi
 	for i in $(find "$bootdir" -name "$config"); do
+		case "$i" in
+		*EFI* | *efi* | *x86_64-efi*) continue ;;
+		esac
 		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files
