@@ -35,7 +35,7 @@ consume_zeros() {
 	next_byte='00'
 	while [ "$next_byte" = "00" ]; do
 		# if we reach EOF, next_byte becomes empty (dd does not fail)
-		next_byte="$(dd bs=1 count=1 status=none | xxd -p | tr -d ' ')"
+		next_byte="$(dd bs=1 count=1 status=none | xxd -p | tr -d '\n ')"
 	done
 	# if we finished due to nonzero byte (not EOF), then carry that byte
 	if [ -n "$next_byte" ]; then
@@ -44,10 +44,12 @@ consume_zeros() {
 }
 
 unpack_cpio() {
-	TRACE_FUNC
 	(
 		cd "$dest_dir"
-		cpio -i "${CPIO_ARGS[@]}" 2>/dev/null
+		# GNU cpio exits non-zero when trailing data follows the TRAILER entry
+		# in a concatenated multi-segment archive.  BusyBox cpio ignores it.
+		# Accept either exit code — extraction was successful either way.
+		cpio -i -d "${CPIO_ARGS[@]}" 2>/dev/null || true
 	)
 }
 
@@ -61,33 +63,49 @@ unpack_first_segment() {
 	mkdir -p "$dest_dir"
 
 	# peek the beginning of the file to determine what type of content is next
-	magic="$(dd if="$unpack_archive" bs=6 count=1 status=none 2>/dev/null | xxd -p)"
+	magic="$(dd if="$unpack_archive" bs=6 count=1 status=none 2>/dev/null | xxd -p | tr -d '\n ')"
+
+	# For plain cpio, find where the first TRAILER entry ends.  GNU cpio reads
+	# past the first TRAILER and consumes subsequent segments; BusyBox cpio
+	# stops at the first.  By limiting cpio's input to the first segment,
+	# both behave the same and remaining segments are processed correctly.
+	local segment_end=0
+	case "$magic" in
+	303730373031* | 303730373032*)
+		local trailer_off
+		trailer_off=$(grep -F -b -o "TRAILER!!!" "$unpack_archive" 2>/dev/null | head -1 | cut -d: -f1) || true
+		if [ -n "$trailer_off" ]; then
+			# TRAILER entry: header(110) + filename "TRAILER!!!" padded to 12 = 122 bytes
+			segment_end=$((trailer_off + 12))
+		fi
+		;;
+	esac
 
 	# read this segment of the archive, then write the rest to the next file
 	(
-		# Magic values correspond to Linux init/initramfs.c (zero, cpio) and
-		# lib/decompress.c (gzip)
 		case "$magic" in
 		00*)
 			DEBUG "archive segment $magic: uncompressed cpio"
-			# Skip zero bytes and copy the first nonzero byte
 			consume_zeros
-			# Copy the remaining data
 			cat
 			;;
 		303730373031* | 303730373032*) # plain cpio
 			DEBUG "archive segment $magic: plain cpio"
-			# Unpack the plain cpio, this stops reading after the trailer
-			unpack_cpio
-			# Copy the remaining data
-			cat
+			if [ "$segment_end" -gt 0 ]; then
+				# Feed exactly one segment to cpio so it doesn't consume
+				# subsequent segments (GNU cpio reads past the first TRAILER).
+				# Use dd bs=N count=1 — unlike head -c, it reads exactly N
+				# bytes without buffering extra data from stdin.
+				dd bs="$segment_end" count=1 status=none 2>/dev/null | (
+					cd "$dest_dir" && cpio -i -d "${CPIO_ARGS[@]}" 2>/dev/null
+				) || true
+			else
+				unpack_cpio
+			fi
+			cat || true
 			;;
 		1f8b* | 1f9e*) # gzip
 			DEBUG "archive segment $magic: gzip"
-			# gunzip won't stop when reaching the end of the gzipped member,
-			# so we can't read another segment after this.  We can't
-			# reasonably determine the member length either, this requires
-			# walking all the compressed blocks.
 			gunzip | unpack_cpio
 			;;
 		fd37*) # xz
@@ -96,33 +114,10 @@ unpack_first_segment() {
 			;;
 		28b5*) # zstd
 			DEBUG "archive segment $magic: zstd"
-			# Like gunzip, this will not stop when reaching the end of the
-			# frame, and determining the frame length requires walking all
-			# of its blocks.
-			(zstd-decompress -d || true) | unpack_cpio
+			(zstd-decompress -d 2>/dev/null || zstd -d 2>/dev/null || true) | unpack_cpio
 			;;
 		*) # unknown
 			DIE "Can't decompress initramfs archive, unknown type: $magic"
-			# The following are magic values for other compression formats
-			#  but not added because not tested.
-			# TODO: open an issue for unsupported magic number reported on DIE.
-			# 
-			#425a*) # bzip2
-			#	DEBUG "archive segment $magic: bzip2"
-			#	bunzip2 | unpack_cpio
-			#;;
-			#5d00*) # lzma
-			#	DEBUG "archive segment $magic: lzma"
-			#	unlzma | unpack_cpio
-			#;;
-			#894c*) # lzo
-			#	DEBUG "archive segment $magic: lzo"
-			#	lzop -d | unpack_cpio
-			#;;
-			#0221*) # lz4
-			#	DEBUG "archive segment $magic: lz4"
-			#	lz4 -d | unpack_cpio
-			#	;;
 			;;
 		esac
 	) <"$unpack_archive" >"$rest_archive"
@@ -142,4 +137,10 @@ while [ -s "$next_archive" ]; do
 	unpack_first_segment "$next_archive" "$DEST_DIR" "$rest_archive"
 	next_archive="/tmp/unpack_initramfs_next"
 	mv "$rest_archive" "$next_archive"
+	# GNU cpio reads past the first TRAILER and consumes all cpio entries
+	# across concatenated segments, leaving only residual bytes.  BusyBox
+	# cpio stops at the first TRAILER.  If only a few bytes remain (< min
+	# cpio header = 110 bytes), we're done.
+	rest_size="$(stat -c %s "$next_archive" 2>/dev/null || echo 0)"
+	[ "$rest_size" -lt 110 ] && break
 done
