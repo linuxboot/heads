@@ -301,21 +301,20 @@ check_initrd_compat() {
 
 			# Check for DRM/KMS display drivers in the initrd.  These
 			# reinitialize the display after kexec and make the booted
-			# OS visible regardless of efifb availability.  All major
-			# distributions ship at least one (i915, nouveau, amdgpu,
-			# bochs, virtio-gpu, etc.) as loadable .ko modules.
-			# If none found and the initrd has other .ko files, the
-			# ISO is likely a minimal distribution without display
-			# support (e.g. CorePlus/TinyCore).
+			# OS visible regardless of efifb availability.  Also check
+			# for efifb in modules.builtin in case it's listed there.
 			local fb_drivers="i915\|nouveau\|amdgpu\|radeon\|bochs\|virtio-gpu\|cirrus\|qxl\|mgag200\|ast"
 			local fb_match
 			fb_match=$(find "$unpack_dir" -name "*.ko*" 2>/dev/null | grep -E "$fb_drivers" 2>/dev/null | head -1) || true
 			if [ -n "$fb_match" ]; then
 				initrd_supports_fb="[OK]"
 				DEBUG "Layer 1: $initrd_relpath has DRM/KMS driver ($(basename $fb_match))"
+			elif grep -q "efifb" "$unpack_dir/lib/modules/"*/modules.builtin 2>/dev/null; then
+				initrd_supports_fb="[OK]"
+				DEBUG "Layer 1: $initrd_relpath has efifb built-in"
 			else
 				initrd_supports_fb="[!]"
-				DEBUG "Layer 1: $initrd_relpath has modules but no DRM/KMS driver"
+				DEBUG "Layer 1: $initrd_relpath has modules but no display driver"
 			fi
 		fi
 
@@ -379,13 +378,12 @@ fb_compat_file="/tmp/kexec_fb_compat.txt"
 if [ -s "$fb_compat_file" ] && ! grep -qF '[OK]' "$fb_compat_file"; then
 	if [ -x /bin/whiptail ]; then
 		if ! whiptail_warning --title 'Display Driver Warning' --yesno \
-			"Unverified Display Support\n\nThe ISO's initramfs does not contain a\ndisplay driver for your hardware.\n\nThe screen may be blank after boot even\nif the operating system starts normally.\n\nThis is expected for minimal distributions\nsuch as CorePlus/TinyCore.\n\nProceed anyway?" \
+			"Unverified Display Support\n\nThe ISO's initramfs does not contain a\ndisplay driver for your hardware.\n\nThe screen may be blank after boot even\nif the operating system starts normally.\n\nProceed anyway?" \
 			0 80; then
-			DIE "Incompatible display driver - cannot proceed"
+			exit 1
 		fi
 	else
 		WARN "ISO has no display driver - screen may be blank after boot"
-		WARN "This is expected for minimal distributions such as CorePlus/TinyCore"
 		INPUT "Proceed anyway? (y/N):" -n 1 response
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
 			DIE "Incompatible display driver - cannot proceed"
