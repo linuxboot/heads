@@ -113,17 +113,21 @@ if [ "$skip_unsigned_warning" != "y" ]; then
 		if ! whiptail_warning --title 'UNSIGNED ISO WARNING' --yesno \
 			"WARNING: UNSIGNED ISO DETECTED\n\nThe selected ISO file:\n$MOUNTED_ISO_PATH\n\nDoes not have a detached signature.\nIntegrity and authenticity cannot be verified.\n\nCancel to Recovery Shell for instructions on signing this ISO\nwith your GPG key, or boot unsigned now.\n\nBoot unsigned?" \
 			0 80; then
-			DIE "Unsigned ISO boot cancelled by user"
+			exit 1
 		fi
 	else
 		WARN "The selected ISO file does not have a detached signature"
 		WARN "Integrity and authenticity of the ISO cannot be verified"
-		WARN "Abort and sign from Recovery Shell (see wall message for instructions)"
+		WARN "Cancel to Recovery Shell for instructions on signing this ISO"
+		WARN "with your GPG key, or boot unsigned now"
 		INPUT "Do you want to proceed anyway? (y/N):" -n 1 response
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
-			DIE "Unsigned ISO boot cancelled by user"
+			exit 1
 		fi
 	fi
+fi
+
+if [ "$skip_unsigned_warning" != "y" ]; then
 	NOTE "Proceeding with unsigned ISO boot"
 fi
 
@@ -356,14 +360,14 @@ if [ -s "$fs_compat_file" ] && ! grep -qF '[OK]' "$fs_compat_file"; then
 		if ! whiptail_warning --title 'USB Compatibility Warning' --yesno \
 			"No Verified Compatible Boot Option\n\nNone of this ISO's initramfs images contain\n${_fstype} support.\n\nThis ISO is likely designed to be written directly to a\nUSB drive (hybrid ISO).  Use the upstream recommended\nmethod to create a bootable USB instead.\n\nYou may still attempt to boot - the ${_fstype} module may\nbe built into the kernel rather than loaded from initramfs.\n\nProceed anyway?" \
 			0 80; then
-			DIE "Incompatible ISO boot cancelled by user"
+			exit 1
 		fi
 	else
 		WARN "No boot option confirmed compatible with ${_fstype} filesystem"
 		WARN "The ISO was likely designed for direct USB writing - use the upstream method to create a bootable USB"
 		INPUT "Proceed anyway? (y/N):" -n 1 response
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
-			DIE "Incompatible ISO boot cancelled by user"
+			exit 1
 		fi
 	fi
 fi
@@ -377,14 +381,14 @@ if [ -s "$fb_compat_file" ] && ! grep -qF '[OK]' "$fb_compat_file"; then
 		if ! whiptail_warning --title 'Display Driver Warning' --yesno \
 			"Unverified Display Support\n\nThe ISO's initramfs does not contain a\ndisplay driver for your hardware.\n\nThe screen may be blank after boot even\nif the operating system starts normally.\n\nThis is expected for minimal distributions\nsuch as CorePlus/TinyCore.\n\nProceed anyway?" \
 			0 80; then
-			DIE "Boot cancelled by user"
+			DIE "Incompatible display driver - cannot proceed"
 		fi
 	else
 		WARN "ISO has no display driver - screen may be blank after boot"
 		WARN "This is expected for minimal distributions such as CorePlus/TinyCore"
 		INPUT "Proceed anyway? (y/N):" -n 1 response
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
-			DIE "Boot cancelled by user"
+			DIE "Incompatible display driver - cannot proceed"
 		fi
 	fi
 fi

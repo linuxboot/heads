@@ -80,17 +80,19 @@ get_menu_option() {
 # create ISO menu options - search recursively for ISO files
 find /media -name "*.iso" -type f 2>/dev/null | sort -r > /tmp/iso_menu.txt || true
 if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
-	option_confirm=""
-	while [ -z "$option" -a "$option_index" != "s" ]
-	do
-		get_menu_option
+	while true; do
+		option=""
+		option_index=""
+		option_confirm=""
+		while [ -z "$option" -a "$option_index" != "s" ]
+		do
+			get_menu_option
+		done
+
+		MOUNTED_ISO="$option"
+		ISO="${option:7}" # remove /media/ to get device relative path
+		DO_WITH_DEBUG kexec-iso-init.sh "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV" && break
 	done
-
-	MOUNTED_ISO="$option"
-	ISO="${option:7}" # remove /media/ to get device relative path
-	DO_WITH_DEBUG kexec-iso-init.sh "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV"
-
-	DIE "Something failed in iso init"
 fi
 
 # No *.iso files on media, try ordinary bootable USB
