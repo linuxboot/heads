@@ -11,3 +11,8 @@ Welcome to the Recovery Shell!
 	  - 'cp /tmp/debug.log /tmp/measuring_trace.log /media/' # copy both logs
 	  - 'umount /media' # flush writes and safely unmount
 - Share both log files with developers.
+- To sign an ISO with your GPG key for future USB boot (from recovery shell):
+	- 'mount-usb.sh --mode rw' # mount USB read-write at /media
+	- 'gpg --detach-sign --armor /media/ISOs/<iso-file>' # create .asc
+	- 'umount /media' # flush writes and safely unmount
+	- Reboot and select the ISO again — signature will be verified
