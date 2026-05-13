@@ -66,14 +66,16 @@ TRACE_FUNC
 DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
 
 # While making sure the key is inserted, capture the status so we can check how
-# many PIN attempts remain
+# many PIN attempts remain.
 STATUS "Checking $DONGLE_BRAND presence for HOTP setup"
-if ! hotp_token_info="$(hotp_verification info)"; then
+hotp_token_info="$(hotp_verification info 2>/dev/null)" || true
+if ! echo "$hotp_token_info" | grep -q "Connected device status:"; then
 	INPUT "Insert your $DONGLE_BRAND and press Enter to configure it"
-	if ! hotp_token_info="$(hotp_verification info)"; then
+	hotp_token_info="$(hotp_verification info 2>/dev/null)" || true
+	if ! echo "$hotp_token_info" | grep -q "Connected device status:"; then
 		# don't leak key on failure
 		shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
-		DIE "Unable to find $DONGLE_BRAND"
+		DIE "Unable to communicate with $DONGLE_BRAND"
 	fi
 fi
 STATUS_OK "$DONGLE_BRAND is present for HOTP setup"
@@ -114,16 +116,22 @@ hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
 # Re-query and display the current PIN retry counter before each manual prompt.
 # Updates the global $admin_pin_retries (no local keyword) so callers can use
 # the fresh value for decisions (e.g. max_attempts calculation below).
+# Only overwrites on a successful read -- if the re-query fails transiently
+# (e.g. device busy after a wrong PIN), the last known value is preserved
+# so the display does not drop from 8 to 0 spuriously.
 # prompt_message is already set for the device type (NK3 vs older), reuse it.
 show_pin_retries() {
 	local info
+	local new_retries
 	info="$(hotp_verification info 2>/dev/null)" || true
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
-		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
+		new_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	else
-		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
+		new_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	fi
-	admin_pin_retries="${admin_pin_retries:-0}"
+	if [ -n "$new_retries" ]; then
+		admin_pin_retries="$new_retries"
+	fi
 	STATUS "$DONGLE_BRAND ${prompt_message} PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 }
 
@@ -182,14 +190,19 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	#   Default PIN skipped (key >1 month old)        -> max_attempts = min(3-1, 3) = 2
 	#   Default PIN tried & failed (3 -> 2 remaining) -> max_attempts = min(2-1, 3) = 1
 	#   Counter read failed (0 or empty)              -> max_attempts = 3 (fallback, don't block)
-	# Re-read counter without displaying (loop will show it)
+	# Re-read counter without displaying (loop will show it).
+	# Use a temp variable so a transient re-query failure does not
+	# replace the last known counter value.
 	info="$(hotp_verification info 2>/dev/null)" || true
+	_pin_retries=""
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
-		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
+		_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	else
-		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
+		_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	fi
-	admin_pin_retries="${admin_pin_retries:-0}"
+	if [ -n "$_pin_retries" ]; then
+		admin_pin_retries="$_pin_retries"
+	fi
 	if [ "$admin_pin_retries" -ge 2 ]; then
 		max_attempts=$((admin_pin_retries - 1))
 		[ "$max_attempts" -gt 3 ] && max_attempts=3
