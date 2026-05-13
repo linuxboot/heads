@@ -191,10 +191,10 @@ All identical. No BusyBox workarounds needed.
 
 | Command | Workaround | Where |
 |---------|------------|-------|
-| `xxd -p` | `tr -d '\n '` strips 60-col padding | `unpack_initramfs.sh:38,68` |
-| `xxd -p -r` | `fold -w 60 \| xxd -p -r` | `etc/functions.sh:2701` |
-| `cpio` trailing data exit | `|| true` swallows GNU exit 2 | `unpack_initramfs.sh:52,101` |
-| `grep -b` | Not available — use `dd bs=1 skip=N count=M` | `kexec-iso-init.sh` |
-| `grep -E` alternation | Use `|` not `\|` in ERE; use `\|` in BRE | `kexec-iso-init.sh:312` |
-| `sort -u` with `-k` | Dedups by full line, not key — use awk | `kexec-select-boot.sh:379` |
-| `zstd` not in busybox | `/bin/zstd-decompile -d` standalone binary | `unpack_initramfs.sh:119` |
+| `xxd -p` | `tr -d '\n '` strips 60-col padding | `unpack_initramfs.sh` (multi-segment cpio) |
+| `xxd -p -r` | `fold -w 60 \| xxd -p -r` | `etc/functions.sh` (tohex_plain) |
+| `cpio` trailing data exit | `|| true` swallows GNU exit 2 | `unpack_initramfs.sh` (multi-segment cpio) |
+| `grep -b` | Not available — use `dd bs=1 skip=N count=M` | kernel binary analysis |
+| `grep -E` alternation | Use `|` not `\|` in ERE; use `\|` in BRE | initrd module detection |
+| `sort -u` with `-k` | Dedups by full line, not key — use awk | `scan_options()` in kexec-select-boot.sh |
+| `zstd` not in busybox | `/bin/zstd-decompress -d` standalone binary | `unpack_initramfs.sh` (initrd decompression) |
