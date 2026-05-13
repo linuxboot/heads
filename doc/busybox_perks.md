@@ -43,12 +43,28 @@ BusyBox and GNU behave identically.
 
 ## grep
 
-**BusyBox**: no `-a` flag, but treats binary as text by default.
+**BusyBox quirks**:
+- `-a` (text mode) is default — no-op on both BusyBox and GNU.  Omit it.
+- `-b` (byte-offset) and `-o` (only-matching) work on binary files.
+  Unlike GNU which reports byte offset of the match, BusyBox reports
+  byte offset of the **line** containing the match.  For binary files
+  without newlines, this is equivalent.
+- Extended regex (`grep -E`): `|` is alternation.  `\|` is a literal
+  pipe character.
+- Basic regex (`grep`, no -E): `\|` is alternation.  `|` is a literal
+  pipe character.
+- **Common mistake**: `grep -E "i915\|nouveau"` searches for the
+  literal string `i915|nouveau`, NOT for `i915` OR `nouveau`.
+  Correct: `grep -E "i915|nouveau"` (ERE) or `grep "i915\|nouveau"`
+  (BRE).
 
-**Heads usage**: `grep -F -b -o "TRAILER!!!" "$file" 2>/dev/null` at `unpack_initramfs.sh:76`.
-The `-a` flag is not needed: BusyBox treats binary as text by default; GNU grep handles it without `-a` too.
-
-**Heads pattern**: `grep -F -b -o "TRAILER!!!" "$file" 2>/dev/null | head -1 | cut -d: -f1 || true`
+**Heads pattern**:
+```bash
+# BRE (basic regex) for alternation:
+grep "i915\|nouveau\|amdgpu\|radeon\|bochs" "$initrd"
+# ERE (extended regex) for alternation — note plain |, not \|:
+grep -E "i915|nouveau|amdgpu|radeon|bochs" "$initrd"
+```
 
 ## stat
 
@@ -116,7 +132,39 @@ awk -v dev="$dev" 'index($1, dev) == 1 { print $3; exit }' /proc/mounts
 awk '{print $2}' /proc/mounts
 ```
 
-## cut / head / tr / uniq / fold / basename / dirname / readlink
+## strings
+
+BusyBox `strings` scans binary files character by character for printable
+sequences.  Supports `-f` (prefix filename), `-o` (octal offset),
+`-t o|d|x` (offset radix), `-n LEN` (min string length, default 4).
+`-a` (scan whole file) is the default.  No byte-offset flag.
+
+```bash
+strings "$vmlinuz" | grep -i "efifb\|simpledrm"   # kernel binary scan
+```
+
+## tail
+
+BusyBox `tail -c +N` (start at byte N) works identically to GNU.  Used
+for byte-offset extraction from kernel images.
+
+```bash
+tail -c+$((pos+8)) "$img" | zcat                  # offset + decompress
+```
+
+## tr
+
+BusyBox `tr` handles octal escape sequences (`\NNN`) via
+`bb_process_escape_sequence()`.  Named escapes (`\n`, `\t`, etc.) work
+as expected.  Octal sequences from shell variables (e.g.
+`cf1='\037\213\010'`) are interpreted by `tr`, not by the shell.
+
+```bash
+cf1='IKCFG_ST\037\213\010'; cf2='0123456789'
+tr "$cf1\n$cf2" "\n$cf2=" < "$img"               # extract-ikconfig
+```
+
+## cut / head / uniq / fold / basename / dirname / readlink
 
 All identical for Heads usage. No special BusyBox workarounds needed.
 
@@ -147,4 +195,6 @@ All identical. No BusyBox workarounds needed.
 | `xxd -p -r` | `fold -w 60 \| xxd -p -r` | `etc/functions.sh:2701` |
 | `cpio` trailing data exit | `|| true` swallows GNU exit 2 | `unpack_initramfs.sh:52,101` |
 | `grep -a` | Omit or keep (no-op on both) | `unpack_initramfs.sh:78` |
-| `zstd` not available | `(zstd-decompress -d \|\| zstd -d \|\| true)` fails silently | `unpack_initramfs.sh:119` |
+| `grep -E` alternation | Use `|` not `\|` in ERE; use `\|` in BRE | `kexec-iso-init.sh:312` |
+| `sort -u` with `-k` | Dedups by full line, not key — use awk | `kexec-select-boot.sh:379` |
+| `zstd` not available | `(zstd-decompress -d \|\| zstd -d \|\| true)` | `unpack_initramfs.sh:119` |
