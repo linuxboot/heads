@@ -59,7 +59,7 @@ paramsdev="${paramsdev%%/}"
 paramsdir="${paramsdir%%/}"
 
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ "$valid_rollback" != "y" ]; then
 	if [ -s "$PRIMHASH_FILE" ]; then
 		#PRIMHASH_FILE (normally /boot/kexec_primhdl_hash.txt) exists and is not empty
 		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
@@ -91,6 +91,7 @@ verify_global_hashes() {
 			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
 				--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
 		fi
+		DEBUG "kexec-select-boot: hash mismatch in $TMP_HASH_FILE"
 		DIE "$TMP_HASH_FILE: boot hash mismatch"
 	fi
 	# If user enables it, check root hashes before boot as well
@@ -129,6 +130,23 @@ verify_rollback_counter() {
 	valid_rollback="y"
 }
 
+# Build the compat marker legend shown once per session.
+# Checks if any entry has a [!] marker — if so, show the full
+# legend.  Otherwise show short legend.
+build_legend() {
+	local has_issues="n"
+	if [ -r "/tmp/kexec_initrd_compat.txt" ] && grep -qF '[!]' /tmp/kexec_initrd_compat.txt 2>/dev/null; then
+		has_issues="y"
+	elif [ -r "/tmp/kexec_fb_compat.txt" ] && grep -qF '[!]' /tmp/kexec_fb_compat.txt 2>/dev/null; then
+		has_issues="y"
+	fi
+	if [ "$has_issues" = "y" ]; then
+		printf '\033[0;32m[OK]\033[0m=ready (USB+display)  \033[1;33m[!]\033[0m=may fail  (blank)=unable to check'
+	else
+		printf '\033[0;32m[OK]\033[0m=ready (USB+display)  (blank)=unable to check'
+	fi
+}
+
 first_menu="y"
 get_menu_option() {
 	num_options=$(cat $TMP_MENU_FILE | wc -l)
@@ -139,40 +157,86 @@ get_menu_option() {
 	if [ $num_options -eq 1 -a $first_menu = "y" ]; then
 		option_index=1
 	elif [ "$gui_menu" = "y" ]; then
+		if [ ! -f /tmp/kexec_compat_shown ] && [ -f /tmp/kexec_initrd_compat.txt ]; then
+			NOTE "$(build_legend)"
+			touch /tmp/kexec_compat_shown
+		fi
 		MENU_OPTIONS=()
 		n=0
+		# Show kernel/initrd in menu as "[OK] name (params) [kernel | initrd]"
+		# Log to debug.log so remote troubleshooting can see exact menu format.
+		# Long store paths (NixOS) collapse to basename; short paths keep directory context
 		while read option; do
 			parse_option
 			n=$(expr $n + 1)
-			MENU_OPTIONS+=("$n" "$name")
+			local marker target display_params optline
+			marker=$(boot_marker)
+			target=$(fmt_boot_target)
+			display_params=$(fmt_display_params "$params")
+			if [ -n "$display_params" ]; then
+				optline="$name ($display_params) $target"
+			else
+				optline="$name $target"
+			fi
+			if [ -n "$marker" ]; then
+				MENU_OPTIONS+=("$n" "$marker $optline")
+			else
+				MENU_OPTIONS+=("$n" "$optline")
+			fi
+			DEBUG "whiptail menu: [$n] $marker $optline"
 		done <$TMP_MENU_FILE
+		if [ -n "$add" ]; then
+			MENU_OPTIONS+=("b" "Select different ISO")
+		fi
 
+		if [ -n "$add" ]; then
+			local menu_prompt="Choose the boot option [1-$n, a to abort, b to select different ISO]:"
+		else
+			local menu_prompt="Choose the boot option [1-$n, a to abort]:"
+		fi
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
-			--menu "Choose the boot option [1-$n, a to abort]:" 0 80 8 \
+			--menu "$menu_prompt" 0 80 8 \
 			-- "${MENU_OPTIONS[@]}" \
-			2>/tmp/whiptail || DIE "Aborting boot attempt"
+			2>/tmp/whiptail || option_index="a"
 
 		option_index=$(cat /tmp/whiptail)
 	else
+		if [ ! -f /tmp/kexec_compat_shown ] && [ -f /tmp/kexec_initrd_compat.txt ]; then
+			NOTE "$(build_legend)"
+			touch /tmp/kexec_compat_shown
+		fi
 		STATUS "Select your boot option:"
 		n=0
 		while read option; do
 			parse_option
-			n=$(expr $n + 1)
-			# Use the same device routing as INPUT so option lines and the
-			# prompt share the same unbuffered fd (HEADS_TTY when in gui-init
-			# context, stderr otherwise).  Writing to stdout is wrong here
-			# because DO_WITH_DEBUG pipes stdout through tee for debug logging,
-			# making it fully buffered — the last option would appear after the
-			# INPUT prompt.
-			printf '%d. %s [%s]\n' "$n" "$name" "$kernel" >"${HEADS_TTY:-/dev/stderr}"
+			n=$((n + 1))
+			local marker target display_params optline
+			marker=$(boot_marker)
+			target=$(fmt_boot_target)
+			display_params=$(fmt_display_params "$params")
+			if [ -n "$marker" ]; then
+				optline="$n. $marker $name ${display_params:+($display_params)} $target"
+			else
+				optline="$n. $name ${display_params:+($display_params)} $target"
+			fi
+			printf '%s\n' "$optline" >"${HEADS_TTY:-/dev/stderr}"
+			DEBUG "CLI menu: $optline"
 		done <$TMP_MENU_FILE
 
-		INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
-
-		if [ "$option_index" = "a" ]; then
-			DIE "Aborting boot attempt"
+		if [ -n "$add" ]; then
+			INPUT "Choose the boot option [1-$n, a to abort, b for different ISO]:" -r option_index
+		else
+			INPUT "Choose the boot option [1-$n, a to abort]:" -r option_index
 		fi
+	fi
+
+	if [ "$option_index" = "a" ]; then
+		STATUS "Boot aborted by user"
+		exit 1
+	fi
+	if [ "$option_index" = "b" ] && [ -n "$add" ]; then
+		STATUS "Returning to ISO selection"
+		exit 2
 	fi
 	first_menu="n"
 
@@ -181,40 +245,148 @@ get_menu_option() {
 }
 
 confirm_menu_option() {
-	if [ "$gui_menu" = "y" ]; then
-		default_text="Make default"
-		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
-		whiptail_warning --title "Confirm boot details" \
-			--menu "Confirm the boot details for $name:\n\n$(echo $kernel | fold -s -w 80) \n\n" 0 80 8 \
-			-- 'd' "${default_text}" 'y' "Boot one time" \
-			2>/tmp/whiptail || DIE "Aborting boot attempt"
-
-		option_confirm=$(cat /tmp/whiptail)
+	# Show full kernel/initrd/params in the confirmation dialog.
+	# Cancel/Esc returns to the menu (option_confirm="b") instead of aborting,
+	# so users can change their selection without restarting the boot flow.
+	# The full cmdline combines the entry's parsed params with the global ADD
+	# params (injected by kexec-iso-init.sh for ISO boot).
+		if [ "$gui_menu" = "y" ]; then
+			default_text="Make default"
+			[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+			whiptail_warning --title "Confirm boot details" \
+				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOptions: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}Kernel cmdline: $(echo "$params $CONFIG_BOOT_KERNEL_ADD $add" | xargs)\n" 0 80 8 \
+				-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
+				2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
 	else
-		STATUS "Confirm boot details for $name:"
-		INFO "$option"
-
-		INPUT "Confirm selection by pressing 'y', make default with 'd':" -n 1 option_confirm
+		STATUS "  Confirm boot details for $name:"
+		STATUS "    Kernel: $kernel"
+		STATUS "    Initramfs: ${initrd:--}"
+		STATUS "    Options: ${params:--}"
+		[ -n "$CONFIG_BOOT_KERNEL_ADD" ] && STATUS "    Board adds: $CONFIG_BOOT_KERNEL_ADD"
+		[ -n "$CONFIG_BOOT_KERNEL_REMOVE" ] && STATUS "    Board removes: $CONFIG_BOOT_KERNEL_REMOVE"
+		[ -n "$add" ] && STATUS "    ISO params: $add"
+		local final="$params"
+		for rem in $CONFIG_BOOT_KERNEL_REMOVE; do
+			final=" $final "
+			final="${final// $rem / }"
+			final="${final# }"
+			final="${final% }"
+		done
+		final="$final $CONFIG_BOOT_KERNEL_ADD $add"
+		STATUS "    Kernel cmdline: $(echo "$final" | xargs)"
+		INPUT "Boot (Y), make default (d), back to menu (b) [Y/d/b]:" -n 1 option_confirm
+		[ -z "$option_confirm" ] && option_confirm="y"
+		return 0
 	fi
 }
 
 parse_option() {
+	# Parse pipe-delimited boot entry: name|kexectype|kernel /path|initrd /path|append params
+	# Field 4 can be either "initrd /path" or "append ..." when no initrd is present.
 	name=$(echo $option | cut -d\| -f1)
-	kernel=$(echo $option | cut -d\| -f3)
+	kernel=$(echo $option | cut -d\| -f3 | sed 's/^kernel //')
+	initrd=""; params=""
+	f4=$(echo $option | cut -d\| -f4)
+	case "$f4" in
+		initrd*) initrd="${f4#initrd }"; params=$(echo $option | cut -d\| -f5 | sed 's/append //' | xargs) ;;
+		append*) params=$(echo "$f4" | sed 's/^append //' | xargs) ;;
+		*) ;;
+	esac
+	LOG "parse_option: name='$name' kernel='$kernel' initrd='$initrd' params='${params:0:80}...'"
+}
+
+# Return the combined compat marker for the current entry's initrd.
+# Reads two Layer 1 compat files:
+#   /tmp/kexec_initrd_compat.txt  — USB filesystem support
+#   /tmp/kexec_fb_compat.txt     — DRM/KMS display driver (i915, etc.)
+#
+# Combined result:
+#   [OK]   — BOTH filesystem AND display driver confirmed present
+#   [!]    — EITHER filesystem or display driver confirmed missing
+#   (blank) — cannot verify (no modules in initrd)
+#
+# When the fb compat file has no entry for this initrd (no modules),
+# the fs marker is returned alone.
+#
+# In CLI mode adds ANSI colors: green [OK], yellow [!].
+boot_marker() {
+	local m="" fb="" grn="" ylw="" rst=""
+	[ "$gui_menu" != "y" ] && { grn=$'\033[0;32m'; ylw=$'\033[1;33m'; rst=$'\033[0m'; }
+	if [ -n "$initrd" ] && [ -r "/tmp/kexec_initrd_compat.txt" ]; then
+		local ip=$(echo "$initrd" | sed 's|^/*||')
+		m=$(grep "^$ip " /tmp/kexec_initrd_compat.txt 2>/dev/null | head -1 | cut -d' ' -f2)
+		[ -n "$m" ] && LOG "boot_marker: initrd=$ip fs=$m" || LOG "boot_marker: initrd=$ip no fs entry"
+		if [ -r "/tmp/kexec_fb_compat.txt" ]; then
+			fb=$(grep "^$ip " /tmp/kexec_fb_compat.txt 2>/dev/null | head -1 | cut -d' ' -f2)
+			[ -n "$fb" ] && LOG "boot_marker: initrd=$ip fb=$fb" || LOG "boot_marker: initrd=$ip no fb entry"
+			# Combine both
+			if [ "$m" = "[OK]" ] && [ "$fb" = "[OK]" ]; then
+				:  # both OK
+			elif [ "$m" = "[!]" ] || [ "$fb" = "[!]" ]; then
+				m="[!]"  # either missing
+			else
+				m=""  # can't verify
+			fi
+		fi
+		[ "$m" = "[OK]" ] && m="${grn}[OK]${rst}"
+		[ "$m" = "[!]" ] && m="${ylw}[!]${rst}"
+	fi
+	echo "$m"
+}
+
+# Strip ISO-finding boot parameters for display only.
+# The full params remain in the entry passed to kexec-boot.sh.
+# These params are injected by kexec-iso-init.sh via -a and would
+# clutter the menu if shown redundantly.  Only affects menu display.
+fmt_display_params() {
+	local dp="$1"
+	[ -z "$dp" ] && echo "" && return
+	echo "$dp" | sed \
+		-e 's|iso-scan/filename=[^ ]*| |g' \
+		-e 's|findiso=[^ ]*| |g' \
+		-e 's|fromiso=[^ ]*| |g' \
+		-e 's|img_dev=[^ ]*| |g' \
+		-e 's|img_loop=[^ ]*| |g' \
+		-e 's|iso=[^ ]*| |g' \
+		-e 's|live-media=[^ ]*| |g' \
+		-e 's|  *| |g' \
+		-e 's|^ ||' \
+		-e 's| $||' | xargs
+}
+
+# Format kernel/initrd for menu display: "[path | path]"
+# Keeps directory context for short paths (live/vmlinuz) but falls back to
+# basename for unreasonably long store paths (NixOS /nix/store/.../bzImage).
+# 35-char threshold: typical paths like "boot/x86_64/loader/linux" fit;
+# NixOS store paths with hashes exceed it.
+fmt_boot_target() {
+	local k i
+	k=$(echo "$kernel" | sed 's|^/*||')
+	[ -z "$k" ] && k="$kernel"
+	[ "${#k}" -gt 35 ] && k=$(basename "$k")
+	i=$(echo "$initrd" | sed 's|^/*||')
+	[ "${#i}" -gt 35 ] && i=$(basename "$i")
+	if [ -n "$i" ]; then echo "[$k | $i]"; else echo "[$k]"; fi
 }
 
 scan_options() {
-	STATUS "Scanning for boot options"
+	STATUS "Scanning for unsigned boot options"
 	option_file="/tmp/kexec_options.txt"
 	scan_boot_options "$bootdir" "$config" "$option_file"
 	if [ ! -s $option_file ]; then
 		DIE "Failed to parse any boot options"
 	fi
-	if [ "$unique" = 'y' ]; then
-		sort -r $option_file | uniq >$TMP_MENU_FILE
-	else
-		cp $option_file $TMP_MENU_FILE
-	fi
+		# Sort entries by name so users can scan the menu alphabetically.
+		# When -u (unique) is set, strip --- markers from append params first
+		# so entries differing only by GRUB's bootloader separator get deduped.
+		if [ "$unique" = 'y' ]; then
+			sed 's/|append \([^|]*\)---[^|]*/|append \1/g' "$option_file" | awk -F'|' '!seen[$1]++' >"$TMP_MENU_FILE"
+		else
+			cp "$option_file" "$TMP_MENU_FILE"
+		fi
+		DEBUG "kexec-select-boot: parsed boot options for user selection"
+		# Option entries are already logged as echo_entry by kexec-parse-boot.sh;
+		# no need to dump them again here.
 }
 
 save_default_option() {
