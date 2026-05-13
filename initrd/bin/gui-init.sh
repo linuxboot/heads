@@ -428,12 +428,16 @@ EOF
 				return 1
 				;;
 			# "Reset the TPM" from the TOTP failure whiptail menu.
-			# The gate runs first to verify /boot integrity.  If the gate
-			# fails *because* TPM reset is required (e.g. stale counters),
-			# the || tpm_reset_required bypass lets reset_tpm() proceed —
-			# it clears counters and creates a fresh one.
+			# Show the integrity report so the user can see the state,
+			# but do not force the investigation / signing path —
+			# that would attempt TPM counter operations requiring the
+			# current owner password, which is unknown (that is why
+			# we are resetting).  reset_tpm() handles everything:
+			# new password, counter create, /boot signing, TOTP/HOTP
+			# generation, DUK reseal, and reboot.
 			p)
-				if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
+				report_integrity_measurements
+				if reset_tpm && update_totp && BG_COLOR_MAIN_MENU="normal"; then
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 				;;
@@ -830,10 +834,16 @@ show_tpm_totp_hotp_options_menu() {
 		fi
 		;;
 	# "Reset the TPM" from the TPM/TOTP/HOTP options whiptail menu.
-	# Same gate-bypass pattern: if the gate fails because TPM
-	# reset is required, proceed to reset_tpm() anyway.
+	# Show the integrity report so the user can see the state,
+	# but do not force the investigation / signing path —
+	# that would attempt TPM counter operations requiring the
+	# current owner password, which is unknown (that is why
+	# we are resetting).  reset_tpm() handles everything:
+	# new password, counter create, /boot signing, TOTP/HOTP
+	# generation, DUK reseal, and reboot.
 	r)
-		if { gate_reseal_with_integrity_report || tpm_reset_required; } && reset_tpm; then
+		report_integrity_measurements
+		if reset_tpm; then
 			reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 		fi
 		;;
