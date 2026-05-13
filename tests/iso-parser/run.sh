@@ -316,8 +316,9 @@ verify_entries() {
 		[ -z "$entry" ] && continue
 		parse_entry "$entry"
 
-		# KERNEL_OK
-		[ -n "$entry_kernel" ] && [ -f "$bootdir/${entry_kernel#/}" ] && k_ok=$((k_ok+1))
+		# KERNEL_OK — use first word only (Xen entries have params after path)
+		local kpath="${entry_kernel%% *}"
+		[ -n "$kpath" ] && [ -f "$bootdir/${kpath#/}" ] && k_ok=$((k_ok+1))
 
 		# INITRD_OK
 		if [ -n "$entry_initrd" ]; then
@@ -666,7 +667,7 @@ if [ "$WITH_ISOS" = "y" ]; then
 	print_row "ISO" "Entries" "Kernel" "Initrd" "FS_Compat" "Loopback" "Vars"
 	print_row "---" "-------" "------" "------" "---------" "--------" "----"
 
-	for iso in "$ISOS"/*.iso; do
+	for iso in $(find "$ISOS" -name "*.iso" -type f 2>/dev/null | sort); do
 		[ -f "$iso" ] || continue
 		iso_name=$(basename "$iso")
 		[ -n "$SINGLE_ISO" ] && [ "$iso_name" != "$SINGLE_ISO" ] && continue
@@ -732,7 +733,7 @@ echo "=== SECTION 4: Boot entries (user-facing menu) ==="
 echo ""
 
 if [ "$WITH_ISOS" = "y" ]; then
-	for iso in "$ISOS"/*.iso; do
+	for iso in $(find "$ISOS" -name "*.iso" -type f 2>/dev/null | sort); do
 		[ -f "$iso" ] || continue
 		iso_name=$(basename "$iso")
 		[ -n "$SINGLE_ISO" ] && [ "$iso_name" != "$SINGLE_ISO" ] && continue

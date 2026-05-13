@@ -225,12 +225,14 @@ check_initrd_compat() {
 
 	# Collect all unique initrd paths from parsed boot entries
 	# Entries are pipe-delimited: name|type|kernel|initrd <path>|append <params>
-	# Field 4 starts with "initrd " if the entry has an initrd.
+	# Field 4 starts with "initrd " if the entry has a regular initrd.
+	# Xen/multiboot entries use "module <path>" for kernel and initrd.
 	local initrd_paths=""
 	while IFS= read -r entry; do
 		[ -z "$entry" ] && continue
-		local entry_field4 initrd_relpath
+		local entry_field4 entry_field5 initrd_relpath
 		entry_field4=$(echo "$entry" | cut -d\| -f4)
+		entry_field5=$(echo "$entry" | cut -d\| -f5)
 		case "$entry_field4" in
 			initrd\ *)
 				initrd_relpath="${entry_field4#initrd }"
@@ -241,7 +243,21 @@ check_initrd_compat() {
 					*) initrd_paths="$initrd_paths $initrd_relpath" ;;
 				esac
 				;;
-		esac
+			module\ *)
+				# Xen multiboot: modules are ordered kernel then initrd.
+				# Collect all module paths; let the filesystem check
+				# filter out non-initrd files later.
+				for mod_path in "$entry_field4" "$entry_field5"; do
+					initrd_relpath="${mod_path#module }"
+					initrd_relpath="${initrd_relpath%% *}"
+					[ -f "$bootdir/$initrd_relpath" ] || continue
+					case " $initrd_paths " in
+						*" $initrd_relpath "*) ;;
+						*) initrd_paths="$initrd_paths $initrd_relpath" ;;
+					esac
+				done
+				;;
+			esac
 	done < "$entries_file"
 	rm -f "$entries_file"
 	# No initrd referenced by any boot entry — nothing to check
