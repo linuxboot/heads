@@ -378,12 +378,13 @@ fb_compat_file="/tmp/kexec_fb_compat.txt"
 if [ -s "$fb_compat_file" ] && ! grep -qF '[OK]' "$fb_compat_file"; then
 	if [ -x /bin/whiptail ]; then
 		if ! whiptail_warning --title 'Display Driver Warning' --yesno \
-			"Unverified Display Support\n\nThe ISO's initramfs does not contain a\ndisplay driver for your hardware.\n\nThe screen may be blank after boot even\nif the operating system starts normally.\n\nProceed anyway?" \
+			"Unverified Display Support\n\nThe ISO does not contain a display driver\nthat Heads can verify.\n\nThe screen may be blank after boot.\n\nDistro maintainers: include a KMS driver\n(i915, nouveau, amdgpu, bochs, cirrus) or\nensure CONFIG_FB_EFI=y in the kernel config.\n\nProceed anyway?" \
 			0 80; then
 			exit 1
 		fi
 	else
 		WARN "ISO has no display driver - screen may be blank after boot"
+		WARN "Include a KMS driver or CONFIG_FB_EFI=y for Heads support"
 		INPUT "Proceed anyway? (y/N):" -n 1 response
 		if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
 			DIE "Incompatible display driver - cannot proceed"
