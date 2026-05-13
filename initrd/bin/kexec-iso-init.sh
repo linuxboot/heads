@@ -305,7 +305,7 @@ check_initrd_compat() {
 			# for efifb in modules.builtin in case it's listed there.
 			local fb_drivers="i915\|nouveau\|amdgpu\|radeon\|bochs\|virtio-gpu\|cirrus\|qxl\|mgag200\|ast"
 			local fb_match
-			fb_match=$(find "$unpack_dir" -name "*.ko*" 2>/dev/null | grep -E "$fb_drivers" 2>/dev/null | head -1) || true
+			fb_match=$(find "$unpack_dir" -name "*.ko*" 2>/dev/null | grep "$fb_drivers" 2>/dev/null | head -1) || true
 			if [ -n "$fb_match" ]; then
 				initrd_supports_fb="[OK]"
 				DEBUG "Layer 1: $initrd_relpath has DRM/KMS driver ($(basename $fb_match))"
