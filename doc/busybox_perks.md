@@ -44,19 +44,19 @@ BusyBox and GNU behave identically.
 ## grep
 
 **BusyBox quirks**:
-- `-a` (text mode) is default — no-op on both BusyBox and GNU.  Omit it.
-- `-b` (byte-offset) and `-o` (only-matching) work on binary files.
-  Unlike GNU which reports byte offset of the match, BusyBox reports
-  byte offset of the **line** containing the match.  For binary files
-  without newlines, this is equivalent.
+- No `-b` (byte-offset) flag.  GNU grep's `-b` reports byte offset
+  of each match.  BusyBox lacks this.  If you need byte positions
+  in binary streams, use `dd bs=1 skip=N count=M` instead.
+- `-a` (text mode) is default — no-op on both BusyBox and GNU.
+- `-o` (only-matching), `-n` (line number), `-H`/`-h` (filename
+  prefix) all work as expected.
 - Extended regex (`grep -E`): `|` is alternation.  `\|` is a literal
   pipe character.
 - Basic regex (`grep`, no -E): `\|` is alternation.  `|` is a literal
   pipe character.
 - **Common mistake**: `grep -E "i915\|nouveau"` searches for the
   literal string `i915|nouveau`, NOT for `i915` OR `nouveau`.
-  Correct: `grep -E "i915|nouveau"` (ERE) or `grep "i915\|nouveau"`
-  (BRE).
+  Correct: `grep -E "i915|nouveau"` or `grep "i915\|nouveau"`.
 
 **Heads pattern**:
 ```bash
@@ -194,7 +194,7 @@ All identical. No BusyBox workarounds needed.
 | `xxd -p` | `tr -d '\n '` strips 60-col padding | `unpack_initramfs.sh:38,68` |
 | `xxd -p -r` | `fold -w 60 \| xxd -p -r` | `etc/functions.sh:2701` |
 | `cpio` trailing data exit | `|| true` swallows GNU exit 2 | `unpack_initramfs.sh:52,101` |
-| `grep -a` | Omit or keep (no-op on both) | `unpack_initramfs.sh:78` |
+| `grep -b` | Not available — use `dd bs=1 skip=N count=M` | `kexec-iso-init.sh` |
 | `grep -E` alternation | Use `|` not `\|` in ERE; use `\|` in BRE | `kexec-iso-init.sh:312` |
 | `sort -u` with `-k` | Dedups by full line, not key — use awk | `kexec-select-boot.sh:379` |
-| `zstd` not available | `(zstd-decompress -d \|\| zstd -d \|\| true)` | `unpack_initramfs.sh:119` |
+| `zstd` not in busybox | `/bin/zstd-decompile -d` standalone binary | `unpack_initramfs.sh:119` |
