@@ -7,6 +7,7 @@ export BG_COLOR_MAIN_MENU="normal"
 
 . /etc/functions.sh
 . /etc/gui_functions.sh
+. /etc/gpg_functions.sh
 . /etc/luks-functions.sh
 . /tmp/config
 
