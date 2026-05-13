@@ -943,6 +943,7 @@ reset_tpm() {
 			if [ -s /boot/kexec_key_devices.txt ] || [ -s /boot/kexec_key_lvm.txt ]; then
 				reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 			fi
+			/bin/reboot.sh
 		fi
 	fi
 }
