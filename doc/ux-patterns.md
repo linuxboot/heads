@@ -381,3 +381,116 @@ fi
 
 This ensures prompt/read always use the correct device regardless of how the caller has
 redirected stdout/stderr (e.g. `2>/tmp/whiptail`).
+
+---
+
+## Main Menu Background Color State
+
+`BG_COLOR_MAIN_MENU` (exported by `gui-init.sh` and `gui-init-basic.sh`) controls the
+background color of all `whiptail_type` menus. It acts as a **visual trust indicator**:
+the menu background changes color based on the measured integrity state of the system.
+
+| State | Value | Background | When triggered |
+|---|---|---|---|
+| Trusted | `"normal"` | Default (transparent in fbwhiptail, white/gray in newt) | Boot environment is healthy: /boot is mounted, signatures verified |
+| Warning | `"warning"` | Yellow/amber | Transient or non-critical issues: unsigned ISO, missing optional config |
+| Untrusted | `"error"` | Red | Fatal or integrity issues: no /boot partition, TPM hash mismatch, failed signature check |
+
+Transitions happen at specific points in the boot flow:
+
+```bash
+# gui-init.sh trusted start:
+export BG_COLOR_MAIN_MENU="normal"
+
+# On mount failure — no /boot partition found:
+BG_COLOR_MAIN_MENU="error"
+
+# After user selects a valid boot device:
+BG_COLOR_MAIN_MENU="normal"
+
+# On TPM/tampering detection in integrity report:
+BG_COLOR_MAIN_MENU="error"
+
+# After successful reset/update flow:
+BG_COLOR_MAIN_MENU="normal"
+
+# Warning state for transient issues:
+BG_COLOR_MAIN_MENU="warning"
+```
+
+### Inheritance
+
+`whiptail_type` passes `BG_COLOR_MAIN_MENU` as its type argument. Since `whiptail_type`
+routes through `whiptail_error` / `whiptail_warning` / `_whiptail_preprocess_args` based
+on the string value, setting `BG_COLOR_MAIN_MENU=error` makes every subsequent
+`whiptail_type` call render with a red background — including submenus and selection
+dialogs. This is intentional: the red background signals that the system is in an
+untrusted state regardless of which menu the user is looking at.
+
+To inspect the current state in debug.log:
+```
+DEBUG: whiptail_type: type=error args=--title Select your ISO boot option --menu ...
+```
+
+### When to change BG_COLOR_MAIN_MENU
+
+- **Set to `error`** only when the system cannot verify /boot integrity: missing TPM hash,
+  signature check failure, no /boot partition found, tampering detected.
+- **Set to `warning`** for non-fatal issues: unsigned ISO selected, optional config missing.
+- **Reset to `normal`** after the user resolves the condition: boot device selected,
+  TPM reset completed, integrity report acknowledged.
+- Do NOT set it in sub-scripts called from the main menu (e.g. ISO init scripts).
+  The main menu loop in `gui-init.sh` owns the state.
+
+---
+
+## Boot Option Compatibility Markers
+
+The ISO boot flow displays **compatibility markers** before each boot option in the
+menu to indicate whether the initramfs supports the USB filesystem:
+
+| Marker | Color | Meaning |
+|---|---|---|
+| `[OK]` | Green | Ready — USB filesystem and display driver both confirmed present |
+| `[!]` | Yellow | May fail — missing USB filesystem module or display driver |
+| (blank) | Default | Unable to check — initrd has no loadable modules to inspect |
+
+A legend explaining these markers is shown once per session via NOTE.
+When all entries pass both checks, the legend shows the short form.
+When any entry has a `[!]` marker, the full legend includes the warning:
+
+```
+[OK]=ready (USB+display)  [!]=may fail  (blank)=unable to check
+```
+NOTE: [OK]=ready (USB+display)  [!]=may fail after kexec  (blank)=could not check
+
+The markers indicate whether the initramfs can read the USB filesystem and drive
+the display after kexec. "Not checked" usually means the kernel module or
+framebuffer driver is built into the kernel (no .ko file to inspect).
+```
+
+The legend uses a 3-second NOTE sleep and is guarded by `/tmp/kexec_compat_shown`
+(mirroring the `hotpkey_fw_display()` once-per-session pattern) so it is not repeated
+if the user re-enters the boot menu.
+
+### Per-initrd tracking
+
+Each initrd referenced by the ISO's boot config is independently checked. The results
+are written to `/tmp/kexec_initrd_compat.txt` (filesystem) and
+`/tmp/kexec_fb_compat.txt` (framebuffer):
+
+```
+casper/initrd [OK]
+```
+
+`boot_marker()` in `kexec-select-boot.sh` reads `/tmp/kexec_initrd_compat.txt` to
+assign the marker for each menu entry. Initrds without an entry in the compat file
+get no marker (treated as "cannot verify").
+
+The legend label `compatible(fs+fb)` indicates that both the USB filesystem module
+and a framebuffer driver (efifb/bochs) are verified. A separate whiptail warning
+appears before the menu if no initrd has a known framebuffer driver.
+
+This ensures every initrd is evaluated independently — mixing verified and unverified
+initrds in the same ISO shows clear per-entry markers rather than a single global
+status.

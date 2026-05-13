@@ -302,6 +302,67 @@ Do NOT use INPUT for yes/no confirmation dialogs inside whiptail GUI flows — u
 INPUT is appropriate for inline `[Y/n]` confirmations in terminal-mode scripts (recovery shell,
 setup wizards, debug paths) where a full whiptail dialog would be out of place.
 
+## ANSI Escape Sequences
+
+Some callers pass inline ANSI escape sequences to NOTE, STATUS, and STATUS_OK for console color.
+For example, the dongle firmware version display uses `\033[1;33m` (yellow) for versions below the
+recommended minimum, and the boot option menu uses `\033[0;32m[OK]\033[0m` (green OK marker).
+
+These ANSI sequences are preserved in all output paths — both the console and
+debug.log retain the codes so tools like `less -R` or `cat` render the colors.
+Logging functions write the message as-is to both destinations without stripping.
+
+## ISO Boot Message Conventions
+
+The ISO boot path (`kexec-iso-init.sh` → `kexec-select-boot.sh`) follows specific message
+conventions to produce a readable, scannable user flow.
+
+### STATUS/STATUS_OK pairing
+
+Announce an operation with STATUS, confirm success with STATUS_OK:
+
+```
+STATUS "Mounting ISO as loopback"         →  >> Mounting ISO as loopback
+... process runs ...
+STATUS_OK "ISO mounted at /boot"          →  OK ISO mounted at /boot
+```
+
+This gives users clear start/end brackets for each step.
+Use NOTE instead of STATUS_OK when the result is surprising or security-relevant
+(the unsigned-ISO path uses NOTE "Proceeding with unsigned ISO boot").
+
+### Layer-prefixed DEBUG messages
+
+Internal ISO boot stages are identified by "Layer N:" at DEBUG level:
+
+| Prefix | Stage | Purpose |
+|---|---|---|
+| `Layer 1:` | Initramfs filesystem compat | USB fs type detection, initrd unpack, module search |
+| `Layer 2:` | loopback.cfg fast path | GRUB variable resolution in ISO boot config |
+
+The Layer prefix makes it possible to grep debug.log for the relevant section
+during troubleshooting without reading the entire file.
+
+### Sub-step STATUS demotion
+
+When a logical operation is already bracketed by a STATUS/STATUS_OK pair,
+sub-steps within the pair should be at DEBUG level — not STATUS — to avoid
+redundant console output:
+
+```bash
+# CORRECT — outer STATUS brackets the operation, inner detail is DEBUG
+STATUS "Checking USB filesystem compatibility with ISO initramfs"
+DEBUG "Layer 1: USB drive is ext4 - verifying initramfs module support"
+... work happens ...
+STATUS_OK "USB filesystem compatibility check complete"
+```
+
+### Once-per-session legend
+
+The compatibility marker legend (`[OK]=compatible [!]=may fail after kexec`) uses NOTE
+with a 3-second sleep. It is guarded by `/tmp/kexec_compat_shown` to show only once
+per session (same pattern as `hotpkey_fw_display()`).
+
 ## Output Levels
 
 Users can choose one of three output levels for console information.
@@ -333,7 +394,7 @@ color is never the sole signal; text prefixes carry meaning independently):
 
 \* INPUT prints a newline after user input, not before.
 
-debug.log and /dev/kmsg always receive plain text without ANSI codes.
+debug.log and /dev/kmsg include ANSI escape sequences as passed by callers.
 
 All console output goes to **`/dev/console`** — the kernel console device, which follows
 the `console=` kernel parameter and reaches whatever output the system was configured for
