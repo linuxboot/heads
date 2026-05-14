@@ -1075,9 +1075,23 @@ tpm1_reset() {
 	DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || LOG "tpm1_reset: unable to physicalenable after clear"
 
 	# 3. Take ownership with the new TPM owner passphrase.
-	if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
-		LOG "tpm1_reset: tpm takeown failed after forceclear"
-		return 1
+	local takeown_rc takeown_out
+	takeown_out="$(DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" 2>&1)" && takeown_rc=0 || takeown_rc=$?
+	if [ $takeown_rc -ne 0 ]; then
+		if echo "$takeown_out" | grep -qi "defend lock"; then
+			LOG "tpm1_reset: defend lock detected after forceclear — cycling physical presence to clear"
+			DO_WITH_DEBUG tpm physicaldisable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalpresence -s >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalsetdeactivated -c >/dev/null 2>&1 || true
+			if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
+				LOG "tpm1_reset: tpm takeown still failed after defend lock recovery"
+				return 1
+			fi
+		else
+			LOG "tpm1_reset: tpm takeown failed after forceclear"
+			return 1
+		fi
 	fi
 
 	# 4. Leave TPM enabled, present, and not deactivated.
