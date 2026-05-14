@@ -44,7 +44,14 @@ gpg_flash_rom() {
 	if [ -e /etc/config.user ]; then
 		cbfs.sh -o /tmp/gpg-gui.rom -a "heads/initrd/etc/config.user" -f /etc/config.user
 	fi
-	/bin/flash.sh /tmp/gpg-gui.rom
+	if /bin/flash.sh /tmp/gpg-gui.rom; then
+		whiptail_type $BG_COLOR_MAIN_MENU --title 'ROM Flashed Successfully' \
+			--msgbox "The GPG key has been added and the BIOS flashed successfully.\n\nPress Enter to reboot" 0 80
+		/bin/reboot.sh
+	else
+		whiptail_error --title 'ROM Flash Failed' \
+			--msgbox "Failed to flash the BIOS.\n\nYour system may be in an inconsistent state." 0 80
+	fi
 }
 
 gpg_post_gen_mgmt() {
