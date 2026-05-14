@@ -23,7 +23,6 @@ esac
 # Red is the universal "error/danger" signal; the "!!! ERROR:" text prefix
 # carries the same meaning for users who cannot distinguish red from other
 # colors, so color is an enhancement rather than the sole signal.
-# debug.log and /dev/kmsg receive plain text (no ANSI).
 # Always visible in all output modes.
 DIE() {
 	TRACE_FUNC
@@ -201,8 +200,7 @@ NOTE() {
 	echo >/dev/console 2>/dev/null
 	echo -e "\033[3;37mNOTE:\033[0m $*" >/dev/console 2>/dev/null
 	echo >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log; echo -e so \n in the
-	# message produces real newlines in the log (multi-line NOTE support).
+	# Log file: echo -e so \n in the message produces real newlines
 	echo -e "NOTE: $*" >>/tmp/debug.log
 
 	# Sleep to bring the message to the user's awareness: NOTE is infrequent
@@ -249,7 +247,6 @@ NOTE() {
 STATUS() {
 	# Console: bold >> prefix to /dev/console - announces an action in progress.
 	echo -e "\033[1m >>\033[0m $*" >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log
 	echo " >> $*" >>/tmp/debug.log
 }
 
@@ -263,7 +260,6 @@ STATUS_OK() {
 	#   2. Bold green color - instant visual scan for sighted users
 	# (Same convention as Linux/systemd "[  OK  ]" boot messages.)
 	echo -e "\033[1;32m OK\033[0m $*" >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log
 	echo " OK $*" >>/tmp/debug.log
 }
 
@@ -308,9 +304,6 @@ INFO() {
 		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	else
 		# info mode: green text to /dev/console AND both log files.
-		# /dev/console = kernel console (follows console= kernel parameter):
-		# reaches serial, framebuffer, BMC — no process setup needed, callers
-		# never need to care about redirections.
 		echo -e "\033[0;32m$*\033[0m" >/dev/console 2>/dev/null
 		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	fi
@@ -2659,14 +2652,17 @@ scan_boot_options() {
 	option_file="$3"
 
 	if [ -r "$option_file" ]; then rm "$option_file"; fi
-	for i in $(find "$bootdir" -name "$config"); do
+	find "$bootdir" -name "$config" -print | while IFS= read -r i; do
+		case "$i" in
+		*EFI* | *efi* | *x86_64-efi*) continue ;;
+		esac
 		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
 	done
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
 	# only parse these if $option_file is still empty
 	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in $(find "$bootdir" -name "$config"); do
+		find "$bootdir" -name "$config" -print | while IFS= read -r i; do
 			kexec-parse-bls.sh "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
 		done
 	fi

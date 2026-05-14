@@ -1,0 +1,82 @@
+#!/bin/sh
+# ----------------------------------------------------------------------
+# extract-ikconfig - Extract the .config file from a kernel image
+#
+# This will only work when the kernel was compiled with CONFIG_IKCONFIG.
+#
+# Original script (c) 2009,2010 Dick Streefland <dick@streefland.net>
+# Licensed under GPL v2, from the Linux kernel tree:
+#   https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+#   (scripts/extract-ikconfig)
+#
+# Heads adaptation:
+#   Replaced grep -abo with od -A d for byte-offset searches
+#   (BusyBox grep lacks -b).  Decompressors mapped to Heads paths.
+#   Use strings -t d to find IKCFG_ST marker instead of tr pipeline.
+# ----------------------------------------------------------------------
+
+# IKCFG_ST marker + gzip magic (\037 = 0x1f, \213 = 0x8b, \010 = 0x08)
+cf_marker="IKCFG_ST\x1f\x8b\x08"
+
+find_decimal_offset()
+{
+	local img="$1" pattern="$2"
+	od -A d -t x1 "$img" 2>/dev/null | grep "$pattern" | head -1 | awk '{print $1}'
+}
+
+dump_config()
+{
+	local pos
+	# Use strings to find IKCFG_ST with byte offset (-t d = decimal)
+	pos=$(strings -t d "$1" 2>/dev/null | grep "IKCFG_ST" | head -1 | awk '{print $1}')
+	if [ -n "$pos" ]; then
+		# IKCFG_ST is 8 chars, gzip magic starts at pos+8 (0-based).
+		# tail -c+N uses 1-based indexing, so add 1: pos+9.
+		tail -c+$((pos+9)) "$1" | zcat > "$tmp1" 2>/dev/null
+		if [ $? != 1 ]; then
+			cat "$tmp1"
+			exit 0
+		fi
+	fi
+}
+
+try_decompress()
+{
+	local img="$1" needle="$2" decompressor="$3"
+	local pos
+	pos=$(find_decimal_offset "$img" "$needle")
+	if [ -n "$pos" ]; then
+		tail -c+$pos "$img" | $decompressor > "$tmp2" 2>/dev/null
+		dump_config "$tmp2"
+	fi
+}
+
+# Check invocation
+if [ $# -ne 1 -o ! -s "$1" ]; then
+	echo "Usage: $0 <kernel-image>" >&2
+	exit 2
+fi
+
+img="$1"
+tmp1="/tmp/ikconfig1.$$"
+tmp2="/tmp/ikconfig2.$$"
+trap "rm -f $tmp1 $tmp2" 0
+
+# Initial attempt for uncompressed images
+dump_config "$img"
+
+# Retry after decompression (ordered by commonality under Heads)
+# gzip:  1f 8b 08
+try_decompress "$img" "1f 8b 08" gunzip
+# zstd: 28 b5 2f fd
+try_decompress "$img" "28 b5 2f fd" "zstd-decompress -d"
+# xz:   fd 37 7a 58 5a 00
+try_decompress "$img" "fd 37 7a 58 5a 00" unxz
+# bzip2: 42 5a 68
+try_decompress "$img" "42 5a 68" bunzip2
+# lzma: 5d 00 00
+try_decompress "$img" "5d 00 00 00" unlzma
+
+# Not found
+echo "$0: Cannot find kernel config." >&2
+exit 1
