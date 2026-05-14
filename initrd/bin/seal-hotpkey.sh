@@ -65,15 +65,41 @@ TRACE_FUNC
 # Make sure no conflicting GPG related services are running, gpg-agent will respawn
 DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
 
-# While making sure the key is inserted, capture the status so we can check how
-# many PIN attempts remain
+# Query hotp_verification info and extract numeric PIN retry counter.
+# Retries up to N times on communication failure.  Dies if the dongle
+# is present but no numeric counter can be extracted.
+query_pin_retries() {
+	local var_name="$1" dongle="$2" max="${3:-3}"
+	local attempt=0 info counter
+	while [ $attempt -lt "$max" ]; do
+		attempt=$((attempt + 1))
+		info="$(hotp_verification info 2>/dev/null)" || true
+		echo "$info" | grep -q "Connected device status:" || continue
+		HOTP_TOKEN_INFO="$info"
+		if [ "$dongle" = "Nitrokey 3" ]; then
+			counter=$(echo "$info" | grep "Secrets app PIN counter:" | grep -o '[0-9][0-9]*')
+		else
+			counter=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
+		fi
+		if [ -n "$counter" ]; then
+			eval "$var_name=\$counter"
+			return 0
+		fi
+		# Dongle is present but counter is missing — slot not configured.
+		DIE "$DONGLE_BRAND HOTP slot is not configured"
+	done
+	eval "$var_name="
+	return 1
+}
+
+# Initial query — if the dongle is not responding, prompt for reinsertion
+# and retry once.
 STATUS "Checking $DONGLE_BRAND presence for HOTP setup"
-if ! hotp_token_info="$(hotp_verification info)"; then
+if ! query_pin_retries admin_pin_retries "$DONGLE_BRAND" 1; then
 	INPUT "Insert your $DONGLE_BRAND and press Enter to configure it"
-	if ! hotp_token_info="$(hotp_verification info)"; then
-		# don't leak key on failure
+	if ! query_pin_retries admin_pin_retries "$DONGLE_BRAND" 1; then
 		shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
-		DIE "Unable to find $DONGLE_BRAND"
+		DIE "Unable to communicate with $DONGLE_BRAND"
 	fi
 fi
 STATUS_OK "$DONGLE_BRAND is present for HOTP setup"
@@ -99,31 +125,18 @@ now_date="$(date '+%s')"
 # NK3 uses "Secrets app PIN counter" (factory default: 8 attempts);
 # all pre-NK3 devices use "Card counters: Admin" (factory default: 3 attempts).
 if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
-	admin_pin_retries=$(echo "$hotp_token_info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
 	prompt_message="Secrets app"
 else
-	admin_pin_retries=$(echo "$hotp_token_info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
 	prompt_message="GPG Admin"
 fi
-
-admin_pin_retries="${admin_pin_retries:-0}"
 DEBUG "HOTP related PIN retry counter is $admin_pin_retries"
 # Show dongle firmware version with color coding so users know when to upgrade
-hotpkey_fw_display "$hotp_token_info" "$DONGLE_BRAND"
+hotpkey_fw_display "$HOTP_TOKEN_INFO" "$DONGLE_BRAND"
 
 # Re-query and display the current PIN retry counter before each manual prompt.
-# Updates the global $admin_pin_retries (no local keyword) so callers can use
-# the fresh value for decisions (e.g. max_attempts calculation below).
 # prompt_message is already set for the device type (NK3 vs older), reuse it.
 show_pin_retries() {
-	local info
-	info="$(hotp_verification info 2>/dev/null)" || true
-	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
-		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
-	else
-		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
-	fi
-	admin_pin_retries="${admin_pin_retries:-0}"
+	query_pin_retries admin_pin_retries "$DONGLE_BRAND" 3
 	STATUS "$DONGLE_BRAND ${prompt_message} PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 }
 
@@ -182,15 +195,9 @@ if [ "$admin_pin_status" -ne 0 ]; then
 	#   Default PIN skipped (key >1 month old)        -> max_attempts = min(3-1, 3) = 2
 	#   Default PIN tried & failed (3 -> 2 remaining) -> max_attempts = min(2-1, 3) = 1
 	#   Counter read failed (0 or empty)              -> max_attempts = 3 (fallback, don't block)
-	# Re-read counter without displaying (loop will show it)
-	info="$(hotp_verification info 2>/dev/null)" || true
-	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
-		admin_pin_retries=$(echo "$info" | grep "Secrets app PIN counter:" | cut -d ':' -f 2 | tr -d ' ')
-	else
-		admin_pin_retries=$(echo "$info" | grep "Card counters: Admin" | grep -o 'Admin [0-9]*' | grep -o '[0-9]*')
-	fi
-	admin_pin_retries="${admin_pin_retries:-0}"
-	if [ "$admin_pin_retries" -ge 2 ]; then
+	# Re-read counter without displaying (loop will show it).
+	query_pin_retries admin_pin_retries "$DONGLE_BRAND" 1
+	if [ -n "$admin_pin_retries" ] && [ "$admin_pin_retries" -ge 2 ]; then
 		max_attempts=$((admin_pin_retries - 1))
 		[ "$max_attempts" -gt 3 ] && max_attempts=3
 	else
