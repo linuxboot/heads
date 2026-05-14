@@ -417,7 +417,7 @@ _tpm_auth_retry() {
 		DEBUG "_tpm_auth_retry $label attempt $attempt failed: $out_content"
 		rm -f "$tmp_file"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149|0x0f|0x01'; then
 			WARN "$label failed (bad passphrase?). Retrying..."
 		else
 			# Non-auth error (e.g., out of resources 0x15)
@@ -641,7 +641,7 @@ tpm2_seal() {
 		rm -f "$tmp_err_file"
 		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm2_seal. Stderr: $tmp_err_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts. Reset the TPM and try again."
 			fi
@@ -759,7 +759,7 @@ tpm1_seal() {
 			rm -f "$tmp_def_out"
 			DEBUG "tpm1_seal nv_definespace failed (attempt $attempt): $def_out_content"
 			# If auth failure, retry after re-prompt; otherwise bail out.
-			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission|0x0f|0x01'; then
 				shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 				WARN "nv_definespace failed (bad passphrase?). Retrying..."
 				continue
@@ -788,7 +788,7 @@ tpm1_seal() {
 		fi
 		DEBUG "tpm1_seal nv_writevalue(post-define) output: $tmp_out_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission|0x0f|0x01'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
 			fi
