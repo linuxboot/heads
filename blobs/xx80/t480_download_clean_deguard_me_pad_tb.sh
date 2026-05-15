@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 # These variables are all for the deguard tool.
 # They would need to be changed if using the tool for other devices like the T480s or with a different ME version...
@@ -25,28 +26,6 @@ function usage() {
 Download Intel ME firmware from Dell, neutralize and shrink keeping the MFS.
 Download Thunderbolt firmware from Lenovo and pad it for flashing externally.
 "
-}
-
-function chk_sha256sum() {
-	sha256_hash="$1"
-	filename="$2"
-	echo "$sha256_hash" "$filename" "$(pwd)"
-	sha256sum "$filename"
-	if ! echo "${sha256_hash} ${filename}" | sha256sum --check; then
-		echo "ERROR: SHA256 checksum for ${filename} doesn't match."
-		exit 1
-	fi
-}
-
-function chk_exists_and_matches() {
-	if [[ -f "$1" ]]; then
-		if echo "${2} ${1}" | sha256sum --check; then
-			echo "SKIPPING: SHA256 checksum for $1 matches."
-			[[ "$3" = ME ]] && me_exists="y"
-			[[ "$3" = TB ]] && tb_exists="y"
-		fi
-		echo "$1 exists but checksum doesn't match. Continuing..."
-	fi
 }
 
 function download_and_clean() {
@@ -174,8 +153,6 @@ function parse_params() {
 	me_cleaned="${output_dir}/me_cleaned.bin"
 	me_deguarded="${output_dir}/t480_me.bin"
 	tb_flashable="${output_dir}/t480_tb.bin"
-	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
-	echo "Writing flashable TB to ${tb_flashable}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
@@ -185,19 +162,22 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 	fi
 
 	parse_params "$@"
-	chk_exists_and_matches "$me_deguarded" "$DEGUARDED_ME_BIN_HASH" ME
-	chk_exists_and_matches "$tb_flashable" "$TB_BIN_HASH" TB
 
-	if [[ -z "$me_exists" ]]; then
+	check_outputs \
+		"${DEGUARDED_ME_BIN_HASH} ${me_deguarded}" \
+		"${TB_BIN_HASH} ${tb_flashable}" && { echo "All outputs match. Nothing to do."; exit 0; }
+
+	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
+	if ! check_outputs "${DEGUARDED_ME_BIN_HASH} ${me_deguarded}"; then
 		download_and_clean "$me_cleaner" "$me_cleaned"
 		deguard "$me_cleaned" "$me_deguarded"
 		rm -f "$me_cleaned"
 	fi
-	
-	if [[ -z "$tb_exists" ]]; then
+	check_outputs "${DEGUARDED_ME_BIN_HASH} ${me_deguarded}" || exit 1
+
+	echo "Writing flashable TB to ${tb_flashable}"
+	if ! check_outputs "${TB_BIN_HASH} ${tb_flashable}"; then
 		download_and_pad_tb "$tb_flashable"
 	fi
-	
-	chk_sha256sum "$DEGUARDED_ME_BIN_HASH" "$me_deguarded"
-	chk_sha256sum "$TB_BIN_HASH" "$tb_flashable"
+	check_outputs "${TB_BIN_HASH} ${tb_flashable}" || exit 1
 fi
