@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 # Z220 CMT HP
 
@@ -39,6 +40,8 @@ TGZURL="https://ftp.hp.com/pub/softpaq/sp97001-97500/sp97120.tgz"
 TGZFILENAME=`echo $TGZURL | sed 's/.*\///'`
 ROMFILENAME=`echo $TGZFILENAME | sed 's/\.zip$/\.ROM/'`
 
+check_outputs "$FINAL_IFD_SHA256SUM" "$FINAL_ME_SHA256SUM" && { echo "All outputs match. Nothing to do."; exit 0; }
+
 extractdir=$(mktemp -d)
 echo "### Creating temp dir $extractdir "
 cd "$extractdir"
@@ -60,9 +63,7 @@ $MECLEAN -S -r -t -d -O  /tmp/unneeded.bin -D "$BLOBDIR/ifd.bin" -M "$BLOBDIR/me
 printf '\x00' | dd of="$BLOBDIR/ifd.bin" bs=1 seek=3837 count=1 conv=notrunc
 printf '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF' | dd of="$BLOBDIR/ifd.bin" bs=1 seek=3712 count=40 conv=notrunc
 
-echo "### Verifying expected hashes"
-echo "$FINAL_IFD_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on generated IFD bin..." && exit 1; }
-echo "$FINAL_ME_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on generated ME binary..." && exit 1; }
+check_outputs "$FINAL_IFD_SHA256SUM" "$FINAL_ME_SHA256SUM" || exit 1
 
 echo "###Cleaning up..."
 cd -
