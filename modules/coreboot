@@ -94,41 +94,84 @@ coreboot-talos_2_repo := https://github.com/Dasharo/coreboot
 coreboot-talos_2_commit_hash := fc47236e9877f4113dfcce07fa928f52d4d2c8ee
 $(eval $(call coreboot_module,talos_2,))
 
-# coreboot-purism: builds its own complete toolchain (no dependency on 24.02.01)
+# coreboot-purism: builds its own complete toolchain
+# (util/crossgcc/sum/ matches upstream 24.02.01, but purism is the only
+#  maintained/CI consumer of that toolchain -- sharing would add bandwidth
+#  without saving any crossgcc builds.  Unmaintained boards using 24.02.01
+#  exist under unmaintained_boards/ but are not built in CI.)
 coreboot-purism_repo := https://source.puri.sm/firmware/coreboot.git
 coreboot-purism_commit_hash := bea9947a1279be7d4a72b38a601d0288d10d1cb8
 $(eval $(call coreboot_module,purism,))
 
-# Dasharo forks - based on various coreboot upstream releases
-# IMPORTANT: Dasharo forks CANNOT share toolchains with upstream coreboot releases
-# or with each other. Dasharo uses custom FSP packages (3rdparty/dasharo-blobs/)
-# with different/missing headers vs upstream (e.g. MemInfoHob.h, FirmwareVersionInfoHob.h).
-# Each Dasharo fork therefore builds its own crossgcc toolchain (empty second arg).
+# Dasharo forks - all from github.com/dasharo/coreboot
+#
+# IMPORTANT: "Buildstack" means two separate things:
+#   1. CROSSGCC = the compiler (GCC/binutils/clang/nasm/llvm).
+#      This is what we share across forks. It is a tool like /usr/bin/gcc:
+#      it compiles whatever C code you give it, regardless of FSP headers.
+#   2. FSP BLOBS = Intel firmware blobs + headers (3rdparty/dasharo-blobs/).
+#      These are INPUTS to the compiler, not part of the compiler itself.
+#      Each board still uses its own fork's FSP blobs when building its ROM.
+#
+# Why the old comment said "CANNOT share":
+#   The original comment confused "board ROMs differ" with "toolchains differ".
+#   Different FSP blobs mean board A's ROM can't run on board B. That's true.
+#   But the COMPILER used to build those ROMs is the same: all use gcc-14.2.0,
+#   binutils-2.43.1, clang-18.1.8 from identical source tarballs built with
+#   identical buildgcc scripts (zero diff in util/crossgcc/ across all forks).
+#
+# Evidence:
+#   - util/crossgcc/sum/ files are byte-identical (same source packages)
+#   - util/crossgcc/ build scripts are byte-identical (same build options)
+#   - util/crossgcc/ has zero references to dasharo-blobs/ or FSP headers
+#   - All 8 Dasharo boards build successfully using the shared compiler
+#   - Each board's .config still has its own fork-specific FSP options
+#
+# Toolchain sharing: dasharo_nv4x is the toolchain provider.  dasharo_v56,
+# dasharo_msi_z690, and dasharo_msi_z790 consume its crossgcc via the second
+# coreboot_module() argument.  No separate "common" module needed since the
+# crossgcc packages are identical across all forks -- a second git clone of the
+# same repo+commit for toolchain-only purposes would waste bandwidth.
+#
+# CI: .circleci/config.yml "Dasharo shared toolchain" section
+#  - novacustom-nv4x_adl [seed:coreboot-24.12] is the x86_coreboot seed
+#  - v560tu, z690a_ddr4, z790p_ddr4 are build jobs (no cache)
+#  - All other Dasharo boards depend on novacustom-nv4x_adl
+# Doc: doc/circleci.md "Dasharo shared toolchain" section
+#  - Cache model, job types, and FSP explanation
+#
+# If you add/remove a Dasharo fork here, update:
+#   1. .circleci/config.yml workflow (seed vs build job)
+#   2. doc/circleci.md seed-board list and Dasharo cluster section
+#
+# Re-verify when any Dasharo fork rebases upstream:
+#   diff -r build/x86/coreboot-dasharo_nv4x/util/crossgcc/sum/ \
+#          build/x86/coreboot-dasharo_NEW/util/crossgcc/sum/
 
-# NovaCustom V560TU/V540TU (Meteor Lake)
+# NovaCustom V560TU/V540TU (Meteor Lake) -- consumes nv4x toolchain
 #  Tag: novacustom_v56x_mtl_igpu_v1.0.1 (SHA: 6de027d1)
 coreboot-dasharo_v56_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_v56_commit_hash := 6de027d1f0a62753182237ce3d793e5ba0395139
-$(eval $(call coreboot_module,dasharo_v56,))
+$(eval $(call coreboot_module,dasharo_v56,dasharo_nv4x))
 coreboot-dasharo_v56_patch_version := unreleased
 
-# NovaCustom NV4x ADL / NitroPad NS50
+# NovaCustom NV4x ADL / NitroPad NS50 -- toolchain provider for all Dasharo
 #  Tag: novacustom_nv4x_adl_v1.8.0 (SHA: 281a7fec)
 coreboot-dasharo_nv4x_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_nv4x_commit_hash := 281a7fec1a1e7aed781b12a096c2fc0f87dc51b5
 $(eval $(call coreboot_module,dasharo_nv4x,))
 
-# MSI Z790 boards
+# MSI Z790 boards -- consumes nv4x toolchain
 #  Tag: msi_ms7e06_v0.9.4 (SHA: a5a05f13)
 coreboot-dasharo_msi_z790_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_msi_z790_commit_hash := a5a05f133471c0463609631b599cdd88a623561f
-$(eval $(call coreboot_module,dasharo_msi_z790,))
+$(eval $(call coreboot_module,dasharo_msi_z790,dasharo_nv4x))
 
-# MSI Z690 boards
+# MSI Z690 boards -- consumes nv4x toolchain
 #  Tag: msi_ms7d25_v1.1.6 (SHA: be7d58da)
 coreboot-dasharo_msi_z690_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_msi_z690_commit_hash := be7d58dac9365d8981dbb1f5c6bbbcce35df8636
-$(eval $(call coreboot_module,dasharo_msi_z690,))
+$(eval $(call coreboot_module,dasharo_msi_z690,dasharo_nv4x))
 
 # T480 is based on coreboot ~25.09 release
 #  coreboot 25.09 doesn't include Thunderbolt support and support of the lower USB-C port which is still under review at https://review.coreboot.org/c/coreboot/+/75286 and https://review.coreboot.org/c/coreboot/+/88490
@@ -176,8 +219,8 @@ modules-y += $(coreboot_toolchain_module)
 # The toolchain module won't build anything for this board, we just need
 # the module prepped so we can hook up the toolchain target
 $(coreboot_toolchain_module)_output := .nobuild
-$(coreboot-toolchain_module)_configure := echo -e 'all:\n\ttouch .nobuild' > Makefile.nobuild
-$(coreboot-toolchain_module)_target := -f Makefile.nobuild
+$(coreboot_toolchain_module)_configure := printf 'all:\n\ttouch .nobuild\n' > Makefile.nobuild
+$(coreboot_toolchain_module)_target := -f Makefile.nobuild
 endif
 
 $(coreboot_module)_configure := \
