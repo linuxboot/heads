@@ -23,7 +23,12 @@ commands:
           command: |
             echo "Sourcing /devenv.sh since docker entrypoint doesn't do it as expected"
             source /devenv.sh
+            # Remove stale logs, .rom, and .zip from previous cache/workspace so
+            # store_artifacts only picks up files from this run (git-describe differs
+            # per commit, so old artifacts persist alongside new ones otherwise).
             rm -rf build/<< parameters.arch >>/log/*
+            rm -f build/<< parameters.arch >>/<< parameters.target >>/*.rom \
+                  build/<< parameters.arch >>/<< parameters.target >>/*.zip
             # Fresh checkout timestamps can make restored module stamp files look stale.
             # Refresh them first so restored musl-cross-make and dependency trees are reused.
             if [ -d "build/<< parameters.arch >>" ]; then
@@ -61,28 +66,24 @@ commands:
 jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Glossary
+  # Glossary (see doc/circleci.md for full cache model)
   # ═══════════════════════════════════════════════════════════════════════════
-  # fan-in: When multiple upstream jobs try to persist the same paths to the
-  #         same workspace. CircleCI throws an error if this happens.
-  #         Solution: Each job saves its own cache immediately, before persisting.
+  # fan-in: Error when a job depends on multiple upstreams that persisted
+  #         overlapping workspace paths.  Avoided here because each build
+  #         job depends on exactly one seed, so no downstream merges
+  #         workspaces from multiple seeds.
   #
-  # workspace chain: Linear dependency chain where only one job persists at a time.
-  #                  No fan-in possible since each job in the chain is unique.
+  # workspace chain: Linear dependency chain, one persist at a time.
   #
-  # cache layer: CircleCI caches are hierarchical for each architecture:
-  #              Cache key naming: {arch}-{layer}-nix-docker-heads-{hash}[-{fork}]
-  #              - {arch}-blobs-nix-docker-heads-{hash}                 (x86 only, ppc64 has no blobs)
-  #              - {arch}-musl-cross-make-nix-docker-heads-{hash}
-  #                └── Base toolchain (GCC + musl = musl-cross-make)
-  #              - {arch}-coreboot-musl-cross-make-nix-docker-heads-{hash}-{coreboot_dir}
-  #                └── Includes musl + coreboot toolstack
-  #              - {arch}-modules-coreboot-musl-cross-make-nix-docker-heads-{hash}-{coreboot_dir}
-  #                └── Includes coreboot + musl + all modules
-  #              Caches are reused across pipelines for the same repository.
-  #              They do NOT speed up sibling jobs in the same workflow run.
-  #              Each x86_coreboot job saves both coreboot and modules caches.
+  # cache layers (3): Modules(per-seed) -> Coreboot fork(per-seed) -> Musl(per-arch)
+  #   Seeds save caches (musl by musl-cross-make, modules+coreboot by x86_coreboot).
+  #   build jobs never save or restore cache.
+  #   Hashes are global (from create_hashes).  {coreboot_dir} suffix differentiates.
   #
+  # Dasharo: 4 forks share identical crossgcc (verified by diff).
+  #   Only novacustom-nv4x_adl [seed:coreboot-24.12] is a seed.
+  #   All other Dasharo boards are build jobs chaining behind via workspace.
+  #   See modules/coreboot and doc/circleci.md for details.
   # CACHE_VERSION: Environment variable used to invalidate all caches at once.
   #                Set as CircleCI project variable in project settings.
   #                Suggested format: YYYYMMDD (e.g., 20260420) for easy manual invalidation.
@@ -253,25 +254,12 @@ jobs:
             - install/x86
             - packages/x86
 
-  # x86_coreboot: builds a coreboot fork for x86 architecture.
-  # - Checks out code for build scripts
-  # - Attaches workspace from x86_musl_cross_make (has blobs + musl)
-  # - Restores cache with fallbacks:
-  #   (modules+coreboot+musl -> coreboot+musl -> musl)
-  #   Largest valid cache is first to maximize reuse when multiple keys exist.
-  #   Restored build stamps are refreshed before make so source checkout mtimes
-  #   do not force a redundant musl-cross-make rebuild.
-  #   Do not restore a generic coreboot cache across forks: that can inject
-  #   another fork's coreboot build tree (for example z790 into z690).
-  # - Builds coreboot firmware for this fork
-  # - Persists packages/x86, build/x86, crossgcc/x86, install/x86 to workspace
-  # - Saves fork-specific coreboot+toolchain cache, including install/x86 so
-  #   the restored cache still contains the musl sysroot used by modules
-  # - Optionally saves full modules cache (only on one fork)
-  #   This is kept as an escape hatch, but enabling it on the seed job would
-  #   extend that job's runtime and delay all downstream jobs that require it.
-  # Each distinct coreboot fork uses this: dasharo_nv4x, dasharo_v56, purism, 25.09, 4.11, dasharo_msi_*, etc.
+  # x86_coreboot: builds a coreboot fork and saves cache.
+  #   See doc/circleci.md for full documentation.
   # Workspace chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
+  # Seeds (one per unique toolchain): coreboot-4.11, coreboot-25.09,
+  #   coreboot-dasharo_nv4x, coreboot-purism
+  # Dasharo v56/msi_z690/msi_z790 are build jobs, not x86_coreboot.
   x86_coreboot:
     executor: heads-docker
     parameters:
@@ -423,41 +411,43 @@ workflows:
   build_and_test:
     max_auto_reruns: 3
     jobs:
-      - create_hashes
+      - create_hashes:
+          name: create_hashes [cache keys]
 
       # ── x86 blobs ───────────────────────────────────────────────────────
       # Chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
       - x86_blobs:
+          name: x86_blobs [ME GBE IFD]
           requires:
-            - create_hashes
+            - create_hashes [cache keys]
 
       # ── ppc64 talos-2 ──────────────────────────────────────────────────
-      # Chain: create_hashes -> ppc64_musl_cross_make -> ppc64_coreboot -> firmware
+      # Chain: create_hashes -> ppc64_musl_cross_make -> ppc64_coreboot
       - ppc64_musl_cross_make:
-          name: ppc64-musl-cross-make
+          name: ppc64-musl-cross-make [cross compiler]
           target: UNTESTED_talos-2
           subcommand: "musl-cross-make"
           requires:
-            - create_hashes
+            - create_hashes [cache keys]
 
       - ppc64_coreboot:
-          name: ppc64_talos_2
+          name: ppc64_talos_2 [seed:coreboot-talos-2]
           target: UNTESTED_talos-2
           subcommand: ""
           coreboot_dir: coreboot-talos_2
           requires:
-            - ppc64-musl-cross-make
+            - ppc64-musl-cross-make [cross compiler]
 
       # ── x86 musl-cross-make seed ──────────────────────────────────────────
       # Chain: x86_blobs -> x86_musl_cross_make -> x86_coreboot seeds
       - x86_musl_cross_make:
-          name: x86-musl-cross-make
+          name: x86-musl-cross-make [cross compiler]
           target: EOL_t480-hotp-maximized
           subcommand: "musl-cross-make"
           requires:
-            - x86_blobs
+            - x86_blobs [ME GBE IFD]
 
-      # ── x86 coreboot fork seeds (alphabetical by board target) ──────────────
+      # ── x86 coreboot fork seeds (alphabetical within each group) ────────────
       # Chain: x86_musl_cross_make -> x86_coreboot (linear per fork)
       # Each seed builds its coreboot fork and saves fork-specific cache.
       # No fan-in -> no workspace collision.
@@ -465,73 +455,73 @@ workflows:
       # 4.11 fork
       # Downstream boards: (none — standalone)
       - x86_coreboot:
-          name: EOL_librem_l1um
+          name: EOL_librem_l1um [seed:coreboot-4.11]
           target: EOL_librem_l1um
           subcommand: ""
           coreboot_dir: coreboot-4.11
           requires:
-            - x86-musl-cross-make
+            - x86-musl-cross-make [cross compiler]
 
       # 25.09 fork — builds coreboot-25.09 toolchain
       # Downstream boards: (all 28 board builds below)
       - x86_coreboot:
-          name: EOL_t480-hotp-maximized
+          name: EOL_t480-hotp-maximized [seed:coreboot-25.09]
           target: EOL_t480-hotp-maximized
           subcommand: ""
           coreboot_dir: coreboot-25.09
           requires:
-            - x86-musl-cross-make
+            - x86-musl-cross-make [cross compiler]
 
-      # dasharo_msi_z690 fork
-      # Downstream boards: UNTESTED_msi_z690a_ddr5
+      # ── Dasharo shared toolchain ──────────────────────────────────────────
+      # 4 forks share crossgcc (verified by sum-file diff).
+      # novacustom-nv4x_adl is the only seed; all other Dasharo boards are
+      # build jobs depending on it (see doc/circleci.md for cache model).
+      # If adding a Dasharo board, check modules/coreboot first: if its
+      # crossgcc sum files match dasharo_nv4x, add a build job here.
+      #
+      # dasharo_nv4x (seed for v56, z690, z790)
       - x86_coreboot:
-          name: UNTESTED_msi_z690a_ddr4
-          target: UNTESTED_msi_z690a_ddr4
-          subcommand: ""
-          coreboot_dir: coreboot-dasharo_msi_z690
-          requires:
-            - x86-musl-cross-make
-
-      # dasharo_msi_z790 fork
-      # Downstream boards: msi_z790p_ddr5
-      - x86_coreboot:
-          name: UNTESTED_msi_z790p_ddr4
-          target: UNTESTED_msi_z790p_ddr4
-          subcommand: ""
-          coreboot_dir: coreboot-dasharo_msi_z790
-          requires:
-            - x86-musl-cross-make
-
-      # dasharo_nv4x fork
-      # Downstream boards: UNTESTED_nitropad-ns50
-      - x86_coreboot:
-          name: novacustom-nv4x_adl
+          name: novacustom-nv4x_adl [seed:coreboot-24.12]
           target: novacustom-nv4x_adl
           subcommand: ""
           coreboot_dir: coreboot-dasharo_nv4x
           requires:
-            - x86-musl-cross-make
+            - x86-musl-cross-make [cross compiler]
 
-      # dasharo_v56 fork
-      # Downstream boards: novacustom-v540tu
-      - x86_coreboot:
+      # v56 (seeded by dasharo_nv4x)
+      - build:
           name: novacustom-v560tu
           target: novacustom-v560tu
           subcommand: ""
-          coreboot_dir: coreboot-dasharo_v56
           requires:
-            - x86-musl-cross-make
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
 
-      # purism fork — builds coreboot-purism toolchain
+      # msi_z690 (seeded by dasharo_nv4x)
+      - build:
+          name: UNTESTED_msi_z690a_ddr4
+          target: UNTESTED_msi_z690a_ddr4
+          subcommand: ""
+          requires:
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
+
+      # msi_z790 (seeded by dasharo_nv4x)
+      - build:
+          name: UNTESTED_msi_z790p_ddr4
+          target: UNTESTED_msi_z790p_ddr4
+          subcommand: ""
+          requires:
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
+
+      # purism fork -- builds coreboot-purism toolchain
       # Downstream boards: EOL_librem_13v2, EOL_librem_13v4, EOL_librem_15v3, EOL_librem_15v4,
       #   librem_11, librem_l1um_v2, librem_mini, librem_mini_v2
       - x86_coreboot:
-          name: librem_14
+          name: librem_14 [seed:coreboot-24.02.01]
           target: librem_14
           subcommand: ""
           coreboot_dir: coreboot-purism
           requires:
-            - x86-musl-cross-make
+            - x86-musl-cross-make [cross compiler]
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
@@ -539,196 +529,196 @@ workflows:
           target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_optiplex-7010_9010-maximized
           target: EOL_optiplex-7010_9010-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_optiplex-7010_9010_TXT-hotp-maximized
           target: EOL_optiplex-7010_9010_TXT-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_optiplex-7010_9010_TXT-maximized
           target: EOL_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t420-hotp-maximized
           target: EOL_t420-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t420-maximized
           target: EOL_t420-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t430-hotp-maximized
           target: EOL_t430-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t430-maximized
           target: EOL_t430-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t440p-hotp-maximized
           target: EOL_t440p-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t440p-maximized
           target: EOL_t440p-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t480s-hotp-maximized
           target: EOL_t480s-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_t480s-maximized
           target: EOL_t480s-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_UNTESTED_t530-hotp-maximized
           target: EOL_UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_UNTESTED_t530-maximized
           target: EOL_UNTESTED_t530-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_w530-hotp-maximized
           target: EOL_w530-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_w530-maximized
           target: EOL_w530-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_w541-hotp-maximized
           target: EOL_w541-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_w541-maximized
           target: EOL_w541-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x220-hotp-maximized
           target: EOL_x220-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x220-maximized
           target: EOL_x220-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x230-hotp-maximized
           target: EOL_x230-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x230-hotp-maximized-fhd_edp
           target: EOL_x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x230-maximized
           target: EOL_x230-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_x230-maximized-fhd_edp
           target: EOL_x230-maximized-fhd_edp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_z220-cmt-hotp-maximized
           target: EOL_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: EOL_z220-cmt-maximized
           target: EOL_z220-cmt-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       - build:
           name: qemu-coreboot-fbwhiptail-tpm2-hotp
           target: qemu-coreboot-fbwhiptail-tpm2-hotp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
       # ── purism boards (alphabetical) ──────────────────────────────────────
       - build:
@@ -736,85 +726,85 @@ workflows:
           target: EOL_librem_13v2
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: EOL_librem_13v4
           target: EOL_librem_13v4
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: EOL_librem_15v3
           target: EOL_librem_15v3
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: EOL_librem_15v4
           target: EOL_librem_15v4
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: librem_11
           target: librem_11
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: librem_l1um_v2
           target: librem_l1um_v2
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: librem_mini
           target: librem_mini
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
       - build:
           name: librem_mini_v2
           target: librem_mini_v2
           subcommand: ""
           requires:
-            - librem_14
+            - librem_14 [seed:coreboot-24.02.01]
 
-      # ── Dasharo nv4x ─────────────────────────────────────────────────────
+      # ── Dasharo nv4x (downstream boards seeded via nv4x_adl workspace) ─────
       - build:
           name: UNTESTED_nitropad-ns50
           target: UNTESTED_nitropad-ns50
           subcommand: ""
           requires:
-            - novacustom-nv4x_adl
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
 
-      # ── NovaCustom v56 ──────────────────────────────────────────────────
+      # ── NovaCustom v56 (seeded by nv4x_adl) ────────────────────────────────
       - build:
           name: novacustom-v540tu
           target: novacustom-v540tu
           subcommand: ""
           requires:
-            - novacustom-v560tu
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
 
-      # ── Dasharo msi_z690 ────────────────────────────────────────────────
+      # ── Dasharo msi_z690 (seeded by nv4x_adl) ──────────────────────────────
       - build:
           name: UNTESTED_msi_z690a_ddr5
           target: UNTESTED_msi_z690a_ddr5
           subcommand: ""
           requires:
-            - UNTESTED_msi_z690a_ddr4
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
 
-      # ── Dasharo msi_z790 ────────────────────────────────────────────────
+      # ── Dasharo msi_z790 (seeded by nv4x_adl) ──────────────────────────────
       - build:
           name: msi_z790p_ddr5
           target: msi_z790p_ddr5
           subcommand: ""
           requires:
-            - UNTESTED_msi_z790p_ddr4
+            - novacustom-nv4x_adl [seed:coreboot-24.12]
