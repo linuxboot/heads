@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
+
 EC_BLOB_HASH=20060eba91367b71a21c7757271ac642fa0376809f8c1b51066510246ac97bdb
 ACM_BLOB_HASH=b00d10f6615cf1b28f4fb4adac6631bf6e332db524e45dfafb92e539767d22a0
 SINIT_BLOB_HASH=1e888aebc78d637d119c489adffa95387b53429125dc3ad61f10a5cad0496834
 
 output_dir="$(realpath "${1:-./}")"
+
+check_outputs \
+	"${EC_BLOB_HASH} ${output_dir}/sch5545_ecfw.bin" \
+	"${ACM_BLOB_HASH} ${output_dir}/IVB_BIOSAC_PRODUCTION.bin" \
+	"${SINIT_BLOB_HASH} ${output_dir}/SNB_IVB_SINIT_20190708_PW.bin" && { echo "All outputs match. Nothing to do."; exit 0; }
 
 if [[ ! -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin" ]] || [[ ! -f "${output_dir}/sch5545_ecfw.bin" ]] || [[ ! -f "${output_dir}/SNB_IVB_SINIT_20190708_PW.bin" ]] ; then
     # Unpack Dell's Windows installer into a temporary directory and
@@ -47,23 +54,8 @@ if [[ ! -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin" ]] || [[ ! -f "${output_dir
     fi
 fi
 
-if ! echo "${EC_BLOB_HASH} ${output_dir}/sch5545_ecfw.bin" | sha256sum --check; then
-      echo "ERROR: SHA256 checksum for sch5545_ecfw.bin doesn't match. Try again"
-      rm -f "${output_dir}/sch5545_ecfw.bin"
-      exit 1
-fi
-
-
-if ! echo "${ACM_BLOB_HASH} ${output_dir}/IVB_BIOSAC_PRODUCTION.bin" | sha256sum --check; then
-      echo "ERROR: SHA256 checksum for IVB_BIOSAC_PRODUCTION.bin doesn't match. Try again"
-      rm -f "${output_dir}/IVB_BIOSAC_PRODUCTION.bin"
-      exit 1
-fi
-
-
-if ! echo "${SINIT_BLOB_HASH} ${output_dir}/SNB_IVB_SINIT_20190708_PW.bin" | sha256sum --check; then
-      echo "ERROR: SHA256 checksum for SNB_IVB_SINIT_20190708_PW.bin doesn't match. Try again"
-      rm -f "${output_dir}/SNB_IVB_SINIT_20190708_PW.bin"
-      exit 1
-fi
+check_outputs \
+	"${EC_BLOB_HASH} ${output_dir}/sch5545_ecfw.bin" \
+	"${ACM_BLOB_HASH} ${output_dir}/IVB_BIOSAC_PRODUCTION.bin" \
+	"${SINIT_BLOB_HASH} ${output_dir}/SNB_IVB_SINIT_20190708_PW.bin" || exit 1
 

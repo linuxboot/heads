@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
-function printusage {
+function usage {
   echo "Usage: $0 -m <me_cleaner>(optional)"
 }
 
 ME_BIN_HASH="c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4"
-
-if [ -e "${output_dir}/me.bin" ]; then
-  echo "me.bin already exists"
-  if echo "${ME_BIN_HASH} ${output_dir}/me.bin" | sha256sum --check; then
-    echo "SKIPPING: SHA256 checksum for me.bin matches."
-    exit 0
-  fi
-  echo "me.bin exists but checksum doesn't match. Continuing..."
-fi
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   if [[ "${1:-}" == "--help" ]]; then
@@ -25,6 +17,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     fi
 
     output_dir="$(realpath "${1:-./}")"
+
+    check_outputs "${ME_BIN_HASH} ${output_dir}/me.bin" && { echo "All outputs match. Nothing to do."; exit 0; }
 
     if [[ ! -f "${output_dir}/me.bin" ]]; then
       # Unpack Lenovo's Windows installer into a temporary directory and
@@ -51,9 +45,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       popd || exit
     fi
 
-    if ! echo "${ME_BIN_HASH} ${output_dir}/me.bin" | sha256sum --check; then
-      echo "ERROR: SHA256 checksum for me.bin doesn't match."
-      exit 1
-    fi
+    check_outputs "${ME_BIN_HASH} ${output_dir}/me.bin" || exit 1
   fi
 fi

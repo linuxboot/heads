@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROMPARSER="94a615302f89b94e70446270197e0f5138d678f3"
@@ -11,6 +12,10 @@ VBIOS_FINDER_SHA256SUM="bd07f47fb53a844a69c609ff268249ffe7bf086519f3d20474087224
 BIOS_UPDATE_SHA256SUM="6fc652b5fa10e5ea1ddc0e8477a2f1cfe56e00df76a94629f9b736faaee6199c  g4uj41us.exe"
 DGPU_ROM_SHA256SUM="3efe4886530086c0b612d1e669fbb4459ec93ec949b25a909e7ad273f4f01015  vbios_10de_0def_1.rom"
 IGPU_ROM_SHA256SUM="10b292c19322e7bb7db53350d2775d37b72a784292ea5686cd0f92af929f4916  vbios_8086_0106_1.rom"
+
+check_outputs \
+	"${DGPU_ROM_SHA256SUM%%  *}  $BLOBDIR/10de,0def.rom" \
+	"${IGPU_ROM_SHA256SUM%%  *}  $BLOBDIR/8086,0106.rom" && { echo "All outputs match. Nothing to do."; exit 0; }
 
 echo "### Creating temp dir"
 extractdir=$(mktemp -d)
@@ -63,10 +68,8 @@ innoextract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"$B
 echo "### Finding, extracting and saving vbios"
 sudo ./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"app/G4ETB7WW/\$01D5100.FL1" || { echo "Failed to extract FL1" && exit 1; }
 
-echo "Verifying expected hash of extracted roms"
 cd output
-echo "$DGPU_ROM_SHA256SUM" | sha256sum --check || { echo "dGPU rom failed sha256sum verification..." && exit 1; }
-echo "$IGPU_ROM_SHA256SUM" | sha256sum --check || { echo "iGPU rom Failed sha256sum verification..." && exit 1; }
+check_outputs "$DGPU_ROM_SHA256SUM" "$IGPU_ROM_SHA256SUM" || exit 1
 
 echo "### Moving extracted roms to blobs directory"
 sudo mv vbios_10de_0def_1.rom $BLOBDIR/10de,0def.rom

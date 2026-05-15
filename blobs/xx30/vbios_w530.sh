@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 BLOBDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROMPARSER="94a615302f89b94e70446270197e0f5138d678f3"
@@ -12,6 +13,11 @@ BIOS_UPDATE_SHA256SUM="4769fdcfe34c40d285b8c7290305f04eb91d692f4bf25acd291d11435
 K2000M_ROM_SHA256SUM="5005b582019b16d2073cec8cd384ec908d8ff38ab286a6dd65eadc0e89bfb4a8  vbios_10de_0ffb_1.rom"
 K1000M_ROM_SHA256SUM="6e28abb61cd4c69be7bd64e487681164cb487a48d77276f3108e3f192ceeee16  vbios_10de_0ffc_1.rom"
 IGPU_ROM_SHA256SUM="10b292c19322e7bb7db53350d2775d37b72a784292ea5686cd0f92af929f4916  vbios_8086_0106_1.rom"
+
+check_outputs \
+	"${K2000M_ROM_SHA256SUM%%  *}  $BLOBDIR/10de,0ffb.rom" \
+	"${K1000M_ROM_SHA256SUM%%  *}  $BLOBDIR/10de,0ffc.rom" \
+	"${IGPU_ROM_SHA256SUM%%  *}  $BLOBDIR/8086,0106.rom" && { echo "All outputs match. Nothing to do."; exit 0; }
 
 echo "### Creating temp dir"
 extractdir=$(mktemp -d)
@@ -64,11 +70,8 @@ innoextract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"$B
 echo "### Finding, extracting and saving vbios"
 sudo ./vbiosfinder extract "$extractdir"/rom-parser-"$ROMPARSER"/VBiosFinder-"$VBIOSFINDER"/"app/G5ETB6WW/\$01D5200.FL1" || { echo "Failed to extract FL1" && exit 1; }
 
-echo "Verifying expected hash of extracted roms"
 cd output
-echo "$K2000M_ROM_SHA256SUM" | sha256sum --check || { echo "K2000M rom failed sha256sum verification..." && exit 1; }
-echo "$K1000M_ROM_SHA256SUM" | sha256sum --check || { echo "K1000M rom failed sha256sum verification..." && exit 1; }
-echo "$IGPU_ROM_SHA256SUM" | sha256sum --check || { echo "iGPU rom Failed sha256sum verification..." && exit 1; }
+check_outputs "$K2000M_ROM_SHA256SUM" "$K1000M_ROM_SHA256SUM" "$IGPU_ROM_SHA256SUM" || exit 1
 
 echo "### Moving extracted roms to blobs directory"
 sudo mv vbios_10de_0ffb_1.rom "$BLOBDIR"/10de,0ffb.rom

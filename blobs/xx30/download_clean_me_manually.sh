@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-
-function printusage {
-  echo "Usage: $0 -m <me_cleaner>(optional)"
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 BLOBDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FINAL_ME_BIN_SHA256SUM="c140d04d792bed555e616065d48bdc327bb78f0213ccc54c0ae95f12b28896a4  $BLOBDIR/me.bin"
@@ -23,16 +20,7 @@ while getopts ":m:" opt; do
   esac
 done
 
-if [ -e "$BLOBDIR/me.bin" ]; then
-  echo "$BLOBDIR/me.bin found..."
-  if ! echo "$FINAL_ME_BIN_SHA256SUM" | sha256sum --check; then
-    echo "$BLOBDIR/me.bin doesn't pass integrity validation. Continuing..."
-    rm -f "$BLOBDIR/me.bin"
-  else
-    echo "$BLOBDIR/me.bin already extracted and neutered outside of ROMP and BUP"
-    exit 0
-  fi
-fi
+check_outputs "$FINAL_ME_BIN_SHA256SUM" && { echo "All outputs match. Nothing to do."; exit 0; }
 
 if [ -z "$MECLEAN" ]; then
   MECLEAN=$(command -v "$BLOBDIR/../../build/x86/coreboot-"*/util/me_cleaner/me_cleaner.py 2>&1 | head -n1)
@@ -60,8 +48,7 @@ bioscopy="some_value" # Assign a value to the bioscopy variable
 
 echo "### Applying me_cleaner to neuter+deactivate+maximize reduction of ME on $bioscopy, outputting minimized ME under $BLOBDIR/me.bin... "
 "$MECLEAN" -r -t -O "$BLOBDIR/me.bin" app/ME8_5M_Production.bin
-echo "### Verifying expected hash of me.bin"
-echo "$FINAL_ME_BIN_SHA256SUM" | sha256sum --check || { echo "Failed sha256sum verification on final binary..." && exit 1; }
+check_outputs "$FINAL_ME_BIN_SHA256SUM" || exit 1
 
 echo "### Cleaning up..."
 cd - >/dev/null
