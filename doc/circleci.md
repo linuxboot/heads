@@ -1,23 +1,10 @@
 # CircleCI Pipeline and Cache Model
 
-This document explains how the CircleCI pipeline in Heads is structured,
-what the cache layers mean, and how each coreboot fork saves its own modules cache.
+This document explains the Heads CircleCI pipeline structure, cache
+layers, and job types.
 
 See also: [development.md](development.md), [docker.md](docker.md),
 [architecture.md](architecture.md).
-
----
-
-## Goals
-
-The CircleCI pipeline is optimized for two constraints:
-
-- Avoid CircleCI workspace fan-in errors.
-- Reuse expensive build outputs across pipelines without delaying unrelated
-  board builds more than necessary.
-
-The current layout favors a linear x86 seed chain followed by parallel board
-builds.
 
 ---
 
@@ -25,281 +12,324 @@ builds.
 
 ### Workspace
 
-A workspace is data passed from an upstream job to downstream jobs in the same
-workflow run.
+A workspace passes data from an upstream job to downstream jobs in the
+same workflow run.
 
-- Workspaces help sibling jobs in the current pipeline.
-- Workspaces are downloaded fresh by downstream jobs.
-- Persisting the same paths from multiple upstream jobs into one downstream job
-  causes fan-in problems in CircleCI.
+- Workspaces help downstream jobs in the current pipeline, not future ones.
+- Persisting the same paths from multiple upstream jobs into one
+  downstream job causes fan-in errors in CircleCI.
 
-### Cache
+### Cache vs workspace
 
-A CircleCI cache is stored for reuse by later pipeline runs in the same
-repository.
+| | Scope | Purpose |
+|---|---|---|
+| Workspace | Per-workflow | Share build outputs between jobs |
+| Cache | Cross-pipeline | Avoid redoing expensive operations (compiler builds, dependency downloads) |
 
-- Caches help future pipelines.
-- Caches do not speed up sibling jobs in the same workflow run.
-- Forks do not share caches with the upstream repository.
-- Each x86_coreboot job saves both modules and coreboot caches for its fork.
+### Job types
 
----
+Two job types exist for x86 board builds in `.circleci/config.yml`:
 
-## x86 pipeline shape
+**`x86_coreboot` (seed)**: One per unique toolchain.  Saves modules +
+coreboot fork caches.
+- `restore_cache` with 3-key fallback (Modules → Coreboot fork → Musl)
+- `build_board` — builds crossgcc (if `.heads-toolchain` stamp absent),
+  then builds the board ROM
+- `persist_to_workspace`: saves `packages/x86 build/x86 crossgcc/x86 install/x86`
+- `save_cache` ×2: Modules cache (full `build/x86`) + Coreboot fork
+  cache (`build/x86/{coreboot_dir}` + crossgcc + musl + packages)
 
-The x86 chain is intentionally linear until a seed board has produced a usable
-workspace:
-
-1. `create_hashes`
-2. `x86_blobs`
-3. `x86_musl_cross_make`
-4. `x86_coreboot` seed jobs, one per coreboot fork
-5. Downstream board builds for each fork, in parallel
-
-For the coreboot 25.09 branch, the seed board is `EOL_t480-hotp-maximized`.
-That job produces the workspace used by the other 25.09 boards in the same
-workflow.
-
-Other x86 forks follow the same pattern:
-
-- `novacustom-nv4x_adl` seeds the `coreboot-dasharo_nv4x` fork
-- `novacustom-v560tu` seeds the `coreboot-dasharo_v56` fork
-- `librem_14` seeds the `coreboot-purism` fork
-- `EOL_t480-hotp-maximized` seeds the `coreboot-25.09` fork
-- `EOL_librem_l1um` seeds the `coreboot-4.11` fork
-- `UNTESTED_msi_z690a_ddr4` seeds the `coreboot-dasharo_msi_z690` fork
-- `UNTESTED_msi_z790p_ddr4` seeds the `coreboot-dasharo_msi_z790` fork
-
-The downstream `build` jobs for each family consume the workspace from the
-relevant seed job instead of rebuilding the fork toolchain from scratch.
-
-The ppc64 chain mirrors x86:
-1. `create_hashes`
-2. `ppc64_musl_cross_make` - builds musl-cross-make toolchain, saves cache
-3. `ppc64_coreboot` - builds coreboot-talos_2 fork, saves cache
-4. (no downstream boards - only one ppc64 board exists)
+**`build` (downstream)**: Plain board builds.  No `restore_cache`/`save_cache`.
+All inputs come from the seed's workspace (including crossgcc, blobs, musl,
+and fork source for same-fork boards).  For Dasharo shared-toolchain boards
+where the seed uses a different fork (nv4x), fork source is cloned fresh
+during `make` (seconds).
 
 ---
 
-## Cache layers
+## Cache model
 
-The x86 pipeline uses hierarchical cache layers:
+All cache key hashes are computed once per pipeline by `create_hashes`
+and are global — every job gets the same hashes.  Per-seed
+differentiation comes solely from the `{coreboot_dir}` suffix.
 
-1. **`{arch}-musl-cross-make-nix-docker-heads-{hash}`**
-   - Base toolchain (GCC + musl = musl-cross-make)
-   - Paths: `build/{arch}/musl-cross-make-*`, `crossgcc/{arch}`, `install/{arch}`, `packages/{arch}`
+### Three layers (+ blobs)
 
-2. **`{arch}-coreboot-musl-cross-make-nix-docker-heads-{hash}-{coreboot_dir}`**
-   - Includes musl + coreboot toolstack
-   - Paths: `build/{arch}/{coreboot_dir}`, `build/{arch}/musl-cross-make-*`, `crossgcc/{arch}`, `install/{arch}`, `packages/{arch}`
+Restore order (first hit wins):
 
-3. **`{arch}-modules-coreboot-musl-cross-make-nix-docker-heads-{hash}-{coreboot_dir}`**
-   - Includes coreboot + musl + all built modules (FULL)
-   - Paths: `build/{arch}`, `install/{arch}`, `crossgcc/{arch}`, `packages/{arch}`
+| Priority | Layer | Key hash | Scope | Contents | Invalidates on |
+|---|---|---|---|---|---|
+| 1 | Modules | `all_modules_and_patches` | Per-seed | ALL of `build/{arch}` + crossgcc + install + packages | Any module/patches change |
+| 2 | Coreboot fork | `coreboot_musl-cross-make` | Per-seed | `build/{arch}/{coreboot_dir}` + crossgcc + musl + packages | Coreboot + musl-cross-make + coreboot patches + flake.lock |
+| 3 | Musl | `musl-cross-make` | Per-arch | `crossgcc/{arch}` + `build/{arch}/musl-cross-make-*` + install + packages | Musl-cross-make change (rare) |
 
-4. **`{arch}-blobs-nix-docker-heads`** are handled separately
+Blobs are handled separately as a 4th cache layer (`x86-blobs-...`), shared
+by all x86 jobs.  Restored before seeds run, persisted to workspace.
 
-Cache key naming: `{arch}-{layer}-nix-docker-heads-{hash}[-{fork}]`
+### Hit scenarios
 
-The cache key naming shows the dependency chain: each layer includes everything from the layers below it.
+- **Modules hits**: All fork source, crossgcc, and modules restored.
+  `make` finds `.heads-toolchain`, skips crossgcc rebuild.
+  Only changed artifacts rebuild.
+- **Coreboot fork hits, Modules misses** (e.g., non-coreboot module
+  changed): Fork source and crossgcc restored.  Modules rebuild.
+  Saves ~30-40 min of crossgcc build time.
+- **Musl only hits**: No coreboot fork source or coreboot crossgcc (`build/{arch}/{coreboot_dir}`).  The musl toolchain (`crossgcc/{arch}`) is present, but the coreboot fork tree -- including coreboot's own crossgcc under `util/crossgcc/` -- must be built from scratch.
+- **Nothing hits**: Everything from scratch.
 
-Restore order (most complete to least):
+### Why two saves per seed
+
+Each seed saves 2 caches: Modules (superset) and Coreboot fork (subset).
+The Coreboot fork cache is a narrow fallback — if only non-coreboot
+modules change, Modules misses but Coreboot fork hits, avoiding an
+unnecessary crossgcc rebuild.  Musl is arch-dependent, saved once per
+architecture (x86, ppc64), not per seed.
+
+### `build` jobs inherit cache through workspace
+
+`build` jobs have no `restore_cache` or `save_cache` steps.  They inherit
+cache results indirectly through the workspace chain:
+
+1. The seed runs `restore_cache` — on a warm run, the Modules or Coreboot
+   fork cache hits, restoring crossgcc (`.heads-toolchain` stamp) and
+   fork source into `build/{arch}/`.
+2. The seed runs `build_board` — `make` finds `.heads-toolchain`, skips
+   crossgcc rebuild.  Builds the ROM.
+3. The seed runs `persist_to_workspace` — saves everything under
+   `build/{arch}/`, including restored cache artifacts.
+4. The `build` job runs `attach_workspace` — gets the seed's full
+   `build/{arch}/` directory, including the crossgcc that was restored
+   from cache in step 1.
+
+The cache hit happens upstream, but the `build` job consumes the result.
+
+For same-fork `build` jobs (e.g. 25.09 downstream boards), the seed's
+fork source is inherited through the workspace -- no clone needed.
+
+For Dasharo shared-toolchain `build` jobs where the seed uses a different
+fork (nv4x), the fork source directory is not in the workspace.  Each
+such `build` job clones its own fork fresh during `make` (seconds).
+This prevents them from independently cache-missing under their own
+`{coreboot_dir}` suffix and triggering a redundant crossgcc rebuild.
+
+---
+
+## Pipeline shape
+
+Job names in CircleCI follow conventions to make their purpose clear
+in the UI:
+
+- Cache key creators include `[cache keys]`: `create_hashes [cache keys]`
+- Blob downloads include blob type: `x86_blobs [ME GBE IFD]`
+- Seeds include their upstream coreboot base: `[seed:coreboot-VERSION]`
+- Build jobs use their board target name (no suffix)
+
+The x86 chain:
+`create_hashes [cache keys]` → `x86_blobs [ME GBE IFD]` →
+`x86-musl-cross-make [cross compiler]` → `x86_coreboot` seeds →
+`build` jobs (parallel).
+
+The ppc64 chain (no blobs, single board):
+`create_hashes [cache keys]` → `ppc64-musl-cross-make [cross compiler]` →
+`ppc64_talos_2 [seed:coreboot-talos-2]`.
+
+### Step details
+
+All jobs run under the `heads-docker` executor (pinned Docker image at
+`tlaurion/heads-dev-env` with SHA256 hash — see [docker.md](docker.md)
+for the image definition and reproducibility details, and
+[flake.nix](../flake.nix) for the Nix-based build environment used to
+generate it).  The shared `build_board` command runs `make V=1 BOARD=<target>`,
+refreshes restored build stamps to prevent spurious rebuilds, and archives
+build logs on failure.
+
+1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
+   files and persists `tmpDir/` to workspace.  Four hash files are created:
+   - `all_modules_and_patches.sha256sums`: `Makefile`, `flake.lock`,
+     `patches/`, `modules/` — used by **Modules** cache layer
+   - `coreboot_musl-cross-make.sha256sums`: `flake.lock`,
+     `modules/coreboot`, `modules/musl-cross-make*`, `patches/coreboot*`
+     — used by **Coreboot fork** cache layer
+   - `musl-cross-make.sha256sums`: `flake.lock`,
+     `modules/musl-cross-make*` — used by **Musl** cache layer
+   - `blobs_listing.sha256sums`: `blobs/**/*.sh` — used by **Blobs** cache
+   All downstream jobs get the same global hashes (`tmpDir/` from workspace).
+   Per-seed differentiation comes from the `{coreboot_dir}` suffix on cache
+   keys, not from the hash.
+
+2. **`x86_blobs`**: Downloads x86 firmware blobs (ME, GBE, IFD).
+   Restores blob cache keyed on blob script listing hash (`x86-blobs-...`).
+   Persists `blobs/` to workspace.  Only for x86 (ppc64 has no blobs).
+
+3. **`x86-musl-cross-make [cross compiler]`**: Builds musl-cross-make arch-specific toolchain
+   (GCC + musl).  Restores/saves musl cache (`x86-musl-...`).
+   Persists `packages/x86 build/x86 crossgcc/x86 install/x86` to workspace.
+
+4. **`x86_coreboot` seeds** (one per unique toolchain): Build crossgcc + ROM.
+   Restores cache (Modules → Coreboot fork → Musl).  Saves 2 caches.
+   Persists workspace for downstream `build` jobs.
+
+5. **Downstream `build` jobs**: Attach workspace from seed, build ROM.
+   No cache operations.  Same-fork boards inherit fork source from workspace;
+   Dasharo shared-toolchain boards clone fork source fresh during `make`.
+
+### ppc64 chain
+
+- `ppc64-musl-cross-make [cross compiler]`: Same pattern as x86 but
+  ppc64-arch.  Restores/saves ppc64 musl cache.  No blobs step (ppc64
+  has no firmware blobs).
+- `ppc64_talos_2 [seed:coreboot-talos-2]`: Single seed for
+  `coreboot-talos_2`.  Restores/saves ppc64 modules + coreboot caches.
+  Only one ppc64 board exists, no downstream `build` jobs.
+- The ppc64 cache model mirrors x86 without the blobs layer.
+- See [architecture.md](architecture.md) and [config.md](config.md) for
+  ppc64 board and build details.
+
+### Seeds (5 total)
+
+Seed job names in CircleCI include their upstream coreboot base in
+`[seed:coreboot-VERSION]` format:
+
+| Job name in CircleCI | Seeds | Upstream base |
+|---|---|---|
+| `novacustom-nv4x_adl [seed:coreboot-24.12]` | 4 Dasharo families (8 boards) | coreboot 24.12 |
+| `librem_14 [seed:coreboot-24.02.01]` | 8 purism boards | coreboot 24.02.01 |
+| `EOL_t480-hotp-maximized [seed:coreboot-25.09]` | 28 x86 boards | coreboot 25.09 |
+| `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
+| `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
+
+### Downstream Dasharo boards (all `build` jobs)
+
+All depend on `novacustom-nv4x_adl [seed:coreboot-24.12]`, inherit its
+crossgcc via workspace:
+
+- `novacustom-v560tu`, `novacustom-v540tu`
+- `UNTESTED_msi_z690a_ddr4`, `UNTESTED_msi_z690a_ddr5`
+- `UNTESTED_msi_z790p_ddr4`, `msi_z790p_ddr5`
+- `UNTESTED_nitropad-ns50`
+
+---
+
+## Dasharo shared toolchain
+
+### Why the dasharo forks share a compiler
+
+Four Dasharo board families (nv4x, v56, msi_z690, msi_z790) all use
+the same `github.com/dasharo/coreboot` repository.  Their
+`util/crossgcc/sum/` files are byte-identical — verified by `diff -r`.
+They share identical packages: gcc-14.2.0, binutils-2.43.1,
+nasm-2.16.03, clang-18.1.8.
+
+In `modules/coreboot`, `dasharo_nv4x` is the toolchain provider (empty
+second arg to `coreboot_module()`).  `dasharo_v56`, `dasharo_msi_z690`,
+and `dasharo_msi_z790` pass `dasharo_nv4x` as their toolchain argument,
+consuming its crossgcc instead of building their own.
+
+**Why this works despite different FSP blobs**: The crossgcc is a
+compiler (GCC, binutils, assembler, linker).  It is independent of the
+code it compiles, just like `/usr/bin/gcc` can compile any C program
+regardless of which headers that program includes.  FSP blobs in
+`3rdparty/dasharo-blobs/` are inputs to the compiler (headers and
+binaries linked into the ROM), not part of the compiler itself.  Each
+board builds against its own fork's FSP blobs with its own `.config`;
+only the compiler binary is shared.  Each fork's `3rdparty/dasharo-blobs/`
+submodule commit differs (nv4x at 668d80d, v56/z690/z790 at 8dce760),
+but that only affects the ROM build, not the compiler.
+
+### CI structure
+
+Only `novacustom-nv4x_adl` is an `x86_coreboot` seed.  All other Dasharo
+boards are `build` jobs.  The cache key hash is global (from `modules/`
+and `patches/`).  If v56, z690, and z790 had their own seeds, each would
+have a different `{coreboot_dir}` suffix (`coreboot-dasharo_v56`,
+`coreboot-dasharo_msi_z690`, `coreboot-dasharo_msi_z790`) and would
+independently cache-miss and rebuild the same crossgcc on a cold cache.
+Making them `build` jobs eliminates that — they never try to restore
+cache, so they cannot cache-miss.  They get the crossgcc from
+`novacustom-nv4x_adl`'s workspace.
+
+### Re-verification after upstream rebase
+
+When a Dasharo fork rebases to a newer coreboot release, check that the
+shared toolchain is still compatible:
+
+```bash
+diff -r build/x86/coreboot-dasharo_nv4x/util/crossgcc/sum/ \
+       build/x86/coreboot-dasharo_NEW/util/crossgcc/sum/
 ```
-1. {arch}-modules-coreboot-musl-cross-make-nix-docker-heads-{modules_hash}-{coreboot_dir}
-2. {arch}-coreboot-musl-cross-make-nix-docker-heads-{coreboot_hash}-{coreboot_dir}
-3. {arch}-musl-cross-make-nix-docker-heads-{musl_hash}
-```
 
-Each `x86_coreboot` job saves both:
-- modules cache (full build state)
-- coreboot cache (fork-specific toolstack)
+If the diff is non-empty, the new fork needs its own toolchain module.
+The `{coreboot_dir}` suffix for its cache key would be the fork-specific
+directory name.
 
----
+### 24.02 cluster (not shared)
 
-## Current pipeline details
-
-The current pipeline behavior is:
-
-1. It uses explicit jobs for cache hashing, blob preparation, x86 musl seed,
-   x86 coreboot forks (each saves both modules and coreboot caches), generic board
-   builds, and the single ppc64 Talos II build.
-2. It uses a pinned `heads-docker` executor so the toolchain environment is
-   stable across jobs.
-3. It clears only `build/<arch>/log/*` before a build, not the restored build
-   trees themselves.
-4. It keeps x86 blob preparation separate from toolchain and firmware builds.
-5. It keys x86 coreboot caches by fork so one fork cannot restore another
-   fork's build tree.
-6. It restores the largest valid cache first, because CircleCI stops at the
-   first matching key.
-7. It stores `install/<arch>` together with the compiler and package trees so a
-   restored musl toolchain still has its sysroot.
-8. It refreshes restored `.configured` and `.build` stamps before invoking
-   `make`, so fresh checkout mtimes do not trigger a redundant rebuild of an
-   already restored musl-cross-make tree.
-9. It decouples ppc64 into musl-cross-make and coreboot jobs (like x86) so each
-   saves its cache immediately rather than at the end of a long combined build.
+`coreboot-24.02.01` (upstream tarball), `coreboot-purism` (Purism git
+fork), and a stale `build/x86/coreboot-dasharo` checkout (no active
+boards, no module definition) share identical sum files (gcc-13.2.0,
+binutils-2.41, nasm-2.16.01, clang-16.0.6).  `purism` is the only
+maintained/CI consumer of this toolchain -- sharing would not save any
+crossgcc builds since purism is the sole consumer, and would add
+complexity (different source types: tarball vs git fork).
+(Unmaintained boards that reference 24.02.01 exist under
+`unmaintained_boards/` but are not built in CI.)
 
 ---
 
-## Maintainer checklist
+## Maintainer edit map
 
-When changing `.circleci/config.yml`, update this document by answering these
-questions in order:
+When changing `.circleci/config.yml`, update this document:
 
-1. Did the job graph change?
-   Update the `x86 pipeline shape` section and the seed-board list.
-2. Did a cache key, restore order, or saved path change?
-Update `Cache layers` and `Why musl could rebuild after a cache hit`.
-3. Did the change alter current runtime behavior or restore/build semantics?
-   Update `Current pipeline details`.
-4. Did the change affect the maintenance workflow itself?
-   Update this section too.
-
-If you cannot summarize the change in one of those sections, the document is
-missing a section and should be extended rather than worked around.
-
----
-
-## Edit map
-
-Use this map when modifying the pipeline:
-
-- Add or remove a cache hash input:
-  edit `create_hashes` in `.circleci/config.yml` and update `Cache layers` here.
-- Add or remove x86 blob preparation:
-  edit `x86_blobs` and update `x86 pipeline shape` plus `Cache layers`.
-- Add or remove an x86 coreboot fork seed:
-  edit the `x86_coreboot` workflow entries and update the seed-board list in
-  `x86 pipeline shape`.
-- Add or remove downstream boards for a fork:
-  edit the `build` workflow entries and verify the seed dependency still points
-  to the correct fork seed.
-- Change what makes musl reusable:
-  update the save/restore paths in `.circleci/config.yml` and re-check the
-  explanation in `Why musl could rebuild after a cache hit`.
-- Change ppc64 behavior:
-  edit `ppc64_musl_cross_make` and/or `ppc64_coreboot` and re-check both
-  `Cache layers` and the ppc64 chain description.
-
----
-
-## Invariants
-
-These are the current rules worth preserving unless a deliberate design change:
-
-- Only one job at a time should persist a given workspace chain.
-- Blob download is separate from x86 toolchain and coreboot builds.
-- Each fork saves both modules and coreboot caches.
-- x86 and ppc64 restore lists should prefer the largest valid cache first.
-- Same-workflow cache misses can be expected when the broad key is being published during that workflow; this should improve on the next pipeline.
-- Musl reuse requires both `crossgcc/<arch>` and `install/<arch>`.
-- Each coreboot fork has its own cache keyed by `{coreboot_dir}` to prevent cross-fork contamination.
-- ppc64 now uses decoupled musl-cross-make + coreboot jobs, each saving cache immediately.
-
-## How each fork saves its cache
-
-Each `x86_coreboot` job (the first board for each coreboot fork) saves both:
-1. **modules cache** - full build state including all built modules
-2. **coreboot cache** - fork-specific coreboot toolstack
-
-This means every fork is self-sufficient:
-- First board of fork builds everything and saves both caches
-- Downstream boards in same fork restore full modules cache
-- No separate cache publication job needed
+- **Job graph changed**: Update Pipeline shape and seed list.
+- **Cache key, restore order, or saved path changed**: Update Cache
+  model and `Why musl could rebuild`.
+- **Runtime or rebuild semantics changed**: Update Pipeline details.
+- **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
+  to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in
+  `.circleci/config.yml` depending on `novacustom-nv4x_adl`.  If sum
+  files differ, add a new `x86_coreboot` seed.
+- **New non-Dasharo fork added**: Add an `x86_coreboot` seed in
+  `.circleci/config.yml`.
 
 ---
 
 ## Why musl could rebuild after a cache hit
 
-**Original problem**: Even when cache is restored, musl-cross-make was rebuilt
-because the Makefile only checked if `CROSS` env var was set, not if the
-compiler actually existed on disk.
+**Problem**: Even when cache is restored, musl-cross-make was rebuilt
+because the Makefile only checked if `CROSS` env var was set, not if
+the compiler actually existed on disk.
 
-**Fix**: The musl-cross-make module now uses `wildcard` to auto-detect if
-`crossgcc/<arch>/bin/<triplet>-gcc` exists. If found, it sets CROSS and uses
-the `--version` path (no rebuild). If not found, it builds from scratch.
+**Fix**: The musl-cross-make module uses `wildcard` to auto-detect if
+`crossgcc/<arch>/bin/<triplet>-gcc` exists.  If found, it sets CROSS
+and uses the `--version` path (no rebuild).  If not found, it builds
+from scratch.
 
 The build logic also requires both:
 - the compiler binaries under `crossgcc/<arch>`
 - the installed sysroot under `install/<arch>`
 
-If the cache only restores the compiler tree but not the installed headers and
-libraries, the generic module build rules still have missing outputs and musl
-is rebuilt.
+If the cache only restores the compiler tree but not the installed
+headers and libraries, the generic module build rules still have
+missing outputs and musl is rebuilt.  That is why `install/{arch}` is
+stored alongside the compiler in every cache layer.
 
-That is why the current branch stores `install/x86` and `install/ppc64` in the
-musl and coreboot cache layers, not only in the broad modules cache.
-
-There is a second reuse problem to watch for: restored stamp files can be older
-than freshly checked-out source files in CI. When that happens, GNU Make can
-decide that `.configured` and then `.build` are stale even though the restored
-outputs are complete. The current CI job refreshes restored `.configured` and
-`.build` timestamps before invoking `make` so restored musl-cross-make trees are
-reused instead of spending several minutes rebuilding for timestamp reasons
-alone.
+A second reuse problem: restored stamp files can be older than freshly
+checked-out source files in CI.  When that happens, GNU Make can decide
+that `.configured` and then `.build` are stale even though the restored
+outputs are complete.  The CI job refreshes restored stamps before
+invoking `make` so restored musl-cross-make trees are reused.
 
 ---
-
-## Cold-cache behavior
-
-Cold runs are still expensive because:
-
-- Downstream jobs still download the upstream workspace chain.
-- A fork starts with cold CircleCI caches because caches are repository-scoped.
-- CircleCI restores only the first matching key, so an unexpectedly narrow hit
-  can still leave later work to do if the cache contents are incomplete.
-- Saving a large cache still requires uploading the selected directories.
-
----
-
-## When to change this design
-
-Adjust the model only if one of these is true:
-
-- The seed board is no longer representative of the fork workspace.
-- The persisted workspace is too large and should be split further.
-- The modules cache key is too broad and causes low reuse.
-- CircleCI changes workspace or cache semantics.
-
-## Design invariants
-
-- Each coreboot fork saves both modules and coreboot caches, eliminating single-point-of-failure.
-- Cache key naming shows the dependency chain: modules includes coreboot includes musl.
-- Restore ordering must be explicit and largest-first. If two keys are valid,
-  CircleCI uses the first match only.
-- Restored build markers can be older than fresh checkout files. Without stamp refresh,
-  Make can rebuild musl-cross-make even after a correct modules-cache restore.
-- For ppc64, the middle fallback `coreboot+musl` improves reuse when
-  `modules` is absent but a richer cache than plain `musl` exists.
-- Each x86 coreboot fork saves its own modules cache keyed by `{coreboot_dir}`.
-  This prevents cross-fork contamination while enabling fork-specific reuse.
-- x86 coreboot forks avoid generic cross-fork fallback keys to prevent
-  restoring another fork's coreboot tree.
-- ppc64 uses decoupled musl-cross-make + coreboot jobs. Each saves its cache
-  immediately rather than at the end of a long combined build.
-- musl-cross-make module auto-detects existing crossgcc using wildcard check,
-  skipping rebuild when compiler already exists from cache.
-
-## First run observations (pipeline 3789 on circleci-cache-fix branch)
-
-Cold cache run on new pipeline structure:
-- x86-musl-cross-make: 30 min (vs baseline 14.5 min) - slower due to new overhead
-- ppc64-musl-cross-make: 16 min (vs baseline 18 min) - slightly faster
-
-The Make Board step takes longer in new pipeline because it persists more
-data after build (build/, install/, crossgcc/, packages/). The real test is
-second run when cache exists - verifies if wildcard fix skips rebuild.
 
 ## Cache hash inputs
 
-Cache key hashes intentionally exclude `.circleci/config.yml` to prevent cache
-invalidation on CircleCI configuration changes. Add back once cache model is stable
-(see TODO in `.circleci/config.yml` create_hashes job).
+Hashes intentionally exclude `.circleci/config.yml` to prevent cache
+invalidation on CI config changes.  Files used:
 
-Key files included in hashes:
-- `all_modules_and_patches.sha256sums`: `./Makefile`, `./flake.lock`, `./patches/`, `./modules/`
-- `coreboot_musl-cross-make.sha256sums`: `./flake.lock`, `./modules/coreboot`, `./modules/musl-cross-make*`, `./patches/coreboot*`
-- `musl-cross-make.sha256sums`: `./flake.lock`, `./modules/musl-cross-make*`
-
-
+- `all_modules_and_patches.sha256sums`: `./Makefile`, `./flake.lock`,
+  `./patches/`, `./modules/`
+- `coreboot_musl-cross-make.sha256sums`: `./flake.lock`,
+  `./modules/coreboot`, `./modules/musl-cross-make*`,
+  `./patches/coreboot*`
+- `musl-cross-make.sha256sums`: `./flake.lock`,
+  `./modules/musl-cross-make*`
