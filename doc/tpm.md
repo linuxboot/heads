@@ -10,8 +10,35 @@ See also: [architecture.md](architecture.md), [boot-process.md](boot-process.md)
 ## tpmr — unified TPM abstraction
 
 `initrd/bin/tpmr.sh` is a shell script wrapper that presents a single interface
-over both TPM 1.2 (`tpm` / `trousers`) and TPM 2.0 (`tpm2-tools`). All Heads
-scripts call `tpmr.sh` rather than invoking `tpm` or `tpm2` directly.
+over both TPM 1.2 and TPM 2.0. All Heads scripts call `tpmr.sh` rather than
+invoking TPM tools directly.
+
+### Boot chain and TPM tool selection
+
+```text
+initrd/init  (PID 1)
+  └─ CONFIG_BOOTSCRIPT → /bin/gui-init.sh          [board config]
+       ├─ source /etc/functions.sh                   [shared TPM helpers]
+       ├─ source /etc/gui_functions.sh               [whiptail wrappers]
+       └─ calls initrd/bin/tpmr.sh                   [TPM abstraction]
+            ├─ TPM1: calls `tpm` (tpmtotp util/tpm)  [CONFIG_TPM2_TOOLS != y]
+            │          modules/tpmtotp → output: totp hotp qrenc util/tpm
+            │
+            └─ TPM2: calls tpm2_* (tpm2-tools)       [CONFIG_TPM2_TOOLS=y]
+                       modules/tpm2-tss + modules/tpm2-tools
+```
+
+TPM1 support comes exclusively from the `tpmtotp` module (`modules/tpmtotp`),
+which builds `util/tpm` as part of its outputs. This binary is installed to
+the initrd as `tpm` and supports subcommands such as `physicalpresence`,
+`forceclear`, `takeown -pwdo`, `counter_create`, `counter_increment`, etc.
+
+TPM2 support comes from `modules/tpm2-tss` (TSS software stack) and
+`modules/tpm2-tools` (command-line tools like `tpm2_nvdefine`,
+`tpm2_getcap`, `tpm2_nvincrement`).
+
+Both TPM1 and TPM2 boards may also enable `CONFIG_TPMTOTP=y` for the
+`totp` and `hotp` utilities, which are independent of the TPM version.
 
 ### PCR sizes
 
@@ -398,3 +425,68 @@ To verify that a new board's coreboot config matches the expected RoT:
 | Auth sessions | Not used | Required for policy-based unseal |
 | `kexec_finalize` | No-op | Extends PCRs, then `tpm2 shutdown` |
 | `startsession` | No-op | Creates encryption session |
+
+### TPM1 auth retry and error detection
+
+`_tpm_auth_retry()` in `initrd/bin/tpmr.sh` provides shared retry logic for
+both TPM1 and TPM2 operations that need authorization. On auth failure
+(wrong passphrase), the passphrase cache is shredded and the user is
+re-prompted up to 3 times before giving up.
+
+Auth failure is detected by grepping the command output for known error
+patterns.  TPM1 (tpmtotp) errors go to stdout via `printf()` with
+`TPM_GetErrMsg()` strings.  TPM2 (tpm2-tools) errors go to stderr via
+`LOG_ERR()` and may include raw TPM response codes.
+
+| Pattern | Type | TPM version | Example error |
+| --- | --- | --- | --- |
+| `authorization|auth|bad|permission` | English words | TPM1+TPM2 | `TPM_AUTHFAIL`, `bad passphrase` |
+| `defend` | English word | TPM1 | `Defend lock running` |
+| `0x98e|0x149` | Hex codes | TPM2 | `TPM2_RC_AUTH_FAIL`, `TPM2_RC_NV_AUTHORIZATION` |
+
+### TPM1 reset defend lock
+
+`TPM_DEFEND_LOCK_RUNNING` (`tpm_error.h`: `TPM_BASE + TPM_NON_FATAL + 3`)
+is a standard TPM 1.2 error raised when the TPM's dictionary-attack
+protection is active. After too many failed authorization attempts, the
+TPM enters a time-out period and refuses all authorization operations —
+including `tpm takeown` even after a successful `tpm forceclear`
+(forceclear clears the owner but not the dictionary attack counter on
+some implementations).
+
+tpmtotp's `tpm takeown` outputs:
+```
+Error Defend lock running from TPM_TakeOwnership
+```
+
+`tpm1_reset()` in `initrd/bin/tpmr.sh` detects "defend lock" in the
+`takeown` output and cycles physical presence (`physicaldisable` /
+`physicalenable` / `physicalpresence` / `physicalsetdeactivated`) to
+reset the TPM state machine and clear the lock on chips that honour
+software presence.  `TPM_ResetLockValue` (in tpmtotp's `util/resetlockvalue.c`)
+exists but requires owner auth — after forceclear there is no owner,
+so it cannot be used.
+
+If the cycling also fails, only a full AC power cycle (not just reboot)
+will clear the defend lock.  The timeout duration is chip-specific and
+not documented in the tpmtotp source.
+
+### TPM1 physical presence
+
+TPM1.2 forceclear requires physical presence to be asserted. The
+`tpm1_reset()` function does this with `tpm physicalpresence -s` (software
+presence). On some platforms (e.g., Dell OptiPlex, some Infineon TPMs),
+software physical presence may not work — the TPM firmware only accepts
+hardware-asserted presence (GPIO set by BIOS). In that case, `forceclear`
+returns success but may not fully reset the TPM, or `takeown` may fail
+with unexpected errors.
+
+When software physical presence fails, the LOG shows:
+```
+tpm1_reset: unable to set physical presence
+```
+
+This is logged but not fatal — `tpm forceclear` is still attempted.
+If the TPM firmware ignores software physical presence, the reset fails
+and the user must use the platform's hardware TPM reset mechanism
+(typically a BIOS option or jumper).

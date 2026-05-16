@@ -1848,7 +1848,8 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
-	tpm_passphrase="$3"
+	# $3 (tpm_passphrase) was used by pre-PR #2068 code but is now intentionally
+	# ignored — counters are created with empty auth (-pwdc '') per TCG spec.
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -1872,7 +1873,7 @@ check_tpm_counter() {
 		(
 			set +e
 			tpmr.sh counter_create \
-				-pwdc "${tpm_passphrase:-}" \
+				-pwdc '' \
 				-la "$LABEL" \
 				>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
 			echo $? > /tmp/counter_create_rc
@@ -2051,21 +2052,11 @@ increment_tpm_counter() {
 	fi
 
 	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
+	# TPM2 uses owner-auth fallback in tpm2_counter_inc; TPM1 uses empty counter
+	# auth (SHA1("")) per TCG spec — no owner passphrase needed for increment.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
 		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
-	fi
-
-	# TPM1 counter_increment requires owner auth in practice on this path.
-	# origin/master typically reached this with cached owner passphrase already set,
-	# but the newer reseal/update flows can call this later in the session after
-	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
-	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_passphrase" ]; then
-		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
-		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner passphrase; prompting now"
-		prompt_tpm_owner_password
-		tpm_passphrase="$tpm_owner_passphrase"
-		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
 	fi
 
 	# Try to increment the counter.  We normally hide the verbose
@@ -2094,7 +2085,11 @@ increment_tpm_counter() {
 			increment_ok="y"
 		fi
 	else
-		# TPM1 path uses owner auth in practice.
+		# TPM1 counter uses empty auth (SHA1 of "") per TCG spec.
+		# The counter's auth is separate from the owner passphrase.
+		# If empty auth fails on a readable counter, the counter was
+		# created by pre-fix code with owner-passphrase auth — prompt
+		# for owner passphrase and retry as migration fallback.
 		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
 		# We must capture stdout to detect failures properly.
 		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
@@ -2104,10 +2099,25 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
-				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
+				tpmr.sh counter_increment -ix "$counter_id" -pwdc '' \
 					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
+		elif [ "$counter_present" = "y" ]; then
+			if [ -z "$tpm_passphrase" ]; then
+				WARN "TPM Owner Passphrase required to increment counter created by previous Heads version"
+				prompt_tpm_owner_password
+				tpm_passphrase="$tpm_owner_passphrase"
+			fi
+			if (
+				set -o pipefail
+				DO_WITH_DEBUG --mask-position 5 \
+					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
+						2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
+			); then
+				increment_ok="y"
+				WARN "TPM counter created by older firmware (uses owner passphrase). This is a one-time migration; operation continues with owner-passphrase auth. Reset TPM in menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to create a new empty-auth counter (recommended), or leave as-is."
+			fi
 		fi
 	fi
 
@@ -2126,7 +2136,7 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 3 \
-				tpmr.sh counter_create -pwdc "${tpm_passphrase:-}" -la 3135106223 \
+				tpmr.sh counter_create -pwdc '' -la 3135106223 \
 				2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) |
 				tee /tmp/new-counter >/dev/null
 		); then

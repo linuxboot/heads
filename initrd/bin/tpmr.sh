@@ -354,7 +354,7 @@ tpm2_counter_inc() {
 		rm -f "$tmp_err_file"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 		DEBUG "tpm2_counter_inc attempt $attempt failed. Stderr: $tmp_err_content"
-		if ! echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149'; then
+		if ! echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			DIE "Can't increment TPM counter for $index, access denied."
 		fi
 		WARN "Authentication failed, retrying..."
@@ -370,16 +370,26 @@ tpm2_counter_inc() {
 # Caching: prompt_tpm_owner_password reuses cached passphrase if available.
 # On auth failure the cache is shredded; next prompt will ask the user.
 #
+# Error stream selection:
+#   TPM1 (tpmtotp):   errors go to stdout via printf() — capture stdout+stderr
+#   TPM2 (tpm2-tools): errors go to stderr via LOG_ERR() — capture stderr only
+#
+# Auth detection grep patterns:
+#   English words  — TPM1 (TPM_GetErrMsg returns "Authentication failed...")
+#                  — TPM2 (tpm2-tools LOG_ERR returns "TPM2_RC_AUTH_FAIL...")
+#   defend         — TPM1 "Defend lock running" (TPM_DEFEND_LOCK_RUNNING)
+#   0x98e, 0x149  — TPM2 raw hex codes (TPM2_RC_AUTH_FAIL, TPM2_RC_NV_AUTHORIZATION)
+#
 # Usage: _tpm_auth_retry <label> <error_stream> <tpm_type> <pw_flag> <cmd...>
 #   <label>:        short name for debug (e.g. "counter_create")
-#   <error_stream>: "stdout" (TPM1) or "stderr" (TPM2)
+#   <error_stream>: "stdout" (TPM1: tpmtotp printf) or "stderr" (TPM2: tpm2-tools LOG_ERR)
 #   <tpm_type>:    "tpm1" or "tpm2"
 #   <pw_flag>:     passphrase flag for TPM1 (-pwdo or -pwdc), ignored for TPM2
 #   <cmd...>:       the tpm command and its non-auth arguments
 #
 # Exit codes:
 #   0: success
-#   1: non-auth error (e.g., "out of resources" 0x15) — caller should check
+#   1: non-auth error (e.g., TPM1 "out of resources" 0x15) — caller should check
 _tpm_auth_retry() {
 	local label="$1" error_stream="$2" tpm_type="$3" pw_flag="$4"
 	shift 4
@@ -417,7 +427,7 @@ _tpm_auth_retry() {
 		DEBUG "_tpm_auth_retry $label attempt $attempt failed: $out_content"
 		rm -f "$tmp_file"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			WARN "$label failed (bad passphrase?). Retrying..."
 		else
 			# Non-auth error (e.g., out of resources 0x15)
@@ -443,17 +453,33 @@ tpm1_counter_read() {
 
 # tpm1_counter_increment - Increment a TPM1 rollback counter.
 # Args: -ix <index> [ -pwdc <passphrase> ]
+#
+# Auth behaviour:
+#   -pwdc ''       : empty counter auth (SHA1 of ""), correct per TCG spec.
+#                    Calls tpm directly without retry — caller handles fallback.
+#   -pwdc <pass>   : owner passphrase auth via _tpm_auth_retry (migration).
+#   (no -pwdc)     : owner passphrase auth via _tpm_auth_retry (backward compat).
 tpm1_counter_increment() {
 	TRACE_FUNC
 	local counter_id=""
+	local pwdc_provided="n"
+	local pwdc_value=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-ix) counter_id="$2"; shift 2 ;;
-			-pwdc) shift 2 ;;  # passphrase handled by _tpm_auth_retry
+			-pwdc) pwdc_provided="y"; pwdc_value="$2"; shift 2 ;;
 			*) shift ;;
 		esac
 	done
-	_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" tpm counter_increment -ix "$counter_id"
+	if [ "$pwdc_provided" = "y" ] && [ -z "$pwdc_value" ]; then
+		# Empty counter auth per TCG spec.
+		# Call tpm directly: no retry needed, caller handles fallback.
+		# Use || return so set -e doesn't kill the script on auth failure.
+		tpm counter_increment -ix "$counter_id" -pwdc '' || return $?
+	else
+		_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" \
+			tpm counter_increment -ix "$counter_id"
+	fi
 }
 
 tpm2_counter_create() {
@@ -641,7 +667,7 @@ tpm2_seal() {
 		rm -f "$tmp_err_file"
 		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm2_seal. Stderr: $tmp_err_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts. Reset the TPM and try again."
 			fi
@@ -759,7 +785,7 @@ tpm1_seal() {
 			rm -f "$tmp_def_out"
 			DEBUG "tpm1_seal nv_definespace failed (attempt $attempt): $def_out_content"
 			# If auth failure, retry after re-prompt; otherwise bail out.
-			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission|defend'; then
 				shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 				WARN "nv_definespace failed (bad passphrase?). Retrying..."
 				continue
@@ -788,7 +814,7 @@ tpm1_seal() {
 		fi
 		DEBUG "tpm1_seal nv_writevalue(post-define) output: $tmp_out_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission|defend'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
 			fi
@@ -1075,9 +1101,34 @@ tpm1_reset() {
 	DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || LOG "tpm1_reset: unable to physicalenable after clear"
 
 	# 3. Take ownership with the new TPM owner passphrase.
-	if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
-		LOG "tpm1_reset: tpm takeown failed after forceclear"
-		return 1
+	# TPM_DEFEND_LOCK_RUNNING is a standard TPM 1.2 error raised after
+	# too many failed authorization attempts (see tpm_error.h).  The TPM
+	# enters a time-out period and refuses all authorization operations —
+	# including takeown, even after a successful forceclear (forceclear
+	# clears the owner but not the dictionary attack counter on some
+	# implementations).  
+	# TPM_ResetLockValue requires owner auth, which does not exist after
+	# forceclear, so we cannot call it.  Cycle physical presence
+	# (physicaldisable + physicalenable) to reset the TPM state machine
+	# on chips that honour software presence.  If the lock persists,
+	# only a full AC power cycle (not just reboot) will clear it.
+	local takeown_rc takeown_out
+	takeown_out="$(DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" 2>&1)" && takeown_rc=0 || takeown_rc=$?
+	if [ $takeown_rc -ne 0 ]; then
+		if echo "$takeown_out" | grep -qi "defend lock"; then
+			LOG "tpm1_reset: defend lock detected after forceclear — cycling physical presence to clear"
+			DO_WITH_DEBUG tpm physicaldisable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalpresence -s >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalsetdeactivated -c >/dev/null 2>&1 || true
+			if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
+				LOG "tpm1_reset: tpm takeown still failed after defend lock recovery"
+				return 1
+			fi
+		else
+			LOG "tpm1_reset: tpm takeown failed after forceclear"
+			return 1
+		fi
 	fi
 
 	# 4. Leave TPM enabled, present, and not deactivated.
