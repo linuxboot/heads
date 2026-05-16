@@ -168,6 +168,10 @@ jobs:
             ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
             ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
+          name: Download, neuter and deguard m900 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/m900/m900_download_clean_deguard_me.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/m900/
+      - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
             echo skipping for now
