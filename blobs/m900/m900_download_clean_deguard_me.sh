@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib.sh"
 
 # These variables are all for the deguard tool.
 # They would need to be changed if using the tool for other devices with different ME version...
@@ -9,7 +10,7 @@ ME_pch="H"
 
 
 # Integrity checks for the vendor provided ME blob...
-DL_HASH="de26085e1fbfaaa0302ec73dba411a5fd25fe13ae07e69a2287754ada6a7a196"
+ME_DOWNLOAD_HASH="de26085e1fbfaaa0302ec73dba411a5fd25fe13ae07e69a2287754ada6a7a196"
 
 # ...and the cleaned and deguarded version from that blob.
 DEGUARDED_ME_BIN_HASH="9c3eff6be017b36c819a0df3c1f6537bb26b6f3d5780787f60b91cedc789f0f0"
@@ -21,27 +22,6 @@ function usage() {
 Download Intel ME firmware from ASRock, neutralize and shrink keeping the MFS.
 
 "
-}
-
-function chk_sha256sum() {
-	sha256_hash="$1"
-	filename="$2"
-	echo "$sha256_hash" "$filename" "$(pwd)"
-	sha256sum "$filename"
-	if ! echo "${sha256_hash} ${filename}" | sha256sum --check; then
-		echo "ERROR: SHA256 checksum for ${filename} doesn't match."
-		exit 1
-	fi
-}
-
-function chk_exists_and_matches() {
-	if [[ -f "$1" ]]; then
-		if echo "${2} ${1}" | sha256sum --check; then
-			echo "SKIPPING: SHA256 checksum for $1 matches."
-			[[ "$3" = ME ]] && me_exists="y"
-		fi
-		echo "$1 exists but checksum doesn't match. Continuing..."
-	fi
 }
 
 function download_and_clean() {
@@ -56,7 +36,7 @@ function download_and_clean() {
 	me_installer_filename="H110M-DGS(7.30)ROM.zip"
 	user_agent="Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0"
 	curl -A "$user_agent" -s -O "https://download.asrock.com/BIOS/1151/${me_installer_filename}"
-	chk_sha256sum "$DL_HASH" "$me_installer_filename"
+	chk_sha256sum "$ME_DOWNLOAD_HASH" "$me_installer_filename"
 
 	# Unpack the ME blob.
 	unzip "$me_installer_filename" || exit
@@ -153,13 +133,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 	fi
 
 	parse_params "$@"
-	chk_exists_and_matches "$me_deguarded" "$DEGUARDED_ME_BIN_HASH" ME
 
-	if [[ -z "$me_exists" ]]; then
-		download_and_clean "$me_cleaner" "$me_cleaned"
-		deguard "$me_cleaned" "$me_deguarded"
-		rm -f "$me_cleaned"
-	fi
-	
-	chk_sha256sum "$DEGUARDED_ME_BIN_HASH" "$me_deguarded"
+	check_outputs "${DEGUARDED_ME_BIN_HASH} ${me_deguarded}" && { echo "All outputs match. Nothing to do."; exit 0; }
+
+	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
+	download_and_clean "$me_cleaner" "$me_cleaned"
+	deguard "$me_cleaned" "$me_deguarded"
+	rm -f "$me_cleaned"
+
+	check_outputs "${DEGUARDED_ME_BIN_HASH} ${me_deguarded}" || exit 1
 fi
