@@ -122,7 +122,6 @@ function parse_params() {
 	fi
 	me_cleaned="${output_dir}/me_cleaned.bin"
 	me_deguarded="${output_dir}/m900_me.bin"
-	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
 }
 
 
