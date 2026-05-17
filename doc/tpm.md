@@ -510,7 +510,7 @@ state.  Available for both TPM1 and TPM2:
 | Current failures | `currentCount` | `TPM2_PT_LOCKOUT_COUNTER` |
 | Lockout threshold | `thresholdCount` | `TPM2_PT_MAX_AUTH_FAIL` |
 | Lockout interval | -- | `TPM2_PT_LOCKOUT_INTERVAL` |
-| Time remaining | `actionDependValue` (seconds) | `TPM2_PT_LOCKOUT_RECOVERY` |
+| Time remaining | `actionDependValue` (seconds) | Estimate from `LOCKOUT_COUNTER` vs `MAX_AUTH_FAIL` times `LOCKOUT_INTERVAL` |
 
 The recovery shell can run `tpmr.sh da_state` at any time to check
 whether the TPM is locked and how much lockout time remains.
@@ -547,13 +547,12 @@ line is logged by the preflight guard in `increment_tpm_counter`.
 
 #### Preventing future lockouts
 
-Heads' counter auth regression (PR #2068) caused 3 TPM auth failures
-per boot by passing the owner passphrase as the counter auth while the
-counter was created with empty auth.  This was fixed in PR #2117 by
-restoring empty counter auth for both creation and increment,
-preventing any auth failures from counter operations.  All TPM1 boards
-that ran the regression code are affected identically; this is not
-platform-specific.
+Heads' counter auth regression caused 3 TPM auth failures per boot by
+passing the owner passphrase as the counter auth while the counter was
+created with empty auth.  Restoring empty counter auth for both creation
+and increment (as per TCG spec) prevents auth failures from counter
+operations.  All TPM1 boards that ran the regression code are affected
+identically; this is not platform-specific.
 
 ### TPM1 physical presence
 

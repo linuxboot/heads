@@ -2165,7 +2165,7 @@ increment_tpm_counter() {
 						2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 			); then
 				increment_ok="y"
-				WARN "TPM counter created by older firmware (uses owner passphrase). This is a one-time migration; operation continues with owner-passphrase auth. Reset TPM in menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to create a new empty-auth counter (recommended), or leave as-is."
+				WARN "TPM counter created by older Heads version (uses owner passphrase). This is a one-time migration; operation continues with owner-passphrase auth. Reset TPM in menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to create a new empty-auth counter (recommended), or leave as-is."
 			fi
 		fi
 	fi
