@@ -1,0 +1,191 @@
+From a5d3c4c119ae81030c9904b1e671c75bf8fb9293 Mon Sep 17 00:00:00 2001
+From: "Johann C. Rode" <jcrode@gmx.net>
+Date: Thu, 11 Dec 2025 16:59:43 -0800
+Subject: [PATCH] mb/lenovo/sklkbl: Fix headphone jack
+
+This proliferates the fixes from commit e5d10e5d23d3, CB:90023 ("mb/
+lenovo/t480: Fix headphone jack") to the other SKL/KBL Thinkpad
+variants T580, T470s, and T480s. This has been only validated on the
+former two machines, but since the hardware changes between the
+different models appear to be minimal, it should be safe to deploy
+this fix to the T480s variant blindly.
+
+Change-Id: I1edf8dc33231b9d1e1cf2eaf3f4f296736b7be32
+Signed-off-by: Johann C. Rode <jcrode@gmx.net>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/90482
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ .../sklkbl_thinkpad/variants/t470s/hda_verb.c | 37 ++++++++++++++++++-
+ .../sklkbl_thinkpad/variants/t480s/hda_verb.c | 37 ++++++++++++++++++-
+ .../sklkbl_thinkpad/variants/t580/hda_verb.c  | 37 ++++++++++++++++++-
+ 3 files changed, 108 insertions(+), 3 deletions(-)
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/hda_verb.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/hda_verb.c
+index 1901127390..952ace72f4 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/hda_verb.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/hda_verb.c
+@@ -5,7 +5,7 @@
+ const u32 cim_verb_data[] = {
+ 	0x10ec0298, // Vendor/Device ID: Realtek ALC298
+ 	0x17aa224b, // Subsystem ID
+-	12,
++	19,
+ 	AZALIA_SUBVENDOR(0, 0x17aa224b),
+ 
+ 	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
+@@ -52,6 +52,41 @@ const u32 cim_verb_data[] = {
+ 		2, 0
+ 	)),
+ 
++	//==========Widget node 0x20 - 0 :Hidden register SW reset
++	0x0205001A,
++	0x0204C003,
++	0x0205001A,
++	0x0204C003,
++	0x05850000,
++	0x0584F880,
++	0x05850000,
++	0x0584F880,
++	//==========Widget node 0x20 - 1 : ClassD 2W
++	0x02050038,
++	0x02048981,
++	0x0205001B,
++	0x02040A4B,
++	//==========Widget node 0x20 - 2
++	0x0205003C,
++	0x02043154,
++	0x0205003C,
++	0x02043114,
++	//==========Widget node 0x20 - 3 :
++	0x02050046,
++	0x02040004,
++	0x05750003,
++	0x057409A3,
++	//==========Widget node 0x20 - 4 :JD1 enable 1JD port for HP JD
++	0x02050009,
++	0x02046003,
++	0x0205000A,
++	0x02047770,
++	//==========Widget node 0x20 - 5 : Silence data mode Threshold (-84dB)
++	0x02050037,
++	0x0204FE15,
++	0x02050030,
++	0x02049004,
++
+ 	0x80862809, // Vendor/Device ID: Intel Skylake HDMI
+ 	0x80860101, // Subsystem ID
+ 	4,
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
+index b1d96c5a76..9eb9287f9b 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/hda_verb.c
+@@ -5,7 +5,7 @@
+ const u32 cim_verb_data[] = {
+ 	0x10ec0257, // Vendor/Device ID: Realtek ALC257
+ 	0x17aa2258, // Subsystem ID
+-	11,
++	18,
+ 	AZALIA_SUBVENDOR(0, 0x17aa2258),
+ 
+ 	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
+@@ -51,6 +51,41 @@ const u32 cim_verb_data[] = {
+ 		1, 15
+ 	)),
+ 
++	//==========Widget node 0x20 - 0 :Hidden register SW reset
++	0x0205001A,
++	0x0204C003,
++	0x0205001A,
++	0x0204C003,
++	0x05850000,
++	0x0584F880,
++	0x05850000,
++	0x0584F880,
++	//==========Widget node 0x20 - 1 : ClassD 2W
++	0x02050038,
++	0x02048981,
++	0x0205001B,
++	0x02040A4B,
++	//==========Widget node 0x20 - 2
++	0x0205003C,
++	0x02043154,
++	0x0205003C,
++	0x02043114,
++	//==========Widget node 0x20 - 3 :
++	0x02050046,
++	0x02040004,
++	0x05750003,
++	0x057409A3,
++	//==========Widget node 0x20 - 4 :JD1 enable 1JD port for HP JD
++	0x02050009,
++	0x02046003,
++	0x0205000A,
++	0x02047770,
++	//==========Widget node 0x20 - 5 : Silence data mode Threshold (-84dB)
++	0x02050037,
++	0x0204FE15,
++	0x02050030,
++	0x02049004,
++
+ 	0x8086280b, // Vendor/Device ID: Intel Kabylake HDMI
+ 	0x80860101, // Subsystem ID
+ 	4,
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/hda_verb.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/hda_verb.c
+index 65245c8e21..943d1fbae9 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/hda_verb.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/hda_verb.c
+@@ -5,7 +5,7 @@
+ const u32 cim_verb_data[] = {
+ 	0x10ec0257, // Vendor/Device ID: Realtek ALC257
+ 	0x17aa225a, // Subsystem ID
+-	11,
++	18,
+ 	AZALIA_SUBVENDOR(0, 0x17aa225a),
+ 
+ 	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_DESC(
+@@ -51,6 +51,41 @@ const u32 cim_verb_data[] = {
+ 		1, 15
+ 	)),
+ 
++	//==========Widget node 0x20 - 0 :Hidden register SW reset
++	0x0205001A,
++	0x0204C003,
++	0x0205001A,
++	0x0204C003,
++	0x05850000,
++	0x0584F880,
++	0x05850000,
++	0x0584F880,
++	//==========Widget node 0x20 - 1 : ClassD 2W
++	0x02050038,
++	0x02048981,
++	0x0205001B,
++	0x02040A4B,
++	//==========Widget node 0x20 - 2
++	0x0205003C,
++	0x02043154,
++	0x0205003C,
++	0x02043114,
++	//==========Widget node 0x20 - 3 :
++	0x02050046,
++	0x02040004,
++	0x05750003,
++	0x057409A3,
++	//==========Widget node 0x20 - 4 :JD1 enable 1JD port for HP JD
++	0x02050009,
++	0x02046003,
++	0x0205000A,
++	0x02047770,
++	//==========Widget node 0x20 - 5 : Silence data mode Threshold (-84dB)
++	0x02050037,
++	0x0204FE15,
++	0x02050030,
++	0x02049004,
++
+ 	0x8086280b, // Vendor/Device ID: Intel Kabylake HDMI
+ 	0x80860101, // Subsystem ID
+ 	4,
+-- 
+2.47.3
+
