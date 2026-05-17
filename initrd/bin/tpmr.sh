@@ -1095,7 +1095,9 @@ tpm2_reset() {
 tpm1_da_state() {
 	TRACE_FUNC
 	# TPM_CAP_DA_LOGIC = 0x19, subcap 0x0000 (owner auth DA info)
-	# Not all TPM1 implementations support this capability.
+	# This capability was added late in TPM 1.2 spec rev 103.
+	# Older Infineon (X230-era SLB9635/9645) and some Atmel TPMs
+	# do not implement it and return TPM_BAD_MODE (exit 44).
 	# TrouSerS may print raw TSS errors on failure; validate output.
 	local da_out rc
 	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>/dev/null)" || rc=$?

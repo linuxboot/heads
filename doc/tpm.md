@@ -515,6 +515,12 @@ state.  Available for both TPM1 and TPM2:
 The recovery shell can run `tpmr.sh da_state` at any time to check
 whether the TPM is locked and how much lockout time remains.
 
+Note: TPM1 DA state query relies on `TPM_CAP_DA_LOGIC` (0x19), a late
+TPM 1.2 spec addition (rev 103).  Older Infineon TPMs (e.g. X230-era
+SLB9635/9645) and some Atmel chips do not support this capability.
+On such hardware `da_state` returns `unavailable` and the preflight
+guard silently skips; TPM2 is unaffected.
+
 #### DA parameter configurability
 
 TPM2 DA parameters are configured during `tpm2_reset()` (called by

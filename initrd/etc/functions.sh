@@ -2060,6 +2060,8 @@ increment_tpm_counter() {
 
 	# Preflight DA state check: query da_state before every counter increment.
 	# TPM1: timer=0 means state inactive; timer>0 means locked.
+	#        NOTE: many older TPM1 chips (Infineon X230-era) don't support
+	#        TPM_CAP_DA_LOGIC; da_state returns unavailable -> guard skips.
 	# TPM2: timer absent when count<threshold; timer>0 when locked (estimate).
 	# TPM1 timer>0 or TPM2 timer>0: DIE with remaining time.
 	# TPM1 timer=0, count>=threshold: above threshold but not locked, WARN.
