@@ -168,6 +168,10 @@ jobs:
             ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
             ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
+          name: Download, neuter and deguard m900 ME (keep generated GBE and extracted IFD in tree)
+          command: |
+            ./blobs/m900/m900_download_clean_deguard_me.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/m900/
+      - run:
           name: Download and extract t530 vbios roms for dgpu boards
           command: |
             echo skipping for now
@@ -524,6 +528,20 @@ workflows:
             - x86-musl-cross-make [cross compiler]
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
+      - build:
+          name: EOL_m900_tower-hotp-maximized
+          target: EOL_m900_tower-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+
+      - build:
+          name: EOL_m900_tower-maximized
+          target: EOL_m900_tower-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+
       - build:
           name: EOL_optiplex-7010_9010-hotp-maximized
           target: EOL_optiplex-7010_9010-hotp-maximized
