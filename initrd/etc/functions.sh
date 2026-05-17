@@ -1848,7 +1848,8 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
-	tpm_passphrase="$3"
+	# $3 (tpm_passphrase) was used by pre-PR #2068 code but is now intentionally
+	# ignored — counters are created with empty auth (-pwdc '') per TCG spec.
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -1872,7 +1873,7 @@ check_tpm_counter() {
 		(
 			set +e
 			tpmr.sh counter_create \
-				-pwdc "${tpm_passphrase:-}" \
+				-pwdc '' \
 				-la "$LABEL" \
 				>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
 			echo $? > /tmp/counter_create_rc
@@ -2051,21 +2052,62 @@ increment_tpm_counter() {
 	fi
 
 	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
+	# TPM2 uses owner-auth fallback in tpm2_counter_inc; TPM1 uses empty counter
+	# auth (SHA1("")) per TCG spec — no owner passphrase needed for increment.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
-		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
 	fi
 
-	# TPM1 counter_increment requires owner auth in practice on this path.
-	# origin/master typically reached this with cached owner passphrase already set,
-	# but the newer reseal/update flows can call this later in the session after
-	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
-	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_passphrase" ]; then
-		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
-		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner passphrase; prompting now"
-		prompt_tpm_owner_password
-		tpm_passphrase="$tpm_owner_passphrase"
-		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
+	# Preflight DA state check: query da_state before every counter increment.
+	# TPM1: timer=0 means state inactive; timer>0 means locked.
+	#        NOTE: many older TPM1 chips (Infineon X230-era) don't support
+	#        TPM_CAP_DA_LOGIC; da_state returns unavailable -> guard skips.
+	# TPM2: timer absent when count<threshold; timer>0 when locked (estimate).
+	# TPM1 timer>0 or TPM2 timer>0: DIE with remaining time.
+	# TPM1 timer=0, count>=threshold: above threshold but not locked, WARN.
+	# TPM2 no timer, count>=threshold: locked (shouldn't happen, DIE).
+	# Both: count>=threshold-1 without lockout: WARN.
+	if [ "$CONFIG_TPM" = "y" ]; then
+		local da_line da_current da_threshold da_timer
+		da_line="$(tpmr.sh da_state 2>/dev/null | grep '^DA: ')"
+		da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+		da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+		# With sed -n /p, da_timer stays empty when timer= field absent (TPM2 clean)
+		da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		if [ -n "$da_current" ] && [ -n "$da_threshold" ]; then
+			if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				# TPM1 state=1 or TPM2 count>=threshold -- actively locked
+				local timer_display="${da_timer}s"
+				if [ "$da_timer" -ge 3600 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 3600)) hour(s)"
+				elif [ "$da_timer" -ge 60 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 60)) min"
+				fi
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (locked, ${timer_display})"
+				DIE "TPM dictionary attack lockout active (DA $da_current/$da_threshold, ${timer_display} remaining). Reset TPM from GUI: Options -> TPM/TOTP/HOTP Options -> Reset the TPM."
+			fi
+			if [ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+				if [ -z "$da_timer" ]; then
+					# TPM2 with count>=threshold but no timer estimate.
+					# This can't happen on Heads-provisioned TPMs but guard defensively.
+					DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (TPM2 locked, no timer)"
+					DIE "TPM dictionary attack lockout active (DA $da_current/$da_threshold). Reset TPM from GUI: Options -> TPM/TOTP/HOTP Options -> Reset the TPM."
+				else
+					# TPM1: timer=0, state=0, count above threshold but not locked.
+					# The increment will succeed with correct empty auth, but warn user
+					# that the next BAD auth will trigger lockout.
+					DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (above threshold)"
+					WARN "DA counter above threshold ($da_current/$da_threshold). Auth failures will trigger lockout."
+				fi
+			elif [ "$da_current" -ge $((da_threshold - 1)) ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (nearing threshold)"
+				WARN "DA counter nearing threshold ($da_current/$da_threshold). One more auth failure may trigger lockout."
+			else
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold"
+			fi
+		else
+			DEBUG "increment_tpm_counter: TPM DA state unavailable or limited"
+		fi
 	fi
 
 	# Try to increment the counter.  We normally hide the verbose
@@ -2094,7 +2136,11 @@ increment_tpm_counter() {
 			increment_ok="y"
 		fi
 	else
-		# TPM1 path uses owner auth in practice.
+		# TPM1 counter uses empty auth (SHA1 of "") per TCG spec.
+		# The counter's auth is separate from the owner passphrase.
+		# If empty auth fails on a readable counter, the counter was
+		# created by pre-fix code with owner-passphrase auth — prompt
+		# for owner passphrase and retry as migration fallback.
 		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
 		# We must capture stdout to detect failures properly.
 		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
@@ -2104,10 +2150,25 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
-				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
+				tpmr.sh counter_increment -ix "$counter_id" -pwdc '' \
 					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
+		elif [ "$counter_present" = "y" ]; then
+			if [ -z "$tpm_passphrase" ]; then
+				WARN "TPM Owner Passphrase required to increment counter created by previous Heads version"
+				prompt_tpm_owner_password
+				tpm_passphrase="$tpm_owner_passphrase"
+			fi
+			if (
+				set -o pipefail
+				DO_WITH_DEBUG --mask-position 5 \
+					tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase}" \
+						2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
+			); then
+				increment_ok="y"
+				WARN "TPM counter created by older Heads version (uses owner passphrase). This is a one-time migration; operation continues with owner-passphrase auth. Reset TPM in menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to create a new empty-auth counter (recommended), or leave as-is."
+			fi
 		fi
 	fi
 
@@ -2126,7 +2187,7 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 3 \
-				tpmr.sh counter_create -pwdc "${tpm_passphrase:-}" -la 3135106223 \
+				tpmr.sh counter_create -pwdc '' -la 3135106223 \
 				2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) |
 				tee /tmp/new-counter >/dev/null
 		); then
