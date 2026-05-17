@@ -2056,7 +2056,56 @@ increment_tpm_counter() {
 	# auth (SHA1("")) per TCG spec — no owner passphrase needed for increment.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
-		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
+	fi
+
+	# Preflight DA state check: query da_state before every counter increment.
+	# TPM1: timer=0 means state inactive; timer>0 means locked.
+	# TPM2: timer absent when count<threshold; timer>0 when locked (estimate).
+	# TPM1 timer>0 or TPM2 timer>0: DIE with remaining time.
+	# TPM1 timer=0, count>=threshold: above threshold but not locked, WARN.
+	# TPM2 no timer, count>=threshold: locked (shouldn't happen, DIE).
+	# Both: count>=threshold-1 without lockout: WARN.
+	if [ "$CONFIG_TPM" = "y" ]; then
+		local da_line da_current da_threshold da_timer
+		da_line="$(tpmr.sh da_state 2>/dev/null | grep '^DA: ')"
+		da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+		da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+		# With sed -n /p, da_timer stays empty when timer= field absent (TPM2 clean)
+		da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		if [ -n "$da_current" ] && [ -n "$da_threshold" ]; then
+			if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				# TPM1 state=1 or TPM2 count>=threshold -- actively locked
+				local timer_display="${da_timer}s"
+				if [ "$da_timer" -ge 3600 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 3600)) hour(s)"
+				elif [ "$da_timer" -ge 60 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 60)) min"
+				fi
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (locked, ${timer_display})"
+				DIE "TPM dictionary attack lockout active (DA $da_current/$da_threshold, ${timer_display} remaining). Reset TPM from GUI: Options -> TPM/TOTP/HOTP Options -> Reset the TPM."
+			fi
+			if [ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+				if [ -z "$da_timer" ]; then
+					# TPM2 with count>=threshold but no timer estimate.
+					# This can't happen on Heads-provisioned TPMs but guard defensively.
+					DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (TPM2 locked, no timer)"
+					DIE "TPM dictionary attack lockout active (DA $da_current/$da_threshold). Reset TPM from GUI: Options -> TPM/TOTP/HOTP Options -> Reset the TPM."
+				else
+					# TPM1: timer=0, state=0, count above threshold but not locked.
+					# The increment will succeed with correct empty auth, but warn user
+					# that the next BAD auth will trigger lockout.
+					DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (above threshold)"
+					WARN "DA counter above threshold ($da_current/$da_threshold). Auth failures will trigger lockout."
+				fi
+			elif [ "$da_current" -ge $((da_threshold - 1)) ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (nearing threshold)"
+				WARN "DA counter nearing threshold ($da_current/$da_threshold). One more auth failure may trigger lockout."
+			else
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold"
+			fi
+		else
+			DEBUG "increment_tpm_counter: TPM DA state unavailable or limited"
+		fi
 	fi
 
 	# Try to increment the counter.  We normally hide the verbose

@@ -24,8 +24,8 @@ initrd/init  (PID 1)
             ├─ TPM1: calls `tpm` (tpmtotp util/tpm)  [CONFIG_TPM2_TOOLS != y]
             │          modules/tpmtotp → output: totp hotp qrenc util/tpm
             │
-            └─ TPM2: calls tpm2_* (tpm2-tools)       [CONFIG_TPM2_TOOLS=y]
-                       modules/tpm2-tss + modules/tpm2-tools
+             └─ TPM2: calls `tpm2` (single binary, subcommands)  [CONFIG_TPM2_TOOLS=y]
+                        modules/tpm2-tss + modules/tpm2-tools
 ```
 
 TPM1 support comes exclusively from the `tpmtotp` module (`modules/tpmtotp`),
@@ -34,8 +34,8 @@ the initrd as `tpm` and supports subcommands such as `physicalpresence`,
 `forceclear`, `takeown -pwdo`, `counter_create`, `counter_increment`, etc.
 
 TPM2 support comes from `modules/tpm2-tss` (TSS software stack) and
-`modules/tpm2-tools` (command-line tools like `tpm2_nvdefine`,
-`tpm2_getcap`, `tpm2_nvincrement`).
+`modules/tpm2-tools` (`tpm2` binary with subcommands like `getcap`,
+`nvdefine`, `nvincrement`).
 
 Both TPM1 and TPM2 boards may also enable `CONFIG_TPMTOTP=y` for the
 `totp` and `hotp` utilities, which are independent of the TPM version.
@@ -449,10 +449,10 @@ patterns.  TPM1 (tpmtotp) errors go to stdout via `printf()` with
 `TPM_DEFEND_LOCK_RUNNING` (`tpm_error.h`: `TPM_BASE + TPM_NON_FATAL + 3`)
 is a standard TPM 1.2 error raised when the TPM's dictionary-attack
 protection is active. After too many failed authorization attempts, the
-TPM enters a time-out period and refuses all authorization operations —
+TPM enters a time-out period and refuses all authorization operations --
 including `tpm takeown` even after a successful `tpm forceclear`
 (forceclear clears the owner but not the dictionary attack counter on
-some implementations).
+some implementations, particularly Infineon TPMs).
 
 tpmtotp's `tpm takeown` outputs:
 ```
@@ -460,16 +460,100 @@ Error Defend lock running from TPM_TakeOwnership
 ```
 
 `tpm1_reset()` in `initrd/bin/tpmr.sh` detects "defend lock" in the
-`takeown` output and cycles physical presence (`physicaldisable` /
-`physicalenable` / `physicalpresence` / `physicalsetdeactivated`) to
-reset the TPM state machine and clear the lock on chips that honour
-software presence.  `TPM_ResetLockValue` (in tpmtotp's `util/resetlockvalue.c`)
-exists but requires owner auth — after forceclear there is no owner,
-so it cannot be used.
+`takeown` output and attempts one recovery: cycling physical presence
+(`physicaldisable` / `physicalenable` / `physicalpresence` /
+`physicalsetdeactivated`) to re-assert PP before retrying `takeown`.
+This works on some chipsets where software presence was not properly
+honoured by the first `forceclear`.
 
-If the cycling also fails, only a full AC power cycle (not just reboot)
-will clear the defend lock.  The timeout duration is chip-specific and
-not documented in the tpmtotp source.
+If PP cycling also fails, no software-based recovery is available.
+Further attempts (second forceclear, `TPM_ResetLockValue` with empty
+auth, sleep+retry) will not help.  Use `tpmr.sh da_state` from the
+recovery shell to check the current DA state:
+
+- **TPM1**: `actionDependValue` reports remaining lockout seconds.
+- **TPM2**: the human-readable summary shows estimated unlock time
+  based on `recoveryTime` (seconds before one failure is forgotten).
+
+Alternatively, reset the TPM to clear the DA state entirely:
+`tpm-reset.sh` from the recovery shell, or GUI menu `Options ->
+TPM/TOTP/HOTP Options -> Reset the TPM` for full reprovision.
+
+#### DA lockout duration escalation
+
+TPM 1.2 dictionary attack timeouts escalate with the failure count
+(approximate; varies by vendor and TPM firmware version per Dell and
+Microsoft documentation):
+
+| Failures accumulated | Typical lockout time |
+|---------------------|---------------------|
+| 1-2 | None (counter only) |
+| 3-5 | 10 seconds |
+| 6-9 | 1 hour |
+| 10-12 | Several hours |
+| 13+ | Up to 24 hours |
+
+Each time the TPM fully locks out and the timer expires, the DA counter
+resets.  If failures continue to accumulate across boots without
+waiting for the timer to expire, the escalation can reach 24 hours.
+This is what happened with the counter auth regression (3 failures per
+boot x many boots): the DA counter reached the maximum threshold.
+
+#### Diagnosing DA state
+
+Use `tpmr.sh da_state` from the recovery shell to query the current DA
+state.  Available for both TPM1 and TPM2:
+
+| Information | TPM1 | TPM2 |
+|-------------|------|------|
+| Locked? | `state`: 0=inactive, 1=locked | `TPM2_PT_LOCKOUT_COUNTER` > `TPM2_PT_MAX_AUTH_FAIL` |
+| Current failures | `currentCount` | `TPM2_PT_LOCKOUT_COUNTER` |
+| Lockout threshold | `thresholdCount` | `TPM2_PT_MAX_AUTH_FAIL` |
+| Lockout interval | -- | `TPM2_PT_LOCKOUT_INTERVAL` |
+| Time remaining | `actionDependValue` (seconds) | `TPM2_PT_LOCKOUT_RECOVERY` |
+
+The recovery shell can run `tpmr.sh da_state` at any time to check
+whether the TPM is locked and how much lockout time remains.
+
+#### DA parameter configurability
+
+TPM2 DA parameters are configured during `tpm2_reset()` (called by
+`tpm-reset.sh` and the GUI `reset_tpm()`).  Heads sets:
+- `maxTries=10`: auth failures before lockout
+- `recoveryTime=3600`: seconds before one failure is forgotten (counter
+  decrements by 1 per interval)
+- `lockoutRecovery=0`: seconds lockout auth blocked after failure
+
+TPM1 has no software-accessible command to configure DA parameters
+(tpmtotp's `setcapability` does not expose DA threshold or timeout
+sub-capabilities).  The DA policy is determined by the TPM firmware
+and cannot be changed through software on TPM1.
+
+#### Testing DA lockout
+
+Use `tpmr.sh bad_auth` from the recovery shell to test dictionary attack
+lockout behavior by deliberately triggering an auth failure:
+
+- **TPM1**: increments the rollback counter with a wrong password via
+  `tpm counter_increment -pwdc <wrong>`.  Each call increments the DA
+  counter by 1 until lockout is triggered at `currentCount >= thresholdCount`.
+- **TPM2**: increments an existing NV counter with a wrong password via
+  `tpm2 nvincrement -P <wrong>`.  Requires a counter created by a prior
+  `reset_tpm()` GUI flow.  Each call increments `TPM2_PT_LOCKOUT_COUNTER`
+  by 1 until lockout is triggered.
+
+Both show DA state before and after the attempt, and the `DA:` machine
+line is logged by the preflight guard in `increment_tpm_counter`.
+
+#### Preventing future lockouts
+
+Heads' counter auth regression (PR #2068) caused 3 TPM auth failures
+per boot by passing the owner passphrase as the counter auth while the
+counter was created with empty auth.  This was fixed in PR #2117 by
+restoring empty counter auth for both creation and increment,
+preventing any auth failures from counter operations.  All TPM1 boards
+that ran the regression code are affected identically; this is not
+platform-specific.
 
 ### TPM1 physical presence
 
@@ -490,3 +574,29 @@ This is logged but not fatal — `tpm forceclear` is still attempted.
 If the TPM firmware ignores software physical presence, the reset fails
 and the user must use the platform's hardware TPM reset mechanism
 (typically a BIOS option or jumper).
+
+### TPM reset methods
+
+Heads has two TPM reset methods with different scope:
+
+**`tpm-reset.sh`** (CLI, recovery shell):
+- Prompts for new owner passphrase, calls `tpmr.sh reset`
+- TPM clear + re-ownership only
+- No counter creation, no /boot signing, no TOTP/HOTP generation
+- Intended for headless recovery or clearing a defend lock before running
+  the full GUI flow
+
+**`reset_tpm()`** (GUI, via Options -> TPM/TOTP/HOTP -> Reset the TPM in
+`initrd/bin/gui-init.sh`):
+- Prompts for new owner passphrase, calls `tpmr.sh reset`
+- Removes stale `/boot/kexec_rollback.txt` and `/boot/kexec_primhdl_hash.txt`
+- Creates new TPM rollback counter via `check_tpm_counter()`
+- Increments the new counter
+- Re-signs /boot with the GPG signing key
+- Generates new TOTP/HOTP secrets
+- Reseals TPM Disk Unlock Key (DUK) to LUKS
+- Regenerates TPM2 encrypted sessions
+
+After `tpm-reset.sh`, the TPM is cleared but the system is not fully
+provisioned — the user must complete the GUI `reset_tpm()` or OEM Factory
+Reset to restore counter, signing, and secrets.
