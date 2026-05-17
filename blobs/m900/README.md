@@ -2,13 +2,13 @@
 
 The following blobs are needed:
 
-* `ifd.bin`
-* `gbe.bin`
-* `me.bin`
+* `m900_tower_ifd.bin`
+* `m900_tower_gbe.bin`
+* `m900_me.bin`
 
-## me.bin: automatically extract, deactivate, partially neuter and deguard
+## m900_me.bin: automatically extract, deactivate, partially neuter and deguard
 
-download_clean_deguard_me.sh : Download vulnerable ME from ASRock, verify checksum, extract ME, deactivate ME and paritally neuter it, then apply the deguard patch and place it into me.bin.
+`m900_download_clean_deguard_me.sh`: Download vulnerable ME from ASRock, verify checksum, extract ME, deactivate ME and partially neuter it, then apply the deguard patch and place it into m900_me.bin.
 For the technical details please read the documentation in the script itself, as removing modules is limited on the platform.
 
 The ME blob dumped in this directory comes from the following link: https://download.asrock.com/BIOS/1151/H110M-DGS(7.30)ROM.zip
@@ -27,11 +27,11 @@ As specified in the first link, this ME can be deployed to:
 
 ## ifd.bin and gbe.bin
 
-Both blobs were taken from my donor board.
+Both blobs are from a production unit of this platform.
 
-The GBE MAC address was forged to: `00:DE:AD:C0:FF:EE`
-IFD blob was unlocked using iftool. Moreover, to be sure, the HAP bit was set by altmedisable. 
-The IFD layot was changed: the bios region was expanded to take space after reducing the me blob. 
+The GBE MAC address was forged to: `00:DE:AD:C0:FF:EE`. Unfortunately, after disabling the ME the onboard ethernet stops working. This was tested on coreboot and is true for heads too. So, PCI ethernet or usb/ethernet adapter is needed. 
+IFD blob was unlocked using ifdtool. Moreover, to be sure, the HAP bit was set by altmedisable. 
+The IFD layout was changed: the bios region was expanded to take space after reducing the me blob. 
 
 ## Integrity
 
@@ -47,8 +47,7 @@ Sha256sums: `blobs/m900/hashes.txt`
 
 # Documentation
 
-A guide on how to flash this board (both the Heads rom) can be found here:
-https://osresearch.net/m900_tower-maximized-flashing/ #TODO
+A guide on how to flash this board can be found at https://osresearch.net/m900_tower-maximized-flashing/ (pending: the page needs to be created).
 
 The upstream port for the board can be found here: https://review.coreboot.org/c/coreboot/+/74187
 
