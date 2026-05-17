@@ -1095,10 +1095,13 @@ tpm2_reset() {
 tpm1_da_state() {
 	TRACE_FUNC
 	# TPM_CAP_DA_LOGIC = 0x19, subcap 0x0000 (owner auth DA info)
-	local da_out
-	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>/dev/null)" || true
-	if [ -z "$da_out" ]; then
-		DEBUG "tpm1_da_state: getcapability returned empty (not supported?)"
+	# Not all TPM1 implementations support this capability.
+	# TrouSerS may print raw TSS errors on failure; validate output.
+	local da_out rc
+	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>/dev/null)" || rc=$?
+	if [ -z "$da_out" ] || ! echo "$da_out" | grep -q 'State'; then
+		[ -n "${rc-}" ] && DEBUG "tpm1_da_state: getcapability exit=$rc"
+		DEBUG "tpm1_da_state: DA state not available (unsupported or locked down)"
 		echo "TPM DA state: unavailable"
 		return 1
 	fi
