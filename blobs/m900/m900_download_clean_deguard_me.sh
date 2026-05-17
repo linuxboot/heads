@@ -28,7 +28,7 @@ function download_and_clean() {
 	me_cleaner="$(realpath "${1}")"
 	me_output="$(realpath "${2}")"
 
-	# Download and unpack the Dell installer into a temporary directory and
+	# Download and unpack the ASRock BIOS zip (compatible ME for this Lenovo platform) and
 	# extract the deguardable Intel ME blob.
 	pushd "$(mktemp -d)" || exit
 
@@ -96,8 +96,14 @@ function parse_params() {
 	while getopts ":m:" opt; do
 		case $opt in
 		m)
-			if [[ -x "$OPTARG" ]]; then
+			if [[ -f "$OPTARG" ]] && [[ ! -x "$OPTARG" ]]; then
+				# me_cleaner is a Python script — passed to python interpreter,
+				# not executed directly.  Only require readability, not +x.
 				me_cleaner="$OPTARG"
+			elif [[ -x "$OPTARG" ]]; then
+				me_cleaner="$OPTARG"
+			else
+				usage_err "-m path '$OPTARG' does not exist or is not readable"
 			fi
 			;;
 		?)
