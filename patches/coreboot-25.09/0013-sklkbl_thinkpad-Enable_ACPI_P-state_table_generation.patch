@@ -1,0 +1,37 @@
+From e18eb0a38b3056f1eba486de530ab321d8f553ff Mon Sep 17 00:00:00 2001
+From: Patrick Rudolph <patrick.rudolph@9elements.com>
+Date: Thu, 12 Feb 2026 07:51:02 +0100
+Subject: [PATCH] mb/lenovo/sklkbl_thinkpad: Enable ACPI P-state table
+ generation
+
+Set eist_enable to true to call generate_p_state_entries() while writing
+ACPI processor nodes to ACPI.
+
+Resolves: https://ticket.coreboot.org/issues/623
+
+Change-Id: Ic8965dddc0f50ac6dbd1b0af81af546aa53fbb58
+Signed-off-by: Patrick Rudolph <patrick.rudolph@9elements.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/91173
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Paul Menzel <paulepanter@mailbox.org>
+---
+ src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb b/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
+index 5ec7750025..1ce50a0358 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/devicetree.cb
+@@ -8,6 +8,8 @@ chip soc/intel/skylake
+         register "PmConfigSlpSusMinAssert" = "3"        # 500ms
+         register "PmConfigSlpAMinAssert" = "3"          # 2s
+ 
++	# Generate ACPI P-State table
++	register "eist_enable" = "true"
+ 	device domain 0 on
+ 		subsystemid 0x17aa 0x225d inherit
+ 		device ref igpu on
+-- 
+2.47.3
+
