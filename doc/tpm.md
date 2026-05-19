@@ -10,8 +10,35 @@ See also: [architecture.md](architecture.md), [boot-process.md](boot-process.md)
 ## tpmr — unified TPM abstraction
 
 `initrd/bin/tpmr.sh` is a shell script wrapper that presents a single interface
-over both TPM 1.2 (`tpm` / `trousers`) and TPM 2.0 (`tpm2-tools`). All Heads
-scripts call `tpmr.sh` rather than invoking `tpm` or `tpm2` directly.
+over both TPM 1.2 and TPM 2.0. All Heads scripts call `tpmr.sh` rather than
+invoking TPM tools directly.
+
+### Boot chain and TPM tool selection
+
+```text
+initrd/init  (PID 1)
+  └─ CONFIG_BOOTSCRIPT → /bin/gui-init.sh          [board config]
+       ├─ source /etc/functions.sh                   [shared TPM helpers]
+       ├─ source /etc/gui_functions.sh               [whiptail wrappers]
+       └─ calls initrd/bin/tpmr.sh                   [TPM abstraction]
+            ├─ TPM1: calls `tpm` (tpmtotp util/tpm)  [CONFIG_TPM2_TOOLS != y]
+            │          modules/tpmtotp → output: totp hotp qrenc util/tpm
+            │
+             └─ TPM2: calls `tpm2` (single binary, subcommands)  [CONFIG_TPM2_TOOLS=y]
+                        modules/tpm2-tss + modules/tpm2-tools
+```
+
+TPM1 support comes exclusively from the `tpmtotp` module (`modules/tpmtotp`),
+which builds `util/tpm` as part of its outputs. This binary is installed to
+the initrd as `tpm` and supports subcommands such as `physicalpresence`,
+`forceclear`, `takeown -pwdo`, `counter_create`, `counter_increment`, etc.
+
+TPM2 support comes from `modules/tpm2-tss` (TSS software stack) and
+`modules/tpm2-tools` (`tpm2` binary with subcommands like `getcap`,
+`nvdefine`, `nvincrement`).
+
+Both TPM1 and TPM2 boards may also enable `CONFIG_TPMTOTP=y` for the
+`totp` and `hotp` utilities, which are independent of the TPM version.
 
 ### PCR sizes
 
@@ -271,9 +298,11 @@ The rollback counter prevents **TPM swap attacks** and **/boot disk swap attacks
 
 ### How it works
 
-The counter is stored **in the TPM** (NVRAM index `0x3135106223`), ensuring
-hardware binding. A SHA-256 hash of the counter value is stored on **/boot**
-(`/boot/kexec_rollback.txt`). This creates a two-way binding:
+The counter value is stored **in the TPM** at a persistent NVRAM index
+(stored in `/boot/kexec_rollback.txt`; the index is a well-known value
+for TPM1 and randomly generated per TPM2 at provisioning time).  A SHA-256
+hash of the counter value is stored on **/boot** (`/boot/kexec_rollback.txt`).
+This creates a two-way binding:
 
 - Cannot swap TPM without breaking /boot consistency
 - Cannot swap /boot without breaking TPM consistency
@@ -398,3 +427,94 @@ To verify that a new board's coreboot config matches the expected RoT:
 | Auth sessions | Not used | Required for policy-based unseal |
 | `kexec_finalize` | No-op | Extends PCRs, then `tpm2 shutdown` |
 | `startsession` | No-op | Creates encryption session |
+
+### TPM1 auth retry and error detection
+
+`_tpm_auth_retry()` in `initrd/bin/tpmr.sh` provides shared retry logic for
+both TPM1 and TPM2 operations that need authorization. On auth failure
+(wrong passphrase), the passphrase cache is shredded and the user is
+re-prompted up to 3 times before giving up.
+
+Auth failure is detected by grepping the command output for known error
+patterns.  TPM1 (tpmtotp) errors go to stdout via `printf()` with
+`TPM_GetErrMsg()` strings.  TPM2 (tpm2-tools) errors go to stderr via
+`LOG_ERR()` and may include raw TPM response codes.
+
+| Pattern | Type | TPM version | Example error |
+| --- | --- | --- | --- |
+| `authorization|auth|bad|permission` | English words | TPM1+TPM2 | `TPM_AUTHFAIL`, `bad passphrase` |
+| `defend` | English word | TPM1 | `Defend lock running` |
+| `0x98e|0x149` | Hex codes | TPM2 | `TPM2_RC_AUTH_FAIL`, `TPM2_RC_NV_AUTHORIZATION` |
+
+### TPM1 reset defend lock
+
+`TPM_DEFEND_LOCK_RUNNING` (`tpm_error.h`: `TPM_BASE + TPM_NON_FATAL + 3`)
+is a standard TPM 1.2 error raised when the TPM's dictionary-attack
+protection is active. After too many failed authorization attempts, the
+TPM enters a time-out period and refuses all authorization operations --
+including `tpm takeown` even after a successful `tpm forceclear`
+(forceclear clears the owner but not the dictionary attack counter on
+some implementations, particularly Infineon TPMs).
+
+tpmtotp's `tpm takeown` outputs:
+```
+Error Defend lock running from TPM_TakeOwnership
+```
+
+`tpm1_reset()` in `initrd/bin/tpmr.sh` detects "defend lock" in the
+`takeown` output and attempts one recovery: cycling physical presence
+(`physicaldisable` / `physicalenable` / `physicalpresence` /
+`physicalsetdeactivated`) to re-assert PP before retrying `takeown`.
+This works on some chipsets where software presence was not properly
+honoured by the first `forceclear`.
+
+If PP cycling also fails, no software-based recovery is available.
+Further attempts (second forceclear, `TPM_ResetLockValue` with empty
+auth, sleep+retry) will not help.  Reset the TPM via `tpm-reset.sh` from
+the recovery shell to clear the DA state.
+
+### TPM1 physical presence
+
+TPM1.2 forceclear requires physical presence to be asserted. The
+`tpm1_reset()` function does this with `tpm physicalpresence -s` (software
+presence). On some platforms (e.g., Dell OptiPlex, some Infineon TPMs),
+software physical presence may not work — the TPM firmware only accepts
+hardware-asserted presence (GPIO set by BIOS). In that case, `forceclear`
+returns success but may not fully reset the TPM, or `takeown` may fail
+with unexpected errors.
+
+When software physical presence fails, the LOG shows:
+```
+tpm1_reset: unable to set physical presence
+```
+
+This is logged but not fatal — `tpm forceclear` is still attempted.
+If the TPM firmware ignores software physical presence, the reset fails
+and the user must use the platform's hardware TPM reset mechanism
+(typically a BIOS option or jumper).
+
+### TPM reset methods
+
+Heads has two TPM reset methods with different scope:
+
+**`tpm-reset.sh`** (CLI, recovery shell):
+- Prompts for new owner passphrase, calls `tpmr.sh reset`
+- TPM clear + re-ownership only
+- No counter creation, no /boot signing, no TOTP/HOTP generation
+- Intended for headless recovery or clearing a defend lock before running
+  the full GUI flow
+
+**`reset_tpm()`** (GUI, via Options -> TPM/TOTP/HOTP -> Reset the TPM in
+`initrd/bin/gui-init.sh`):
+- Prompts for new owner passphrase, calls `tpmr.sh reset`
+- Removes stale `/boot/kexec_rollback.txt` and `/boot/kexec_primhdl_hash.txt`
+- Creates new TPM rollback counter via `check_tpm_counter()`
+- Increments the new counter
+- Re-signs /boot with the GPG signing key
+- Generates new TOTP/HOTP secrets
+- Reseals TPM Disk Unlock Key (DUK) to LUKS
+- Regenerates TPM2 encrypted sessions
+
+After `tpm-reset.sh`, the TPM is cleared but the system is not fully
+provisioned — the user must complete the GUI `reset_tpm()` or OEM Factory
+Reset to restore counter, signing, and secrets.

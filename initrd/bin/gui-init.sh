@@ -380,6 +380,42 @@ update_totp() {
 			DEBUG "TPM state at TOTP failure:"
 			DEBUG "$(pcrs)"
 
+			if [ -f /tmp/secret/tpm_da_lockout ]; then
+				rm -f /tmp/secret/tpm_da_lockout
+				da_lockout_msg=""
+				if [ -f /tmp/secret/tpm_da_lockout_msg ]; then
+					da_lockout_msg=$(cat /tmp/secret/tpm_da_lockout_msg)
+					rm -f /tmp/secret/tpm_da_lockout_msg
+				fi
+				totp_menu_text=$(
+					cat <<EOF
+ERROR: TPM dictionary attack lockout prevented TOTP unseal.
+
+Repeat bad TPM authentication attempts, typically from use of
+incorrect TPM owner passphrase during the current session,
+have triggered the TPM's dictionary attack defense mechanism.
+
+${da_lockout_msg:+TPM reports: $da_lockout_msg
+}TPM 1.2 lockout follows the TCG standard exponential backoff:
+  early failures unlock in seconds to minutes,
+  higher failure counts may take hours.
+  The counter resets 24h after the last failure.
+
+To recover:
+- Power off and wait for the lockout to expire.
+- Then reboot and the TPM will accept auth attempts again.
+- If the issue persists, reset the TPM from the menu below.
+
+How would you like to proceed?
+EOF
+				)
+				whiptail_error --title "ERROR: TPM Dictionary Attack Lockout" \
+					--menu "$totp_menu_text" 0 80 4 \
+					'p' ' Reset the TPM' \
+					'i' ' Ignore error and continue to main menu' \
+					'x' ' Exit to recovery shell' \
+					2>/tmp/whiptail || recovery "GUI menu failed"
+			else
 			totp_menu_text=$(
 				cat <<EOF
 ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.
@@ -405,6 +441,7 @@ EOF
 				'i' ' Ignore error and continue to main menu' \
 				'x' ' Exit to recovery shell' \
 				2>/tmp/whiptail || recovery "GUI menu failed"
+			fi
 
 			option=$(cat /tmp/whiptail)
 			case "$option" in

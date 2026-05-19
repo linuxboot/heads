@@ -63,15 +63,16 @@ tpm2_password_hex() {
 # -a: Append to file.  Default is to overwrite.
 tpm2_pcrread() {
 	TRACE_FUNC
+	local append_mode
 	if [ "$1" = "-a" ]; then
-		APPEND=y
+		append_mode=y
 		shift
 	fi
 
 	index="$1"
 	file="$2"
 
-	if [ -z "$APPEND" ]; then
+	if [ -z "$append_mode" ]; then
 		# Don't append - truncate file now so real command always
 		# overwrites
 		true >"$file"
@@ -81,15 +82,16 @@ tpm2_pcrread() {
 }
 tpm1_pcrread() {
 	TRACE_FUNC
+	local append_mode
 	if [ "$1" = "-a" ]; then
-		APPEND=y
+		append_mode=y
 		shift
 	fi
 
 	index="$1"
 	file="$2"
 
-	if [ -z "$APPEND" ]; then
+	if [ -z "$append_mode" ]; then
 		# Don't append - truncate file now so real command always
 		# overwrites
 		true >"$file"
@@ -354,7 +356,7 @@ tpm2_counter_inc() {
 		rm -f "$tmp_err_file"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 		DEBUG "tpm2_counter_inc attempt $attempt failed. Stderr: $tmp_err_content"
-		if ! echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|0x98e|0x149'; then
+		if ! echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			DIE "Can't increment TPM counter for $index, access denied."
 		fi
 		WARN "Authentication failed, retrying..."
@@ -362,7 +364,7 @@ tpm2_counter_inc() {
 	DIE "Can't increment TPM counter for $index after 3 attempts, access denied."
 }
 
-# _tpm_auth_retry - Shared retry helper for TPM commands needing owner auth.
+# _tpm_auth_retry - Shared retry helper for TPM commands needing authorization.
 #
 # Handles both TPM1 (tpmtotp: errors to stdout, uses -pwdo/-pwdc flags)
 # and TPM2 (tpm2-tools: errors to stderr, uses -P parameter).
@@ -370,16 +372,26 @@ tpm2_counter_inc() {
 # Caching: prompt_tpm_owner_password reuses cached passphrase if available.
 # On auth failure the cache is shredded; next prompt will ask the user.
 #
+# Error stream selection:
+#   TPM1 (tpmtotp):   errors go to stdout via printf() — capture stdout+stderr
+#   TPM2 (tpm2-tools): errors go to stderr via LOG_ERR() — capture stderr only
+#
+# Auth detection grep patterns:
+#   English words  — TPM1 (TPM_GetErrMsg returns "Authentication failed...")
+#                  — TPM2 (tpm2-tools LOG_ERR returns "TPM2_RC_AUTH_FAIL...")
+#   defend         — TPM1 "Defend lock running" (TPM_DEFEND_LOCK_RUNNING)
+#   0x98e, 0x149  — TPM2 raw hex codes (TPM2_RC_AUTH_FAIL, TPM2_RC_NV_AUTHORIZATION)
+#
 # Usage: _tpm_auth_retry <label> <error_stream> <tpm_type> <pw_flag> <cmd...>
 #   <label>:        short name for debug (e.g. "counter_create")
-#   <error_stream>: "stdout" (TPM1) or "stderr" (TPM2)
+#   <error_stream>: "stdout" (TPM1: tpmtotp printf) or "stderr" (TPM2: tpm2-tools LOG_ERR)
 #   <tpm_type>:    "tpm1" or "tpm2"
 #   <pw_flag>:     passphrase flag for TPM1 (-pwdo or -pwdc), ignored for TPM2
 #   <cmd...>:       the tpm command and its non-auth arguments
 #
 # Exit codes:
 #   0: success
-#   1: non-auth error (e.g., "out of resources" 0x15) — caller should check
+#   1: non-auth error (e.g., TPM1 "out of resources" 0x15) — caller should check
 _tpm_auth_retry() {
 	local label="$1" error_stream="$2" tpm_type="$3" pw_flag="$4"
 	shift 4
@@ -417,7 +429,7 @@ _tpm_auth_retry() {
 		DEBUG "_tpm_auth_retry $label attempt $attempt failed: $out_content"
 		rm -f "$tmp_file"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$out_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			WARN "$label failed (bad passphrase?). Retrying..."
 		else
 			# Non-auth error (e.g., out of resources 0x15)
@@ -443,17 +455,35 @@ tpm1_counter_read() {
 
 # tpm1_counter_increment - Increment a TPM1 rollback counter.
 # Args: -ix <index> [ -pwdc <passphrase> ]
+#
+# Auth behaviour:
+#   -pwdc ''       : empty counter auth (SHA1 of ""), correct per TCG spec.
+#                    Calls tpm directly without retry — caller handles fallback.
+#   -pwdc <pass>   : owner passphrase auth via _tpm_auth_retry (migration).
+#   (no -pwdc)     : owner passphrase auth via _tpm_auth_retry (backward compat).
 tpm1_counter_increment() {
 	TRACE_FUNC
 	local counter_id=""
+	local pwdc_provided="n"
+	local pwdc_value=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-ix) counter_id="$2"; shift 2 ;;
-			-pwdc) shift 2 ;;  # passphrase handled by _tpm_auth_retry
+			-pwdc) pwdc_provided="y"; pwdc_value="$2"; shift 2 ;;
 			*) shift ;;
 		esac
 	done
-	_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" tpm counter_increment -ix "$counter_id"
+	if [ "$pwdc_provided" = "y" ] && [ -z "$pwdc_value" ]; then
+		# Empty counter auth per TCG spec: this is the normal counter
+		# increment (no secret). Bypass _tpm_auth_retry because the
+		# empty string is intentional, not a user input error.
+		# Use || return so set -e doesn't kill the script on DA failure.
+		DEBUG "tpm1_counter_increment: empty auth, calling tpm directly"
+		tpm counter_increment -ix "$counter_id" -pwdc '' || return $?
+	else
+		_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" \
+			tpm counter_increment -ix "$counter_id"
+	fi
 }
 
 tpm2_counter_create() {
@@ -627,7 +657,6 @@ tpm2_seal() {
 	while true; do
 		attempt=$((attempt + 1))
 		prompt_tpm_owner_password
-		tpm_owner_passphrase="$tpm_owner_passphrase"
 		tmp_err_file="$(mktemp)"
 		tpm2 evictcontrol -Q -C o -P "$(tpm2_password_hex "$tpm_owner_passphrase")" \
 			-c "$handle" 2>"$tmp_err_file" || true
@@ -641,7 +670,7 @@ tpm2_seal() {
 		rm -f "$tmp_err_file"
 		DEBUG "Failed attempt $attempt to write sealed secret to NVRAM from tpm2_seal. Stderr: $tmp_err_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_err_content" | grep -qiE 'authorization|auth|bad|permission|defend|0x98e|0x149'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts. Reset the TPM and try again."
 			fi
@@ -759,7 +788,7 @@ tpm1_seal() {
 			rm -f "$tmp_def_out"
 			DEBUG "tpm1_seal nv_definespace failed (attempt $attempt): $def_out_content"
 			# If auth failure, retry after re-prompt; otherwise bail out.
-			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+			if echo "$def_out_content" | grep -qiE 'authorization|auth|bad|permission|defend'; then
 				shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
 				WARN "nv_definespace failed (bad passphrase?). Retrying..."
 				continue
@@ -788,7 +817,7 @@ tpm1_seal() {
 		fi
 		DEBUG "tpm1_seal nv_writevalue(post-define) output: $tmp_out_content"
 		shred -n 10 -z -u /tmp/secret/tpm_owner_passphrase 2>/dev/null || true
-		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission'; then
+		if echo "$tmp_out_content" | grep -qiE 'authorization|auth|bad|permission|defend'; then
 			if [ "$attempt" -ge 3 ]; then
 				DIE "Unable to write sealed secret to TPM NVRAM after 3 attempts"
 			fi
@@ -846,15 +875,23 @@ tpm2_unseal() {
 	fi
 
 	# tpm2 unseal will write the unsealed data to stdout and any errors to
-	# stderr; capture stderr to log.
+	# stderr; capture stderr to a temp file for lockout detection.
+	TMP_STDERR="$(mktemp)"
+	at_exit cleanup_shred "$TMP_STDERR"
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
+		-S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_STDERR"; then
+		# Log stderr for diagnostics
+		LOG "tpm2 unseal stderr: $(cat "$TMP_STDERR")"
+		# Detect DA lockout from stderr (TPM2 returns TPM2_RC_LOCKOUT)
+		if grep -qi 'lockout\|lock\|auth.*fail\|0x98e\|0x149' "$TMP_STDERR" 2>/dev/null; then
+			WARN "TPM2 dictionary attack lockout active. Unseal rejected."
+			touch /tmp/secret/tpm_da_lockout 2>/dev/null
+		fi
+		rm -f "$TMP_STDERR"
 		WARN "Unable to unseal secret from TPM NVRAM"
-
 		# should succeed, exit if it doesn't
 		exit 1
 	fi
-	rm -f "$TMP_ERR_FILE"
 }
 
 tpm1_unseal() {
@@ -943,6 +980,27 @@ tpm1_unseal() {
 		return 0
 	fi
 	DEBUG "tpm1_unseal unsealfile output: $(cat "$TMP_UNSEAL_OUT")"
+	# Detect DA lockout from unseal failure output (works on all TPMs
+	# including STM/Infineon that don't expose DA state via getcapability).
+	if grep -qi 'defend\|lock' "$TMP_UNSEAL_OUT" 2>/dev/null; then
+		WARN "TPM dictionary attack lockout active. Unseal rejected."
+		# Signal to callers (unseal-totp.sh, unseal-hotp.sh) that the
+		# failure was DA-lockout-specific so they can show appropriate
+		# guidance instead of generic "reseal" instructions.
+		touch /tmp/secret/tpm_da_lockout 2>/dev/null
+		# Query da_state for remaining time (best-effort, works on
+		# TPMs that support TPM_CAP_DA_LOGIC; STM returns unavailable).
+		# Save any found timer to a file so gui-init.sh can include it
+		# in the whiptail dialog (not just console STATUS).
+		da_state_output="$(tpmr.sh da_state 2>/dev/null)" || true
+		if [ -n "$da_state_output" ]; then
+			da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
+			if [ -n "$da_summary" ]; then
+				STATUS "TPM DA: ${da_summary#=> }"
+				echo "${da_summary#=> }" >/tmp/secret/tpm_da_lockout_msg 2>/dev/null
+			fi
+		fi
+	fi
 	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
 		DEBUG "nonfatal tpm1_unseal failure: unable to unseal TPM NVRAM blob"
 		return 1
@@ -1051,6 +1109,113 @@ tpm2_reset() {
 		>/dev/null 2>&1 || LOG "tpm2_reset: unable to set lockout password"
 }
 
+# Query TPM1 dictionary attack state via TPM_CAP_DA_LOGIC capability.
+#
+# This function tries one thing: ask the TPM for its DA state.
+# If the TPM supports TPM_CAP_DA_LOGIC (0x19), it returns a structured
+# response with State, currentCount, thresholdCount, actionDependValue.
+# If it does not support the query (e.g., STM TPMs return TPM_BAD_MODE=44),
+# we report "unavailable" so callers know to rely on other detection
+# methods (e.g., increment failure with "Defend lock running").
+#
+# When the query succeeds, parses the raw capability output into a
+# human-readable summary and a machine-parsable DA: line.  The
+# preflight guard in increment_tpm_counter (functions.sh) reads the
+# DA: field values to decide DIE (locked) vs WARN (nearing threshold)
+# vs proceed.
+#
+# Timer logic:
+#   actionDependValue > 0 AND state = 1 => actively locked
+#   actionDependValue = 0 AND state = 0 => not locked (count may still
+#     be >= threshold; counter resets on correct empty auth)
+#
+# BusyBox compatibility: uses sed -n with /p so timer field is absent
+# from DA: when actionDependValue is unavailable.
+tpm1_da_state() {
+	TRACE_FUNC
+	local da_out rc=0
+	local state current threshold timer
+	local ver_output vendor_id rev_major rev_minor rev_major_dec rev_minor_dec perm_output da_logic_flag
+
+	# Log TPM chip identity for diagnostics (works on all TPM 1.2 chips).
+	# TPM_CAP_VERSION_VAL (0x1a) returns vendor ID and firmware revision.
+	ver_output="$(tpm getcapability -cap 0x1a 2>/dev/null)" || true
+	if [ -n "$ver_output" ]; then
+		vendor_id="$(echo "$ver_output" | grep 'VendorID' | tail -1 | sed 's/.*: *//')"
+		rev_major="$(echo "$ver_output" | grep 'revMajor' | sed 's/.*: 0x//')"
+		rev_minor="$(echo "$ver_output" | grep 'revMinor' | sed 's/.*: 0x//')"
+		rev_major_dec=$(printf '%d' "0x${rev_major:-0}" 2>/dev/null)
+		rev_minor_dec=$(printf '%d' "0x${rev_minor:-0}" 2>/dev/null)
+		DEBUG "tpm1_da_state: TPM vendor=\"$vendor_id\" firmware=$rev_major_dec.$rev_minor_dec"
+	fi
+
+	# Check whether full DA logic info is deliberately disabled in TPM firmware.
+	# TPM_CAP_FLAG with subcap TPM_CAP_FLAG_PERMANENT (0x108) returns permanent
+	# flags including disableFullDALogicInfo.  TRUE means the TPM only exposes
+	# TPM_DA_INFO_LIMITED (state only, no counter/threshold/timer).
+	# TPM_BAD_MODE (44) from this query means the flag itself is not implemented.
+	perm_output="$(tpm getcapability -cap 0x04 -scap 0x108 2>/dev/null)" || true
+	if echo "$perm_output" | grep -q 'Disable full DA logic info'; then
+		da_logic_flag="$(echo "$perm_output" | grep 'Disable full DA logic info' | sed 's/.*: //')"
+		DEBUG "tpm1_da_state: disableFullDALogicInfo=$da_logic_flag"
+	fi
+
+	# TPM_CAP_DA_LOGIC = 0x19, subcap 0x0000 (owner auth DA info).
+	# Some TPMs (e.g., STM) do not support this query and return
+	# TPM_BAD_MODE (44) for the subcap.  This is a capability absence,
+	# not a lockout state -- the TPM may still implement DA protection
+	# but simply not expose the state via this query.
+	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>/dev/null)" || rc=$?
+	if [ -z "$da_out" ] || ! echo "$da_out" | grep -q 'State'; then
+		[ -n "${rc-}" ] && DEBUG "tpm1_da_state: getcapability exit=$rc"
+		if [ "${rc-}" = "44" ]; then
+			DEBUG "tpm1_da_state: TPM does not support DA state queries (TPM_BAD_MODE)"
+			echo "TPM DA state: unavailable (this TPM does not report DA state)"
+			[ -n "${vendor_id-}" ] && echo "TPM chip: $vendor_id (firmware ${rev_major_dec:-?}.${rev_minor_dec:-?})"
+		else
+			DEBUG "tpm1_da_state: DA state not available (exit=${rc-})"
+			echo "TPM DA state: unavailable"
+		fi
+		return 1
+	fi
+	echo "$da_out"
+	[ -n "${vendor_id-}" ] && echo "TPM chip: $vendor_id (firmware ${rev_major_dec:-?}.${rev_minor_dec:-?})"
+	state=$(echo "$da_out" | grep 'State' | awk '{print $NF}')
+	current=$(echo "$da_out" | grep 'currentCount' | awk '{print $NF}')
+	threshold=$(echo "$da_out" | grep 'thresholdCount' | awk '{print $NF}')
+	timer=$(echo "$da_out" | grep 'actionDependValue' | awk '{print $NF}')
+	DEBUG "tpm1_da_state: state=$state current=$current threshold=$threshold timer=$timer"
+	echo ""
+	echo "DA policy:"
+	echo "  thresholdCount (max failures before defend): $threshold"
+	echo "  currentCount (current failure count): $current"
+	echo "  actionDependValue (lockout seconds remaining): ${timer:-0}"
+	echo "  state (DA logic: 0=inactive, 1=active): $state"
+	if [ "$state" = "1" ]; then
+		if [ -n "$timer" ] && [ "$timer" -ge 3600 ] 2>/dev/null; then
+			echo "=> TPM DEFEND LOCK ACTIVE (~$((timer / 3600)) hour(s) remaining)"
+		elif [ -n "$timer" ] && [ "$timer" -ge 60 ] 2>/dev/null; then
+			echo "=> TPM DEFEND LOCK ACTIVE (~$((timer / 60)) min remaining)"
+		elif [ -n "$timer" ] && [ "$timer" -gt 0 ] 2>/dev/null; then
+			echo "=> TPM DEFEND LOCK ACTIVE (${timer}s remaining)"
+		else
+			echo "=> TPM DEFEND LOCK ACTIVE (duration unknown on this TPM)"
+		fi
+	elif [ -n "$current" ] && [ -n "$threshold" ] && [ "$current" -ge "$threshold" ] 2>/dev/null; then
+		DEBUG "tpm1_da_state: above threshold, not locked (timer=$timer)"
+		echo "=> Above threshold: $current/$threshold failures (auth failures will trigger lockout)"
+	elif [ -n "$current" ] && [ -n "$threshold" ]; then
+		echo "=> Within lockout threshold ($current/$threshold failures used)"
+	else
+		echo "=> DA state: limited info (state=$state)"
+	fi
+	# Machine-parsable line for callers (preflight guard, scripts)
+	# timer= field always emitted; value is empty when unavailable.
+	# Preflight guard's sed -n /p returns empty string on timer= (no match
+	# on empty value), so da_timer stays empty and lockout check is skipped.
+	echo "DA: state=${state:-} current=${current:-} threshold=${threshold:-} timer=${timer:-}"
+}
+
 tpm1_reset() {
 	TRACE_FUNC
 	tpm_owner_passphrase="$1"
@@ -1075,9 +1240,39 @@ tpm1_reset() {
 	DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || LOG "tpm1_reset: unable to physicalenable after clear"
 
 	# 3. Take ownership with the new TPM owner passphrase.
-	if ! DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
-		LOG "tpm1_reset: tpm takeown failed after forceclear"
-		return 1
+	# TPM_DEFEND_LOCK_RUNNING is a standard TPM 1.2 error raised after
+	# too many failed authorization attempts (see tpm_error.h).  The TPM
+	# enters a time-out period (varies by chip: minutes to hours) and
+	# refuses all authorization operations.  forceclear clears the owner
+	# but not the dictionary attack counter on some implementations, so
+	# takeown may still fail after forceclear.
+	#
+	# Recovery: cycle physical presence once — this works on some chipsets
+	# where software presence was not properly asserted before forceclear.
+	# If that fails, the lockout must resolve naturally (wait with power on
+	# for the DA timer to expire, or hardware TPM reset via BIOS/jumper).
+	# AC power cycling behavior is implementation-specific.
+	local takeown_rc takeown_out
+	takeown_out="$(DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" 2>&1)" && takeown_rc=0 || takeown_rc=$?
+	if [ $takeown_rc -ne 0 ]; then
+		if echo "$takeown_out" | grep -qi "defend lock"; then
+			LOG "tpm1_reset: defend lock detected after forceclear"
+			LOG "tpm1_reset: cycling physical presence to assert PP before retry"
+			DO_WITH_DEBUG tpm physicaldisable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalenable >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalpresence -s >/dev/null 2>&1 || true
+			DO_WITH_DEBUG tpm physicalsetdeactivated -c >/dev/null 2>&1 || true
+			if DO_WITH_DEBUG --mask-position 3 tpm takeown -pwdo "$tpm_owner_passphrase" >/dev/null 2>&1; then
+				: # Success: fall through to final assertions below
+			else
+				LOG "tpm1_reset: physical presence cycling did not clear defend lock"
+				LOG "tpm1_reset: run 'tpmr.sh da_state' for expected delay, or try tpm-reset.sh to clear TPM"
+				return 1
+			fi
+		else
+			LOG "tpm1_reset: tpm takeown failed after forceclear"
+			return 1
+		fi
 	fi
 
 	# 4. Leave TPM enabled, present, and not deactivated.
@@ -1114,6 +1309,204 @@ tpm2_shutdown() {
 	# This is a "clear" shutdown (do not preserve runtime state) since we
 	# are not going to resume later, we are powering off (or rebooting).
 	tpm2 shutdown -Q --clear
+}
+
+# Query TPM2 dictionary attack state via getcap properties-variable.
+# TPM2 has no single DA state query (unlike TPM1's TPM_CAP_DA_LOGIC).
+# We read four properties and derive lockout status.
+#
+# Lockout logic:
+#   count >= max_auth => locked (no auth will succeed)
+#   count < max_auth => within threshold (one bad auth may push over)
+#   estimate = (counter - max_auth + 1) * interval
+#   When locked, DA: line includes timer=<estimate> for the preflight guard.
+#   When not locked, DA: line has no timer= field (sed -n /p returns empty).
+#
+# Firmware version (TPM2_PT_FIRMWARE_VERSION_1) is logged to debug.log
+# for diagnostic use (identifying TPM chip and firmware revision).
+tpm2_da_state() {
+	TRACE_FUNC
+	local cap_out da_out counter_hex max_auth_hex interval_hex recovery_hex counter max_auth interval recovery fw_ver
+	cap_out="$(tpm2 getcap properties-variable 2>/dev/null)" || {
+		WARN "Unable to query TPM2 dictionary attack state"
+		DEBUG "tpm2_da_state: getcap properties-variable failed (no TPM access?)"
+		return 1
+	}
+	# Extract firmware version from cap_out for diagnostic logging
+	fw_ver="$(echo "$cap_out" | grep 'TPM2_PT_FIRMWARE_VERSION_1' | sed 's/.*0x//')"
+	[ -n "$fw_ver" ] && DEBUG "tpm2_da_state: TPM firmware version: $(printf '%d.%d' $((0x${fw_ver}>>16)) $((0x${fw_ver}&0xffff)) 2>/dev/null)"
+	da_out="$(echo "$cap_out" | grep -E \
+		'TPM2_PT_LOCKOUT_COUNTER|TPM2_PT_MAX_AUTH_FAIL|TPM2_PT_LOCKOUT_INTERVAL|TPM2_PT_LOCKOUT_RECOVERY')" || true
+	if [ -z "$da_out" ]; then
+		DEBUG "tpm2_da_state: no matching properties found in getcap output"
+		echo "TPM2 DA state: unavailable"
+		return 1
+	fi
+	echo "$da_out"
+	counter_hex=$(echo "$da_out" | grep 'LOCKOUT_COUNTER' | sed 's/.*0x//')
+	max_auth_hex=$(echo "$da_out" | grep 'MAX_AUTH_FAIL' | sed 's/.*0x//')
+	interval_hex=$(echo "$da_out" | grep 'LOCKOUT_INTERVAL' | sed 's/.*0x//')
+	recovery_hex=$(echo "$da_out" | grep 'LOCKOUT_RECOVERY' | sed 's/.*0x//')
+	counter=$((0x${counter_hex:-0}))
+	max_auth=$((0x${max_auth_hex:-0}))
+	interval=$((0x${interval_hex:-0}))
+	recovery=$((0x${recovery_hex:-0}))
+	echo ""
+	echo "DA policy:"
+	echo "  maxTries (max auth fails before lockout): $max_auth"
+	if [ "$interval" -ge 60 ]; then
+		echo "  recoveryTime (seconds before one failure is forgotten): $interval ($((interval / 60)) min)"
+	else
+		echo "  recoveryTime (seconds before one failure is forgotten): $interval"
+	fi
+	echo "  lockoutRecovery (seconds lockout auth blocked after failure): $recovery"
+	echo "  failedTries (current auth failure count): $counter"
+	if [ -n "$counter_hex" ] && [ -n "$max_auth_hex" ] && [ "$counter" -ge "$max_auth" ] 2>/dev/null; then
+		DEBUG "tpm2_da_state: LOCKOUT ACTIVE (counter=$counter threshold=$max_auth)"
+		echo "=> TPM LOCKOUT ACTIVE ($counter/$max_auth failures)"
+		# counter drops by 1 every recoveryTime seconds.
+		# When counter < maxTries, TPM unlocks. So we need (counter - maxTries + 1) decrements.
+		local need=$((counter - max_auth + 1))
+		local estimate=$((need * interval))
+		if [ "$estimate" -ge 3600 ]; then
+			echo "=> Estimated unlock in ~$((estimate / 3600)) hour(s) (if no new failures)"
+		elif [ "$estimate" -ge 60 ]; then
+			echo "=> Estimated unlock in ~$((estimate / 60)) min (if no new failures)"
+		else
+			echo "=> Estimated unlock in ~${estimate}s (if no new failures)"
+		fi
+		echo "DA: current=${counter:-} threshold=${max_auth:-} timer=${estimate}"
+	else
+		DEBUG "tpm2_da_state: within threshold (counter=$counter threshold=$max_auth)"
+		echo "=> Within lockout threshold ($counter/$max_auth failures used)"
+		echo "DA: current=${counter:-} threshold=${max_auth:-}"
+	fi
+}
+
+
+# bad_auth - TPM1: deliberately attempt counter increment with wrong auth.
+# Tests dictionary attack lockout detection and preflight guard behavior.
+# The test works by checking whether the increment succeeds (no lockout)
+# or fails (lockout active).  Repeat until the increment fails with lockout.
+#
+# Design decisions:
+#   - Wrong password is TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD (self-documenting).
+#   - || rc=$? captures the exit code for inspection without tripping set -e.
+# Reads counter ID from /boot/kexec_rollback.txt or takes one as argument.
+tpm1_bad_auth() {
+	TRACE_FUNC
+	local rollback_counter_id="${1:-}"
+	local increment_exit_code increment_command_output
+	local ver_output vendor_id rev_major rev_minor rev_major_dec rev_minor_dec
+	# If no counter ID given, read it from the rollback config on /boot.
+	# Note: /boot is not mounted in recovery shell; the user must mount
+	# a boot device first or provide a counter ID as argument.
+	if [ -z "$rollback_counter_id" ] && [ -r /boot/kexec_rollback.txt ]; then
+		rollback_counter_id=$(grep -Eo 'counter-[0-9a-fA-F]+' /boot/kexec_rollback.txt | \
+			sed 's/counter-//' | head -1)
+	fi
+	DEBUG "=== BAD AUTH TEST (TPM1) ==="
+	DEBUG "Counter: ${rollback_counter_id:-<none>}"
+	if [ -z "$rollback_counter_id" ]; then
+		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
+		# WARN once per session to avoid 1s sleep on every loop iteration.
+		if [ ! -f /tmp/.tpmr_bad_auth_no_counter_warned ]; then
+			WARN "No TPM counter ID: mount /boot partition then rerun, or pass ID directly: tpmr.sh bad_auth <ID>"
+			touch /tmp/.tpmr_bad_auth_no_counter_warned
+		fi
+		return 1
+	fi
+	# Log TPM chip identity for diagnostics.
+	ver_output="$(tpm getcapability -cap 0x1a 2>/dev/null)" || true
+	if [ -n "$ver_output" ]; then
+		vendor_id="$(echo "$ver_output" | grep 'VendorID' | tail -1 | sed 's/.*: *//')"
+		rev_major="$(echo "$ver_output" | grep 'revMajor' | sed 's/.*: 0x//')"
+		rev_minor="$(echo "$ver_output" | grep 'revMinor' | sed 's/.*: 0x//')"
+		# Convert raw hex version bytes (e.g. 0x0D.0x0C) to human-readable
+		# decimal (13.12) for user-facing output and log messages.
+		rev_major_dec=$(printf '%d' "0x${rev_major:-0}" 2>/dev/null)
+		rev_minor_dec=$(printf '%d' "0x${rev_minor:-0}" 2>/dev/null)
+		DEBUG "bad_auth: TPM vendor=\"$vendor_id\" firmware=$rev_major_dec.$rev_minor_dec"
+	fi
+	# Verify the counter exists before attempting a bad-auth increment.
+	if ! tpm counter_read -ix "$rollback_counter_id" >/dev/null 2>&1; then
+		DEBUG "Counter $rollback_counter_id does not exist on this TPM."
+		WARN "Counter $rollback_counter_id not found on this TPM"
+		return 1
+	fi
+	# Attempt increment with a deliberately wrong password.
+	# Each failed auth increments the TPM's global DA failedTries counter.
+	# After the vendor threshold, the TPM returns TPM_DEFEND_LOCK_RUNNING.
+	#
+	# TPM exit codes from counter_increment.c:
+	#   0   = TPM_SUCCESS — increment succeeded (unexpected with wrong password)
+	#   1   = TPM_AUTHFAIL (0x01) — wrong password rejected, DA counter incremented
+	#   255 = TPM_DEFEND_LOCK_RUNNING (0x803, capped at 255 by counter_increment)
+	#         — DA lockout active, no auth operations accepted
+	increment_exit_code=0
+	increment_command_output=$(tpm counter_increment -ix "$rollback_counter_id" -pwdc "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" 2>&1) || increment_exit_code=$?
+	# Log raw result to debug.log for diagnostics; also echo to console for UX.
+	DEBUG "bad_auth: counter_increment rc=$increment_exit_code output='$increment_command_output'"
+	if [ "$increment_exit_code" -ne 0 ]; then
+		if echo "$increment_command_output" | grep -qi 'defend\|lock'; then
+			DEBUG "bad_auth: DA LOCKOUT ACTIVE (rc=$increment_exit_code = TPM_DEFEND_LOCK_RUNNING)"
+			STATUS "bad_auth: DA lockout confirmed. TPM rejected increment (rc=255 = defend lock running)."
+			# Query DA state for diagnostics and console summary.
+			# tpm1_da_state returns 1 on TPMs that don't expose DA
+			# policy (e.g. STM) — its internal DEBUG calls already
+			# capture vendor/firmware/diagnostics in the log.
+			# We only need the summary line for the user and the
+			# machine-parsable DA: line for automation/scripts.
+			da_state_output="$(tpm1_da_state 2>/dev/null)" || true
+			if [ -n "$da_state_output" ]; then
+				da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
+				if [ -n "$da_summary" ]; then
+					STATUS "TPM DA: ${da_summary#=> }"
+				fi
+				da_machine="$(echo "$da_state_output" | grep '^DA:' | tail -1)"
+				[ -n "$da_machine" ] && DEBUG "bad_auth: $da_machine"
+			fi
+		else
+			DEBUG "bad_auth: auth failure (rc=$increment_exit_code = TPM_AUTHFAIL)"
+			echo "Auth failure (rc=$increment_exit_code = TPM_AUTHFAIL, expected with wrong password)."
+			echo "Run again to accumulate failures toward DA lockout."
+		fi
+	else
+		DEBUG "bad_auth: UNEXPECTED SUCCESS (rc=0 = TPM_SUCCESS)"
+		echo "UNEXPECTED: wrong password was accepted (rc=0 = TPM_SUCCESS)."
+	fi
+}
+
+# TPM2 bad_auth: same purpose but uses NV index auth (-P) not owner auth.
+# Design decision: NV index auth failure produces TPM2_RC_AUTH_FAIL (0x98e)
+# and does increment LOCKOUT_COUNTER.  Owner auth failure (-C o -P) may not
+# increment the counter on some TPM2 implementations, so we use -P directly.
+tpm2_bad_auth() {
+	TRACE_FUNC
+	local counter_id="${1:-}"
+	if [ -z "$counter_id" ] && [ -r /boot/kexec_rollback.txt ]; then
+		counter_id=$(grep -Eo 'counter-[0-9a-fA-F]+' /boot/kexec_rollback.txt | \
+			sed 's/counter-//' | head -1)
+	fi
+	DEBUG "=== BAD AUTH TEST (TPM2) ==="
+	DEBUG "Counter: ${counter_id:-<none>}"
+	DEBUG "DA state BEFORE bad auth:"
+	tpm2_da_state
+	if [ -z "$counter_id" ]; then
+		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
+		return 1
+	fi
+	# Verify the counter exists before attempting bad auth
+	if ! tpm2 nvread "0x$counter_id" >/dev/null 2>&1; then
+		DEBUG "Counter 0x$counter_id does not exist on this TPM."
+		return 1
+	fi
+	DEBUG "Attempting increment with wrong passphrase..."
+	# Intentionally wrong auth at NV index level (not owner auth).
+	# Use || true so set -e does not abort on expected TPM2_RC_AUTH_FAIL.
+	tpm2 nvincrement -P "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" "0x$counter_id" 2>&1 || true
+	DEBUG "DA state AFTER bad auth:"
+	tpm2_da_state
 }
 
 if [ "$CONFIG_TPM" != "y" ]; then
@@ -1166,9 +1559,9 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		fi
 
 		TRACE_FUNC
-		# Silence stdout/stderr, they're only useful for debugging
-		# and DO_WITH_DEBUG captures them
-		DO_WITH_DEBUG exec tpm "$@" &>/dev/null
+		# DO_WITH_DEBUG captures stdout/stderr to debug.log;
+		# on failure, log the exit code for diagnostics.
+		DO_WITH_DEBUG tpm "$@" || LOG "tpm extend failed (exit=$?)"
 
 		# Read PCR value after extend (TPM1 uses SHA1, read from sysfs)
 		pcr_value=$(grep -i "PCR-0*$3:" /sys/class/tpm/tpm0/pcrs | head -1 | cut -d: -f2 | tr -d ' ')
@@ -1184,11 +1577,19 @@ if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
 		shift
 		tpm1_unseal "$@"
 		;;
+	bad_auth)
+		shift
+		tpm1_bad_auth "$@"
+		;;
 	reset)
 		shift
 		INFO "TPM: Resetting TPM"
 		tpm1_reset "$@"
 		STATUS_OK "TPM reset completed"
+		;;
+	da_state)
+		shift
+		tpm1_da_state "$@"
 		;;
 	kexec_finalize) ;; # Nothing on TPM1.
 	shutdown) ;;       # Nothing on TPM1.
@@ -1240,6 +1641,9 @@ counter_increment)
 counter_create)
 	tpm2_counter_create "$@"
 	;;
+da_state)
+	tpm2_da_state "$@"
+	;;
 destroy)
 	tpm2_destroy "$@"
 	;;
@@ -1251,6 +1655,9 @@ startsession)
 	;;
 unseal)
 	tpm2_unseal "$@"
+	;;
+bad_auth)
+	tpm2_bad_auth "$@"
 	;;
 reset)
 	INFO "TPM: Resetting TPM"
