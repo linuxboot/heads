@@ -429,7 +429,8 @@ _tpm_auth_retry() {
 }
 
 # tpm1_counter_create - Create a TPM1 rollback counter.
-# Delegates to _tpm_auth_retry for passphrase-driven retry on auth failure.
+# Owner passphrase (via _tpm_auth_retry -pwdo) is required for NV_DefineSpace.
+# Callers pass -pwdc '' for empty counter auth per TCG spec.
 tpm1_counter_create() {
 	TRACE_FUNC
 	_tpm_auth_retry "counter_create" "stdout" "tpm1" "-pwdo" tpm counter_create "$@"
@@ -443,17 +444,35 @@ tpm1_counter_read() {
 
 # tpm1_counter_increment - Increment a TPM1 rollback counter.
 # Args: -ix <index> [ -pwdc <passphrase> ]
+#
+# Auth behaviour:
+#   -pwdc ''       : empty counter auth (SHA1 of ""), correct per TCG spec.
+#                    Calls tpm directly without retry — caller handles fallback.
+#   -pwdc <pass>   : owner passphrase auth via _tpm_auth_retry (migration).
+#   (no -pwdc)     : owner passphrase auth via _tpm_auth_retry (backward compat).
 tpm1_counter_increment() {
 	TRACE_FUNC
 	local counter_id=""
+	local pwdc_provided="n"
+	local pwdc_value=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-ix) counter_id="$2"; shift 2 ;;
-			-pwdc) shift 2 ;;  # passphrase handled by _tpm_auth_retry
+			-pwdc) pwdc_provided="y"; pwdc_value="$2"; shift 2 ;;
 			*) shift ;;
 		esac
 	done
-	_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" tpm counter_increment -ix "$counter_id"
+	if [ "$pwdc_provided" = "y" ] && [ -z "$pwdc_value" ]; then
+		# Empty counter auth per TCG spec: this is the normal counter
+		# increment (no secret). Bypass _tpm_auth_retry because the
+		# empty string is intentional, not a user input error.
+		# Use || return so set -e doesn't kill the script on DA failure.
+		DEBUG "tpm1_counter_increment: empty auth, calling tpm directly"
+		tpm counter_increment -ix "$counter_id" -pwdc '' || return $?
+	else
+		_tpm_auth_retry "counter_increment" "stdout" "tpm1" "-pwdc" \
+			tpm counter_increment -ix "$counter_id"
+	fi
 }
 
 tpm2_counter_create() {
