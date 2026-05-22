@@ -1848,7 +1848,8 @@ check_tpm_counter() {
 	TRACE_FUNC
 
 	LABEL=${2:-3135106223}
-	tpm_passphrase="$3"
+	# $3 (tpm_passphrase) was used by pre-PR #2068 code but is now intentionally
+	# ignored — counters are created with empty auth (-pwdc '') per TCG spec.
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -1857,12 +1858,8 @@ check_tpm_counter() {
 		DEBUG "Extracted TPM_COUNTER: '$TPM_COUNTER' from $1"
 	else
 		DEBUG "$1 does not exist - creating new TPM counter"
-		# Warn user: TPM Owner Passphrase is required to create a new TPM counter
-		if [ ! -s /tmp/secret/tpm_owner_passphrase ]; then
-			WARN "TPM Owner Passphrase is required to create a new TPM counter for /boot content rollback prevention"
-		fi
-
-		# attempt to make a new counter, capturing any stderr for debugging
+		# Create TPM counter with empty counter auth per TCG spec (no secret).
+		# Owner passphrase is not needed for the counter auth itself.
 		DEBUG "Invoking tpmr.sh counter_create with label $LABEL"
 		# run it, then record the exit status explicitly; the '!' operator
 		# cannot be used because it would hide the real return code.
@@ -1872,7 +1869,7 @@ check_tpm_counter() {
 		(
 			set +e
 			tpmr.sh counter_create \
-				-pwdc "${tpm_passphrase:-}" \
+				-pwdc '' \
 				-la "$LABEL" \
 				>/tmp/counter 2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2)
 			echo $? > /tmp/counter_create_rc
@@ -2050,22 +2047,11 @@ increment_tpm_counter() {
 		counter_present="y"
 	fi
 
-	# Prefer explicit passphrase, otherwise reuse cached TPM owner passphrase.
+	# TPM2 uses owner-auth fallback in tpm2_counter_inc; TPM1 uses empty counter
+	# auth (SHA1("")) per TCG spec — no owner passphrase needed for increment.
+	# Keep the cached owner passphrase for TPM2 fallback.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
-		DEBUG "increment_tpm_counter: using cached TPM owner passphrase"
-	fi
-
-	# TPM1 counter_increment requires owner auth in practice on this path.
-	# origin/master typically reached this with cached owner passphrase already set,
-	# but the newer reseal/update flows can call this later in the session after
-	# that cache is absent. Prompt once and cache to avoid empty -pwdc failures.
-	if [ "$CONFIG_TPM2_TOOLS" != "y" ] && [ -z "$tpm_passphrase" ]; then
-		WARN "TPM Owner Passphrase is required to update rollback counter before signing updated boot hashes."
-		DEBUG "increment_tpm_counter: TPM1 path has no cached/provided owner passphrase; prompting now"
-		prompt_tpm_owner_password
-		tpm_passphrase="$tpm_owner_passphrase"
-		DEBUG "increment_tpm_counter: TPM1 owner passphrase obtained and cached"
 	fi
 
 	# Try to increment the counter.  We normally hide the verbose
@@ -2094,7 +2080,7 @@ increment_tpm_counter() {
 			increment_ok="y"
 		fi
 	else
-		# TPM1 path uses owner auth in practice.
+		# TPM1 counter uses empty auth (SHA1 of "") per TCG spec.
 		# NOTE: tpmtotp C code prints ALL output (success + errors) to stdout.
 		# We must capture stdout to detect failures properly.
 		# DO_WITH_DEBUG internally captures the command's stderr (tee /dev/stderr
@@ -2104,7 +2090,7 @@ increment_tpm_counter() {
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
-				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
+				tpmr.sh counter_increment -ix "$counter_id" -pwdc '' \
 					2>/dev/null | tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
@@ -2123,10 +2109,11 @@ increment_tpm_counter() {
 
 		# run counter_create but tee its stdout to a file so we still see
 		# the interactive prompt and any informational messages.
+		# Empty counter auth (-pwdc '') per TCG spec.
 		if (
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 3 \
-				tpmr.sh counter_create -pwdc "${tpm_passphrase:-}" -la 3135106223 \
+				tpmr.sh counter_create -pwdc '' -la 3135106223 \
 				2> >(tee >(SINK_LOG "tpm counter_create stderr") >&2) |
 				tee /tmp/new-counter >/dev/null
 		); then

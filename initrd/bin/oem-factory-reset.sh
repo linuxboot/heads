@@ -868,7 +868,7 @@ generate_checksums() {
 	if [ "$CONFIG_TPM" = "y" ]; then
 		if [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 			tpmr.sh counter_create \
-				-pwdc "${TPM_PASS:-}" \
+				-pwdc '' \
 				-la -3135106223 |
 				tee /tmp/counter >/dev/null 2>&1 ||
 				whiptail_error_die "Unable to create TPM counter"

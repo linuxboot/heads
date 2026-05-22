@@ -330,6 +330,37 @@ counter passes preflight or the user chooses to continue.
 exit status of `tee` (always 0), not `tpmr.sh`. See
 [ux-patterns.md](ux-patterns.md#tpm-counter-patterns) for the correct pattern.
 
+### TPM1 counter auth
+
+TPM1 rollback counters use **empty auth** (`SHA1("")`) per the TCG
+specification (TPM Main Spec Part 3: `TPM_CreateCounter` uses owner
+auth `-pwdo`, but `TPM_IncrementCounter` uses the counter's own
+authData — not the owner password).
+
+A regression in PR #2068 changed `increment_tpm_counter` from
+hardcoded `-pwdc ''` to `-pwdc "${tpm_passphrase:-}"` (owner
+passphrase), while counters continued to be created with `-pwdc ''`.
+This caused every increment to compute SHA1(owner_pass) against a
+counter created with SHA1(""), producing persistent `TPM_AUTHFAIL`.
+
+The repeated auth failures (3 per boot) accumulated the TPM's
+dictionary attack (DA) failedTries counter until lockout was reached
+(~10 boots = 30 failures). Users reported "hours of waiting" on
+affected hardware. On some implementations, the DA state persisted
+through `tpm forceclear`.
+
+The fix (PR #2117):
+- `tpm1_counter_increment`: detect explicit `-pwdc ''` and call
+  `tpm counter_increment` directly, bypassing `_tpm_auth_retry`.
+  Non-empty `-pwdc` or absent flag falls through to the owner-auth
+  retry path for migration of counters created by pre-fix code.
+- `check_tpm_counter` and `increment_tpm_counter`: create and
+  increment counters with `-pwdc ''` instead of owner passphrase.
+- `oem-factory-reset.sh`: uses `-pwdc ''` for counter creation.
+
+TPM2 counters are unaffected — they still require owner auth for
+`tpm2 nvincrement`.
+
 ---
 
 ## TPM secret sealing internals (TPM2)
