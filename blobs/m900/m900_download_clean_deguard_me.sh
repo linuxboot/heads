@@ -15,6 +15,10 @@ ME_DOWNLOAD_HASH="de26085e1fbfaaa0302ec73dba411a5fd25fe13ae07e69a2287754ada6a7a1
 # ...and the cleaned and deguarded version from that blob.
 DEGUARDED_ME_BIN_HASH="9c3eff6be017b36c819a0df3c1f6537bb26b6f3d5780787f60b91cedc789f0f0"
 
+# Integrity checks for the committed IFD and GBE blobs.
+IFD_BIN_HASH="6d085dfd05f4c945e2745568ab8b1412ea2514a68b463aa05fa1fedec6e429dd"
+GBE_BIN_HASH="9508980f92b6b6d270c7f53fd8d4fbf90f37465dff6506d5b3c0675c85f48ffe"
+
 
 function usage() {
 	echo -n \
@@ -139,6 +143,12 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 
 	parse_params "$@"
 
+	# Verify committed IFD and GBE blobs (these are checked-in binary files and must match).
+	check_outputs \
+		"${IFD_BIN_HASH} ${output_dir}/m900_tower_ifd.bin" \
+		"${GBE_BIN_HASH} ${output_dir}/m900_tower_gbe.bin" || exit 1
+
+	# Check if the deguarded ME already exists and matches.
 	check_outputs "${DEGUARDED_ME_BIN_HASH} ${me_deguarded}" && { echo "All outputs match. Nothing to do."; exit 0; }
 
 	echo "Writing cleaned and deguarded ME to ${me_deguarded}"
