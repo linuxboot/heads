@@ -47,7 +47,7 @@ Sha256sums: `blobs/m900/hashes.txt`
 
 # Documentation
 
-A guide on how to flash this board can be found at https://osresearch.net/m900_tower-maximized-flashing/ (pending: the page needs to be created).
+A guide on how to flash this board can be found at https://osresearch.net/m900_tower-maximized-flashing/
 
 The upstream port for the board can be found here: https://review.coreboot.org/c/coreboot/+/74187
 
