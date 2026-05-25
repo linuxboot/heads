@@ -185,10 +185,14 @@ to a dedicated LUKS key slot and sealed to TPM NVRAM with the policy below.
 | 6 | `calcfuturepcr 6 /tmp/luksDump.txt` | Pre-computed LUKS header measurement |
 | 7 | `pcrread` (current value) | User CBFS files |
 
-PCR 5 is conditional: if the board loads extra kernel modules (USB HID,
-libata, HOTP token), the actual post-load PCR 5 value is used. If no extra
-modules are loaded, `calcfuturepcr 5` computes the zeroed (never-extended)
-future value. This means the seal is valid only for the expected module set.
+PCR 5 is conditional on whether the board loads extra kernel modules
+(USB HID, libata, HOTP token).  The condition in `kexec-seal-key.sh`
+checks `CONFIG_USER_USB_KEYBOARD`, `CONFIG_USB_KEYBOARD_REQUIRED`, the
+presence of `/lib/modules/libata.ko`, and `/bin/hotp_verification`.
+If any is true, the actual post-load PCR 5 value is read from hardware
+via `tpmr.sh pcrread`.  If none are true, `calcfuturepcr 5` computes
+the zeroed (never-extended) future value.  This means the seal is valid
+only for the expected module set.
 
 PCR 6 is pre-computed: `calcfuturepcr 6 /tmp/luksDump.txt` replays the
 LUKS header extension to compute the expected post-measurement value. If
@@ -424,7 +428,8 @@ To verify that a new board's coreboot config matches the expected RoT:
 | Feature | TPM 1.2 | TPM 2.0 |
 | --- | --- | --- |
 | PCR hash | SHA-1 (20 bytes) | SHA-256 (32 bytes) |
-| Sealing | `tpm sealfile2` | `tpm2 nvdefine` + policy session |
+| Sealing | `tpm sealfile2 -ix <pcr> <hash> ...` (specify PCRs and expected values) | `tpm2 nvdefine` + policy session |
+| Unsealing | `tpm unsealfile` (no PCR args — TPM enforces from baked blob) | `tpm2 unseal` with policy session |
 | Counter | `tpm nv*` | `tpm2 nvincrement` |
 | Auth sessions | Not used | Required for policy-based unseal |
 | `kexec_finalize` | No-op | Extends PCRs, then `tpm2 shutdown` |

@@ -885,9 +885,11 @@ tpm1_unseal() {
 	file="$4"
 	pass="$5"
 
-	# pcrl (the PCR list) is unused in TPM1.  The TPM itself knows which
-	# PCRs were used to seal and checks them.  We can't verify that it's
-	# correct either, so just ignore it in TPM1.
+	# pcrl is unused here because tpm unsealfile (unsealfile.c) does not
+	# accept PCR arguments — only tpm sealfile2 (sealfile2.c -ix ...) does.
+	# The blob baked at seal time encodes which PCRs were selected and
+	# their expected values; TPM_Unseal() enforces PCR matching against
+	# current hardware PCRs automatically from the baked digest.
 
 	sealed_file="$SECRET_DIR/tpm1_unseal_sealed.bin"
 	at_exit cleanup_shred "$sealed_file"
