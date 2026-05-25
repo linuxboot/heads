@@ -286,7 +286,7 @@ tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
 # Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
-if [ "$CONFIG_USER_USB_KEYBOARD" = "y" ] || [ -r /lib/modules/libata.ko ] || [ -x /bin/hotp_verification ]; then
+if [ "$CONFIG_USER_USB_KEYBOARD" = "y" ] || [ "$CONFIG_USB_KEYBOARD_REQUIRED" = "y" ] || [ -r /lib/modules/libata.ko ] || [ -x /bin/hotp_verification ]; then
 	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5 involvement (additional kernel modules are loaded per board config)..."
 	# Here, we take pcr 5 into consideration if modules are expected to be measured+loaded
 	tpmr.sh pcrread -a 5 "$pcrf"
