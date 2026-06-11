@@ -20,6 +20,8 @@ significant frustration.
 
 More information is available in [the 33C3 presentation of building "Slightly more secure systems"](https://trmm.net/Heads_33c3).
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/linuxboot/heads)
+
 ## Documentation
 
 The `doc/` directory contains technical reference documentation for the
