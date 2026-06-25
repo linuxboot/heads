@@ -274,7 +274,8 @@ if [ -z "$IFD_VALIDATION_SKIPPED" ] && [ -f "$IFD_PATH" ] && [ -n "$IFDTOOL" ]; 
             MAX_CBFS_SIZE=0x1000000  # 16 MiB - Intel SPI decode window limit
             
             # Calculate safe expansion target: min(IFD BIOS size, 16 MiB limit)
-            if [ $BIOS_SIZE -gt $MAX_CBFS_SIZE ]; then
+            MAX_CBFS_SIZE_DEC=$((MAX_CBFS_SIZE))
+            if [ $BIOS_SIZE -gt $MAX_CBFS_SIZE_DEC ]; then
                 TARGET_SIZE=$MAX_CBFS_SIZE
                 TARGET_SIZE_KB=$((TARGET_SIZE / 1024))
                 BIOS_SIZE_MB=$((BIOS_SIZE / 1024 / 1024))
