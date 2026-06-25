@@ -194,6 +194,7 @@ Seed job names in CircleCI include their upstream coreboot base in
 |---|---|---|
 | `novacustom-nv4x_adl [seed:coreboot-24.12]` | 4 Dasharo families (8 boards) | coreboot 24.12 |
 | `librem_14 [seed:coreboot-24.02.01]` | 8 purism boards | coreboot 24.02.01 |
+| `kano [seed:coreboot-mrchromebox]` | none (standalone) | MrChromebox fork (coreboot 26.03) |
 | `EOL_t480-hotp-maximized [seed:coreboot-25.09]` | 28 x86 boards | coreboot 25.09 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |

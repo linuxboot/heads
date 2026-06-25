@@ -1,0 +1,4 @@
+WARNING:esys:src/tss2-esys/api/Esys_ClearControl.c:293:Esys_ClearControl_Finish() Received TPM Error 
+ERROR:esys:src/tss2-esys/api/Esys_ClearControl.c:101:Esys_ClearControl() Esys Finish ErrorCode (0x000b0143) 
+ERROR: Esys_ClearControl(0xB0143) - rmt:error(2.0): command code not supported
+ERROR: Unable to run clearcontrol
