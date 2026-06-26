@@ -44,13 +44,22 @@ MEMORY_SIZE_FILE=$(build)/$(BOARD)/memory
 $(MEMORY_SIZE_FILE):
 	@echo "$(QEMU_MEMORY_SIZE)" >"$(MEMORY_SIZE_FILE)"
 USB_FD_IMG=$(build)/$(BOARD)/usb_fd.raw
+# Default USB flash drive size (accepts K/M/G suffixes).
+# Raw sparse: only written blocks consume host disk space, so
+# 128G virtual costs ~200K until ISOs are copied in.
+QEMU_USB_SIZE?=64G
 $(USB_FD_IMG):
-	dd if=/dev/zero bs=1M of="$(USB_FD_IMG)" bs=1M count=256 >/dev/null 2>&1
-	# Debian obnoxiously does not include /usr/sbin in PATH for non-root, even
-	# though it is meaningful to use mkfs.vfat (etc.) as non-root
-	MKFS_VFAT=mkfs.vfat; \
-	[ -x /usr/sbin/mkfs.vfat ] && MKFS_VFAT=/usr/sbin/mkfs.vfat; \
-	"$$MKFS_VFAT" "$(USB_FD_IMG)"
+	# Create raw sparse image, partition/format via parted + mkfs direct
+	# ( -E offset= writes ext4 at partition offset without a loop device ).
+	qemu-img create -f raw "$(USB_FD_IMG)" $(QEMU_USB_SIZE) >/dev/null 2>&1
+	@if parted -s "$(USB_FD_IMG)" mklabel msdos mkpart primary ext4 2048s 100% \
+	      >/dev/null 2>&1 && \
+	    mkfs.ext4 -F -E offset=$$((2048*512)) "$(USB_FD_IMG)" >/dev/null 2>&1; then \
+	  echo "USB: MBR+ext4 created"; \
+	else \
+	  echo "USB: warning — MBR creation failed, creating flat ext4" >&2; \
+	  mkfs.ext4 -F "$(USB_FD_IMG)" >/dev/null 2>&1; \
+	fi
 # Pass INSTALL_IMG=<path_to_img.iso> to attach an installer as a USB flash drive instead
 # of the temporary flash drive for exporting GPG keys.
 ifneq "$(INSTALL_IMG)" ""
@@ -80,6 +89,7 @@ else
 # official instruction -usb -device canokey,file=$HOME/.canokey-file -device canokey
 QEMU_USB_TOKEN_DEV := -usb -device canokey,file=$(CANOKEY_DIR)/.canokey-file
 endif
+
 
 run: $(TPMDIR)/.manufacture $(ROOT_DISK_IMG) $(MEMORY_SIZE_FILE) $(USB_FD_IMG)
 	swtpm socket \

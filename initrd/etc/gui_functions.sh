@@ -45,7 +45,15 @@ _whiptail_preprocess_args() {
 	local _wrap_next=0 _arg
 	for _arg in "$@"; do
 		if [ "$_wrap_next" = 1 ]; then
-			_WHIPTAIL_ARGS+=("$(printf '%b' "$_arg" | fold -s -w 76)")
+			# fold -s breaks at spaces (preserves word boundaries).
+			# For paths/tokens with no spaces, fall back to
+			# character-level fold so whiptail can display them.
+			local _folded
+			_folded=$(printf '%b' "$_arg" | fold -s -w 76)
+			if echo "$_folded" | grep -q '.\{76\}'; then
+				_folded=$(printf '%b' "$_arg" | fold -w 76)
+			fi
+			_WHIPTAIL_ARGS+=("$_folded")
 			_wrap_next=0
 		else
 			_WHIPTAIL_ARGS+=("$_arg")
@@ -815,4 +823,127 @@ invert_config() {
 get_inverted_config_display_action() {
 	TRACE_FUNC
 	get_config_display_action "$(invert_config "$1")"
+}
+
+# Verify all file hashes in /boot, interactively handle mismatches.
+# Defined here so kexec-select-boot.sh (which sources gui_functions.sh)
+# can call it without requiring gui-init.sh to be in scope.
+# Returns 0 on success (hashes match, or user updated them), 1 on failure.
+# Sets valid_hash='y' and valid_global_hash='y' on success for callers
+# that check those variables (kexec-select-boot.sh:596).
+# Dependencies: TRACE_FUNC, check_config, verify_checksums, update_checksums
+# (functions.sh), whiptail_error, investigate_integrity_discrepancies
+# (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
+verify_global_hashes() {
+	TRACE_FUNC
+	# Check the hashes of all the files, ignoring signatures for now
+	check_config /boot force
+	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
+	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
+	TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
+	TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
+
+	if verify_checksums /boot; then
+		DEBUG "verify_global_hashes: verify_checksums passed"
+		valid_hash="y"
+		valid_global_hash="y"
+		return 0
+	elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]]; then
+		DEBUG "verify_global_hashes: missing hash or tree file"
+		if (whiptail_error --title 'ERROR: Missing File!' \
+			--yesno "One of the files containing integrity information for /boot is missing!\n\nIf you are setting up heads for the first time or upgrading from an older version, select Yes to create the missing files.\n\nOtherwise this could indicate a compromise and you should select No to return to the main menu.\n\nWould you like to create the missing files now?" 0 80); then
+			if update_checksums; then
+				BG_COLOR_MAIN_MENU="normal"
+				return 0
+			else
+				whiptail_error --title 'ERROR' \
+					--msgbox "Failed to update checksums / sign default config" 0 80
+			fi
+		fi
+		BG_COLOR_MAIN_MENU="error"
+		return 1
+	else
+		DEBUG "verify_global_hashes: hash mismatch, checking changed files"
+		CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':' | tee -a /tmp/hash_output_mismatches)
+		CHANGED_FILES_COUNT=$(wc -l /tmp/hash_output_mismatches | cut -f1 -d ' ')
+		DEBUG "verify_global_hashes: changed_files_count=$CHANGED_FILES_COUNT"
+
+		# if files changed before package manager started, show stern warning
+		if [ -f "$TMP_PACKAGE_TRIGGER_PRE" ]; then
+			DEBUG "verify_global_hashes: PRE trigger found"
+			PRE_CHANGED_FILES=$(grep '^CHANGED_FILES' "$TMP_PACKAGE_TRIGGER_POST" | cut -f 2 -d '=' | tr -d '"')
+			TEXT="The following files failed the verification process BEFORE package updates ran:\n${PRE_CHANGED_FILES}\n\nCompare against the files $CONFIG_BRAND_NAME has detected have changed:\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to update your checksums anyway?"
+
+		# if files changed after package manager started, probably caused by package manager
+		elif [ -f "$TMP_PACKAGE_TRIGGER_POST" ]; then
+			DEBUG "verify_global_hashes: POST trigger found"
+			LAST_PACKAGE_LIST=$(grep -E "^(Install|Remove|Upgrade|Reinstall):" "$TMP_PACKAGE_TRIGGER_POST")
+			UPDATE_INITRAMFS_PACKAGE=$(grep '^UPDATE_INITRAMFS_PACKAGE' "$TMP_PACKAGE_TRIGGER_POST" | cut -f 2 -d '=' | tr -d '"')
+
+			if [ "$UPDATE_INITRAMFS_PACKAGE" != "" ]; then
+				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis is likely due to package triggers in$UPDATE_INITRAMFS_PACKAGE.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
+			else
+				TEXT="The following files failed the verification process AFTER package updates ran:\n${CHANGED_FILES}\n\nThis might be due to the following package updates:\n$LAST_PACKAGE_LIST.\n\nYou will need to update your checksums for all files in /boot.\n\nWould you like to update your checksums now?"
+			fi
+
+		else
+			if [ $CHANGED_FILES_COUNT -gt 10 ]; then
+				DEBUG "verify_global_hashes: no triggers, >10 changed files"
+				# drop to console to show full file list
+				whiptail_error --title 'ERROR: Boot Hash Mismatch' \
+					--msgbox "${CHANGED_FILES_COUNT} files failed the verification process!\\n\nThis could indicate a compromise!\n\nHit OK to review the list of files.\n\nType \"q\" to exit the list and return." 0 80
+
+				echo "Type \"q\" to exit the list and return." >>/tmp/hash_output_mismatches
+				less /tmp/hash_output_mismatches
+				#move outdated hash mismatch list
+				mv /tmp/hash_output_mismatches /tmp/hash_output_mismatch_old
+				TEXT="${CHANGED_FILES_COUNT} files failed the verification process.\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
+			else
+				DEBUG "verify_global_hashes: no triggers, <=10 changed files"
+				TEXT="The following files failed the verification process:\n\n${CHANGED_FILES}\n\nThis could indicate a compromise!\n\nWould you like to investigate discrepancies or update your checksums now?"
+			fi
+		fi
+
+		local menu_text
+		menu_text="$TEXT"
+		DEBUG "verify_global_hashes: entering whiptail menu loop"
+		while true; do
+			TRACE_FUNC
+			DEBUG "verify_global_hashes: showing whiptail menu"
+			whiptail_error --title 'ERROR: Boot Hash Mismatch' \
+				--menu "$menu_text\n\nChoose an action:" 0 80 3 \
+				'i' ' Investigate discrepancies -->' \
+				'u' ' Update checksums now' \
+				'm' ' Return to main menu' \
+				2>/tmp/whiptail || {
+				DEBUG "verify_global_hashes: whiptail menu failed/returned non-zero"
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+			}
+
+			option=$(cat /tmp/whiptail)
+			DEBUG "verify_global_hashes: user chose '$option'"
+			case "$option" in
+			i)
+				DEBUG "verify_global_hashes: investigating discrepancies"
+				investigate_integrity_discrepancies
+				;;
+			u)
+				DEBUG "verify_global_hashes: updating checksums"
+				if update_checksums; then
+					BG_COLOR_MAIN_MENU="normal"
+					return 0
+				else
+					whiptail_error --title 'ERROR' \
+						--msgbox "Failed to update checksums / sign default config" 0 80
+				fi
+				;;
+			m | *)
+				DEBUG "verify_global_hashes: returning to main menu"
+				BG_COLOR_MAIN_MENU="error"
+				return 1
+				;;
+			esac
+		done
+	fi
 }
