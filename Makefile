@@ -8,20 +8,19 @@ GIT_STATUS	:= $(shell \
 		echo dirty ; \
 	fi)
 HEADS_GIT_VERSION	:= $(shell git describe --abbrev=7 --tags --dirty)
-GIT_TIMESTAMP		:= $(shell git log -1 --format=%cd --date=format:'%Y%m%d-%H%M%S')
-# Keep branch identifier path-safe for artifact filenames (e.g. feature/foo -> feature_foo).
-GIT_BRANCH		:= $(shell git rev-parse --abbrev-ref HEAD | tr '/[[:space:]]' '_' | cut -c1-30)
+GIT_TIMESTAMP		:= $(shell git log -1 --format=%cd --date=format:'%Y%m%d%H%M')
 # Release builds: HEAD is exactly on a tag AND working tree is clean.
 # Dev builds: any untagged commit, commits ahead of a tag, or dirty tree.
-# Dev filenames include timestamp + branch for traceability without
-# polluting release filenames.
+# Dev filenames include a compact timestamp for chronological sorting;
+# the git describe suffix (v0.2.1-N-gHASH) provides the commit hash for
+# exact traceability without the branch name.
 GIT_IS_RELEASE		:= $(shell git describe --exact-match --tags HEAD >/dev/null 2>&1 \
 				&& git diff --exit-code >/dev/null 2>&1 \
 				&& echo y || echo n)
 ifeq ($(GIT_IS_RELEASE),y)
 GIT_VERSION_SUFFIX	:= $(HEADS_GIT_VERSION)
 else
-GIT_VERSION_SUFFIX	:= $(GIT_TIMESTAMP)-$(GIT_BRANCH)-$(HEADS_GIT_VERSION)
+GIT_VERSION_SUFFIX	:= $(GIT_TIMESTAMP)-$(HEADS_GIT_VERSION)
 endif
 
 # Override BRAND_NAME to set the name displayed in the UI, filenames, versions, etc.
