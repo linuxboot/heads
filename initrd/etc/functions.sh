@@ -3130,6 +3130,7 @@ check_initramfs_for_module() {
 #   boot=live       --  Debian live-boot activation flag
 _check_initramfs_can_isoboot() {
 	local unpack_dir="$1"
+	# Called per initramfs in _check_initramfs_compat loop -- no TRACE_FUNC to avoid log noise
 	# Use -E for extended regex (| alternation, no backslash needed).
 	# Keywords cover:
 	#   findiso         --  Debian live-boot, NixOS stage-1
@@ -3312,8 +3313,8 @@ show_totp_until_esc() {
 _check_kernel_probe_driver() {
 	local vmlinuz="$1" driver="$2"
 	local setup_sects="${3:-}" after_setup="${4:-}" probe_hex="${5:-}" zstd_cmd="${6:-}"
+	# Called per kernel entry in check_kernel_for_fb loop -- no TRACE_FUNC to avoid log noise
 
-	# If probe wasn't done yet, do it now (single-file call path)
 	if [ -z "$probe_hex" ]; then
 		setup_sects=$(dd if="$vmlinuz" bs=1 skip=497 count=1 2>/dev/null | xxd -p)
 		[ "$setup_sects" = "00" ] && setup_sects=04

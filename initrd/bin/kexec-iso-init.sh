@@ -85,6 +85,7 @@ fi
 # blkid emits space-separated KEY="value" pairs; this pipeline
 # splits on spaces and extracts the TYPE value.
 _get_blkid_fstype() {
+	TRACE_FUNC
 	blkid "$1" 2>/dev/null | tr ' ' '\n' | sed -n 's/^TYPE="\(.*\)"$/\1/p'
 }
 
@@ -227,6 +228,7 @@ check_initramfs_compat() {
 # Entry format: name|kexectype|kernel|field4|field5
 _parse_entry() {
 	local entry="$1"
+	TRACE_FUNC
 	entry_name=$(echo "$entry" | cut -d'|' -f1)
 	entry_type=$(echo "$entry" | cut -d'|' -f2)
 	local rest
@@ -277,6 +279,7 @@ _parse_entry() {
 _check_initramfs_compat() {
 	local bootdir="$1" kernel_mod="$2" entries_file="$3"
 	local initramfs_paths initramfs_relpath
+	TRACE_FUNC
 	while IFS= read -r initramfs_relpath; do
 		initramfs_paths="$initramfs_paths $initramfs_relpath"
 	done < <(collect_initramfs_paths "$bootdir" "$entries_file")
@@ -770,6 +773,7 @@ _choose_status_line() {
 
 # Build USB filesystem compatibility message for gate dialogs.
 _usb_fs_compat_msg() {
+	TRACE_FUNC
 	case "$USB_FSTYPE" in
 		ext4)		echo "USB filesystem ext4 is commonly supported." ;;
 		exfat)		echo "USB filesystem exFAT can work, but verify compatibility is recommended." ;;
