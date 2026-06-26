@@ -630,21 +630,75 @@ while true; do
 			2>/tmp/whiptail || recovery "GUI menu failed"
 
 		output_choice=$(cat /tmp/whiptail)
+		# The debug toggle (None/Info/Debug) must control what kernel
+		# parameters reach the kexec'd OS.  Three keywords are managed:
+		#   debug  --  verbose console output (KERN_DEBUG)
+		#   quiet  --  suppress most kernel messages
+		#   splash --  show a graphical bootsplash
+		#
+		# In Debug mode:   kernel gets "debug", strips "quiet splash"
+		# In Info/None:    kernel gets "quiet splash", strips "debug"
+		#
+		# Toggling between levels must be idempotent: strip all three
+		# keywords from both the ADD and REMOVE lists first, then re-add
+		# only the ones appropriate for the chosen level.  This guarantees
+		# no duplicate params regardless of how many times the user toggles.
+		_kernel_add_raw=$(load_config_value CONFIG_BOOT_KERNEL_ADD)
+		_kernel_remove_raw=$(load_config_value CONFIG_BOOT_KERNEL_REMOVE)
+		DEBUG "config-gui: debug toggle: raw kernel ADD='$_kernel_add_raw'"
+		DEBUG "config-gui: debug toggle: raw kernel REMOVE='$_kernel_remove_raw'"
+		_kernel_add_clean="${_kernel_add_raw:-}"
+		_kernel_remove_clean="${_kernel_remove_raw:-}"
+		for _keyword in debug quiet splash; do
+			_kernel_add_clean=" $_kernel_add_clean "
+			_kernel_add_clean="${_kernel_add_clean// $_keyword / }"
+			_kernel_remove_clean=" $_kernel_remove_clean "
+			_kernel_remove_clean="${_kernel_remove_clean// $_keyword / }"
+		done
+		_kernel_add_clean=$(echo "${_kernel_add_clean# }" | xargs)
+		_kernel_remove_clean=$(echo "${_kernel_remove_clean# }" | xargs)
+		DEBUG "config-gui: debug toggle: clean ADD='$_kernel_add_clean'"
+		DEBUG "config-gui: debug toggle: clean REMOVE='$_kernel_remove_clean'"
+
 		case "$output_choice" in
 		0)
+			DEBUG "config-gui: debug toggle: applying level=0 (None/quiet)"
 			set_user_config "CONFIG_DEBUG_OUTPUT" "n"
 			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
 			set_user_config "CONFIG_QUIET_MODE" "y"
+			# Quiet mode: kernel gets quiet+splash, debug is stripped
+			_kernel_add_final="${_kernel_add_clean:+$_kernel_add_clean }quiet splash"
+			_kernel_remove_final="${_kernel_remove_clean:+$_kernel_remove_clean }debug"
+			DEBUG "config-gui: debug toggle: final ADD='$_kernel_add_final'"
+			DEBUG "config-gui: debug toggle: final REMOVE='$_kernel_remove_final'"
+			set_user_config "CONFIG_BOOT_KERNEL_ADD" "$_kernel_add_final"
+			set_user_config "CONFIG_BOOT_KERNEL_REMOVE" "$_kernel_remove_final"
 			;;
 		1)
+			DEBUG "config-gui: debug toggle: applying level=1 (Info)"
 			set_user_config "CONFIG_DEBUG_OUTPUT" "n"
 			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "n"
 			set_user_config "CONFIG_QUIET_MODE" "n"
+			# Info mode: kernel gets quiet+splash, debug is stripped
+			_kernel_add_final="${_kernel_add_clean:+$_kernel_add_clean }quiet splash"
+			_kernel_remove_final="${_kernel_remove_clean:+$_kernel_remove_clean }debug"
+			DEBUG "config-gui: debug toggle: final ADD='$_kernel_add_final'"
+			DEBUG "config-gui: debug toggle: final REMOVE='$_kernel_remove_final'"
+			set_user_config "CONFIG_BOOT_KERNEL_ADD" "$_kernel_add_final"
+			set_user_config "CONFIG_BOOT_KERNEL_REMOVE" "$_kernel_remove_final"
 			;;
 		2)
+			DEBUG "config-gui: debug toggle: applying level=2 (Debug)"
 			set_user_config "CONFIG_DEBUG_OUTPUT" "y"
 			set_user_config "CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT" "y"
 			set_user_config "CONFIG_QUIET_MODE" "n"
+			# Debug mode: kernel gets debug, quiet+splash are stripped
+			_kernel_add_final="${_kernel_add_clean:+$_kernel_add_clean }debug"
+			_kernel_remove_final="${_kernel_remove_clean:+$_kernel_remove_clean }quiet splash"
+			DEBUG "config-gui: debug toggle: final ADD='$_kernel_add_final'"
+			DEBUG "config-gui: debug toggle: final REMOVE='$_kernel_remove_final'"
+			set_user_config "CONFIG_BOOT_KERNEL_ADD" "$_kernel_add_final"
+			set_user_config "CONFIG_BOOT_KERNEL_REMOVE" "$_kernel_remove_final"
 			;;
 		esac
 		whiptail_type $BG_COLOR_MAIN_MENU --title 'Config change successful' \
