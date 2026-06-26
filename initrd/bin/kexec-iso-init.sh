@@ -50,8 +50,7 @@
 # Each initramfs framework picks what it understands and ignores the rest.
 # Unrecognised kernel parameters are passed to userspace harmlessly.
 #
-set -e
-set -o pipefail 2>/dev/null || true
+set -e -o pipefail
 . /etc/functions.sh
 . /etc/gui_functions.sh
 . /tmp/config
