@@ -1,0 +1,53 @@
+diff --git a/Makefile.in b/Makefile.in
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1,3 +1,9 @@
++# Build fixes for kexec-tools 2.0.26 integration with Heads' musl-cross
++# toolchain.  Changes:
++#  - Disable vmcore-dmesg and kexec_test from the build (unused in Heads)
++#  - Use BUILD_CC/BUILD_CFLAGS instead of LINK.o/CFLAGS for bin-to-hex
++#    (needed for cross-compilation with musl-gcc)
++#  - Remove CC=$(TARGET_CC) override in purgatory (use default cross-CC)
+ # Hey Emacs this is a -*- makefile-*-
+ 
+ PACKAGE_NAME	= @PACKAGE_NAME@
+@@ -167,12 +167,12 @@ include $(srcdir)/kexec/Makefile
+ 
+ # vmcore-dmesg (read dmesg from a vmcore)
+ #
+-include $(srcdir)/vmcore-dmesg/Makefile
++#include $(srcdir)/vmcore-dmesg/Makefile
+ 
+ #
+ # kexec_test (test program)
+ #
+-include $(srcdir)/kexec_test/Makefile
++#include $(srcdir)/kexec_test/Makefile
+ 
+ SPEC=$(PACKAGE_NAME).spec
+ GENERATED_SRCS:= $(SPEC)
+diff --git a/purgatory/Makefile b/purgatory/Makefile
+index 4d2d071..ee5c642 100644
+--- a/purgatory/Makefile
++++ b/purgatory/Makefile
+@@ -45,7 +45,6 @@ purgatory/sha256.o: $(srcdir)/util_lib/sha256.c
+ 	mkdir -p $(@D)
+ 	$(COMPILE.c) -o $@ $^
+ 
+-$(PURGATORY): CC=$(TARGET_CC)
+ $(PURGATORY): CFLAGS=$(PURGATORY_EXTRA_CFLAGS) \
+ 		      $($(ARCH)_PURGATORY_EXTRA_CFLAGS) \
+ 		      -Os -fno-builtin -ffreestanding \
+diff --git a/util/Makefile b/util/Makefile
+index 948ee63..833a897 100644
+--- a/util/Makefile
++++ b/util/Makefile
+@@ -2,7 +2,7 @@ BIN_TO_HEX:= bin/bin-to-hex
+ 
+ $(BIN_TO_HEX): $(srcdir)/util/bin-to-hex.c
+ 	@$(MKDIR) -p $(@D)
+-	$(LINK.o) $(CFLAGS) -o $@ $^
++	$(BUILD_CC) $(BUILD_CFLAGS) -o $@ $^
+ 
+ $(BIN_TO_HEX): CC=$(BUILD_CC)
+ $(BIN_TO_HEX): CFLAGS=$(BUILD_CFLAGS)

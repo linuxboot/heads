@@ -1,0 +1,98 @@
+diff --git a/kexec/arch/i386/x86-linux-setup.c b/kexec/arch/i386/x86-linux-setup.c
+--- a/kexec/arch/i386/x86-linux-setup.c
++++ b/kexec/arch/i386/x86-linux-setup.c
+@@ -138,16 +138,30 @@
+ 	if (-1 == fd)
+ 		return -1;
+ 
+-	if (-1 == ioctl(fd, FBIOGET_FSCREENINFO, &fix))
++	if (-1 == ioctl(fd, FBIOGET_FSCREENINFO, &fix)) {
++		dbgprintf("%s: FBIOGET_FSCREENINFO failed, can't provide framebuffer\n",
++		    __func__);
+ 		goto out;
+-	if (-1 == ioctl(fd, FBIOGET_VSCREENINFO, &var))
++	}
++	if (-1 == ioctl(fd, FBIOGET_VSCREENINFO, &var)) {
++		dbgprintf("%s: FBIOGET_VSCREENINFO failed, can't provide framebuffer\n",
++		    __func__);
+ 		goto out;
++	}
+ 	if (0 == strcmp(fix.id, "VESA VGA")) {
+ 		/* VIDEO_TYPE_VLFB */
+ 		real_mode->orig_video_isVGA = 0x23;
+ 	} else if (0 == strcmp(fix.id, "EFI VGA")) {
+-		/* VIDEO_TYPE_EFI */
+-		real_mode->orig_video_isVGA = 0x70;
++		/* VIDEO_TYPE_VLFB (0x23) directs the target kernel's
++		 * sysfb_create_simplefb() to apply a 16-bit left-shift to
++		 * lfb_size, converting from 64K-page units to bytes.  This is
++		 * required for drm_sysfb_get_stride_si() to validate the
++		 * framebuffer stride -- the shift produces max_stride >= 7680
++		 * for a 1920x1080x32bpp display.  sysfb uses the result to
++		 * bind vesadrm or simpledrm to the VLFB device. */
++		real_mode->orig_video_isVGA = 0x23;
++		dbgprintf("%s: Found driver %s, Heads normalizing screen_info for sysfb\n",
++		    __func__, fix.id);
+ 	} else if (arch_options.reuse_video_type) {
+ 		int err;
+ 		off_t offset = offsetof(typeof(*real_mode), orig_video_isVGA);
+@@ -189,6 +203,59 @@
+ 		real_mode->rsvd_pos   = var.transp.offset;
+ 		real_mode->rsvd_size  = var.transp.length;
+ 	}
++	if (real_mode->orig_video_isVGA == 0x23) {
++		/*
++		 * Enforce VLFB screen_info normalization for the target
++		 * kernel's sysfb dispatch.  orig_video_isVGA is 0x23 from
++		 * the EFI VGA branch above.
++		 *
++		 * lfb_linelength and lfb_size are already set from fix.* by
++		 * the common path (line 175 in the original), but are
++		 * re-enforced here for clarity and change resistance.  The
++		 * critical behavior is the video type: kernel
++		 * sysfb_create_simplefb() shifts lfb_size <<= 16 only for
++		 * VIDEO_TYPE_VLFB (0x23).  Without the shift, lfb_size in
++		 * 64K-page units is treated as raw bytes, yielding
++		 * max_stride=0 in drm_sysfb_get_stride_si() —
++		 * "stride exceeds maximum" error and no display.
++		 *
++		 * lfb_linelength, lfb_width, and lfb_height survive the
++		 * coreboot trampoline in linux_trampoline.S; only color-mask
++		 * fields are byte-swapped there.
++		 *
++		 * Color-format masks are left as /dev/fb0 reports them.  The
++		 * target kernel's sysfb_parse_mode() matches against
++		 * SIMPLEFB_FORMATS by comparing red/green/blue masks to
++		 * known patterns ("x8r8g8b8" for 32-bit, "r5g6b5" for
++		 * 16-bit).  The transp field is checked only on the format-
++		 * definition side, not in screen_info, so the fb0 masks pass
++		 * validation for simpledrm.  If no SIMPLEFB_FORMATS entry
++		 * matches, vesafb/vesadrm sysfb drivers handle the VLFB
++		 * framebuffer directly.
++		 */
++		dbgprintf("%s: /dev/fb0 raw: driver=%s %ux%u %ubpp stride=%u "
++		    "base=0x%x r{%u,%u} g{%u,%u} b{%u,%u} rsvd{%u,%u}\n",
++		    __func__,
++		    fix.id, real_mode->lfb_width, real_mode->lfb_height,
++		    var.bits_per_pixel, fix.line_length, real_mode->lfb_base,
++		    var.red.offset, var.red.length,
++		    var.green.offset, var.green.length,
++		    var.blue.offset, var.blue.length,
++		    var.transp.offset, var.transp.length);
++		real_mode->lfb_linelength = fix.line_length;
++		real_mode->lfb_size = (real_mode->lfb_height *
++		    (unsigned int)fix.line_length + 65535) / 65536;
++		dbgprintf("%s: screen_info for target: %ux%ux%u stride=%u "
++		    "base=0x%x size=%u r{%u,%u} g{%u,%u} b{%u,%u} rsvd{%u,%u}\n",
++		    __func__,
++		    real_mode->lfb_width, real_mode->lfb_height,
++		    real_mode->lfb_depth, real_mode->lfb_linelength,
++		    real_mode->lfb_base, real_mode->lfb_size,
++		    real_mode->red_pos, real_mode->red_size,
++		    real_mode->green_pos, real_mode->green_size,
++		    real_mode->blue_pos, real_mode->blue_size,
++		    real_mode->rsvd_pos, real_mode->rsvd_size);
++	}
+ 	return 0;
+ 
+  out:
