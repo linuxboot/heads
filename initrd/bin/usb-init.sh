@@ -13,5 +13,4 @@ if [ "$CONFIG_TPM" = "y" ]; then
 fi
 
 STATUS "Scanning USB for boot media"
-DO_WITH_DEBUG media-scan.sh usb
-recovery "Something failed during USB boot"
+DO_WITH_DEBUG media-scan.sh usb || recovery "Something failed during USB boot"
