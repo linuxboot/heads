@@ -111,6 +111,26 @@ unpack_first_segment() {
 			;;
 		*) # unknown
 			DIE "Can't decompress initramfs archive, unknown type: $magic"
+			# The following are magic values for other compression formats
+			#  but not added because not tested.
+			# TODO: open an issue for unsupported magic number reported on DIE.
+			# 
+			#425a*) # bzip2
+			#	DEBUG "archive segment $magic: bzip2"
+			#	bunzip2 | unpack_cpio
+			#;;
+			#5d00*) # lzma
+			#	DEBUG "archive segment $magic: lzma"
+			#	unlzma | unpack_cpio
+			#;;
+			#894c*) # lzo
+			#	DEBUG "archive segment $magic: lzo"
+			#	lzop -d | unpack_cpio
+			#;;
+			#0221*) # lz4
+			#	DEBUG "archive segment $magic: lz4"
+			#	lz4 -d | unpack_cpio
+			#	;;
 			;;
 		esac
 	) <"$unpack_archive" >"$rest_archive"
