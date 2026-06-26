@@ -1,6 +1,5 @@
 #! /bin/bash
-set -e
-set -o pipefail 2>/dev/null || true
+set -e -o pipefail
 
 . /etc/functions.sh
 
