@@ -204,26 +204,17 @@ coreboot_base_dir := $($(coreboot_module)_base_dir)
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 $(coreboot_module)_depends += $(if $(CONFIG_DASHARO_EC), dasharo-ec)
 
-# MrChromebox fork: 3rdparty/blobs submodule has update=none in .gitmodules,
-# so coreboot's own Makefile.mk $(shell) call (which runs during `olddefconfig`
-# via .configured) silently fetches the submodule but does NOT populate its
-# working tree.  Override the local config and force a checkout so that
-# CONFIG_IFD_BIN_PATH / CONFIG_ME_BIN_PATH resolve to real files.  A direct
-# `git reset --hard` is used instead of `git submodule update` because the
-# latter considers HEAD already correct (set by Makefile.mk) and skips the
-# checkout even with --force.  The commit is pinned by the coreboot fork's
-# tree entry for 3rdparty/blobs.
-ifeq "$(CONFIG_COREBOOT_VERSION)" "mrchromebox"
-$(build)/$(coreboot_base_dir)/.blobs-init: $(build)/$(coreboot_base_dir)/.canary
-	@if [ ! -d "$(build)/$(coreboot_base_dir)/3rdparty/blobs/mainboard" ]; then \
-		echo "INFO: Initializing mrchromebox 3rdparty/blobs submodule..."; \
-		git -C "$(build)/$(coreboot_base_dir)" config submodule.3rdparty/blobs.update checkout && \
-		git -C "$(build)/$(coreboot_base_dir)/3rdparty/blobs" reset --hard HEAD; \
-	fi
-	@touch "$(build)/$(coreboot_base_dir)/.blobs-init"
-
-$(build)/$(coreboot_dir)/.configured: $(build)/$(coreboot_base_dir)/.blobs-init
-endif
+# All boards have CONFIG_USE_BLOBS=y and all coreboot forks have
+# update=none in .gitmodules for 3rdparty/blobs (and amd_blobs, qc_blobs,
+# nvidia-cbootimage).  These are intentionally skipped by .canary's blanket
+# `git submodule update --init --checkout` -- they are only fetched later
+# when the board's Kconfig enables them.
+#
+# Coreboot's own Makefile.mk handles this via lazy $(shell) calls during
+# `olddefconfig` (.configured), e.g.:
+#   $(shell git submodule update --init --checkout 3rdparty/blobs)
+# The explicit submodule path overrides update=none.  All other coreboot
+# forks rely on this mechanism and do not need extra handling here.
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
