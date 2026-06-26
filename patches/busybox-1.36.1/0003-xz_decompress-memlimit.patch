@@ -1,0 +1,13 @@
+--- a/archival/libarchive/decompress_unxz.c
++++ b/archival/libarchive/decompress_unxz.c
+@@ -67,7 +67,8 @@
+ 	} /* else: let xz code read & check it */
+ 
+-	/* Limit memory usage to about 64 MiB. */
+-	state = xz_dec_init(XZ_DYNALLOC, 64*1024*1024);
++	/* Limit memory usage to about 256 MiB.
++	 * Kernel bzImage LZMA2 dictionaries can be up to 128 MiB. */
++	state = xz_dec_init(XZ_DYNALLOC, 256*1024*1024);
+ 
+ 	xz_result = X_OK;
+ 	while (1) {
