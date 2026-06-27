@@ -410,6 +410,22 @@ sudo sysctl -w kernel.yama.ptrace_scope=1   # lower for the build
 sudo sysctl -w kernel.yama.ptrace_scope=<original_value>   # restore after
 ```
 
+### Local build without Docker
+
+For development iterations that don't require Docker reproducibility:
+
+```bash
+nix develop --command make BOARD=novacustom-nv4x_adl
+nix develop --command make BOARD=novacustom-nv4x_adl kexec   # single package
+```
+
+`nix develop` drops into the same Nix environment that builds the Docker
+image.  Packages are cached in `build/$ARCH/`; subsequent builds are
+fast.  No sudo, no Docker.
+
+See [modules.md](modules.md#build-lifecycle) for the sentinel chain and
+how to force a rebuild after changing patches.
+
 ### Verify reproducibility before committing
 
 ```bash

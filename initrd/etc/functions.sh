@@ -23,7 +23,6 @@ esac
 # Red is the universal "error/danger" signal; the "!!! ERROR:" text prefix
 # carries the same meaning for users who cannot distinguish red from other
 # colors, so color is an enhancement rather than the sole signal.
-# debug.log and /dev/kmsg receive plain text (no ANSI).
 # Always visible in all output modes.
 DIE() {
 	TRACE_FUNC
@@ -36,8 +35,8 @@ DIE() {
 	fi
 	# Always show on console with bold red regardless of output mode.
 	# /dev/console = kernel console (follows the console= kernel parameter),
-	# so it reaches whatever output the kernel was configured for — serial,
-	# framebuffer, BMC — without requiring any process setup and without
+	# so it reaches whatever output the kernel was configured for  --  serial,
+	# framebuffer, BMC  --  without requiring any process setup and without
 	# polluting stdout or stderr so callers never need to care about redirections.
 	echo -e "\033[1;31m!!! ERROR: $* !!!\033[0m" >/dev/console 2>/dev/null
 
@@ -81,7 +80,7 @@ WARN() {
 	echo >>/tmp/debug.log
 	# Bold yellow to /dev/console in all modes.
 	# /dev/console = kernel console (follows console= kernel parameter): reaches
-	# serial, framebuffer, BMC — no process setup needed, callers never need to
+	# serial, framebuffer, BMC  --  no process setup needed, callers never need to
 	# care about redirections (e.g. 2>/tmp/whiptail).
 	echo >/dev/console 2>/dev/null
 	echo -e "\033[1;33m *** WARNING: $* ***\033[0m" >/dev/console 2>/dev/null
@@ -196,13 +195,12 @@ TRACE() {
 NOTE() {
 	# Console: italic white NOTE: prefix, blank lines before/after, to /dev/console.
 	# /dev/console = kernel console (follows console= kernel parameter): reaches
-	# serial, framebuffer, BMC — no process setup needed, callers never need to
+	# serial, framebuffer, BMC  --  no process setup needed, callers never need to
 	# care about redirections.
 	echo >/dev/console 2>/dev/null
 	echo -e "\033[3;37mNOTE:\033[0m $*" >/dev/console 2>/dev/null
 	echo >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log; echo -e so \n in the
-	# message produces real newlines in the log (multi-line NOTE support).
+	# Log file: echo -e so \n in the message produces real newlines
 	echo -e "NOTE: $*" >>/tmp/debug.log
 
 	# Sleep to bring the message to the user's awareness: NOTE is infrequent
@@ -249,7 +247,6 @@ NOTE() {
 STATUS() {
 	# Console: bold >> prefix to /dev/console - announces an action in progress.
 	echo -e "\033[1m >>\033[0m $*" >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log
 	echo " >> $*" >>/tmp/debug.log
 }
 
@@ -263,7 +260,6 @@ STATUS_OK() {
 	#   2. Bold green color - instant visual scan for sighted users
 	# (Same convention as Linux/systemd "[  OK  ]" boot messages.)
 	echo -e "\033[1;32m OK\033[0m $*" >/dev/console 2>/dev/null
-	# Log file: plain text - no ANSI codes in debug.log
 	echo " OK $*" >>/tmp/debug.log
 }
 
@@ -308,9 +304,6 @@ INFO() {
 		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	else
 		# info mode: green text to /dev/console AND both log files.
-		# /dev/console = kernel console (follows console= kernel parameter):
-		# reaches serial, framebuffer, BMC — no process setup needed, callers
-		# never need to care about redirections.
 		echo -e "\033[0;32m$*\033[0m" >/dev/console 2>/dev/null
 		echo "INFO: $*" | tee -a /tmp/debug.log /tmp/measuring_trace.log >/dev/null
 	fi
@@ -420,7 +413,7 @@ INPUT() {
 		# that prompt and input always use the same device regardless of any
 		# stdout/stderr redirections the caller may have in effect.
 		# Print prompt with a trailing space so the cursor lands immediately after
-		# the prompt text on the same line — no blank line between prompt and input.
+		# the prompt text on the same line  --  no blank line between prompt and input.
 		printf '\033[1;37m%s\033[0m ' "$prompt" >"$HEADS_TTY" 2>/dev/null
 		# Forward remaining args (read flags + variable name) directly to read.
 		# Note: static analyzers may report the caller's variable as "unassigned"
@@ -431,7 +424,7 @@ INPUT() {
 	else
 		# Pre-gui-init context (e.g. init's serial recovery shell launched with
 		# explicit stdin/stdout/stderr redirects to the serial device):
-		# honour the caller's redirections — use stderr for output and stdin for
+		# honour the caller's redirections  --  use stderr for output and stdin for
 		# read so the correct device is used without hard-coding any path.
 		printf '\033[1;37m%s\033[0m ' "$prompt" >&2
 		read "$@"
@@ -574,11 +567,13 @@ wait_for_usb_security_dongle_vid() {
 
 	# Drain stray buffered input on framebuffer so stale keystrokes do not
 	# immediately cancel this wait.
+	# NOTE: -t 0 in BusyBox returns immediately (poll-only, does not consume
+	# data) so we use -t 0.01 to actually read and discard each byte.
 	if [ "$allow_user_cancel" = "y" ] && [ "$is_serial" = "0" ]; then
 		if [ -n "$interactive_tty" ]; then
-			while IFS= read -r -t 0 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
+			while IFS= read -r -t 0.01 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
 		else
-			while IFS= read -r -t 0 -n 1 junk; do :; done
+			while IFS= read -r -t 0.01 -n 1 junk; do :; done
 		fi
 	fi
 
@@ -662,7 +657,7 @@ detect_usb_security_dongle_branding() {
 	[ "$usb_was_enabled" != "y" ] && wait_for_usb_devices
 
 	# Wait up to 15s for a known dongle VID to appear; user can press any key (fb) or Enter (serial) to skip.
-	# Best-effort wait only — branding detection continues via lsusb regardless.
+	# Best-effort wait only  --  branding detection continues via lsusb regardless.
 	wait_for_usb_security_dongle_vid || true
 	# If branding is already specific, USB is now ready and no re-scan is needed.
 	[ "$DONGLE_BRAND" != "USB Security dongle" ] && [ -n "$DONGLE_BRAND" ] && return
@@ -1113,10 +1108,12 @@ recovery() {
 
 		# Drain any queued serial input before starting the interactive shell.
 		# This avoids stale bytes being interpreted as bash commands on entry.
+		# NOTE: -t 0 in BusyBox returns immediately (poll-only, does not consume
+		# data) so we use -t 0.01 to actually read and discard each byte.
 		if [ -n "$RECOVERY_TTY" ]; then
-			while IFS= read -r -t 0 -n 1 _junk <"$RECOVERY_TTY" 2>/dev/null; do :; done
+			while IFS= read -r -t 0.01 -n 1 _junk <"$RECOVERY_TTY" 2>/dev/null; do :; done
 		else
-			while IFS= read -r -t 0 -n 1 _junk 2>/dev/null; do :; done
+			while IFS= read -r -t 0.01 -n 1 _junk 2>/dev/null; do :; done
 		fi
 
 		STATUS "Starting recovery shell"
@@ -1128,6 +1125,15 @@ recovery() {
 			# it as the controlling terminal).  setsid -c with an inherited
 			# fd fails to respawn correctly after the first bash exits.
 			setsid /bin/bash <>"$RECOVERY_TTY" >&0 2>&0
+		elif [ -n "$HEADS_TTY" ]; then
+			# Redirect bash I/O directly to the detected TTY before
+			# setsid -c steals the controlling terminal.  The
+			# redirections close the inherited pipe fds from
+			# DO_WITH_DEBUG in the child, and the parent is blocked
+			# on waitpid during the CTTY acquisition — the pipeline
+			# tee processes are idle and never collide with the
+			# changed foreground process group.
+			setsid -c /bin/bash <>"$HEADS_TTY" >&0 2>&0
 		elif [ -x /bin/setsid ]; then
 			/bin/setsid -c /bin/bash
 		else
@@ -1468,6 +1474,7 @@ TRACE_FUNC() {
 	local i stack_trace=""
 
 	# Traverse the call stack from the earliest caller to the direct caller of TRACE_FUNC
+	# C-style for loop: bash-only (not ash/POSIX). Safe because all callers use #!/bin/bash.
 	for ((i = ${#FUNCNAME[@]} - 1; i > 1; i--)); do
 		stack_trace+="${FUNCNAME[i]}(${BASH_SOURCE[i]}:${BASH_LINENO[i - 1]}) -> "
 	done
@@ -1737,7 +1744,7 @@ disk_info_sysfs() {
 			fi
 			if [ -n "$size_bytes" ] && [ "$size_bytes" -gt 0 ] 2>/dev/null; then
 				local size_gb=$(((size_bytes + 500000000) / 1000000000))
-				# show TB when size is at least 1,000,000,000,000 bytes (≈1000 GB) for better UX
+				# show TB when size is at least 1,000,000,000,000 bytes (≈1000 GB) for better UX
 				if [ "$size_bytes" -ge 1000000000000 ]; then
 					local size_tb=$(((size_bytes + 500000000000) / 1000000000000))
 					printf -v disk_info "%sDisk /dev/%s: %s TB\n" "$disk_info" "$devname" "$size_tb"
@@ -1796,7 +1803,64 @@ list_usb_storage() {
 				DEBUG "USB storage device with partition table: $b"
 				ls -1 "$b"* | awk 'NR!=1 {print $0}'
 			fi
+	done
+}
+
+# Collect all unique initramfs paths from parsed boot entries.
+# Entries are pipe-delimited: name|kexectype|kernel|initrd <path>|append <params>
+# Field 4 starts with "initrd " for regular entries.
+# Xen/multiboot entries use "module <path>" for kernel and initramfs;
+# kexec-parse-boot.sh outputs kexectype=xen in field 2 for these.
+# For Xen entries: field 4 is the kernel (vmlinuz/bzImage), field 5 is initramfs.
+# For non-Xen entries with module fields: all modules are treated as initramfs.
+# Args: bootdir  entries_file
+# Writes unique initramfs relative paths to stdout (one per line, deduplicated).
+collect_initramfs_paths() {
+	local bootdir="$1" entries_file="$2"
+	local seen="" entry entry_type path mod_field old_ifs part
+	while IFS= read -r entry; do
+		[ -z "$entry" ] && continue
+		entry_type=$(echo "$entry" | cut -d\| -f2)
+		# Scan ALL pipe-delimited fields for initrd* or module* patterns,
+		# not just field 4.  Some GRUB configs (e.g. Debian installer DVD)
+		# emit initrd in a different field position.
+		old_ifs="$IFS"; IFS='|'
+		set -- $entry
+		IFS="$old_ifs"
+		for part; do
+			case "$part" in
+			initrd\ *)
+				path="${part#initrd }"
+				[ -f "$bootdir/$path" ] || continue
+				case " $seen " in *" $path "*) ;; *) echo "$path"; seen="$seen $path" ;; esac
+				;;
+			module\ *)
+				if [ "$entry_type" = "xen" ]; then
+					# Xen: first module is kernel, second+ are initramfs
+					local _mod_count=0
+					for mod_field in "$@"; do
+						case "$mod_field" in
+						module\ *)
+							_mod_count=$((_mod_count + 1))
+							[ "$_mod_count" -le 1 ] && continue
+							path="${mod_field#module }"
+							path="${path%% *}"
+							[ -f "$bootdir/$path" ] || continue
+							case " $seen " in *" $path "*) ;; *) echo "$path"; seen="$seen $path" ;; esac
+							;;
+						esac
+					done
+				else
+					# Non-Xen multiboot: all module paths are initramfs
+					path="${part#module }"
+					path="${path%% *}"
+					[ -f "$bootdir/$path" ] || continue
+					case " $seen " in *" $path "*) ;; *) echo "$path"; seen="$seen $path" ;; esac
+				fi
+				;;
+			esac
 		done
+	done < "$entries_file"
 }
 
 # Prompt for a TPM Owner Passphrase if it is not already cached in /tmp/secret/tpm_owner_passphrase.
@@ -1849,7 +1913,7 @@ check_tpm_counter() {
 
 	LABEL=${2:-3135106223}
 	# $3 (tpm_passphrase) was used by pre-PR #2068 code but is now intentionally
-	# ignored — counters are created with empty auth (-pwdc '') per TCG spec.
+	# ignored  --  counters are created with empty auth (-pwdc '') per TCG spec.
 	# if the /boot.hashes file already exists, read the TPM counter ID
 	# from it.
 	if [ -r "$1" ]; then
@@ -2048,7 +2112,7 @@ increment_tpm_counter() {
 	fi
 
 	# TPM2 uses owner-auth fallback in tpm2_counter_inc; TPM1 uses empty counter
-	# auth (SHA1("")) per TCG spec — no owner passphrase needed for increment.
+	# auth (SHA1("")) per TCG spec  --  no owner passphrase needed for increment.
 	# Keep the cached owner passphrase for TPM2 fallback.
 	if [ -z "$tpm_passphrase" ] && [ -s /tmp/secret/tpm_owner_passphrase ]; then
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
@@ -2191,23 +2255,6 @@ replace_rom_file() {
 	cbfs.sh -o "$ROM" -a "$ROM_FILE" -f "$NEW_FILE"
 }
 
-# Replace the config file by the changed one
-replace_config() {
-	TRACE_FUNC
-	CONFIG_FILE=$1
-	CONFIG_OPTION=$2
-	NEW_SETTING=$3
-
-	touch $CONFIG_FILE
-	# first pull out the existing option from the global config and place in a tmp file
-	awk "gsub(\"^export ${CONFIG_OPTION}=.*\",\"export ${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >${CONFIG_FILE}.tmp
-	awk "gsub(\"^${CONFIG_OPTION}=.*\",\"${CONFIG_OPTION}=\\\"${NEW_SETTING}\\\"\")" /tmp/config >>${CONFIG_FILE}.tmp
-
-	# then copy any remaining settings from the existing config file, minus the option you changed
-	grep -v "^export ${CONFIG_OPTION}=" ${CONFIG_FILE} | grep -v "^${CONFIG_OPTION}=" >>${CONFIG_FILE}.tmp || true
-	sort ${CONFIG_FILE}.tmp | uniq >${CONFIG_FILE}
-	rm -f ${CONFIG_FILE}.tmp
-}
 
 # Generate a secret for TPM-less HOTP by reading the ROM.  Output is the
 # sha256sum of the ROM (binary, not printable), which can be truncated to the
@@ -2371,9 +2418,11 @@ escape_zero() {
 					echo -n "${echar}x$REPLY"
 					;;
 				esac
-			done
-		}
+	done
+	}
 }
+
+
 
 # Currently heads doesn't support signing file names with certain characters
 # due to https://bugs.busybox.net/show_bug.cgi?id=14226. Also, certain characters
@@ -2465,8 +2514,9 @@ find_lvm_vg_name() {
 					[ -n "$VG" ] && {
 						echo "$VG"
 						return 0
-					}
-				fi
+}
+
+			fi
 			done
 		fi
 		DEBUG "find_lvm_vg_name: $DEVICE is not an LVM PV"
@@ -2646,15 +2696,31 @@ scan_boot_options() {
 	option_file="$3"
 
 	if [ -r "$option_file" ]; then rm "$option_file"; fi
-	for i in $(find "$bootdir" -name "$config"); do
+	find "$bootdir" -name "$config" -print | while IFS= read -r i; do
+		case "$i" in
+		*EFI* | *efi* | *x86_64-efi*) continue ;;
+		esac
 		DO_WITH_DEBUG kexec-parse-boot.sh "$bootdir" "$i" >>"$option_file"
 	done
+	# Summarize parse results: count how many boot entries were produced
+	# and flag any that look like parse artifacts (isolinux menu stubs).
+	if [ -s "$option_file" ]; then
+		local _entry_count _artifact_count
+		_entry_count=$(wc -l < "$option_file" 2>/dev/null || echo 0)
+		_artifact_count=$(grep -cE '^\s*->' "$option_file" 2>/dev/null || echo 0)
+		DEBUG "scan_boot_options: parsed $_entry_count entries ($_artifact_count likely artifacts) from $bootdir"
+	fi
 	# FC29/30+ may use BLS format grub config files
 	# https://fedoraproject.org/wiki/Changes/BootLoaderSpecByDefault
-	# only parse these if $option_file is still empty
-	if [ ! -s "$option_file" ] && [ -d "$bootdir/loader/entries" ]; then
-		for i in $(find "$bootdir" -name "$config"); do
-			kexec-parse-bls.sh "$bootdir" "$i" "$bootdir/loader/entries" >>"$option_file"
+	# only parse these if $option_file is still empty.
+	# BLS entries may be at loader/entries (bare partition) or
+	# boot/loader/entries (ISO loopback mount or embedded config).
+	local bls_dir=""
+	[ -d "$bootdir/loader/entries" ] && bls_dir="$bootdir/loader/entries"
+	[ -z "$bls_dir" ] && [ -d "$bootdir/boot/loader/entries" ] && bls_dir="$bootdir/boot/loader/entries"
+	if [ ! -s "$option_file" ] && [ -n "$bls_dir" ]; then
+		find "$bootdir" -name "$config" -print | while IFS= read -r i; do
+			kexec-parse-bls.sh "$bootdir" "$i" "$bls_dir" >>"$option_file"
 		done
 	fi
 }
@@ -2917,10 +2983,188 @@ fail_unseal() {
 	DIE "$*"
 }
 
-# Show an updating UTC timestamp and optional TOTP on a single refreshed line
-# until the user presses the Escape key. Returns 0 after ESC pressed.
-# Function name: show_totp_until_esc - clearly indicates this displays the
-# TOTP code and waits for the user to press Escape to continue.
+# Map blkid filesystem type to kernel module name for initrd compatibility checks.
+# The kernel module for a filesystem is almost always the same as the blkid TYPE
+# string (ext4 -> ext4, btrfs -> btrfs, xfs -> xfs).
+# Only vfat/msdos are exceptions (kernel module is "fat", not "vfat").
+initrd_fs_type_to_kmod() {
+	case "$1" in
+	vfat|msdos)	echo "fat" ;;
+	*)		echo "$1" ;;
+	esac
+}
+
+# Check whether a kernel binary has a filesystem driver built-in
+# (CONFIG_EXFAT_FS=y style).  Decompresses the kernel at each
+# compression magic offset and greps for built-in filesystem init
+# symbols.  Only fires when no initrd module was found -- the
+# uncommon path (most ISOs ship the module as .ko in initramfs).
+# Built-in filesystem drivers register stable init symbols:
+#   exFAT:   init_exfat_fs, exfat_init_fs_context
+#   ext4:    ext4_init_fs, ext4_init_fs_context
+#   vfat:    init_vfat_fs
+#   FAT:     init_fat_fs, fat_init_fs_context
+#   ntfs3:   init_ntfs3_fs
+# Args: vmlinuz_path  kernel_mod (e.g. "exfat", "ext4", "fat")
+# Returns: "OK" if built-in symbol found, "" if not.
+_check_kernel_for_fs_builtin() {
+	local vmlinuz="$1" kmod="$2"
+	[ -f "$vmlinuz" ] || return 0
+	# Build grep patterns for this filesystem type
+	local _patterns=""
+	case "$kmod" in
+		exfat) _patterns="init_exfat_fs exfat_init_fs_context" ;;
+		ext4)  _patterns="ext4_init_fs ext4_init_fs_context ext4_fill_super" ;;
+		fat)   _patterns="init_fat_fs init_vfat_fs fat_init_fs_context" ;;
+		ntfs3) _patterns="init_ntfs3_fs" ;;
+		*)     return 0 ;;
+	esac
+
+	# Read bzImage header to find compressed payload offset
+	local _setup_sects _after_setup
+	_setup_sects=$(dd if="$vmlinuz" bs=1 skip=497 count=1 2>/dev/null | xxd -p)
+	[ "$_setup_sects" = "00" ] && _setup_sects=04
+	_after_setup=$((0x$_setup_sects * 512))
+
+	local _zstd_cmd=""
+	command -v zstd-decompress >/dev/null 2>&1 && _zstd_cmd="zstd-decompress -d"
+	[ -z "$_zstd_cmd" ] && command -v zstd >/dev/null 2>&1 && _zstd_cmd="zstd -d"
+	[ -z "$_zstd_cmd" ] && _zstd_cmd="zstd-decompress -d"
+
+	local _hex _pos _magic _cmd _offset _decomp_file _dsize
+	# Use direct dd (not tail|dd pipe): FUSE filesystems (fuseiso) return
+	# data in 8 KiB chunks per read(); piping tail through dd bs=32768
+	# would only get 8192 bytes from the first chunk, missing the payload.
+	# Read 64 KiB probe window to cover ~53 KiB gaps seen on modern kernels.
+	# Same pattern as _check_kernel_probe_driver.  See ADR 0001.
+	_hex=$(dd if="$vmlinuz" bs=1 skip="$_after_setup" count=65536 2>/dev/null | tohex_plain)
+	[ -z "$_hex" ] && return 0
+
+	for ((_pos = 0; _pos <= ${#_hex} - 12; _pos += 2)); do
+		_magic="${_hex:$_pos:6}"
+		case "$_magic" in
+			1f8b*|1f9e*)	_cmd="gunzip -c" ;;
+			fd37*)		_cmd="xzcat" ;;
+			28b5*)		[ -n "$_zstd_cmd" ] && _cmd="$_zstd_cmd" || continue ;;
+			*)		continue ;;
+		esac
+		_offset=$((_after_setup + _pos / 2))
+		_decomp_file=$(mktemp -p /tmp -t vmlinux.XXXXXX)
+		tail -c+$((_offset + 1)) "$vmlinuz" 2>/dev/null | $_cmd > "$_decomp_file" 2>/dev/null
+		_dsize=$(stat -c %s "$_decomp_file" 2>/dev/null || echo 0)
+		if [ "$_dsize" -gt 0 ] 2>/dev/null; then
+			for _pat in $_patterns; do
+				grep -qF "$_pat" "$_decomp_file" 2>/dev/null && {
+					rm -f "$_decomp_file"
+					echo "OK"
+					return 0
+				}
+			done
+		fi
+		rm -f "$_decomp_file"
+	done
+	return 0
+}
+
+# Check an unpacked initramfs directory for a specific kernel module.
+# Args: unpack_dir  kernel_mod (e.g. "exfat", "ext4", "fat")
+# Returns: ""   = initramfs has no .ko files at all (cannot verify)
+#          "OK" = module found as .ko file or listed in modules.builtin
+#          "!"  = initramfs has loadable modules but none matching kernel_mod
+check_initramfs_for_module() {
+	TRACE_FUNC
+	local unpack_dir="$1"
+	local kernel_mod="$2"
+	local ko_files
+	ko_files=$(find "$unpack_dir" -name "*.ko*" -type f 2>/dev/null | head -1) || true
+	[ -z "$ko_files" ] && { DEBUG "check_initramfs_for_module($kernel_mod): no .ko files in initramfs"; return 0; }
+
+	local ko_match
+	# Find exact module name, not substring (fat must not match exfat.ko).
+	ko_match=$(find "$unpack_dir" -name "${kernel_mod}.ko*" -type f 2>/dev/null | head -1) || true
+	if [ -n "$ko_match" ]; then
+		DEBUG "check_initramfs_for_module($kernel_mod): found $ko_match"
+		echo "OK"
+	elif grep -q "/${kernel_mod}\.ko$" "$unpack_dir/lib/modules/"*/modules.builtin 2>/dev/null; then
+		DEBUG "check_initramfs_for_module($kernel_mod): in modules.builtin"
+		echo "OK"
+	else
+		DEBUG "check_initramfs_for_module($kernel_mod): modules present but not found"
+		echo "!"
+	fi
+}
+
+# Check an unpacked initramfs for USB file-based ISO boot capability.
+# Scans ALL files in the unpacked initramfs for known isoboot keywords
+# (findiso, iso-scan/filename, fromiso, dmsquash-live-root, rd.live.image,
+# casper).  If ANY file contains these strings, the initrd likely has code
+# to locate and boot from an ISO file on a mounted filesystem.
+#
+# This is a CONTENT-BASED scan, not path-based: we grep across all files
+# regardless of their location or distribution-specific directory layout.
+# This catches dracut-live, casper, NixOS stage-1, live-boot, and any
+# custom initramfs that references these boot parameters.
+#
+# Debian DVD installer and openSUSE Tumbleweed DVD initrds lack these
+# keywords  --  they scan for physical CDROM devices (iso9660), not ISO files
+# on a filesystem.  Correctly identified as non-isobootable.
+#
+# Args: unpack_dir   --  path to an already-unpacked initramfs directory
+# Returns: "OK" if any isoboot keyword found, "" if none.
+#
+# Detection approach: content-based grep across ALL unpacked files (not
+# path-based).  Any initramfs that supports file-based ISO booting will
+# have scripts referencing these parameters somewhere in its files,
+# regardless of distribution or directory layout.
+#
+# Keywords searched (by framework):
+#   findiso         --  Debian live-boot, NixOS stage-1
+#   iso-scan        --  Ubuntu casper, Fedora dracut
+#   fromiso         --  GRUB loopback (legacy)
+#   dmsquash-live-root  --  Fedora dracut-live
+#   rd.live.image   --  Fedora dracut
+#   casper          --  Ubuntu, PureOS
+#   live-media      --  Debian live-boot, Tails (device filter)
+#   kiwi-live       --  openSUSE kiwi (dracut-kiwi-live module)
+#   archiso         --  Arch Linux live ISO
+#   boot=live       --  Debian live-boot activation flag
+_check_initramfs_can_isoboot() {
+	local unpack_dir="$1"
+	# Called per initramfs in _check_initramfs_compat loop -- no TRACE_FUNC to avoid log noise
+	# Use -E for extended regex (| alternation, no backslash needed).
+	# Keywords cover:
+	#   findiso         --  Debian live-boot, NixOS stage-1
+	#   iso-scan        --  Ubuntu casper, Fedora dracut
+	#   fromiso         --  GRUB loopback
+	#   dmsquash-live-root  --  Fedora dracut-live
+	#   rd.live.image   --  Fedora dracut
+	#   casper          --  Ubuntu, PureOS
+	#   live-media      --  Debian live-boot, Tails
+	#   kiwi-live       --  openSUSE kiwi
+	#   archiso         --  Arch Linux live ISO
+	#   boot=live       --  Debian live-boot activation
+	local _grep_out
+	# Exclude kernel modules (.ko, .ko.xz)  --  compiled binaries never
+	# contain isoboot keywords.  BusyBox grep lacks --exclude/-I,
+	# so use find to skip them before piping to grep.
+	_grep_out=$(find "$unpack_dir" -type f ! -name "*.ko" ! -name "*.ko.xz" ! -name "*.ko.zst" 2>/dev/null | \
+		xargs grep -lsE "findiso|iso-scan|fromiso|dmsquash-live-root|rd\.live\.image|casper|live-media|kiwi-live|archiso|boot=live" \
+		2>/dev/null | head -1) || true
+	if [ -n "$_grep_out" ]; then
+		DEBUG "_check_initramfs_can_isoboot: match in $_grep_out"
+		echo "OK"
+		return 0
+	fi
+	DEBUG "_check_initramfs_can_isoboot: no match in $unpack_dir"
+	return 0
+}
+
+# Display driver detection checks the target kernel's built-in drivers.
+# The kernel's sysfb_init() binds vesafb/vesadrm/simpledrm during kernel
+# initialization, before any initramfs code runs.  Detection uses
+# _check_kernel_probe_driver() which decompresses the bzImage and searches
+# for built-in driver symbols.
+
 show_totp_until_esc() {
 	local now_str status_line current_totp ch
 	# totp_ever_unsealed: set to 1 on first successful unseal; used to detect
@@ -2929,7 +3173,7 @@ show_totp_until_esc() {
 
 	# Use the same terminal the user is actively interacting with.
 	# HEADS_TTY is set by gui-init (after cttyhack) to the actual interactive
-	# terminal — both output (status line) and input (Esc / Enter detection)
+	# terminal  --  both output (status line) and input (Esc / Enter detection)
 	# must use the same device.  Falls back to stdout/stdin (file descriptor
 	# 1/0) when HEADS_TTY is not set so that callers' redirections are
 	# respected (same behaviour as the original pre-HEADS_TTY code).
@@ -2951,12 +3195,13 @@ show_totp_until_esc() {
 	fi
 
 	# Drain any pending keystrokes (e.g. a stray Esc from the previous prompt).
-	# Skip on serial: "read -n 1 -t 0" also uses raw mode and would block.
+	# NOTE: -t 0 in BusyBox returns immediately (poll-only, does not consume
+	# data) so we use -t 0.01 to actually read and discard each byte.
 	if [ "$is_serial" = "0" ]; then
 		if [ -n "$interactive_tty" ]; then
-			while IFS= read -r -t 0 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
+			while IFS= read -r -t 0.01 -n 1 junk <"$interactive_tty" 2>/dev/null; do :; done
 		else
-			while IFS= read -r -t 0 -n 1 junk; do :; done
+			while IFS= read -r -t 0.01 -n 1 junk; do :; done
 		fi
 	fi
 
@@ -3039,9 +3284,311 @@ show_totp_until_esc() {
 						printf "\n\n"
 						return 0
 					fi
-					# Ignore other keys and continue polling
-				fi
+			# Ignore other keys and continue polling
 			fi
 		fi
+	fi
 	done
 }
+
+# Check a decompressed kernel binary for built-in framebuffer driver symbols.
+# With Heads' VLFB kexec patch (orig_video_isVGA=0x23, patch 0003), sysfb
+# creates "vesa-framebuffer".  The following built-in drivers can bind:
+#
+# Priority 1: vesadrm (DRM sysfb, kernel 7.x SUSE path)
+#   Symbol: vesadrm_probe / vesadrm_platform_driver_init
+#   Binds to: "vesa-framebuffer"
+# Priority 2: vesafb (fbdev, kernel 5.x/6.x)
+#   Symbol: vesafb_probe / vesafb_driver_init
+#   Binds to: "vesa-framebuffer" (5.x/6.x fbdev)
+# Priority 3: simpledrm + SYSFB_SIMPLEFB (simpledrm via sysfb)
+#   Symbol: simpledrm_probe / simpledrm_platform_driver_init
+#   Also checks: sysfb_parse_mode (confirms simple-framebuffer device)
+#   Binds to: "simple-framebuffer" (via sysfb_parse_mode)
+#
+# Args: vmlinuz_path  driver_name  [setup_sects  after_setup  probe_hex  zstd_cmd]
+# Returns: "OK:<symbol>" if symbol found (e.g. "OK:vesadrm", "OK:vesafb", "OK:simpledrm_probe"),
+#   "" if decompressed but symbol not found,
+#   "!" if decompression failed
+_check_kernel_probe_driver() {
+	local vmlinuz="$1" driver="$2"
+	local setup_sects="${3:-}" after_setup="${4:-}" probe_hex="${5:-}" zstd_cmd="${6:-}"
+	# Called per kernel entry in check_kernel_for_fb loop -- no TRACE_FUNC to avoid log noise
+
+	if [ -z "$probe_hex" ]; then
+		setup_sects=$(dd if="$vmlinuz" bs=1 skip=497 count=1 2>/dev/null | xxd -p)
+		[ "$setup_sects" = "00" ] && setup_sects=04
+		after_setup=$((0x$setup_sects * 512))
+		# Use direct dd with skip/count (no tail+dd pipe) because FUSE
+		# filesystems (fuseiso) return data in 8 KiB chunks per read().
+		# piping tail | dd bs=32768 count=1 would only get 8192 bytes
+		# from the first chunk, missing the compressed payload entirely.
+		# Read 64 KiB probe window: some kernels (EFI handoff) have a
+		# large gap between setup sectors and compressed payload.
+		probe_hex=$(dd if="$vmlinuz" bs=1 skip="$after_setup" count=65536 2>/dev/null | tohex_plain)
+		[ -z "$probe_hex" ] && return 0
+
+		command -v zstd-decompress >/dev/null 2>&1 && zstd_cmd="zstd-decompress -d"
+		[ -z "$zstd_cmd" ] && command -v zstd >/dev/null 2>&1 && zstd_cmd="zstd -d"
+		# Last resort: try zstd-decompress even if command -v failed.
+		# BusyBox's applet name resolution strips the -decompress suffix
+		# and runs the zstd applet with -d, but this only works when the
+		# applet is invoked (pipe), not via command -v (no symlink exists).
+		# Matches unpack_initramfs.sh line 110 behavior.
+		[ -z "$zstd_cmd" ] && zstd_cmd="zstd-decompress -d"
+
+		# Fast path: try strings on raw kernel before decompression.
+		# Single strings+grep pass checks ALL relevant driver symbols
+		# in one go.  Uses grep -F (fixed strings)  --  faster than
+		# per-symbol grep -q loops on compressed kernels.
+		# head -1 takes the first match; || true prevents pipefail
+		# abort when head terminates the pipe early (SIGPIPE).
+		local _fast_path_symbol
+		_fast_path_symbol=$(strings "$vmlinuz" 2>/dev/null | grep -oF \
+			-e "${driver}_probe" -e "${driver}_pci_probe" \
+			-e "${driver}_driver_init" -e "${driver}_pci_driver_init" \
+			-e "simpledrm_probe" -e "simpledrm_driver_init" \
+		| head -1) || true
+		if [ -n "$_fast_path_symbol" ]; then
+			# Driver symbol found in raw strings: return OK immediately.
+			# simpledrm found: fall through to decompression to verify
+			# the "simple-framebuffer" device string (not in compressed
+			# section of raw bzImage, so not visible via strings).
+			if ! echo "$_fast_path_symbol" | grep -q 'simpledrm'; then
+				DEBUG "_check_kernel_probe_driver: $driver: fast path found $_fast_path_symbol"
+				echo "OK:$_fast_path_symbol"
+				return 0
+			fi
+			DEBUG "_check_kernel_probe_driver: $driver: fast path found simpledrm, verifying via decompression"
+		fi
+		DEBUG "_check_kernel_probe_driver: $driver: fast path found nothing, proceeding to decompression"
+	fi
+
+	DEBUG "_check_kernel_probe_driver: $driver: probe_hex has ${#probe_hex} hex chars (${#probe_hex} chars = ${#probe_hex} hex nibbles)"
+	local pos magic decomp_ok="n" last_offset="-1"
+	for ((pos = 0; pos <= ${#probe_hex} - 12; pos += 2)); do
+		magic="${probe_hex:$pos:6}"
+		local cmd="" offset=""
+		case "$magic" in
+			1f8b*|1f9e*)	cmd="gunzip -c" ;;
+			fd37*)		cmd="xzcat" ;;
+			28b5*)		[ -n "$zstd_cmd" ] && cmd="$zstd_cmd" || continue ;;
+			*)		continue ;;
+		esac
+		offset=$((after_setup + pos / 2))
+		[ "$((offset - last_offset))" -lt 4 ] 2>/dev/null && [ "$last_offset" -ge 0 ] && continue
+
+		DEBUG "_check_kernel_probe_driver: $driver: found ${magic:0:4} magic at offset $offset, trying $cmd"
+
+		local decomp_file
+		decomp_file=$(mktemp -p /tmp -t vmlinux.XXXXXX)
+		tail -c+$((offset + 1)) "$vmlinuz" 2>/dev/null | $cmd > "$decomp_file" 2>/dev/null
+		local dsize=$(stat -c %s "$decomp_file" 2>/dev/null || echo 0)
+		if [ "$dsize" -gt 0 ] 2>/dev/null; then
+			decomp_ok="y"
+			DEBUG "_check_kernel_probe_driver: $driver: decompressed $dsize bytes"
+			# Search for framebuffer drivers that bind with our VLFB
+			# kexec-tools patch (orig_video_isVGA=0x23):
+			#
+			# Priority 1: vesadrm (DRM sysfb, kernel 7.x SUSE path)
+			#   Binds to "vesa-framebuffer" created by sysfb from VLFB.
+			#
+			# Priority 2: vesafb (fbdev, kernel 5.x/6.x)
+			#   Binds to "vesa-framebuffer" on older kernels with FB_VESA.
+			#
+			# Priority 3: simpledrm + sysfb_parse_mode (SYSFB_SIMPLEFB=y)
+			#   sysfb_parse_mode confirms simple-framebuffer device is created.
+			#
+			if [ "$driver" = "vesafb" ]; then
+				local _found_symbol
+				_found_symbol=$(grep -aFo -e "vesadrm_probe" -e "vesadrm_platform_driver_init" \
+					-e "vesafb_probe" -e "vesafb_driver_init" \
+					-e "simpledrm_probe" -e "simpledrm_platform_driver_init" \
+					"$decomp_file" 2>/dev/null) || true
+				# Prefer vesadrm over other drivers: with our VLFB kexec
+				# patch, vesadrm is the DRM path (7.x) that actually binds.
+				if echo "$_found_symbol" | grep -q 'vesadrm'; then
+					_found_symbol=$(echo "$_found_symbol" | grep 'vesadrm' | head -1)
+				fi
+				if [ -n "$_found_symbol" ]; then
+					if echo "$_found_symbol" | grep -q 'vesadrm'; then
+						DEBUG "_check_kernel_probe_driver: $driver: found vesadrm (VLFB DRM, 7.x)"
+						rm -f "$decomp_file"
+						echo "OK:vesadrm"
+						return 0
+					elif echo "$_found_symbol" | grep -q 'vesafb'; then
+						DEBUG "_check_kernel_probe_driver: $driver: found vesafb (VLFB fbdev, 5.x/6.x)"
+						rm -f "$decomp_file"
+						echo "OK:vesafb"
+						return 0
+					elif echo "$_found_symbol" | grep -q 'simpledrm'; then
+						# simpledrm requires SYSFB_SIMPLEFB=y for sysfb to
+						# create a "simple-framebuffer" device.  Verify the
+						# symbol unique to drivers/firmware/sysfb_simplefb.c.
+						if grep -aFq 'sysfb_parse_mode' "$decomp_file" 2>/dev/null; then
+							DEBUG "_check_kernel_probe_driver: $driver: found simpledrm + sysfb_parse_mode (SYSFB_SIMPLEFB=y)"
+							rm -f "$decomp_file"
+							echo "OK:simpledrm_sysfb"
+							return 0
+						else
+							DEBUG "_check_kernel_probe_driver: $driver: simpledrm but no sysfb_parse_mode (SYSFB_SIMPLEFB=n)"
+						fi
+					fi
+				fi
+			else
+				local _search_patterns="${driver}_probe ${driver}_pci_probe ${driver}_driver_init ${driver}_pci_driver_init"
+				DEBUG "_check_kernel_probe_driver: $driver: searching decompressed kernel for driver symbols"
+				# Generic driver: same grep -aFo pass (single scan,
+				# -a forces text mode on binary decompressed kernel,
+				# fixed strings, avoids per-symbol grep -q overhead)
+				local _found_symbol
+				_found_symbol=$(grep -aFo -e "${driver}_probe" -e "${driver}_pci_probe" -e "${driver}_driver_init" -e "${driver}_pci_driver_init" \
+					"$decomp_file" 2>/dev/null | head -1) || true
+				if [ -n "$_found_symbol" ]; then
+					DEBUG "_check_kernel_probe_driver: $driver: found $_found_symbol"
+					rm -f "$decomp_file"
+					echo "OK:$_found_symbol"
+					return 0
+				fi
+			fi
+			DEBUG "_check_kernel_probe_driver: $driver: decompressed OK but none of [$_search_patterns] found"
+		fi
+		rm -f "$decomp_file"
+		last_offset=$offset
+	done
+
+	if [ "$decomp_ok" = "n" ]; then
+		DEBUG "_check_kernel_probe_driver: $driver: no decompressor produced output (tried all magics)"
+		echo "!"
+		return 0
+	fi
+}
+
+# Check if a kernel has a specific display driver built in.
+# Decompresses the kernel and searches for the driver's probe/init symbols.
+# Returns the matching symbol (e.g. "OK:<driver>_probe") if found,
+# "" if not, "!" if kernel can't be decompressed.
+check_kernel_has_driver() {
+	TRACE_FUNC
+	local vmlinuz="$1" driver_name="$2"
+	[ ! -f "$vmlinuz" ] && return 0
+	_check_kernel_probe_driver "$vmlinuz" "$driver_name"
+}
+
+# Check whether the target kernel has a built-in framebuffer driver
+# (vesadrm, vesafb, or simpledrm_sysfb).  Decompresses the candidate
+# kernel and searches for driver symbols.
+# Args: bootdir  [entries_file]
+# Returns: "OK:<symbol>" if found (e.g. "OK:vesadrm", "OK:vesafb", "OK:simpledrm_sysfb"),
+#   "" if not found, "!" if decompression failed.
+check_kernel_for_fb() {
+	TRACE_FUNC
+	local bootdir="$1" entries_file="${2:-}" vmlinuz=""
+
+	if [ -f "$bootdir" ]; then
+		vmlinuz="$bootdir"
+	elif [ -d "$bootdir" ]; then
+		if [ -n "$entries_file" ] && grep -q "|xen|" "$entries_file" 2>/dev/null; then
+			while IFS= read -r entry; do
+				[ -z "$entry" ] && continue
+				local etype e4
+				etype=$(echo "$entry" | cut -d\| -f2)
+				e4=$(echo "$entry" | cut -d\| -f4)
+				if [ "$etype" = "xen" ]; then
+					vmlinuz="${e4#module }"; vmlinuz="${vmlinuz%% *}"
+					[ -f "$bootdir/$vmlinuz" ] && vmlinuz="$bootdir/$vmlinuz" && break
+				fi
+			done < "$entries_file"
+		fi
+		if [ -z "$vmlinuz" ]; then
+			vmlinuz=$(find "$bootdir" \( -name "vmlinuz*" -o -name "bzImage*" \) -type f 2>/dev/null | grep -v "memtest" | head -1) || true
+		fi
+	fi
+	[ -z "$vmlinuz" ] && return 0
+
+	local result
+	result=$(_check_kernel_probe_driver "$vmlinuz" "vesafb")
+	echo "$result"
+}
+
+# Detect the active GPU display driver from the running system.
+# Checks PCI display controllers first (most specific), then falls
+# back to the active framebuffer device.  Returns the driver name
+# (e.g. "i915", "ast", "bochs-drm", "simpledrmdrmfb", "vesafb") or
+# empty string (exit 1) if detection fails.
+# On libgfxinit/FSP GOP boards, the initial Heads kernel uses
+# the fbdev console for Heads' console.  The target kernel receives
+# normalized XRGB8888 with VLFB type.
+#
+# The detected driver tells us what the target kernel needs: if the
+# board has an Intel GPU driven by i915, the target kernel needs i915
+# (or a framebuffer for continuous display on libgfxinit boards).
+#
+# Detection methods in order:
+# Build the final kernel cmdline with ISO-finding param enforcement.
+# All processing (REMOVE, cleanup, key enforcement) is centralized here
+# so the preview shown to the user exactly matches what kexec-boot.sh executes.
+# Args:
+#   iso_params   --  ISO's original kernel cmdline (from GRUB/syslinux)
+#   param_add    --  ADD params (universal + loopback.cfg)
+#   param_remove --  words/keys to strip (CONFIG_BOOT_KERNEL_REMOVE)
+#   board_add    --  board-level ADD overrides (CONFIG_BOOT_KERNEL_ADD)
+# Returns: final cmdline with REMOVE applied, ADD prepended, board_add appended.
+# Priority: board_add > injected keys > ISO originals.
+_build_final_cmdline() {
+	local _iso_params="$1" _param_add="$2" _param_remove="$3" _board_add="$4"
+	local _clean_add="" _combined=""
+
+	TRACE_FUNC
+
+	DEBUG "_build_final_cmdline: param_add='$_param_add' param_remove='$_param_remove' board_add='$_board_add'"
+	DEBUG "_build_final_cmdline: iso_params='$_iso_params'"
+
+	# Clean ADD: strip GRUB --- separator
+	_clean_add=$(echo "$_param_add" | sed 's/ --- / /g;s/^--- //g;s/ ---$//g' | xargs)
+
+	# Apply REMOVE to both ADD and ISO params
+	for _remove_word in $_param_remove; do
+		_clean_add=" $_clean_add "
+		_clean_add="${_clean_add// $_remove_word / }"
+		_iso_params=" $_iso_params "
+		_iso_params="${_iso_params// $_remove_word / }"
+	done
+	_clean_add=$(echo "${_clean_add# }" | xargs)
+	_iso_params=$(echo "${_iso_params# }" | xargs)
+	DEBUG "_build_final_cmdline: after remove on ADD='$_clean_add'"
+	DEBUG "_build_final_cmdline: after remove on iso='$_iso_params'"
+
+	# Combine: Heads ADD (prepended) + ISO originals
+	_combined="$_clean_add $_iso_params"
+	_combined=$(echo "$_combined" | xargs)
+	DEBUG "_build_final_cmdline: combined='$_combined'"
+
+	# Enforce ISO-finding keys: for each known key that Heads injects,
+	# replace all occurrences in _combined with the Heads value, then
+	# deduplicate (remove every occurrence, re-append once).
+	# Keys not in the injected list are left untouched.
+	for _iso_key in iso-scan/filename findiso img_dev img_loop iso live-media; do
+		_heads_value=$(echo "$_clean_add" | grep -oE "(^| )$_iso_key=[^ ]*" | head -1 | sed 's/^ //')
+		if [ -n "$_heads_value" ]; then
+			DEBUG "_build_final_cmdline: enforcing $_iso_key -> '$_heads_value'"
+			_combined=$(echo "$_combined" | sed "s| $_iso_key=[^ ]*| $_heads_value|g")
+			_combined=$(echo "$_combined" | sed "s|^$_iso_key=[^ ]*|$_heads_value|")
+			_dedup_guard=0
+			while echo "$_combined" | grep -q " $_iso_key="; do
+				_combined=$(echo "$_combined" | sed "s| $_iso_key=[^ ]*||")
+				_dedup_guard=$((_dedup_guard + 1))
+				[ "$_dedup_guard" -gt 100 ] && break
+			done
+			_combined=$(echo "$_combined" | sed "s|^$_iso_key=[^ ]*||")
+			_combined="$_combined $_heads_value"
+			DEBUG "_build_final_cmdline: after enforce $_iso_key='$_combined'"
+		fi
+	done
+
+	# Append Board ADD last (always wins -- never touched by enforce)
+	_combined=$(echo "$_combined $_board_add" | xargs)
+	DEBUG "_build_final_cmdline: final='$_combined'"
+	echo "$_combined"
+}
+

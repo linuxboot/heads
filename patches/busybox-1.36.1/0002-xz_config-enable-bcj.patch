@@ -1,0 +1,12 @@
+--- a/archival/libarchive/unxz/xz_config.h
++++ b/archival/libarchive/unxz/xz_config.h
+@@ -11,7 +11,7 @@
+ #define XZ_CONFIG_H
+ 
+ /* Uncomment as needed to enable BCJ filter decoders. */
+-/* #define XZ_DEC_X86 */
++#define XZ_DEC_X86
+-/* #define XZ_DEC_POWERPC */
++#define XZ_DEC_POWERPC
+ /* #define XZ_DEC_IA64 */
+ /* #define XZ_DEC_ARM */
