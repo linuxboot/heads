@@ -1,0 +1,27 @@
+# binutils 2.44 rejects .arch i386 in 64-bit mode when the assembler
+# encounters .code16/.code32 transitions. These i386 entry files are
+# part of the x86_64 purgatory build and are compiled with the default
+# 64-bit target. Removing .arch i386 lets the assembler accept the
+# mode switches without changing the emitted instructions.
+# Required after musl-cross-make bumped binutils from 2.33.1 to 2.44.
+--- a/purgatory/arch/i386/entry32-16.S	2026-06-27 13:46:16.320819657 -0400
++++ b/purgatory/arch/i386/entry32-16.S	2026-06-27 13:46:16.324819745 -0400
+@@ -20,7 +20,6 @@
+ #undef i386	
+ 	.text
+ 	.globl entry16, entry16_regs
+-	.arch i386
+ 	.balign 16
+ entry16:
+ 	.code32
+
+--- a/purgatory/arch/i386/entry32-16-debug.S	2026-06-27 13:46:16.320819657 -0400
++++ b/purgatory/arch/i386/entry32-16-debug.S	2026-06-27 13:46:16.324819745 -0400
+@@ -25,7 +25,6 @@
+ 	.globl entry16_debug_pre32
+ 	.globl entry16_debug_first32
+ 	.globl entry16_debug_old_first32
+-	.arch i386
+ 	.balign 16
+ entry16_debug:
+ 	.code32
