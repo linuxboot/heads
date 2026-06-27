@@ -4,11 +4,11 @@ ifeq "$(MUSL_CROSS_ONCE)" ""
 MUSL_CROSS_ONCE := 1
 modules-$(CONFIG_MUSL) += musl-cross-make
 
-musl-cross-make_version := fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+musl-cross-make_version := 227df8b99103f9c59f6570babf892978e293082f
 musl-cross-make_dir := musl-cross-make-$(musl-cross-make_version)
 musl-cross-make_url := https://github.com/richfelker/musl-cross-make/archive/$(musl-cross-make_version).tar.gz
 musl-cross-make_tar := musl-cross-make-$(musl-cross-make_version).tar.gz
-musl-cross-make_hash := 15b8e0a287d738a46e069e90d67a8d96213b357b79aaf3e8cf0cd40e4b230d9e
+musl-cross-make_hash := bb3fc7851088e1e5e1274ee56a0ab6ae176043d160fdf0b71027934b091f208a
 
 # Auto-detect crossgcc from cache restore before checking CROSS env var
 CROSS_PATH := $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
