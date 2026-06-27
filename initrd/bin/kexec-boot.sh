@@ -89,11 +89,17 @@ if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
 fi
 
 module_number="1"
+# Track whether the kernel line had command-line arguments (e.g. restval
+# is non-empty for Linux kernels, empty for standalone ELF binaries such
+# as memtest86+).  Used below to avoid forcing --append=$cmdadd on ELF
+# binaries that take no kernel arguments.
+kernel_had_args=""
 while read line; do
 	key=$(echo $line | cut -d\  -f1)
 	firstval=$(echo $line | cut -d\  -f2)
 	restval=$(echo $line | cut -d\  -f3-)
 	if [ "$key" = "kernel" ]; then
+		kernel_had_args="$restval"
 		fix_file_path
 		if [ "$kexectype" = "xen" ]; then
 			# always use xen with custom arguments
@@ -158,7 +164,12 @@ EOF
 
 if [ "$adjusted_cmd_line" = "n" ]; then
 	if [ "$kexectype" = "elf" ]; then
-		kexeccmd="$kexeccmd --append=\"$cmdadd\""
+		# Only pass $cmdadd if the kernel line had arguments --
+		# standalone ELF binaries (e.g. memtest86+) take no kernel
+		# command line and adding --append with ISO params breaks kexec.
+		if [ -n "$kernel_had_args" ]; then
+			kexeccmd="$kexeccmd --append=\"$cmdadd\""
+		fi
 	else
 		DIE "Failed to add required kernel commands: $cmdadd"
 	fi
