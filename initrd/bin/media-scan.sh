@@ -45,12 +45,12 @@ get_menu_option() {
 			MENU_OPTIONS="$MENU_OPTIONS $n ${option}"
 		done < /tmp/iso_menu.txt
 
-		MENU_OPTIONS="$MENU_OPTIONS a Abort"
+		MENU_OPTIONS="$MENU_OPTIONS b Back"
 
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your ISO boot option" \
 			--menu "Choose the ISO boot option [1-$n]:" 0 80 8 \
 			-- $MENU_OPTIONS \
-			2>/tmp/whiptail || DIE "Aborting boot attempt"
+			2>/tmp/whiptail || exit 0
 
 		option_index=$(cat /tmp/whiptail)
 	else
@@ -66,8 +66,8 @@ get_menu_option() {
 	fi
 
 	# Empty occurs when aborting fbwhiptail with esc-esc
-	if [ -z "$option_index" ] || [ "$option_index" = "a" ]; then
-		DIE "Aborting boot attempt"
+	if [ -z "$option_index" ] || [ "$option_index" = "b" ]; then
+		exit 0
 	fi
 
 	option=`head -n $option_index /tmp/iso_menu.txt | tail -1`
@@ -80,17 +80,19 @@ get_menu_option() {
 # create ISO menu options - search recursively for ISO files
 find /media -name "*.iso" -type f 2>/dev/null | sort -r > /tmp/iso_menu.txt || true
 if [ `cat /tmp/iso_menu.txt | wc -l` -gt 0 ]; then
-	option_confirm=""
-	while [ -z "$option" -a "$option_index" != "s" ]
-	do
-		get_menu_option
+	while true; do
+		option=""
+		option_index=""
+		option_confirm=""
+		while [ -z "$option" -a "$option_index" != "s" ]
+		do
+			get_menu_option
+		done
+
+		MOUNTED_ISO="$option"
+		ISO="${option:7}" # remove /media/ to get device relative path
+		DO_WITH_DEBUG kexec-iso-init.sh "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV" && break
 	done
-
-	MOUNTED_ISO="$option"
-	ISO="${option:7}" # remove /media/ to get device relative path
-	DO_WITH_DEBUG kexec-iso-init.sh "$MOUNTED_ISO" "$ISO" "$USB_BOOT_DEV"
-
-	DIE "Something failed in iso init"
 fi
 
 # No *.iso files on media, try ordinary bootable USB

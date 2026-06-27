@@ -72,20 +72,24 @@ excluded from measurements.
 
 #### Standard path (boards with CONFIG_TPM_MEASURED_BOOT=y + CONFIG_TPM_INIT_RAMSTAGE=y)
 
-On the majority of Heads boards, the TPM chip is not initialized until ramstage
-— the bootblock and romstage run before any TPM recording takes place. Once
-ramstage initializes the TPM, coreboot's measured boot (`CONFIG_TPM_MEASURED_BOOT=y`)
-reads each prior stage back from CBFS and extends PCR 2 (`CONFIG_PCR_SRTM=2`)
-retroactively. The full chain recorded into PCR 2 is:
+On the majority of Heads boards, the TPM chip is not initialized until ramstage.
+The measurement chain is transitive: each stage measures the next during CBFS file
+loading, before executing it.  Measurements taken before TPM init are cached in the
+preram log (a software-only log kept in CAR/SRAM, then migrated to CBMEM).  When
+ramstage initializes the TPM via `tpm_setup()`, the cached preram entries are flushed
+to PCR 2 by `tspi_measure_cache_to_pcr()`.  After TPM init, subsequent measurements
+extend PCR 2 directly on the TPM hardware in addition to the software log.
+
+The full chain recorded into PCR 2 is:
 
 ```text
 bootblock → romstage → ramstage → Heads Linux kernel + initrd (payload)
 ```
 
-The gap between first CPU execution (bootblock) and first TPM recording (ramstage)
-is covered by hardware write-protection of the SPI flash — the contents of those
-stages cannot change without physical flash access. The bootblock is still the
-S-CRTM; the TPM just begins recording later.
+The gap between first measurement (bootblock, preram log) and first TPM hardware
+extend (ramstage) is covered by hardware write-protection of the SPI flash — the
+contents of stages measured before TPM init cannot change without physical flash
+access. The bootblock remains the S-CRTM; the TPM hardware just begins recording later.
 
 After this chain is recorded, the TPM state reflects the complete firmware
 stack. Any modification to any of these stages produces a different PCR 2
@@ -110,6 +114,7 @@ Notable exceptions from the standard SRTM path:
 | ThinkPad T520 | 4.22.01 (unmaintained) | `CONFIG_TPM_INIT_RAMSTAGE=y` but `CONFIG_TPM_MEASURED_BOOT` explicitly not set | TPM initialized but SRTM measurements disabled |
 | Librem l1um (original) | purism fork (unmaintained) | `CONFIG_TPM_INIT=y` (old key); no `CONFIG_TPM_MEASURED_BOOT` | Purism fork; pre-dates current measured boot naming |
 | Librem Mini, Librem Mini v2, Librem 11 | purism fork (maintained) | `CONFIG_NO_TPM=y` | No TPM hardware; falls back to ROM-hash HOTP mode (see below) |
+| OptiPlex 7010/9010 TXT (EOL) | xx30 (maintained) | `CONFIG_INTEL_TXT=y`; `CONFIG_TPM_MEASURED_BOOT_INIT_BOOTBLOCK=y` | Intel TXT requires TPM init in bootblock because the SINIT ACM (which launches the DRTM chain) runs before ramstage and needs TPM access for the Measured Launch Environment |
 
 On boards where coreboot SRTM measurements are absent or uncertain, PCR 2
 remains at zero from coreboot's perspective. Heads still seals secrets to the

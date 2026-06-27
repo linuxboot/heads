@@ -114,8 +114,10 @@ as the immutable starting point:
 
 - Coreboot measures firmware stages and the Linux payload into TPM PCR 2 (SRTM) before executing it.
 - The Linux payload is embedded in the ROM (no network, no external media required).
-- The ROM is physically write-protected on supported boards. See
-  [wp-notes.md](wp-notes.md) for current status.
+- **Flash write protection**: On supported Intel boards, the SPI ROM is
+  locked against writes via chipset-level PR0 lockdown just before
+  kexec.  See [wp-notes.md](wp-notes.md#pr0-chipset-locking) for the
+  full mechanism, coreboot/Heads config requirements, and board coverage.
 
 There is no certificate authority, no boot server, and no runtime network
 access during the verified boot path.
@@ -271,8 +273,10 @@ for the caching mechanism and its security properties.
 
 At each boot, `verify_global_hashes` in `kexec-select-boot` calls
 `verify_checksums` and `check_config` to confirm that every `/boot` file
-matches its stored hash and that `kexec.sig` is valid. A hash or signature
-failure causes `die` — there is no "boot anyway" path.
+matches its stored hash and that `kexec.sig` is valid.  On mismatch, an
+interactive whiptail menu offers three options: investigate discrepancies,
+update checksums, or return to the main menu.  Choosing "return" causes
+`DIE` — there is no "boot anyway" path.
 
 The ROM contains only the **public key**. Verification uses `gpgv` with
 the ROM keyring; no private key material is needed at boot.
