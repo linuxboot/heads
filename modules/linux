@@ -34,6 +34,9 @@ linux_hash := 40f014d53e81f204f6d2a364aae4201ae07970dd1b70dc602d7c66c1a140f558
 else ifeq "$(CONFIG_LINUX_VERSION)" "6.1.8"
 linux_version := 6.1.8
 linux_hash := b60bb53ab8ba370a270454b11e93d41af29126fc72bd6ede517673e2e57b816d
+else ifeq "$(CONFIG_LINUX_VERSION)" "6.6.30"
+linux_version := 6.6.30
+linux_hash := b66a5b863b0f8669448b74ca83bd641a856f164b29956e539bbcb5fdeeab9cc6
 else
 $(error "$(BOARD): does not specify linux kernel version under CONFIG_LINUX_VERSION")
 endif
