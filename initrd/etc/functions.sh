@@ -2229,15 +2229,15 @@ check_config() {
 		# output matches exactly what was produced during signing, where the same
 		# relative names were used.  Absolute paths would differ between the
 		# signing staging dir and $paramsdir, causing a spurious mismatch.
-		STATUS "Verifying GPG signature on kexec boot params"
+		STATUS "Verifying GPG signature on boot hashes"
 		DEBUG "check_config: running (cd $paramsdir && sha256sum ${param_files[*]}) | gpgv.sh $paramsdir/kexec.sig"
 		if ! (cd "$paramsdir" && sha256sum "${param_files[@]}") |
 			gpgv.sh "$paramsdir/kexec.sig" - 2> >(SINK_LOG "gpgv kexec.sig"); then
 			DIE 'Invalid signature on kexec boot params'
 		fi
+		STATUS_OK "Boot hashes signature verified"
 	fi
 
-	STATUS_OK "GPG signature on kexec boot params verified"
 	DEBUG "check_config: copying kexec*.txt from $paramsdir to /tmp/kexec"
 	cp "$paramsdir"/kexec*.txt /tmp/kexec ||
 		DIE "Failed to copy kexec boot params to tmp"
