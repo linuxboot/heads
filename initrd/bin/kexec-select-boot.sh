@@ -239,11 +239,8 @@ confirm_menu_option() {
 			[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
 			# Build final cmdline preview using shared function so it
 			# exactly matches what kexec-boot.sh will execute.
-			local folded_cmdline
-			folded_cmdline=$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")
-			folded_cmdline=$(echo "$folded_cmdline" | fold -s -w 75)
 			whiptail_warning --title "Confirm boot details" \
-				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$folded_cmdline\n" 0 80 8 \
+				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")\n" 0 80 8 \
 				-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
 				2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
 	else
