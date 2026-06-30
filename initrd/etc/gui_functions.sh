@@ -837,7 +837,9 @@ get_inverted_config_display_action() {
 verify_global_hashes() {
 	TRACE_FUNC
 	# Check the hashes of all the files, ignoring signatures for now
-	check_config /boot force
+	if [ ! -r /tmp/kexec/kexec_hashes.txt ]; then
+		check_config /boot force
+	fi
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
 	TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
@@ -847,6 +849,20 @@ verify_global_hashes() {
 		DEBUG "verify_global_hashes: verify_checksums passed"
 		valid_hash="y"
 		valid_global_hash="y"
+		# If user enables it, check root hashes before boot as well
+		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
+			DEBUG "verify_global_hashes: checking root hashes"
+			if root-hashes-gui.sh -c; then
+				STATUS_OK "Verified boot file checksums"
+			else
+				# root-hashes-gui.sh handles the GUI error menu, just DIE here
+				if [ "$gui_menu" = "y" ]; then
+					whiptail_error --title 'ERROR: Root Hash Mismatch' \
+						--msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
+				fi
+				DIE "root hash mismatch, see /tmp/hash_output_mismatches for details"
+			fi
+		fi
 		return 0
 	elif [[ ! -f "$TMP_HASH_FILE" || ! -f "$TMP_TREE_FILE" ]]; then
 		DEBUG "verify_global_hashes: missing hash or tree file"
