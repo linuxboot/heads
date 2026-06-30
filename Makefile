@@ -472,26 +472,40 @@ define define_module =
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
 	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
-		echo "INFO: .canary file and directory not found. Cloning repository $($1_repo) into $(build)/$($1_base_dir)" && \
-		git clone $($1_repo) "$(build)/$($1_base_dir)" && \
+		echo "INFO: .canary file and directory not found. Creating standalone clone of $($1_repo) at $(build)/$($1_base_dir)" && \
+		mkdir -p "$(build)/$($1_base_dir)" && \
+		cd "$(build)/$($1_base_dir)" && \
+		echo "INFO: Initializing git repository" && \
+		git init 2>/dev/null && \
+		echo "INFO: Adding remote origin: $($1_repo)" && \
+		git remote add origin $($1_repo) && \
+		echo "INFO: Fetching commit $($1_commit_hash) (without recursing submodules)" && \
+		git fetch origin $($1_commit_hash) --recurse-submodules=no && \
 		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		git reset --hard $($1_commit_hash) && \
 		echo "INFO: Creating .canary file with repo and commit hash" && \
 		echo -n '$($1_repo)|$($1_commit_hash)' > "$$@" ; \
 	elif [ ! -e "$$@" ] || [ "$$$$(cat "$$@")" != '$($1_repo)|$($1_commit_hash)' ]; then \
-		echo "INFO: .canary file missing or differs. Resetting $1 to $($1_repo) at $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard HEAD^ && \
-		echo "INFO: Fetching commit $($1_commit_hash) from $($1_repo) (without recursing submodules)" && \
-		git -C "$(build)/$($1_base_dir)" fetch $($1_repo) $($1_commit_hash) --recurse-submodules=no && \
+		echo "INFO: .canary file missing or differs. Converting to standalone clone at $(build)/$($1_base_dir)" && \
+		echo "INFO: Removing stale worktree reference if present" && \
+		rm -f "$(build)/$($1_base_dir)/.git" 2>/dev/null; \
+		cd "$(build)/$($1_base_dir)" && \
+		echo "INFO: Initializing git repository" && \
+		git init 2>/dev/null; \
+		echo "INFO: Configuring remote origin: $($1_repo)" && \
+		git remote remove origin 2>/dev/null; \
+		git remote add origin $($1_repo) && \
+		echo "INFO: Fetching commit $($1_commit_hash) (without recursing submodules)" && \
+		git fetch origin $($1_commit_hash) --recurse-submodules=no && \
 		echo "INFO: Resetting repository to commit $($1_commit_hash)" && \
-		git -C "$(build)/$($1_base_dir)" reset --hard $($1_commit_hash) && \
+		git reset --hard $($1_commit_hash) && \
 		echo "INFO: Cleaning repository directory (including payloads and util/cbmem)" && \
-		git -C "$(build)/$($1_base_dir)" clean -df && \
-		git -C "$(build)/$($1_base_dir)" clean -dffx payloads util/cbmem && \
+		git clean -df && \
+		git clean -dffx payloads util/cbmem && \
 		echo "INFO: Synchronizing submodules" && \
-		git -C "$(build)/$($1_base_dir)" submodule sync && \
+		git submodule sync && \
 		echo "INFO: Updating submodules (init and checkout)" && \
-		git -C "$(build)/$($1_base_dir)" submodule update --init --checkout && \
+		git submodule update --init --checkout && \
 		echo "INFO: Cleaning board-specific build directories to prevent stale artifacts" && \
 		rm -rf "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Recreating board directories" && \
