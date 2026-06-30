@@ -253,7 +253,7 @@ jobs:
       - save_cache:
           key: x86-musl-cross-make-nix-docker-heads-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - build/x86/musl-cross-make-227df8b99103f9c59f6570babf892978e293082f
             - crossgcc/x86
             - install/x86
             - packages/x86
@@ -305,7 +305,7 @@ jobs:
           key: x86-coreboot-musl-cross-make-nix-docker-heads-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}-<< parameters.coreboot_dir >>
           paths:
             - build/x86/<< parameters.coreboot_dir >>
-            - build/x86/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - build/x86/musl-cross-make-227df8b99103f9c59f6570babf892978e293082f
             - crossgcc/x86
             - install/x86
             - packages/x86
@@ -346,7 +346,7 @@ jobs:
       - save_cache:
           key: ppc64-musl-cross-make-nix-docker-heads-{{ checksum "./tmpDir/musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}
           paths:
-            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - build/ppc64/musl-cross-make-227df8b99103f9c59f6570babf892978e293082f
             - crossgcc/ppc64
             - install/ppc64
             - packages/ppc64
@@ -406,7 +406,7 @@ jobs:
           key: ppc64-coreboot-musl-cross-make-nix-docker-heads-{{ checksum "./tmpDir/coreboot_musl-cross-make.sha256sums" }}{{ .Environment.CACHE_VERSION }}-<< parameters.coreboot_dir >>
           paths:
             - build/ppc64/<< parameters.coreboot_dir >>
-            - build/ppc64/musl-cross-make-fd6be58297ee21fcba89216ccd0d4aca1e3f1c5c
+            - build/ppc64/musl-cross-make-227df8b99103f9c59f6570babf892978e293082f
             - crossgcc/ppc64
             - install/ppc64
             - packages/ppc64
