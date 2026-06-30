@@ -241,7 +241,7 @@ confirm_menu_option() {
 			# exactly matches what kexec-boot.sh will execute.
 			local folded_cmdline
 			folded_cmdline=$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")
-			folded_cmdline=$(echo "$folded_cmdline" | fold -s -w 78)
+			folded_cmdline=$(echo "$folded_cmdline" | fold -s -w 75)
 			whiptail_warning --title "Confirm boot details" \
 				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$folded_cmdline\n" 0 80 8 \
 				-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \

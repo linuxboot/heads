@@ -37,7 +37,7 @@ mount_usb() {
 
 # Rebuild "$@" into global _WHIPTAIL_ARGS, wrapping the body text argument
 # (the one immediately following --msgbox, --yesno, --menu, --inputbox, etc.)
-# through printf '%b' | fold -s -w 76 so \n escapes are expanded and long
+# through printf '%b' | fold -s -w 75 so \n escapes are expanded and long
 # lines fit inside an 80-column dialog.  All other arguments are passed
 # through unchanged.  Callers must not be called recursively.
 _whiptail_preprocess_args() {
@@ -45,13 +45,14 @@ _whiptail_preprocess_args() {
 	local _wrap_next=0 _arg
 	for _arg in "$@"; do
 		if [ "$_wrap_next" = 1 ]; then
-			# fold -s breaks at spaces (preserves word boundaries).
-			# For paths/tokens with no spaces, fall back to
-			# character-level fold so whiptail can display them.
+			# fold -s breaks at spaces, preserving word boundaries.
+			# For long tokens with no spaces (e.g. file paths),
+			# fall back to character-level fold so they don't
+			# overflow the dialog.
 			local _folded
-			_folded=$(printf '%b' "$_arg" | fold -s -w 76)
+			_folded=$(printf '%b' "$_arg" | fold -s -w 75)
 			if echo "$_folded" | grep -q '.\{76\}'; then
-				_folded=$(printf '%b' "$_arg" | fold -w 76)
+				_folded=$(printf '%b' "$_arg" | fold -w 75)
 			fi
 			_WHIPTAIL_ARGS+=("$_folded")
 			_wrap_next=0
@@ -836,24 +837,46 @@ get_inverted_config_display_action() {
 # (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
 verify_global_hashes() {
 	TRACE_FUNC
-	# Check the hashes of all the files, ignoring signatures for now
+	local _sig_verified="n"
+	# Called from two contexts:
+	#   1. gui-init.sh (attempt_default_boot / select_os_boot_option):
+	#      /tmp/kexec/ is empty — run check_config to populate it.
+	#   2. kexec-select-boot.sh's main loop (via check_config $paramsdir
+	#      which verifies the GPG signature on kexec files):
+	#      /tmp/kexec/ is already populated — skip check_config here to
+	#      avoid the destructive rm -rf /tmp/kexec/* + re-copy.
 	if [ ! -r /tmp/kexec/kexec_hashes.txt ]; then
 		check_config /boot force
+		_sig_verified="n"
+	else
+		# Files already in /tmp/kexec — check_config $paramsdir in
+		# kexec-select-boot's main loop verified the GPG signature.
+		_sig_verified="y"
 	fi
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
 	TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
 	TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
+	if [ "$_sig_verified" = "y" ]; then
+		STATUS "Verifying boot file checksums against signed boot hashes"
+	else
+		STATUS "Verifying boot file checksums"
+	fi
+	DEBUG "verify_global_hashes: checking /boot files against $TMP_HASH_FILE"
 	if verify_checksums /boot; then
-		DEBUG "verify_global_hashes: verify_checksums passed"
+		DEBUG "verify_global_hashes: /boot files match checksums in $TMP_HASH_FILE"
 		valid_hash="y"
 		valid_global_hash="y"
 		# If user enables it, check root hashes before boot as well
 		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
 			DEBUG "verify_global_hashes: checking root hashes"
 			if root-hashes-gui.sh -c; then
-				STATUS_OK "Verified boot file checksums"
+				if [ "$_sig_verified" = "y" ]; then
+					STATUS_OK "Boot file and root checksums verified against signed boot hashes"
+				else
+					STATUS_OK "Boot file and root checksums verified"
+				fi
 			else
 				# root-hashes-gui.sh handles the GUI error menu, just DIE here
 				if [ "$gui_menu" = "y" ]; then
@@ -861,6 +884,12 @@ verify_global_hashes() {
 						--msgbox "The root hash check failed!\nExiting to a recovery shell" 0 80
 				fi
 				DIE "root hash mismatch, see /tmp/hash_output_mismatches for details"
+			fi
+		else
+			if [ "$_sig_verified" = "y" ]; then
+				STATUS_OK "Boot file checksums verified against signed boot hashes"
+			else
+				STATUS_OK "Boot file checksums verified"
 			fi
 		fi
 		return 0
