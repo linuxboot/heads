@@ -832,28 +832,45 @@ get_inverted_config_display_action() {
 # (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
 verify_global_hashes() {
 	TRACE_FUNC
-	local _sig_verified="n"
-	# Called from two contexts:
-	#   1. gui-init.sh (attempt_default_boot / select_os_boot_option):
-	#      /tmp/kexec/ is empty — run check_config to populate it.
-	#   2. kexec-select-boot.sh's main loop (via check_config $paramsdir
-	#      which verifies the GPG signature on kexec files):
-	#      /tmp/kexec/ is already populated — skip check_config here to
-	#      avoid the destructive rm -rf /tmp/kexec/* + re-copy.
-	if [ ! -r /tmp/kexec/kexec_hashes.txt ]; then
+	#
+	# Two call contexts, with different check_config semantics:
+	#
+	# Context A — gui-init.sh (attempt_default_boot / select_os_boot_option)
+	#   /tmp/kexec/ is empty.  We call check_config /boot force here to
+	#   populate it.  Because the caller is the GUI menu (not a verified
+	#   boot path), we always pass "force" which copies the kexec files
+	#   from /boot without verifying the GPG detached signature on them.
+	#   The hash check STATUS will say
+	#   "Verifying boot file checksums" (no "against signed boot hashes").
+	#
+	# Context B — kexec-select-boot.sh's main loop
+	#   The main loop already called check_config $paramsdir (which
+	#   verifies the GPG signature on the kexec*.txt files) before
+	#   calling this function.  /tmp/kexec/ is already populated.
+	#   Skipping check_config here avoids the destructive rm -rf
+	#   /tmp/kexec/* + re-copy (which, if /boot/kexec.sig is absent,
+	#   would leave /tmp/kexec/ empty and break the caller).
+	#
+	#   Whether GPG was actually verified is determined by the
+	#   presence of /tmp/kexec/.gpg_verified — a marker file that
+	#   check_config creates after a successful signature verification
+	#   (and its own rm -rf /tmp/kexec/* step cleans up on the next
+	#   call).  When present, the STATUS says
+	#   "Verifying boot file checksums against signed boot hashes".
+	#
+	# Both files (kexec_hashes.txt and kexec_tree.txt) are required
+	# before skipping check_config.  If only one is present (e.g. a
+	# partial copy from a failed run), check_config will repopulate.
+	#
+	if [ ! -r /tmp/kexec/kexec_hashes.txt -o ! -r /tmp/kexec/kexec_tree.txt ]; then
 		check_config /boot force
-		_sig_verified="n"
-	else
-		# Files already in /tmp/kexec — check_config $paramsdir in
-		# kexec-select-boot's main loop verified the GPG signature.
-		_sig_verified="y"
 	fi
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
 	TMP_PACKAGE_TRIGGER_PRE="/tmp/kexec/kexec_package_trigger_pre.txt"
 	TMP_PACKAGE_TRIGGER_POST="/tmp/kexec/kexec_package_trigger_post.txt"
 
-	if [ "$_sig_verified" = "y" ]; then
+	if [ -r /tmp/kexec/.gpg_verified ]; then
 		STATUS "Verifying boot file checksums against signed boot hashes"
 	else
 		STATUS "Verifying boot file checksums"
@@ -867,7 +884,7 @@ verify_global_hashes() {
 		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
 			DEBUG "verify_global_hashes: checking root hashes"
 			if root-hashes-gui.sh -c; then
-				if [ "$_sig_verified" = "y" ]; then
+				if [ -r /tmp/kexec/.gpg_verified ]; then
 					STATUS_OK "Boot file and root checksums verified against signed boot hashes"
 				else
 					STATUS_OK "Boot file and root checksums verified"
@@ -881,7 +898,7 @@ verify_global_hashes() {
 				DIE "root hash mismatch, see /tmp/hash_output_mismatches for details"
 			fi
 		else
-			if [ "$_sig_verified" = "y" ]; then
+			if [ -r /tmp/kexec/.gpg_verified ]; then
 				STATUS_OK "Boot file checksums verified against signed boot hashes"
 			else
 				STATUS_OK "Boot file checksums verified"
