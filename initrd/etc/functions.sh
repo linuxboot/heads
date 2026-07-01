@@ -3547,15 +3547,18 @@ _build_final_cmdline() {
 	# Clean ADD: strip GRUB --- separator
 	_clean_add=$(echo "$_param_add" | sed 's/ --- / /g;s/^--- //g;s/ ---$//g' | xargs)
 
-	# Apply REMOVE to both ADD and ISO params
+	# Apply REMOVE to ADD, ISO params, and Board ADD
 	for _remove_word in $_param_remove; do
 		_clean_add=" $_clean_add "
 		_clean_add="${_clean_add// $_remove_word / }"
 		_iso_params=" $_iso_params "
 		_iso_params="${_iso_params// $_remove_word / }"
+		_board_add=" $_board_add "
+		_board_add="${_board_add// $_remove_word / }"
 	done
 	_clean_add=$(echo "${_clean_add# }" | xargs)
 	_iso_params=$(echo "${_iso_params# }" | xargs)
+	_board_add=$(echo "${_board_add# }" | xargs)
 	DEBUG "_build_final_cmdline: after remove on ADD='$_clean_add'"
 	DEBUG "_build_final_cmdline: after remove on iso='$_iso_params'"
 
@@ -3586,8 +3589,15 @@ _build_final_cmdline() {
 		fi
 	done
 
-	# Append Board ADD last (always wins -- never touched by enforce)
-	_combined=$(echo "$_combined $_board_add" | xargs)
+	# Append Board ADD last (always wins -- never touched by enforce).
+	# Only append words not already present in _combined to avoid duplicates.
+	for _add_word in $_board_add; do
+		case " $_combined " in
+			*" $_add_word "*) ;;
+			*) _combined="$_combined $_add_word" ;;
+		esac
+	done
+	_combined=$(echo "$_combined" | xargs)
 	DEBUG "_build_final_cmdline: final='$_combined'"
 	echo "$_combined"
 }
