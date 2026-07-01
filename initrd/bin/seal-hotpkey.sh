@@ -140,22 +140,22 @@ show_pin_retries() {
 	STATUS "$DONGLE_BRAND ${prompt_message} PIN retries remaining: $(pin_color "$admin_pin_retries")${admin_pin_retries}\033[0m"
 }
 
-# Try using factory default admin PIN for 1 month following OEM reset to ease
-# initial setup.  But don't do it forever to encourage changing the PIN and
-# so PIN attempts are not consumed by the default attempt.
+# Try the factory default admin PIN only when the GPG key still has the
+# OEM default name ("OEM Key"), meaning the user hasn't customized the
+# dongle yet.  The GPG name is readable without consuming PIN attempts,
+# unlike probing via hotp_initialize which burns a retry.
+# Always require at least 3 PIN attempts remaining as a safety floor.
 admin_pin="12345678"
 month_secs="$((30 * 24 * 60 * 60))"
+gpg_user_name="$(gpg --list-keys --with-colons 2>/dev/null | grep -m 1 '^uid:' | cut -d: -f10)"
 admin_pin_status=1
-if [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
-	# Remind what the default PIN was in case it still hasn't been changed
-	DEBUG "Not trying default PIN ($admin_pin)"
-# Never consume an attempt if there are less than 3 attempts left, otherwise
-# attempting the default PIN could cause an unexpected lockout before getting a
-# chance to enter the correct PIN
+if [ "$gpg_user_name" != "OEM Key" ] || [ "$((now_date - gpg_key_create_time))" -gt "$month_secs" ]; then
+	DEBUG "Not trying default PIN ($admin_pin): key_age=$(($((now_date - gpg_key_create_time)) / 86400))d, name='$gpg_user_name'"
 elif [ "$admin_pin_retries" -lt 3 ]; then
 	DEBUG "Not trying default PIN ($admin_pin): only $admin_pin_retries attempt(s) left"
 else
-	STATUS "Trying ${prompt_message} PIN to seal HOTP secret on $DONGLE_BRAND"
+	STATUS "Trying factory default PIN ($admin_pin) to seal HOTP secret on $DONGLE_BRAND"
+	DEBUG "Attempting default PIN: key_age=$(($((now_date - gpg_key_create_time)) / 86400))d, GPG name='$gpg_user_name'"
 	# NK3 requires physical touch confirmation for the initialize operation
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 		NOTE "Nitrokey 3 requires physical presence: touch the dongle when prompted"
