@@ -174,9 +174,9 @@ get_menu_option() {
 		fi
 
 		if [ -n "$add" ]; then
-			local menu_prompt="Choose the boot option [1-$n, a to abort, b to select different ISO]:"
+			local menu_prompt="Choose the boot option [1-$n, Esc to abort, b to select different ISO]:"
 		else
-			local menu_prompt="Choose the boot option [1-$n, a to abort]:"
+			local menu_prompt="Choose the boot option [1-$n, Esc to abort]:"
 		fi
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
 			--menu "$menu_prompt" 0 80 8 \
