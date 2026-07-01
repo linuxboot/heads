@@ -199,7 +199,7 @@ file_selector() {
 	option_index=""
 	while [ -z "$option_index" ]; do
 		whiptail --title "${MENU_TITLE}" \
-			--menu "${MENU_MSG} [1-$n, a to abort]:" 20 120 8 \
+			--menu "${MENU_MSG}:" 20 120 8 \
 			-- "${CHOICE_ARGS[@]}" \
 			2>/tmp/whiptail || DIE "Aborting"
 
