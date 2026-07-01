@@ -234,16 +234,19 @@ confirm_menu_option() {
 	# so users can change their selection without restarting the boot flow.
 	# The full cmdline combines the entry's parsed params with the global ADD
 	# params (injected by kexec-iso-init.sh for ISO boot).
-		if [ "$gui_menu" = "y" ]; then
-			default_text="Make default"
-			[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
-			# Build final cmdline preview using shared function so it
-			# exactly matches what kexec-boot.sh will execute.
-			whiptail_warning --title "Confirm boot details" \
-				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")\n" 0 80 8 \
-				-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
-				2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
-	else
+	
+	# TODO : simplify to be able to use whiptail; too big for QubesOS
+	#   No GUI for now, sorry.
+	#	if [ "$gui_menu" = "y" ]; then
+	#		default_text="Make default"
+	#		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+	#		# Build final cmdline preview using shared function so it
+	#		# exactly matches what kexec-boot.sh will execute.
+	#		whiptail_warning --title "Confirm boot details" \
+	#			--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")\n" 0 80 8 \
+	#			-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
+	#			2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
+	#else
 		STATUS "  Confirm boot details for $name:"
 		STATUS "    Kernel: $kernel"
 		STATUS "    Initramfs: ${initrd:--}"
@@ -258,7 +261,7 @@ confirm_menu_option() {
 		INPUT "Boot (Y), make default (d), back to menu (b) [Y/d/b]:" -n 1 option_confirm
 		[ -z "$option_confirm" ] && option_confirm="y"
 		return 0
-	fi
+	#fi
 }
 
 parse_option() {
