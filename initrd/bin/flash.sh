@@ -24,11 +24,21 @@ flash_rom() {
     $CONFIG_FLASH_OPTIONS -r "${ROM}" \
     || recovery "Backup to $ROM failed"
   else
+    STATUS "Preparing new ROM image for flashing"
     cp "$ROM" /tmp/${CONFIG_BOARD}.rom
+    STATUS "Verifying SHA-256 checksum of ROM image"
     sha256sum /tmp/${CONFIG_BOARD}.rom
     if [ "$CLEAN" -eq 0 ]; then
+      # preserve_rom copies heads/ runtime config files (GPG keyring,
+      # TOTP/HOTP secrets, LUKS DUK slot data, runtime settings) from
+      # the currently running ROM's CBFS into the new ROM image before
+      # flashing.  These files would otherwise be lost on each firmware
+      # update.  Skip with -c (clean flash) flag.
+      DEBUG "flash_rom: CLEAN=$CLEAN — preserving heads/ CBFS files"
       preserve_rom /tmp/${CONFIG_BOARD}.rom \
       || recovery "$ROM: Config preservation failed"
+    else
+      DEBUG "flash_rom: CLEAN=$CLEAN — skipping config preservation (clean flash)"
     fi
     # persist serial number from CBFS
     if cbfs.sh -r serial_number > /tmp/serial 2>/dev/null; then
@@ -46,8 +56,10 @@ flash_rom() {
     fi
 
     WARN "Do not power off computer.  Updating firmware, this will take a few minutes"
+    STATUS "Flashing ROM to chip"
     $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
       || recovery "$ROM: Flash failed"
+    STATUS_OK "ROM flashed successfully"
   fi
 }
 

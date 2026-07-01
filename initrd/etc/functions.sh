@@ -478,19 +478,43 @@ ec_version() {
 
 preserve_rom() {
 	TRACE_FUNC
+	# Preserve CBFS files matching 'heads/' from the currently running ROM
+	# into the new ROM being built for flashing.  These files contain runtime
+	# configuration (GPG keyring, TOTP/HOTP secrets, LUKS key slots, etc.)
+	# that would otherwise be lost on each firmware update.
+	#
+	# Called from: flash.sh (when CLEAN=0, i.e. non-factory-flash).
+	# Controlled by: CLEAN flag (set to 1 for factory/OEM flashes to skip).
+	#   No CONFIG_* setting directly controls this — flash.sh sets CLEAN
+	#   based on the --clean / -c flag passed by the user or calling script.
+	# Files preserved: all CBFS type-50 entries under the 'heads/' prefix.
 	new_rom="$1"
 	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
+	old_file_count=$(echo "$old_files" | wc -w)
+
+	if [ "$old_file_count" -eq 0 ]; then
+		DEBUG "preserve_rom: no 'heads/' CBFS files to preserve in current ROM"
+		STATUS_OK "No configuration overrides or key material found in current firmware"
+		return 0
+	fi
+
+	STATUS "Preserving configuration overrides and key material from current firmware: $(echo $old_files)"
+	DEBUG "preserve_rom: scanning $new_rom for existing heads/* entries to skip"
 
 	for old_file in $(echo $old_files); do
-		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
+		new_file=$(cbfs.sh -o $1 -l | grep -Fx "$old_file")
 		if [ -z "$new_file" ]; then
-			DEBUG "Adding $old_file to $1"
+			DEBUG "preserve_rom: $old_file not found in new ROM — copying from current CBFS"
 			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
-				DIE "Failed to read cbfs file from ROM"
+				DIE "preserve_rom: failed to read $old_file from current CBFS"
 			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
-				DIE "Failed to write cbfs file to new ROM file"
+				DIE "preserve_rom: failed to write $old_file to $1"
+		else
+			DEBUG "preserve_rom: $old_file already present in new ROM — skipped"
 		fi
 	done
+	rm -f /tmp/rom.$$
+	STATUS_OK "Configuration overrides and key material preserved in new firmware"
 }
 
 # Color-code a PIN/security-token retry counter for the console.
@@ -2229,15 +2253,28 @@ check_config() {
 		# output matches exactly what was produced during signing, where the same
 		# relative names were used.  Absolute paths would differ between the
 		# signing staging dir and $paramsdir, causing a spurious mismatch.
-		STATUS "Verifying GPG signature on kexec boot params"
+		STATUS "Verifying GPG signature on boot hashes"
 		DEBUG "check_config: running (cd $paramsdir && sha256sum ${param_files[*]}) | gpgv.sh $paramsdir/kexec.sig"
 		if ! (cd "$paramsdir" && sha256sum "${param_files[@]}") |
 			gpgv.sh "$paramsdir/kexec.sig" - 2> >(SINK_LOG "gpgv kexec.sig"); then
-			DIE 'Invalid signature on kexec boot params'
+			DIE 'Invalid signature on boot hashes'
 		fi
+		STATUS_OK "Boot hashes signature verified"
+		# Create a marker that verify_global_hashes (gui_functions.sh)
+		# reads to confirm GPG was verified, so it knows to include
+		# "against signed boot hashes" in its STATUS message.
+		#
+		# Lifecycle:
+		#   1. check_config starts with rm -rf /tmp/kexec/* — any
+		#      stale .gpg_verified from a previous run is removed.
+		#   2. After this line: .gpg_verified exists only when GPG
+		#      just passed (the path is not force).
+		#   3. Next check_config call: rm -rf /tmp/kexec/* removes
+		#      it again.  Or verify_global_hashes reads it before
+		#      the next check_config runs.
+		touch /tmp/kexec/.gpg_verified
 	fi
 
-	STATUS_OK "GPG signature on kexec boot params verified"
 	DEBUG "check_config: copying kexec*.txt from $paramsdir to /tmp/kexec"
 	cp "$paramsdir"/kexec*.txt /tmp/kexec ||
 		DIE "Failed to copy kexec boot params to tmp"
@@ -3547,15 +3584,18 @@ _build_final_cmdline() {
 	# Clean ADD: strip GRUB --- separator
 	_clean_add=$(echo "$_param_add" | sed 's/ --- / /g;s/^--- //g;s/ ---$//g' | xargs)
 
-	# Apply REMOVE to both ADD and ISO params
+	# Apply REMOVE to ADD, ISO params, and Board ADD
 	for _remove_word in $_param_remove; do
 		_clean_add=" $_clean_add "
 		_clean_add="${_clean_add// $_remove_word / }"
 		_iso_params=" $_iso_params "
 		_iso_params="${_iso_params// $_remove_word / }"
+		_board_add=" $_board_add "
+		_board_add="${_board_add// $_remove_word / }"
 	done
 	_clean_add=$(echo "${_clean_add# }" | xargs)
 	_iso_params=$(echo "${_iso_params# }" | xargs)
+	_board_add=$(echo "${_board_add# }" | xargs)
 	DEBUG "_build_final_cmdline: after remove on ADD='$_clean_add'"
 	DEBUG "_build_final_cmdline: after remove on iso='$_iso_params'"
 
@@ -3586,8 +3626,15 @@ _build_final_cmdline() {
 		fi
 	done
 
-	# Append Board ADD last (always wins -- never touched by enforce)
-	_combined=$(echo "$_combined $_board_add" | xargs)
+	# Append Board ADD last (always wins -- never touched by enforce).
+	# Only append words not already present in _combined to avoid duplicates.
+	for _add_word in $_board_add; do
+		case " $_combined " in
+			*" $_add_word "*) ;;
+			*) _combined="$_combined $_add_word" ;;
+		esac
+	done
+	_combined=$(echo "$_combined" | xargs)
 	DEBUG "_build_final_cmdline: final='$_combined'"
 	echo "$_combined"
 }

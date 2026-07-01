@@ -69,6 +69,24 @@ if [ -z "$_HEADS_TEST" ]; then
 	paramsdir="${paramsdir%%/}"
 fi
 
+PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
+if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+	if [ -s "$PRIMHASH_FILE" ]; then
+		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
+			{
+				WARN "Hash of TPM2 primary key handle mismatch - if you have not intentionally regenerated the TPM2 primary key, your system may have been compromised"
+				DEBUG "Hash of TPM2 primary key handle mismatched for $PRIMHASH_FILE"
+				DEBUG "Contents of $PRIMHASH_FILE:"
+				DEBUG "$(cat $PRIMHASH_FILE)"
+				DIE "Hash of TPM2 primary key handle mismatch ($PRIMHASH_FILE). If you did not intentionally regenerate the TPM2 primary key, this may indicate compromise."
+			}
+	else
+		WARN "Hash of TPM2 primary key handle does not exist - rebuild it by setting a default OS to boot: Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default"
+		default_failed="y"
+		DEBUG "Hash of TPM2 primary key handle does not exist under $PRIMHASH_FILE"
+	fi
+fi
+
 verify_rollback_counter() {
 	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
@@ -156,9 +174,9 @@ get_menu_option() {
 		fi
 
 		if [ -n "$add" ]; then
-			local menu_prompt="Choose the boot option [1-$n, a to abort, b to select different ISO]:"
+			local menu_prompt="Choose the boot option [1-$n, Esc to abort, b to select different ISO]:"
 		else
-			local menu_prompt="Choose the boot option [1-$n, a to abort]:"
+			local menu_prompt="Choose the boot option [1-$n, Esc to abort]:"
 		fi
 		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
 			--menu "$menu_prompt" 0 80 8 \
@@ -216,19 +234,19 @@ confirm_menu_option() {
 	# so users can change their selection without restarting the boot flow.
 	# The full cmdline combines the entry's parsed params with the global ADD
 	# params (injected by kexec-iso-init.sh for ISO boot).
-		if [ "$gui_menu" = "y" ]; then
-			default_text="Make default"
-			[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
-			# Build final cmdline preview using shared function so it
-			# exactly matches what kexec-boot.sh will execute.
-			local folded_cmdline
-			folded_cmdline=$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")
-			folded_cmdline=$(echo "$folded_cmdline" | fold -s -w 78)
-			whiptail_warning --title "Confirm boot details" \
-				--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$folded_cmdline\n" 0 80 8 \
-				-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
-				2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
-	else
+	
+	# TODO : simplify to be able to use whiptail; too big for QubesOS
+	#   No GUI for now, sorry.
+	#	if [ "$gui_menu" = "y" ]; then
+	#		default_text="Make default"
+	#		[[ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" = "y" ]] && default_text="${default_text} and boot"
+	#		# Build final cmdline preview using shared function so it
+	#		# exactly matches what kexec-boot.sh will execute.
+	#		whiptail_warning --title "Confirm boot details" \
+	#			--menu "$name\n\nKernel: $kernel\nInitramfs: ${initrd:--}\nOriginal kernel cmdline: ${params:--}\n${CONFIG_BOOT_KERNEL_ADD:+Board adds: $CONFIG_BOOT_KERNEL_ADD\n}${CONFIG_BOOT_KERNEL_REMOVE:+Board removes: $CONFIG_BOOT_KERNEL_REMOVE\n}${add:+ISO params: $add\n}\nFinal kernel cmdline:\n$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")\n" 0 80 8 \
+	#			-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
+	#			2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
+	#else
 		STATUS "  Confirm boot details for $name:"
 		STATUS "    Kernel: $kernel"
 		STATUS "    Initramfs: ${initrd:--}"
@@ -243,7 +261,7 @@ confirm_menu_option() {
 		INPUT "Boot (Y), make default (d), back to menu (b) [Y/d/b]:" -n 1 option_confirm
 		[ -z "$option_confirm" ] && option_confirm="y"
 		return 0
-	fi
+	#fi
 }
 
 parse_option() {
