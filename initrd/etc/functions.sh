@@ -493,11 +493,12 @@ preserve_rom() {
 	old_file_count=$(echo "$old_files" | wc -w)
 
 	if [ "$old_file_count" -eq 0 ]; then
-		DEBUG "preserve_rom: no 'heads/' CBFS files to preserve"
+		DEBUG "preserve_rom: no 'heads/' CBFS files to preserve in current ROM"
+		STATUS_OK "No configuration overrides or key material found in current firmware"
 		return 0
 	fi
 
-	STATUS "Preserving $old_file_count heads/ runtime configuration file(s)"
+	STATUS "Preserving configuration overrides and key material from current firmware: $(echo $old_files)"
 	DEBUG "preserve_rom: scanning $new_rom for existing heads/* entries to skip"
 
 	for old_file in $(echo $old_files); do
@@ -513,7 +514,7 @@ preserve_rom() {
 		fi
 	done
 	rm -f /tmp/rom.$$
-	STATUS_OK "Runtime configuration preserved in new ROM"
+	STATUS_OK "Configuration overrides and key material preserved in new firmware"
 }
 
 # Color-code a PIN/security-token retry counter for the console.
