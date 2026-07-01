@@ -478,19 +478,42 @@ ec_version() {
 
 preserve_rom() {
 	TRACE_FUNC
+	# Preserve CBFS files matching 'heads/' from the currently running ROM
+	# into the new ROM being built for flashing.  These files contain runtime
+	# configuration (GPG keyring, TOTP/HOTP secrets, LUKS key slots, etc.)
+	# that would otherwise be lost on each firmware update.
+	#
+	# Called from: flash.sh (when CLEAN=0, i.e. non-factory-flash).
+	# Controlled by: CLEAN flag (set to 1 for factory/OEM flashes to skip).
+	#   No CONFIG_* setting directly controls this — flash.sh sets CLEAN
+	#   based on the --clean / -c flag passed by the user or calling script.
+	# Files preserved: all CBFS type-50 entries under the 'heads/' prefix.
 	new_rom="$1"
 	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
+	old_file_count=$(echo "$old_files" | wc -w)
+
+	if [ "$old_file_count" -eq 0 ]; then
+		DEBUG "preserve_rom: no 'heads/' CBFS files to preserve"
+		return 0
+	fi
+
+	STATUS "Preserving $old_file_count heads/ runtime configuration file(s)"
+	DEBUG "preserve_rom: scanning $new_rom for existing heads/* entries to skip"
 
 	for old_file in $(echo $old_files); do
 		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
 		if [ -z "$new_file" ]; then
-			DEBUG "Adding $old_file to $1"
+			DEBUG "preserve_rom: $old_file not found in new ROM — copying from current CBFS"
 			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
-				DIE "Failed to read cbfs file from ROM"
+				DIE "preserve_rom: failed to read $old_file from current CBFS"
 			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
-				DIE "Failed to write cbfs file to new ROM file"
+				DIE "preserve_rom: failed to write $old_file to $1"
+		else
+			DEBUG "preserve_rom: $old_file already present in new ROM — skipped"
 		fi
 	done
+	rm -f /tmp/rom.$$
+	STATUS_OK "Runtime configuration preserved in new ROM"
 }
 
 # Color-code a PIN/security-token retry counter for the console.
