@@ -2260,6 +2260,19 @@ check_config() {
 			DIE 'Invalid signature on boot hashes'
 		fi
 		STATUS_OK "Boot hashes signature verified"
+		# Create a marker that verify_global_hashes (gui_functions.sh)
+		# reads to confirm GPG was verified, so it knows to include
+		# "against signed boot hashes" in its STATUS message.
+		#
+		# Lifecycle:
+		#   1. check_config starts with rm -rf /tmp/kexec/* — any
+		#      stale .gpg_verified from a previous run is removed.
+		#   2. After this line: .gpg_verified exists only when GPG
+		#      just passed (the path is not force).
+		#   3. Next check_config call: rm -rf /tmp/kexec/* removes
+		#      it again.  Or verify_global_hashes reads it before
+		#      the next check_config runs.
+		touch /tmp/kexec/.gpg_verified
 	fi
 
 	DEBUG "check_config: copying kexec*.txt from $paramsdir to /tmp/kexec"
