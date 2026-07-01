@@ -46,15 +46,10 @@ _whiptail_preprocess_args() {
 	for _arg in "$@"; do
 		if [ "$_wrap_next" = 1 ]; then
 			# fold -s breaks at spaces, preserving word boundaries.
-			# For long tokens with no spaces (e.g. file paths),
-			# fall back to character-level fold so they don't
-			# overflow the dialog.
-			local _folded
-			_folded=$(printf '%b' "$_arg" | fold -s -w 75)
-			if echo "$_folded" | grep -q '.\{76\}'; then
-				_folded=$(printf '%b' "$_arg" | fold -w 75)
-			fi
-			_WHIPTAIL_ARGS+=("$_folded")
+			# BusyBox fold -s also handles unbreakable tokens by
+			# falling back to character-level fold at the width
+			# limit, so no separate fallback is needed.
+			_WHIPTAIL_ARGS+=("$(printf '%b' "$_arg" | fold -s -w 75)")
 			_wrap_next=0
 		else
 			_WHIPTAIL_ARGS+=("$_arg")
