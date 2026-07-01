@@ -491,9 +491,9 @@ define define_module =
 		rm -f "$(build)/$($1_base_dir)/.git" 2>/dev/null; \
 		cd "$(build)/$($1_base_dir)" && \
 		echo "INFO: Initializing git repository" && \
-		git init 2>/dev/null; \
+		git init 2>/dev/null || true; \
 		echo "INFO: Configuring remote origin: $($1_repo)" && \
-		git remote remove origin 2>/dev/null; \
+		git remote remove origin 2>/dev/null || true; \
 		git remote add origin $($1_repo) && \
 		echo "INFO: Fetching commit $($1_commit_hash) (without recursing submodules)" && \
 		git fetch origin $($1_commit_hash) --recurse-submodules=no && \
