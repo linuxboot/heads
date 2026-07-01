@@ -502,7 +502,7 @@ preserve_rom() {
 	DEBUG "preserve_rom: scanning $new_rom for existing heads/* entries to skip"
 
 	for old_file in $(echo $old_files); do
-		new_file=$(cbfs.sh -o $1 -l | grep -x $old_file)
+		new_file=$(cbfs.sh -o $1 -l | grep -Fx "$old_file")
 		if [ -z "$new_file" ]; then
 			DEBUG "preserve_rom: $old_file not found in new ROM — copying from current CBFS"
 			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
@@ -2257,7 +2257,7 @@ check_config() {
 		DEBUG "check_config: running (cd $paramsdir && sha256sum ${param_files[*]}) | gpgv.sh $paramsdir/kexec.sig"
 		if ! (cd "$paramsdir" && sha256sum "${param_files[@]}") |
 			gpgv.sh "$paramsdir/kexec.sig" - 2> >(SINK_LOG "gpgv kexec.sig"); then
-			DIE 'Invalid signature on kexec boot params'
+			DIE 'Invalid signature on boot hashes'
 		fi
 		STATUS_OK "Boot hashes signature verified"
 	fi
