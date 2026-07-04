@@ -2309,33 +2309,6 @@ secret_from_rom_hash() {
 	sha256sum "${ROM_IMAGE}" | cut -f1 -d ' ' | fromhex_plain
 }
 
-# Refresh /boot hash of the TPM2 primary handle when available.
-# This prevents a follow-up prompt to "set default boot" solely to rebuild
-# kexec_primhdl_hash.txt after TPM reset/reseal flows.
-refresh_tpm2_primary_handle_hash() {
-	TRACE_FUNC
-	local primhash_file="${1:-/boot/kexec_primhdl_hash.txt}"
-
-	if [ "$CONFIG_TPM2_TOOLS" != "y" ]; then
-		DEBUG "Skipping TPM2 primary handle hash refresh: CONFIG_TPM2_TOOLS != y"
-		return 0
-	fi
-
-	if [ ! -s /tmp/secret/primary.handle ]; then
-		DEBUG "Skipping TPM2 primary handle hash refresh: /tmp/secret/primary.handle not available"
-		return 0
-	fi
-
-	DEBUG "Refreshing TPM2 primary key handle hash into $primhash_file"
-	if ! DO_WITH_DEBUG sha256sum /tmp/secret/primary.handle >"$primhash_file"; then
-		WARN "Failed to refresh TPM2 primary key handle hash at $primhash_file"
-		return 1
-	fi
-
-	DEBUG "TPM2 primary key handle hash saved to $primhash_file"
-	return 0
-}
-
 # Update the checksums of the files in /boot and sign them
 update_checksums() {
 	TRACE_FUNC
@@ -2357,13 +2330,6 @@ update_checksums() {
 			DEBUG "add -r to kexec-sign-config.sh since CONFIG_IGNORE_ROLLBACK is not set"
 			extparam=-r
 		fi
-	fi
-
-	# Keep this best-effort and run it before signing while /boot is RW.
-	# Running after kexec-sign-config.sh can fail because that path may remount
-	# /boot read-only before returning.
-	if ! refresh_tpm2_primary_handle_hash; then
-		WARN "Proceeding without refreshed TPM2 primary key handle hash"
 	fi
 
 	signing_targets="$(find /boot/kexec*.txt 2>/dev/null | tr '\n' ' ')"
