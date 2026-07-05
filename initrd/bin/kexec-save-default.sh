@@ -326,7 +326,7 @@ if [ "$save_key" = "y" ]; then
 
 	DEBUG "Extracting $current_default_initrd to find crypttab files"
 	unpack_initramfs.sh "$current_default_initrd" "$initrd_decompressed"
-	crypttab_files=$(find "$initrd_decompressed" | grep crypttab 2>/dev/null) || true
+	crypttab_files=$(find "$initrd_decompressed" -type f | grep crypttab 2>/dev/null) || true
 
 	if [ ! -z "$crypttab_files" ]; then
 		DEBUG "Found crypttab files in $current_default_initrd"
