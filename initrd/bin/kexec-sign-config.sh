@@ -55,12 +55,18 @@ if [ "$update" = "y" ]; then
 		DEBUG "update=y: Updating kexec hashes in staging dir $stagedir"
 		cd /boot
 		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >"$stagedir/kexec_hashes.txt"
-		if [ -e /boot/kexec_default_hashes.txt ]; then
-			DEBUG "/boot/kexec_default_hashes.txt exists, updating in staging"
-			DEFAULT_FILES=$(cut -f3 -d ' ' </boot/kexec_default_hashes.txt)
-			echo "$DEFAULT_FILES" | xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
-		fi
-
+		# kexec_default_hashes.txt is intentionally NOT re-hashed here.
+		# The re-hash extracts file paths from the old default hash file
+		# and runs sha256sum on each.  Qubes OS does NOT fan out old and
+		# new xen binaries: a dom0 update atomically deletes the old
+		# binary while providing the new one (xen-4.19.4.gz replaced by
+		# xen-4.19.5.gz in-place — QubesOS/qubes-vmm-xen#220 shipped to
+		# stable via QubesOS/updates-status#6746 on 2026-07-02).  The old
+		# path no longer exists on disk, sha256sum fails, and DIE is
+		# called inside this -u subshell before the -r (rollback counter)
+		# block below can ever run (coupled since commit 8bfae52ad6a).
+		# The user re-saves a default from the boot menu to regenerate
+		# kexec_default_hashes.txt with current paths.
 		#also save the file & directory structure to detect added files
 		print_tree >"$stagedir/kexec_tree.txt"
 	)
