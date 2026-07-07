@@ -117,9 +117,16 @@ if [ "$unseal_failed" = "n" ]; then
 			done
 		done
 	fi
+	# Build the initramfs override cpio archive.
+	# Explicitly capture the cpio pipeline exit code rather than relying on
+	# set -e inside the subshell: bash does not reliably abort (...)
+	# subshells on pipeline failures, so a cpio failure (disk full, find
+	# error) would not be caught by an outer || die check alone.
 	(
-		cd "$INITRD_DIR"
-		find . -type f | cpio -H newc -o
+		cpio_pipeline_exit=0
+		cd "$INITRD_DIR" || exit 1
+		find . -type f | cpio -H newc -o || cpio_pipeline_exit=$?
+		exit $cpio_pipeline_exit
 	) >>"$SECRET_CPIO"
 fi
 STATUS_OK "Initrd prepared for kexec boot"
