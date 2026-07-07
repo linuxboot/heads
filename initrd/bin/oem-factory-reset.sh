@@ -902,14 +902,24 @@ generate_checksums() {
 	fi
 
 	STATUS "Generating /boot file hashes"
+	# Generate fresh kexec_hashes.txt and kexec_tree.txt in a subshell.
+	# Explicitly capture the pipeline exit code rather than relying on
+	# set -e -o pipefail inside the subshell: bash does not reliably abort
+	# (...) subshells on pipeline failures (enforcement depends on the type
+	# of the first command in the subshell), so a sha256sum failure on a
+	# stale path would be silently masked by print_tree returning 0.
 	(
-		set -e -o pipefail
+		hash_pipeline_exit=0
 		cd /boot
 		find ./ -type f ! -path './kexec*' -print0 |
-			xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null
+			xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null ||
+			hash_pipeline_exit=$?
 		print_tree >/boot/kexec_tree.txt
+		exit $hash_pipeline_exit
 	)
-	[ $? -eq 0 ] || whiptail_error_die "Error generating kexec hashes"
+	if [ $? -ne 0 ]; then
+		whiptail_error_die "Error generating kexec hashes"
+	fi
 	STATUS_OK "/boot file hashes generated"
 
 	# Collect relative basenames so sha256sum output is path-independent and

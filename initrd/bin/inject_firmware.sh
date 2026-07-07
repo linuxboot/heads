@@ -99,6 +99,14 @@ FW_INITRD="/tmp/inject_firmware_initrd.cpio.gz"
 dd if="$ORIG_INITRD" of="$FW_INITRD" bs=512 conv=sync status=none > /dev/null 2>&1
 # Pack up the new contents and append to the initrd.  Don't spend time
 # compressing this.
-(cd "$INITRD_ROOT"; find . | cpio -o -H newc) >>"$FW_INITRD"
+# Explicitly capture the cpio pipeline exit code: bash does not reliably
+# abort (... ) subshells on pipeline failures, so a cpio failure (disk
+# full, directory unreadable) would silently produce a truncated initrd.
+(
+	cpio_pipeline_exit=0
+	cd "$INITRD_ROOT" || exit 1
+	find . | cpio -o -H newc || cpio_pipeline_exit=$?
+	exit $cpio_pipeline_exit
+) >>"$FW_INITRD"
 # Use this initrd
 echo "$FW_INITRD"

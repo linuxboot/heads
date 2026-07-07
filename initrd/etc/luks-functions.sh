@@ -434,7 +434,17 @@ luks_reencrypt() {
 			WARN "$luks_container: unsupported LUKS version '$luks_version', skipping"
 			continue
 		fi
-		mapfile -t used_keyslots < <(cryptsetup luksDump "$luks_container" | grep -E "$ks_regex" | sed "$ks_sed")
+		# Process substitution (< <(...)) silently loses the exit code of the
+		# pipeline inside it, so a cryptsetup failure would produce an empty
+		# array with no error indication.  Capture the output and check the
+		# pipeline status explicitly.
+		luks_dump_output=""
+		luks_dump_output=$(cryptsetup luksDump "$luks_container" 2>/dev/null) ||
+			{
+				WARN "$luks_container: luksDump failed, cannot identify key slots"
+				continue
+			}
+		mapfile -t used_keyslots < <(printf '%s\n' "$luks_dump_output" | grep -E "$ks_regex" | sed "$ks_sed")
 		DEBUG "$luks_container: used keyslots: ${used_keyslots[*]}"
 
 		DRK_KEYSLOT=""
