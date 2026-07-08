@@ -993,9 +993,24 @@ tpm2_reset() {
 
 	# 1. Ensure TPM2_Clear is allowed: clear disableClear via platform hierarchy.
 	#    This makes future clears (Owner/Lockout) possible and avoids a 'no clear' stuck state.
-	if ! DO_WITH_DEBUG tpm2 clearcontrol -C platform c >/dev/null 2>&1; then
-		LOG "tpm2_reset: unable to clear disableClear via platform hierarchy"
-		return 1
+	# Some TPMs support TPM2_Clear but do not implement TPM2_ClearControl.
+	# Treat that specific unsupported-command case as non-fatal and continue.
+	tmp_err_file="$(mktemp)"
+	DEBUG "tpm2 clearcontrol -C platform c"
+	if ! tpm2 clearcontrol -C platform c 2>"$tmp_err_file" >/dev/null; then
+		tmp_err_content="$(cat "$tmp_err_file")"
+		while IFS= read -r line; do
+			LOG "tpm2 clearcontrol stderr: $line"
+		done <"$tmp_err_file"
+		rm -f "$tmp_err_file"
+		if echo "$tmp_err_content" | grep -qiE 'command code not supported|0xB0143'; then
+			LOG "tpm2_reset: TPM does not implement ClearControl; continuing with TPM2_Clear"
+		else
+			LOG "tpm2_reset: unable to clear disableClear via platform hierarchy"
+			return 1
+		fi
+	else
+		rm -f "$tmp_err_file"
 	fi
 
 	# 2. Factory-style clear via platform hierarchy.
