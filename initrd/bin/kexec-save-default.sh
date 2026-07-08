@@ -306,8 +306,12 @@ fi
 rm "$stagedir"/kexec_default.*.txt 2>/dev/null || true
 echo "$entry" >"$stagedir/kexec_default.$index.txt"
 (
-	cd $bootdir && kexec-boot.sh -b "$bootdir" -e "$entry" -f |
-		xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
+	hash_pipeline_exit=0
+	cd $bootdir || exit 1
+	kexec-boot.sh -b "$bootdir" -e "$entry" -f |
+		xargs sha256sum >"$stagedir/kexec_default_hashes.txt" ||
+		hash_pipeline_exit=$?
+	exit $hash_pipeline_exit
 ) || DIE "Failed to create hashes of boot files"
 if [ ! -r "$stagedir/kexec_default.$index.txt" -o ! -r "$stagedir/kexec_default_hashes.txt" ]; then
 	DIE "Failed to write default config to staging"
