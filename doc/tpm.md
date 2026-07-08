@@ -439,3 +439,86 @@ To verify that a new board's coreboot config matches the expected RoT:
 | Auth sessions | Not used | Required for policy-based unseal |
 | `kexec_finalize` | No-op | Extends PCRs, then `tpm2 shutdown` |
 | `startsession` | No-op | Creates encryption session |
+
+---
+
+## CR50 TPM (Google) — command limitations
+
+Google's CR50 is a microcontroller-based TPM 2.0 implementation used on
+Chromebooks and ChromeOS-derived devices (e.g. Kano). It implements a
+subset of the TPM 2.0 command set: 64 library commands of the 100+ defined
+in the PC Client profile, plus 1 vendor command (65 total).
+
+**Identifying a CR50**: `tpm2 getcap properties-fixed | grep MANUFACTURER`
+returns `0x43524F53` ("CROS"); vendor strings show `xCG fTPM`.
+
+### Heads tpm2 commands vs CR50 support
+
+Heads invokes 22 unique `tpm2` subcommands (all via `initrd/bin/tpmr.sh`
+except two direct calls in `initrd/etc/functions.sh`). 21 of 22 are
+supported by CR50. The single gap is **ClearControl**:
+
+| Heads `tpm2` subcommand | TPM2 command (index) | On CR50? |
+| --- | --- | --- |
+| `tpm2 pcrread` | PCR_Read (0x17E) | yes |
+| `tpm2 pcrextend` | PCR_Extend (0x182) | yes |
+| `tpm2 nvread` | NV_Read (0x14E) | yes |
+| `tpm2 nvincrement` | NV_Increment (0x134) | yes |
+| `tpm2 nvdefine` | NV_DefineSpace (0x12A) | yes |
+| `tpm2 nvreadpublic` | NV_ReadPublic (0x169) | yes |
+| `tpm2 flushcontext` | FlushContext (0x165) | yes |
+| `tpm2 readpublic` | ReadPublic (0x173) | yes |
+| `tpm2 startauthsession` | StartAuthSession (0x176) | yes |
+| `tpm2 evictcontrol` | EvictControl (0x120) | yes |
+| `tpm2 policypcr` | PolicyPCR (0x17F) | yes |
+| `tpm2 policyauthvalue` | PolicyAuthValue (0x16B) | yes |
+| `tpm2 create` | Create (0x153) | yes |
+| `tpm2 load` | Load (0x157) | yes |
+| `tpm2 unseal` | Unseal (0x15E) | yes |
+| `tpm2 clearcontrol` | ClearControl (0x127) | **no** |
+| `tpm2 clear` | Clear (0x126) | yes |
+| `tpm2 changeauth` | HierarchyChangeAuth (0x129) / ObjectChangeAuth (0x150) | yes |
+| `tpm2 createprimary` | CreatePrimary (0x131) | yes |
+| `tpm2 dictionarylockout` | DictionaryAttackParameters (0x13A) | yes |
+| `tpm2 shutdown` | Shutdown (0x145) | yes |
+| `tpm2 sessionconfig` | (tpm2-tools library call, no standalone TPM command) | n/a |
+
+ClearControl (0x127) is the only Heads command missing from CR50.
+`tpm2_reset()` invokes it to clear the `disableClear` flag before
+`TPM2_Clear`. On CR50 this returns `command code not supported` (error
+`0xB0143`); Heads logs the failure and proceeds to `TPM2_Clear` anyway,
+since CR50 does not have `disableClear` set by default.
+
+**PolicyAuthValue vs PolicyPassword**: Heads initially used `PolicyPassword`
+(TPM2_CC_PolicyPassword, 0x18C) for policy-based authorization, but changed
+to `tpm2 policyauthvalue` (TPM2_CC_PolicyAuthValue, 0x16B) in PR #2055.
+`PolicyAuthValue` is present on CR50. `PolicyPassword` is not, but this is
+unimportant since Heads no longer invokes it.
+
+### Standard TPM 2.0 commands absent from CR50 (not used by Heads)
+
+These commands exist in the TPM 2.0 spec but are not implemented by CR50.
+None are invoked by Heads, so their absence has no functional impact:
+
+| Command (index) | Category |
+| --- | --- |
+| ChangeEPS (0x123), ChangePPS (0x124) | Endorsement/Platform hierarchy management |
+| ClockSet (0x128), ClockRateAdjust (0x12D) | TPM clock control |
+| SetPrimaryPolicy (0x12C) | Primary object policy |
+| CreateLoaded (0x12E) | Create + load in one call |
+| NV_GlobalWriteLock (0x12F) | Global NV write lock |
+| NV_SetBits (0x135) | NV bitwise OR |
+| NV_ChangeAuth (0x13B) | NV index auth change |
+| PCR_SetAuthPolicy (0x13E), PCR_SetAuthValue (0x13F) | PCR auth configuration |
+| IncrementalSelfTest (0x142) | Partial self-test (SelfTest 0x143 covers full test) |
+| HMAC_Start (0x15A), SequenceUpdate (0x15B), SequenceComplete (0x15C) | HMAC sequence operations |
+| EncryptDecrypt (0x164), EncryptDecrypt2 (0x166) | Symmetric encrypt/decrypt |
+| MakeCredential (0x168) | Credential creation for remote attestation |
+| PolicyPassword (0x18C) | Password-based policy auth (Heads used this before PR #2055 switched to PolicyAuthValue 0x16B) |
+| PolicyCounterTimer (0x16D), PolicyCpHash (0x16E), PolicyLocality (0x16F), PolicyNameHash (0x170), PolicyTicket (0x172), PolicyNvWritten (0x175), PolicyAuthorize (0x179) | Extended policy authorization |
+| ReadClock (0x181) | TPM clock read |
+| PCR_Event (0x183) | PCR extend with event log (Heads uses PCR_Extend 0x182 instead) |
+| GetCommandAuditDigest (0x185), GetSessionAuditDigest (0x186) | Audit digest retrieval |
+| GetTime (0x187) | TPM time attestation |
+| EC_Ephemeral (0x18E), ZGen_2Phase (0x18D) | ECC 2-phase operations |
+| FieldUpgradeStart (0x18F), FieldUpgradeData (0x190) | Firmware field upgrade |
