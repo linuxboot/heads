@@ -1,4 +1,7 @@
-# dropbear is a tiny ssh client
+# dropbear is a tiny SSH server and client (version 2016.74).
+# Currently failing to fetch/build; disabled across board configs.
+# TODO: investigate openssh_server as a more maintained replacement
+# with GPG key compatibility for the SSH server role.
 modules-$(CONFIG_DROPBEAR) += dropbear
 
 dropbear_version := 2016.74
