@@ -1,0 +1,5 @@
+# me.bin is downloaded and neutralized on demand by download-clean-me.
+# original_dell_bios.bin is the user's private BIOS backup (if they use the
+# extract script instead). Neither should be committed.
+me.bin
+original_dell_bios.bin

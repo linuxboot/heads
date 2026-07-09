@@ -529,6 +529,13 @@ workflows:
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
+          name: dell-optiplex-9020-sff
+          target: dell-optiplex-9020-sff
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+
+      - build:
           name: EOL_m900_tower-hotp-maximized
           target: EOL_m900_tower-hotp-maximized
           subcommand: ""
