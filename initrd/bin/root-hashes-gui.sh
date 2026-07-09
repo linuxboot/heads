@@ -49,7 +49,16 @@ update_root_checksums() {
 	STATUS "Calculating hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY"
 	# Intentional wordsplit
 	# shellcheck disable=SC2086
-	(cd "$ROOT_MOUNT" && find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*' -print0 | xargs -0 sha256sum) >"${HASH_FILE}"
+	(
+		hash_pipeline_exit=0
+		# Explicitly check cd since set -e inside (... ) subshells does not
+		# reliably abort on failure (enforcement depends on the first command
+		# type), and a cd failure would leave find running in the wrong dir.
+		cd "$ROOT_MOUNT" || exit 1
+		find ${CONFIG_ROOT_DIRLIST} -type f ! -name '*kexec*' -print0 |
+			xargs -0 sha256sum || hash_pipeline_exit=$?
+		exit $hash_pipeline_exit
+	) >"${HASH_FILE}"
 
 	# switch back to ro mode
 	mount -o ro,remount /boot

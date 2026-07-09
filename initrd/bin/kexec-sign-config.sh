@@ -51,18 +51,15 @@ done
 # update hashes in staging before signing
 if [ "$update" = "y" ]; then
 	(
+		hash_pipeline_exit=0
 		TRACE_FUNC
 		DEBUG "update=y: Updating kexec hashes in staging dir $stagedir"
 		cd /boot
-		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >"$stagedir/kexec_hashes.txt"
-		if [ -e /boot/kexec_default_hashes.txt ]; then
-			DEBUG "/boot/kexec_default_hashes.txt exists, updating in staging"
-			DEFAULT_FILES=$(cut -f3 -d ' ' </boot/kexec_default_hashes.txt)
-			echo "$DEFAULT_FILES" | xargs sha256sum >"$stagedir/kexec_default_hashes.txt"
-		fi
-
+		find ./ -type f ! -path './kexec*' -print0 | xargs -0 sha256sum >"$stagedir/kexec_hashes.txt" ||
+			hash_pipeline_exit=$?
 		#also save the file & directory structure to detect added files
 		print_tree >"$stagedir/kexec_tree.txt"
+		exit $hash_pipeline_exit
 	)
 	[ $? -eq 0 ] || DIE "$paramsdir: Failed to update hashes."
 fi
