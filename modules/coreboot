@@ -354,6 +354,23 @@ $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 		--board-dir "$(build)/$(BOARD)" \
 		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
 	@echo ""
+	@if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" ]; then \
+		echo "==================================================================="; \
+		echo "ME Runtime State (HAP/AltMeDisable)"; \
+		echo "==================================================================="; \
+		platform="$$(grep '^CONFIG_IFD_CHIPSET=' "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" | cut -d'"' -f2 || true)"; \
+		platflag=""; \
+		if [ -n "$$platform" ]; then \
+			platflag="--platform $$platform"; \
+		fi; \
+		"$(build)/$(coreboot_dir)/util/ifdtool/ifdtool" $$platflag -M 1 "$(dir $<)$(CONFIG_COREBOOT_ROM)" \
+			-O "$(dir $<)$(CONFIG_COREBOOT_ROM).new" && \
+		mv "$(dir $<)$(CONFIG_COREBOOT_ROM).new" "$(dir $<)$(CONFIG_COREBOOT_ROM)" || exit 1; \
+		echo "==================================================================="; \
+		echo "ME HAP bit applied -- ME will disable after hardware init"; \
+		echo "==================================================================="; \
+		echo ""; \
+	fi
 	$(call do-copy,$(dir $<)$(CONFIG_COREBOOT_ROM),$@)
 	@touch $@   # update the time stamp
 
