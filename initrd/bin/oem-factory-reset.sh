@@ -172,27 +172,8 @@ mount_boot() {
 
 reset_nk3_secret_app() {
 	TRACE_FUNC
-
-	# Reset Nitrokey 3 Secrets app PIN with $ADMIN_PIN (default 12345678, or customised)
-	if [ "$DONGLE_BRAND" = "Nitrokey 3" ] && [ -x /bin/hotp_verification ]; then
-		STATUS "Resetting Nitrokey 3 Secrets app (physical touch will be required)"
-		# TODO: change message when https://github.com/Nitrokey/nitrokey-hotp-verification/issues/41 is fixed
-		# Reset Nitrokey 3 secret app with PIN
-		# Do 3 attempts to reset Nitrokey 3 Secrets app if return code is 3 (no touch)
-		for attempt in 1 2 3; do
-			if hotp_verification reset "${ADMIN_PIN}"; then
-				STATUS_OK "Nitrokey 3 Secrets app reset"
-				return 0
-			else
-				error_code=$?
-				if [ $error_code -eq 3 ] && [ $attempt -lt 3 ]; then
-					whiptail_warning --msgbox "$DONGLE_BRAND requires physical presence: touch the dongle when requested" $HEIGHT $WIDTH --title "$DONGLE_BRAND secrets app reset attempt: $attempt/3"
-				else
-					whiptail_error_die "Nitrokey 3's Secrets app reset failed with error:$error_code. Contact Nitrokey support"
-				fi
-			fi
-		done
-	fi
+	gpg_reset_nk3_secret_app "$ADMIN_PIN" || \
+		whiptail_error_die "Nitrokey 3's Secrets app reset failed with error $?. Contact Nitrokey support"
 }
 
 #Generate a gpg master key: no expiration date, ${RSA_KEY_LENGTH} bits
@@ -383,45 +364,11 @@ generate_inmemory_p256_master_and_subkeys() {
 # Delete the master key from the keyring once key to card is done (already backed up on LUKS private partition)
 keytocard_subkeys_to_smartcard() {
 	TRACE_FUNC
-
-	#make sure usb ready and USB Security dongle ready to communicate with
 	enable_usb
-	enable_usb_storage
-	STATUS "Accessing $DONGLE_BRAND OpenPGP smartcard"
-	gpg --card-status >/dev/null 2>&1 || DIE "Error getting GPG card status"
-
-	gpg_key_factory_reset
-
-	STATUS "Moving subkeys to $DONGLE_BRAND"
-	{
-		echo "key 1"            #Toggle on Signature key in --edit-key mode on local keyring
-		echo "keytocard"        #Move Signature key to smartcard
-		echo "1"                #Select Signature key key slot on smartcard
-		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN
-		echo "${ADMIN_PIN_DEF}" #Smartcard Admin PIN (prompted once; scdaemon caches it for subsequent keytocard ops)
-		echo "key 1"            #Toggle off Signature key
-		echo "key 2"            #Toggle on Encryption key
-		echo "keytocard"        #Move Encryption key to smartcard
-		echo "2"                #Select Encryption key key slot on smartcard
-		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN (card PIN already cached by scdaemon)
-		echo "key 2"            #Toggle off Encryption key
-		echo "key 3"            #Toggle on Authentication key
-		echo "keytocard"        #Move Authentication key to smartcard
-		echo "3"                #Select Authentication key slot on smartcard
-		echo "${ADMIN_PIN}"     #Local keyring Subkey PIN (card PIN still cached by scdaemon)
-		echo "key 3"            #Toggle off Authentication key
-		echo "save"             #Save changes and commit to keyring
-	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "${GPG_USER_MAIL}" \
-		>/tmp/gpg_card_edit_output 2>&1
-	TRACE_FUNC
-	DEBUG "GPG keytocard output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
-		ERROR=$(cat /tmp/gpg_card_edit_output)
-		whiptail_error_die "GPG Key moving subkeys to smartcard failed!\n\n$ERROR"
-	fi
-	STATUS_OK "Subkeys moved to smartcard"
-
-	TRACE_FUNC
+	gpg_card_factory_reset "$GPG_ALGO" "$RSA_KEY_LENGTH" "$ADMIN_PIN_DEF" || \
+		whiptail_error_die "Factory resetting OpenPGP smartcard failed"
+	gpg_keytocard_subkeys "$GPG_USER_MAIL" "$ADMIN_PIN" "$ADMIN_PIN_DEF" || \
+		whiptail_error_die "GPG Key moving subkeys to smartcard failed"
 }
 
 #Whiptail prompt to insert to be wiped thumb drive
@@ -435,69 +382,8 @@ prompt_insert_to_be_wiped_thumb_drive() {
 
 set_card_identity() {
 	TRACE_FUNC
-
-	# Determine which fields we have custom values for
-	local set_name=0 set_login=0
-	local surname given
-
-	# Name: skip if still the OEM default
-	if [ "$GPG_USER_NAME" != "OEM Key" ] && [ -n "$GPG_USER_NAME" ]; then
-		set_name=1
-		# OpenPGP card stores surname and given name separately;
-		# gpg displays them as "given surname"
-		if [[ "$GPG_USER_NAME" == *" "* ]]; then
-			given="${GPG_USER_NAME% *}"
-			surname="${GPG_USER_NAME##* }"
-		else
-			surname="$GPG_USER_NAME"
-			given=""
-		fi
-		DEBUG "Will set cardholder name: surname='$surname' given='$given'"
-	else
-		DEBUG "Skipping cardholder name: no custom name set"
-	fi
-
-	# Login: skip if still the auto-generated OEM default (oem-*@example.com)
-	if [ -n "$GPG_USER_MAIL" ] && [[ "$GPG_USER_MAIL" != oem-*@example.com ]]; then
-		set_login=1
-		DEBUG "Will set login data: '$GPG_USER_MAIL'"
-	else
-		DEBUG "Skipping login data: no custom email set"
-	fi
-
-	[ "$set_name" -eq 0 ] && [ "$set_login" -eq 0 ] && return
-
-	STATUS "Setting identity fields on OpenPGP smartcard"
-	{
-		echo "admin"
-		if [ "$set_name" -eq 1 ]; then
-			echo "name"
-			echo "${surname}"
-			echo "${given}"
-			# scdaemon caches the admin PIN from the preceding keytocard/generate
-			# session; name and login do not re-prompt for it
-		fi
-		if [ "$set_login" -eq 1 ]; then
-			echo "login"
-			echo "${GPG_USER_MAIL}"
-			# scdaemon admin PIN still cached; no re-prompt needed
-		fi
-		echo "quit"
-	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit ||
+	gpg_set_card_identity "$GPG_USER_NAME" "$GPG_USER_MAIL" "$ADMIN_PIN_DEF" || \
 		DIE "Failed to set identity fields on OpenPGP smartcard"
-
-	local summary=""
-	[ "$set_name" -eq 1 ] && summary="${given:+$given }${surname}"
-	[ "$set_login" -eq 1 ] && summary="${summary:+$summary, }${GPG_USER_MAIL}"
-	STATUS_OK "Card identity set: $summary"
-	#TODO: set card `url` field and GPG key preferred keyserver after uploading to keys.openpgp.org
-	# Two separate operations needed:
-	#   1. card `url`  — set via gpg --card-edit admin → url → <fetch_url>
-	#   2. key `keyserver` preference — set via gpg --edit-key → keyserver → <url> → save
-	#      (applies to both on-card and in-memory key paths)
-	# Requires: network access in initrd, curl, and user email verification on keyserver.
-	# Note: keys.openpgp.org hides UID until owner verifies email — upload works but key
-	# is not searchable by email until verified from a normal OS session after provisioning.
 }
 
 #export master key and subkeys to thumbdrive's private LUKS contained partition
@@ -677,106 +563,8 @@ wipe_thumb_drive_and_copy_gpg_key_material() {
 
 gpg_key_factory_reset() {
 	TRACE_FUNC
-
-	#enable usb storage
-	enable_usb
-
-	# Factory reset GPG card
-	STATUS "GPG factory reset of $DONGLE_BRAND OpenPGP smartcard"
-	{
-		echo admin         # admin menu
-		echo factory-reset # factory reset smartcard
-		echo y             # confirm
-		echo yes           # confirm
-	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-		>/tmp/gpg_card_edit_output 2>&1
-	TRACE_FUNC
-	DEBUG "GPG factory-reset output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
-		ERROR=$(cat /tmp/gpg_card_edit_output)
-		whiptail_error_die "GPG Key factory reset failed!\n\n$ERROR"
-	fi
-
-	# If Nitrokey Storage is inserted, reset AES keys as well
-	if [ "$DONGLE_BRAND" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
-		STATUS "Resetting Nitrokey Storage AES keys"
-		hotp_verification regenerate ${ADMIN_PIN_DEF}
-		STATUS_OK "Nitrokey Storage AES keys reset"
-	fi
-
-	# Toggle forced sig (good security practice, forcing PIN request for each signature request)
-	if gpg --card-status | grep "Signature PIN" | grep -q "not forced"; then
-		STATUS "Enabling forced signature PIN on smartcard"
-		{
-			echo admin            # admin menu
-			echo forcesig         # toggle forcesig
-			echo ${ADMIN_PIN_DEF} # local keyring PIN
-		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-			>/tmp/gpg_card_edit_output 2>&1
-		TRACE_FUNC
-		DEBUG "GPG forcesig toggle output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
-			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "GPG Key forcesig toggle on failed!\n\n$ERROR"
-		fi
-		STATUS_OK "Forced signature PIN enabled"
-	fi
-
-	# use NIST P-256 for key generation if requested
-	if [ "$GPG_ALGO" = "p256" ]; then
-		STATUS "Setting NIST-P256 key attributes on $DONGLE_BRAND"
-		{
-			echo admin            # admin menu
-			echo key-attr         # key attributes
-			echo 2                # ECC
-			echo 3                # P-256
-			echo ${ADMIN_PIN_DEF} # local keyring PIN
-			echo 2                # ECC
-			echo 3                # P-256
-			echo ${ADMIN_PIN_DEF} # local keyring PIN
-			echo 2                # ECC
-			echo 3                # P-256
-			echo ${ADMIN_PIN_DEF} # local keyring PIN
-		} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-			>/tmp/gpg_card_edit_output 2>&1
-		TRACE_FUNC
-		DEBUG "GPG NIST-P256 key-attr output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
-			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key to NIST-P256 in $DONGLE_BRAND failed."
-		fi
-		STATUS_OK "NIST-P256 key attributes set on $DONGLE_BRAND"
-	# fallback to RSA key generation by default
-	elif [ "$GPG_ALGO" = "RSA" ]; then
-		STATUS "Setting RSA ${RSA_KEY_LENGTH}-bit key attributes on $DONGLE_BRAND (may take a minute)"
-		# Set RSA key length
-		{
-			echo admin
-			echo key-attr
-			echo 1                 # RSA
-			echo ${RSA_KEY_LENGTH} #Signing key size set to RSA_KEY_LENGTH
-			echo ${ADMIN_PIN_DEF}  #Local keyring PIN
-			echo 1                 # RSA
-			echo ${RSA_KEY_LENGTH} #Encryption key size set to RSA_KEY_LENGTH
-			echo ${ADMIN_PIN_DEF}  #Local keyring PIN
-			echo 1                 # RSA
-			echo ${RSA_KEY_LENGTH} #Authentication key size set to RSA_KEY_LENGTH
-			echo ${ADMIN_PIN_DEF}  #Local keyring PIN
-		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
-			>/tmp/gpg_card_edit_output 2>&1
-		TRACE_FUNC
-		DEBUG "GPG RSA key-attr output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
-			ERROR=$(cat /tmp/gpg_card_edit_output)
-			whiptail_error_die "Setting key attributed to RSA ${RSA_KEY_LENGTH} bits in $DONGLE_BRAND failed."
-		fi
-		STATUS_OK "RSA ${RSA_KEY_LENGTH}-bit key attributes set on $DONGLE_BRAND"
-	else
-		#Unknown GPG_ALGO
-		whiptail_error_die "Unknown GPG_ALGO: $GPG_ALGO"
-	fi
-
-	TRACE_FUNC
+	gpg_card_factory_reset "$GPG_ALGO" "$RSA_KEY_LENGTH" "$ADMIN_PIN_DEF" || \
+		whiptail_error_die "Setting key attributes on $DONGLE_BRAND failed"
 }
 
 generate_OEM_gpg_keys() {
@@ -819,31 +607,13 @@ generate_OEM_gpg_keys() {
 
 gpg_key_change_pin() {
 	TRACE_FUNC
-
-	# 1 = user PIN, 3 = admin PIN
-	PIN_TYPE=$1
-	PIN_ORIG=${2}
-	PIN_NEW=${3}
-	# Change PIN
-	{
-		echo admin       # admin menu
-		echo passwd      # change PIN
-		echo ${PIN_TYPE} # 1 = user PIN, 3 = admin PIN
-		echo ${PIN_ORIG} # old PIN
-		echo ${PIN_NEW}  # new PIN
-		echo ${PIN_NEW}  # confirm new PIN
-		echo q           # quit
-		echo q
-	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
-		>/tmp/gpg_card_edit_output 2>&1
-	TRACE_FUNC
-	DEBUG "GPG PIN change output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
-		ERROR=$(cat /tmp/gpg_card_edit_output | fold -s)
+	local pin_type="$1"
+	local old_pin="$2"
+	local new_pin="$3"
+	gpg_card_change_pin "$pin_type" "$old_pin" "$new_pin" || {
+		ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
 		whiptail_error_die "GPG Key PIN change failed!\n\n$ERROR"
-	fi
-
-	TRACE_FUNC
+	}
 }
 
 generate_checksums() {

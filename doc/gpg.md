@@ -130,6 +130,18 @@ public key into the Heads firmware:
 3. From Heads: `Options -> GPG Management -> Add a GPG key to the running BIOS + reflash`.
 4. Reboot.  Generate a new TOTP/HOTP secret when prompted.
 
+### Restoring Keys from Backup
+
+See [configuring-keys.md](configuring-keys.md#restoring-keys-from-backup) for
+the full recovery flow.  In short:
+
+1. Insert the backup USB thumb drive and the replacement dongle.
+2. From Heads: `Options -> GPG Management -> Reprovision smartcard from GPG key backup`.
+3. Enter the backup passphrase.
+
+The backup drive must have been created by the OEM factory reset flow with
+the "format an encrypted USB Thumb drive" option set to Y.
+
 ## Nitrokey 3 Specifics
 
 - Supports NIST P-256 ECC keys in addition to RSA — significantly faster key

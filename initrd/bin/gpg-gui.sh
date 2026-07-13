@@ -10,15 +10,20 @@ TRACE_FUNC
 
 while true; do
 	unset menu_choice
+	# Build menu options dynamically
+	menu_options=(
+		'r' ' Add GPG key to running BIOS and reflash'
+		'a' ' Add GPG key to standalone BIOS image and flash'
+		'e' ' Replace GPG key(s) in the current ROM and reflash'
+		'l' ' List GPG keys in your keyring'
+		'p' ' Export public GPG key to USB drive'
+		'g' ' Generate GPG keys manually on a USB security dongle'
+		'k' ' Reprovision USB Security dongle from GPG key backup'
+	)
+	menu_options+=('x' ' Exit')
 	whiptail_type $BG_COLOR_MAIN_MENU --title "GPG Management Menu" \
 		--menu 'Select the GPG function to perform' 0 80 10 \
-		'r' ' Add GPG key to running BIOS and reflash' \
-		'a' ' Add GPG key to standalone BIOS image and flash' \
-		'e' ' Replace GPG key(s) in the current ROM and reflash' \
-		'l' ' List GPG keys in your keyring' \
-		'p' ' Export public GPG key to USB drive' \
-		'g' ' Generate GPG keys manually on a USB security dongle' \
-		'x' ' Exit' \
+		"${menu_options[@]}" \
 		2>/tmp/whiptail || recovery "GUI menu failed"
 
 	menu_choice=$(cat /tmp/whiptail)
@@ -63,6 +68,9 @@ while true; do
 		if [ $? -eq 0 ]; then
 			gpg_post_gen_mgmt
 		fi
+		;;
+	"k")
+		reprovision_smartcard_from_backup
 		;;
 	esac
 

@@ -241,12 +241,18 @@ prompt_missing_gpg_key_action() {
 		retry_label=" Retry (after connecting $DONGLE_BRAND)"
 		retry_msg="Cannot sign /boot because no private GPG signing key is available ($DONGLE_BRAND not inserted, wiped, or key not set up).\n\nInsert your $DONGLE_BRAND and retry.\n\nHow would you like to proceed?"
 	fi
+	menu_options=(
+		'r' "$retry_label"
+		'F' ' OEM Factory Reset / Re-Ownership'
+		'K' ' Reprovision USB Security dongle from GPG key backup'
+	)
+	menu_options+=(
+		'm' ' Return to main menu'
+		'x' ' Exit to recovery shell'
+	)
 	whiptail_error --title "ERROR: GPG signing key unavailable" \
-		--menu "$retry_msg" 0 80 4 \
-		'r' "$retry_label" \
-		'F' ' OEM Factory Reset / Re-Ownership' \
-		'm' ' Return to main menu' \
-		'x' ' Exit to recovery shell' \
+		--menu "$retry_msg" 0 80 6 \
+		"${menu_options[@]}" \
 		2>/tmp/whiptail || recovery "GUI menu failed"
 
 	option=$(cat /tmp/whiptail)
@@ -256,6 +262,9 @@ prompt_missing_gpg_key_action() {
 		;;
 	F)
 		oem-factory-reset.sh
+		;;
+	K)
+		reprovision_smartcard_from_backup
 		;;
 	x)
 		recovery "User requested recovery shell"
@@ -543,9 +552,26 @@ clean_boot_check() {
 	fi
 
 	# OS is installed, no kexec files present, no GPG keys in keyring, security token present
-	# prompt user to run OEM factory reset
-	oem-factory-reset.sh \
-		"Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?"
+	# offer to provision or reprovision
+	if ! whiptail_warning --title "Heads setup wizard" \
+		--menu "No GPG keys, no /boot signatures, and a USB Security dongle\ndetected. /boot has an installed OS.\n\nHow would you like to proceed?" 0 80 5 \
+		'F' ' OEM Factory Reset / Re-Ownership (full provisioning)' \
+		'K' ' Reprovision USB Security dongle from GPG key backup' \
+		'i' ' Ignore and continue to main menu' \
+		2>/tmp/whiptail; then
+		return
+	fi
+
+	option=$(cat /tmp/whiptail)
+	case "$option" in
+	F)
+		oem-factory-reset.sh \
+			"Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?"
+		;;
+	K)
+		reprovision_smartcard_from_backup
+		;;
+	esac
 }
 
 check_gpg_key() {
@@ -558,12 +584,18 @@ check_gpg_key() {
 		fi
 		local gpg_error_msg
 		gpg_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted, you should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one public key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
+		menu_options=(
+			'g' ' Add a GPG key to the running BIOS'
+			'F' ' OEM Factory Reset / Re-Ownership'
+			'K' ' Reprovision USB Security dongle from GPG key backup'
+		)
+		menu_options+=(
+			'i' ' Ignore error and continue to main menu'
+			'x' ' Exit to recovery shell'
+		)
 		whiptail_error --title "ERROR: GPG keyring empty!" \
-			--menu "$gpg_error_msg" 0 80 4 \
-			'g' ' Add a GPG key to the running BIOS' \
-			'F' ' OEM Factory Reset / Re-Ownership' \
-			'i' ' Ignore error and continue to main menu' \
-			'x' ' Exit to recovery shell' \
+			--menu "$gpg_error_msg" 0 80 6 \
+			"${menu_options[@]}" \
 			2>/tmp/whiptail || recovery "GUI menu failed"
 
 		option=$(cat /tmp/whiptail)
@@ -571,14 +603,16 @@ check_gpg_key() {
 		g)
 			gpg-gui.sh && BG_COLOR_MAIN_MENU="normal"
 			;;
+		F)
+			oem-factory-reset.sh
+			;;
+		K)
+			reprovision_smartcard_from_backup
+			;;
 		i)
 			skip_to_menu="true"
 			return 1
 			;;
-		F)
-			oem-factory-reset.sh
-			;;
-
 		x)
 			recovery "User requested recovery shell"
 			;;

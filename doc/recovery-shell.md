@@ -20,6 +20,57 @@ The Recovery Shell boots with PCR 4 set to `recovery` instead of
 - TOTP/HOTP sealing and TPM Disk Unlock Key creation/unsealing do not work.
 - To perform seal/unseal operations return to the normal GUI boot.
 
+## Authentication
+
+When `CONFIG_HAVE_GPG_KEY_BACKUP=y` (set during OEM Factory Reset / Re-Ownership
+with the in-memory backup path, or by running the reprovision flow from the GPG
+Management Menu), the recovery shell requires GPG smartcard authentication before
+the bash prompt opens.
+
+**Scope:** This ONLY guards recovery shell entry.  USB boot, TPM operations,
+flash/update, GPG management, and all other GUI menu functions are NOT gated
+by this check — they remain accessible from the main menu.
+
+**What it guards against:** Recovery shell access gives full bash within the
+initrd, including direct block device read/write, SPI flash access, TPM
+commands, and GPG key operations.  An unauthenticated physical attacker with
+shell access could flash malicious firmware, delete `/boot` content, lock TPM
+PIN counters permanently, sign unauthorized `/boot` content, or attempt
+LUKS disk decryption.
+
+**How it works:** `gpg_auth()` in `initrd/etc/functions.sh` generates a random
+nonce, the user signs it with their GPG key (smartcard or backup USB drive)
+within 3 attempts, and the signature is verified against the ROM-fused public
+keyring.  On failure, `DIE` exits the session.  With `CONFIG_RESTRICTED_BOOT=y`,
+the shell is blocked entirely and the system reboots after 5 seconds.
+
+**Without authentication:** If `CONFIG_HAVE_GPG_KEY_BACKUP` is not set,
+`gpg_auth()` is a no-op and the recovery shell opens without prompting.
+
+## Resetting Configuration
+
+`Options -> Change configuration settings -> 'r'` (`Clear GPG key(s) and reset
+all user settings`) wipes the running system configuration:
+
+- Clears `~/.gnupg` (GPG keyring, trustdb)
+- Deletes `/boot/kexec*` (signatures, checksums, boot options)
+- Removes all `heads/` files from CBFS (keyring, trustdb, config.user)
+- Reflashes the cleaned firmware
+- Resets the TPM if present
+
+**Attestation impact:** Removing `heads/` files from CBFS changes the SPI flash
+contents measured into PCR 7 by `cbfs-init` at next boot.  Combined with the
+TPM reset, TOTP/HOTP unseal will fail on the next boot — Heads shows the
+standard red-menu TOTP error prompt.
+
+**Recovery after wipe:** Run OEM Factory Reset / Re-Ownership (Options -> 'F')
+to fully reprovision ([configuring-keys.md](configuring-keys.md)).  If you have a
+GPG key backup USB drive from a previous in-memory OEM reset, use
+`GPG Options -> 'k' Reprovision USB Security dongle from GPG key backup`
+to restore subkeys from the backup ([configuring-keys.md#restoring-keys-from-backup](configuring-keys.md#restoring-keys-from-backup)),
+then flash the public key to ROM, re-sign /boot, and generate new TOTP/HOTP
+secrets.
+
 ## Common Operations
 
 ### Manual boot

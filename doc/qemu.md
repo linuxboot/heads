@@ -126,27 +126,32 @@ Use `qemu-img snapshot` before modifying the root disk.
 ### USB flash drive workflow
 
 ```bash
-mkdir -p qemu_img                             # safe storage inside clone
+mkdir -p ~/Qemu_img           # persistent storage outside repo
+                               # (same filesystem as repo;
+                               #  hardlinks only work within
+                               #  a single partition)
 
 # Step 1: Create the USB image via the Makefile.
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 \
   QEMU_USB_SIZE=64G run
-# → build/x86/.../usb_fd.raw now exists.
+# -> build/x86/.../usb_fd.raw now exists.
 
-# Step 2: Save a master copy IMMEDIATELY (before population).
-cp build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw qemu_img/usb_fd.img
-rm build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
+# Step 2: Save a master copy (hardlink, zero-cost, survives make clean).
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw \
+      ~/Qemu_img/usb_fd.img
 
 # Step 3: Populate with ISOs.
-sudo losetup --find --show --partscan build/x86/.../usb_fd.raw
+sudo losetup --find --show --partscan \
+  build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
 sudo mount /dev/loop0p1 /mnt
 cp ~/Downloads/ISOs/*.iso /mnt/
 sudo umount /mnt && sudo losetup -d /dev/loop0
 
-# Step 4: Hardlink into other board build directories.
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.raw
+# Step 4: Hardlink into other board build directories (zero-cost).
+cp -alf ~/Qemu_img/usb_fd.img \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+cp -alf ~/Qemu_img/usb_fd.img \
+       build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.raw
 
 # Next run uses the hardlink — Makefile skips creation since the file exists.
 ```
@@ -160,6 +165,50 @@ After OS install + USB provisioned, reference both from `./qemu_img/`:
       USB_TOKEN=Nitrokey3NFC \
       ROOT_DISK_IMG=./qemu_img/root.qcow2 \
       inject_gpg run
+
+
+### Testing GPG key reprovision from a backup drive
+
+The GPG key reprovision flow ('k' in the GPG Management Menu, or the 'K'
+option when signing fails) restores subkeys from a LUKS-encrypted backup
+drive created during OEM factory reset onto a (new) OpenPGP smartcard.
+This can be tested in QEMU.
+
+First run OEM factory reset to populate the virtual USB drive with backup
+material (this creates `build/x86/<board>/usb_fd.raw` with the LUKS private
++ exFAT public partition layout).  Afterwards, save the virtual USB drive
+and canokey state, then hardlink back for the second run:
+
+```bash
+# ~/Qemu_img/ stores files OUTSIDE the repo so they survive make clean.
+# Hardlinks work because ~/heads/ and ~/Qemu_img/ share the same partition.
+mkdir -p ~/Qemu_img
+
+# Save canokey state and populated USB backup image (hardlink, zero-cost).
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file \
+       ~/Qemu_img/.canokey-file
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw \
+       ~/Qemu_img/backup_drive.raw
+
+# Hardlink back into the build dir so make run picks them up.
+cp -alf ~/Qemu_img/.canokey-file \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file
+cp -alf ~/Qemu_img/backup_drive.raw \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+
+# Second run uses the preserved backup with no USB_FD_IMG override.
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp run
+```
+
+Inside the VM: Options -> GPG Options -> 'k' Reprovision smartcard from GPG
+key backup.  Enter the backup passphrase (the Admin PIN you set during OEM
+factory reset).  The flow will:
+- Detect the key type (RSA or ECC) from the backup
+- Factory-reset the virtual canokey and set matching key attributes
+- Import the master key and subkeys from the LUKS partition
+- Move subkeys to the smartcard via keytocard
+- Set the card identity (name, email) from the backup key's UID
+- Offer to flash the public key to ROM (decline -- QEMU cannot reflash)
 
 
 Running via Docker wrappers
@@ -188,7 +237,7 @@ environment reference. Important ones are `HEADS_DISABLE_USB`
 
 Make variables such as `USB_TOKEN`, `PUBKEY_ASC`, `INSTALL_IMG`,
 `QEMU_MEMORY_SIZE`, `QEMU_DISK_SIZE`, `QEMU_USB_SIZE`,
-`ROOT_DISK_IMG`, `CPUS` and `V`
+`ROOT_DISK_IMG`, `USB_FD_IMG`, `CPUS` and `V`
 are forwarded to the `make` invocation and affect how
 `targets/qemu.mk` runs QEMU. See `targets/qemu.mk` for token formats
 and examples.
