@@ -204,6 +204,10 @@ gpg_card_factory_reset() {
 		return 1
 	fi
 
+	# After factory reset the card admin PIN is back to default 12345678
+	# regardless of the PIN that was supplied for the reset operation.
+	card_admin_pin="12345678"
+
 	# Reset Nitrokey Storage AES keys if applicable
 	if [ "$DONGLE_BRAND" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
 		STATUS "Resetting Nitrokey Storage AES keys"
