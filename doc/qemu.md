@@ -158,13 +158,22 @@ cp -alf ~/Qemu_img/usb_fd.img \
 
 ### Daily development cycle
 
-After OS install + USB provisioned, reference both from `./qemu_img/`:
+After OS install + USB provisioned, reference the root disk from `./qemu_img/`
+(inside the repo clone — Docker visibility) and USB backups from `~/Qemu_img/`
+(outside the repo — survives clean builds via hardlinks):
 
-    ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
-      PUBKEY_ASC=pubkey.asc \
-      USB_TOKEN=Nitrokey3NFC \
-      ROOT_DISK_IMG=./qemu_img/root.qcow2 \
-      inject_gpg run
+```bash
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
+  PUBKEY_ASC=pubkey.asc \
+  USB_TOKEN=Nitrokey3NFC \
+  ROOT_DISK_IMG=./qemu_img/root.qcow2 \
+  inject_gpg run
+```
+
+Root disk images live at `./qemu_img/` because `ROOT_DISK_IMG` is passed to
+`make` inside the Docker container, which only sees `$(pwd)`.  USB backup
+images live at `~/Qemu_img/` and are bridged into the build directory via
+hardlinks (`cp -alf`).
 
 
 ### Testing GPG key reprovision from a backup drive

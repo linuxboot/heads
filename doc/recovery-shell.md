@@ -27,7 +27,8 @@ with the in-memory backup path, or by running the reprovision flow from the GPG
 Management Menu), the recovery shell requires GPG smartcard authentication before
 the bash prompt opens.
 
-**Scope:** This ONLY guards recovery shell entry.  USB boot, TPM operations,
+**Scope:** This guards recovery shell and external media/USB boot entry
+(`media-scan.sh` also calls `gpg_auth` before scanning USB).  TPM operations,
 flash/update, GPG management, and all other GUI menu functions are NOT gated
 by this check — they remain accessible from the main menu.
 

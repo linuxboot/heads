@@ -7,7 +7,7 @@ gpg_flash_rom() {
 		[ -e /.gnupg/trustdb.gpg ] && rm /.gnupg/trustdb.gpg
 	fi
 
-	cat "$PUBKEY" | gpg --import || [ $? -eq 2 ]
+	cat "$PUBKEY" | gpg --import
 	gpg --list-keys --fingerprint --with-colons | sed -E -n -e 's/^fpr:::::::::([0-9A-F]+):$/\1:6:/p' | gpg --import-ownertrust
 	gpg --update-trust
 
@@ -154,6 +154,7 @@ gpg_replace_key_reflash() {
 gpg_reset_nk3_secret_app() {
 	TRACE_FUNC
 	local admin_pin="$1"
+	local error_code
 	if [ "$DONGLE_BRAND" = "Nitrokey 3" ] && [ -x /bin/hotp_verification ]; then
 		STATUS "Resetting Nitrokey 3 Secrets app (physical touch will be required)"
 		for attempt in 1 2 3; do
@@ -166,11 +167,12 @@ gpg_reset_nk3_secret_app() {
 					whiptail_warning --msgbox "$DONGLE_BRAND requires physical presence: touch the dongle when requested" 0 80 --title "$DONGLE_BRAND secrets app reset attempt: $attempt/3"
 				else
 					DEBUG "NK3 Secrets app reset failed with error $error_code"
-					return 1
+					return $error_code
 				fi
 			fi
 		done
 	fi
+	return 0
 }
 
 # Factory-reset the OpenPGP smartcard and set key attributes for the given
@@ -184,6 +186,7 @@ gpg_card_factory_reset() {
 	local algo="$1"
 	local rsa_key_length="$2"
 	local card_admin_pin="${3:-12345678}"
+	local rc
 
 	STATUS "Factory resetting $DONGLE_BRAND OpenPGP smartcard"
 	{
@@ -192,11 +195,12 @@ gpg_card_factory_reset() {
 		echo y             # confirm
 		echo yes           # confirm
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback \
-		--passphrase-file <(echo -n "$card_admin_pin") --card-edit \
+		--passphrase-fd 3 3< <(echo -n "$card_admin_pin") --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	rc=$?
 	TRACE_FUNC
 	DEBUG "GPG factory-reset output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
+	if [ $rc -ne 0 ]; then
 		return 1
 	fi
 
@@ -218,9 +222,10 @@ gpg_card_factory_reset() {
 			echo "${card_admin_pin}"
 		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		rc=$?
 		TRACE_FUNC
 		DEBUG "GPG forcesig toggle output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
+		if [ $rc -ne 0 ]; then
 			WARN "Could not enable forced signature PIN; continuing anyway"
 		else
 			STATUS_OK "Forced signature PIN enabled"
@@ -244,9 +249,10 @@ gpg_card_factory_reset() {
 			echo "${card_admin_pin}"
 		} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		rc=$?
 		TRACE_FUNC
 		DEBUG "GPG p256 key-attr output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
+		if [ $rc -ne 0 ]; then
 			return 1
 		fi
 		STATUS_OK "NIST P-256 key attributes set"
@@ -266,9 +272,10 @@ gpg_card_factory_reset() {
 			echo "${card_admin_pin}"
 		} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --card-edit \
 			>/tmp/gpg_card_edit_output 2>&1
+		rc=$?
 		TRACE_FUNC
 		DEBUG "GPG RSA key-attr output: $(cat /tmp/gpg_card_edit_output)"
-		if [ $? -ne 0 ]; then
+		if [ $rc -ne 0 ]; then
 			return 1
 		fi
 		STATUS_OK "RSA ${rsa_key_length}-bit key attributes set"
@@ -335,7 +342,7 @@ gpg_set_card_identity() {
 		fi
 		echo "quit"
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback \
-		--passphrase-file <(printf '%s' "$card_admin_pin") --card-edit \
+		--passphrase-fd 3 3< <(echo -n "$card_admin_pin") --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1 ||
 		DIE "Failed to set identity fields on OpenPGP smartcard"
 
@@ -354,6 +361,7 @@ gpg_card_change_pin() {
 	local pin_type="$1"
 	local old_pin="$2"
 	local new_pin="$3"
+	local rc
 	{
 		echo admin       # admin menu
 		echo passwd      # change PIN
@@ -365,9 +373,10 @@ gpg_card_change_pin() {
 		echo q
 	} | DO_WITH_DEBUG gpg --command-fd=0 --status-fd=2 --pinentry-mode=loopback --card-edit \
 		>/tmp/gpg_card_edit_output 2>&1
+	rc=$?
 	TRACE_FUNC
 	DEBUG "GPG PIN change output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
+	if [ $rc -ne 0 ]; then
 		return 1
 	fi
 	TRACE_FUNC
@@ -383,6 +392,7 @@ gpg_keytocard_subkeys() {
 	local key_id="$1"
 	local subkey_pin="$2"
 	local card_pin="${3:-12345678}"
+	local rc
 
 	# Ensure USB and smartcard are accessible
 	enable_usb
@@ -416,9 +426,10 @@ gpg_keytocard_subkeys() {
 	} | DO_WITH_DEBUG gpg --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback \
 		--edit-key "$key_id" \
 		>/tmp/gpg_card_edit_output 2>&1
+	rc=$?
 	TRACE_FUNC
 	DEBUG "GPG keytocard output: $(cat /tmp/gpg_card_edit_output)"
-	if [ $? -ne 0 ]; then
+	if [ $rc -ne 0 ]; then
 		DEBUG "keytocard failed"
 		return 1
 	fi
@@ -426,6 +437,15 @@ gpg_keytocard_subkeys() {
 	DEBUG "keytocard completed successfully, subkeys now on $DONGLE_BRAND"
 
 	TRACE_FUNC
+}
+
+# Unmount /media and close any LUKS usb_mount mappings.
+# Called by reprovision_smartcard_from_backup() on error paths.
+_luks_cleanup() {
+	umount /media 2>/dev/null || true
+	for d in /dev/mapper/usb_mount_*; do
+		[ -e "$d" ] && cryptsetup close "$(basename "$d")" 2>/dev/null || true
+	done
 }
 
 # Reprovision an OpenPGP smartcard from a GPG key backup on a LUKS-encrypted
@@ -483,8 +503,12 @@ reprovision_smartcard_from_backup() {
 	# mount-usb.sh with --pass auto-detects the LUKS partition.
 	enable_usb
 	enable_usb_storage
+	# Write the backup passphrase to a temp file and pass it via --pass-file
+	# to avoid leaking the passphrase through /proc/.../cmdline.
+	printf '%s' "$admin_pin" >/tmp/secret/backup_pass
+	chmod 600 /tmp/secret/backup_pass 2>/dev/null || true
 	STATUS "Mounting GPG key backup (LUKS private partition)"
-	if ! mount-usb.sh --mode ro --mountpoint /media --pass "$admin_pin"; then
+	if ! mount-usb.sh --mode ro --mountpoint /media --pass-file /tmp/secret/backup_pass; then
 		DEBUG "Could not mount backup LUKS partition"
 		whiptail_error --title 'ERROR: Backup Mount Failed' \
 			--msgbox "Could not mount the backup USB drive.\n\nVerify that the correct backup drive is inserted\nand the passphrase is correct." 0 80
@@ -495,7 +519,7 @@ reprovision_smartcard_from_backup() {
 
 	# Verify the private key backup file exists
 	if [ ! -f /media/privkey.sec ]; then
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		WARN "privkey.sec not found on backup drive -- not a valid GPG key backup"
 		whiptail_error --title 'ERROR: No Backup Found' \
 			--msgbox "No privkey.sec found on this drive.\n\nThis does not appear to be a valid\nGPG key backup drive." 0 80
@@ -505,9 +529,9 @@ reprovision_smartcard_from_backup() {
 	# Phase 3: import the private key (master + subkeys) into ~/.gnupg.
 	# --import-options restore brings in the full key material.
 	STATUS "Importing GPG keys from backup"
-	if ! gpg --pinentry-mode=loopback --passphrase-file <(printf '%s' "$admin_pin") \
+	if ! gpg --pinentry-mode=loopback --passphrase-fd 3 3< <(echo -n "$admin_pin") \
 		--import-options restore --import /media/privkey.sec >/dev/null 2>/tmp/gpg_import_err; then
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		ERROR="$(cat /tmp/gpg_import_err)"
 		WARN "GPG key import from backup failed: $(head -3 /tmp/gpg_import_err 2>/dev/null)"
 		whiptail_error --title 'ERROR: Key Import Failed' \
@@ -521,8 +545,8 @@ reprovision_smartcard_from_backup() {
 	# gpg --with-colons field layout:
 	#   pub: ... :<bit_len>:<algo>:<key_id>: ...
 	#   uid: ... :<escaped_uid>: ...
-	algo_code="$(gpg --with-colons --list-keys 2>/dev/null | grep '^pub:' | cut -d: -f4)"
-	bit_len="$(gpg --with-colons --list-keys 2>/dev/null | grep '^pub:' | cut -d: -f3)"
+	algo_code="$(gpg --with-colons --list-keys 2>/dev/null | grep '^pub:' | cut -d: -f4 | head -1)"
+	bit_len="$(gpg --with-colons --list-keys 2>/dev/null | grep '^pub:' | cut -d: -f3 | head -1)"
 	uid_line="$(gpg --with-colons --list-keys 2>/dev/null | grep '^uid:' | head -1 | cut -d: -f10)"
 
 	case "$algo_code" in
@@ -536,7 +560,7 @@ reprovision_smartcard_from_backup() {
 		DEBUG "Detected ECC P-256 key from backup"
 		;;
 	*)
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		WARN "Unrecognized GPG algorithm code $algo_code from backup key"
 		whiptail_error --title 'ERROR: Unknown Key Type' \
 			--msgbox "Could not detect the key type from the backup\n(algorithm $algo_code).\n\nThe backup file may be corrupted." 0 80
@@ -561,7 +585,7 @@ reprovision_smartcard_from_backup() {
 	else
 		key_id="$(gpg --list-secret-keys --with-colons 2>/dev/null | grep '^sec:' | cut -d: -f5)"
 		[ -z "$key_id" ] && {
-			umount /media 2>/dev/null || true
+			_luks_cleanup
 			DIE "Could not determine key ID from imported backup"
 		}
 	fi
@@ -586,7 +610,7 @@ reprovision_smartcard_from_backup() {
 			if ! whiptail_warning --title 'Dongle Compatibility Warning' \
 				--yesno "The backed-up key is ECC P-256, but your $DONGLE_BRAND\nmay have limited ECC support.\n\nProceeding may fail.\n\nDo you want to continue?" 0 80; then
 				DEBUG "User aborted: ECC key incompatible with dongle"
-				umount /media 2>/dev/null || true
+				_luks_cleanup
 				return 1
 			fi
 			DEBUG "User accepted ECC compatibility risk"
@@ -601,7 +625,7 @@ reprovision_smartcard_from_backup() {
 	if ! whiptail_warning --title 'Reprovision Smartcard' \
 		--yesno "This will:\n\n  * ERASE all keys on your $DONGLE_BRAND\n  * Import GPG key: $identity_summary\n    (${key_algo}$([ "$key_algo" = "RSA" ] && echo " ${rsa_key_length}-bit"))\n  * Copy subkeys to the smartcard\n\nDo you want to continue?" 0 80; then
 		DEBUG "User declined reprovision via confirmation dialog"
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		return 1
 	fi
 	DEBUG "User confirmed reprovision; proceeding with factory reset"
@@ -609,7 +633,7 @@ reprovision_smartcard_from_backup() {
 	# Re-verify the smartcard is still present before wiping it
 	STATUS "Verifying $DONGLE_BRAND smartcard is still present"
 	if ! gpg --card-status >/dev/null 2>&1; then
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		WARN "$DONGLE_BRAND smartcard disappeared after user confirmation"
 		whiptail_error --title 'ERROR: Smartcard Not Found' \
 			--msgbox "The $DONGLE_BRAND smartcard is no longer detected.\n\nCheck the connection and try again." 0 80
@@ -643,10 +667,14 @@ reprovision_smartcard_from_backup() {
 			while [ -z "$card_admin_pin" ]; do
 				INPUT "Enter the current $DONGLE_BRAND admin PIN:" -r -s card_admin_pin
 			done
+			# Re-run NK3 Secrets app reset with the custom PIN
+			release_scdaemon
+			gpg_reset_nk3_secret_app "$card_admin_pin" || \
+				DEBUG "NK3 Secrets app reset with custom PIN also failed (non-fatal)"
 		fi
 	done
 	if [ "$factory_reset_ok" != "y" ]; then
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		ERROR="$(tail -n 3 /tmp/gpg_card_edit_output 2>/dev/null | fold -s)"
 		WARN "Smartcard factory reset failed after retry with correct admin PIN"
 		whiptail_error --title 'ERROR: Factory Reset Failed' \
@@ -660,7 +688,7 @@ reprovision_smartcard_from_backup() {
 	# Phase 6: move subkeys from the local keyring to the smartcard.
 	DEBUG "Starting keytocard with key_id=$key_id, admin_pin=${#admin_pin} chars, card_admin_pin=${#card_admin_pin} chars"
 	if ! gpg_keytocard_subkeys "$key_id" "$admin_pin" "$card_admin_pin"; then
-		umount /media 2>/dev/null || true
+		_luks_cleanup
 		ERROR="$(cat /tmp/gpg_card_edit_output)"
 		WARN "GPG keytocard operation failed: $(head -3 /tmp/gpg_card_edit_output 2>/dev/null)"
 		whiptail_error --title 'ERROR: Keytocard Failed' \
@@ -688,7 +716,7 @@ reprovision_smartcard_from_backup() {
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
 			whiptail_error --title 'ERROR: Admin PIN Change Failed' \
 				--msgbox "Could not change the Admin PIN.\n\n${ERROR}" 0 80
-			umount /media 2>/dev/null || true
+			_luks_cleanup
 			return 1
 		fi
 		STATUS_OK "${pin_label_admin} changed"
@@ -707,24 +735,77 @@ reprovision_smartcard_from_backup() {
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
 			whiptail_error --title 'ERROR: User PIN Change Failed' \
 				--msgbox "Could not change the User PIN.\n\n${ERROR}" 0 80
-			umount /media 2>/dev/null || true
+			_luks_cleanup
 			return 1
 		fi
 		STATUS_OK "GPG User PIN changed"
+		# Cache the User PIN for /boot signing after reprovision
+		printf '%s' "$new_user_pin" >/tmp/secret/gpg_pin
+		chmod 600 /tmp/secret/gpg_pin 2>/dev/null || true
 	else
 		DEBUG "User declined custom PINs; keeping factory defaults"
+		# Cache default User PIN for /boot signing after reprovision
+		printf '%s' "123456" >/tmp/secret/gpg_pin
+		chmod 600 /tmp/secret/gpg_pin 2>/dev/null || true
+	fi
+
+	# Sign /boot so hashes exist on next boot.
+	# Remove the default boot entry so the user is prompted to set one
+	# on first boot after reprovision.
+	STATUS "Signing /boot files for next boot"
+	detect_boot_device
+	if mount -o remount,rw /boot 2>/tmp/sign_err; then
+		rm -f /boot/kexec*.txt /boot/kexec.sig 2>/dev/null
+
+		# TPM counter if applicable
+		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			tpmr.sh counter_create -pwdc '' -la -3135106223 >/tmp/counter 2>/dev/null || true
+			local tpm_counter
+			tpm_counter="$(cut -d: -f1 </tmp/counter 2>/dev/null)"
+			if [ -n "$tpm_counter" ]; then
+				increment_tpm_counter "$tpm_counter" || true
+				sha256sum /tmp/counter-"$tpm_counter" >/boot/kexec_rollback.txt 2>/dev/null || true
+			fi
+		fi
+
+		# Generate hash manifest
+		(cd /boot && find ./ -type f ! -path './kexec*' -print0 | \
+			xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null && \
+			print_tree >/boot/kexec_tree.txt) || \
+			DEBUG "Hash generation produced warnings"
+
+		# Sign with the reprovisioned key
+		param_files=(kexec_hashes.txt kexec_tree.txt)
+		[ -f /boot/kexec_rollback.txt ] && param_files+=(kexec_rollback.txt)
+		if (cd /boot && sha256sum "${param_files[@]}" 2>/dev/null | \
+			gpg --detach-sign --pinentry-mode loopback \
+				--passphrase-file /tmp/secret/gpg_pin \
+				--digest-algo SHA256 -a -o /boot/kexec.sig 2>/tmp/sign_err); then
+			DEBUG "/boot signed successfully"
+			# Remove any default boot entry so first boot prompts the user
+			rm -f /boot/kexec_default.*.txt 2>/dev/null
+			check_config /boot >/dev/null 2>/tmp/sign_err && \
+				STATUS_OK "/boot files signed and ready" || \
+				WARN "/boot verification produced warnings"
+		else
+			WARN "/boot signing failed: $(head -3 /tmp/sign_err 2>/dev/null)"
+		fi
+
+		mount -o ro,remount /boot 2>/dev/null || true
+	else
+		WARN "/boot not writable; skipping signing"
 	fi
 
 	# Phase 8: save the LUKS mapper name so we can derive the public
 	# partition device, then unmount the LUKS partition.
 	mapper_dev="$(ls /dev/mapper/usb_mount_* 2>/dev/null | head -1)"
-	umount /media 2>/dev/null || true
+	_luks_cleanup
 	if [ -n "$mapper_dev" ]; then
 		# Extract partition name from mapper (e.g. usb_mount_sdb1 -> sdb1)
 		# and derive parent disk (e.g. /dev/sdb) + public partition (/dev/sdb2).
 		local part_name
 		part_name="$(basename "$mapper_dev" | sed 's/^usb_mount_//')"
-		parent_disk="$(echo "/dev/$part_name" | sed -E 's/(p?)[0-9]+$//')"
+		parent_disk="$(echo "/dev/$part_name" | sed -E 's/[0-9]+$//')"
 		pub_partition="${parent_disk}2"
 		DEBUG "mapper_dev=$mapper_dev part_name=$part_name parent_disk=$parent_disk pub_partition=${pub_partition:-none}"
 		cryptsetup close "$(basename "$mapper_dev")" 2>/dev/null || true
@@ -734,8 +815,6 @@ reprovision_smartcard_from_backup() {
 	fi
 
 	# Phase 9: mount the public partition and import pubkey.asc.
-	# Validate against the key already in ~/.gnupg; re-import is idempotent
-	# so exit code 2 (unchanged) is a normal result.
 	enable_usb
 	enable_usb_storage
 	STATUS "Mounting GPG key backup (public partition)"
@@ -743,25 +822,37 @@ reprovision_smartcard_from_backup() {
 		DEBUG "Mounting public partition via explicit device: $pub_partition"
 		if ! mount-usb.sh --device "$pub_partition" --mode ro --mountpoint /media; then
 			DEBUG "Could not mount public partition at $pub_partition"
+		else
+			STATUS_OK "Public partition mounted"
 		fi
-		STATUS_OK "Public partition mounted"
 	else
 		DEBUG "No explicit public device; falling back to auto-detection"
-		mount-usb.sh --mode ro --mountpoint /media 2>/dev/null ||
+		if mount-usb.sh --mode ro --mountpoint /media 2>/dev/null; then
+			STATUS_OK "Public partition mounted"
+		else
 			DEBUG "Could not auto-detect public partition"
+		fi
 	fi
 
 	STATUS "Importing public key from backup"
 	if [ -f /media/pubkey.asc ]; then
-		gpg --import </media/pubkey.asc || [ $? -eq 2 ]
-		PUBKEY=/media/pubkey.asc
-		DEBUG "pubkey.asc found on public partition at /media/pubkey.asc"
-		STATUS_OK "Public key imported"
+		if gpg --import </media/pubkey.asc 2>/dev/null; then
+			PUBKEY=/media/pubkey.asc
+			DEBUG "pubkey.asc found on public partition at /media/pubkey.asc"
+			STATUS_OK "Public key imported"
+		else
+			DEBUG "pubkey.asc import failed; exporting from imported keyring"
+			gpg --export --armor "$key_id" >/tmp/reprovision_pubkey.asc 2>/dev/null || {
+				_luks_cleanup
+				DIE "Failed to export public key for ROM flash"
+			}
+			PUBKEY=/tmp/reprovision_pubkey.asc
+		fi
 	else
 		# Fallback: export from the keyring (public key is already there
 		# from the privkey.sec import)
 		gpg --export --armor "$key_id" >/tmp/reprovision_pubkey.asc 2>/dev/null || {
-			umount /media 2>/dev/null || true
+			_luks_cleanup
 			DIE "Failed to export public key for ROM flash"
 		}
 		PUBKEY=/tmp/reprovision_pubkey.asc
@@ -811,7 +902,7 @@ reprovision_smartcard_from_backup() {
 
 	DEBUG "Running cleanup: unmounting partitions and closing LUKS mappings"
 	# Cleanup: unmount public partition and close any orphaned LUKS mappings
-	umount /media 2>/dev/null || true
+	_luks_cleanup
 	for dev in /dev/mapper/usb_mount_*; do
 		[ -e "$dev" ] && cryptsetup close "$(basename "$dev")" 2>/dev/null || true
 	done

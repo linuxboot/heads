@@ -25,7 +25,7 @@ DEVICE=""
 MOUNTPOINT="/media"
 PASS=""
 
-#Only assign --mode, --device, --mountpoint and --pass parameters only if variables following them are not empty
+#Only assign --mode, --device, --mountpoint, --pass and --pass-file parameters
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--mode)
@@ -52,6 +52,13 @@ while [ $# -gt 0 ]; do
 	--pass)
 		if [ -n "$2" ]; then
 			PASS="$2"
+			shift
+			shift
+		fi
+		;;
+	--pass-file)
+		if [ -n "$2" ] && [ -r "$2" ]; then
+			PASS="$(cat "$2")"
 			shift
 			shift
 		fi
