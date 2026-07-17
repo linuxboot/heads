@@ -160,6 +160,26 @@ If you already have a provisioned USB Security dongle:
 3. Follow the steps.  After reflashing, reboot.
 4. Generate a new TOTP/HOTP secret when prompted.
 
+## Restoring Keys from Backup
+
+If you chose the in-memory backup path during OEM factory reset and your
+dongle is lost, broken, or wiped:
+
+1. Insert the backup USB thumb drive and your (new) dongle.
+2. Go to `Options -> GPG Management -> Reprovision smartcard from GPG key backup`.
+3. Enter the backup passphrase when prompted.
+4. Heads detects the key type from the backup, factory-resets the dongle,
+   restores the subkeys, and sets the card identity.
+5. After success, flash the public key to the running BIOS for persistence.
+6. Re-sign /boot via `Options -> Update checksums and sign all files in /boot`.
+
+This requires the LUKS-encrypted backup USB drive created during OEM factory
+reset (answer Y to "format an encrypted USB Thumb drive").  Without it, run
+a new OEM Factory Reset / Re-Ownership to rekey the device.
+
+After reprovisioning, the recovery shell and USB boot will require GPG
+smartcard authentication; see [recovery-shell.md](recovery-shell.md#authentication).
+
 ## Forgotten GPG User PIN
 
 From Recovery Shell with the dongle inserted:
