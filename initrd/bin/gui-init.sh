@@ -798,13 +798,7 @@ reset_tpm() {
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
 			mount -o rw,remount /boot
-			#TODO: this is really problematic, we should really remove the primary handle hash
-
-			STATUS "Removing rollback and primary handle hashes under /boot"
-
-			DEBUG "Removing /boot/kexec_rollback.txt and /boot/kexec_primhdl_hash.txt"
 			rm -f /boot/kexec_rollback.txt
-			rm -f /boot/kexec_primhdl_hash.txt
 
 			# create Heads TPM counter before any others
 			check_tpm_counter /boot/kexec_rollback.txt "" "$tpm_owner_passphrase" ||

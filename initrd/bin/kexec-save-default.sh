@@ -34,7 +34,6 @@ paramsdir="${paramsdir%%/}"
 TMP_MENU_FILE="/tmp/kexec/kexec_menu.txt"
 ENTRY_FILE="$paramsdir/kexec_default.$index.txt"
 HASH_FILE="$paramsdir/kexec_default_hashes.txt"
-PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
 KEY_DEVICES="$paramsdir/kexec_key_devices.txt"
 KEY_LVM="$paramsdir/kexec_key_lvm.txt"
 
@@ -290,17 +289,6 @@ done
 [ -e "$bootdir/kexec_initrd_crypttab_overrides.txt" ] && \
 	cp "$bootdir/kexec_initrd_crypttab_overrides.txt" "$stagedir/"
 DEBUG "Seeded $stagedir with existing config files from $paramsdir"
-
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ -f /tmp/secret/primary.handle ]; then
-		DEBUG "Hashing TPM2 primary key handle..."
-		sha256sum /tmp/secret/primary.handle > "$stagedir/kexec_primhdl_hash.txt" ||
-			DIE "ERROR: Failed to Hash TPM2 primary key handle!"
-		DEBUG "TPM2 primary key handle hash written to $stagedir/kexec_primhdl_hash.txt"
-	else
-		DIE "ERROR: TPM2 primary key handle file does not exist!"
-	fi
-fi
 
 # Remove old kexec_default.*.txt from staging; new entry written below
 rm "$stagedir"/kexec_default.*.txt 2>/dev/null || true
