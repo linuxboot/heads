@@ -8,8 +8,8 @@ TRACE_FUNC
 # Post processing of keys
 
 # Good system clock is required for GPG to work properly.
-# if system year is less then 2024, prompt user to set correct time
-if [ "$(date +%Y)" -lt 2024 ]; then
+# if system year is less then 2026, prompt user to set correct time
+if [ "$(date +%Y)" -lt 2026 ]; then
 	if whiptail_warning --title "System Time Incorrect" \
 		--yesno "The system time is incorrect. Please set the correct time." \
 		0 80 --yes-button Continue --no-button Skip --clear; then
