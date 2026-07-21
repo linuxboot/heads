@@ -172,6 +172,10 @@ All Active.
 - [ ] Novacustom v540tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
 - [ ] Novacustom v560tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
 
+Star Labs
+===
+- [ ] StarLite Mk V (Alder Lake-N): @Sean-StarLabs
+
 Desktops / Servers
 ==
 All EOL unless marked Active.
