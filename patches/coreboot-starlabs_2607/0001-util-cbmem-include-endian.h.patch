@@ -1,0 +1,27 @@
+From 739a3367f6064237b069940ee5ef3b4654032c9c Mon Sep 17 00:00:00 2001
+From: Sean Rhodes <sean@starlabs.systems>
+Date: Tue, 21 Jul 2026 11:37:21 +0100
+Subject: [PATCH] util/cbmem: include endian.h
+
+Include the declarations for the endian conversion helpers used by cbmem.
+
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ util/cbmem/cbmem.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/util/cbmem/cbmem.c b/util/cbmem/cbmem.c
+index 018ea871f9..f0afc5601d 100644
+--- a/util/cbmem/cbmem.c
++++ b/util/cbmem/cbmem.c
+@@ -12,6 +12,7 @@
+ #include <fcntl.h>
+ #include <ctype.h>
+ #include <arpa/inet.h>
++#include <endian.h>
+ #include <sys/stat.h>
+ #include <libgen.h>
+ #include <assert.h>
+-- 
+2.53.0
+

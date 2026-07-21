@@ -1,0 +1,74 @@
+From e89b2c530845a3897ad665b53f467e9c34de46c9 Mon Sep 17 00:00:00 2001
+From: Sean Rhodes <sean@starlabs.systems>
+Date: Fri, 21 Aug 2026 10:46:07 +0100
+Subject: [PATCH] mainboard/starlabs: Enable CSE for PTT devices
+
+Intel PTT requires CSE to remain operational. Move the disabled CSE
+default from the board families to the variants with discrete TPMs so
+PTT-backed variants default to an enabled CSE.
+
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ src/mainboard/starlabs/adl/Kconfig      | 2 +-
+ src/mainboard/starlabs/starbook/Kconfig | 4 +++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/mainboard/starlabs/adl/Kconfig b/src/mainboard/starlabs/adl/Kconfig
+index 57a83d4c16..fea848e825 100644
+--- a/src/mainboard/starlabs/adl/Kconfig
++++ b/src/mainboard/starlabs/adl/Kconfig
+@@ -2,7 +2,6 @@ config BOARD_STARLABS_ADL_SERIES
+ 	def_bool n
+ 	select AZALIA_USE_LEGACY_VERB_TABLE
+ 	select BOARD_ROMSIZE_KB_16384
+-	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_EFI_VARIABLE_STORE
+ 	select DRIVERS_INTEL_PMC
+ 	select DRIVERS_OPTION_CFR_ENABLED
+@@ -26,6 +25,7 @@ config BOARD_STARLABS_ADL_SERIES
+ 
+ config BOARD_STARLABS_ADL_HORIZON
+ 	select BOARD_STARLABS_ADL_SERIES
++	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_GFX_GENERIC
+ 	select DRIVERS_I2C_HID
+ 	select DRIVERS_USB_HUB
+diff --git a/src/mainboard/starlabs/starbook/Kconfig b/src/mainboard/starlabs/starbook/Kconfig
+index 14e4599376..43db40c1ad 100644
+--- a/src/mainboard/starlabs/starbook/Kconfig
++++ b/src/mainboard/starlabs/starbook/Kconfig
+@@ -3,7 +3,6 @@
+ config BOARD_STARLABS_STARBOOK_SERIES
+ 	def_bool n
+ 	select AZALIA_USE_LEGACY_VERB_TABLE
+-	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_EFI_VARIABLE_STORE
+ 	select DRIVERS_OPTION_CFR_ENABLED
+ 	select DRIVERS_I2C_HID
+@@ -49,6 +48,7 @@ config BOARD_STARLABS_LABTOP_CML
+ config BOARD_STARLABS_STARBOOK_TGL
+ 	select BOARD_ROMSIZE_KB_16384
+ 	select BOARD_STARLABS_STARBOOK_SERIES
++	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_INTEL_PMC
+ 	select DRIVERS_INTEL_USB4_RETIMER
+ 	select DRIVERS_USB_HUB
+@@ -65,6 +65,7 @@ config BOARD_STARLABS_STARBOOK_TGL
+ config BOARD_STARLABS_STARBOOK_ADL_COMMON
+ 	def_bool n
+ 	select BOARD_STARLABS_STARBOOK_SERIES
++	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_INTEL_PMC
+ 	select DRIVERS_USB_HUB
+ 	select EC_STARLABS_MERLIN
+@@ -100,6 +101,7 @@ config BOARD_STARLABS_STARBOOK_RPL
+ config BOARD_STARLABS_STARBOOK_MTL
+ 	select BOARD_ROMSIZE_KB_32768
+ 	select BOARD_STARLABS_STARBOOK_SERIES
++	select CSE_DEFAULT_CFR_OPTION_STATE_DISABLED
+ 	select DRIVERS_GFX_GENERIC
+ 	select DRIVERS_INTEL_PMC
+ 	select DRIVERS_USB_HUB
+-- 
+2.53.0
+
