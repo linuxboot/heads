@@ -262,7 +262,7 @@ jobs:
   #   See doc/circleci.md for full documentation.
   # Workspace chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
   # Seeds (one per unique toolchain): coreboot-4.11, coreboot-25.09,
-  #   coreboot-dasharo_nv4x, coreboot-purism
+  #   coreboot-dasharo_nv4x, coreboot-purism, coreboot-starlabs_2607
   # Dasharo v56/msi_z690/msi_z790 are build jobs, not x86_coreboot.
   x86_coreboot:
     executor: heads-docker
@@ -524,6 +524,15 @@ workflows:
           target: librem_14
           subcommand: ""
           coreboot_dir: coreboot-purism
+          requires:
+            - x86-musl-cross-make [cross compiler]
+
+      # Star Labs 26.07 fork
+      - x86_coreboot:
+          name: starlabs_lite_adl [seed:coreboot-starlabs_2607]
+          target: starlabs_lite_adl
+          subcommand: ""
+          coreboot_dir: coreboot-starlabs_2607
           requires:
             - x86-musl-cross-make [cross compiler]
 
