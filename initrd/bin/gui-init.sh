@@ -242,9 +242,10 @@ prompt_missing_gpg_key_action() {
 		retry_msg="Cannot sign /boot because no private GPG signing key is available ($DONGLE_BRAND not inserted, wiped, or key not set up).\n\nInsert your $DONGLE_BRAND and retry.\n\nHow would you like to proceed?"
 	fi
 	whiptail_error --title "ERROR: GPG signing key unavailable" \
-		--menu "$retry_msg" 0 80 4 \
+		--menu "$retry_msg" 0 80 5 \
 		'r' "$retry_label" \
 		'F' ' OEM Factory Reset / Re-Ownership' \
+		'K' ' Reprovision USB Security dongle from GPG key backup' \
 		'm' ' Return to main menu' \
 		'x' ' Exit to recovery shell' \
 		2>/tmp/whiptail || recovery "GUI menu failed"
@@ -256,6 +257,9 @@ prompt_missing_gpg_key_action() {
 		;;
 	F)
 		oem-factory-reset.sh
+		;;
+	K)
+		reprovision_smartcard_from_backup
 		;;
 	x)
 		recovery "User requested recovery shell"

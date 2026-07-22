@@ -268,6 +268,31 @@ How I tested these wrappers (smoke checks)
 - Minimal: `source docker/common.sh && build_docker_opts` — should print a short description and show flags such as `--device=/dev/kvm` when KVM is available and `-v /tmp/heads-docker-xauth-XXXXXX:...` (or `-v /tmp/.docker.xauth-<uid>:...` as fallback) when Xauthority was created.
 - Functional (examples tested by PR author): see the tests in the PR body (Ubuntu, Debian, Fedora installer flows). Consider testing `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run` locally to verify KVM+GTK behavior.
 
+Resetting state
+---
+
+QEMU boards using the default virtual token persist canokey and TPM state
+between runs.  To simulate a fresh dongle and TPM for testing:
+
+```bash
+# Wipe the virtual Canokey (new dongle, no keys on card).
+sudo rm -f build/x86/<BOARD>/.canokey-file
+
+# Wipe the virtual TPM (new TPM, no sealed secrets or counters).
+sudo rm -rf build/x86/<BOARD>/vtpm/
+```
+
+The next `make run` will create fresh `.canokey-file` and `vtpm/`
+directories automatically.  The Heads setup wizard will then offer OEM
+factory reset (F) or reprovision from backup (K).
+
+To preserve canokey state for reuse:
+
+```bash
+cp build/x86/<BOARD>/.canokey-file ~/Qemu_img/.canokey-file.bak
+cp ~/Qemu_img/.canokey-file.bak build/x86/<BOARD>/.canokey-file
+```
+
 Troubleshooting
 ---
 

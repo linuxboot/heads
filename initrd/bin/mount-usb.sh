@@ -8,14 +8,15 @@ TRACE_FUNC
 
 function usage() {
 	cat <<USAGE_END
-usage: $0 [options...] <--mode [ro|rw]> <--device device> <--mountpoint mountpoint> <--pass passphrase>
+usage: $0 [options...] <--mode [ro|rw]> <--device device> <--mountpoint mountpoint> [--pass passphrase|--pass-file /path/to/file]
        $0 --help
-       
+        
 parameters: 
   --mode: ro or rw (default ro)
   --device: device to mount (default: first USB device found)
   --mountpoint: where to mount the device (default: /media)
   --pass: passphrase for LUKS device (default: none)
+  --pass-file: path to file containing passphrase
   --help: Show this help
 USAGE_END
 }
@@ -52,6 +53,13 @@ while [ $# -gt 0 ]; do
 	--pass)
 		if [ -n "$2" ]; then
 			PASS="$2"
+			shift
+			shift
+		fi
+		;;
+	--pass-file)
+		if [ -n "$2" ] && [ -r "$2" ]; then
+			PASS="$(cat "$2")"
 			shift
 			shift
 		fi
