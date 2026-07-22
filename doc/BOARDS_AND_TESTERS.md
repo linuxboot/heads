@@ -77,6 +77,9 @@ Clevo
 - [ ] Novacustom v540tu (Meteor Lake: Intel Core Ultra 7 155H, Core Ultra Series 1 – 14th Gen Mobile): @tlaurion @daringer @mkopec
 - [ ] Novacustom v560tu (Meteor Lake: Intel Core Ultra 7 155H, Core Ultra Series 1 – 14th Gen Mobile): @tlaurion @daringer @mkopec
 
+Chromebooks
+===
+- [ ] Acer Chromebook Spin 714 CP714-1WN (KANO): @cwiggs
 
 Desktops / Servers
 ==
