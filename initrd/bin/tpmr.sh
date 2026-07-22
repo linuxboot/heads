@@ -991,11 +991,13 @@ tpm2_reset() {
 	# (using cache_owner_password() to avoid duplicating the write logic)
 	cache_owner_password "$tpm_owner_passphrase"
 
-	# 1. Ensure TPM2_Clear is allowed: clear disableClear via platform hierarchy.
-	#    This makes future clears (Owner/Lockout) possible and avoids a 'no clear' stuck state.
+    # 1. Request that TPM2_Clear be allowed by clearing the disableClear flag
+    #    via the platform hierarchy.  Some TPMs (e.g. Google CR50) do not
+    #    implement ClearControl; continue regardless since those TPMs typically
+    #    do not have disableClear set.  If disableClear is actually set, the
+    #    following TPM2_Clear will report the error.
 	if ! DO_WITH_DEBUG tpm2 clearcontrol -C platform c >/dev/null 2>&1; then
-		LOG "tpm2_reset: unable to clear disableClear via platform hierarchy"
-		return 1
+		LOG "tpm2_reset: unable to clear disableClear; attempting TPM2_Clear anyway"
 	fi
 
 	# 2. Factory-style clear via platform hierarchy.

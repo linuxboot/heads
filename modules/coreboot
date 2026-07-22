@@ -183,6 +183,11 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
+# MrChromebox is based on 26.03, but focusing on Chromebooks / Chromeboxes.
+coreboot-mrchromebox_repo := https://github.com/MrChromebox/coreboot.git
+coreboot-mrchromebox_commit_hash := f8244f2508d486d833eb8dee5c0b1d777cf37d39
+$(eval $(call coreboot_module,mrchromebox,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
@@ -198,6 +203,18 @@ coreboot_base_dir := $($(coreboot_module)_base_dir)
 
 $(coreboot_module)_depends += $(if $(CONFIG_PURISM_BLOBS), purism-blobs)
 $(coreboot_module)_depends += $(if $(CONFIG_DASHARO_EC), dasharo-ec)
+
+# All boards have CONFIG_USE_BLOBS=y and all coreboot forks have
+# update=none in .gitmodules for 3rdparty/blobs (and amd_blobs, qc_blobs,
+# nvidia-cbootimage).  These are intentionally skipped by .canary's blanket
+# `git submodule update --init --checkout` -- they are only fetched later
+# when the board's Kconfig enables them.
+#
+# Coreboot's own Makefile.mk handles this via lazy $(shell) calls during
+# `olddefconfig` (.configured), e.g.:
+#   $(shell git submodule update --init --checkout 3rdparty/blobs)
+# The explicit submodule path overrides update=none.  All other coreboot
+# forks rely on this mechanism and do not need extra handling here.
 
 # coreboot builds are specialized on a per-target basis.
 # The builds are done in a per-target subdirectory
@@ -337,6 +354,23 @@ $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 		--board-dir "$(build)/$(BOARD)" \
 		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
 	@echo ""
+	@if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" ]; then \
+		echo "==================================================================="; \
+		echo "ME Runtime State (HAP/AltMeDisable)"; \
+		echo "==================================================================="; \
+		platform="$$(grep '^CONFIG_IFD_CHIPSET=' "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" | cut -d'"' -f2 || true)"; \
+		platflag=""; \
+		if [ -n "$$platform" ]; then \
+			platflag="--platform $$platform"; \
+		fi; \
+		"$(build)/$(coreboot_dir)/util/ifdtool/ifdtool" $$platflag -M 1 "$(dir $<)$(CONFIG_COREBOOT_ROM)" \
+			-O "$(dir $<)$(CONFIG_COREBOOT_ROM).new" && \
+		mv "$(dir $<)$(CONFIG_COREBOOT_ROM).new" "$(dir $<)$(CONFIG_COREBOOT_ROM)" || exit 1; \
+		echo "==================================================================="; \
+		echo "ME HAP bit applied -- ME will disable after hardware init"; \
+		echo "==================================================================="; \
+		echo ""; \
+	fi
 	$(call do-copy,$(dir $<)$(CONFIG_COREBOOT_ROM),$@)
 	@touch $@   # update the time stamp
 
