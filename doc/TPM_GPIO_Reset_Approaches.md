@@ -599,13 +599,13 @@ For all platforms:
 #   - Requires: bash, dd, xxd, /dev/mem access (CONFIG_STRICT_DEVMEM=n)
 
 # Step 2: Audit mode (safe -- reports vulnerability)
-./initrd/bin/tpm-gpio-reset-demo.sh --audit
+./tpm-gpio-reset-demo.sh --audit
 
 # Step 3: Check current PCR state
 pcrs   # Or: tpm2 pcrread
 
 # Step 4: Execute mode (performs GPIO toggle, checks PCRs)
-./initrd/bin/tpm-gpio-reset-demo.sh --execute
+./tpm-gpio-reset-demo.sh --execute
 
 # Step 5: Report the following information:
 #   - Platform: model, BIOS version, coreboot version
