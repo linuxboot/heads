@@ -28,63 +28,34 @@ Condition 3 proved unexpectedly difficult on ADL-P. This document explains why.
 ### 1.1 Register Addresses Verified Against coreboot 26.06
 
 All register addresses were cross-checked against coreboot 26.06 source code
-(`src/soc/intel/` headers and Kconfig files) and the kukrimate/tpm-gpio-fail
-reference implementation (`reset/inteltool.c`). Bit field definitions (PADRSTCFG,
-mode mask) were verified against the Linux kernel pinctrl-intel.c
-(`PADCFG0_RESET_MASK = GENMASK(31,30)`, `PADCFG0_PMODE_MASK = GENMASK(13,10)`,
-all GPL-2.0, `drivers/pinctrl/intel/`).
+and the kukrimate/tpm-gpio-fail reference implementation. Bit field definitions
+(PADRSTCFG, mode mask) were verified against the Linux kernel pinctrl-intel.c.
 
-| Platform | PCI Device IDs | PCR Port | PAD_CFG Base | Lock Offset | Coreboot Source |
-|---|---|---|---|---|---|
-| **CNP-LP** (KBL-R/WHL/CML) | 0x9d84-0x9d8f | 0x6e (PID_GPIOCOM0) | 0x600 | none | `src/soc/intel/cannonlake/gpio.c` |
-| **CML-U** (Comet Lake U 400 Series) | 0x0660-0x0661 | 0x6E | 0x600 | 0x88 | `src/soc/intel/cannonlake/` |
-| **SPT/KBP** (SKL/KBL) | 0xa143-0xa154, 0xa2c4-0xa2d2 | 0xaf (PID_GPIOCOM0) | 0x400 | 0x80 | `src/soc/intel/skylake/include/soc/gpio_defs.h` |
-| **TGL** (Tiger Lake) | 0xa082-0xa08f, 0xa0a0-0xa0a7 | 0x6e | 0x700 | 0x80 | `src/soc/intel/tigerlake/` |
-| **ADL-P** (mobile 12th gen) | 0x5180-0x519f | 0x6e (PID_GPIOCOM0) | 0x700 | 0x80 | `src/soc/intel/alderlake/include/soc/gpio_defs.h` |
-| **ADL-S** (desktop 12th gen) | 0x7a80-0x7a8c | 0x6d (PID_GPIOCOM1) | 0x700 | 0x110 | `src/soc/intel/alderlake/include/soc/gpio_defs_pch_s.h` |
-| **RPL-S** (desktop 13th/14th gen) | 0x7a0c-0x7a17 | 0x6d (PID_GPIOCOM1) | 0x700 | 0x110 | `src/soc/intel/alderlake/include/soc/gpio_defs_pch_s.h` |
-| **MTL** (Meteor Lake) | (from CPUID) | 0xD5 | varies | varies | `src/soc/intel/meteorlake/include/soc/gpio_defs.h` |
+See `initrd/bin/tpm-gpio-reset-demo.sh` for the authoritative per-platform
+register map:
 
-Note: MTL uses a different GPIO community layout. Per Intel doc 834810, MTL port is 0xD5 (not 0x6E like ADL).
+- Header comments (lines 50-76): port, pad index, PAD_CFG_BASE, lock offset
+  per platform family (CNP-LP, SPT/KBP, ADL-P, ADL-S, RPL-S, MTL).
+- `detect_platform()` case statement (lines 260-368): PCI device ID to
+  platform parameter mapping.
+- `calculate_registers()` (lines 533-620): full address computation from
+  PCR_BASE, community port, pad index, and PAD_CFG_BASE, including the
+  per-pad register layout (2 vs 4 DWORDS per pad) for each generation.
 
-Note: Intel doc 834810 does not cover pre-Tiger Lake platforms. SPT/KBP (Skylake/Kaby Lake) PADCFGLOCK offsets (0xA8 per kukri) have no public Intel verification.
+Note: Intel doc 834810 does not cover pre-Tiger Lake platforms. SPT/KBP
+(Skylake/Kaby Lake) PADCFGLOCK offsets (0xA8 per kukri) have no public
+Intel verification.
 
-Note: CML-U (0x066x) and some CML-U steppings in the 0x9d8* range have PADCFGLOCK at 0x88. Not all 0x9d8* devices have lock registers -- verify per-stepping. CNP-LP proper (0x9d84) is confirmed to lack the register.
-
-Key verification details:
-
-- **ADL-P (NV4x)**: GPP_B13 = local pad index 13 in GPIO community 0 (PID = 0x6e).
-  PAD_CFG_BASE = 0x700. Each pad occupies 4 DWORDS (16 bytes).
-  DW0 address = PCR_BASE + (0x6e << 16) + 0x700 + (13 * 16).
-  With PCR_BASE = 0xFD000000 (ADL-P mobile): target = 0xFD6E07D0.
-
-- **ADL-S/RPL-S**: GPP_B13 = local pad index 13 in GPIO community 1 (PID = 0x6d).
-  Same PAD_CFG_BASE = 0x700, same pad layout. PCR_BASE = 0xE0000000 (desktop).
-  Target = 0xE06D07D0.
-
-- **SPT/KBP**: GPP_B13 = global pad 37 (GPP_A0=0..23, GPP_B0=24, GPP_B13=37).
-  Port 0xaf (PID_GPIOCOM0). PAD_CFG_BASE = 0x400. Each pad = 2 DWORDS
-  (8 bytes per `skylake/gpio_defs.h` line 12: `GPIO_NUM_PAD_CFG_REGS 2`).
-  Target = community base + PAD_CFG_BASE + (37 * 8) = 0xFDAF0000 + 0x400 + 0x128
-  = 0xFDAF0528 (with PCR_BASE = 0xFD000000, port shift 0xAF).
-
-- **CNP-LP**: GPP_B13 = local pad 38 (COMM_0, first pad = GPP_A0 = 0 per
-  `cannonlake/gpio.c`). Port 0x6e (PID_GPIOCOM0). PAD_CFG_BASE = 0x600.
-  No PADCFGLOCK register exists on CNL-LP (pad_cfg_lock_offset=0).
-  Target = community base + PAD_CFG_BASE + (38 * 16) = 0xFD6E0000 + 0x600
-  + 0x260 = 0xFD6E0860 (with PCR_BASE = 0xFD000000, port shift 0x6E).
-
-  **Note on pad_cfg_lock_offset=0**: Coreboot sets pad_cfg_lock_offset=0 for
-  CNP-LP communities. This could mean "no lock register exists" OR "lock register
-  at community base+0." Practical testing shows PADCFGLOCK reads return 0x00000000,
-  consistent with either interpretation. Intel doc 834810 shows CML-U steppings
-  have PADCFGLOCK at 0x88, suggesting lock registers were added mid-generation.
+Note: CML-U (0x066x) and some CML-U steppings in the 0x9d8* range have
+PADCFGLOCK at 0x88. Not all 0x9d8* devices have lock registers -- verify
+per-stepping. CNP-LP proper (0x9d84) is confirmed to lack the register.
 
 ### 1.2 Platform Detection via PCI Device ID
 
 Platform detection uses the ISA/LPC bridge (class 0x0601, device 00:1f.0 on Intel).
-PCI device IDs map to PCH families as shown in the table above. This is reliable
-across all Linux kernels and does not depend on DMI data or board config.
+PCI device IDs map to PCH families as documented in the script's `detect_platform()`
+function. This is reliable across all Linux kernels and does not depend on DMI data
+or board config.
 
 **Definitive results from NV4x ADL-P testing (debug mode, 2026-07-22):**
 
@@ -130,52 +101,32 @@ is needed.
 PADCFGLOCK and PADCFGLOCKTX registers are read/writable via `/dev/mem` on ADL-P
 when `CONFIG_STRICT_DEVMEM=n` (Heads default).
 
-- **ADL-P**: PADCFGLOCK at community base + 0x80 = 0xFD6E0080.
-  PADCFGLOCKTX at community base + 0x84 = 0xFD6E0084.
-  Values read on NV4x: 0x00010203 (PADCFGLOCK), 0x00000000 (PADCFGLOCKTX).
-  Bit 13 (GPP_B13) is NOT set in either register -- pad is NOT locked.
+See `initrd/bin/tpm-gpio-reset-demo.sh` for per-platform lock register
+addresses: the `_get_lock_base()` helper function (lines 853-866) maps each
+PCH family to its PADCFGLOCK offset, and `check_lock_registers()` (lines
+1062-1099) performs the read/check at runtime.
 
-- **ADL-S/RPL-S**: PADCFGLOCK at community base + 0x110.
-  PADCFGLOCKTX at + 0x114.
-
-- **SPT/KBP, CNP-LP**: PADCFGLOCK at community base + 0x80.
+NV4x ADL-P readings: PADCFGLOCK=0x00010203 (bits 0,8,17 set; GPP_B13 bit 13
+NOT set), PADCFGLOCKTX=0x00000000. Pad is NOT locked.
 
 ### 1.4 GPIO Lock Status per Dasharo/Purism Forks
 
-Verified from build trees of Dasharo forks used by NovaCustom:
+See `doc/TPM_GPIO_Reset_Vulnerability.md` section "coreboot GPIO Lock Status
+by Platform Generation" for per-platform Kconfig selection, code paths, and
+non-functional lock status analysis. Key findings specific to NV4x:
 
-**Dasharo fork (NV4x/NS50/Z790-P)**:
-- `SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI` is SELECTED in Kconfig.
-- `SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS` is DISABLED (config.h shows `=0`).
-- No `soc_gpio_lock_config()` override exists in any board file.
-- No board GPIO tables use `_LOCK` macros or set `lock_action` fields.
-- `pad_cfg_lock_offset` is populated in 5 of 6 GPIO community structs
-  (some have 0/0 entries where cores share a community, but the communities
-  that contain GPP_B pins have valid lock offsets).
+- Dasharo fork (NV4x/NS50/Z790-P): SBI lock method compiled but never called
+  because no board GPIO table entries use `PAD_CFG_LOCK`. Pad is NOT locked.
+- Purism fork (Librem 14, Tiger Lake): No GPIO lock Kconfig selected, no
+  `pad_cfg_lock_offset`. Pad is NOT locked.
 
-Conclusion: GPIO locking in the non-SMM path (`gpio_non_smm_lock_pad()`) is
-technically compiled in (SBI method selected), but is never called because no
-board GPIO table entries use `PAD_CFG_LOCK` attributes. The pad is NOT locked.
+**Important caveat:** All Dasharo fork GPIO lock analysis is based on build
+tree inspection (Kconfig, source code, FSP UPDs). No Dasharo firmware image
+with PADCFGLOCK actually set has been tested on hardware. The claim that
+"adding PAD_CFG_NF_LOCK to board GPIO tables would lock GPP_B13" is theoretical.
 
-**Important caveat:** All Dasharo fork GPIO lock analysis in this document is
-based on build tree inspection (Kconfig, source code, FSP UPDs). No Dasharo
-firmware image with PADCFGLOCK actually set has been tested on hardware. The
-claim that "adding PAD_CFG_NF_LOCK to board GPIO tables would lock GPP_B13" is
-theoretical.
-
-**Star Labs PchUnlockGpioPads fix (commit 06f3c07):** Sean Rhodes (Star Labs)
-identified and fixed the inverted PchUnlockGpioPads logic on Alder Lake -- the
-original code had `PchUnlockGpioPads = lockdown_by_fsp` (setting the UPD to 0
-when coreboot should manage lockdown, which is the correct semantic, but the
-variable name implies the opposite of what it does). The standalone fix exists at
-commit 06f3c07 and is also part of the larger coreboot patch series 93422 (split
-FSP lockdown, updated July 22 2026). Currently awaiting Intel maintainer review.
-
-**Purism fork (Librem 14, etc.)**:
-- Uses Tiger Lake SoC (`SOC_INTEL_TGL`).
-- `SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_*` NOT selected (CML/TGL lack Kconfig).
-- No `pad_cfg_lock_offset` in GPIO community structs.
-- Pad is NOT locked.
+The Star Labs PchUnlockGpioPads fix (commit 06f3c07, patch 93422) is described
+in `doc/TPM_GPIO_Reset_Vulnerability.md` (see "Upstream Tracking").
 
 ---
 
@@ -183,167 +134,72 @@ FSP lockdown, updated July 22 2026). Currently awaiting Intel maintainer review.
 
 ### Approach 1: GPIO Pad Reprogramming (Native -> GPIO Output -> Toggle -> Restore)
 
-**What we did:**
-1. Read DW0 + DW1 of GPP_B13 pad config registers via `/dev/mem`.
-2. Saved original values.
-3. Wrote 0x80000000 to DW0 (sets mode bits to GPIO output and bit 31 to assert).
-4. Wrote 0x00000000 to DW1.
-5. Waited 1 second with PLTRST# asserted.
-6. Restored original DW0 and DW1 (deasserts PLTRST#).
-7. Read PCR 2 to check if it cleared.
+**What we did:** Read DW0/DW1 of GPP_B13 via `/dev/mem`, save originals, write
+0x80000000 to DW0 (GPIO output + bit 31), write 0 to DW1, wait 1s, restore
+originals. See `assert_pltrst()` in `initrd/bin/tpm-gpio-reset-demo.sh` for
+the exact implementation.
 
 **Result on NV4x (ADL-P):**
-- DW0 write verified by readback (LE bytes "00000080" returned, correct for 0x80000000).
-- Pad successfully transitioned to GPIO mode (confirmed by mode bits in readback).
+- DW0 write verified by readback (LE bytes "00000080" returned).
+- Pad transitioned to GPIO mode (confirmed by mode bits in readback).
 - PCR 2 did NOT clear -- remained non-zero after the toggle.
 - `/sys/class/tpm/tpm0/pcrs` NOT FOUND -- kernel TPM driver detected no bus reset.
 
-**Why it failed:**
-The write to PAD_CFG DW0 changes the pad mode, and we can verify the register
-value changed. However, driving GPP_B13 as a GPIO output on ADL-P does NOT
-assert the PLTRST# signal to the TPM. The pad may not be electrically connected
-to the TPM reset line on this PCH die. Hardware testing (NV4x ADL-P) showed
-PCR 2 remained non-zero and /sys/class/tpm/tpm0/pcrs was not found after GPIO
-assertion -- the kernel TPM driver detected no bus reset.
-
-The kukrimate reference implementation (`inteltool.c`) does NOT include ADL-P
-device IDs. Its `reset` directory targets CNP-LP (ThinkPad T480s) where the
-mechanism is believed to work. ADL-P was not tested by the original researcher.
+**Why it failed:** Changing DW0 mode bits does not drive PLTRST# on the
+electrical pin on ADL-P. The pad may not be routed to the TPM reset line on
+this PCH die. The kukrimate reference implementation (`inteltool.c`) does NOT
+include ADL-P device IDs and was not tested by the original researcher.
 
 ### Approach 2: Kukrimate-Style Direct Register Write (0x80000000 to DW0)
 
-**What we did:**
-Essentially the same as Approach 1 but following kukrimate's inteltool.c more
-precisely:
-1. Save DW0 and DW1.
-2. Write 0x80000000 to DW0 (PADRSTCFG bits[31:30]=10b = PLTRST reset domain,
-   mode bits[13:10]=0000b = GPIO mode, TX bit[0]=0 = drive low).
-3. Wait.
-4. Write 0x00000000 to DW1.
-5. Wait.
-6. Restore both.
+**What we did:** Same as Approach 1 but following kukrimate's inteltool.c precisely
+(save DW0/DW1, write 0x80000000, wait, write 0 to DW1, restore).
 
-**Result on NV4x:**
-Identical to Approach 1. Write verified, PCR 2 still non-zero.
+**Result on NV4x:** Identical to Approach 1 -- write verified, PCR 2 still non-zero.
 
-**Why it failed:**
-Same root cause as Approach 1. The PADRSTCFG field (bits[31:30] of DW0) selects
-the pad's reset trigger source per the Linux kernel pinctrl-intel.c
-(PADCFG0_RESET_MASK = GENMASK(31,30)); it does NOT trigger a reset on the
-signal connected to the pad. Setting PADRSTCFG=PLTRST (10b) makes the pad
-reset when the PLTRST# bus is asserted -- it does not assert PLTRST# itself.
-On ADL-P GPP_B13, changing DW0 to 0x80000000 does not assert PLTRST# (PCRs
-not cleared).
-
-Note: PAD_CFG_DW0 PADRSTCFG field is bits[31:30] (not bit 31 alone) --
-values 00=PWROK, 01=DEEP, 10=PLTRST, 11=RSMRST (per Linux kernel
-pinctrl-intel.c PADCFG0_GPIORXSTATE and DW0 field definitions).
-Setting DW0 = 0x80000000 sets bits[31:30]=10b (PLTRST reset domain) plus
-bits[13:10]=0000b (GPIO mode) plus bit[0]=0 (TX low). This configures the
-pad to use PLTRST as its reset source -- it does NOT assert PLTRST# on the
-output. Misunderstanding this bit field was an early error.
-
-Note: PADRSTCFG field positions are documented for SPT/KBP (2-DWORD pad layout). ADL-P uses 4 DWORDS per pad; the reset configuration register may be at a different offset. Intel doc 834810 covers ADL-P register layout but may not document this field explicitly.
+**Why it failed:** The PADRSTCFG field (DW0 bits[31:30]) selects the pad's own reset
+trigger source per Linux pinctrl-intel.c (`PADCFG0_RESET_MASK = GENMASK(31,30)`);
+it does NOT assert PLTRST# on the output signal. 0x80000000 sets PADRSTCFG=PLTRST
+as the pad's reset source, GPIO mode, and TX=0 -- the pad will reset when PLTRST#
+is asserted by the PCH, but the pad does not drive PLTRST#. ADL-P uses 4-DWORD
+pads; Intel doc 834810 may document this field at a different offset for ADL-P
+than for SPT/KBP (2-DWORD) layouts.
 
 ### Approach 3: Dynamic SBREG_BAR Reading via P2SB PCI Config Space
 
-**What we did:**
-Attempted to read SBREG_BAR dynamically from the P2SB (Primary to Sideband)
-bridge at PCI device 00:1f.1:
-1. Read SBREG_BAR register at P2SB PCI config offset 0x10 (BAR0).
-2. Unhide P2SB by writing 0 to the hidden bit (bit 0 of BCTRL at offset 0xe0).
-3. Read BAR0 after unhiding.
-4. Use the BAR value to calculate PCR base for GPIO community access.
+**What we did:** Attempted to read SBREG_BAR from P2SB (00:1f.1) by unhiding it
+and reading BAR0.
 
-**Result on NV4x:**
-- PCI config reads of P2SB at 00:1f.1 returned 0xffffffff for BAR0
-  (indicating the device is hidden or config space is blocked).
-- Writing to unhide P2SB (offset 0xe0, clear bit 0) had no effect -- writes
-  silently ignored.
-- MMCFG base (0xE0000000) approach also failed -- config space reads returned
-  0xffffffff for P2SB registers.
-- Shell arithmetic overflowed on 64-bit register values (BusyBox `sh` uses
-  32-bit integer arithmetic).
+**Result on NV4x:** P2SB is hidden by FSP-S and MASKLOCK'd (bit 8 of BCTRL) --
+writes to unhide are silently ignored. PCI config returns 0xffffffff.
 
-**Why it failed:**
-P2SB is hidden by FSP-S (Firmware Support Package -- Silicon initialization)
-early in the boot process. The FSP sets the HIDE bit (bit 0 of P2SB PCI
-config offset 0xe0) during POST, and on ADL-P this bit is locked via
-MASKLOCK (bit 8 of the same register) -- meaning even software running at
-ring 0 cannot unhide the P2SB.
+**Why it failed:** FSP-S locks the P2SB HIDE bit during POST. Hidden devices are
+not in the kernel's PCI bus topology. See Section 3.1 for the SBI alternative.
 
-The MMCFG approach is also unreliable because the kernel's PCI config space
-access (via MMCONFIG or legacy I/O) only exposes devices enumerated by the
-PCI bus driver. Hidden devices are not in the bus topology and cannot be
-reached through standard PCI configuration mechanisms.
-
-Hardcoded PCR_BASE values remain the most reliable approach:
-- ADL-P mobile: 0xFD000000
-- ADL-S/RPL-S desktop: 0xE0000000
-- SPT/KBP, CNP-LP: 0xFD000000
+Hardcoded PCR_BASE values remain reliable: ADL-P mobile=0xFD000000,
+ADL-S/RPL-S desktop=0xE0000000, SPT/KBP/CNP-LP=0xFD000000.
 
 ### Approach 4: chipsec Analysis of PCR Access Mechanism
 
-**What we did:**
-Analyzed chipsec source code (`source/tool/chipsec/helper/linux/linuxhelper.py`
-and GPIO helper modules) to understand its PCR register access path:
-1. chipsec uses hardcoded SBREG_BAR = 0xFD000000 (same as our hardcoded value).
-2. chipsec mmaps `/dev/mem` at the SBREG offset, same as our `dd` approach.
-3. chipsec provides a decision tree via `tpm_gpio_fail` module for evaluating
-   vulnerability.
+**What we did:** Analyzed chipsec source code to understand its PCR MMIO access
+path and `tpm_gpio_fail` module decision tree.
 
-**Key findings from chipsec analysis:**
-
-**Write Verification:**
-chipsec's `tpm_gpio_fail` module reads DW0 after writing and checks for the
-"correct" mode change. The same LE byte check we use ("00000080" after writing
-0x80000000) is how chipsec confirms the write took effect. chipsec would confirm
-"write succeeded" on our NV4x test -- exactly what we observed.
-
-**chipsec Solution 4 -- TX State Toggle:**
-chipsec's solution 4 (toggle TX state) only works if the pad is already in
-GPIO output mode. It drives the GPIO output value HIGH then LOW to simulate
-a PLTRST# pulse. Our pad IS in GPIO mode after our write (we successfully
-transitionsed it), but toggling TX state still doesn.t assert PLTRST# on
-ADL-P.
-
-**chipsec Solution 5 -- P2SB SBI Write:**
-chipsec also describes an SBI (Sideband Interface) write path that bypasses
-the GPIO pad entirely by sending a sideband message to the PCH. This requires:
-1. Unhiding the P2SB bridge (needs BUCLEAR bit, likely MASKLOCK'd).
-2. Sending an SBI message to the PCH's sideband fabric.
-3. Writing the pad config through the sideband interface instead of MMIO.
-
-This path was not tested because P2SB is MASKLOCK'd on ADL-P (see Approach 3).
+**Key finding:** chipsec uses the same hardcoded SBREG_BAR=0xFD000000 and the same
+`dd`-style mmap via `/dev/mem`. chipsec would confirm "write succeeded" on NV4x
+using the same LE byte readback check we use. chipsec's SBI write solution
+(solution 5) was not tested -- P2SB is MASKLOCK'd (see Approach 3).
 
 ### Approach 5: PADCFGLOCK / PADCFGLOCKTX Check
 
-**What we did:**
-Read the PADCFGLOCK register at 0xFD6E0080 and PADCFGLOCKTX at 0xFD6E0084
-to verify whether the GPIO pad lock was blocking our writes:
+**What we did:** Read PADCFGLOCK at 0xFD6E0080 to verify whether lock bits
+blocked our writes.
 
-```bash
-dd if=/dev/mem bs=4 count=1 skip=$((0xFD6E0080 / 4)) 2>/dev/null | xxd -p
-# Returns: 03020100  (LE for 0x00010203)
-```
+**Result on NV4x:** PADCFGLOCK=0x00010203 (bits 0, 8, 17 set; bit 13/GPP_B13 NOT
+set). PADCFGLOCKTX=0x00000000. Pad is NOT locked.
 
-**Result on NV4x:**
-- PADCFGLOCK = 0x00010203 -- bit 13 (GPP_B13) is NOT set (bit 13 = 0x2000,
-  register has 0x00010203 = bits 0, 8, 17 set for other pads).
-- PADCFGLOCKTX = 0x00000000 -- no pads have TX state locked.
-- Both registers readable (not blocked by kernel).
-
-**Bit 17 analysis:** Bit 17 in PADCFGLOCK dword 0 corresponds to GPP_A17 or
-GPP_B17 (depending on community). The fact that bit 17 is locked while bit 13
-(GPP_B13, our target) is NOT locked was observed but not analyzed. This may
-indicate platform-specific lock assignments beyond what coreboot GPIO community
-tables document.
-
-**Why it didn't help:**
-The lock registers confirmed what we already suspected: the pad is NOT locked.
-This rules out "lock prevented write" as a failure mode. The pad write was
-successfully verified by readback. The mechanism itself simply does not work
-on ADL-P.
+See `check_lock_registers()` in `initrd/bin/tpm-gpio-reset-demo.sh` for
+per-platform PADCFGLOCK/PADCFGLOCKTX address calculation and the
+`_get_lock_base()` helper for lock offset mapping (lines 853-866).
 
 ### Approach 6: NF1 Mode Forcing (GPIO → NF1 → GPIO+TX=0)
 
@@ -370,49 +226,24 @@ mode. Attempted to force NF1 mode first by writing 0x40000401 (NF1 + TX=deassert
 
 ### Approach 7: TX Bit Toggle (TX=1 → TX=0 When Mode Bits Locked)
 
-**What we did:**
-When mode bits [13:10] are hardware-locked, the pad stays in GPIO mode. But the
-TX bit (bit 0 of DW0) may still be writable. Toggling TX high→low creates a
-falling edge on the pad output — PLTRST# is active-low, so any high→low
-transition should assert the reset:
+**What we did:** Since mode bits [13:10] are locked, tried toggling only the TX bit
+(write 0x80000001 → 0x80000000) to create a falling edge on the pad output.
 
-1. Write 0x80000001 (GPIO mode, TX=1, PLTRST reset domain) — drive pad high.
-2. Wait 100ms.
-3. Write 0x80000000 (GPIO mode, TX=0) — drive pad low, creating falling edge.
-
-**Result on NV4x (ADL-P):**
-- TX=1 write (0x80000001): readback **0x03000080**, TX=0. Anomalous.
-  PADCFGLOCKTX=0x00000000 (unlocked per coreboot docs — TX should be writable).
-  However the readback 0x03000080 has bits 7, 24, 25 set — these do not map to
-  any defined DW0 register field on ADL-P. May be a PCR sideband read artifact.
-- TX=0 write (0x80000000): readback 0x00000080, verified.
-- `/sys/class/tpm/tpm0/pcrs` **NOT FOUND** — no bus reset detected.
-- **Cannot definitively confirm TX locking.** Inconclusive without physical scope.
+**Result on NV4x (ADL-P):** TX=1 write readback was 0x03000080 (anomalous -- bits
+7, 24, 25 set but TX=0). TX=0 write verified. PADCFGLOCKTX=0x00000000 (unlocked).
+`/sys/class/tpm/tpm0/pcrs` NOT FOUND. Inconclusive without physical scope.
 
 ### Approach 8: kukrimate sysfs PCR Verification
 
-**What we did:**
-kukrimate's PoC verifies PCRs via `/sys/class/tpm/tpm0/pcrs` (world-readable
-sysfs file), not `tpm2 pcrread`. The sysfs pcrs file only appears after the
-kernel TPM driver completes `tpm2_auto_startup()`, which runs when the driver
-detects a bus reset. If sysfs pcrs is present, the kernel saw a reset.
+**What we did:** Used `/sys/class/tpm/tpm0/pcrs` (kukrimate's PCR verification
+method) instead of `tpm2 pcrread`. The sysfs pcrs file only appears after the
+kernel TPM driver detects a bus reset via `tpm2_auto_startup()`.
 
-**Result on NV4x (ADL-P):**
-- `/sys/class/tpm/tpm0/pcrs` **NOT FOUND** after GPIO assertion.
-- `tpm2 startup -c` succeeds regardless (manual startup after `tpmr.sh shutdown`).
-- `tpmr.sh startsession` recreates encrypted sessions on manually-started TPM.
-- `tpm2 pcrread sha256` (all-PCR) hangs; `tpm2 pcrread sha256:0` (single-PCR)
-  sometimes succeeds, sometimes hangs — inconsistent `/dev/tpm0` access after
-  manual startup.
-
-**Conclusion (also verified by the script's 4h check):** The kernel TPM driver
-did NOT detect a bus reset (`/sys/class/tpm/tpm0/pcrs` absent after GPIO toggle).
-PCR clearing observed in test runs is from `tpm2 startup -c` alone (the first
-startup after `tpmr.sh shutdown` is a valid CLEAR startup per TCG spec, TPM
-2.0 Part 1 Section 12.2.3.2). Whether PLTRST# was ever pulsed is
-indistinguishable from software diagnostics. The script now reports this
-distinction explicitly in step 4h: bus reset CONFIRMED vs software-only
-startup ("PLTRST# NOT confirmed").
+**Result on NV4x (ADL-P):** `/sys/class/tpm/tpm0/pcrs` NOT FOUND after GPIO
+assertion. `tpm2 startup -c` succeeds, `tpmr.sh startsession` succeeds, but all
+PCR clearing is from `TPM2_Startup(CLEAR)` alone per TCG 2.0 Part 1 Section
+12.2.3.2. The kernel driver detected no bus reset. See `post_assertion_cleanup()`
+in the script for the sysfs pcrs check logic (lines 1216-1233).
 
 ---
 
@@ -420,65 +251,27 @@ startup ("PLTRST# NOT confirmed").
 
 ### 3.1 P2SB SBI Write
 
-**What it would involve:**
-1. Unhide P2SB by clearing the HIDE bit (bit 0) at BCTRL register (offset 0xe0).
-2. If MASKLOCK'd (bit 8 = 1), this is impossible without firmware modification.
-3. Once unhidden, send an SBI message to write the pad config register through
-   the sideband interface rather than MMIO.
-
-**Why we didn't attempt:**
-P2SB is likely MASKLOCK'd by FSP-S on ADL-P. There is no documented path to
-unlock it from userspace. Even modifying the coreboot build to skip the
-MASKLOCK (Dasharo fork) would not help for a runtime PoC -- you'd need a
-custom firmware build, which defeats the purpose of demonstrating a no-physical-
-access attack.
+Would require unhiding P2SB (MASKLOCK'd by FSP-S on ADL-P) and sending
+sideband messages through undocumented Intel NDA protocols. Not feasible
+without custom firmware.
 
 ### 3.2 CF9 Reset
 
-**What it would involve:**
-Writing to I/O port 0xCF9 to trigger a full platform reset:
-```c
-outb(0x06, 0xCF9);  // Full reset (CPU + chipset)
-```
-
-**Why we didn't attempt:**
-CF9 reset reboots the entire system. The TPM would also reset, but so would
-the CPU and chipset, losing kernel state. The attack requires the attacker's
-code to survive the reset (for PCR replay), which CF9 reset prevents.
-
-A more targeted variant would be a "warm reset" via CF9 (0x04 or 0x0E), but
-this still reboots the platform, and there's no guarantee the TPM would reset
-independently of the CPU.
+Writing to I/O port 0xCF9 reboots the entire system (CPU + chipset), losing
+kernel state. The attack requires attacker code to survive the reset for PCR
+replay, which CF9 reset prevents.
 
 ### 3.3 Custom Dasharo Build with GPIO Locking Disabled
 
-**What it would involve:**
-Modifying the Dasharo board file for NV4x to explicitly disable GPIO pad
-locking (remove any `PAD_CFG_LOCK` entries), build a custom firmware image,
-flash it, and retest.
-
-**Why we didn't attempt:**
 GPIO locking is already non-functional on NV4x (see Section 1.4). Disabling
-what isn't working won't help. The issue is that even with an UNLOCKED pad,
-the GPIO toggle does NOT assert PLTRST#. A custom firmware build would not
-change the pad's electrical behavior or the PCH's internal routing of
-PLTRST#.
+what doesn't work won't help -- the issue is the PLTRST# routing inside the
+PCH die, not a lock bit.
 
 ### 3.4 C mmap Test Program
 
-**What it would involve:**
-Writing a small C program that:
-1. Opens `/dev/mem`.
-2. `mmap`s the physical address of GPP_B13 DW0.
-3. Reads/writes via volatile pointer dereference (no `dd`/`printf` overhead).
-4. Checks PCRs after toggle.
-
-**Why we didn't attempt:**
-The BusyBox shell `dd`/`printf` approach we use has been verified to work
-correctly (write readback confirms the register changed). There is no evidence
-that a C mmap program would produce a different electrical result. The
-register write is atomic (4-byte aligned) and the readback matches. The
-mechanism barrier is architectural, not a tooling limitation.
+A C mmap program would not produce different electrical results -- the
+register write is verified atomic at the MMIO bus level by readback. The
+mechanism barrier is PCH-internal routing, not a tooling limitation.
 
 ---
 
@@ -486,34 +279,17 @@ mechanism barrier is architectural, not a tooling limitation.
 
 ### 4.1 Whether the Mechanism Works on Other Platform Families
 
-The PLTRST# assertion has been demonstrated working on SPT/KBP (T480, Kaby Lake)
-by the original researcher. The mechanism was believed to work on T480s
-(originally thought to be CNP-H, now identified as CNP-LP 0x9d84) based on
-pad documentation, though we have not tested this ourselves.
-
-For **ADL-S/RPL-S desktop** (MSI Z790-P DDR5, etc.), the platform has the same
-PCH die architecture but uses a different PCR port (0x6d) and lock offset (0x110).
-It is unknown whether GPIO pad toggling asserts PLTRST# on these platforms.
-Desktop PCH implementations may route PLTRST# differently.
-
-For **CNP-LP** (T480s, T490, X390), the GPP_B13 pad is in GPIO community 0
-(port 0x6e) at local index 38, offset 0x600 (+38*16 = 0x260). DW0 address: 0xFD6E0860.
-No PADCFGLOCK register exists (pad_cfg_lock_offset=0). **UNTESTED** -- no hardware
-verification. kukri's PoC does not support this PCH family. Community testing needed.
+See `doc/TPM_GPIO_Reset_Vulnerability.md` section "Per-Platform Feasibility"
+for the known status of each PCH generation. The open question is whether the
+GPIO pad toggling actually asserts PLTRST# on platforms beyond SPT/KBP
+(the only family confirmed working by kukrimate). Desktop PCH implementations
+(ADL-S/RPL-S, PCR port 0x6d) may route PLTRST# differently. CNP-LP (T480s)
+is UNTESTED.
 
 ### 4.2 Whether C mmap Would Behave Differently
 
-A C program using `mmap` + volatile pointer dereference would eliminate any
-potential issues from:
-- BusyBox `dd` 4-byte alignment (we already handle this correctly).
-- Shell variable overflow on 64-bit addresses (we use hardcoded 32-bit bases).
-- Timing between write and restore (we already have a 1s delay).
-
-However, there is no reason to believe a C program would produce a different
-hardware result. The register write is verified as correct at the MMIO bus
-level (readback confirms). If the register write changes the pad mode but
-doesn't trigger a TPM GPIO reset, the mechanism is broken at the PCH routing
-layer, not at the software access layer.
+See Section 3.4. The register write is verified atomic at the MMIO bus level
+by readback; a C mmap program is not expected to change the electrical result.
 
 ### 4.3 Whether P2SB SBI Write Would Bypass the Blocking Mechanism
 
@@ -613,52 +389,16 @@ the mechanism doesn't work on this PCH die.
 
 ### 5.6 TCG Specification Guarantees Underlying the Attack
 
-The attack's scope is defined by the TCG TPM 2.0 Library specification,
-Part 1 (Architecture):
-- **Section 4**: Definitions of volatile (4.90), non-volatile (4.35), and
-  transient (4.87) resources
-- **Section 12.2.3.2**: TPM Reset startup type — PCRs clear, NV indices persist
-- **Section 37**: NV Memory persistence categories (ORDERLY, CLEAR, RESET)
-The PLTRST# signal itself is Intel PCH-specific, not a TCG concept. A GPIO
-reset triggers platform-level TPM reset equivalent to `TPM2_Startup(CLEAR)`.
-
-**Volatile (cleared on platform-level TPM reset):**
-- PCRs 0-23 reset to all-zero (`TPM_PT_PS_REVISION`).
-- HMAC sessions and transient objects destroyed.
-
-**Non-volatile (preserved across reset — Section 37):**
-- Sealed data objects (NVRAM indices) persist -- the attacker does not need
-  to re-seal.
-- Persistent key handles (e.g. 0x81000000) survive.
-- NVRAM auth values are preserved.
-
-**Why TOTP/HOTP is extractable but DUK is not:**
-- TOTP/HOTP secret at NVRAM index 0x4d47 was sealed with an **empty auth value**
-  (`seal-totp.sh` line 66). After PCR replay, `tpm2_unseal` succeeds with no
-  passphrase required.
-- DUK at NVRAM index 3 was sealed with a **user passphrase** (`kexec-seal-key.sh`
-  line 309 passes `$key_password`). The attacker must provide this passphrase
-  even after PCR replay -- `TPM2_Unseal` requires both matching PCRs AND the
-  correct auth value per TCG 2.0 Part 1 Section 27.2.6 (Unseal command).
+See `doc/TPM_GPIO_Reset_Vulnerability.md` section "TPM Reset Scope (per TCG
+Specification)" for the full TCG 2.0 Part 1 citations (Sections 4, 12.2.3.2,
+27.2.6, 37), volatile vs non-volatile persistence, and the TOTP/HOTP vs DUK
+unseal requirements.
 
 ### 5.7 Mitigations
 
-The attack surface can be reduced by:
-
-**Authenticated recovery shell access**: The primary attack vector on Heads
-systems is the recovery shell. Configuring GPG authentication
-(`CONFIG_BOOT_RECOVERY_GPG=`) prevents an unauthenticated attacker from
-reading `cbmem -L` and `/tmp/measuring_trace.log`, which are needed to
-forge PCR state.
-
-**Firmware backup and integrity checks**: An attacker with physical access
-can dump the SPI ROM and compute CBFS hashes offline. Regular external
-verification of ROM dumps against known-good hashes detects this kind of
-tampering.
-
-**TPM DUK with passphrase**: The DUK requires a user passphrase and is not
-extractable via GPIO reset. A strong DUK passphrase protects disk encryption
-even after TOTP/HOTP secret compromise.
+See `doc/TPM_GPIO_Reset_Vulnerability.md` section "Mitigations" for the
+complete list: authenticated recovery shell, firmware integrity verification,
+and TPM DUK with passphrase.
 
 ---
 
@@ -695,10 +435,8 @@ pcrs   # Or: tpm2 pcrread
 
 ### 6.1 CNP-LP Testing (ThinkPad T480s, T490, T495, X390)
 
-**Platform details:**
-- PCH: Cannon Point LP (CNP-LP), device ID 0x9d84.
-- GPP_B13 pad: COMM_0 (port 0x6e), local pad index 38.
-- Register address: 0xFD6E0860 (with PCR_BASE = 0xFD000000).
+See `initrd/bin/tpm-gpio-reset-demo.sh` header comments (lines 46-58) and
+`detect_platform()` for register addresses. CNP-LP device IDs are 0x9d84-0x9d8f.
 
 **What to test:**
 1. Run `./tpm-gpio-reset-demo.sh --execute`.
@@ -713,10 +451,8 @@ pcrs   # Or: tpm2 pcrread
 
 ### 6.2 SPT/KBP Testing (ThinkPad T480, T470, X270, M900 Tiny, T460, X260)
 
-**Platform details:**
-- PCH: Sunrise Point (SPT, Skylake) or Kaby Point (KBP, Kaby Lake).
-- GPP_B13 pad: COMM_0 (port 0xaf), local pad index 13.
-- Register address: 0xFDAF0528 (community base + PAD_CFG_BASE + 37*8 = 2 DWORDS per pad).
+Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
+SPT/KBP uses PCR port 0xaf, PAD_CFG_BASE=0x400, 2 DWORDS (8 bytes) per pad.
 
 **Status: CONFIRMED WORKING** by kukrimate on T480 (KBL).
 
@@ -727,10 +463,8 @@ pcrs   # Or: tpm2 pcrread
 
 ### 6.3 ADL-S Desktop Testing (Desktop 12th gen)
 
-**Platform details:**
-- PCH: Alder Point (ADL-S), device IDs 0x7a80-0x7a8c.
-- GPP_B13 pad: COMM_1 (port 0x6d), local pad index 13.
-- Register address: 0xE06D07D0 (with PCR_BASE = 0xE0000000).
+Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
+ADL-S device IDs are 0x7a80-0x7a8c, PCR port 0x6d, PAD_CFG_BASE=0x700.
 
 **What to test:**
 1. Run `./tpm-gpio-reset-demo.sh --execute`.
@@ -746,14 +480,11 @@ attack because it doesn't use a discrete TPM chip.
 
 ### 6.4 RPL-S Desktop Testing (MSI Z790-P DDR5, etc.)
 
-**Platform details:**
-- PCH: Raptor Point (RPL-S), device IDs 0x7a0c-0x7a17.
-- GPP_B13 pad: COMM_1 (port 0x6d), local pad index 13.
-- Register address: 0xE06D07D0 (with PCR_BASE = 0xE0000000).
+Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
+RPL-S device IDs are 0x7a0c-0x7a17, PCR port 0x6d, PAD_CFG_BASE=0x700.
 
-**Status: UNKNOWN.** Dasharo fork for MSI Z790-P DDR5 has
-`SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI` selected and `pad_cfg_lock_offset`
-populated, but no board GPIO tables use `PAD_CFG_LOCK`. If the test shows the
+**Status: UNKNOWN.** See `doc/TPM_GPIO_Reset_Vulnerability.md` per-platform
+feasibility table for Dasharo fork configuration details. If the test shows the
 toggle DOES work, this would mean the pad is electrically connected differently
 than ADL-P mobile.
 
@@ -824,76 +555,25 @@ force-unlocking all pads regardless of the board configuration.
 
 ## Appendix A: Key Register Addresses Reference
 
-### ADL-P Mobile (NV4x, NS50)
+Per-platform register addresses (PCR_BASE, community base, DW0/DW1 address,
+PADCFGLOCK/PADCFGLOCKTX) are the authoritative output of the script's
+`calculate_registers()` function. See `initrd/bin/tpm-gpio-reset-demo.sh`:
+- Header comments (lines 50-76): port, pad index, PAD_CFG_BASE, lock offset
+  per platform family.
+- `detect_platform()` case statement (lines 260-368): PCI device ID to
+  platform parameter mapping.
+- `calculate_registers()` (lines 533-620): full address computation from
+  PCR_BASE, community port, pad index, and PAD_CFG_BASE.
 
-```
-PCR_BASE:       0xFD000000
-GPIO COM0 port: 0x6e
-Community base: 0xFD6E0000  (= 0xFD000000 + (0x6e << 16))
-PAD_CFG_BASE:   0x700
-GPP_B13 pad:    13
-DW0 offset:     0x7D0       (= 0x700 + 13 * 16)
-DW0 address:    0xFD6E07D0  (= 0xFD6E0000 + 0x7D0)
-DW1 address:    0xFD6E07D4
-PADCFGLOCK:     0xFD6E0080
-PADCFGLOCKTX:   0xFD6E0084
-```
-
-### ADL-S / RPL-S Desktop
-
-```
-PCR_BASE:       0xE0000000
-GPIO COM1 port: 0x6d
-Community base: 0xE06D0000  (= 0xE0000000 + (0x6d << 16))
-PAD_CFG_BASE:   0x700
-GPP_B13 pad:    13
-DW0 offset:     0x7D0       (= 0x700 + 13 * 16)
-DW0 address:    0xE06D07D0
-DW1 address:    0xE06D07D4
-PADCFGLOCK:     0xE06D0110
-PADCFGLOCKTX:   0xE06D0114
-```
-
-### SPT / KBP (Skylake/Kaby Lake)
-
-SPT/KBP uses a different pad register layout than ADL. Each pad uses
-**2 DWORDS (8 bytes)** per `skylake/gpio_defs.h` line 12
-(`GPIO_NUM_PAD_CFG_REGS 2`). The community base includes a port shift.
-
-```
-PCR_BASE:         0xFD000000
-GPIO COM0 port:   0xaf
-Community base:   0xFDAF0000  (= 0xFD000000 + (0xaf << 16))
-PAD_CFG_BASE:     0x400
-PAD_REG_SIZE:     8  (2 DWORDS per pad)
-GPP_B13:          global pad 37, local index 13 within GROUP_B (GPP_A=0-23, GPP_B=24+13)
-DW0 offset:       0x528       (= 0x400 + 37 * 8)
-DW0 address:      0xFDAF0528  (= 0xFDAF0000 + 0x528)
-DW1 address:      0xFDAF052C
-PADCFGLOCK:       0xFDAF0080
-PADCFGLOCKTX:     0xFDAF0084
-```
-
-### CNP-LP (Cannon Point LP, T480s)
-
-```
-PCR_BASE:       0xFD000000
-GPIO COM0 port: 0x6e
-Community base: 0xFD6E0000
-PAD_CFG_BASE:   0x600
-GPP_B13:        local pad 38 (COMM_0, GPP_A0=0, GPP_B13=38)
-DW0 offset:     0x860       (= 0x600 + 38 * 16)
-DW0 address:    0xFD6E0860
-```
-
-**UNTESTED** -- no hardware verification. kukri's PoC does not support this PCH family.
-
-### ADL-P PADCFGLOCK Registers (Readings from NV4x)
+### ADL-P PADCFGLOCK Readings from NV4x
 
 | Register | Address | Value (LE) | Value (decoded) |
 |---|---|---|---|
 | PADCFGLOCK | 0xFD6E0080 | 0x00010203 | Bits 0, 8, 17 set (not GPP_B13) |
 | PADCFGLOCKTX | 0xFD6E0084 | 0x00000000 | No TX locked pads |
+
+CNP-LP remains **UNTESTED** -- no hardware verification. kukri's PoC does not
+support this PCH family.
 
 ---
 
