@@ -1,5 +1,7 @@
 # Keys and Secrets in Heads
 
+See also: [About/Keys](https://osresearch.net/Keys/) for the narrative system-level key inventory.
+
 Heads uses several distinct secrets and keys, each protecting a different layer
 of the system.  Understanding what each one does helps in choosing appropriate
 passphrases and in recovery scenarios.
