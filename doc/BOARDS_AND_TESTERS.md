@@ -6,9 +6,27 @@ General information
 - **AMD CPU Generations:** [List of AMD processors](https://en.wikipedia.org/wiki/AMD_processors)
 - **Transient CPU Vulnerabilities:** [Transient execution CPU vulnerability](https://en.wikipedia.org/wiki/Transient_execution_CPU_vulnerability)
 
-**Note (as of 2025-05-29):**
-- Intel CPUs from the 1st to 7th generations (Nehalem through Kaby Lake) have reached End-of-Life (EOL) status and no longer receive microcode updates. Consequently, these processors remain vulnerable to Spectre Variant 2 (CVE-2017-5715) and related speculative execution vulnerabilities. 
+**Note (as of 2026-07-22):**
+- Intel CPUs from the 1st to 7th generations (Nehalem through Kaby Lake) have reached End-of-Life (EOL) status and no longer receive microcode updates. Consequently, these processors remain vulnerable to Spectre Variant 2 (CVE-2017-5715) and related speculative execution vulnerabilities.
 - Some 8th generations (Kaby Lake Refresh) also reached EOL per Intel ESU.
+
+**Per-generation EOL/ESU dates** (sources: [eosl.date](https://eosl.date/eol/product/intel-processors/), [Intel microcode releases](https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/releases)):
+
+| Generation | Code Name | EOL/ESU Date | Microcode Status |
+|---|---|---|---|
+| 2nd Gen | Sandy Bridge | ~2017-2018 (estimated) | No updates since ~2018 |
+| 3rd Gen | Ivy Bridge | Dec 31, 2019 | No updates since ~2019 |
+| 4th Gen | Haswell | Jun 30, 2021 | No updates since ~2021 |
+| 5th Gen | Broadwell | Jun 30, 2021 | No updates since ~2021 |
+| 6th Gen | Skylake | Sep 30, 2022 | No updates since ~2022 |
+| 7th Gen | Kaby Lake | Mar 31, 2024 | No updates since ~2024 |
+| 8th Gen | Kaby Lake-R / Coffee Lake / Whiskey Lake | Jun 30, 2025 | Not in Feb 2026 release |
+| 10th Gen | Comet Lake | Active (as of Feb 2026) | Last in Feb 2026; dropped from May 2026 |
+| 11th Gen | Tiger Lake | Active | Last in Feb 2026; dropped from May 2026 |
+| 12th Gen | Alder Lake | Active | Last in Feb 2026; dropped from May 2026 |
+
+Intel does **not** offer an Extended Security Updates (ESU) program. "ESU" in Intel documentation refers to "End of Servicing Updates" — the date after which no further microcode releases are made. Once a generation reaches ESU, any newly discovered CPU vulnerabilities will remain unpatched indefinitely.
+
 - **Those boards names were renamed with EOL_ preceding their board names for users to be hinted by this at download/compilation/testing time**
 
 While software-based mitigations like Retpoline can reduce exposure to certain speculative execution attacks, their effectiveness is limited without corresponding microcode updates.  Therefore, systems utilizing these older CPUs should be considered inherently vulnerable to Spectre Variant 2 and similar threats.
@@ -34,6 +52,46 @@ Please see boards/BOARD_NAME/BOARD_NAME.config for HCL details.
 ----
 
 As per tracking issue for board testers: https://github.com/linuxboot/heads/issues/692, currently built CircleCI boards ROMs are:
+
+## TPM GPIO Reset Vulnerability (upstream coreboot bug)
+
+Heads relies on coreboot for GPIO pad configuration. Many Intel platforms are
+affected by a coreboot bug where the PCH GPIO lock bits are not set before
+booting the OS, allowing an attacker with code execution to reset the discrete
+TPM without a physical reboot and forge PCR measurements.
+See [TPM GPIO fail (mkukri.xyz)](https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html)
+and [doc/TPM_GPIO_Reset_Vulnerability.md](TPM_GPIO_Reset_Vulnerability.md) for details.
+
+Impact on Heads: TPM Disk Unlock Key with passphrase is **not affected**.
+TPMTOTP/HOTP remote attestation **is affected** (PCRs can be forged).
+The fix must come from coreboot. Tracked at [coreboot ticket #576](https://ticket.coreboot.org/issues/576)
+and [coreboot patch series](https://review.coreboot.org/q/topic:%22intel_gpio_lock%22).
+
+| Board group | SoC generation | Coreboot GPIO lock |
+|---|---|---|
+| xx20 (Sandy Bridge, 2nd Gen) | Dedicated PLTRST pin | Not vulnerable |
+| xx30 (Ivy Bridge, 3rd Gen) | Dedicated PLTRST pin | Not vulnerable |
+| xx4x / w541 (Haswell, 4th Gen) | Dedicated PLTRST pin | Not vulnerable |
+| xx8x / t480 / t480s (Kaby Lake, 8th Gen) | Skylake SoC code (25.09) | Not functional: no pad lock offsets, no Kconfig lock method selected |
+| Librem 13v2/15v3 (Skylake, 6th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem 13v4/15v4 (Kaby Lake, 7th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem 14 (Comet Lake, 10th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem 11 (Jasper Lake, Atom) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem L1UM v1 (Broadwell, 5th Gen) | Dedicated PLTRST pin | Not vulnerable |
+| Librem L1UM v2 (Coffee Lake, 9th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem mini v1 (Whiskey Lake, 8th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Librem mini v2 (Comet Lake, 10th Gen) | Purism fork | Not functional: no lock Kconfig selected (Purism fork) |
+| Optiplex 7010/9010 (Ivy Bridge, 3rd Gen) | Dedicated PLTRST pin | Not vulnerable |
+| HP Z220 CMT (Ivy Bridge, 3rd Gen) | Dedicated PLTRST pin | Not vulnerable |
+| Clevo NS50 / NV4x (Alder Lake, 12th Gen) | Dasharo fork | Inconclusive -- GPIO lock not set, writes verified, but PLTRST# assertion NOT confirmed on this PCH die (PCRs remain non-zero after toggle). Physical scope verification needed. |
+| Clevo v540tu/v560tu (Meteor Lake) | Dasharo fork | Not functional: PCR lock Kconfig selected but no board pad locks configured; FSP force-unlocks all pads (PchUnlockGpioPads=1) -- Not vulnerable: GPIO PLTRST# assertion does not apply to LPC/eSPI-connected TPMs on MTL. |
+| MSI Z690-A/Z790-P (Alder/Raptor Lake) | Dasharo fork | Not functional: SMM lock disabled, no board pad locks (Dasharo fork) |
+| KGPE-D16 (AMD) | Not Intel | Not affected |
+| Talos II (Power9) | Not Intel | Not affected |
+
+Note: Dasharo and Purism coreboot fork statuses reflect confirmed findings from
+vendor build tree inspection. See doc/TPM_GPIO_Reset_Vulnerability.md for per-fork
+details.
 
 Laptops
 ==
