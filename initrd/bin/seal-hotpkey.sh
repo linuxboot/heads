@@ -63,7 +63,7 @@ STATUS_OK "$DONGLE_BRAND detection ready for HOTP configuration"
 TRACE_FUNC
 
 # Make sure no conflicting GPG related services are running, gpg-agent will respawn
-DO_WITH_DEBUG killall gpg-agent scdaemon >/dev/null 2>&1 || true
+DO_WITH_DEBUG release_scdaemon
 
 # Query hotp_verification info and extract numeric PIN retry counter.
 # Retries up to N times on communication failure.  Dies if the dongle
