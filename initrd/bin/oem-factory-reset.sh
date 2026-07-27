@@ -701,6 +701,9 @@ gpg_key_factory_reset() {
 	if [ "$DONGLE_BRAND" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
 		STATUS "Resetting Nitrokey Storage AES keys"
 		hotp_verification regenerate ${ADMIN_PIN_DEF}
+		# see https://github.com/Nitrokey/heads/commit/397a46203bedcb77aeac24917e7fe254465128fb
+		STATUS "Restarting scdaemon to remove possible exclusive lock of dongle"
+		killall -9 scdaemon
 		STATUS_OK "Nitrokey Storage AES keys reset"
 	fi
 
