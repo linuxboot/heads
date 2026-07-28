@@ -12,12 +12,17 @@ gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
+# --build is required because autoconf's config.guess probes the Docker
+# host kernel (uname -r, /proc) -- Docker containers share the host kernel,
+# not a virtualized one.  Different CircleCI runners have different host
+# kernels, producing different build triplets and non-reproducible output.
 gpg2_configure := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-Os"  \
 	./configure \
-	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
+	--build $(MUSL_ARCH)-elf-linux \
 	--host $(MUSL_ARCH)-linux-musl \
+	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
 	--prefix "/" \
 	--libexecdir "/bin" \
 	--disable-all-tests \
