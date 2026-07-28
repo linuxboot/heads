@@ -1,0 +1,11 @@
+--- gnupg-2.4.0/configure	2026-07-28 08:00:00.000000000 -0400
++++ gnupg-2.4.0/configure	2026-07-28 08:00:01.000000000 -0400
+@@ -585,7 +585,7 @@
+ PACKAGE_BUGREPORT='https://bugs.gnupg.org'
+ PACKAGE_URL=''
+ 
+-ac_unique_file="sm/gpgsm.c"
++ac_unique_file="agent/gpg-agent.c"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+ #include <stdio.h>
