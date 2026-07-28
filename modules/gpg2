@@ -16,8 +16,9 @@ gpg2_configure := \
 	$(CROSS_TOOLS) \
 	CFLAGS="-Os"  \
 	./configure \
-	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
+	--build $(MUSL_ARCH)-elf-linux \
 	--host $(MUSL_ARCH)-linux-musl \
+	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
 	--prefix "/" \
 	--libexecdir "/bin" \
 	--disable-all-tests \

@@ -26,14 +26,21 @@ commands:
             # Remove stale logs, .rom, and .zip from previous cache/workspace so
             # store_artifacts only picks up files from this run (git-describe differs
             # per commit, so old artifacts persist alongside new ones otherwise).
+            echo "=== CI: removing stale logs and artifacts from any previous cache restore (git-describe changes per commit, old artifacts accumulate) ==="
             rm -rf build/<< parameters.arch >>/log/*
             rm -f build/<< parameters.arch >>/<< parameters.target >>/*.rom \
                   build/<< parameters.arch >>/<< parameters.target >>/*.zip
-            # Fresh checkout timestamps can make restored module stamp files look stale.
-            # Refresh them first so restored musl-cross-make and dependency trees are reused.
-            if [ -d "build/<< parameters.arch >>" ]; then
-              find "build/<< parameters.arch >>" -type f \( -name ".configured" -o -name ".build" \) -exec touch {} +
-            fi
+            # CI-only: normalize git-tracked file mtimes to the HEAD commit date.
+            # Problem: git checkout sets every file mtime to NOW.  After cache
+            # restore, restored .build stamps have their original build-time mtimes.
+            # Without normalization, source files look NEWER than stamps → make
+            # falsely triggers rebuilds on every pipeline, defeating the cache.
+            # Fix: set all tracked source files to the commit epoch timestamp.
+            # Cached stamps from the same commit have build-time > commit-time →
+            # correctly skip.  Stamps from a different commit or environment have
+            # different timestamps → correctly rebuild.
+            # docker_repro.sh doesn't need this — local builds never restore caches.
+            TS=`git log -1 --format='%ct'` && echo "=== CI: normalizing $(git ls-files | wc -l) git-tracked source files to commit epoch $TS (prevents false rebuilds from git checkout timestamps; not needed for local docker_repro.sh) ===" && for f in `git ls-files`; do [ -e "$f" ] && touch -d "@$TS" "$f" || :; done
             #Pass AVAILABLE_MEM_GB=8 to respect CircleCI free tier RAM assignation, which otherwise randomly fails. See Makefile calculations.
             # Without AVAILABLE_MEM_GB=8: CircleCI passes '-j36 --load-average=54'
             # With AVAILABLE_MEM_GB=8: CircleCI passes '-j8 --load-average=12'

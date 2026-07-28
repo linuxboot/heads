@@ -316,8 +316,16 @@ stored alongside the compiler in every cache layer.
 A second reuse problem: restored stamp files can be older than freshly
 checked-out source files in CI.  When that happens, GNU Make can decide
 that `.configured` and then `.build` are stale even though the restored
-outputs are complete.  The CI job refreshes restored stamps before
-invoking `make` so restored musl-cross-make trees are reused.
+outputs are complete.
+
+**Fix**: The `build_board` command normalizes git-tracked file mtimes
+to their commit dates before invoking `make`.  After a cache restore,
+cached `.build` stamps have their honest build-time timestamps and
+source files have their commit-date timestamps.  If the cache was
+populated from the same commit (same authoritative timestamps), `make`
+correctly sees everything as up-to-date.  If source has genuinely
+changed (newer commit), `make` reliably detects staleness and triggers
+rebuilds.  No blanket stamp-touching is needed.
 
 ---
 
