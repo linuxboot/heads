@@ -701,6 +701,9 @@ gpg_key_factory_reset() {
 	if [ "$DONGLE_BRAND" = "Nitrokey Storage" ] && [ -x /bin/hotp_verification ]; then
 		STATUS "Resetting Nitrokey Storage AES keys"
 		hotp_verification regenerate ${ADMIN_PIN_DEF}
+		# see https://github.com/Nitrokey/heads/commit/397a46203bedcb77aeac24917e7fe254465128fb
+		STATUS "Restarting scdaemon to remove possible exclusive lock of dongle"
+		release_scdaemon
 		STATUS_OK "Nitrokey Storage AES keys reset"
 	fi
 
@@ -1389,7 +1392,7 @@ assert_signable
 
 # clear gpg-agent and scdaemon cache so that next gpg calls don't have stale state
 # scdaemon holds exclusive CCID lock to dongle - must be killed to allow fresh card access
-killall gpg-agent scdaemon >/dev/null 2>&1 || true
+release_scdaemon
 # clear local keyring
 rm -rf /.gnupg/*.kbx /.gnupg/*.gpg >/dev/null 2>&1 || true
 
