@@ -808,6 +808,7 @@ hotpkey_fw_display() {
 # immediately.  Both must be killed; gpg-agent and scdaemon respawn on demand
 # for the next GPG operation.
 release_scdaemon() {
+	TRACE_FUNC
 	DEBUG "release_scdaemon: killing gpg-agent and scdaemon to release CCID lock"
 	killall gpg-agent scdaemon >/dev/null 2>&1 || true
 }
