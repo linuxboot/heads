@@ -95,21 +95,19 @@ QSB-107 exposure rates.
 
 ## TPM GPIO Reset Vulnerability
 
-*For a detailed analysis including per-platform feasibility, attack steps,
-and upstream tracking, see [TPM_GPIO_Reset_Vulnerability.md](TPM_GPIO_Reset_Vulnerability.md).*
+Many Intel platforms are vulnerable to a TPM GPIO reset bypass
+([mkukri.xyz, 2024](https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html)).
+See the [Heads Wiki Threat Model](https://github.com/linuxboot/heads-wiki/blob/master/About/Heads-threat-model.md)
+for per-platform status and mitigation. Test with:
 
-Heads relies on coreboot to lock PCH GPIO pad configuration before booting
-the OS. On many Intel platforms, coreboot fails to set these lock bits.
-If pads are unlocked, post-coreboot code can reprogram the PLTRST# pin to
-GPIO mode and assert it, forcing a TPM Reset.
-
-Attack chain:
-1. Attacker asserts PLTRST# via GPIO, resetting the TPM to power-on state
-   (PCRs cleared to zero; NVRAM preserved).
-2. Attacker replays known PCR measurements (boot hashes are deterministic)
-   to reconstruct the sealed PCR state.
-3. Since PCRs match sealed values, `tpm2 unseal` succeeds, extracting the
-   TOTP/HOTP shared secret.
+```bash
+tpm-gpio-detect 2>&1 | tee /media/tpm-gpio-detect.log
+tpm-gpio-assert 2>&1 | tee /media/tpm-gpio-assert.log
+```
+The TPM Reset clears all PCRs to zero. A subsequent attacker would need
+   to replay known PCR measurements to reconstruct the sealed state and
+   extract TOTP/HOTP shared secrets -- this PoC proves the reset is possible
+   but does not perform PCR replay.
 
 The TPM Disk Unlock Key with passphrase is **not affected** -- the
 passphrase is required regardless of PCR state. TPMTOTP/HOTP remote

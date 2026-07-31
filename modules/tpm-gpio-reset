@@ -1,0 +1,22 @@
+# TPM GPIO Reset Vulnerability PoC (CVE-2025-32399 and related)
+# Minimal fork of kukrimate/tpm-gpio-fail: platform families + Makefile fixes only
+# Two binaries as in upstream kukri:
+#   tpm-gpio-detect   detection-only audit of GPIO lock status (no CLI args)
+#   tpm-gpio-assert   assertion/execute tool (kukri's modified coreboot inteltool)
+modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
+
+tpm-gpio-reset_depends := pciutils $(tpm2-tools_dep)
+tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
+tpm-gpio-reset_commit_hash := 8a9fc3a3c444d04674ef576a9d230d3881c86993
+tpm-gpio-reset_version := $(tpm-gpio-reset_commit_hash)
+tpm-gpio-reset_base_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
+tpm-gpio-reset_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
+
+tpm-gpio-reset_target := \
+    CC="$(heads_cc)" \
+    AR="$(AR)" \
+    CFLAGS="-Os -I$(INSTALL)/include" \
+    LDFLAGS="-L$(INSTALL)/lib"
+
+tpm-gpio-reset_output := detect/tpm-gpio-detect reset/tpm-gpio-assert
+tpm-gpio-reset_install := bin/tpm-gpio-detect bin/tpm-gpio-assert

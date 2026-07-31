@@ -22,3 +22,7 @@ cbmem --console | less
 # Reboot/power off (important for devices with no keyboard to escape recovery shell)
 reboot.sh  # Press Enter with this command to reboot.sh
 poweroff.sh  # Press Enter with this command to power off
+# TPM GPIO Reset Vulnerability test: mount USB stick rw, audit PLTRST# lock status
+mount-usb.sh --mode rw && tpm-gpio-detect 2>&1 | tee /media/tpm-gpio-detect.log
+# Assert PLTRST# via P2SB PCR write and check TPM PCRs
+tpm-gpio-assert 2>&1 | tee /media/tpm-gpio-assert.log
