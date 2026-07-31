@@ -5,7 +5,8 @@ established, how integrity is verified at each boot, and how secrets are
 protected.
 
 See also: [architecture.md](architecture.md), [tpm.md](tpm.md),
-[boot-process.md](boot-process.md), [ux-patterns.md](ux-patterns.md).
+[boot-process.md](boot-process.md), [ux-patterns.md](ux-patterns.md),
+[Heads threat model](https://osresearch.net/Heads-threat-model/) for the user-facing per-board protection status.
 
 ---
 
