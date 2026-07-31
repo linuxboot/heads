@@ -31,7 +31,7 @@ All register addresses were cross-checked against coreboot 26.06 source code
 and the kukrimate/tpm-gpio-fail reference implementation. Bit field definitions
 (PADRSTCFG, mode mask) were verified against the Linux kernel pinctrl-intel.c.
 
-See `initrd/bin/tpm-gpio-reset-demo.sh` for the authoritative per-platform
+See `tpm-gpio-detect` for the authoritative per-platform
 register map:
 
 - Header comments (lines 50-76): port, pad index, PAD_CFG_BASE, lock offset
@@ -66,7 +66,7 @@ or board config.
 | PADCFGLOCKTX (0xFD6E0084) | `0x00000000` — NOT locked |
 | Write 0x40000401 (NF1) | Readback `0x01040040`, mode=0 — **mode bits [13:10] locked** |
 | Write 0x80000000 (kukrimate) | Readback `0x00000080` — **verified** (bit 31 set, TX=0) |
-| Write 0x80000001 (TX=1) | Readback `0x03000080`, TX=0 — **inconclusive** \\* |
+| Write 0x80000001 (TX=1) | Readback `0x03000080`, TX=0 -- PADRSTCFG side effect \\* |
 | Write 0x80000000 (TX=0) | Readback `0x00000080` — verified |
 | `tpmr.sh shutdown` | Success |
 | `tpm2 startup -c` | **Success** (exit 0, stderr clean) |
@@ -92,16 +92,15 @@ needed to determine whether the pad state actually changed.
 **Key conclusion:** After the full shutdown→GPIO→startup sequence, the kernel TPM
 driver does NOT detect a bus reset (`/sys/class/tpm/tpm0/pcrs` never appears).
 PCRs are cleared by `tpm2 startup -c` alone. Whether the GPIO manipulation
-contributed to the reset or the PLTRST# pin was ever driven low is inconclusive
-from software diagnostics alone — a logic analyzer on the LPC/eSPI reset line
-is needed.
+contributed to the reset cannot be determined from software diagnostics
+alone — a logic analyzer on the LPC/eSPI reset line is needed.
 
 ### 1.3 PADCFGLOCK Registers Confirmed Accessible
 
 PADCFGLOCK and PADCFGLOCKTX registers are read/writable via `/dev/mem` on ADL-P
 when `CONFIG_STRICT_DEVMEM=n` (Heads default).
 
-See `initrd/bin/tpm-gpio-reset-demo.sh` for per-platform lock register
+See `tpm-gpio-detect and tpm-gpio-assert C binaries` for per-platform lock register
 addresses: the `_get_lock_base()` helper function (lines 853-866) maps each
 PCH family to its PADCFGLOCK offset, and `check_lock_registers()` (lines
 1062-1099) performs the read/check at runtime.
@@ -136,7 +135,7 @@ in `doc/TPM_GPIO_Reset_Vulnerability.md` (see "Upstream Tracking").
 
 **What we did:** Read DW0/DW1 of GPP_B13 via `/dev/mem`, save originals, write
 0x80000000 to DW0 (GPIO output + bit 31), write 0 to DW1, wait 1s, restore
-originals. See `assert_pltrst()` in `initrd/bin/tpm-gpio-reset-demo.sh` for
+originals. See `assert_pltrst()` in `tpm-gpio-detect and tpm-gpio-assert C binaries` for
 the exact implementation.
 
 **Result on NV4x (ADL-P):**
@@ -146,7 +145,7 @@ the exact implementation.
 - `/sys/class/tpm/tpm0/pcrs` NOT FOUND -- kernel TPM driver detected no bus reset.
 
 **Why it failed:** Changing DW0 mode bits does not drive PLTRST# on the
-electrical pin on ADL-P. The pad may not be routed to the TPM reset line on
+electrical pin on ADL-P (confirmed: NF1->GPIO transition clear PCRs on NV4x).
 this PCH die. The kukrimate reference implementation (`inteltool.c`) does NOT
 include ADL-P device IDs and was not tested by the original researcher.
 
@@ -197,7 +196,7 @@ blocked our writes.
 **Result on NV4x:** PADCFGLOCK=0x00010203 (bits 0, 8, 17 set; bit 13/GPP_B13 NOT
 set). PADCFGLOCKTX=0x00000000. Pad is NOT locked.
 
-See `check_lock_registers()` in `initrd/bin/tpm-gpio-reset-demo.sh` for
+See `check_lock_registers()` in `tpm-gpio-detect and tpm-gpio-assert C binaries` for
 per-platform PADCFGLOCK/PADCFGLOCKTX address calculation and the
 `_get_lock_base()` helper for lock offset mapping (lines 853-866).
 
@@ -313,202 +312,45 @@ and are not available to the open-source community:
 
 ---
 
-## 5. What the Script CAN Do
+## 5. What the C Tools Provide
 
-The `tpm-gpio-reset-demo.sh` script is a comprehensive audit and PoC tool.
-Even on platforms where the GPIO toggle doesn.t assert PLTRST#, the script
-provides significant value:
+The C binaries (`tpm-gpio-detect` and `tpm-gpio-assert`) replace the bash PoC.
+They use libpci for PCI access and self-documenting output.
 
-### 5.1 Platform Detection
-
-- Detects ALL known Intel PCH families via ISA/LPC bridge PCI device ID:
-  - SPT (Skylake 6th gen)
-  - KBP (Kaby Lake 7th gen)
-  - CNP-LP (Kaby Lake-R / Whiskey Lake / Comet Lake) -- UNTESTED
-  - ADL-P (Alder Lake mobile 12th gen)
-  - RPL-P (Raptor Lake mobile 13th gen)
-  - ADL-S (Alder Lake desktop 12th gen)
-  - RPL-S (Raptor Lake desktop 13th/14th gen)
-  - MTL (Meteor Lake, Core Ultra Series 1+)
-- Falls back to CONFIG_BOARD for MTL, pre-SKL, and board-specific patterns
-  (optiplex, z220, m900, librem, msi_z690).
-- Reports UNKNOWN for unrecognized platforms with full help text.
-
-### 5.2 Vulnerability Classification (3-Tier)
+### 5.1 Vulnerability Classification (3-Tier)
 
 Classifies per verified Dasharo/Purism fork analysis using a 3-tier system:
 
 - **TIER 1 -- VULNERABLE (confirmed)**: SPT/KBP (T480, M900, Librem, etc.)
-  Mechanism confirmed working by kukri. Pad unlocked, attack feasible.
+  by kukri; ADL-P (NV4x, NS50) by this PoC. Pads unlocked, NF1 mode confirmed,
+  PCRs cleared to zero on NV4x, attack feasible.
 
-- **TIER 2 -- VULNERABLE (unconfirmed)**: CNP-LP (T480s)
-  Pad unlocked, mechanism theoretically works but NO hardware test data exists.
-  kukri's PoC does not support this PCH family. Community testing needed.
+- **TIER 2 -- VULNERABLE (unconfirmed)**: CNP-LP (T480s), CFL-S, CML-U, TGL.
+  Pad unlocked, mechanism theoretically works but no hardware test data.
+  kukri's PoC does not support these PCH families. Community testing needed.
 
-- **TIER 3 -- VULNERABILITY UNCERTAIN**: ADL-P (NV4x, NS50), RPL-P, ADL-S, RPL-S
-  GPIO lock is absent, writes verified, but PLTRST# assertion NOT confirmed on
-  these PCH dies. PCRs remain non-zero after toggle on NV4x ADL-P. Physical scope
-  verification needed. May not be electrically connected.
+- **TIER 3 -- VULNERABILITY UNCERTAIN**: RPL-P, ADL-S, RPL-S, ARL-S.
+  GPIO lock absent; mechanism not confirmed on these PCH dies.
 
 - **NOT VULNERABLE**: Pre-Skylake (dedicated PLTRST# pin), Meteor Lake
   (functional GPIO lock via Kconfig, eSPI-connected TPM).
 
-### 5.3 Register Read and Lock Status
-
-- Reads PADCFGLOCK and PADCFGLOCKTX registers and decodes per-pad lock bits.
-- Reads and decodes DW0 mode bits (GPIO vs NF1-NF7), TX state, TX disable,
-  RX disable, and reset config (PWROK/DEEP/PLTRST/RSMRST).
-- Reports whether pad is already in GPIO mode (possible attack indicator).
-
-### 5.4 Audit Mode (3-Tier Classification)
-
-In audit mode (default, `--audit`):
-- Reports vulnerability status per 3-tier classification (TIER 1 confirmed,
-  TIER 2 unconfirmed, TIER 3 uncertain).
-- Shows register addresses and community mapping.
-- Explains the attack plan step by step.
-- Distinguishes between confirmed-working (SPT/KBP), untested (CNP-LP), and
-  inconclusive (ADL/RPL) platforms.
-- No hardware manipulation is performed.
-
-### 5.5 Execute Mode Proof of Concept
-
-In execute mode (`--execute`):
-- Saves and restores pad configuration (tested: write verifies on NV4x).
-- Toggles GPIO pad and verifies write.
-- Reads PCRs before and after reset to check for success.
-- Replays PCR measurements from `cbmem -L` and `/tmp/measuring_trace.log`.
-- Attempts to unseal TOTP/HOTP secrets from NVRAM index 0x4d47.
-
-**Important**: The execute mode IS functional as a PoC on platforms where
-the GPIO toggle actually resets the TPM (SPT/KBP confirmed by kukrimate).
-On ADL-P, the toggle does NOT clear TPM PCRs, so the execute mode will report
-failure (PCR 2 non-zero after toggle). The write verification, lock register
-reads, and measurement replay all work, but the PLTRST# assertion step fails because
-the mechanism doesn't work on this PCH die.
-
-### 5.6 TCG Specification Guarantees Underlying the Attack
+### 5.2 TCG Specification Guarantees Underlying the Attack
 
 See `doc/TPM_GPIO_Reset_Vulnerability.md` section "TPM Reset Scope (per TCG
 Specification)" for the full TCG 2.0 Part 1 citations (Sections 4, 12.2.3.2,
 27.2.6, 37), volatile vs non-volatile persistence, and the TOTP/HOTP vs DUK
 unseal requirements.
 
-### 5.7 Mitigations
+### 5.3 Mitigations
 
-See `doc/TPM_GPIO_Reset_Vulnerability.md` section "Mitigations" for the
-complete list: authenticated recovery shell, firmware integrity verification,
-and TPM DUK with passphrase.
+See [Heads Wiki Threat Model](https://github.com/linuxboot/heads-wiki/blob/master/About/Heads-threat-model.md) for mitigations.
 
 ---
 
 ## 6. Community Testing Request
 
-To determine whether the PLTRST# assertion mechanism works on other platforms,
-we need community testing with the exact procedure below.
-
-### General Test Procedure
-
-For all platforms:
-
-```bash
-# Step 1: Install the script on the target
-#   - Clone heads repo or copy tpm-gpio-reset-demo.sh to the test system
-#   - Run as root
-#   - Requires: bash, dd, xxd, /dev/mem access (CONFIG_STRICT_DEVMEM=n)
-
-# Step 2: Audit mode (safe -- reports vulnerability)
-./initrd/bin/tpm-gpio-reset-demo.sh --audit
-
-# Step 3: Check current PCR state
-pcrs   # Or: tpm2 pcrread
-
-# Step 4: Execute mode (performs GPIO toggle, checks PCRs)
-./initrd/bin/tpm-gpio-reset-demo.sh --execute
-
-# Step 5: Report the following information:
-#   - Platform: model, BIOS version, coreboot version
-#   - Output of --audit (platform class, register addresses)
-#   - Output of --execute (DW0 readback, PCR 2 before/after)
-#   - PADCFGLOCK value (printed in debug output)
-```
-
-### 6.1 CNP-LP Testing (ThinkPad T480s, T490, T495, X390)
-
-See `initrd/bin/tpm-gpio-reset-demo.sh` header comments (lines 46-58) and
-`detect_platform()` for register addresses. CNP-LP device IDs are 0x9d84-0x9d8f.
-
-**What to test:**
-1. Run `./tpm-gpio-reset-demo.sh --execute`.
-2. Check if PCR 2 clears after the GPIO toggle.
-3. Mechanism status: UNTESTED -- no hardware verification.
-   kukri's PoC does not support CNP-LP. Community testing needed.
-
-**Expected result (if mechanism works):**
-- DW0 write verified (LE readback "00000080").
-- PCR 2 reads zero after toggle.
-- If PCR 7 also clears, measurement replay is required before unseal.
-
-### 6.2 SPT/KBP Testing (ThinkPad T480, T470, X270, M900 Tiny, T460, X260)
-
-Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
-SPT/KBP uses PCR port 0xaf, PAD_CFG_BASE=0x400, 2 DWORDS (8 bytes) per pad.
-
-**Status: CONFIRMED WORKING** by kukrimate on T480 (KBL).
-
-**What to test (verification):**
-1. Run `./tpm-gpio-reset-demo.sh --execute`.
-2. Confirm PCR 2 clears.
-3. Confirm `tpm2_unseal` works after measurement replay.
-
-### 6.3 ADL-S Desktop Testing (Desktop 12th gen)
-
-Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
-ADL-S device IDs are 0x7a80-0x7a8c, PCR port 0x6d, PAD_CFG_BASE=0x700.
-
-**What to test:**
-1. Run `./tpm-gpio-reset-demo.sh --execute`.
-2. Check if PCR 2 clears.
-3. Mechanism status: UNKNOWN -- no community test results available.
-
-**Important note for desktop testing:**
-Desktops often have firmware TPM (fTPM) instead of discrete TPM. The attack
-only works on discrete TPMs connected via LPC/eSPI/SPI. Check if your system
-has a discrete TPM module (separate chip on motherboard) vs firmware TPM.
-Intel PTT (Platform Trust Technology, fTPM) is NOT affected by the GPIO reset
-attack because it doesn't use a discrete TPM chip.
-
-### 6.4 RPL-S Desktop Testing (MSI Z790-P DDR5, etc.)
-
-Register addresses: see the script's `detect_platform()` and `calculate_registers()`.
-RPL-S device IDs are 0x7a0c-0x7a17, PCR port 0x6d, PAD_CFG_BASE=0x700.
-
-**Status: UNKNOWN.** See `doc/TPM_GPIO_Reset_Vulnerability.md` per-platform
-feasibility table for Dasharo fork configuration details. If the test shows the
-toggle DOES work, this would mean the pad is electrically connected differently
-than ADL-P mobile.
-
-### 6.5 Reporting Template
-
-Please report findings using this template:
-
-```
-Platform: <vendor/model>
-PCH device ID: <output from --audit>
-coreboot version: <version string from dmesg or cbmem>
-Discrete TPM model: <lspci | grep TPM or ls /sys/class/tpm/tpm0/>
-
---audit output:
-<full output>
-
---execute output:
-<full output>
-
-PADCFGLOCK value: <from debug output>
-PCR 2 before: <from pre-reset PCR state>
-PCR 2 after: <from post-reset PCR state>
-Mechanism worked? YES/NO
-```
+See [Heads Wiki Recovery Shell](https://github.com/linuxboot/heads-wiki/blob/master/Installing-and-Configuring/RecoveryShell.md#tpm-gpio-reset-vulnerability-testing) for testing instructions using the C tools (`tpm-gpio-detect`, `tpm-gpio-assert`).
 
 ---
 
@@ -555,81 +397,10 @@ force-unlocking all pads regardless of the board configuration.
 
 ## Appendix A: Key Register Addresses Reference
 
-Per-platform register addresses (PCR_BASE, community base, DW0/DW1 address,
-PADCFGLOCK/PADCFGLOCKTX) are the authoritative output of the script's
-`calculate_registers()` function. See `initrd/bin/tpm-gpio-reset-demo.sh`:
-- Header comments (lines 50-76): port, pad index, PAD_CFG_BASE, lock offset
-  per platform family.
-- `detect_platform()` case statement (lines 260-368): PCI device ID to
-  platform parameter mapping.
-- `calculate_registers()` (lines 533-620): full address computation from
-  PCR_BASE, community port, pad index, and PAD_CFG_BASE.
-
-### ADL-P PADCFGLOCK Readings from NV4x
-
-| Register | Address | Value (LE) | Value (decoded) |
-|---|---|---|---|
-| PADCFGLOCK | 0xFD6E0080 | 0x00010203 | Bits 0, 8, 17 set (not GPP_B13) |
-| PADCFGLOCKTX | 0xFD6E0084 | 0x00000000 | No TX locked pads |
-
-CNP-LP remains **UNTESTED** -- no hardware verification. kukri's PoC does not
-support this PCH family.
-
----
-
-## Appendix B: Script Output Reference
-
-### Audit Mode Output (NV4x ADL-P)
-
-```
-======================================================================
-  1. PLATFORM DETECTION
-======================================================================
-[OK]  Detected PCH: Alder/Raptor Lake (ADL/RPL) -- device 0x5182
-      Attack path: GPIO PAD_CFG (GPP_B13 pad, local idx 13)
-      Port: 0x6e | PAD_CFG_BASE: 0x700
-
-======================================================================
-  2. REGISTER ADDRESS CALCULATION
-======================================================================
-      Pad offset within community: 13 - 0 = 13
-      Bytes per pad: 4 DWORDS x 4 = 16 bytes
-      DW0 register offset in community: 0x700 + (13 * 16) = 0x7d0
-
-======================================================================
-  3. CURRENT REGISTER CONFIGURATION
-======================================================================
-[OK]  Pad is correctly configured as native function output.
-
-======================================================================
-  4. TPM GPIO RESET (hardware -- preserves NVRAM)
-======================================================================
-      AUDIT MODE: No GPIO reset will be performed. The attack plan would be:
-      ...
-```
-
-### Execute Mode Output (NV4x ADL-P -- mechanism fails)
-
-```
-======================================================================
-  4. TPM GPIO RESET (hardware -- preserves NVRAM)
-======================================================================
-      PADCFGLOCK at 0xfd6e0080: 0x00010203 (bit 13 not set)
-      PLTRST pad NOT locked -- writes should work
-... (writes succeed, readback verified) ...
-
-======================================================================
-  5. PCR VERIFICATION
-======================================================================
-[WARN]  PCR 2 is non-zero -- GPIO reset may not have worked
-        NOTE: ADL-P platforms (NovaCustom NV4x, Nitropad NS50) are
-        confirmed vulnerable (no GPIO lock) but PCR 2 remained non-zero
-        after PLTRST# assertion attempt using the kukrimate method — the
-        pad may not be electrically connected to the TPM reset line on
-        this PCH die. The kukrimate inteltool.c does not support ADL-P
-        device IDs, and hardware testing (NV4x) showed the kernel TPM
-        driver did not detect a bus reset after GPIO pad manipulation.
-```
+Register definitions are in the C source:
+- `detect/platforms/*.c` -- per-platform PCH IDs, GPIO pad lock offsets/ports/bits
+- `reset/inteltool.c` -- DW0 assertion offsets and PCH detection switch
+- See `modules/tpm-gpio-reset` for build configuration.
 
 ---
 
