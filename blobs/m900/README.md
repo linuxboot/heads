@@ -39,7 +39,7 @@ Sha256sums: `blobs/m900/hashes.txt`
 
 # CAVEATS for the board:
 
-> This board is vulnerable to a TPM reset attack, i.e. the PCRs are reset while the system is running.
+> This board is vulnerable to a TPM GPIO reset attack, i.e. the PCRs are reset while the system is running.
 > This attack can be used to bypass measured boot when an attacker succeeds at modifying the SPI flash.
 > Also it can be used to extract FDE keys from a TPM.
 > The related coreboot issue contains more information: https://ticket.coreboot.org/issues/576

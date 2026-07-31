@@ -750,6 +750,7 @@ bin_modules-$(CONFIG_NKSTORECLI) += nkstorecli
 bin_modules-$(CONFIG_UTIL_LINUX) += util-linux
 bin_modules-$(CONFIG_OPENSSL) += openssl
 bin_modules-$(CONFIG_TPM2_TOOLS) += tpm2-tools
+bin_modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
 bin_modules-$(CONFIG_BASH) += bash
 bin_modules-$(CONFIG_POWERPC_UTILS) += powerpc-utils
 bin_modules-$(CONFIG_IO386) += io386
