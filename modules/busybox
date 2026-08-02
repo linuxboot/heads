@@ -14,6 +14,17 @@ busybox_output := busybox
 busybox_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
+	SOURCE_DATE_EPOCH=0 \
+
+# For reproducibility, busybox is linked without --gc-sections.
+# SEE: patches/busybox-1.36.1/0004-trylink-reproducible.patch
+# patches scripts/trylink to skip --gc-sections when SOURCE_DATE_EPOCH
+# is set.  ld.bfd's --gc-sections uses internal hash tables influenced
+# by ASLR (no upstream binutils fix through 2.47).
+# SOURCE_DATE_EPOCH=0 in busybox_target triggers the patch.
+# The install rule copies the already-built binary and runs
+# applets/install.sh directly, avoiding 'make install' which could
+# trigger a re-link via the FORCE dependency on busybox_unstripped.
 
 # Install symlinks when the busybox program is installed
 
@@ -22,15 +33,11 @@ initrd_bins += $(initrd_bin_dir)/busybox
 endif
 
 $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/.build
-	$(call do,SYMLINK,bin/busybox,\
-		$(MAKE) \
-			-C $(build)/$(busybox_dir) \
-			CC="$(heads_cc)" \
-			CROSS_COMPILE="$(CROSS)" \
-			CONFIG_PREFIX="$(initrd_bin_dir)/.." \
-			install \
-		| tee -a $(build)/log/busybox.log \
-		$(VERBOSE_REDIRECT) \
+	$(call do,INSTALL,bin/busybox,\
+		cp $(build)/$(busybox_dir)/busybox \
+			$(initrd_bin_dir)/busybox && \
+		cd $(build)/$(busybox_dir) && \
+		$(SHELL) applets/install.sh $(initrd_bin_dir)/.. --symlinks \
 	)
 	# Remove busybox's reboot symlink that conflicts with our custom script
 	$(call do,RM-SYMLINKS,bin/busybox,\
