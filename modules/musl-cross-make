@@ -40,13 +40,26 @@ else
 
 # Force a full build of the cross compiler for target platform
 # No need to build i386 for x86 since coreboot uses its own compiler
+#
+# For reproducibility, config.mak is written with:
+#   BUILD = x86_64-pc-linux-gnu -- prevents config.guess from probing
+#     the Docker host kernel (different CI runners produce different triplets)
+#   -Wa,--no-pad-sections -- prevents gas from padding section ends,
+#     producing non-deterministic alignment between runs
+#   --with-debug-prefix-map=$(pwd)=. -- normalizes build paths in debug info
+#   --enable-compressed-debug-sections=no -- disables non-deterministic zlib
+#     debug-section compression
+# SOURCE_DATE_EPOCH from the pinned commit epoch prevents __DATE__/__TIME__
+# embedding during the GCC build.
 musl-cross-make_configure := \
 	echo -e >> Makefile 'musl-target:' ; \
-	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ;
+	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
+	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no' >> config.mak
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
-musl-cross-make_target := \
+musl-cross-make_target = \
+	SOURCE_DATE_EPOCH=$(shell cd $(build)/$(musl-cross-make_dir) && git log -1 --format=%ct 2>/dev/null || echo 0) \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
 	$(MAKE_JOBS) \
