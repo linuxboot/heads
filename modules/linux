@@ -192,7 +192,7 @@ endef
 $(call map,linux_module,$(linux_modules-y))
 
 # We can't rebuild the module initrd until the kernel has been rebuilt
-$(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build
+$(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build FORCE
 	$(call do-cpio,$@,$(module_initrd_dir))
 	@$(RM) -rf "$(module_initrd_dir)"
 
