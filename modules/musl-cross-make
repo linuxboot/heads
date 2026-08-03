@@ -54,7 +54,7 @@ else
 musl-cross-make_configure := \
 	echo -e >> Makefile 'musl-target:' ; \
 	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
-	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no' >> config.mak
+	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
@@ -72,6 +72,22 @@ endif
 
 
 musl-cross-make_output := $(CROSS)gcc
+
+# Pre-seed component tarballs into $(packages) via fetch_source_archive.sh
+# (primary -> Purism mirror fallback), following the same pattern as
+# coreboot's crossgcc packages.  Tarballs are cached alongside other module
+# tarballs and picked up by Purism's package mirror sync.
+$(build)/$(musl-cross-make_dir)/.sources: $(build)/$(musl-cross-make_dir)/.canary
+	WGET="$(WGET)" bin/fetch_musl_cross_make_archive.sh \
+		"$(build)/$(musl-cross-make_dir)" "$(packages)"
+	touch "$@"
+
+# 'make packages' seeds mirrors with these tarballs too
+packages: $(build)/$(musl-cross-make_dir)/.sources
+
+# Run the fetch script before configure so tarballs land in packages/
+# before the build starts
+$(build)/$(musl-cross-make_dir)/.configured: $(build)/$(musl-cross-make_dir)/.sources
 
 ## Fake a target so that musl will force a header install by the
 ## Linux kernel sources.
