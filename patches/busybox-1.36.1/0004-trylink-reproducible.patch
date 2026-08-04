@@ -1,0 +1,18 @@
+diff -u --recursive clean/busybox-1.36.1/scripts/trylink busybox-1.36.1/scripts/trylink
+--- clean/busybox-1.36.1/scripts/trylink
++++ busybox-1.36.1/scripts/trylink
+@@ -126,6 +126,14 @@
+     fi
+ fi
+ 
++# For reproducible builds, SOURCE_DATE_EPOCH disables --gc-sections.
++# ld.bfd's --gc-sections mark-phase traversal uses internal hash tables
++# that are influenced by ASLR, making the output nondeterministic.
++if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
++	echo "SOURCE_DATE_EPOCH is set, disabling --gc-sections for reproducible build"
++	GC_SECTIONS=""
++fi
++
+ # Sanitize lib list (dups, extra spaces etc)
+ LDLIBS=`echo "$LDLIBS" | xargs -n1 | sort | uniq | xargs`
+ 
