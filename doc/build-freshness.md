@@ -1,5 +1,7 @@
 # Build Freshness Debugging Guide
 
+See also: [reproducible-builds.md](reproducible-builds.md) for verifying ROM reproducibility.
+
 ## The Problem
 
 Changes to source files in `initrd/` or other build dependencies were not being packed into `initrd.cpio.xz`, causing stale artifacts in the final ROM. The test system showed old commit hashes in `/tmp/config` even after rebuilding.

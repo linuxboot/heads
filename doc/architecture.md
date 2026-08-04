@@ -113,7 +113,8 @@ The top-level `Makefile` orchestrates:
   6. `data.cpio` — data files
 - Final ROM image: coreboot ROM with Linux + initramfs payload embedded
 
-Reproducible builds are achieved via Nix-pinned Docker images. See [docker.md](docker.md).
+Reproducible builds are achieved via Nix-pinned Docker images (see [docker.md](docker.md))
+and deterministic compiler flags (see [reproducible-builds.md](reproducible-builds.md)).
 The CI pipeline's workspace and cache behavior is documented in
 [circleci.md](circleci.md).
 
