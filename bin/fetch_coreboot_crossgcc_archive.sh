@@ -82,19 +82,19 @@ PKG_BASENAME="$(basename "$PKG_CKSUM_FILE" .cksum)"
 # broke all the iasl links - coreboot 90753398).
 case "$PKG_NAME" in
 	gmp)
-		PKG_BASEURL="https://ftpmirror.gnu.org/gmp/"
+		PKG_BASEURL="https://mirrors.kernel.org/gnu/gmp/"
 		;;
 	mpfr)
-		PKG_BASEURL="https://ftpmirror.gnu.org/mpfr/"
+		PKG_BASEURL="https://mirrors.kernel.org/gnu/mpfr/"
 		;;
 	mpc)
-		PKG_BASEURL="https://ftpmirror.gnu.org/mpc/"
+		PKG_BASEURL="https://mirrors.kernel.org/gnu/mpc/"
 		;;
 	gcc)
-		PKG_BASEURL="https://ftpmirror.gnu.org/gcc/gcc-$(delete_prefix_suffix "$PKG_BASENAME" gcc- .tar.xz)/"
+		PKG_BASEURL="https://mirrors.kernel.org/gnu/gcc/gcc-$(delete_prefix_suffix "$PKG_BASENAME" gcc- .tar.xz)/"
 		;;
 	binutils)
-		PKG_BASEURL="https://ftpmirror.gnu.org/binutils/"
+		PKG_BASEURL="https://mirrors.kernel.org/gnu/binutils/"
 		;;
 	nasm)
 		PKG_BASEURL="https://www.nasm.us/pub/nasm/releasebuilds/$(delete_prefix_suffix "$PKG_BASENAME" nasm- .tar.bz2)/"
