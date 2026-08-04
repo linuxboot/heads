@@ -112,11 +112,8 @@ fetch_source_archive.sh.
 ## Verifying ROM Reproducibility
 
 ### Prerequisites
-- Same git commit on both CI and local
+- Same git commit on both CI and local (different commits produce different ROMs — see below)
 - Build with `docker_repro.sh` locally (same Docker image as CI)
-- For a complete `hashes.txt`, use `real.gitclean_keep_packages` first.
-  Warm (cached) builds produce partial `hashes.txt` — only rebuilt targets
-  re-append their hashes.
 
 ### Understanding hashes.txt
 
@@ -139,38 +136,36 @@ separated by `-----` lines:
 -----
 ```
 
-### GIT_HASH in /etc/config
+### Same commit: everything should match
 
-`tools.cpio` contains `./etc/config`, which embeds `GIT_HASH` from `git rev-parse HEAD`
-(in the `/etc/config` generation rule).  Every commit changes `GIT_HASH`, so `./etc/config` differs
-between ANY two commits.  This cascades: `./etc/config` → `tools.cpio` →
-`initrd.cpio.xz` → ROM.
+When CI and local build the **same git commit**, the ROM hash should match.
+If it does, the build is reproducible:
 
-When `./etc/config` is the **only** differing file inside `tools.cpio`, the
-build is still reproducible — all binaries (busybox, kexec, gpg, etc.) are
-byte-identical.  A binary mismatch (e.g. `./bin/busybox`) is the actual
-reproducibility bug to investigate.
-
-### Steps
-
-1. Build locally and download CI `hashes.txt` for the same commit.
-
-2. Compare ROM hashes — if they match, the build is reproducible. Done.
 ```bash
 grep '\.rom' /tmp/ci-hashes.txt build/x86/EOL_t480-hotp-maximized/hashes.txt
 ```
 
-3. If the ROM differs, step down: `initrd.cpio.xz`/`bzImage` → `tools.cpio` →
+If the ROM differs, step down: `initrd.cpio.xz` → `tools.cpio` →
 individual files.  The innermost differing file (e.g. `./bin/busybox`) is the
 root cause — fix it and the cascade resolves.  `hashes.txt` records every file
-at every level, so no diffoscope is needed until you've identified what differs.
+at every level so no diffoscope is needed until you've identified what differs.
 
-4. For a comprehensive check:
+For a comprehensive same-commit check:
 ```bash
 diff <(grep '^[0-9a-f]\{64\}' /tmp/ci-hashes.txt | awk '{print $1}' | sort) \
      <(grep '^[0-9a-f]\{64\}' build/x86/EOL_t480-hotp-maximized/hashes.txt | awk '{print $1}' | sort)
 ```
+Zero output = all hashes match.
 
-`./etc/config` inside `tools.cpio` always differs between commits (contains
-`GIT_HASH`).  Its cascade through `tools.cpio`/`initrd.cpio.xz`/ROM is expected;
-only a binary mismatch is a reproducibility bug.
+### Different commits: ROMs always differ
+
+`tools.cpio` contains `./etc/config`, which embeds `GIT_HASH` from
+`git rev-parse HEAD`.  Every commit changes `GIT_HASH`, so `./etc/config`
+differs between ANY two commits.  This cascades: `./etc/config` → `tools.cpio`
+→ `initrd.cpio.xz` → ROM.  The ROM hash WILL differ between different commits —
+this is expected.
+
+When `./etc/config` is the **only** differing file inside `tools.cpio`, the
+build is still reproducible — all binaries (busybox, kexec, gpg, etc.) are
+byte-identical.  A binary mismatch is the actual reproducibility bug to
+investigate.
