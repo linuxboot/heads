@@ -52,7 +52,12 @@ esac
 download() {
 	local download_url
 	download_url="$1"
-	if ! "$WGET" -O "$TMP_FILE" "$download_url"; then
+	# --timeout=30: bail fast on hung downloads (default 900s)
+	# --tries=3:     retry transient failures
+	# -4:            prefer IPv4, avoid IPv6 stalls (issue #2086)
+	if ! "$WGET" -O "$TMP_FILE" \
+		--timeout=30 --tries=3 -4 \
+		"$download_url"; then
 		echo "Failed to download $download_url" >&2
 	elif ! echo "$DIGEST $TMP_FILE" | "$SHASUM" --check -; then
 		echo "File from $download_url does not match expected digest" >&2
@@ -66,6 +71,8 @@ download() {
 
 # If the file exists already and the digest is correct, use the cached copy.
 if [ -f "$FILE" ] && (echo "$DIGEST $FILE" | "$SHASUM" --check -); then
+	echo "$(date -Iseconds) CACHED file=$(basename "$FILE")" \
+		>>"${MIRROR_LOG:-build/mirror_fallbacks.log}"
 	echo "File $FILE is already cached" >&2
 	exit 0
 fi
@@ -73,12 +80,17 @@ fi
 rm -f "$FILE" "$TMP_FILE"
 
 # Try the primary source
-download "$URL" && exit 0
+if download "$URL"; then
+	echo "$(date -Iseconds) PRIMARY file=$(basename "$FILE") url=$URL" \
+		>>"${MIRROR_LOG:-build/mirror_fallbacks.log}"
+	echo "Downloaded from primary: $URL" >&2
+	exit 0
+fi
 
 # Log mirror fallback for developer awareness
 MIRROR_LOG="${MIRROR_LOG:-build/mirror_fallbacks.log}"
 mkdir -p "$(dirname "$MIRROR_LOG")"
-echo "$(date -Iseconds) MIRROR_FALLBACK primary=$URL" >>"$MIRROR_LOG"
+echo "$(date -Iseconds) MIRROR_FALLBACK file=$(basename "$FILE") primary=$URL" >>"$MIRROR_LOG"
 
 # Shuffle the mirrors so we try each equally
 readarray -t BACKUP_MIRRORS < <(shuf -e "${BACKUP_MIRRORS[@]}")
