@@ -24,6 +24,7 @@ gpg2_configure := \
 	--disable-bzip2 \
 	--disable-dirmngr \
 	--disable-doc \
+	--disable-tpm2d \
 	--disable-exec \
 	--disable-gnutls \
 	--disable-gpgsm \
