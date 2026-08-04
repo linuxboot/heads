@@ -5,6 +5,7 @@ environment. Docker images are built with Nix since
 [PR #1661](https://github.com/linuxboot/heads/pull/1661).
 
 See also: [General reproducible-build notes](../README.md#general-notes-on-reproducible-builds),
+[Reproducible build practices](reproducible-builds.md),
 [QEMU testing](qemu.md), [CircleCI pipeline notes](circleci.md).
 
 ---
@@ -234,6 +235,14 @@ When USB passthrough is active the wrappers will detect processes that may be ho
 USB token (for example `scdaemon` or `pcscd`). The wrapper will warn and, on interactive
 shells, give a **3-second abort window** before attempting to kill those processes to free
 the token. Set `HEADS_DISABLE_USB=1` to opt out of this automatic cleanup.
+
+For fully unattended builds (script/non-interactive shell), combine with
+`script` to provide the pseudo-TTY that docker_repro.sh's `-ti` requires:
+
+    HEADS_DISABLE_USB=1 script -qec './docker_repro.sh make BOARD=...' /dev/null
+
+Both `HEADS_DISABLE_USB=1` and `script` are unnecessary when running from
+an interactive terminal.
 
 ```bash
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
