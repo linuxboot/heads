@@ -256,3 +256,16 @@ The `define_module` function in `Makefile` expands these into the
 `.canary` → `.configured` → `.build` chain above.  The package name
 is the Make target: `make BOARD=... kexec` builds just that package.
 ```
+
+## Toolchain Modules
+
+### musl-cross-make
+
+The `MUSL_CROSS_ONCE` guard prevents `modules/musl-cross-make` from being
+included multiple times.
+
+The cross-compiler is included **early** in the Makefile so
+that `$(CROSS)` and `$(heads_cc)` are available before any userland module is
+included.
+
+See `doc/circleci.md` for how CI orchestrates toolchain caching across jobs.
