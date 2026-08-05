@@ -863,7 +863,8 @@ endif
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
-	$(initrd_tools_dir)/etc/config
+	$(initrd_tools_dir)/etc/config \
+	FORCE
 	$(call do-cpio,$@,$(initrd_tools_dir))
 	@$(RM) -rf "$(initrd_tools_dir)"
 
@@ -921,10 +922,10 @@ $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 
 # --- FINAL INITRD PACKAGING ---
 
-$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
+$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y) FORCE
 	$(call do,CPIO-XZ  ,$@,\
 	$(pwd)/bin/cpio-clean.pl \
-		$^ \
+		$(filter-out FORCE,$^) \
 	| xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
