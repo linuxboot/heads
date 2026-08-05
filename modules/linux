@@ -200,9 +200,15 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build FORCE
 # The output of the linux.intermediate is usually the bzImage in the
 # linux build directory.  We need to copy it into our board
 # specific directory for ease of locating it later.
-$(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build
-	$(call do-copy,$(dir $<)/$(linux_output),$@)
-	@touch $@ # force a timestamp update
+$(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build FORCE
+	$(call do-copy,$(dir $<)/$(linux_output),$@.tmp)
+	@if ! cmp --quiet "$@.tmp" "$@" ; then \
+		mv "$@.tmp" "$@" ; \
+		touch "$@" ; \
+	else \
+		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
+		rm "$@.tmp" ; \
+	fi
 	@sha256sum "$@" | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" "$@" | tee -a "$(SIZES)"
 

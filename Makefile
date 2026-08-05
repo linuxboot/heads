@@ -863,7 +863,8 @@ endif
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
-	$(initrd_tools_dir)/etc/config
+	$(initrd_tools_dir)/etc/config \
+	FORCE
 	$(call do-cpio,$@,$(initrd_tools_dir))
 	@$(RM) -rf "$(initrd_tools_dir)"
 
@@ -921,10 +922,10 @@ $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 
 # --- FINAL INITRD PACKAGING ---
 
-$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
+$(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y) FORCE
 	$(call do,CPIO-XZ  ,$@,\
 	$(pwd)/bin/cpio-clean.pl \
-		$^ \
+		$(filter-out FORCE,$^) \
 	| xz \
 		--check=crc32 \
 		--lzma2=dict=1MiB \
@@ -1103,7 +1104,7 @@ define overwrite_canary_if_coreboot_git
 endef
 
 real.clean:
-	@echo "Cleaning build artifacts and install directories, leaving crossgcc intact."
+	@echo "Removing module build output under build/ and clearing install/; downloaded sources (packages/) and crossgcc are left intact."
 	for dir in \
 		$(module_dirs) \
 		$(kernel_headers) \
@@ -1116,20 +1117,20 @@ real.clean:
 	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean:
-	@echo "Cleaning the repository using Git ignore file as a base..."
-	@echo "This will wipe everything not in the Git tree, but keep downloaded coreboot forks (detected as Git repos)."
+	@echo "Removing all untracked and ignored files (git clean -fxd)."
+	@echo "Git-tracked submodules and nested .git directories are preserved (e.g., coreboot forks)."
 	git clean -fxd
 	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages:
-	@echo "Cleaning the repository using Git ignore file as a base..."
-	@echo "This will wipe everything not in the Git tree, but keep the 'packages' directory."
+	@echo "Removing all untracked and ignored files (git clean -fxd), keeping packages/."
+	@echo "Preserves downloaded source tarballs in packages/ for reuse."
 	git clean -fxd -e "packages"
 	$(call overwrite_canary_if_coreboot_git)
 
 real.remove_canary_files-extract_patch_rebuild_what_changed:
-	@echo "Removing 'canary' files to force Heads to restart building board configurations..."
-	@echo "This will check package integrity, extract them, redo patching on files, and rebuild what needs to be rebuilt."
+	@echo "Removing .canary files (build stamps) to force rebuild of board configurations."
+	@echo "The next 'make' will then re-extract packages, re-apply patches, and rebuild changed targets (date-based)."
 	@echo "It will also reinstall the necessary files under './install'."
 	@echo "Limitations: If a patch creates a file in an extracted package directory, this approach may fail without further manual actions."
 	@echo "In such cases, Git will inform you about the file that couldn't be created as expected. Simply delete those files and relaunch the build."
@@ -1147,7 +1148,7 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	$(call overwrite_canary_if_coreboot_git)
 
 real.gitclean_keep_packages_and_build:
-	@echo "Cleaning the repository using Git ignore file as a base..."
-	@echo "This will wipe everything not in the Git tree, but keep the 'packages' and 'build' directories."
+	@echo "Removing all untracked and ignored files (git clean -fxd), keeping packages/ and build/."
+	@echo "Preserves downloaded sources and build artifacts for reuse."
 	git clean -fxd -e "packages" -e "build"
 	$(call overwrite_canary_if_coreboot_git)
