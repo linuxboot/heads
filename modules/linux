@@ -201,16 +201,18 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build FORCE
 # linux build directory.  We need to copy it into our board
 # specific directory for ease of locating it later.
 $(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build FORCE
-	$(call do-copy,$(dir $<)/$(linux_output),$@.tmp)
-	@if ! cmp --quiet "$@.tmp" "$@" ; then \
+	$(call do,INSTALL  ,$(dir $<)/$(linux_output) => $@.tmp,\
+		cp -a "$(dir $<)/$(linux_output)" "$@.tmp" \
+	)
+	@if [ ! -f "$@" ] || ! cmp --quiet "$@.tmp" "$@" ; then \
 		mv "$@.tmp" "$@" ; \
 		touch "$@" ; \
 	else \
 		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
 		rm "$@.tmp" ; \
 	fi
-	@sha256sum "$@" | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" "$@" | tee -a "$(SIZES)"
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
 
 # Build kernel second time, now that initrd is built.
 $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
@@ -220,7 +222,7 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
 	$(MAKE) -C "$(build)/$(linux_dir)" $(linux_target)
 	$(call do-copy,$(build)/$(linux_dir)/$(linux_output),$@)
 	@touch $@ # force a timestamp update
-	@sha256sum "$@" | tee -a "$(HASHES)"
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
 
 # If loadkeys is shipped, include the actual default keymap used by the kernel,
 # so loadkeys --default really resets the keymap to the default state.
