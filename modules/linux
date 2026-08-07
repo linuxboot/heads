@@ -211,8 +211,8 @@ $(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build FORCE
 		echo "$(DATE) UNCHANGED $(@:$(pwd)/%=%)" ; \
 		rm "$@.tmp" ; \
 	fi
-	@sha256sum "$@" | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" "$@" | tee -a "$(SIZES)"
+	@sha256sum "$(@:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(@:$(pwd)/%=%)" | tee -a "$(SIZES)"
 
 # Build kernel second time, now that initrd is built.
 $(build)/$(BOARD)/$(LINUX_IMAGE_FILE).bundled: \
