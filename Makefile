@@ -271,12 +271,24 @@ else
 # verification before flashing (see flash-gui.sh).  The ZIP package format
 # allows other metadata that might be needed to added in the future without
 # breaking backward compatibility.
+# --- UPDATE PACKAGE (ZIP) ---
+#
+# The update zip contains three files:
+#   <rom-file>      - The Heads ROM image (16 MiB flashable image)
+#   sha256sum.txt   - SHA-256 of the ROM only (for update integrity checks)
+#   hashes.txt      - Per-file hash manifest for reproducibility
+#                      verification (same-commit CI comparison) and
+#                      future flash-gui.sh introspection: compare the
+#                      current ROM's files against the update ZIP's
+#                      hashes.txt to report which scripts, modules,
+#                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
+	cp "$(HASHES)" "$(board_build)/update_pkg/"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt
+	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
