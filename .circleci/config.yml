@@ -126,7 +126,7 @@ jobs:
       - run:
           name: Creating blobs listing digest (for x86_blobs cache key)
           command: |
-            find ./blobs -type f -name "*.sh" | sort -h | xargs sha256sum > ./tmpDir/blobs_listing.sha256sums
+            find ./blobs -type f | sort -h | xargs sha256sum > ./tmpDir/blobs_listing.sha256sums
       - persist_to_workspace:
           root: ~/heads
           paths:
