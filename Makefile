@@ -271,18 +271,34 @@ else
 # verification before flashing (see flash-gui.sh).  The ZIP package format
 # allows other metadata that might be needed to added in the future without
 # breaking backward compatibility.
+# --- UPDATE PACKAGE (ZIP) ---
+#
+# The update zip contains three files:
+#   <rom-file>      - The Heads ROM image (16 MiB flashable image)
+#   sha256sum.txt   - SHA-256 of the ROM only (for update integrity checks)
+#   hashes.txt      - Per-file hash manifest for reproducibility
+#                      verification (same-commit CI comparison) and
+#                      future flash-gui.sh introspection: compare the
+#                      current ROM's files against the update ZIP's
+#                      hashes.txt to report which scripts, modules,
+#                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
+	cp "$(HASHES)" "$(board_build)/update_pkg/"
+	# Append the ROM entry to the update's hashes.txt copy; the
+	# main $(HASHES) file is updated only later in the all: rule,
+	# after the zip was already assembled.
+	sha256sum "$(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE)" >> "$(board_build)/update_pkg/$(notdir $(HASHES))"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt
+	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
-	@sha256sum $(board_build)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" $(board_build)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
 else
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 endif
@@ -300,8 +316,8 @@ $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
 all payload:
-	@sha256sum $< | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
+	@sha256sum $(<:$(pwd)/%=%) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(<:$(pwd)/%=%) | tee -a "$(SIZES)"
 
 # Validate coreboot CBFS size against IFD BIOS region
 validate_cbfs_ifd:
@@ -407,8 +423,8 @@ define do-cpio =
 		echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		rm "$1.tmp" ; \
 	fi
-	@sha256sum "$1" | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" "$1" | tee -a "$(SIZES)"
+	@sha256sum "$(1:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(1:$(pwd)/%=%)" | tee -a "$(SIZES)"
 	$(call do,HASHES   , $1,\
 		( cd "$2"; \
 		echo "-----" ; \
