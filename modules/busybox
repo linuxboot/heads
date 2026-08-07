@@ -11,8 +11,6 @@ busybox_hash := b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314
 busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := config/busybox.config
 busybox_output := busybox
-# Host compiler used by applets/busybox.mkll (busybox's Makefile uses gcc too)
-busybox_hostcc ?= gcc
 busybox_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
@@ -36,11 +34,15 @@ endif
 
 $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/.build
 	# Regenerate busybox.links (may be missing after clean/cache restore)
+	# mkll only runs the preprocessor (-E): cross-compiler is
+	# identical to host gcc for text-only header parsing and keeps
+	# the build chain self-contained (no host tools assumed)
 	$(call do,INSTALL,bin/busybox,\
 		cp $(build)/$(busybox_dir)/busybox \
 			$(initrd_bin_dir)/busybox && \
 		cd $(build)/$(busybox_dir) && \
-		HOSTCC="$(busybox_hostcc)" $(SHELL) applets/busybox.mkll include/autoconf.h include/applets.h > busybox.links && \
+		HOSTCC="$(heads_cc)" \
+		$(SHELL) applets/busybox.mkll include/autoconf.h include/applets.h > busybox.links && \
 		test -s busybox.links && \
 		$(SHELL) applets/install.sh $(initrd_bin_dir)/.. --symlinks \
 	)
