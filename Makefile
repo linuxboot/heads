@@ -281,8 +281,8 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
-	@sha256sum $(board_build)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" $(board_build)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
 else
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 endif
@@ -300,8 +300,8 @@ $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
 all payload:
-	@sha256sum $< | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" $< | tee -a "$(SIZES)"
+	@sha256sum $(<:$(pwd)/%=%) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(<:$(pwd)/%=%) | tee -a "$(SIZES)"
 
 # Validate coreboot CBFS size against IFD BIOS region
 validate_cbfs_ifd:
@@ -407,8 +407,8 @@ define do-cpio =
 		echo "$(DATE) UNCHANGED $(1:$(pwd)/%=%)" ; \
 		rm "$1.tmp" ; \
 	fi
-	@sha256sum "$1" | tee -a "$(HASHES)"
-	@stat -c "%8s:%n" "$1" | tee -a "$(SIZES)"
+	@sha256sum "$(1:$(pwd)/%=%)" | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" "$(1:$(pwd)/%=%)" | tee -a "$(SIZES)"
 	$(call do,HASHES   , $1,\
 		( cd "$2"; \
 		echo "-----" ; \
