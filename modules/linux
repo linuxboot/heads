@@ -201,8 +201,10 @@ $(build)/$(BOARD)/modules.cpio: $(build)/$(linux_dir)/.build FORCE
 # linux build directory.  We need to copy it into our board
 # specific directory for ease of locating it later.
 $(build)/$(BOARD)/$(LINUX_IMAGE_FILE): $(build)/$(linux_dir)/.build FORCE
-	$(call do-copy,$(dir $<)/$(linux_output),$@.tmp)
-	@if ! cmp --quiet "$@.tmp" "$@" ; then \
+	$(call do,INSTALL  ,$< => $@.tmp,\
+		cp -a "$(dir $<)/$(linux_output)" "$@.tmp" \
+	)
+	@if [ ! -f "$@" ] || ! cmp --quiet "$@.tmp" "$@" ; then \
 		mv "$@.tmp" "$@" ; \
 		touch "$@" ; \
 	else \
