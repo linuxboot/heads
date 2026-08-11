@@ -18,6 +18,32 @@ case "$CONFIG_FLASH_OPTIONS" in
   ;;
 esac
 
+# Adjust CONFIG_FLASH_OPTIONS depending on which function invoked this
+# script. The caller must set CHANGE_FLASH_OPTIONS, e.g:
+#   CHANGE_FLASH_OPTIONS=whole_spi flash.sh "$ROM"
+#   CHANGE_FLASH_OPTIONS=gbe_only flash.sh "$ROM"
+# In all other cases, leave CONFIG_FLASH_OPTIONS untouched.
+if [ -n "$CHANGE_FLASH_OPTIONS" ] && [ -z "$CONFIG_FLASH_TOOL" ]; then
+  DIE "ERROR: CONFIG_FLASH_TOOL is not set for board $CONFIG_BOARD!\n\nBoards enabling the ethernet MAC randomization feature (CONFIG_NVMUTIL / CONFIG_IFDTOOL) must define CONFIG_FLASH_TOOL, otherwise the flash command would be empty. Aborting."
+fi 
+
+case "$CHANGE_FLASH_OPTIONS" in
+  whole_spi )
+    DEBUG "flash.sh: called from show_mac()"
+    CONFIG_FLASH_OPTIONS="${CONFIG_FLASH_TOOL}"
+  ;;
+  gbe_only )
+  DEBUG "flash.sh: called from mac_randomization(), adding gbe"
+    # --noverify-all: only verify the included (gbe) region, not the whole
+    # 32MB SPI, after writing. See flashprog(8): automatic verification after
+    # -w reads out the whole chip unless not-included regions are skipped.
+    CONFIG_FLASH_OPTIONS="${CONFIG_FLASH_TOOL} --ifd --image gbe --noverify-all"
+  ;;
+  * )
+    : # no change
+  ;;
+esac
+
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
