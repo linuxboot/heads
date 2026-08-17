@@ -274,6 +274,15 @@ DIE is for fatal errors from which Heads cannot recover. Execution stops after D
 
 DIE always goes to debug.log and is always shown on the console regardless of output mode.
 
+## Exit codes
+
+Scripts terminate with a nonzero exit code on failure:
+
+* `DIE()` prints the fatal error and exits with code 1.
+* `mount-usb.sh` exits with code 5 when the user aborts the USB disk
+  picker; `mount_usb()` in `initrd/etc/gui_functions.sh` maps that to
+  exit 1 (abort) so callers see a uniform abort/failure code.
+
 ## INPUT
 
 INPUT is a direct replacement for the `echo "prompt"; read [flags] VAR` pattern.

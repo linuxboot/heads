@@ -92,12 +92,12 @@ eras with a single decompression pass:
 
 - **hybrid (GPT/MBR)** -- whole-image ISO9660-mountable: the dd'd drive
   carries an iso9660 filesystem on the whole device plus a partition
-  table, so `mount-usb.sh` mounts the whole device directly.
+  table, so `mount_usb --whole-disk` mounts the whole device directly.
 - **plain ISO9660** -- no partition table; the whole device is the
   iso9660 filesystem.
 - **partitioned image** -- the whole device is NOT ISO9660-mountable;
-  only a partition carries the filesystem, so the partition picker
-  (`mount-usb.sh --partitions-only`) is required.
+  only a partition carries the filesystem, so the default partitions-only
+  picker (`mount-usb.sh` with no flag) is required.
 
 ### Expected Results
 
