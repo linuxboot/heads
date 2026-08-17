@@ -26,11 +26,23 @@ whether the initramfs scripts actually implement `iso-scan/filename` or
 
 | ISO | Reason |
 |-----|--------|
-| **openSUSE Tumbleweed DVD** | Compiled linuxrc binary as /init (no dracut-live, no |
-| (2026-06-05) | findiso/fromiso/iso-scan support).  Network boot fallback. |
-| **Debian 13 DVD** | installer image (iso9660 only), not a hybrid/live ISO |
+| **openSUSE Tumbleweed DVD** | Installer ISO: compiled linuxrc binary as /init (no |
+| (2026-06-05) | dracut-live, no findiso/fromiso/iso-scan support). |
+| | Network boot fallback.  Whole device IS ISO9660-mountable (MBR). |
+| **Debian 13 DVD** | Installer image (iso9660 only), not a hybrid/live ISO |
 | (2026-12-15) | designed for USB boot.  d-i netinst/installer images |
-| | are built for CD boot, not USB loopback. |
+| | are built for CD boot, not USB loopback.  Whole device IS |
+| | ISO9660-mountable (MBR). |
+| **NixOS** | Partitioned disk image: the whole device is NOT |
+| | ISO9660-mountable, so the whole-device mount probe fails and |
+| | a partition must be mounted.  The genuine "partitioned image, |
+| | no ISO9660 on the whole device" case. |
+
+Note: the openSUSE/Debian DVD entries require dd because their installer
+initramfs has no file-based ISO boot support (the whole device still
+mounts as ISO9660).  NixOS is listed because when dd'd, the whole device
+is not ISO9660-mountable -- only a partition carries the filesystem; it
+otherwise boots fine from a USB file via `findiso`.
 
 ## Kernel probe symbol mapping by kernel version
 
@@ -58,23 +70,34 @@ eras with a single decompression pass:
 
 ### Tested ISO Versions
 
-| ISO file | Distro | Kernel | Compression |
-|----------|--------|--------|-------------|
-| `ubuntu-26.04-desktop-amd64.iso` | Ubuntu 26.04 | 7.0.0 | zstd |
-| `debian-live-13.2.0-amd64-kde.iso` | Debian 13 Trixie | 6.12.57 | zstd |
-| `debian-live-13.2.0-amd64-xfce.iso` | Debian 13 Trixie | 6.12.57 | zstd |
-| `debian-13.2.0-amd64-DVD-1.iso` | Debian 13 installer | 6.12.57 | gzip |
-| `Fedora-Workstation-Live-43-1.6.x86_64.iso` | Fedora 43 Workstation | 6.17.1 | xz/zstd |
-| `Fedora-Silverblue-ostree-x86_64-43-1.6.iso` | Fedora 43 Silverblue | 6.17.1 | xz/zstd |
-| `Kicksecure-LXQt-18.1.4.2.Intel_AMD64.iso` | Kicksecure 18.1 | 6.12.69 | zstd |
-| `Qubes-R4.3.1-rc1-x86_64.iso` | Qubes OS R4.3 | 6.12/6.17 | xz |
-| `nixos-graphical-25.11.*.iso` | NixOS 25.11 | 6.12/6.18 | zstd |
-| `pureos-11-gnome-live-20260515_amd64.iso` | PureOS 11 | 6.12 | zstd |
-| `tails-amd64-7.8.1.iso` | Tails 7.8 | 6.12.74 | xz |
-| `openSUSE-Tumbleweed-KDE-Live-*.iso` | openSUSE TW KDE Live | 7.0.11 | gzip |
-| `openSUSE-Tumbleweed-DVD-*.iso` | openSUSE TW DVD | 7.0.11 | gzip |
-| `CorePlus-current.iso` | TinyCore 15 | 6.18 | gzip |
-| `Samsung_SSD_990_PRO_8B2QJXD7.iso` | Samsung firmware | - | gzip |
+| ISO file | Distro | Kernel | Compression | Layout |
+|----------|--------|--------|-------------|--------|
+| `ubuntu-26.04-desktop-amd64.iso` | Ubuntu 26.04 | 7.0.0 | zstd | hybrid (GPT) |
+| `debian-live-13.2.0-amd64-kde.iso` | Debian 13 Trixie | 6.12.57 | zstd | hybrid (MBR) |
+| `debian-live-13.2.0-amd64-xfce.iso` | Debian 13 Trixie | 6.12.57 | zstd | hybrid (MBR) |
+| `debian-13.2.0-amd64-DVD-1.iso` | Debian 13 installer | 6.12.57 | gzip | hybrid (MBR) |
+| `Fedora-Workstation-Live-43-1.6.x86_64.iso` | Fedora 43 Workstation | 6.17.1 | xz/zstd | hybrid (GPT) |
+| `Fedora-Silverblue-ostree-x86_64-43-1.6.iso` | Fedora 43 Silverblue | 6.17.1 | xz/zstd | hybrid (GPT) |
+| `Kicksecure-LXQt-18.1.4.2.Intel_AMD64.iso` | Kicksecure 18.1 | 6.12.69 | zstd | hybrid (GPT, 3 partitions) |
+| `Qubes-R4.3.1-rc1-x86_64.iso` | Qubes OS R4.3 | 6.12/6.17 | xz | hybrid (GPT) |
+| `nixos-graphical-25.11.*.iso` | NixOS 25.11 | 6.12/6.18 | zstd | partitioned image (no whole-device ISO9660) |
+| `pureos-11-gnome-live-20260515_amd64.iso` | PureOS 11 | 6.12 | zstd | hybrid (MBR) |
+| `tails-amd64-7.8.1.iso` | Tails 7.8 | 6.12.74 | xz | plain ISO9660 (no partition table) |
+| `openSUSE-Tumbleweed-KDE-Live-*.iso` | openSUSE TW KDE Live | 7.0.11 | gzip | hybrid (GPT) |
+| `openSUSE-Tumbleweed-DVD-*.iso` | openSUSE TW DVD | 7.0.11 | gzip | hybrid (MBR) |
+| `CorePlus-current.iso` | TinyCore 15 | 6.18 | gzip | hybrid (MBR) |
+| `Samsung_SSD_990_PRO_8B2QJXD7.iso` | Samsung firmware | - | gzip | hybrid (MBR) |
+
+**Layout legend** (from fdisk/fuseiso testing):
+
+- **hybrid (GPT/MBR)** -- whole-image ISO9660-mountable: the dd'd drive
+  carries an iso9660 filesystem on the whole device plus a partition
+  table, so `mount-usb.sh` mounts the whole device directly.
+- **plain ISO9660** -- no partition table; the whole device is the
+  iso9660 filesystem.
+- **partitioned image** -- the whole device is NOT ISO9660-mountable;
+  only a partition carries the filesystem, so the partition picker
+  (`mount-usb.sh --partitions-only`) is required.
 
 ### Expected Results
 
