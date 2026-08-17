@@ -120,6 +120,24 @@ menu, system info, power off.
 When booting from an ISO file on USB media, `kexec-iso-init.sh` handles the ISO
 boot flow. Invoked from Options → Boot Options → "USB boot".
 
+When a USB drive is a dd-written hybrid ISO (an iso9660 filesystem on the
+whole raw device that also carries a partition table, e.g. Kicksecure's GPT
+hybrid), `mount-usb.sh` probes the whole device with an actual read-only
+`mount` via `first_mountable_usb_disk()` (centralized in
+`initrd/etc/functions.sh`) instead of relying on `blkid TYPE="iso9660"`
+tagging.  This whole-disk probe runs only when `--whole-disk` is passed;
+the default is partitions-only.  The USB boot path opts in via
+`mount_usb --whole-disk` (the `mount_usb()` wrapper in
+`initrd/etc/gui_functions.sh` forwards its arguments to `mount-usb.sh`).
+If the whole device mounts, `/dev/sdX` is used directly instead of a
+partition.  This is required because `list_usb_storage` returns only
+the device's partitions, none of which are individually mountable.  The
+mount is validated by parse-boot (`kexec-select-boot.sh`): if the whole
+device does not mount, or yields no boot entries, `media-scan.sh` retries
+with the default partitions-only picker (`mount-usb.sh` with no flag).
+The boot then proceeds via the bootable-USB path (kexec-select-boot)
+rather than the ISO-file path.
+
 ### Flow (execution order)
 
 The ISO boot flow consists of 7 steps, with branching after step 3:

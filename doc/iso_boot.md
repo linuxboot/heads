@@ -170,9 +170,31 @@ partition table).  The QEMU USB image creation in `targets/qemu.mk`
 now creates an MBR partition table + single ext4 partition to
 work around this.
 
+**dd-written hybrid ISOs:** Kicksecure's dd'd ISO is an iso9660 filesystem
+on the whole device plus a GPT partition table.  Heads' `mount-usb.sh`
+probes the whole device with an actual read-only `mount` (via
+`first_mountable_usb_disk()` in `initrd/etc/functions.sh`) instead of
+relying on blkid `TYPE="iso9660"` tagging.  The probe runs only when
+`--whole-disk` is passed; the default is partitions-only.  The USB boot
+path opts in via `mount_usb --whole-disk`.  If the whole device mounts,
+it is used directly, so such drives boot via the bootable-USB path.
+If the whole device does not mount, or `kexec-select-boot` finds no boot
+entries on it, `media-scan.sh` retries with the default partitions-only
+picker (`mount-usb.sh` with no flag).  Partitionless dd'd ISOs (Tails) and
+MBR hybrids (Debian live) already work through the existing
+partition/whole-device selection.
+
+Note: `mount_usb()` (defined in `initrd/etc/gui_functions.sh`) is an
+interactive wrapper around the `mount-usb.sh` script.  It unmounts any
+prior `/media` mount, maps a picker abort (`mount-usb.sh` exit 5) to
+exit 1, and re-prompts the user to insert a USB drive (then retries) on
+mount failure.  It forwards all its arguments to `mount-usb.sh`, so the
+boot path calls `mount_usb --whole-disk` to opt into whole-disk probing
+while retaining the interactive prompt and abort handling.
+
 ## Test expectations
 
-The ISO boot test (`initrd/tests/iso-test/iso-boot-test.sh`) verifies:
+The ISO boot test (`tests/iso-test/iso-boot-test.sh`) verifies:
 
 1. **Kernel display driver detection** — decompresses bzImage, searches for
    built-in driver symbols (`vesadrm_probe`, `vesafb_probe`, `simpledrm_probe`).
@@ -251,7 +273,7 @@ kernel arguments.
 
 ## Distro Compatibility Notes
 
-The test harness (`initrd/tests/iso-test/iso-boot-test.sh`) validates
+The test harness (`tests/iso-test/iso-boot-test.sh`) validates
 USB boot **detection** — kernel display symbols, initramfs filesystem
 modules, isoboot keywords, and boot menu markers.  It does **not**
 test whether the OS installs correctly with Heads' TPM+LUKS workflow.
