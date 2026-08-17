@@ -18,7 +18,7 @@
 #     Inside initramfs: run mount-usb.sh first, then test /media:
 #       mount-usb.sh && /tests/iso-test/iso-boot-test.sh --iso-dir /media
 #     On host (from repo root):
-#       ./initrd/tests/iso-test/iso-boot-test.sh --iso-dir ~/Downloads/ISOs
+#       ./tests/iso-test/iso-boot-test.sh --iso-dir ~/Downloads/ISOs
 
 PASS=0; FAIL=0; SKIP=0; WITH_ISOS="n"; ISOS=""
 TMPDIR="/tmp/iso_boot_test_$$"
@@ -58,7 +58,7 @@ if [ -d "/etc" ] && [ -f "/etc/functions.sh" ]; then
 	_PATCHED_SELECT="$KEXEC_SELECT"
 else
 	# On host (development): paths relative to repo
-	REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
+	REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 	FUNCTIONS="$REPO/initrd/etc/functions.sh"
 	GUI_FUNCTIONS="$REPO/initrd/etc/gui_functions.sh"
 	KEXEC_ISO="$REPO/initrd/bin/kexec-iso-init.sh"
