@@ -1783,6 +1783,29 @@ disk_info_sysfs() {
 	printf "%s" "${disk_info%$'\n'}"
 }
 
+# Try to mount each USB disk read-only to find one carrying a bootable
+# filesystem on the whole device (e.g. a dd-written hybrid ISO).
+# Non-destructive: each disk is mounted ro then immediately unmounted,
+# so nothing is left mounted. Returns the first mountable device, or
+# nothing (exit 1) if none.
+first_mountable_usb_disk() {
+	local mountpoint="$1" dev
+	for dev in $(list_usb_storage disks 2>/dev/null); do
+		if mount -o ro "$dev" "$mountpoint" 2>/dev/null; then
+			umount "$mountpoint" 2>/dev/null
+			echo "$dev"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Return 0 if $1 is a whole USB disk (not a partition), testing
+# membership in the whole-disk list from list_usb_storage disks.
+is_whole_disk() {
+	[ -n "$1" ] && list_usb_storage disks 2>/dev/null | grep -qxF "$1"
+}
+
 list_usb_storage() {
 	TRACE_FUNC
 	# List all USB storage devices, including partitions unless we received argument stating we want drives only
@@ -3030,6 +3053,14 @@ initrd_fs_type_to_kmod() {
 	vfat|msdos)	echo "fat" ;;
 	*)		echo "$1" ;;
 	esac
+}
+
+# Extract the filesystem TYPE from blkid output. blkid emits a single line of
+# space-separated KEY="value" pairs; this pipeline splits them and prints the
+# TYPE value (empty if blkid did not report a TYPE).
+_get_blkid_fstype() {
+	TRACE_FUNC
+	blkid "$1" 2>/dev/null | tr ' ' '\n' | sed -n 's/^TYPE="\(.*\)"$/\1/p'
 }
 
 # Check whether a kernel binary has a filesystem driver built-in

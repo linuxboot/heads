@@ -20,11 +20,14 @@ mount_usb() {
 		umount /media || DIE "Unable to unmount /media"
 	fi
 	# Mount the USB boot device
-	mount-usb.sh && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+	# Forward "$@" (e.g. --whole-disk) to mount-usb.sh. It exits 5 when
+	# the user aborts the USB disk picker; map that to exit 1 (abort).
+	mount-usb.sh "$@" && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
 	if [ $USB_FAILED -ne 0 ]; then
 		whiptail_error --title 'USB Drive Missing' \
 			--msgbox "Insert your USB drive and press Enter to continue." 0 80
-		mount-usb.sh && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+		# mount-usb.sh exits 5 when the user aborts the USB disk picker; map that to exit 1 (abort).
+		mount-usb.sh "$@" && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
 		if [ $USB_FAILED -ne 0 ]; then
 			whiptail_error --title 'ERROR: Mounting /media Failed' \
 				--msgbox "Unable to mount USB device" 0 80
