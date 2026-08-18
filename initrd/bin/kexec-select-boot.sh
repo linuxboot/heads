@@ -229,6 +229,11 @@ get_menu_option() {
 }
 
 confirm_menu_option() {
+	# Show full kernel/initrd/params in the confirmation dialog.
+	# Cancel/Esc returns to the menu (option_confirm="b") instead of aborting,
+	# so users can change their selection without restarting the boot flow.
+	# The full cmdline combines the entry's parsed params with the global ADD
+	# params (injected by kexec-iso-init.sh for ISO boot).
 	# 'e' drops into vi to edit the boot entry (one-time runtime change).
 	# After an edit, 'd' (make default) is suppressed: the entry no longer
 	# matches the on-media boot config or the signed /boot state.
@@ -298,8 +303,9 @@ edit_boot_entry() {
 
 	mkdir -p "$(dirname "$edit_file")" 2>/dev/null || true
 
-	NOTE "Editing the boot entry in vi. Press i to insert, Esc to leave insert mode, then :wq to save and exit, or :q! to discard changes."
+	NOTE "Editing the boot entry with vi."
 	STATUS "Entry format: name|kexectype|kernel path|initrd path|append params"
+	INPUT "In vi: press i to start editing, Esc to stop editing, then type :wq and press Enter to save and exit, or :q! and press Enter to discard changes. Press Enter to open the editor..." ignored
 	printf '%s\n' "$option" > "$edit_file"
 
 	# Attach vi to the real interactive terminal so it works on both the
