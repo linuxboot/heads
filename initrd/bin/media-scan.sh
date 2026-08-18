@@ -106,12 +106,20 @@ while true; do
 	fi
 
 	WARN "Could not find any ISO, trying bootable USB"
-	# Attempt to pull verified config from device
+	# Attempt to pull verified config from device.
+	# Unlike the ISO-file path (kexec-iso-init.sh), do NOT pass -s here.
+	# -s is kexec-select-boot.sh's skip_confirm flag: with it, user_select()
+	# calls do_boot() directly and confirm_menu_option() never runs, so the
+	# full kexec command line is never shown. Omitting -s makes the dd'ed
+	# bootable-USB path show the same boot confirmation (and Edit [e]) as
+	# the ISO boot path.
 	if [ -x /bin/whiptail ]; then
+		# -s (skip_confirm) intentionally omitted: confirm before booting.
 		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u -g; then
 			break
 		fi
 	else
+		# -s (skip_confirm) intentionally omitted: confirm before booting.
 		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u; then
 			break
 		fi
