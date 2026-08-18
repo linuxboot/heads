@@ -229,12 +229,9 @@ get_menu_option() {
 }
 
 confirm_menu_option() {
-	# Show full kernel/initrd/params in the confirmation dialog.
-	# Cancel/Esc returns to the menu (option_confirm="b") instead of aborting,
-	# so users can change their selection without restarting the boot flow.
-	# The full cmdline combines the entry's parsed params with the global ADD
-	# params (injected by kexec-iso-init.sh for ISO boot).
-	
+	# 'e' drops into vi to edit the boot entry (one-time runtime change).
+	# After an edit, 'd' (make default) is suppressed: the entry no longer
+	# matches the on-media boot config or the signed /boot state.
 	# TODO : simplify to be able to use whiptail; too big for QubesOS
 	#   No GUI for now, sorry.
 	#	if [ "$gui_menu" = "y" ]; then
@@ -247,21 +244,115 @@ confirm_menu_option() {
 	#			-- 'y' "Boot" 'd' "${default_text}" 'b' "Back to menu" \
 	#			2>/tmp/whiptail && option_confirm=$(cat /tmp/whiptail) || option_confirm="b"
 	#else
-		STATUS "  Confirm boot details for $name:"
-		STATUS "    Kernel: $kernel"
-		STATUS "    Initramfs: ${initrd:--}"
-		STATUS "    Original kernel cmdline: ${params:--}"
-		[ -n "$CONFIG_BOOT_KERNEL_ADD" ] && STATUS "    Board adds: $CONFIG_BOOT_KERNEL_ADD"
-		[ -n "$CONFIG_BOOT_KERNEL_REMOVE" ] && STATUS "    Board removes: $CONFIG_BOOT_KERNEL_REMOVE"
-		[ -n "$add" ] && STATUS "    ISO params: $add"
-		# Build final cmdline using shared function (matches kexec-boot.sh)
-		local _final_cmdline
-		_final_cmdline=$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")
-		STATUS "    Final kernel cmdline: $_final_cmdline"
-		INPUT "Boot (Y), make default (d), back to menu (b) [Y/d/b]:" -n 1 option_confirm
-		[ -z "$option_confirm" ] && option_confirm="y"
-		return 0
+		edited="n"
+		orig_option="$option"
+		orig_params="$params"
+		while true; do
+			STATUS "  Confirm boot details for $name:"
+			STATUS "    Kernel: $kernel"
+			STATUS "    Initramfs: ${initrd:--}"
+			if [ "$edited" = "y" ]; then
+				STATUS "    Original kernel cmdline: ${orig_params:--}"
+			else
+				STATUS "    Original kernel cmdline: ${params:--}"
+			fi
+			[ -n "$CONFIG_BOOT_KERNEL_ADD" ] && STATUS "    Board adds: $CONFIG_BOOT_KERNEL_ADD"
+			[ -n "$CONFIG_BOOT_KERNEL_REMOVE" ] && STATUS "    Board removes: $CONFIG_BOOT_KERNEL_REMOVE"
+			[ -n "$add" ] && STATUS "    ISO params: $add"
+			local _final_cmdline
+			_final_cmdline=$(_build_final_cmdline "$params" "$add" "$CONFIG_BOOT_KERNEL_REMOVE" "$CONFIG_BOOT_KERNEL_ADD")
+			STATUS "    Final kernel cmdline: $_final_cmdline"
+
+			if [ "$edited" = "y" ]; then
+				INPUT "Boot (Y), edit again (e), back to menu (b) [Y/e/b]:" -n 1 option_confirm
+			else
+				INPUT "Boot (Y), make default (d), edit (e), back to menu (b) [Y/d/e/b]:" -n 1 option_confirm
+			fi
+			[ -z "$option_confirm" ] && option_confirm="y"
+
+			case "$option_confirm" in
+				y|Y) option_confirm="y"; return 0 ;;
+				d|D)
+					if [ "$edited" = "y" ]; then
+						WARN "Make default (d) is unavailable after editing: the entry no longer matches the on-media boot configuration."
+						continue
+					fi
+					option_confirm="d"; return 0 ;;
+				b|B) option_confirm="b"; return 0 ;;
+				e|E) edit_boot_entry || true; continue ;;
+				*) continue ;;
+			esac
+		done
 	#fi
+}
+
+# Edit the selected boot entry ($option) in vi, then re-parse and validate.
+# One-time runtime modification: nothing is persisted to /boot or config.user.
+# Returns 0 if the entry was modified and re-parsed (sets edited="y").
+# Returns 1 if the user discarded changes, left the entry empty, or entered
+# an invalid line (original entry is left in place).
+edit_boot_entry() {
+	TRACE_FUNC
+	local edit_file="/tmp/kexec/kexec_edit.txt"
+	local edited_line=""
+
+	mkdir -p "$(dirname "$edit_file")" 2>/dev/null || true
+
+	NOTE "Editing the boot entry in vi. Press i to insert, Esc to leave insert mode, then :wq to save and exit, or :q! to discard changes."
+	STATUS "Entry format: name|kexectype|kernel path|initrd path|append params"
+	printf '%s\n' "$option" > "$edit_file"
+
+	# Attach vi to the real interactive terminal so it works on both the
+	# framebuffer and serial console (mirrors recovery()'s TTY redirection).
+	if [ -n "$HEADS_TTY" ]; then
+		vi "$edit_file" <"$HEADS_TTY" >"$HEADS_TTY" 2>&1 || true
+	else
+		vi "$edit_file" || true
+	fi
+
+	if [ ! -s "$edit_file" ]; then
+		WARN "Edited boot entry is empty; keeping the original entry."
+		return 1
+	fi
+
+	# Entries are single-line; take the first line and trim surrounding space.
+	edited_line=$(head -1 "$edit_file")
+	edited_line=$(printf '%s' "$edited_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+	if [ "$edited_line" = "$option" ]; then
+		DEBUG "edit_boot_entry: entry unchanged"
+		return 1
+	fi
+
+	option="$edited_line"
+	parse_option
+	if ! _validate_edited_entry; then
+		WARN "Edited boot entry is invalid. Restoring the original entry."
+		option="$orig_option"
+		parse_option
+		return 1
+	fi
+
+	edited="y"
+	WARN "Boot entry modified at runtime. This change applies to this boot only and is not saved."
+	return 0
+}
+
+# Validate an edited boot entry after parse_option has populated
+# name/kexectype/kernel/initrd/params. Returns 0 when the entry is usable.
+_validate_edited_entry() {
+	[ -n "$name" ] || return 1
+	[ -n "$kexectype" ] || return 1
+	case "$kexectype" in
+		elf|multiboot|xen) ;;
+		*) DEBUG "_validate_edited_entry: unknown kexectype '$kexectype'"; return 1 ;;
+	esac
+	[ -n "$kernel" ] || return 1
+	if [ ! -r "$bootdir/${kernel#/}" ]; then
+		DEBUG "_validate_edited_entry: kernel not found: $bootdir/${kernel#/}"
+		return 1
+	fi
+	return 0
 }
 
 parse_option() {

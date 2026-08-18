@@ -271,6 +271,49 @@ check_marker "fs=OK display=blank" "[~]" "$(boot_marker)"
 rm -f /tmp/kexec_initramfs_compat.txt /tmp/kexec_display_driver.txt
 unset initrd gui_menu
 echo ""
+
+# ================================================================
+# Step 7b (production): boot entry edit + validation
+# ================================================================
+echo "=== Step 7b: Boot entry edit + validation ==="
+echo ""
+
+# Dummy readable kernel so _validate_edited_entry path checks pass.
+TMP_LIVE_DIR="$TMPDIR/live"
+mkdir -p "$TMP_LIVE_DIR"
+: > "$TMP_LIVE_DIR/vmlinuz"
+bootdir="$TMPDIR"
+
+# Valid entry: parse_option populates globals, validation passes
+option="test|elf|kernel /live/vmlinuz|initrd /live/initrd|append root=/dev/sda1"
+parse_option
+check "$([ "$name" = "test" ] && [ "$kernel" = "/live/vmlinuz" ] && echo pass || echo fail)" \
+	"parse_option sets name/kernel from pipe-delimited entry"
+check "$([ "$params" = "root=/dev/sda1" ] && echo pass || echo fail)" \
+	"parse_option sets params from append field"
+check "$(_validate_edited_entry && echo pass || echo fail)" \
+	"_validate_edited_entry accepts valid entry"
+
+# kexectype outside the whitelist -> reject, then restore valid state
+option="test|badtype|kernel /live/vmlinuz|initrd /live/initrd|append root=/dev/sda1"
+parse_option
+check "$(_validate_edited_entry && echo fail || echo pass)" \
+	"_validate_edited_entry rejects kexectype outside whitelist"
+
+# Missing kernel file -> reject, then restore valid state
+option="test|elf|kernel /live/missing|initrd /live/initrd|append root=/dev/sda1"
+parse_option
+check "$(_validate_edited_entry && echo fail || echo pass)" \
+	"_validate_edited_entry rejects missing kernel file"
+
+# Round-trip: edited append value survives into the final kexec cmdline
+option="test|elf|kernel /live/vmlinuz|initrd /live/initrd|append root=/dev/sda2 single"
+parse_option
+r=$(_build_final_cmdline "$params" "" "" "")
+check "$(echo "$r" | grep -qF "root=/dev/sda2" && echo pass || echo fail)" \
+	"edited append root= appears in final kernel cmdline"
+unset bootdir option params name kernel kexectype initrd
+echo ""
 echo ""
 
 # ================================================================
