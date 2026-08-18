@@ -416,3 +416,21 @@ CONFIG_DEBUG_OUTPUT=y
 CONFIG_ENABLE_FUNCTION_TRACING_OUTPUT=y
 CONFIG_QUIET_MODE=n
 ```
+
+## Console Routing
+
+The kernel's `console=` parameter determines which device `/dev/console`
+resolves to. With multiple `console=` parameters, the **last** one becomes
+the primary console for `/dev/console` (see the kernel
+`Documentation/admin-guide/serial-console.rst`).
+
+Implications for Heads log output:
+
+- Kernel `printk` output goes to ALL registered consoles.
+- `STATUS` and `NOTE` write to `/dev/console` only -- they appear only on
+  the primary console.
+- `DEBUG`, `WARN`, and `DIE` also write to `/dev/kmsg` in debug mode,
+  which the kernel broadcasts to all consoles -- so they appear on the
+  serial console even when the framebuffer is the primary console.
+- whiptail dialogs render directly to `tty0` (the framebuffer console)
+  and never appear on the serial console.
