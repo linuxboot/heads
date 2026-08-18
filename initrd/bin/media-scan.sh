@@ -108,11 +108,11 @@ while true; do
 	WARN "Could not find any ISO, trying bootable USB"
 	# Attempt to pull verified config from device
 	if [ -x /bin/whiptail ]; then
-		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u -g -s; then
+		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u -g; then
 			break
 		fi
 	else
-		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u -s; then
+		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u; then
 			break
 		fi
 	fi
