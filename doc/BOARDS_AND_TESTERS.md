@@ -136,7 +136,7 @@ xx30 (Ivy Bridge, 3rd Gen -- EOL)
 ===
 - [ ] t430 (xx30): @notgivenby @nestire @Thrilleratplay @alexmaloteaux @lsafd @bwachter(iGPU maximized) @shamen123 @eganonoa(iGPU) @nitrosimon @jans23 @icequbes1 (iGPU) @weyounsix (t430-dgpu)
 - [ ] w530 (xx30): @eganonoa @zifxify @weyounsix (dGPU: w530-k2000m) @jnscmns (dGPU K1000M) @computer-user123 (w530 / w530 k2000: prefers iGPU) @tlaurion
-- [ ] x230 (xx30): @nestire @tlaurion @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns
+- [ ] x230 (xx30): @nestire @tlaurion @merge @jan23 @MrChromebox @shamen123 @eganonoa @bwachter @Thrilleratplay @jnscmns @makkiato83
 - [ ] x230-fhd/edp variant: @n4ru @computer-user123 (nitro caster board) @Tonux599 @househead @pcm720 (eDP 4.0 board and 1440p display) @doob85
 - [ ] t530 (xx30): @fhvyhjriur @3hhh (See: https://github.com/linuxboot/heads/issues/1682)
 
