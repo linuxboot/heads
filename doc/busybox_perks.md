@@ -40,6 +40,20 @@ These are listed by `busybox --list` but the bash builtin takes precedence in th
 BusyBox awk supports `-F SEP` (field separator) and `-v VAR=VAL`.
 Sufficient for all Heads usage: `awk '{print $2}' /proc/mounts`, `index()`.
 
+### blkid
+BusyBox `blkid` emits `TYPE="..."` only when `CONFIG_FEATURE_BLKID_TYPE=y`
+is set in `config/busybox.config`.  Without it, blkid prints `UUID="..."`
+but no TYPE, and any code parsing `TYPE=` silently gets empty.  Which
+filesystem types blkid can detect is gated by the `CONFIG_FEATURE_VOLUMEID_*`
+probers (e.g. `FEATURE_VOLUMEID_ISO9660=y`).  `blkid DEV` prints a single
+line of space-separated `KEY="value"` pairs.  Use `_get_blkid_fstype()` in
+`initrd/etc/functions.sh` to extract the TYPE (prints empty when blkid
+reports none); it is the shared helper for all fstype lookups.  It is
+currently used by `initrd/bin/kexec-iso-init.sh` for ISO filesystem-type
+detection.  `initrd/bin/mount-usb.sh` does not use blkid TYPE: it probes
+whole USB disks with an actual read-only `mount` via
+`first_mountable_usb_disk()`.
+
 ### cpio
 **BusyBox quirk**: Stops at first TRAILER. GNU reads past it and exits 2.
 Heads pattern: `cpio -i -d "${CPIO_ARGS[@]}" 2>/dev/null || true`.
