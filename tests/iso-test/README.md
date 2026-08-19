@@ -24,19 +24,11 @@ whether the initramfs scripts actually implement `iso-scan/filename` or
 
 ### ISOs that require raw-device (dd) boot
 
-| ISO | Reason |
-|-----|--------|
-| **openSUSE Tumbleweed DVD** | Installer ISO: compiled linuxrc binary as /init (no |
-| (2026-06-05) | dracut-live, no findiso/fromiso/iso-scan support). |
-| | Network boot fallback.  Whole device IS ISO9660-mountable (MBR). |
-| **Debian 13 DVD** | Installer image (iso9660 only), not a hybrid/live ISO |
-| (date TBD) | designed for USB boot.  d-i netinst/installer images |
-| | are built for CD boot, not USB loopback.  Whole device IS |
-| | ISO9660-mountable (MBR). |
-| **NixOS** | Partitioned disk image: the whole device is NOT |
-| | ISO9660-mountable, so the whole-device mount probe fails and |
-| | a partition must be mounted.  The genuine "partitioned image, |
-| | no ISO9660 on the whole device" case. |
+| ISO | Date | Reason |
+|-----|------|--------|
+| **openSUSE Tumbleweed DVD** | 2026-06-05 | Installer ISO: compiled linuxrc binary as /init (no dracut-live, no findiso/fromiso/iso-scan support). Network boot fallback. Whole device IS ISO9660-mountable (MBR). |
+| **Debian 13 DVD** | 2026-06-05 | Installer image: hybrid (MBR), whole device IS ISO9660-mountable, but not a live ISO. d-i netinst/installer images are built for CD boot, not USB loopback, so no file-based ISO boot support. |
+| **NixOS** | 2026-06-05 | Partitioned disk image: the whole device is NOT ISO9660-mountable, so the whole-device mount probe fails and a partition must be mounted. The genuine "partitioned image, no ISO9660 on the whole device" case. |
 
 Note: the openSUSE/Debian DVD entries require dd because their installer
 initramfs has no file-based ISO boot support (the whole device still
