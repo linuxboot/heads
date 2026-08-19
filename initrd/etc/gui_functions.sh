@@ -25,7 +25,7 @@ mount_usb() {
 	if mount-usb.sh "$@"; then
 		USB_FAILED=0
 	else
-		rc=$?
+		local rc=$?
 		if [ "$rc" -eq 5 ]; then
 			return 1	# user aborted the USB disk picker
 		fi
@@ -38,7 +38,7 @@ mount_usb() {
 		if mount-usb.sh "$@"; then
 			USB_FAILED=0
 		else
-			rc=$?
+			local rc=$?
 			if [ "$rc" -eq 5 ]; then
 				return 1	# user aborted the USB disk picker
 			fi
