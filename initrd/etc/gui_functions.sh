@@ -21,13 +21,29 @@ mount_usb() {
 	fi
 	# Mount the USB boot device
 	# Forward "$@" (e.g. --whole-disk) to mount-usb.sh. It exits 5 when
-	# the user aborts the USB disk picker; map that to exit 1 (abort).
-	mount-usb.sh "$@" && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+	# the user aborts the USB disk picker; map that to return 1 (abort).
+	if mount-usb.sh "$@"; then
+		USB_FAILED=0
+	else
+		rc=$?
+		if [ "$rc" -eq 5 ]; then
+			return 1	# user aborted the USB disk picker
+		fi
+		USB_FAILED=1
+	fi
 	if [ $USB_FAILED -ne 0 ]; then
 		whiptail_error --title 'USB Drive Missing' \
 			--msgbox "Insert your USB drive and press Enter to continue." 0 80
-		# mount-usb.sh exits 5 when the user aborts the USB disk picker; map that to exit 1 (abort).
-		mount-usb.sh "$@" && USB_FAILED=0 || ([ $? -eq 5 ] && exit 1 || USB_FAILED=1)
+		# mount-usb.sh exits 5 when the user aborts the USB disk picker; map that to return 1 (abort).
+		if mount-usb.sh "$@"; then
+			USB_FAILED=0
+		else
+			rc=$?
+			if [ "$rc" -eq 5 ]; then
+				return 1	# user aborted the USB disk picker
+			fi
+			USB_FAILED=1
+		fi
 		if [ $USB_FAILED -ne 0 ]; then
 			whiptail_error --title 'ERROR: Mounting /media Failed' \
 				--msgbox "Unable to mount USB device" 0 80
