@@ -340,7 +340,7 @@ edit_boot_entry() {
 	fi
 
 	edited="y"
-	WARN "Boot entry modified at runtime. This change applies to this boot only and is not saved."
+	NOTE "Boot entry modified at runtime. This change applies to this boot only and is not saved."
 	return 0
 }
 
