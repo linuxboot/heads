@@ -58,7 +58,7 @@ while true; do
 	f | c)
 		if (whiptail_warning --title 'Flash the BIOS with a new ROM' \
 			--yesno "You will need to insert a USB drive containing your BIOS image (*.zip or\n*.$UPDATE_PLAIN_EXT).\n\nAfter you select this file, this program will reflash your BIOS.\n\nDo you want to proceed?" 0 80); then
-			mount_usb
+			mount_usb || true
 			if grep -q /media /proc/mounts; then
 				# 'find' parameters to match desired ROM extensions
 				FIND_ROM_EXTS=(\( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.zip" \))

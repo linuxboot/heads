@@ -59,7 +59,7 @@ gpg_post_gen_mgmt() {
 	gpg --export --armor $GPG_GEN_KEY >"/tmp/${GPG_GEN_KEY}.asc"
 	if (whiptail_warning --title 'Add Public Key to USB disk?' \
 		--yesno "Would you like to copy the GPG public key you generated to a USB disk?\n\nYou may need it, if you want to use it outside of Heads later.\n\nThe file will show up as ${GPG_GEN_KEY}.asc" 0 80); then
-		mount_usb
+		mount_usb || return 1
 		mount -o remount,rw /media
 		cp "/tmp/${GPG_GEN_KEY}.asc" "/media/${GPG_GEN_KEY}.asc"
 		if [ $? -eq 0 ]; then
@@ -87,7 +87,7 @@ gpg_post_gen_mgmt() {
 gpg_add_key_reflash() {
 	if (whiptail --title 'GPG public key required' \
 		--yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n\nAfter you select this file, this program will copy and reflash your BIOS\n\nDo you want to proceed?" 0 80); then
-		mount_usb
+		mount_usb || true
 		if grep -q /media /proc/mounts; then
 			find /media -name '*.key' >/tmp/filelist.txt
 			find /media -name '*.asc' >>/tmp/filelist.txt
@@ -116,7 +116,7 @@ gpg_add_key_reflash() {
 gpg_add_key_to_standalone_rom() {
 	if (whiptail --title 'ROM and GPG public key required' \
 		--yesno "This requires you insert a USB drive containing:\n* Your GPG public key (*.key or *.asc)\n* Your BIOS image (*.rom)\n\nAfter you select these files, this program will reflash your BIOS\n\nDo you want to proceed?" 0 80); then
-		mount_usb
+		mount_usb || true
 		if grep -q /media /proc/mounts; then
 			find /media -name '*.key' >/tmp/filelist.txt
 			find /media -name '*.asc' >>/tmp/filelist.txt
