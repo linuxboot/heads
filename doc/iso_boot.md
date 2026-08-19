@@ -285,8 +285,8 @@ Below are observations for each distro tested (as of 2026-06):
 | **Ubuntu 26.04** | ✅ loopback+GRUB → `simpledrm_sysfb` | ✅ | Default: unencrypted `/boot` + LUKS encrypted rootfs.  Heads can verify `/boot` contents.  `live-media=` with `iso-scan/filename=` works. |
 | **Debian 13 Live** | ✅ `vesafb` | ⚠️ | Installer defaults to encrypted rootfs (Debian live).  Heads cannot verify/boot an encrypted `/boot`.  Workaround: manual partitioning with separate unencrypted `/boot`.  See [Heads docs](https://osresearch.net/). |
 | **Debian 13 DVD** | ✅ (installer) | ✅ | Classic installer ISO — boot from Heads USB menu; select "Install Debian" for a custom partition layout. |
-| **Fedora 43 Live** | ✅ `vesafb` | ⚠️ | Default: LUKS2 + Argon2.  Heads TPM DUK (LUKS1) may not unlock directly.  Workaround: select LUKS1 during install or use manual partition with unencrypted `/boot`. |
-| **openSUSE TW Live** | ✅ `vesadrm` | ⚠️ | Default: encrypted root with LUKS2.  Same Argon2 consideration as Fedora.  Live ISO boots correctly; install requires manual `/boot` setup. |
+| **Fedora 43 Live** | ✅ `vesafb` | ✅ | Default: LUKS2 + Argon2.  LUKS1 and LUKS2 both work with Heads' TPM DUK. |
+| **openSUSE TW Live** | ✅ `vesadrm` | ⚠️ | Default: encrypted root with LUKS2.  Live ISO boots correctly; install requires manual `/boot` setup. |
 | **openSUSE TW DVD** | ✅ `vesadrm` (installer) | ❌ | Installer ISO — no isoboot detection.  Must `dd` to dedicated drive.  Not designed for USB file boot. |
 | **Tails 7.8** | ✅ `vesafb` | N/A | Persistent encrypted storage on USB; not a standard OS install.  Boots live from USB under Heads. |
 | **Qubes R4.3** | ✅ `vesafb` | ⚠️ | Xen hypervisor — multiboot2 not kexec-compatible per Xen path.  USB ISO boot works; install via `dd` to drive is recommended. |
