@@ -193,7 +193,7 @@ else
 		fi
 
 		if [ "$option_index" = "a" ]; then
-			# exit 5 = user aborted the USB disk picker; mount_usb() in gui_functions.sh maps this to exit 1 (abort).
+			# exit 5 = user aborted the USB disk picker; mount_usb() in gui_functions.sh maps this to return 1 (abort).
 			exit 5
 		fi
 		USB_MOUNT_DEVICE=$(head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')

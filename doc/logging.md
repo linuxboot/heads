@@ -281,7 +281,7 @@ Scripts terminate with a nonzero exit code on failure:
 * `DIE()` prints the fatal error and exits with code 1.
 * `mount-usb.sh` exits with code 5 when the user aborts the USB disk
   picker; `mount_usb()` in `initrd/etc/gui_functions.sh` maps that to
-  exit 1 (abort) so callers see a uniform abort/failure code.
+  return 1 (abort) so callers see a uniform abort/failure code.
 
 ## INPUT
 
