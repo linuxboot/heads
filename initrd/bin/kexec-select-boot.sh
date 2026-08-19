@@ -303,7 +303,7 @@ edit_boot_entry() {
 
 	mkdir -p "$(dirname "$edit_file")" 2>/dev/null || true
 
-	NOTE "Editing the boot entry with vi."
+	STATUS "Editing the boot entry with vi."
 	STATUS "Entry format: name|kexectype|kernel path|initrd path|append params"
 	INPUT "In vi: press i to start editing, Esc to stop editing, then type :wq and press Enter to save and exit, or :q! and press Enter to discard changes. Press Enter to open the editor..." ignored
 	printf '%s\n' "$option" > "$edit_file"
@@ -340,7 +340,7 @@ edit_boot_entry() {
 	fi
 
 	edited="y"
-	NOTE "Boot entry modified at runtime. This change applies to this boot only and is not saved."
+	STATUS_OK "Boot entry modified at runtime. This change applies to this boot only and is not saved."
 	return 0
 }
 

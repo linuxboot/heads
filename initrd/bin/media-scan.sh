@@ -132,8 +132,7 @@ while true; do
 		retried_whole_disk="y"
 		umount /media 2>/dev/null || true
 		if ! mount-usb.sh; then
-			WARN "No bootable filesystem found on USB media"
-			exit 1
+			DIE "No bootable filesystem found on USB media"
 		fi
 		USB_BOOT_DEV=$(grep "/media" /etc/mtab | cut -f 1 -d' ')
 		continue
