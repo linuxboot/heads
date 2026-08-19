@@ -81,14 +81,6 @@ else
 	trap _iso_cleanup EXIT
 fi
 
-# Extract filesystem type (TYPE="...") from blkid output.
-# blkid emits space-separated KEY="value" pairs; this pipeline
-# splits on spaces and extracts the TYPE value.
-_get_blkid_fstype() {
-	TRACE_FUNC
-	blkid "$1" 2>/dev/null | tr ' ' '\n' | sed -n 's/^TYPE="\(.*\)"$/\1/p'
-}
-
 # Source guard: when _HEADS_TEST=y, only load function definitions, skip main body
 # Guard placed at end-of-functions marker below; here we wrap the Step 1-2
 # body that sits ahead of the function definitions.

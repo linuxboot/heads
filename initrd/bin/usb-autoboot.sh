@@ -28,9 +28,18 @@ parse_boot_options()
 }
 
 # Look for any bootable USB medium.
-list_usb_storage >/tmp/usb-autoboot-usb-storage
+# Try whole disks first (a dd-written hybrid ISO like Kicksecure is an
+# iso9660 filesystem on the whole device, hidden behind its partition
+# table), then partitions. The mount below skips any device that is not a
+# mountable filesystem. Fixes linuxboot/heads#2008.
+list_usb_storage disks > /tmp/usb-autoboot-usb-storage
+list_usb_storage >> /tmp/usb-autoboot-usb-storage
+# The two listings can overlap (whole disk sdX vs its partition sdX1),
+# so dedupe preserving first-seen order before probing.
+awk '!seen[$0]++' /tmp/usb-autoboot-usb-storage > /tmp/usb-autoboot-usb-storage.dedup
+mv /tmp/usb-autoboot-usb-storage.dedup /tmp/usb-autoboot-usb-storage
 while read -u 4 -r USB_BLOCK_DEVICE; do
-	mount "$USB_BLOCK_DEVICE" /media || continue
+	mount "$USB_BLOCK_DEVICE" /media 2>/dev/null || continue
 	USB_DEFAULT_BOOT="$(parse_boot_options /media | head -1)"
 	if [ -n "$USB_DEFAULT_BOOT" ]; then
 		# Boot automatically, unless the user interrupts.

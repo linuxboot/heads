@@ -16,6 +16,8 @@ parameters:
   --device: device to mount (default: first USB device found)
   --mountpoint: where to mount the device (default: /media)
   --pass: passphrase for LUKS device (default: none)
+  --whole-disk: probe whole USB disks (not partitions) for a bootable
+                filesystem, e.g. a dd-written hybrid ISO (default: off)
   --help: Show this help
 USAGE_END
 }
@@ -24,6 +26,7 @@ MODE="ro"
 DEVICE=""
 MOUNTPOINT="/media"
 PASS=""
+WHOLE_DISK=""
 
 #Only assign --mode, --device, --mountpoint and --pass parameters only if variables following them are not empty
 while [ $# -gt 0 ]; do
@@ -56,6 +59,12 @@ while [ $# -gt 0 ]; do
 			shift
 		fi
 		;;
+	# --whole-disk: also probe the raw whole disk (not just partitions)
+	# for a bootable filesystem, e.g. a dd-written hybrid ISO (#2008).
+	--whole-disk)
+		WHOLE_DISK="y"
+		shift
+		;;
 	*)
 		usage
 		exit 1
@@ -78,7 +87,14 @@ else
 fi
 
 list_usb_storage >/tmp/usb_block_devices
-if [ -z "$(cat /tmp/usb_block_devices)" ]; then
+# Probe whole USB disks read-only for a bootable filesystem (e.g. a
+# dd-written hybrid ISO). Non-destructive: each disk is mounted ro
+# then unmounted; nothing is left mounted.
+if [ -n "$WHOLE_DISK" ] && [ -z "$DEVICE" ]; then
+	USB_MOUNT_DEVICE="$(first_mountable_usb_disk "$MOUNTPOINT")"
+	[ -n "$USB_MOUNT_DEVICE" ] && DEBUG "Detected bootable filesystem on whole device $USB_MOUNT_DEVICE"
+fi
+if [ -z "$(cat /tmp/usb_block_devices)" ] && [ -z "$USB_MOUNT_DEVICE" ]; then
 	if [ -x /bin/whiptail ]; then
 		whiptail_warning --title 'USB Drive Missing' \
 			--msgbox "Insert your USB drive and press Enter to continue." 0 80
@@ -87,7 +103,14 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
 	fi
 	sleep 1
 	list_usb_storage >/tmp/usb_block_devices
-	if [ -z "$(cat /tmp/usb_block_devices)" ]; then
+# Probe whole USB disks read-only for a bootable filesystem (e.g. a
+# dd-written hybrid ISO). Non-destructive: each disk is mounted ro
+# then unmounted; nothing is left mounted.
+	if [ -n "$WHOLE_DISK" ] && [ -z "$DEVICE" ]; then
+		USB_MOUNT_DEVICE="$(first_mountable_usb_disk "$MOUNTPOINT")"
+		[ -n "$USB_MOUNT_DEVICE" ] && DEBUG "Detected bootable filesystem on whole device $USB_MOUNT_DEVICE"
+	fi
+	if [ -z "$(cat /tmp/usb_block_devices)" ] && [ -z "$USB_MOUNT_DEVICE" ]; then
 		if [ -x /bin/whiptail ]; then
 			whiptail_error --title 'ERROR: USB Drive Missing' \
 				--msgbox "USB Drive Missing! Aborting mount attempt.\n\nPress Enter to continue." 0 80
@@ -98,7 +121,6 @@ if [ -z "$(cat /tmp/usb_block_devices)" ]; then
 	fi
 fi
 
-USB_MOUNT_DEVICE=""
 # Check if the user has specified a USB device
 if [ -n "$DEVICE" ]; then
 	DEBUG "Checking if "$DEVICE" is a USB detected block device"
@@ -109,8 +131,12 @@ if [ -n "$DEVICE" ]; then
 		DIE "ERROR: Selected $DEVICE is not a USB block device"
 	fi
 else
+	# USB_MOUNT_DEVICE was already set above when the whole raw device
+	# carries a bootable filesystem (e.g. a dd-written hybrid ISO), so
+	# the single-partition auto-select and the user pick below are
+	# skipped via the [ -z "$USB_MOUNT_DEVICE" ] guards.
 	# Check for the common case: a single USB disk with one partition
-	if [ $(cat /tmp/usb_block_devices | wc -l) -eq 1 ]; then
+	if [ -z "$USB_MOUNT_DEVICE" ] && [ $(cat /tmp/usb_block_devices | wc -l) -eq 1 ]; then
 		USB_MOUNT_DEVICE="$(cat /tmp/usb_block_devices)"
 	fi
 	# When a passphrase is provided and multiple devices are present,
@@ -167,6 +193,7 @@ else
 		fi
 
 		if [ "$option_index" = "a" ]; then
+			# exit 5 = user aborted the USB disk picker; mount_usb() in gui_functions.sh maps this to return 1 (abort).
 			exit 5
 		fi
 		USB_MOUNT_DEVICE=$(head -n $option_index /tmp/usb_disk_list | tail -1 | sed 's/\ .*$//')
@@ -204,6 +231,7 @@ fi
 # Mount the USB device
 if [ "$MODE" = "rw" ]; then
 	DEBUG "Mounting $USB_MOUNT_DEVICE as read-write"
+	umount "$MOUNTPOINT" 2>/dev/null || true
 	mount -o rw "$USB_MOUNT_DEVICE" "$MOUNTPOINT" || DIE "ERROR: Failed to mount ${USB_MOUNT_DEVICE} as read-write"
 else
 	DEBUG "Mounting $USB_MOUNT_DEVICE as read-only"

@@ -85,6 +85,7 @@ $(info Verbose example: ./docker_repro.sh make BOARD=$(BOARD) V=1)
 $(info ----------------------------------------------------------------------)
 endif
 $(info !!!!!! Build starts !!!!!!)
+$(if $(BOARD),$(info COMMIT $(GIT_HASH) $(HEADS_GIT_VERSION)),)
 
 
 # Timestamps should be in ISO format

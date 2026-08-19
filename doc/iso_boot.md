@@ -170,9 +170,31 @@ partition table).  The QEMU USB image creation in `targets/qemu.mk`
 now creates an MBR partition table + single ext4 partition to
 work around this.
 
+**dd-written hybrid ISOs:** Kicksecure's dd'd ISO is an iso9660 filesystem
+on the whole device plus a GPT partition table.  Heads' `mount-usb.sh`
+probes the whole device with an actual read-only `mount` (via
+`first_mountable_usb_disk()` in `initrd/etc/functions.sh`) instead of
+relying on blkid `TYPE="iso9660"` tagging.  The probe runs only when
+`--whole-disk` is passed; the default is partitions-only.  The USB boot
+path opts in via `mount_usb --whole-disk`.  If the whole device mounts,
+it is used directly, so such drives boot via the bootable-USB path.
+If the whole device does not mount, or `kexec-select-boot` finds no boot
+entries on it, `media-scan.sh` retries with the default partitions-only
+picker (`mount-usb.sh` with no flag).  Partitionless dd'd ISOs (Tails) and
+MBR hybrids (Debian live) already work through the existing
+partition/whole-device selection.
+
+Note: `mount_usb()` (defined in `initrd/etc/gui_functions.sh`) is an
+interactive wrapper around the `mount-usb.sh` script.  It unmounts any
+prior `/media` mount, maps a picker abort (`mount-usb.sh` exit 5) to
+exit 1, and re-prompts the user to insert a USB drive (then retries) on
+mount failure.  It forwards all its arguments to `mount-usb.sh`, so the
+boot path calls `mount_usb --whole-disk` to opt into whole-disk probing
+while retaining the interactive prompt and abort handling.
+
 ## Test expectations
 
-The ISO boot test (`initrd/tests/iso-test/iso-boot-test.sh`) verifies:
+The ISO boot test (`tests/iso-test/iso-boot-test.sh`) verifies:
 
 1. **Kernel display driver detection** — decompresses bzImage, searches for
    built-in driver symbols (`vesadrm_probe`, `vesafb_probe`, `simpledrm_probe`).
@@ -251,7 +273,7 @@ kernel arguments.
 
 ## Distro Compatibility Notes
 
-The test harness (`initrd/tests/iso-test/iso-boot-test.sh`) validates
+The test harness (`tests/iso-test/iso-boot-test.sh`) validates
 USB boot **detection** — kernel display symbols, initramfs filesystem
 modules, isoboot keywords, and boot menu markers.  It does **not**
 test whether the OS installs correctly with Heads' TPM+LUKS workflow.
@@ -263,8 +285,8 @@ Below are observations for each distro tested (as of 2026-06):
 | **Ubuntu 26.04** | ✅ loopback+GRUB → `simpledrm_sysfb` | ✅ | Default: unencrypted `/boot` + LUKS encrypted rootfs.  Heads can verify `/boot` contents.  `live-media=` with `iso-scan/filename=` works. |
 | **Debian 13 Live** | ✅ `vesafb` | ⚠️ | Installer defaults to encrypted rootfs (Debian live).  Heads cannot verify/boot an encrypted `/boot`.  Workaround: manual partitioning with separate unencrypted `/boot`.  See [Heads docs](https://osresearch.net/). |
 | **Debian 13 DVD** | ✅ (installer) | ✅ | Classic installer ISO — boot from Heads USB menu; select "Install Debian" for a custom partition layout. |
-| **Fedora 43 Live** | ✅ `vesafb` | ⚠️ | Default: LUKS2 + Argon2.  Heads TPM DUK (LUKS1) may not unlock directly.  Workaround: select LUKS1 during install or use manual partition with unencrypted `/boot`. |
-| **openSUSE TW Live** | ✅ `vesadrm` | ⚠️ | Default: encrypted root with LUKS2.  Same Argon2 consideration as Fedora.  Live ISO boots correctly; install requires manual `/boot` setup. |
+| **Fedora 43 Live** | ✅ `vesafb` | ✅ | Default: LUKS2 + Argon2.  LUKS1 and LUKS2 both work with Heads' TPM DUK. |
+| **openSUSE TW Live** | ✅ `vesadrm` | ⚠️ | Default: encrypted root with LUKS2.  Live ISO boots correctly; install requires manual `/boot` setup. |
 | **openSUSE TW DVD** | ✅ `vesadrm` (installer) | ❌ | Installer ISO — no isoboot detection.  Must `dd` to dedicated drive.  Not designed for USB file boot. |
 | **Tails 7.8** | ✅ `vesafb` | N/A | Persistent encrypted storage on USB; not a standard OS install.  Boots live from USB under Heads. |
 | **Qubes R4.3** | ✅ `vesafb` | ⚠️ | Xen hypervisor — multiboot2 not kexec-compatible per Xen path.  USB ISO boot works; install via `dd` to drive is recommended. |
