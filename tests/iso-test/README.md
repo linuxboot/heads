@@ -30,7 +30,7 @@ whether the initramfs scripts actually implement `iso-scan/filename` or
 | (2026-06-05) | dracut-live, no findiso/fromiso/iso-scan support). |
 | | Network boot fallback.  Whole device IS ISO9660-mountable (MBR). |
 | **Debian 13 DVD** | Installer image (iso9660 only), not a hybrid/live ISO |
-| (2026-12-15) | designed for USB boot.  d-i netinst/installer images |
+| (date TBD) | designed for USB boot.  d-i netinst/installer images |
 | | are built for CD boot, not USB loopback.  Whole device IS |
 | | ISO9660-mountable (MBR). |
 | **NixOS** | Partitioned disk image: the whole device is NOT |
