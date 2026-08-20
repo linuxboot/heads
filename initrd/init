@@ -93,6 +93,12 @@ combine_configs
 # Load the user configuration parameters from combined config
 . /tmp/config
 
+# Load USB input before any later initialization can display a prompt.
+if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
+	WARN "USB keyboard required by board or user config; loading USB modules"
+	enable_usb_keyboard
+fi
+
 # Enable maximum debug info from here if config.user extracted and combined from CBFS had CONFIG_DEBUG_OUTPUT=y
 if [ "$CONFIG_DEBUG_OUTPUT" = "y" ]; then
 	#Output all kernel messages to console (8=debug)
@@ -187,12 +193,6 @@ if [ ! -z "$CONFIG_BOOT_RECOVERY_SERIAL" ]; then
 	pause_recovery 'Serial console recovery shell' \
 		<"$CONFIG_BOOT_RECOVERY_SERIAL" \
 		>"$CONFIG_BOOT_RECOVERY_SERIAL" 2>&1 &
-fi
-
-# load USB modules for boards using a USB keyboard
-if [ "$CONFIG_USB_KEYBOARD_REQUIRED" = y ] || [ "$CONFIG_USER_USB_KEYBOARD" = "y" ]; then
-	WARN "USB keyboard required by board or user config; loading USB modules"
-	enable_usb_keyboard
 fi
 
 # Set the keyboard keymap if defined, file exists, and loadkeys is available
