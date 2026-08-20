@@ -419,7 +419,11 @@ report_integrity_measurements() {
 	local totp_display hotp_display
 	case "$totp_state" in
 	UNAVAILABLE)
-		totp_display="SEALED SECRET UNAVAILABLE - Reseal required (expected after TPM reset, re-ownership, or firmware update)"
+		if tpm_reset_required; then
+			totp_display="SEALED SECRET UNAVAILABLE - TPM reset required (rollback counter cannot be verified)"
+		else
+			totp_display="SEALED SECRET UNAVAILABLE - Reseal required (expected after TPM reset, re-ownership, or firmware update)"
+		fi
 		;;
 	ERROR)
 		totp_display="ERROR - TOTP calculation failed"
@@ -458,8 +462,13 @@ report_integrity_measurements() {
 	DEBUG "report_integrity_measurements: signature_guidance=$sig_guidance signing_key_guidance=$signing_key_guidance"
 	DEBUG "report_integrity_measurements: INTEGRITY_REPORT_HASH_STATE=$INTEGRITY_REPORT_HASH_STATE"
 	if [ "$totp_state" = "UNAVAILABLE" ] && [ "$hash_state" = "OK" ] && [ "$signing_key_state" = "DONGLE MATCHES ROM-TRUSTED KEY" ]; then
-		DEBUG "report_integrity_measurements: TOTP unseal unavailable but /boot integrity is OK; reseal/update flows may proceed after user confirmation"
-		report_body="$report_body\n\nNote: /boot is intact - generate a new HOTP/TOTP secret to restore real-time boot attestation."
+		if tpm_reset_required; then
+			DEBUG "report_integrity_measurements: TOTP unseal unavailable and TPM reset required; reset flow re-creates counter and regenerates TOTP/HOTP"
+			report_body="$report_body\n\nNote: /boot is intact, but the TPM rollback counter cannot be verified. Reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) - that flow re-creates the rollback counter and regenerates TOTP/HOTP."
+		else
+			DEBUG "report_integrity_measurements: TOTP unseal unavailable but /boot integrity is OK; reseal/update flows may proceed after user confirmation"
+			report_body="$report_body\n\nNote: /boot is intact - generate a new HOTP/TOTP secret to restore real-time boot attestation."
+		fi
 	fi
 	msg="Measured Integrity Report\n\n$report_body"
 	# menu_msg omits the guidance paragraphs to keep the dialog within terminal height
@@ -473,14 +482,19 @@ report_integrity_measurements() {
 		# /boot is intact but no private key - direct path is OEM Factory Reset / Re-Ownership
 		while true; do
 			whiptail_type "$BG_COLOR_MAIN_MENU" --title 'Measured Integrity Report' \
-				--menu "$msg" 0 80 2 \
+				--menu "$msg" 0 80 3 \
 				'o' ' OEM Factory Reset / Re-Ownership -->' \
+				'K' ' Reprovision USB Security dongle from GPG key backup' \
 				'c' ' Continue to main menu' \
 				2>/tmp/whiptail || return 0
 			report_option=$(cat /tmp/whiptail)
 			case "$report_option" in
 			o)
 				INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+				return 0
+				;;
+			K)
+				reprovision_smartcard_from_backup
 				return 0
 				;;
 			c | *)
@@ -493,10 +507,11 @@ report_integrity_measurements() {
 	if [ "$signing_key_state" = "DONGLE KEY NOT ROM-TRUSTED" ]; then
 		while true; do
 			whiptail_type $BG_COLOR_MAIN_MENU --title 'Measured Integrity Report' \
-				--menu "$menu_msg" 0 80 4 \
+				--menu "$menu_msg" 0 80 5 \
 				'i' ' Investigate discrepancies -->' \
 				'r' ' Replace GPG key in current ROM and reflash' \
 				'o' ' OEM Factory Reset / Re-Ownership' \
+				'K' ' Reprovision USB Security dongle from GPG key backup' \
 				'c' ' Continue' \
 				2>/tmp/whiptail || return 0
 			report_option=$(cat /tmp/whiptail)
@@ -512,6 +527,10 @@ report_integrity_measurements() {
 				;;
 			o)
 				INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+				return 0
+				;;
+			K)
+				reprovision_smartcard_from_backup
 				return 0
 				;;
 			*)
