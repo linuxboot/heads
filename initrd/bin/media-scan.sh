@@ -11,8 +11,8 @@ TRACE_FUNC
 gpg_auth || DIE "GPG authentication failed"
 
 # Unmount any previous boot device
-if grep -q /boot /proc/mounts ; then
-	umount /boot \
+if is_mounted /boot ; then
+	unmount_boot_device \
 		|| DIE "Unable to unmount /boot"
 fi
 

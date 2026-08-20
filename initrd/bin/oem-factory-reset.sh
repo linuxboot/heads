@@ -162,10 +162,10 @@ mount_boot() {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted.
 	# Added so that 'o' can be typed early at boot to enter directly into OEM Factory Reset
-	if ! grep -q /boot /proc/mounts; then
+	if ! is_mounted /boot; then
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot || DIE "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
+			mount_boot_device "$CONFIG_BOOT_DEV" ro || DIE "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
 		fi
 	fi
 }
@@ -853,10 +853,10 @@ generate_checksums() {
 	TRACE_FUNC
 
 	# ensure /boot mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o rw /boot || whiptail_error_die "Unable to mount /boot"
+	if ! is_mounted /boot; then
+		mount_boot_device "$CONFIG_BOOT_DEV" rw || whiptail_error_die "Unable to mount /boot"
 	else
-		mount -o remount,rw /boot || whiptail_error_die "Unable to mount /boot"
+		remount_boot_device rw || whiptail_error_die "Unable to mount /boot"
 	fi
 
 	#Check if previous LUKS TPM Disk Unlock Key was set
@@ -968,7 +968,7 @@ generate_checksums() {
 	fi
 
 	# done writing to /boot, switch back to RO
-	mount -o ro,remount /boot
+	remount_boot_device ro
 
 	if [ $ret = 1 ]; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)

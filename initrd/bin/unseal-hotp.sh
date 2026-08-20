@@ -9,8 +9,8 @@ HOTP_COUNTER="/boot/kexec_hotp_counter"
 mount_boot_or_die() {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o ro /boot ||
+	if ! is_mounted /boot; then
+		mount_boot_device "$CONFIG_BOOT_DEV" ro ||
 			DIE "Unable to mount /boot"
 	fi
 }
@@ -83,11 +83,11 @@ shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 #
 # TODO: figure out a better alternative then a counter that can be modified on disk
 #   As of now, this counter isincreased only in the validated presence of the HOTP dongle being connected per callers
-mount -o remount,rw /boot
+remount_boot_device rw
 DEBUG "Incrementing HOTP counter under $HOTP_COUNTER"
 counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
 	fail_unseal "Unable to create hotp counter file" || exit 1
-mount -o remount,ro /boot
+remount_boot_device ro
 
 exit 0

@@ -8,8 +8,8 @@ mount_boot()
 {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
-	if ! grep -q /boot /proc/mounts ; then
-		mount -o ro /boot \
+	if ! is_mounted /boot ; then
+		mount_boot_device "$CONFIG_BOOT_DEV" ro \
 			|| recovery "Unable to mount /boot"
 	fi
 }

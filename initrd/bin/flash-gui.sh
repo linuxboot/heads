@@ -151,9 +151,9 @@ while true; do
 					# after flash, /boot signatures are now invalid so go ahead and clear them
 					if ls /boot/kexec* >/dev/null 2>&1; then
 						(
-							mount -o remount,rw /boot 2>/dev/null
+							remount_boot_device rw 2>/dev/null
 							rm /boot/kexec* 2>/dev/null
-							mount -o remount,ro /boot 2>/dev/null
+							remount_boot_device ro 2>/dev/null
 						)
 					fi
 				else

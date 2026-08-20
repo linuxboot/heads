@@ -30,7 +30,7 @@ assert_signable
 TRACE_FUNC
 
 # remount /boot as rw
-mount -o remount,rw /boot
+remount_boot_device rw
 
 DEBUG "Signing kexec parameters in $paramsdir, rollback=$rollback, update=$update, counter=$counter"
 
@@ -190,7 +190,7 @@ for tries in 1 2 3; do
 		check_config "$paramsdir"
 
 		# remount /boot as ro
-		mount -o remount,ro /boot
+		remount_boot_device ro
 
 		STATUS_OK "Boot hashes signed successfully"
 		exit 0
@@ -224,6 +224,6 @@ for tries in 1 2 3; do
 done
 
 # remount /boot as ro
-mount -o remount,ro /boot
+remount_boot_device ro
 
 DIE "$paramsdir: Unable to sign kexec hashes"

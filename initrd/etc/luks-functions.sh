@@ -375,9 +375,9 @@ test_luks_current_disk_recovery_key_passphrase() {
 				whiptail_error --title "$luks_container: Wrong current LUKS Disk Recovery Key passphrase?" --msgbox \
 					"If you previously changed it and do not remember it, you will have to reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 				detect_boot_device
-				mount -o remount,rw /boot
+				remount_boot_device rw
 				rm -f /boot/kexec_key_devices.txt
-				mount -o remount,ro /boot
+				remount_boot_device ro
 				luks_secrets_cleanup
 				unset LUKS
 			else
@@ -412,9 +412,9 @@ luks_reencrypt() {
 				"If you previously changed it and do not remember it, you will have to reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 			TRACE_FUNC
 			detect_boot_device
-			mount -o remount,rw /boot
+			remount_boot_device rw
 			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
+			remount_boot_device ro
 			luks_secrets_cleanup
 			unset LUKS
 			continue
@@ -464,9 +464,9 @@ luks_reencrypt() {
 				"If you previously changed it and do not remember it, you will have to reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 			TRACE_FUNC
 			detect_boot_device
-			mount -o remount,rw /boot
+			remount_boot_device rw
 			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
+			remount_boot_device ro
 			luks_secrets_cleanup
 			unset LUKS
 			continue
@@ -491,9 +491,9 @@ luks_reencrypt() {
 				"If you previously changed it and do not remember it, you will have to reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 			TRACE_FUNC
 			detect_boot_device
-			mount -o remount,rw /boot
+			remount_boot_device rw
 			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
+			remount_boot_device ro
 			luks_secrets_cleanup
 			unset LUKS
 		else
@@ -538,9 +538,9 @@ luks_change_passphrase() {
 				"If you previously changed it and do not remember it, you will have to reinstall the OS from an external drive.\n\nTo do so, place the ISO file and its signature file on root of an external drive, and select Options-> Boot from USB \n\nHit Enter to retry." 0 80
 			TRACE_FUNC
 			detect_boot_device
-			mount -o remount,rw /boot
+			remount_boot_device rw
 			rm -f /boot/kexec_key_devices.txt
-			mount -o remount,ro /boot
+			remount_boot_device ro
 			luks_secrets_cleanup
 			unset LUKS
 			continue

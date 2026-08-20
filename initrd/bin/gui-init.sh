@@ -30,10 +30,10 @@ INTEGRITY_GATE_REQUIRED="n"
 mount_boot() {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
-	while ! grep -q /boot /proc/mounts; do
+	while ! is_mounted /boot; do
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			if mount -o ro "$CONFIG_BOOT_DEV" /boot; then
+			if mount_boot_device "$CONFIG_BOOT_DEV" ro; then
 				continue
 			fi
 		fi
@@ -523,7 +523,7 @@ update_hotp() {
 clean_boot_check() {
 	TRACE_FUNC
 	# assume /boot mounted
-	if ! grep -q /boot /proc/mounts; then
+	if ! is_mounted /boot; then
 		return
 	fi
 
@@ -797,7 +797,7 @@ reset_tpm() {
 
 			# now that the TPM is reset, remove invalid TPM counter files
 			mount_boot
-			mount -o rw,remount /boot
+			remount_boot_device rw
 			#TODO: this is really problematic, we should really remove the primary handle hash
 
 			STATUS "Removing rollback and primary handle hashes under /boot"
@@ -847,7 +847,7 @@ reset_tpm() {
 					break
 				fi
 			done
-			mount -o ro,remount /boot
+			remount_boot_device ro
 
 			# Reset completed and reseal prerequisites were rebuilt.
 			# Clear stale preflight marker before generating fresh TOTP/HOTP.

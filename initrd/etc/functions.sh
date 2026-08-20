@@ -1672,8 +1672,8 @@ reseal_tpm_disk_decryption_key() {
 		DEBUG "LUKS TPM Disk Unlock Key is allowed in board configs. Continuing"
 	fi
 
-	if ! grep -q /boot /proc/mounts; then
-		mount -o ro /boot ||
+	if ! is_mounted /boot; then
+		mount_boot_device "$CONFIG_BOOT_DEV" ro ||
 			recovery "Unable to mount /boot"
 	fi
 
@@ -2366,13 +2366,13 @@ update_checksums() {
 	local reset_required_marker="/tmp/secret/rollback_reset_required"
 	local signing_targets
 	# ensure /boot mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o ro /boot ||
+	if ! is_mounted /boot; then
+		mount_boot_device "$CONFIG_BOOT_DEV" ro ||
 			recovery "Unable to mount /boot"
 	fi
 
 	# remount RW
-	mount -o rw,remount /boot
+	remount_boot_device rw
 
 	# sign and auto-roll config counter
 	extparam=
@@ -2412,7 +2412,7 @@ update_checksums() {
 	fi
 
 	# switch back to ro mode
-	mount -o ro,remount /boot
+	remount_boot_device ro
 
 	return $rv
 }
@@ -2634,6 +2634,118 @@ is_gpt_bios_grub() {
 	return 1
 }
 
+# Return true when a path is a mount point.
+is_mounted() {
+	awk -v path="$1" '$2 == path { found = 1 } END { exit !found }' /proc/mounts
+}
+
+# Unmount the public /boot view and its backing filesystem.
+unmount_boot_device() {
+	while is_mounted /boot; do
+		umount /boot || return 1
+	done
+
+	if is_mounted /boot_root; then
+		umount /boot_root || return 1
+	fi
+}
+
+# Mount a boot device while retaining a stable mount point for the underlying
+# filesystem.  /boot is a bind mount of either the filesystem root or its boot
+# directory, depending on where grub is installed.
+mount_boot_device() {
+	local boot_dev="$1"
+	local mode="${2:-ro}"
+	local boot_dir
+
+	unmount_boot_device || return 1
+	mkdir -p /boot_root
+
+	case "$mode" in
+	ro)
+		mount -o ro "$boot_dev" /boot_root || return 1
+		;;
+	rw)
+		mount -w "$boot_dev" /boot_root || return 1
+		;;
+	*)
+		return 1
+		;;
+	esac
+
+	if ls -d /boot_root/grub* >/dev/null 2>&1; then
+		boot_dir=/boot_root
+	elif ls -d /boot_root/boot/grub* >/dev/null 2>&1; then
+		boot_dir=/boot_root/boot
+	else
+		umount /boot_root || true
+		return 1
+	fi
+
+	if ! mount --bind "$boot_dir" /boot; then
+		unmount_boot_device || true
+		return 1
+	fi
+}
+
+# Change the access mode of both the underlying filesystem and its /boot view.
+remount_boot_device() {
+	local mode="$1"
+	local mountpoint="${2:-/boot}"
+	local boot_dev
+
+	if [ "$mountpoint" != /boot ]; then
+		case "$mode" in
+		ro)
+			mount -o remount,ro "$mountpoint"
+			;;
+		rw)
+			mount -w -o remount,rw "$mountpoint"
+			;;
+		*)
+			return 1
+			;;
+		esac
+		return
+	fi
+
+	boot_dev=$(awk '$2 == "/boot_root" { print $1; exit }' /proc/mounts)
+	if [ -z "$boot_dev" ]; then
+		boot_dev=$(awk '$2 == "/boot" { print $1; exit }' /proc/mounts)
+		[ -n "$boot_dev" ] || return 1
+
+		case "$mode" in
+		ro)
+			mount -o remount,ro "$boot_dev" /boot
+			;;
+		rw)
+			mount -w -o remount,rw "$boot_dev" /boot
+			;;
+		*)
+			return 1
+			;;
+		esac
+		return
+	fi
+
+	case "$mode" in
+	ro)
+		mount -o remount,bind,ro "$boot_dev" /boot || return 1
+		mount -o remount,ro "$boot_dev" /boot_root
+		;;
+	rw)
+		mount -w -o remount,rw "$boot_dev" /boot_root || return 1
+		if ! mount -w -o remount,bind,rw "$boot_dev" /boot; then
+			mount -o remount,ro "$boot_dev" /boot_root || true
+			return 1
+		fi
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
 # Test if a block device could be used as /boot - we can mount it and it
 # contains /boot/grub* files.  (Here, the block device could be a partition or
 # an unpartitioned device.)
@@ -2650,10 +2762,7 @@ mount_possible_boot_device() {
 	local BOOT_DEV="$1"
 	local PARTITION_TYPE
 
-	# Unmount anything on /boot.  Ignore failure since there might not be
-	# anything.  If there is something mounted and we cannot unmount it for
-	# some reason, mount will fail, which is handled.
-	umount /boot 2>/dev/null || true
+	unmount_boot_device 2>/dev/null || return 1
 
 	# Skip bios-grub partitions on GPT disks, LUKS partitions, and LVM PVs,
 	# we can't mount these as /boot.
@@ -2681,13 +2790,7 @@ mount_possible_boot_device() {
 		return 1
 	else
 		DEBUG "Try mounting $BOOT_DEV as /boot"
-		if mount -o ro "$BOOT_DEV" /boot >/dev/null 2>&1; then
-			if ls -d /boot/grub* >/dev/null 2>&1; then
-				# This device is a reasonable boot device
-				return 0
-			fi
-			umount /boot || true
-		fi
+		mount_boot_device "$BOOT_DEV" ro >/dev/null 2>&1 && return 0
 	fi
 
 	return 1
@@ -2709,7 +2812,8 @@ detect_boot_device() {
 		return 0
 	fi
 	# unmount /boot to be safe
-	cd / && umount /boot 2>/dev/null
+	cd /
+	unmount_boot_device 2>/dev/null || true
 
 	# check $CONFIG_BOOT_DEV if set/valid
 	if [ -e "$CONFIG_BOOT_DEV" ] && mount_possible_boot_device "$CONFIG_BOOT_DEV"; then
@@ -3670,4 +3774,3 @@ _build_final_cmdline() {
 	DEBUG "_build_final_cmdline: final='$_combined'"
 	echo "$_combined"
 }
-

@@ -146,11 +146,9 @@ while true; do
 		fi
 
 		# unmount /boot if needed
-		if grep -q /boot /proc/mounts; then
-			umount /boot 2>/dev/null
-		fi
+		unmount_boot_device 2>/dev/null || true
 		# mount newly selected /boot device
-		if ! mount -o ro $SELECTED_FILE /boot 2>/tmp/error; then
+		if ! mount_boot_device "$SELECTED_FILE" ro 2>/tmp/error; then
 			ERROR=$(cat /tmp/error)
 			whiptail_error --title 'ERROR: unable to mount /boot' \
 				--msgbox "    $ERROR\n\n" 0 80
@@ -191,9 +189,9 @@ while true; do
 
 			# clear /boot signatures/checksums
 			detect_boot_device
-			mount -o remount,rw /boot
+			remount_boot_device rw
 			rm -f /boot/kexec* || true
-			mount -o remount,ro /boot
+			remount_boot_device ro
 
 			# clear GPG keys and user settings
 			for i in $(cbfs.sh -o /tmp/config-gui.rom -l | grep -e "heads/"); do

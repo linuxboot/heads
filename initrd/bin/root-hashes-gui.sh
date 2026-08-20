@@ -34,15 +34,15 @@ update_root_checksums() {
 	fi
 
 	# mount /boot RW
-	if ! grep -q /boot /proc/mounts; then
-		if ! mount -o rw /boot; then
+	if ! is_mounted /boot; then
+		if ! mount_boot_device "$CONFIG_BOOT_DEV" rw; then
 			unmount_root_device
 			whiptail_error --title 'ERROR: Unable to mount /boot' \
 				--msgbox "Unable to mount /boot" 0 80
 			DIE "Unable to mount /boot"
 		fi
 	else
-		mount -o rw,remount /boot
+		remount_boot_device rw
 	fi
 
 	DEBUG "calculating hashes for $CONFIG_ROOT_DIRLIST_PRETTY on $ROOT_MOUNT"
@@ -61,7 +61,7 @@ update_root_checksums() {
 	) >"${HASH_FILE}"
 
 	# switch back to ro mode
-	mount -o ro,remount /boot
+	remount_boot_device ro
 
 	update_checksums
 
@@ -83,8 +83,8 @@ check_root_checksums() {
 	fi
 
 	# mount /boot RO
-	if ! grep -q /boot /proc/mounts; then
-		if ! mount -o ro /boot; then
+	if ! is_mounted /boot; then
+		if ! mount_boot_device "$CONFIG_BOOT_DEV" ro; then
 			unmount_root_device
 			whiptail_error --title 'ERROR: Unable to mount /boot' \
 				--msgbox "Unable to mount /boot" 0 80
@@ -558,8 +558,8 @@ while true; do
 	unset menu_choice
 
 	# mount /boot RO to detect hash file
-	if ! grep -q /boot /proc/mounts; then
-		if ! mount -o ro /boot; then
+	if ! is_mounted /boot; then
+		if ! mount_boot_device "$CONFIG_BOOT_DEV" ro; then
 			unmount_root_device
 			whiptail_error --title 'ERROR: Unable to mount /boot' \
 				--msgbox "Unable to mount /boot" 0 80
