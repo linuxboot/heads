@@ -470,7 +470,7 @@ define define_module =
   $(eval $1_module_file = $(or $($1_module_file),$1))
 
   ifneq ("$($1_repo)","")
-    $(eval $1_patch_name = $1$(if $($1_patch_version),-$($1_patch_version),))
+    $(eval $1_patch_name = $(or $($1_patch_name_override),$1$(if $($1_patch_version),-$($1_patch_version),)))
     # First time:
     #   Checkout the tree instead and create the canary file with repo and
     #   revision so that we know that the files are all present and their
@@ -559,7 +559,7 @@ define define_module =
     # the version a second time.  (The '-' separator is also omitted then.)
     # $1_patch_version can still be defined manually.
     $(eval $1_patch_version ?= $(if $(filter %-$($1_version),$1),,$($1_version)))
-    $(eval $1_patch_name = $1$(if $($1_patch_version),-,)$($1_patch_version))
+    $(eval $1_patch_name = $(or $($1_patch_name_override),$1$(if $($1_patch_version),-,)$($1_patch_version)))
     # Fetch and verify the source tar file
     # wget creates it early, so we have to cleanup if it fails
     $(packages)/$($1_tar):

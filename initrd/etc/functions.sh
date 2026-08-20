@@ -3386,7 +3386,7 @@ show_totp_until_esc() {
 		local now_sec=$now_epoch
 
 		# Refresh TOTP once per second for fresh validation.
-		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+		if [ "$CONFIG_TPM" = "y" ] && [ -x /bin/totp ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
 			if [ $((now_epoch - last_totp_time)) -ge 1 ] || [ -z "$last_totp" ]; then
 				if current_totp=$(unseal-totp.sh 2>/dev/null); then
 					last_totp="$current_totp"
@@ -3408,7 +3408,7 @@ show_totp_until_esc() {
 		if [ "$now_sec" -ne "$last_sec" ]; then
 			last_sec=$now_sec
 			local totp_field=""
-			if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
+			if [ "$CONFIG_TPM" = "y" ] && [ -x /bin/totp ] && [ "$CONFIG_TOTP_SKIP_QRCODE" != "y" ]; then
 				if [ -n "$last_totp" ]; then
 					totp_field=" | TOTP code: $last_totp"
 				else

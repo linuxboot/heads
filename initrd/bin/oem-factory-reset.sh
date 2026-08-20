@@ -1146,31 +1146,39 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	NOTE "Each prompt requires a single letter answer (Y/n)"
 	NOTE "Pressing Enter selects the default answer for each prompt"
 	TRACE_FUNC
-	DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
-	qrenc "https://diceware.dmuth.org/"
-	NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
-
-	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
-	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
-	if [ "$prompt_output" == "y" \
-		-o "$prompt_output" == "Y" ]; then
-		luks_new_Disk_Recovery_Key_passphrase_desired=1
-		NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+	if [ -x /bin/qrenc ]; then
+		DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
+		qrenc "https://diceware.dmuth.org/"
+		NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
 	fi
 
-	INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
-	if [ "$prompt_output" == "y" \
-		-o "$prompt_output" == "Y" ]; then
-		TRACE_FUNC
-		test_luks_current_disk_recovery_key_passphrase
-		luks_new_Disk_Recovery_Key_desired=1
-		if [ "$luks_new_Disk_Recovery_Key_passphrase_desired" != "1" ]; then
+	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
+	if [ -x /bin/cryptsetup ]; then
+		INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
+		if [ "$prompt_output" == "y" \
+			-o "$prompt_output" == "Y" ]; then
+			luks_new_Disk_Recovery_Key_passphrase_desired=1
 			NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+		fi
+
+		INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
+		if [ "$prompt_output" == "y" \
+			-o "$prompt_output" == "Y" ]; then
+			TRACE_FUNC
+			test_luks_current_disk_recovery_key_passphrase
+			luks_new_Disk_Recovery_Key_desired=1
+			if [ "$luks_new_Disk_Recovery_Key_passphrase_desired" != "1" ]; then
+				NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+			fi
 		fi
 	fi
 
 	#Prompt to ask if user wants to generate GPG key material in memory or on smartcard
-	INPUT "Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication) [y/N]:" -n 1 prompt_output
+	if [ -x /bin/cryptsetup ]; then
+		INPUT "Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication) [y/N]:" -n 1 prompt_output
+	else
+		prompt_output="n"
+	fi
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ] \
 		; then
@@ -1669,14 +1677,17 @@ while true; do
 		$HEIGHT $WIDTH --title "Configured secrets"
 	if [ "$MAKE_USER_RECORD_PASSPHRASES" != y ]; then
 		# Passphrases were user-supplied or not complex, we do not need to
-		# badger the user to record them
+		# badger the user to record them.
 		break
 	fi
-	#Tell user to scan the QR code containing all configured secrets
-	NOTE "Scan the QR code below to save the secrets to a secure location"
-	qrenc "$(echo -e "$passphrases")"
-	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
-	INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
+	if [ -x /bin/qrenc ]; then
+		# Tell user to scan the QR code containing all configured secrets.
+		NOTE "Scan the QR code below to save the secrets to a secure location"
+		qrenc "$(echo -e "$passphrases")"
+		INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
+	else
+		INPUT "Please confirm you have written down the secrets above? [y/N]:" -n 1 prompt_output
+	fi
 	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
 		break
 	fi

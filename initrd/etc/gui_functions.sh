@@ -280,7 +280,7 @@ report_integrity_measurements() {
 	# via detect_usb_security_dongle_branding().
 	detect_usb_security_dongle_branding
 
-	if [ "$CONFIG_TPM" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ] && [ -x /bin/totp ]; then
 		totp_state="UNAVAILABLE"
 		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
 			DEBUG "report_integrity_measurements: unsealing integrity TOTP from TPM"

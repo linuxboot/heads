@@ -198,6 +198,11 @@ gate_reseal_with_integrity_report() {
 generate_totp_hotp() {
 	TRACE_FUNC
 	tpm_owner_passphrase="$1" # May be empty, will prompt if needed and empty
+	if [ ! -x /bin/totp ] && [ ! -x /bin/hotp_verification ]; then
+		TOTP='N/A'
+		HOTP='N/A'
+		return 0
+	fi
 	if [ "$CONFIG_TPM" = "y" ] && tpm_reset_required; then
 		debug_tpm_reset_required_state
 		whiptail_error --title 'ERROR: TPM Reset Required' \
@@ -273,6 +278,9 @@ update_totp() {
 	tries=0
 	if [ "$CONFIG_TPM" != "y" ]; then
 		TOTP="NO TPM"
+	elif [ ! -x /bin/totp ]; then
+		TOTP='N/A'
+		INTEGRITY_GATE_REQUIRED="n"
 	else
 		TOTP=$(HEADS_NONFATAL_UNSEAL=y unseal-totp.sh)
 		if [ $? -ne 0 ]; then
@@ -628,6 +636,14 @@ show_main_menu() {
 
 show_options_menu() {
 	TRACE_FUNC
+	local luks_options=()
+	if [ -x /bin/cryptsetup ]; then
+		luks_options=(
+			'C' ' Reencrypt LUKS container -->'
+			'P' ' Change LUKS Disk Recovery Key passphrase ->'
+		)
+	fi
+
 	whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
 		--menu "" 0 80 10 \
 		'b' ' Boot Options -->' \
@@ -639,8 +655,7 @@ show_options_menu() {
 		'f' ' Flash/Update the BIOS -->' \
 		'g' ' GPG Options -->' \
 		'F' ' OEM Factory Reset / Re-Ownership -->' \
-		'C' ' Reencrypt LUKS container -->' \
-		'P' ' Change LUKS Disk Recovery Key passphrase ->' \
+		"${luks_options[@]}" \
 		'R' ' Check/Update file hashes on root disk -->' \
 		'x' ' Exit to recovery shell' \
 		'r' ' <-- Return to main menu' \
@@ -722,11 +737,18 @@ show_boot_options_menu() {
 
 show_tpm_totp_hotp_options_menu() {
 	TRACE_FUNC
+	local otp_options=()
+	if [ -x /bin/totp ] || [ -x /bin/hotp_verification ]; then
+		otp_options=(
+			'g' ' Generate new TOTP/HOTP secret'
+			't' ' TOTP/HOTP does not match after refresh, troubleshoot'
+		)
+	fi
+
 	whiptail_type $BG_COLOR_MAIN_MENU --title "TPM/TOTP/HOTP Options" \
 		--menu "Select An Option" 0 80 10 \
-		'g' ' Generate new TOTP/HOTP secret' \
+		"${otp_options[@]}" \
 		'r' ' Reset the TPM' \
-		't' ' TOTP/HOTP does not match after refresh, troubleshoot' \
 		'm' ' <-- Return to main menu' \
 		2>/tmp/whiptail || recovery "GUI menu failed"
 
