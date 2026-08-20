@@ -2420,7 +2420,11 @@ update_checksums() {
 # Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
-	find ./ ! -path './kexec*' -print0 | sort -z
+	local _pt_tmp
+	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0; return; }
+	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
+	sort -z <"$_pt_tmp"
+	rm -f "$_pt_tmp"
 }
 
 # Escape zero-delimited standard input to safely display it to the user in e.g.
