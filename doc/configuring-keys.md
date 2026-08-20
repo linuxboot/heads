@@ -160,6 +160,58 @@ If you already have a provisioned USB Security dongle:
 3. Follow the steps.  After reflashing, reboot.
 4. Generate a new TOTP/HOTP secret when prompted.
 
+## Restoring Keys from Backup
+
+If you chose the in-memory backup path during OEM factory reset and your
+dongle is lost, broken, or wiped:
+
+1. Insert the backup USB thumb drive and your (new) dongle.
+2. Go to `Options -> GPG Management -> Reprovision smartcard from GPG key backup`.
+3. Enter the backup passphrase when prompted.
+4. Heads detects the key type from the backup, factory-resets the dongle,
+   restores the subkeys, and sets the card identity.
+5. After success, flash the public key to the running BIOS for persistence.
+6. Reboot to finalize.  Re-signing /boot via
+   `Options -> Update checksums and sign all files in /boot` is only required
+   after a TPM reset (when Heads warned that the TPM rollback counter could
+   not be created); see below.
+
+This requires the LUKS-encrypted backup USB drive created during OEM factory
+reset (answer Y to "format an encrypted USB Thumb drive").  Without it, run
+a new OEM Factory Reset / Re-Ownership to rekey the device.
+
+The reprovision flow is reachable from several places, not just the GPG
+Management Menu:
+
+- `Options -> GPG Management -> 'k'` — always visible (gpg-gui.sh).
+- `'K'` in the empty-GPG-keyring error dialog (`check_gpg_key` in gui-init.sh).
+- `'K'` in the measured integrity report (`report_integrity_measurements` in
+  gui_functions.sh), both the normal and the DONGLE KEY NOT ROM-TRUSTED
+  variants.
+- `'K'` in the TPM State Inconsistent (rollback preflight) dialog — the menu
+  loop re-displays afterwards since key provisioning does not fix the TPM
+  counter problem.
+- `'K'` in the clean boot wizard (`clean_boot_check`), next to `F` (OEM
+  Factory Reset), `i` (ignore), and `x` (recovery shell).
+
+**When the TPM needs a reset:** if the rollback counter preflight failed
+(`tpm_reset_required` is set), the reprovision flow skips the TPM counter
+creation step entirely — the TPM owner passphrase is unknown at that point,
+so prompting would be a dead end.  Key restoration still completes, and Heads
+then warns:
+
+    TPM rollback counter was not created. Reset the TPM from
+    Options -> TPM/TOTP/HOTP Options -> Reset the TPM before
+    the next boot to avoid being dropped into recovery shell.
+
+The integrity report reflects the same state: TOTP shows
+`SEALED SECRET UNAVAILABLE - TPM reset required (rollback counter cannot be
+verified)` and the report note directs you to `Reset the TPM`, which re-creates
+the rollback counter and regenerates TOTP/HOTP secrets.
+
+After reprovisioning, the recovery shell and USB boot will require GPG
+smartcard authentication; see [recovery-shell.md](recovery-shell.md#authentication).
+
 ## Forgotten GPG User PIN
 
 From Recovery Shell with the dongle inserted:
