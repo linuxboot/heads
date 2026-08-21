@@ -2420,6 +2420,7 @@ update_checksums() {
 # Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
+	DEBUG "print_tree: CWD=$(pwd)"
 	local _pt_tmp
 	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0; return; }
 	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"

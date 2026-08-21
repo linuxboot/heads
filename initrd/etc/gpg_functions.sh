@@ -769,10 +769,19 @@ reprovision_smartcard_from_backup() {
 			fi
 		fi
 
-		(cd /boot && find ./ -type f ! -path './kexec*' -print0 | \
-			xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null && \
-			print_tree >/boot/kexec_tree.txt) || \
-			DEBUG "Hash generation produced warnings"
+		# Generate fresh kexec_hashes.txt and kexec_tree.txt in a subshell.
+		# Pattern matches generate_checksums() in oem-factory-reset.sh:
+		# cd /boot must be a standalone statement (not &&-chained through a
+		# pipe) so that print_tree inherits the /boot working directory.
+		(
+			hash_pipeline_exit=0
+			cd /boot
+			find ./ -type f ! -path './kexec*' -print0 |
+				xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null ||
+				hash_pipeline_exit=$?
+			print_tree >/boot/kexec_tree.txt
+			exit $hash_pipeline_exit
+		) || DEBUG "Hash generation produced warnings"
 
 		# Remove stale default manifests BEFORE collecting the files to sign,
 		# so they are not included in (and invalidated by) the new signature.
