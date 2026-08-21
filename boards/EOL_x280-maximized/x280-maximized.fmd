@@ -1,0 +1,8 @@
+FLASH 16M {
+    SI_DESC 4K @0x0
+    SI_GBE 8K @0x1000
+    SI_ME 0x111000 @0x3000
+    BIOS 0xee8000 @0x114000 {
+        COREBOOT(CBFS)
+    }
+}
