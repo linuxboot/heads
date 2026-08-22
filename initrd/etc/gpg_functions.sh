@@ -690,13 +690,13 @@ reprovision_smartcard_from_backup() {
 	if whiptail_warning --title "Set Custom PINs?" \
 		--yesno "The card is currently using factory-default PINs\n(Admin: 12345678, User: 123456).\n\nWould you like to set custom PINs?" 0 80; then
 		local new_admin_pin="" new_user_pin=""
-		NOTE "${pin_label_admin}: for GPG card admin operations, 6-64 chars."
+		NOTE "${pin_label_admin}: for GPG card admin operations, 8-64 chars."
 		while :; do
-			INPUT "Enter new ${pin_label_admin} (6-64 chars):" -r -s new_admin_pin
-			if [ -n "$new_admin_pin" ] && [ ${#new_admin_pin} -ge 6 ] && [ ${#new_admin_pin} -le 64 ]; then
+			INPUT "Enter new ${pin_label_admin} (8-64 chars):" -r -s new_admin_pin
+			if [ -n "$new_admin_pin" ] && [ ${#new_admin_pin} -ge 8 ] && [ ${#new_admin_pin} -le 64 ]; then
 				break
 			fi
-			NOTE "Invalid length: must be 6-64 chars."
+			NOTE "Invalid length: must be 8-64 chars."
 		done
 		if ! gpg_card_change_pin 3 "12345678" "$new_admin_pin"; then
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
