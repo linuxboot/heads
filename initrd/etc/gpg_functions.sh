@@ -473,7 +473,7 @@ reprovision_smartcard_from_backup() {
 	TRACE_FUNC
 	local admin_pin key_algo rsa_key_length key_name key_email key_comment
 	local card_admin_pin key_id uid_line
-	local algo_code bit_len tpm_counter_ok
+	local algo_code bit_len
 	local reprovision_gnupghome=/tmp/reprovision_gnupghome
 	local backup_pin_file=/tmp/secret/gpg_backup_passphrase
 
@@ -742,86 +742,64 @@ reprovision_smartcard_from_backup() {
 	STATUS "Signing /boot files for next boot"
 	detect_boot_device
 	if mount -o remount,rw /boot 2>/tmp/sign_err; then
-		# Preserve the existing manifests until the new set is signed and
-		# passes verification, so a signing/verification failure cannot
-		# leave /boot without valid boot signatures.
-		local old_manifest_dir=/tmp/boot_manifests_backup
-		rm -rf "$old_manifest_dir"
-		mkdir -p "$old_manifest_dir"
-		for f in /boot/kexec*.txt /boot/kexec.sig; do
-			[ -e "$f" ] || continue
-			cp -a "$f" "$old_manifest_dir/" 2>/dev/null || true
-		done
-
-		# Do not attempt counter creation when the TPM state is known
-		# inconsistent (tpm_reset_required): the owner passphrase is unknown
-		# and the counter cannot be created, so prompting for it would be a
-		# dead end.  The reset-TPM guidance below then tells the user what
-		# to do next (mirrors generate_totp_hotp / prompt_update_checksums).
-		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ] && ! tpm_reset_required; then
-			tpmr.sh counter_create -pwdc '' -la -3135106223 >/tmp/counter || true
-			local tpm_counter
-			tpm_counter="$(cut -d: -f1 </tmp/counter 2>/dev/null)"
-			if [ -n "$tpm_counter" ]; then
-				increment_tpm_counter "$tpm_counter" || true
-				sha256sum /tmp/counter-"$tpm_counter" >/boot/kexec_rollback.txt 2>/dev/null || true
-				tpm_counter_ok="y"
-			fi
-		fi
-
-		# Generate fresh kexec_hashes.txt and kexec_tree.txt in a subshell.
-		# Pattern matches generate_checksums() in oem-factory-reset.sh:
-		# cd /boot must be a standalone statement (not &&-chained through a
-		# pipe) so that print_tree inherits the /boot working directory.
-		(
-			hash_pipeline_exit=0
-			cd /boot
-			find ./ -type f ! -path './kexec*' -print0 |
-				xargs -0 sha256sum >/boot/kexec_hashes.txt 2>/dev/null ||
-				hash_pipeline_exit=$?
-			print_tree >/boot/kexec_tree.txt
-			exit $hash_pipeline_exit
-		) || DEBUG "Hash generation produced warnings"
-
-		# Remove stale default manifests BEFORE collecting the files to sign,
-		# so they are not included in (and invalidated by) the new signature.
-		rm -f /boot/kexec_default.*.txt 2>/dev/null
-		local param_files=()
-		for f in /boot/kexec*.txt; do
-			[ -e "$f" ] || continue
-			param_files+=("$(basename "$f")")
-		done
-		local sign_ok="n"
-		if (cd /boot && sha256sum "${param_files[@]}" 2>/dev/null | \
-			gpg --detach-sign --pinentry-mode loopback \
-				--passphrase-file /tmp/secret/gpg_pin \
-				--digest-algo SHA256 -a -o /boot/kexec.sig 2>/tmp/sign_err); then
-			if check_config /boot >/dev/null 2>/tmp/sign_err; then
-				DEBUG "/boot signed and verified successfully"
-				sign_ok="y"
-				STATUS_OK "/boot files signed and ready"
+		# Reset the TPM so a fresh rollback counter can be created,
+		# mirroring oem-factory-reset.sh (tpmr.sh reset) and gui-init.sh
+		# reset_tpm(): reprovisioning is an ownership-level operation, so
+		# like OEM factory reset it must leave the machine with a
+		# freshly-owned TPM plus a valid counter and kexec_rollback.txt,
+		# and must not punt a manual "Reset the TPM" step to the user. The
+		# reset cannot be skipped: counter creation defines an NV index
+		# with owner-hierarchy auth, so against a TPM owned with an
+		# old/unknown passphrase it would just loop on authorization
+		# failures (0x9a2). prompt_new_owner_password caches the new
+		# passphrase under /tmp/secret/tpm_owner_passphrase, which
+		# _tpm_auth_retry then picks up as the owner auth.
+		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
+			local tpm_reset_ok="n"
+			prompt_new_owner_password
+			if tpmr.sh reset "$tpm_owner_passphrase" >/dev/null 2>/tmp/tpm_reset_err; then
+				tpm_reset_ok="y"
+				# Counter references are invalid once the TPM is re-owned;
+				# drop the stale rollback file so kexec-sign-config.sh -r
+				# creates a fresh counter instead of trying to increment a
+				# dead one. The primary-handle hash is refreshed by
+				# update_checksums() before signing.
+				rm -f /boot/kexec_rollback.txt /boot/kexec_primhdl_hash.txt 2>/dev/null
 			else
-				WARN "/boot verification failed: $(head -3 /tmp/sign_err 2>/dev/null)"
+				WARN "Unable to reset TPM: $(tail -n 1 /tmp/tpm_reset_err 2>/dev/null | fold -s)"
 			fi
-		else
-			WARN "/boot signing failed: $(head -3 /tmp/sign_err 2>/dev/null)"
+			if [ "$tpm_reset_ok" != "y" ]; then
+				# Without a successful reset no rollback counter can be
+				# created. Keep /boot exactly as-is (the old signature
+				# still covers it) and bail out; the user can retry after
+				# a GUI TPM reset.
+				mount -o ro,remount /boot 2>/dev/null || true
+				_luks_cleanup
+				WARN "TPM reset failed; /boot signatures were NOT updated and no ROM flash will be performed."
+				WARN "Reset the TPM via Options -> TPM/TOTP/HOTP Options -> Reset the TPM, then reprovision again."
+				return 1
+			fi
 		fi
 
-		if [ "$sign_ok" != "y" ]; then
-			# Restore the previous (valid) manifests so /boot is not left
-			# without boot signatures, and do not proceed to flash/reboot.
-			rm -f /boot/kexec*.txt /boot/kexec.sig 2>/dev/null
-			cp -a "$old_manifest_dir"/. /boot/ 2>/dev/null || true
-			rm -rf "$old_manifest_dir"
+		# Hash + sign atomically through the canonical master path:
+		# update_checksums() -> kexec-sign-config.sh -p /boot -u [-r].
+		# All writes land in a staging directory under /tmp and move into
+		# /boot only after signing AND check_config verification succeed,
+		# so a failure leaves the previous manifests untouched.
+		if update_checksums; then
+			STATUS_OK "/boot files signed and ready"
+			# A fresh counter + rollback file resolves the reason the
+			# preflight set the reset-required marker; clear it so later
+			# dialogs this session reflect reality.
+			rm -f "$(tpm_reset_required_marker_path)" 2>/dev/null || true
+		else
 			mount -o ro,remount /boot 2>/dev/null || true
 			_luks_cleanup
-			WARN "Boot signature update failed; the smartcard was reprovisioned but /boot"
+			WARN "/boot signing failed; the smartcard was reprovisioned but /boot"
 			WARN "signatures were NOT updated and no ROM flash will be performed."
 			WARN "Re-sign /boot via Options -> Update checksums and sign all files in /boot."
 			return 1
 		fi
-		rm -rf "$old_manifest_dir"
-		mount -o ro,remount /boot 2>/dev/null || true
 	else
 		WARN "/boot not writable; skipping signing"
 	fi
@@ -851,12 +829,6 @@ reprovision_smartcard_from_backup() {
 	combine_configs
 
 	STATUS_OK "Smartcard reprovisioned"
-
-	if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ] && [ "$tpm_counter_ok" != "y" ]; then
-		WARN "TPM rollback counter was not created. Reset the TPM from"
-		WARN "Options -> TPM/TOTP/HOTP Options -> Reset the TPM before"
-		WARN "the next boot to avoid being dropped into recovery shell."
-	fi
 
 	if [[ "$CONFIG_BOARD_NAME" == qemu-* ]]; then
 		WARN "Skipping flash of GPG key to ROM: running in QEMU without internal flashing support."
@@ -890,15 +862,10 @@ reprovision_smartcard_from_backup() {
 
 	shred -n 10 -z -u /tmp/secret/gpg_pin 2>/dev/null || rm -f /tmp/secret/gpg_pin
 	DEBUG "Offering reboot to finalize provisioning"
-	# Phase 8 already signs /boot, so re-signing is only needed after a TPM
-	# reset (which regenerates the rollback counter and invalidates the
-	# signatures).  Mirror the TPM-reset warning condition above.
+	# Phase 8 resets the TPM and signs /boot atomically before we get here;
+	# any failure returns early, so a plain reboot prompt is always correct.
 	local reboot_msg
-	if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ] && [ "$tpm_counter_ok" != "y" ]; then
-		reboot_msg="The $DONGLE_BRAND smartcard has been reprovisioned\nfrom the GPG key backup.\n\nYou should reboot to finalize. After resetting the TPM,\nre-sign /boot via Options -> Update checksums and sign all files in /boot.\n\nReboot now?"
-	else
-		reboot_msg="The $DONGLE_BRAND smartcard has been reprovisioned\nfrom the GPG key backup.\n\nYou should reboot to finalize.\n\nReboot now?"
-	fi
+	reboot_msg="The $DONGLE_BRAND smartcard has been reprovisioned\nfrom the GPG key backup.\n\nYou should reboot to finalize.\n\nReboot now?"
 	if whiptail_warning --title 'Reboot?' --yesno "$reboot_msg" 0 80; then
 		DEBUG "User accepted reboot"
 		/bin/reboot.sh
