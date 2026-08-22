@@ -154,6 +154,7 @@ nix develop --command make BOARD=$BOARD
 | `real.gitclean` | `git clean -fxd` — remove all untracked and ignored files |
 | `real.gitclean_keep_packages` | `git clean -fxd` but keep downloaded tarballs in `packages/` |
 | `real.gitclean_keep_packages_and_build` | `git clean -fxd` keeping `packages/` and `build/` |
+| `real.remove_canary_files-extract_patch_rebuild_what_changed` | Delete `.canary` stamps so the next `make` re-extracts, re-patches, and rebuilds only what changed |
 
 All run under `nix develop` (local) or `./docker_repro.sh` (Docker):
 
