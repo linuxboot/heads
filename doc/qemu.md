@@ -147,29 +147,25 @@ cp -alf ~/Qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_f
 
 ### Daily development cycle
 
-After OS install + USB provisioned, back up to `~/Qemu_img/` (same
-filesystem, zero-cost hardlinks) so `make clean` won't destroy them:
-
-    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 ~/Qemu_img/
-    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw ~/Qemu_img/
-
-Then run the daily cycle directly (uses `build/` root.qcow2):
-
-
-Save the OS install and hardlink it back into the build tree (see the
-hardlink convention above) so `build/` stays ephemeral:
-
-    mkdir -p qemu_img
-    cp build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 qemu_img/
-    rm build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2
-    cp -alf qemu_img/root.qcow2 build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/
-
-Then run the daily cycle:
+Run the daily cycle directly against the `build/` images:
 
     ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
       PUBKEY_ASC=pubkey.asc \
       USB_TOKEN=Nitrokey3NFC \
       inject_gpg run
+
+After an OS install or any other state you want to keep, refresh the
+master copies in `~/Qemu_img/` (same filesystem, zero-cost hardlinks)
+so `make clean` won't destroy them:
+
+    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 ~/Qemu_img/
+    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw ~/Qemu_img/
+
+If a rebuild wiped the `build/` images, restore them from the master
+copies before running:
+
+    cp -alf ~/Qemu_img/root.qcow2 build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/
+    cp -alf ~/Qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/
 
 ### Testing GPG key reprovision from a backup drive
 
