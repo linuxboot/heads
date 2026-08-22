@@ -1023,6 +1023,14 @@ EOF
 			;;
 		K)
 			reprovision_smartcard_from_backup
+			# Reprovision re-owns the TPM and rewrites kexec_rollback.txt,
+			# so unlike before it can actually resolve the preflight
+			# failure; re-validate like the o/t arms so a successful run
+			# exits this gate instead of looping the error menu.
+			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
 			;;
 		t)
 			if reset_tpm && preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
