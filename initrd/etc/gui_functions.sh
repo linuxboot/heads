@@ -494,7 +494,9 @@ report_integrity_measurements() {
 				return 0
 				;;
 			K)
-				reprovision_smartcard_from_backup
+				# Benign returns (user decline, failures) must not kill a
+				# set -e caller; stay in the calling menu instead.
+				reprovision_smartcard_from_backup || true
 				return 0
 				;;
 			c | *)
@@ -530,7 +532,9 @@ report_integrity_measurements() {
 				return 0
 				;;
 			K)
-				reprovision_smartcard_from_backup
+				# Benign returns (user decline, failures) must not kill a
+				# set -e caller; stay in the calling menu instead.
+				reprovision_smartcard_from_backup || true
 				return 0
 				;;
 			*)
