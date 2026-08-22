@@ -2505,6 +2505,18 @@ assert_signable() {
 		local user_out="/tmp/hash_output_mismatches"
 		local add="Please investigate!"
 		[ -f "$user_out" ] && add="Please investigate the following relative paths to /boot (where # are sanitized invalid characters):"$'\n'"$(cat "$user_out")"
+		# Name the offending entries so field reports are actionable:
+		# list every path containing bytes outside printable ASCII, or a
+		# backslash, escaped for safe display.
+		local bad_list="" _as_entry
+		while IFS= read -r -d '' _as_entry; do
+			case "$_as_entry" in
+			*[!\ -~]*|*\\*)
+				bad_list+="${bad_list:+$'\n'}$(printf '%s' "$_as_entry" | escape_zero '')"
+				;;
+			esac
+		done </tmp/signable.ref
+		[ -n "$bad_list" ] && add="$add"$'\n'"Offending entries:"$'\n'"$bad_list"
 		recovery "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"$add"
 	fi
 	rm -f /tmp/signable.*
