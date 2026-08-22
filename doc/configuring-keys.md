@@ -166,15 +166,14 @@ If you chose the in-memory backup path during OEM factory reset and your
 dongle is lost, broken, or wiped:
 
 1. Insert the backup USB thumb drive and your (new) dongle.
-2. Go to `Options -> GPG Management -> Reprovision smartcard from GPG key backup`.
+2. Go to `Options -> GPG Management -> 'k' Reprovision USB Security dongle from GPG key backup`.
 3. Enter the backup passphrase when prompted.
 4. Heads detects the key type from the backup, factory-resets the dongle,
-   restores the subkeys, and sets the card identity.
-5. After success, flash the public key to the running BIOS for persistence.
-6. Reboot to finalize.  Re-signing /boot via
-   `Options -> Update checksums and sign all files in /boot` is only required
-   after a TPM reset (when Heads warned that the TPM rollback counter could
-   not be created); see below.
+   restores the subkeys, sets the card identity, resets the TPM, creates a
+   fresh rollback counter, and re-signs /boot (see below).
+5. After success, flash the public key to the running BIOS for persistence
+   (skipped automatically on QEMU boards).
+6. Reboot to finalize.
 
 This requires the LUKS-encrypted backup USB drive created during OEM factory
 reset (answer Y to "format an encrypted USB Thumb drive").  Without it, run
@@ -188,26 +187,26 @@ Management Menu:
 - `'K'` in the measured integrity report (`report_integrity_measurements` in
   gui_functions.sh), both the normal and the DONGLE KEY NOT ROM-TRUSTED
   variants.
-- `'K'` in the TPM State Inconsistent (rollback preflight) dialog — the menu
-  loop re-displays afterwards since key provisioning does not fix the TPM
-  counter problem.
+- `'K'` in the TPM State Inconsistent (rollback preflight) dialog — since
+  reprovisioning resets the TPM and creates a fresh counter, the preflight
+  check re-runs afterwards and the gate proceeds to boot when it passes.
 - `'K'` in the clean boot wizard (`clean_boot_check`), next to `F` (OEM
   Factory Reset), `i` (ignore), and `x` (recovery shell).
 
-**When the TPM needs a reset:** if the rollback counter preflight failed
-(`tpm_reset_required` is set), the reprovision flow skips the TPM counter
-creation step entirely — the TPM owner passphrase is unknown at that point,
-so prompting would be a dead end.  Key restoration still completes, and Heads
-then warns:
+**TPM handling:** reprovisioning is an ownership-level operation, so like
+OEM Factory Reset it resets the TPM itself rather than punting a manual
+"Reset the TPM" step to you.  After you set the new TPM owner passphrase,
+Heads clears the old ownership, drops stale rollback-counter references,
+creates a fresh rollback counter, and re-signs /boot — all through the same
+`kexec-sign-config.sh` path used by OEM factory reset.  Signing is atomic:
+the new manifests are staged under /tmp and moved into /boot only after
+signing and verification succeed.  If any step fails, /boot keeps its
+previous valid signatures, no ROM flash is offered, and Heads explains how
+to recover (re-sign via `Options -> Update checksums and sign all files in
+/boot`, or reset the TPM first if that failed).
 
-    TPM rollback counter was not created. Reset the TPM from
-    Options -> TPM/TOTP/HOTP Options -> Reset the TPM before
-    the next boot to avoid being dropped into recovery shell.
-
-The integrity report reflects the same state: TOTP shows
-`SEALED SECRET UNAVAILABLE - TPM reset required (rollback counter cannot be
-verified)` and the report note directs you to `Reset the TPM`, which re-creates
-the rollback counter and regenerates TOTP/HOTP secrets.
+Because the TPM was reset, unsealing the old TOTP/HOTP secrets on the next
+boot will fail; Heads offers to regenerate them (choose `g`).
 
 After reprovisioning, the recovery shell and USB boot will require GPG
 smartcard authentication; see [recovery-shell.md](recovery-shell.md#authentication).

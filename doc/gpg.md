@@ -136,7 +136,7 @@ See [configuring-keys.md](configuring-keys.md#restoring-keys-from-backup) for
 the full recovery flow.  In short:
 
 1. Insert the backup USB thumb drive and the replacement dongle.
-2. From Heads: `Options -> GPG Management -> Reprovision smartcard from GPG key backup`.
+2. From Heads: `Options -> GPG Management -> 'k' Reprovision USB Security dongle from GPG key backup`.
 3. Enter the backup passphrase.
 
 The backup drive must have been created by the OEM factory reset flow with

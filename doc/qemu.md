@@ -206,15 +206,18 @@ cp -alf ~/Qemu_img/backup_drive.raw \
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp run
 ```
 
-Inside the VM: Options -> GPG Options -> 'k' Reprovision smartcard from GPG
-key backup.  Enter the backup passphrase (the Admin PIN you set during OEM
-factory reset).  The flow will:
+Inside the VM: Options -> GPG Options -> 'k' Reprovision USB Security dongle
+from GPG key backup.  Enter the backup passphrase (the Admin PIN you set
+during OEM factory reset).  The flow will:
 - Detect the key type (RSA or ECC) from the backup
 - Factory-reset the virtual canokey and set matching key attributes
 - Import the master key and subkeys from the LUKS partition
 - Move subkeys to the smartcard via keytocard
 - Set the card identity (name, email) from the backup key's UID
-- Offer to flash the public key to ROM (decline -- QEMU cannot reflash)
+- Reset the TPM and create a fresh rollback counter (TPM boards)
+- Re-sign /boot so the next boot trusts the restored state
+- Skip flashing the public key to ROM automatically (QEMU cannot reflash;
+  inject the exported pubkey into the firmware image instead)
 
 
 Running via Docker wrappers
