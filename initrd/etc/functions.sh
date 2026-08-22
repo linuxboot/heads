@@ -2422,7 +2422,10 @@ print_tree() {
 	TRACE_FUNC
 	DEBUG "print_tree: CWD=$(pwd)"
 	local _pt_tmp
-	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0; return; }
+	# Keep the fallback sorted too: the tree manifest must byte-match the
+	# sorted regeneration done at verification time even when /tmp is
+	# unavailable.
+	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0 | sort -z; return; }
 	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
 	sort -z <"$_pt_tmp"
 	rm -f "$_pt_tmp"
