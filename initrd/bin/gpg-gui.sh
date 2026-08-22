@@ -66,7 +66,10 @@ while true; do
 		fi
 		;;
 	"k")
-		reprovision_smartcard_from_backup
+		# The function returns non-zero on benign paths (user declining,
+		# wrong passphrase, signing failure); this script runs under
+		# set -e, so guard the call to stay inside the management menu.
+		reprovision_smartcard_from_backup || true
 		;;
 	esac
 

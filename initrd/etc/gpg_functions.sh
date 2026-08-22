@@ -586,7 +586,7 @@ reprovision_smartcard_from_backup() {
 	# <email> portion from key_name so it never lands in the cardholder
 	# name fields when no comment parens were present.
 	key_name="$(echo "$key_name" | sed 's/ *<[^>]*>$//')"
-	key_email="$(echo "$uid_line" | grep -o '<[^>]*>' | tr -d '<>' | head -1)"
+	key_email="$(echo "$uid_line" | grep -o '<[^>]*>' | tr -d '<>' | head -1)" || true
 	[ -z "$key_name" ] && key_name="$uid_line"
 
 	if [ -n "$key_email" ]; then
