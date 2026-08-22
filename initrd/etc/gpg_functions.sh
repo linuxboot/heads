@@ -508,7 +508,9 @@ reprovision_smartcard_from_backup() {
 	chmod 600 /tmp/secret/backup_pass 2>/dev/null || true
 	STATUS "Mounting GPG key backup (LUKS private partition)"
 	if ! mount-usb.sh --mode ro --mountpoint /media --pass-file /tmp/secret/backup_pass; then
-		shred -n 10 -z -u /tmp/secret/backup_pass 2>/dev/null || rm -f /tmp/secret/backup_pass
+		# Idempotent: shreds the passphrase file and undoes any partial
+		# mount/mapping left behind by the failed attempt.
+		_luks_cleanup
 		DEBUG "Could not mount backup LUKS partition"
 		whiptail_error --title 'ERROR: Backup Mount Failed' \
 			--msgbox "Could not mount the backup USB drive.\n\nVerify that the correct backup drive is inserted\nand the passphrase is correct." 0 80
@@ -686,17 +688,23 @@ reprovision_smartcard_from_backup() {
 	# Phase 7b: prompt for custom PINs if desired.
 	local pin_label_admin="GPG Admin PIN"
 	[ "$DONGLE_BRAND" = "Nitrokey 3" ] && pin_label_admin="NK3 Secrets app PIN / GPG Admin PIN"
+	# Match oem-factory-reset.sh: the admin PIN is capped at
+	# MAX_HOTP_GPG_PIN_LENGTH (25) for every dongle brand.  On Nitrokey 3
+	# it doubles as the Secrets app PIN, which hotp_verification rejects
+	# past that length; keeping one limit everywhere preserves the OEM
+	# invariant that any Heads-set admin PIN also works for HOTP flows.
+	local pin_max=25
 
 	if whiptail_warning --title "Set Custom PINs?" \
 		--yesno "The card is currently using factory-default PINs\n(Admin: 12345678, User: 123456).\n\nWould you like to set custom PINs?" 0 80; then
 		local new_admin_pin="" new_user_pin=""
-		NOTE "${pin_label_admin}: for GPG card admin operations, 8-64 chars."
+		NOTE "${pin_label_admin}: for GPG card admin operations, 8-${pin_max} chars."
 		while :; do
-			INPUT "Enter new ${pin_label_admin} (8-64 chars):" -r -s new_admin_pin
-			if [ -n "$new_admin_pin" ] && [ ${#new_admin_pin} -ge 8 ] && [ ${#new_admin_pin} -le 64 ]; then
+			INPUT "Enter new ${pin_label_admin} (8-${pin_max} chars):" -r -s new_admin_pin
+			if [ -n "$new_admin_pin" ] && [ ${#new_admin_pin} -ge 8 ] && [ ${#new_admin_pin} -le "$pin_max" ]; then
 				break
 			fi
-			NOTE "Invalid length: must be 8-64 chars."
+			NOTE "Invalid length: must be 8-${pin_max} chars."
 		done
 		if ! gpg_card_change_pin 3 "12345678" "$new_admin_pin"; then
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
