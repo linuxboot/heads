@@ -1010,9 +1010,7 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ]; then
 		INFO "The chosen passphrase must be between 8 and $MAX_HOTP_GPG_PIN_LENGTH characters in length."
-		while [[ ${#CUSTOM_SINGLE_PASS} -lt 8 ]] || [[ ${#CUSTOM_SINGLE_PASS} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-			INPUT "Enter the passphrase (8-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r CUSTOM_SINGLE_PASS
-		done
+		_read_pin "Enter the passphrase (8-${MAX_HOTP_GPG_PIN_LENGTH} chars):" 8 "$MAX_HOTP_GPG_PIN_LENGTH" CUSTOM_SINGLE_PASS
 		TPM_PASS=${CUSTOM_SINGLE_PASS}
 		USER_PIN=${CUSTOM_SINGLE_PASS}
 		ADMIN_PIN=${CUSTOM_SINGLE_PASS}
@@ -1038,23 +1036,17 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 			fi
 			if [ "$DONGLE_BRAND" = "Nitrokey 3" ]; then
 				NOTE "NK3 Secrets app PIN / GPG Admin PIN: seals HOTP measurements and manages OpenPGP card. 3 attempts max. DO NOT FORGET. Recommended: 2 words"
-				while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-					INPUT "Enter desired NK3 Secrets app PIN / GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
-				done
+				_read_pin "Enter desired NK3 Secrets app PIN / GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" 6 "$MAX_HOTP_GPG_PIN_LENGTH" ADMIN_PIN
 			else
 				NOTE "GPG Admin PIN: management tasks on $DONGLE_BRAND, seal measurements under HOTP. 3 attempts max, locks Admin out. DO NOT FORGET. Recommended: 2 words"
-				while [[ ${#ADMIN_PIN} -lt 6 ]] || [[ ${#ADMIN_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-					INPUT "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r ADMIN_PIN
-				done
+				_read_pin "Enter desired GPG Admin PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" 6 "$MAX_HOTP_GPG_PIN_LENGTH" ADMIN_PIN
 			fi
 			#USER PIN not required in case of GPG_GEN_KEY_IN_MEMORY not requested of if GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD is
 			# That is, if keys were NOT generated in memory (on smartcard only) or
 			#  if keys were generated in memory but are to be moved from local keyring to smartcard
 			if [ "$GPG_GEN_KEY_IN_MEMORY" = "n" -o "$GPG_GEN_KEY_IN_MEMORY_COPY_TO_SMARTCARD" = "y" ]; then
 				NOTE "GPG User PIN: sign/encrypt content, sign hashes under Heads. 3 attempts max. DO NOT FORGET. Recommended: 2 words"
-				while [[ ${#USER_PIN} -lt 6 ]] || [[ ${#USER_PIN} -gt $MAX_HOTP_GPG_PIN_LENGTH ]]; do
-					INPUT "Enter desired GPG User PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" -r USER_PIN
-				done
+				_read_pin "Enter desired GPG User PIN (6-${MAX_HOTP_GPG_PIN_LENGTH} chars):" 6 "$MAX_HOTP_GPG_PIN_LENGTH" USER_PIN
 			fi
 			# The user knows these passphrases, we don't need to
 			# badger them to record them

@@ -231,13 +231,11 @@ if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
 	elif [ -n "$PASS" ]; then
 		# We received a passphrase via --pass.  Avoid forking `echo` with the
 		# passphrase in its argv (leakable via /proc/<pid>/cmdline): stage it
-		# in a 0600 temp file and pass that to cryptsetup, then shred/rm it on
-		# both success and failure. This is the best we can do for a
-		# passphrase that arrived via argv.
+		# under /tmp/secret and pass that to cryptsetup, then shred/rm it on
+		# both success and failure.
 		mkdir -p /tmp/secret
 		key_file=/tmp/secret/cryptsetup_keyfile
 		printf '%s' "$PASS" >"$key_file"
-		chmod 600 "$key_file" 2>/dev/null || true
 		if cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file "$key_file"; then
 			shred -n 10 -z -u "$key_file" 2>/dev/null || rm -f "$key_file"
 		else

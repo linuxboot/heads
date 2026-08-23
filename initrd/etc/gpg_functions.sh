@@ -191,7 +191,6 @@ gpg_card_factory_reset() {
 	STATUS "Factory resetting $DONGLE_BRAND OpenPGP smartcard"
 	mkdir -p /tmp/secret
 	printf '%s' "$card_admin_pin" >"$admin_pin_file"
-	chmod 600 "$admin_pin_file" 2>/dev/null || true
 	{
 		echo admin         # admin menu
 		echo factory-reset # factory reset smartcard
@@ -333,7 +332,6 @@ gpg_set_card_identity() {
 	STATUS "Setting identity fields on OpenPGP smartcard"
 	mkdir -p /tmp/secret
 	printf '%s' "$card_admin_pin" >"$pin_file"
-	chmod 600 "$pin_file" 2>/dev/null || true
 	{
 		echo "admin"
 		if [ "$set_name" -eq 1 ]; then
@@ -448,6 +446,15 @@ gpg_keytocard_subkeys() {
 	TRACE_FUNC
 }
 
+# Standard reprovision failure exit: tear down the backup keyring and any
+# mounted LUKS mapper, show the error dialog, and return failure to the menu.
+_reprovision_fail() {
+	local title="$1" msg="$2"
+	_luks_cleanup
+	whiptail_error --title "ERROR: $title" --msgbox "$msg" 0 80
+	return 1
+}
+
 _luks_cleanup() {
 	# Unmount /media and close all LUKS usb_mount mappings.
 	# Idempotent -- safe to call multiple times.
@@ -462,7 +469,7 @@ _luks_cleanup() {
 		[ -e "$f" ] || continue
 		shred -n 10 -z -u "$f" 2>/dev/null || rm -f "$f"
 	done
-	rm -rf /tmp/reprovision_gnupghome 2>/dev/null || true
+	rm -rf /tmp/secret/reprovision_gnupghome 2>/dev/null || true
 	# Remove any master secret key material from the live keyring so it is
 	# not left on disk on ANY exit path (success or error).  Idempotent.
 	find "${GNUPGHOME:-$HOME/.gnupg}/private-keys-v1.d" \
@@ -474,7 +481,7 @@ reprovision_smartcard_from_backup() {
 	local admin_pin key_algo rsa_key_length key_name key_email key_comment
 	local card_admin_pin key_id uid_line
 	local algo_code bit_len
-	local reprovision_gnupghome=/tmp/reprovision_gnupghome
+	local reprovision_gnupghome=/tmp/secret/reprovision_gnupghome
 	local backup_pin_file=/tmp/secret/gpg_backup_passphrase
 
 	enable_usb
@@ -501,19 +508,15 @@ reprovision_smartcard_from_backup() {
 	enable_usb_storage
 	# Loading usb-storage.ko can reset the USB subsystem, making scdaemon's
 	# existing CCID connection stale.  Kill it so the next gpg call starts
-	# fresh (matching the OEM pattern in oem-factory-reset.sh).
+	# fresh.
 	release_scdaemon
 	mkdir -p /tmp/secret
 	printf '%s' "$admin_pin" >/tmp/secret/backup_pass
-	chmod 600 /tmp/secret/backup_pass 2>/dev/null || true
 	STATUS "Mounting GPG key backup (LUKS private partition)"
 	if ! mount-usb.sh --mode ro --mountpoint /media --pass-file /tmp/secret/backup_pass; then
-		# Idempotent: shreds the passphrase file and undoes any partial
-		# mount/mapping left behind by the failed attempt.
-		_luks_cleanup
 		DEBUG "Could not mount backup LUKS partition"
-		whiptail_error --title 'ERROR: Backup Mount Failed' \
-			--msgbox "Could not mount the backup USB drive.\n\nVerify that the correct backup drive is inserted\nand the passphrase is correct." 0 80
+		_reprovision_fail 'Backup Mount Failed' \
+			"Could not mount the backup USB drive.\n\nVerify that the correct backup drive is inserted\nand the passphrase is correct."
 		return 1
 	fi
 	shred -n 10 -z -u /tmp/secret/backup_pass 2>/dev/null || rm -f /tmp/secret/backup_pass
@@ -521,10 +524,9 @@ reprovision_smartcard_from_backup() {
 	STATUS_OK "Backup LUKS partition mounted"
 
 	if [ ! -f /media/privkey.sec ]; then
-		_luks_cleanup
 		WARN "privkey.sec not found on backup drive -- not a valid GPG key backup"
-		whiptail_error --title 'ERROR: No Backup Found' \
-			--msgbox "No privkey.sec found on this drive.\n\nThis does not appear to be a valid\nGPG key backup drive." 0 80
+		_reprovision_fail 'No Backup Found' \
+			"No privkey.sec found on this drive.\n\nThis does not appear to be a valid\nGPG key backup drive."
 		return 1
 	fi
 
@@ -536,17 +538,14 @@ reprovision_smartcard_from_backup() {
 	chmod 700 "$reprovision_gnupghome" 2>/dev/null || true
 	mkdir -p /tmp/secret
 	printf '%s' "$admin_pin" >"$backup_pin_file"
-	chmod 600 "$backup_pin_file" 2>/dev/null || true
 	STATUS "Importing GPG keys from backup"
 	if ! GNUPGHOME="$reprovision_gnupghome" gpg --pinentry-mode=loopback \
 		--passphrase-file "$backup_pin_file" \
 		--import-options restore --import /media/privkey.sec >/dev/null 2>/tmp/gpg_import_err; then
-		shred -n 10 -z -u "$backup_pin_file" 2>/dev/null || rm -f "$backup_pin_file"
-		_luks_cleanup
 		ERROR="$(cat /tmp/gpg_import_err)"
 		WARN "GPG key import from backup failed: $(head -3 /tmp/gpg_import_err 2>/dev/null)"
-		whiptail_error --title 'ERROR: Key Import Failed' \
-			--msgbox "Failed to import GPG keys from backup.\n\n${ERROR}" 0 80
+		_reprovision_fail 'Key Import Failed' \
+			"Failed to import GPG keys from backup.\n\n${ERROR}"
 		return 1
 	fi
 	shred -n 10 -z -u "$backup_pin_file" 2>/dev/null || rm -f "$backup_pin_file"
@@ -570,9 +569,8 @@ reprovision_smartcard_from_backup() {
 		DEBUG "Detected NIST P-256 key from backup"
 		;;
 	*)
-		_luks_cleanup
-		whiptail_error --title 'ERROR: Unknown Key Type' \
-			--msgbox "Could not detect the key type from the backup\n(algorithm $algo_code).\n\nThe backup file may be corrupted." 0 80
+		_reprovision_fail 'Unknown Key Type' \
+			"Could not detect the key type from the backup\n(algorithm $algo_code).\n\nThe backup file may be corrupted."
 		return 1
 		;;
 	esac
@@ -661,11 +659,10 @@ reprovision_smartcard_from_backup() {
 		fi
 	done
 	if [ "$factory_reset_ok" != "y" ]; then
-		_luks_cleanup
 		ERROR="$(tail -n 3 /tmp/gpg_card_edit_output 2>/dev/null | fold -s)"
 		WARN "Smartcard factory reset failed after retry with correct admin PIN"
-		whiptail_error --title 'ERROR: Factory Reset Failed' \
-			--msgbox "Could not factory reset the $DONGLE_BRAND smartcard.\n\n${ERROR}\n\nCheck that the admin PIN is correct." 0 80
+		_reprovision_fail 'Factory Reset Failed' \
+			"Could not factory reset the $DONGLE_BRAND smartcard.\n\n${ERROR}\n\nCheck that the admin PIN is correct."
 		return 1
 	fi
 
@@ -674,11 +671,10 @@ reprovision_smartcard_from_backup() {
 	# Phase 6: move subkeys from the local keyring to the smartcard.
 	DEBUG "Starting keytocard with key_id=$key_id, admin_pin=${#admin_pin} chars, card_admin_pin=${#card_admin_pin} chars"
 	if ! gpg_keytocard_subkeys "$key_id" "$admin_pin" "$card_admin_pin"; then
-		_luks_cleanup
 		ERROR="$(cat /tmp/gpg_card_edit_output)"
 		WARN "GPG keytocard operation failed: $(head -3 /tmp/gpg_card_edit_output 2>/dev/null)"
-		whiptail_error --title 'ERROR: Keytocard Failed' \
-			--msgbox "Failed to move subkeys to smartcard.\n\n${ERROR}" 0 80
+		_reprovision_fail 'Keytocard Failed' \
+			"Failed to move subkeys to smartcard.\n\n${ERROR}"
 		return 1
 	fi
 
@@ -688,29 +684,20 @@ reprovision_smartcard_from_backup() {
 	# Phase 7b: prompt for custom PINs if desired.
 	local pin_label_admin="GPG Admin PIN"
 	[ "$DONGLE_BRAND" = "Nitrokey 3" ] && pin_label_admin="NK3 Secrets app PIN / GPG Admin PIN"
-	# Match oem-factory-reset.sh: the admin PIN is capped at
-	# MAX_HOTP_GPG_PIN_LENGTH (25) for every dongle brand.  On Nitrokey 3
-	# it doubles as the Secrets app PIN, which hotp_verification rejects
-	# past that length; keeping one limit everywhere preserves the OEM
-	# invariant that any Heads-set admin PIN also works for HOTP flows.
+	# The admin PIN is capped at MAX_HOTP_GPG_PIN_LENGTH (25) for every
+	# dongle brand: on Nitrokey 3 it doubles as the Secrets app PIN,
+	# which hotp_verification rejects past that length.
 	local pin_max=25
 
 	if whiptail_warning --title "Set Custom PINs?" \
 		--yesno "The card is currently using factory-default PINs\n(Admin: 12345678, User: 123456).\n\nWould you like to set custom PINs?" 0 80; then
 		local new_admin_pin="" new_user_pin=""
 		NOTE "${pin_label_admin}: for GPG card admin operations, 8-${pin_max} chars."
-		while :; do
-			INPUT "Enter new ${pin_label_admin} (8-${pin_max} chars):" -r -s new_admin_pin
-			if [ -n "$new_admin_pin" ] && [ ${#new_admin_pin} -ge 8 ] && [ ${#new_admin_pin} -le "$pin_max" ]; then
-				break
-			fi
-			NOTE "Invalid length: must be 8-${pin_max} chars."
-		done
+		_read_pin "Enter new ${pin_label_admin} (8-${pin_max} chars):" 8 "$pin_max" new_admin_pin
 		if ! gpg_card_change_pin 3 "12345678" "$new_admin_pin"; then
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
-			whiptail_error --title 'ERROR: Admin PIN Change Failed' \
-				--msgbox "Could not change the Admin PIN.\n\n${ERROR}" 0 80
-			_luks_cleanup
+			_reprovision_fail 'Admin PIN Change Failed' \
+				"Could not change the Admin PIN.\n\n${ERROR}"
 			return 1
 		fi
 
@@ -723,44 +710,32 @@ reprovision_smartcard_from_backup() {
 		fi
 
 		NOTE "GPG User PIN: signing /boot and encryption, 3 attempts max.\nRecommended: 2 diceware words (6-25 chars)"
-		while :; do
-			INPUT "Enter new GPG User PIN (6-25 chars):" -r -s new_user_pin
-			if [ -n "$new_user_pin" ] && [ ${#new_user_pin} -ge 6 ] && [ ${#new_user_pin} -le 25 ]; then
-				break
-			fi
-			NOTE "Invalid length: must be 6-25 chars."
-		done
+		_read_pin "Enter new GPG User PIN (6-25 chars):" 6 25 new_user_pin
 		if ! gpg_card_change_pin 1 "123456" "$new_user_pin"; then
 			ERROR="$(cat /tmp/gpg_card_edit_output | fold -s)"
-			whiptail_error --title 'ERROR: User PIN Change Failed' \
-				--msgbox "Could not change the User PIN.\n\n${ERROR}" 0 80
-			_luks_cleanup
+			_reprovision_fail 'User PIN Change Failed' \
+				"Could not change the User PIN.\n\n${ERROR}"
 			return 1
 		fi
 		STATUS_OK "GPG User PIN changed"
 		printf '%s' "$new_user_pin" >/tmp/secret/gpg_pin
-		chmod 600 /tmp/secret/gpg_pin 2>/dev/null || true
 	else
 		DEBUG "User declined custom PINs; keeping factory defaults"
 		printf '%s' "123456" >/tmp/secret/gpg_pin
-		chmod 600 /tmp/secret/gpg_pin 2>/dev/null || true
 	fi
 
 	# Phase 8: sign /boot so hashes exist on next boot.
 	STATUS "Signing /boot files for next boot"
 	detect_boot_device
 	if mount -o remount,rw /boot 2>/tmp/sign_err; then
-		# Reset the TPM so a fresh rollback counter can be created,
-		# mirroring oem-factory-reset.sh (tpmr.sh reset) and gui-init.sh
-		# reset_tpm(): reprovisioning is an ownership-level operation, so
-		# like OEM factory reset it must leave the machine with a
-		# freshly-owned TPM plus a valid counter and kexec_rollback.txt,
-		# and must not punt a manual "Reset the TPM" step to the user. The
-		# reset cannot be skipped: counter creation defines an NV index
-		# with owner-hierarchy auth, so against a TPM owned with an
-		# old/unknown passphrase it would just loop on authorization
-		# failures (0x9a2). prompt_new_owner_password caches the new
-		# passphrase under /tmp/secret/tpm_owner_passphrase, which
+		# Reprovisioning is an ownership-level operation: it must leave a
+		# freshly-owned TPM with a valid rollback counter and
+		# kexec_rollback.txt rather than punting a manual "Reset the TPM"
+		# step to the user.  The reset cannot be skipped: counter creation
+		# defines an NV index with owner-hierarchy auth, so against a TPM
+		# owned with an old/unknown passphrase it would loop on
+		# authorization failures (0x9a2).  prompt_new_owner_password caches
+		# the new passphrase under /tmp/secret/tpm_owner_passphrase, which
 		# _tpm_auth_retry then picks up as the owner auth.
 		if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_IGNORE_ROLLBACK" != "y" ]; then
 			local tpm_reset_ok="n"

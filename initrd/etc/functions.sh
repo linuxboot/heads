@@ -432,6 +432,23 @@ INPUT() {
 	fi
 }
 
+# Prompt until the entered value's length is within [min,max], then store it
+# in the variable named by var (indirect assignment).  Input is collected with
+# `read -s` so secrets are not echoed.  Used by every PIN/passphrase prompt
+# with both a minimum and maximum length.
+_read_pin() {
+	local prompt="$1" min="$2" max="$3" var="$4"
+	local val=""
+	while :; do
+		INPUT "$prompt" -r -s val
+		if [ -n "$val" ] && [ "${#val}" -ge "$min" ] && [ "${#val}" -le "$max" ]; then
+			break
+		fi
+		NOTE "Invalid length: must be $min-$max chars."
+	done
+	printf -v "$var" '%s' "$val"
+}
+
 # Filter known harmless LVM warning noise while preserving all other stderr.
 # Messages that are expected during device scanning (e.g. "not an LVM PV") are
 # redirected to the debug log only - they are not errors and should not appear
@@ -2422,9 +2439,8 @@ print_tree() {
 	TRACE_FUNC
 	DEBUG "print_tree: CWD=$(pwd)"
 	local _pt_tmp
-	# Keep the fallback sorted too: the tree manifest must byte-match the
-	# sorted regeneration done at verification time even when /tmp is
-	# unavailable.
+	# The fallback tree must byte-match the sorted regeneration done at
+	# verification time even when /tmp is unavailable.
 	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0 | sort -z; return; }
 	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
 	sort -z <"$_pt_tmp"
