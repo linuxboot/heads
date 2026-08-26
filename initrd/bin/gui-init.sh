@@ -913,6 +913,11 @@ if [ -x /bin/hotp_verification ]; then
 	detect_usb_security_dongle_branding
 fi
 
+if [ "$CONFIG_HEADS_FWUPD" = "y" ]; then
+	/bin/heads-fwupd.sh || whiptail_error --title "Firmware Update Rejected" \
+		--msgbox "A staged firmware update could not be authenticated or did not match this system. It was not applied." 0 80
+fi
+
 if detect_boot_device; then
 	# /boot device with installed OS found
 	clean_boot_check
