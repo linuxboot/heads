@@ -1,0 +1,66 @@
+#!/bin/bash
+
+state_file=/tmp/heads-opal-qemu-unlocked
+production_checked=/tmp/heads-opal-qemu-production-checked
+device=/dev/nvme0n1
+
+log_serial() {
+	printf '%s\n' "$*" >/dev/ttyS0 2>/dev/null || true
+}
+
+case "${1:-}" in
+scan)
+	if [ ! -e "$production_checked" ]; then
+		production_scan=$(/bin/heads-opal scan 2>/tmp/heads-opal-production-output) || {
+			log_serial "HEADS_OPAL_QEMU: production backend scan failed: $(tr '\n' ';' </tmp/heads-opal-production-output)"
+			exit 1
+		}
+		if [ -n "$production_scan" ]; then
+			log_serial "HEADS_OPAL_QEMU: unexpected production scan result"
+			exit 1
+		fi
+		touch "$production_checked"
+		log_serial "HEADS_OPAL_QEMU: production backend scan completed"
+	fi
+	if [ -e "$state_file" ]; then
+		printf '%s unlocked\n' "$device"
+	else
+		printf '%s locked\n' "$device"
+	fi
+	;;
+status)
+	[ "${2:-}" = "$device" ] || exit 1
+	if [ -e "$state_file" ]; then
+		printf '%s\n' unlocked
+		log_serial "HEADS_OPAL_QEMU: post-unlock state confirmed"
+	else
+		printf '%s\n' locked
+	fi
+	;;
+unlock)
+	[ "${2:-}" = "--s3-handoff" ] || exit 4
+	[ "${3:-}" = "$device" ] || exit 1
+	[ "$#" -eq 3 ] || exit 1
+	password=$(cat)
+	case "$(tr '\0' ' ' </proc/$$/cmdline)" in
+	*qemu-opal-password*)
+		log_serial "HEADS_OPAL_QEMU: password leaked through argv"
+		exit 1
+		;;
+	esac
+	if env | grep -q 'qemu-opal-password'; then
+		log_serial "HEADS_OPAL_QEMU: password leaked through environment"
+		exit 1
+	fi
+	if [ "$password" != "qemu-opal-password" ]; then
+		unset password
+		exit 3
+	fi
+	unset password
+	touch "$state_file"
+	log_serial "HEADS_OPAL_QEMU: unlock and S3 handoff accepted"
+	;;
+*)
+	exit 64
+	;;
+esac
