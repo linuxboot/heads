@@ -777,6 +777,36 @@ bin_modules-$(CONFIG_ZSTD) += zstd
 bin_modules-$(CONFIG_E2FSPROGS) += e2fsprogs
 bin_modules-$(CONFIG_EXFATPROGS) += exfatprogs
 
+ifeq "$(CONFIG_HEADS_OPAL)" "y"
+heads_opal_bin := $(build)/heads-opal/heads-opal
+heads_opal_config_stamp := $(build)/heads-opal/.config-validated
+
+$(heads_opal_config_stamp): $(linux_kconfig) $(CONFIG) Makefile
+	@mkdir -p "$(dir $@)"
+	@if [ "$(CONFIG_HEADS_OPAL_TEST_FIXTURE)" != "y" ] && \
+	    ! grep -q '^CONFIG_BLK_SED_OPAL=y$$' "$<"; then \
+		echo "CONFIG_HEADS_OPAL requires CONFIG_BLK_SED_OPAL=y in $<" >&2; \
+		exit 1; \
+	fi
+	@if [ "$(CONFIG_HEADS_OPAL_TEST_FIXTURE)" != "y" ] && \
+	    [ "$(CONFIG_HEADS_OPAL_S3_APMC_V1)" = "y" ] && \
+	    ! grep -q '^CONFIG_PROC_PAGE_MONITOR=y$$' "$<"; then \
+		echo "CONFIG_HEADS_OPAL_S3_APMC_V1 requires CONFIG_PROC_PAGE_MONITOR=y in $<" >&2; \
+		exit 1; \
+	fi
+	@touch "$@"
+
+$(heads_opal_bin): util/heads-opal.c $(heads_opal_config_stamp) \
+		$(INSTALL)/include/linux/limits.h \
+		$(build)/$(musl-cross-make_dir)/.build
+	@mkdir -p "$(dir $@)"
+	$(heads_cc) -Os -Wall -Wextra -Werror \
+		$(if $(filter y,$(CONFIG_HEADS_OPAL_S3_APMC_V1)),-DHEADS_OPAL_S3_APMC_V1) \
+		-o "$@" "$<"
+
+$(eval $(call initrd_bin_add,$(heads_opal_bin)))
+endif
+
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
 )
