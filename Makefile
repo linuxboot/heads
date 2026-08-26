@@ -777,6 +777,16 @@ bin_modules-$(CONFIG_ZSTD) += zstd
 bin_modules-$(CONFIG_E2FSPROGS) += e2fsprogs
 bin_modules-$(CONFIG_EXFATPROGS) += exfatprogs
 
+ifeq "$(CONFIG_HEADS_OPAL)" "y"
+heads_opal_bin := $(build)/heads-opal/heads-opal
+
+$(heads_opal_bin): util/heads-opal.c $(INSTALL)/include/linux/limits.h
+	@mkdir -p "$(dir $@)"
+	$(heads_cc) -Os -Wall -Wextra -Werror -o "$@" "$<"
+
+$(eval $(call initrd_bin_add,$(heads_opal_bin)))
+endif
+
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
 )

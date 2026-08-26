@@ -913,6 +913,10 @@ if [ -x /bin/hotp_verification ]; then
 	detect_usb_security_dongle_branding
 fi
 
+if [ "$CONFIG_HEADS_OPAL" = "y" ]; then
+	/bin/heads-opal-unlock.sh || recovery "TCG Opal disk unlock failed"
+fi
+
 if detect_boot_device; then
 	# /boot device with installed OS found
 	clean_boot_check
