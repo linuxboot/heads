@@ -266,7 +266,7 @@ if [ "$CONFIG_TPM" = "y" ] && [ "$CONFIG_TPM_NO_LUKS_DISK_UNLOCK" != "y" ] && [ 
 fi
 
 # try to switch to rw mode
-mount -o rw,remount $paramsdev
+remount_boot_device rw "$paramsdev"
 
 if [ ! -d $paramsdir ]; then
 	mkdir -p $paramsdir ||
@@ -379,7 +379,7 @@ if [ "$CONFIG_BASIC" != "y" ]; then
 fi
 # Signing succeeded; move all staged files to their final locations.
 # kexec-sign-config.sh may have remounted $paramsdev ro; remount rw for the moves.
-mount -o rw,remount $paramsdev
+remount_boot_device rw "$paramsdev"
 rm "$paramsdir"/kexec_default.*.txt 2>/dev/null || true
 for f in "$stagedir"/*; do
 	[ -e "$f" ] || continue
@@ -392,4 +392,4 @@ for f in "$stagedir"/*; do
 done
 DEBUG "Staged files from $stagedir moved to $paramsdir (crypttab overrides to $bootdir)"
 # switch back to ro mode
-mount -o ro,remount $paramsdev
+remount_boot_device ro "$paramsdev"

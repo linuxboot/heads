@@ -22,10 +22,10 @@ mount_boot()
 {
   TRACE_FUNC
   # Mount local disk if it is not already mounted
-  while ! grep -q /boot /proc/mounts ; do
+  while ! is_mounted /boot ; do
     # try to mount if CONFIG_BOOT_DEV exists
     if [ -e "$CONFIG_BOOT_DEV" ]; then
-      mount -o ro $CONFIG_BOOT_DEV /boot 
+      mount_boot_device "$CONFIG_BOOT_DEV" ro
       [[ $? -eq 0 ]] && continue
     fi
 

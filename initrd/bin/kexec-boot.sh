@@ -212,7 +212,7 @@ if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
 	lock_chip.sh
 fi
 
-if [ "$CONFIG_BRAND_NAME" = "Heads" ]; then
+if [ "$CONFIG_BRAND_NAME" = "Heads" ] && [ -x /bin/qrenc ]; then
 	STATUS_OK "Heads firmware job done - handing off to your OS. Consider donating: https://opencollective.com/insurgo"
 	qrenc "https://opencollective.com/insurgo"
 else

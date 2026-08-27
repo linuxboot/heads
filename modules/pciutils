@@ -1,4 +1,6 @@
 modules-$(CONFIG_PCIUTILS) += pciutils
+# Compact profiles need libpci for flashprog, but do not install lspci.
+modules-$(CONFIG_PCIUTILS_LIB_ONLY) += pciutils
 
 pciutils_depends := $(musl_dep)
 

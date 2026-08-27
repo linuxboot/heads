@@ -68,14 +68,28 @@ fix_path() {
 # GRUB kernel lines (linux/multiboot) can include a command line.  Check whether
 # the file path exists in $bootdir.
 check_path() {
-	local checkpath firstval
+	local checkpath firstval relative relative_firstval
 	checkpath="$1"
 	firstval="$(echo "$checkpath" | cut -d\  -f1)"
-	if ! [ -r "$bootdir$firstval" ]; then
-		DEBUG "parse-boot: check_path $bootdir$firstval not found"
-		return 1
+	if [ -r "$bootdir$firstval" ]; then
+		return 0
 	fi
-	return 0
+
+	# A GRUB configuration on a root filesystem can use /boot-prefixed
+	# paths even though that directory is exposed directly at $bootdir.
+	case "$firstval" in
+	/boot/*)
+		relative="${checkpath#/boot}"
+		relative_firstval="$(echo "$relative" | cut -d\  -f1)"
+		if [ -r "$bootdir$relative_firstval" ]; then
+			path="$relative"
+			return 0
+		fi
+		;;
+	esac
+
+	DEBUG "parse-boot: check_path $bootdir$firstval not found"
+	return 1
 }
 
 echo_entry() {
@@ -160,6 +174,7 @@ grub_entry() {
 				--nounzip*) val=$(echo $val | cut -d\  -f2-) ;;
 			esac
 			fix_path $val
+			check_path "$path" 2>/dev/null || :
 			modules="$modules|module $path"
 			;;
 		linux*)

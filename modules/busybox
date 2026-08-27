@@ -1,14 +1,33 @@
 # Busybox is always included, unless explicitly turned off
 CONFIG_BUSYBOX ?= y
+
+ifeq "$(CONFIG_BUSYBOX_COMPACT)" "y"
+busybox_build_name := busybox-compact
+else
+busybox_build_name := busybox
+endif
+
 modules-$(CONFIG_BUSYBOX) += busybox
 
 busybox_version := 1.36.1
-busybox_dir := busybox-$(busybox_version)
+busybox_dir := $(busybox_build_name)-$(busybox_version)
 busybox_tar := busybox-$(busybox_version).tar.bz2
 busybox_url := https://busybox.net/downloads/$(busybox_tar)
 busybox_hash := b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314
+busybox_depends := $(musl_dep)
 
-busybox_configure := $(MAKE) CC="$(heads_cc)" oldconfig
+busybox_compact_disabled_applets := \
+	I2CGET I2CSET I2CDUMP I2CDETECT \
+	ARP IFCONFIG IP NC NSLOOKUP NTPD PING ROUTE SSL_CLIENT \
+	TFTP TLS VCONFIG WGET UDHCPC
+
+busybox_configure := \
+	$(if $(filter y,$(CONFIG_BUSYBOX_COMPACT)), \
+		$(foreach symbol,$(busybox_compact_disabled_applets), \
+			sed -i 's/^CONFIG_$(symbol)=y$$$$/# CONFIG_$(symbol) is not set/' .config;) \
+		sed -i 's/^# CONFIG_LSPCI is not set$$$$/CONFIG_LSPCI=y/' .config; \
+	) \
+	$(MAKE) CC="$(heads_cc)" oldconfig
 busybox_config := config/busybox.config
 busybox_output := busybox
 busybox_target := \
@@ -52,6 +71,3 @@ $(initrd_bin_dir)/busybox: $(build)/$(busybox_dir)/.build
 		$(VERBOSE_REDIRECT) \
 	)
 	@touch $< # ensure that our build file is still newer
-
-
-busybox_depends := $(musl_dep)

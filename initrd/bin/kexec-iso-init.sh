@@ -63,7 +63,7 @@ _iso_cleanup() {
 	local rc=$?
 	TRACE_FUNC
 	DEBUG "Cleanup: exit code $rc"
-	umount /boot 2>/dev/null && DEBUG "Cleanup: unmounting /boot" || true
+	unmount_boot_device 2>/dev/null && DEBUG "Cleanup: unmounting /boot" || true
 	rm -f /tmp/kexec_initramfs_compat.txt /tmp/kexec_display_driver.txt \
 		/tmp/kexec_isoboot.txt /tmp/kexec_usb_fstype \
 		/tmp/kexec_supported_fstypes.txt \

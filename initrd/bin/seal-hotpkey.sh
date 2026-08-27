@@ -10,8 +10,8 @@ HOTP_COUNTER="/boot/kexec_hotp_counter"
 mount_boot() {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted
-	if ! grep -q /boot /proc/mounts; then
-		if ! mount -o ro /boot; then
+	if ! is_mounted /boot; then
+		if ! mount_boot_device "$CONFIG_BOOT_DEV" ro; then
 			whiptail_error --title 'ERROR' \
 				--msgbox "Couldn't mount /boot.\n\nCheck the /boot device in configuration settings, or perform an OEM reset." 0 80
 			return 1
@@ -250,7 +250,7 @@ shred -n 10 -z -u "$HOTP_SECRET" 2>/dev/null
 #increment_tpm_counter $counter > /dev/null \
 #|| DIE "Unable to increment tpm counter"
 
-mount -o remount,rw /boot
+remount_boot_device rw
 
 counter_value=$(expr $counter_value + 1)
 echo $counter_value >$HOTP_COUNTER ||
@@ -258,7 +258,7 @@ echo $counter_value >$HOTP_COUNTER ||
 
 #sha256sum /tmp/counter-$counter > $HOTP_COUNTER \
 #|| DIE "Unable to create hotp counter file"
-mount -o remount,ro /boot
+remount_boot_device ro
 
 STATUS_OK "$DONGLE_BRAND initialized successfully"
 

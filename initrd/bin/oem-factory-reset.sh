@@ -162,10 +162,10 @@ mount_boot() {
 	TRACE_FUNC
 	# Mount local disk if it is not already mounted.
 	# Added so that 'o' can be typed early at boot to enter directly into OEM Factory Reset
-	if ! grep -q /boot /proc/mounts; then
+	if ! is_mounted /boot; then
 		# try to mount if CONFIG_BOOT_DEV exists
 		if [ -e "$CONFIG_BOOT_DEV" ]; then
-			mount -o ro $CONFIG_BOOT_DEV /boot || DIE "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
+			mount_boot_device "$CONFIG_BOOT_DEV" ro || DIE "Failed to mount $CONFIG_BOOT_DEV. Please change boot device under Configuration > Boot Device"
 		fi
 	fi
 }
@@ -853,10 +853,10 @@ generate_checksums() {
 	TRACE_FUNC
 
 	# ensure /boot mounted
-	if ! grep -q /boot /proc/mounts; then
-		mount -o rw /boot || whiptail_error_die "Unable to mount /boot"
+	if ! is_mounted /boot; then
+		mount_boot_device "$CONFIG_BOOT_DEV" rw || whiptail_error_die "Unable to mount /boot"
 	else
-		mount -o remount,rw /boot || whiptail_error_die "Unable to mount /boot"
+		remount_boot_device rw || whiptail_error_die "Unable to mount /boot"
 	fi
 
 	#Check if previous LUKS TPM Disk Unlock Key was set
@@ -968,7 +968,7 @@ generate_checksums() {
 	fi
 
 	# done writing to /boot, switch back to RO
-	mount -o ro,remount /boot
+	remount_boot_device ro
 
 	if [ $ret = 1 ]; then
 		ERROR=$(tail -n 1 /tmp/error | fold -s)
@@ -1146,31 +1146,39 @@ if [ "$use_defaults" == "n" -o "$use_defaults" == "N" ]; then
 	NOTE "Each prompt requires a single letter answer (Y/n)"
 	NOTE "Pressing Enter selects the default answer for each prompt"
 	TRACE_FUNC
-	DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
-	qrenc "https://diceware.dmuth.org/"
-	NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
-
-	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
-	INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
-	if [ "$prompt_output" == "y" \
-		-o "$prompt_output" == "Y" ]; then
-		luks_new_Disk_Recovery_Key_passphrase_desired=1
-		NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+	if [ -x /bin/qrenc ]; then
+		DEBUG "Showing passphrase guidance: QR code from diceware.dmuth.org"
+		qrenc "https://diceware.dmuth.org/"
+		NOTE "Scan the QR code above for passphrase guidance (diceware.dmuth.org):"
 	fi
 
-	INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
-	if [ "$prompt_output" == "y" \
-		-o "$prompt_output" == "Y" ]; then
-		TRACE_FUNC
-		test_luks_current_disk_recovery_key_passphrase
-		luks_new_Disk_Recovery_Key_desired=1
-		if [ "$luks_new_Disk_Recovery_Key_passphrase_desired" != "1" ]; then
+	# Re-ownership of LUKS encrypted Disk: key, content and passphrase
+	if [ -x /bin/cryptsetup ]; then
+		INPUT "Would you like to change the current LUKS Disk Recovery Key passphrase? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
+		if [ "$prompt_output" == "y" \
+			-o "$prompt_output" == "Y" ]; then
+			luks_new_Disk_Recovery_Key_passphrase_desired=1
 			NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+		fi
+
+		INPUT "Would you like to re-encrypt LUKS container and generate new LUKS Disk Recovery Key? (Highly recommended if you didn't install the OS yourself) [y/N]:" -n 1 prompt_output
+		if [ "$prompt_output" == "y" \
+			-o "$prompt_output" == "Y" ]; then
+			TRACE_FUNC
+			test_luks_current_disk_recovery_key_passphrase
+			luks_new_Disk_Recovery_Key_desired=1
+			if [ "$luks_new_Disk_Recovery_Key_passphrase_desired" != "1" ]; then
+				NOTE "Disk Recovery Key Passphrase: required to unlock disk, setup TPM Disk Unlock Key, access data from any computer, unsafe boot. DO NOT FORGET. Recommended: 6 words"
+			fi
 		fi
 	fi
 
 	#Prompt to ask if user wants to generate GPG key material in memory or on smartcard
-	INPUT "Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication) [y/N]:" -n 1 prompt_output
+	if [ -x /bin/cryptsetup ]; then
+		INPUT "Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication) [y/N]:" -n 1 prompt_output
+	else
+		prompt_output="n"
+	fi
 	if [ "$prompt_output" == "y" \
 		-o "$prompt_output" == "Y" ] \
 		; then
@@ -1669,14 +1677,17 @@ while true; do
 		$HEIGHT $WIDTH --title "Configured secrets"
 	if [ "$MAKE_USER_RECORD_PASSPHRASES" != y ]; then
 		# Passphrases were user-supplied or not complex, we do not need to
-		# badger the user to record them
+		# badger the user to record them.
 		break
 	fi
-	#Tell user to scan the QR code containing all configured secrets
-	NOTE "Scan the QR code below to save the secrets to a secure location"
-	qrenc "$(echo -e "$passphrases")"
-	# Prompt user to confirm scanning of qrcode on console prompt not whiptail: y/n
-	INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
+	if [ -x /bin/qrenc ]; then
+		# Tell user to scan the QR code containing all configured secrets.
+		NOTE "Scan the QR code below to save the secrets to a secure location"
+		qrenc "$(echo -e "$passphrases")"
+		INPUT "Please confirm you have scanned the QR code above and/or written down the secrets? [y/N]:" -n 1 prompt_output
+	else
+		INPUT "Please confirm you have written down the secrets above? [y/N]:" -n 1 prompt_output
+	fi
 	if [ "$prompt_output" == "y" -o "$prompt_output" == "Y" ]; then
 		break
 	fi

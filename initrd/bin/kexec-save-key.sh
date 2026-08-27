@@ -52,7 +52,7 @@ if [ -z "$key_devices" ]; then
 fi
 
 # try to switch to rw mode
-mount -o rw,remount "$paramsdev"
+remount_boot_device rw "$paramsdev"
 
 rm -f "$paramsdir/kexec_key_lvm.txt" || true
 if [ -n "$lvm_volume_group" ]; then
@@ -89,4 +89,4 @@ if [ "$skip_sign" != "y" ]; then
 fi
 
 # switch back to ro mode
-mount -o ro,remount $paramsdev
+remount_boot_device ro "$paramsdev"

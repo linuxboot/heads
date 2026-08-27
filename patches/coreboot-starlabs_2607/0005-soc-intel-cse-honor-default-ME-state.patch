@@ -1,0 +1,60 @@
+From e03961ffbf8c4f4edab1d38fcb65047dec04e6ad Mon Sep 17 00:00:00 2001
+From: Sean Rhodes <sean@starlabs.systems>
+Date: Thu, 27 Aug 2026 07:35:15 +0100
+Subject: [PATCH] soc/intel/cse: Honor the default ME state
+
+The UEFI variable store can legitimately contain no me_state variable,
+notably after the store has been erased. In that case, use the configured
+CFR default instead of skipping ME state handling entirely.
+
+Initialize the receive-buffer sizes used by the ME state commands because
+heci_receive() treats them as input buffer limits.
+
+Change-Id: Ic188f6872c85c1795575851f2e021f20cae03a6e
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ src/soc/intel/common/block/cse/cse.c | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/src/soc/intel/common/block/cse/cse.c b/src/soc/intel/common/block/cse/cse.c
+index 73687902dd6..d47b07b930f 100644
+--- a/src/soc/intel/common/block/cse/cse.c
++++ b/src/soc/intel/common/block/cse/cse.c
+@@ -1377,7 +1377,7 @@ static void cse_set_state(struct device *dev)
+ 
+ 	struct me_disable_reply disable_reply;
+ 
+-	size_t disable_reply_size;
++	size_t disable_reply_size = sizeof(disable_reply);
+ 
+ 	/* (CS)ME Enable Command */
+ 	struct me_enable_command {
+@@ -1395,7 +1395,7 @@ static void cse_set_state(struct device *dev)
+ 
+ 	struct me_enable_reply enable_reply;
+ 
+-	size_t enable_reply_size;
++	size_t enable_reply_size = sizeof(enable_reply);
+ 
+ 	/* Function Start */
+ 
+@@ -1409,13 +1409,11 @@ static void cse_set_state(struct device *dev)
+ 	}
+ 
+ 	/*
+-	 * Check if the CMOS value "me_state" exists, if it doesn't, then
+-	 * don't do anything.
++	 * An absent variable means the configured CFR default has not been
++	 * persisted yet.
+ 	 */
+-	const unsigned int cmos_me_state = get_uint_option("me_state", UINT_MAX);
+-
+-	if (cmos_me_state == UINT_MAX)
+-		return;
++	const unsigned int cmos_me_state = get_uint_option("me_state",
++		CONFIG(CSE_DEFAULT_CFR_OPTION_STATE_DISABLED));
+ 
+ 	printk(BIOS_DEBUG, "CMOS: me_state = %u\n", cmos_me_state);
+ 
+-- 
+2.53.0

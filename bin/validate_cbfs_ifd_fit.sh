@@ -92,11 +92,14 @@ CBFS_SIZE_DEC=$((CBFS_SIZE))
 # Extract IFD path from config
 IFD_PATH=$(grep "^CONFIG_IFD_BIN_PATH=" "$CONFIG_FILE" | cut -d'"' -f2)
 
-# Resolve relative IFD path to absolute, preferring coreboot base dir
+# Resolve relative IFD paths from the coreboot source tree. Some shared-
+# toolchain layouts pass a board object directory, so retain its parent as a
+# fallback before trying the caller's working directory.
 if [ -n "$IFD_PATH" ] && [[ "$IFD_PATH" != /* ]] && [[ "$IFD_PATH" != *"@"* ]]; then
-    COREBOOT_BASE_DIR="$(dirname "$COREBOOT_DIR")"
-    if [ -d "$COREBOOT_BASE_DIR" ]; then
-        IFD_PATH="$COREBOOT_BASE_DIR/$IFD_PATH"
+    if [ -f "$COREBOOT_DIR/$IFD_PATH" ]; then
+        IFD_PATH="$COREBOOT_DIR/$IFD_PATH"
+    elif [ -f "$(dirname "$COREBOOT_DIR")/$IFD_PATH" ]; then
+        IFD_PATH="$(dirname "$COREBOOT_DIR")/$IFD_PATH"
     else
         IFD_PATH="$PWD/$IFD_PATH"
     fi

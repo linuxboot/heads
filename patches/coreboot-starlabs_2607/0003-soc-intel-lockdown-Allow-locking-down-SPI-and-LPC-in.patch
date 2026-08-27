@@ -1,0 +1,752 @@
+From 7f9e031da2350f5999a615fb5fb266a6a489c764 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Micha=C5=82=20=C5=BBygowski?= <michal.zygowski@3mdeb.com>
+Date: Fri, 21 Aug 2026 15:20:08 +0100
+Subject: [PATCH] soc/intel/lockdown: Allow locking down SPI and LPC in SMM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Heads payload uses APM_CNT_FINALIZE SMI to set and lock down the SPI
+controller with PR0 flash protection for pre-Skylake platforms.
+
+Add an option to defer LPC and FAST SPI lockdown to the APM_CNT_FINALIZE
+SMI handler. Reuse INTEL_CHIPSET_LOCKDOWN to avoid issuing
+APM_CNT_FINALIZE on the normal boot path, as on pre-Skylake platforms.
+Split SPI and LPC lockdown into separate modules so they can be linked into
+SMM.
+
+Defer boot-media protection as part of that mode. At finalization, reuse an
+exact whole-ROM FPR or program and verify a free register before setting
+DLOCK and FLOCKDN. Report setup failures through APM_STS instead of halting
+inside SMM.
+
+Make the SMM mode use coreboot lockdown ownership even when the mainboard
+normally selects FSP lockdown. Otherwise FSP can lock empty protected-range
+registers before the payload has programmed them.
+
+FSP's PostPciEnumeration notify locks the SPI controller even when its
+lockdown UPDs are disabled. Skip that phase in SMM lockdown mode and run the
+equivalent native PMC and TCO finalization instead.
+
+The expected configuration is to unselect INTEL_CHIPSET_LOCKDOWN and select
+SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM.
+
+Testing various microarchitectures happens on the Heads repository:
+https://github.com/linuxboot/heads/pull/1818
+
+TEST=Lock the SPI flash using APM_CNT_FINALIZE in Heads on Alder Lake
+(Protectli VP66xx) and Comet Lake (Protectli VP46xx) platforms. Check if
+flash is unlocked in the Heads recovery console. Check if flash is locked in
+the kexeced OS.
+
+Change-Id: Icbcc6fcde90e5b0a999aacb720e2e3dc2748c838
+
+Signed-off-by: Michał Żygowski <michal.zygowski@3mdeb.com>
+
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ src/cpu/x86/smi_trigger.c                     | 11 +++
+ src/drivers/intel/fsp2_0/notify.c             |  3 +-
+ src/security/lockdown/lockdown.c              |  3 +-
+ src/security/vboot/vboot_logic.c              |  3 +-
+ src/soc/intel/alderlake/finalize.c            |  5 +-
+ src/soc/intel/cannonlake/finalize.c           |  5 +-
+ .../common/block/fast_spi/fast_spi_flash.c    | 76 ++++++++++++-------
+ .../block/include/intelblocks/fast_spi.h      |  4 +
+ src/soc/intel/common/block/lpc/Makefile.mk    |  4 +
+ src/soc/intel/common/block/smbus/smbus.c      |  3 +-
+ src/soc/intel/common/block/smm/smihandler.c   | 28 +++++--
+ .../intel/common/feature/finalize/finalize.c  |  5 +-
+ .../intel/common/feature/lockdown/lockdown.c  | 13 ++--
+ .../common/pch/include/intelpch/lockdown.h    |  3 +
+ src/soc/intel/common/pch/lockdown/Kconfig     | 14 ++++
+ src/soc/intel/common/pch/lockdown/Makefile.mk |  5 ++
+ src/soc/intel/common/pch/lockdown/lockdown.c  | 49 ++----------
+ .../intel/common/pch/lockdown/lockdown_lpc.c  | 24 ++++++
+ .../intel/common/pch/lockdown/lockdown_spi.c  | 46 +++++++++++
+ src/soc/intel/denverton_ns/lpc.c              |  4 +-
+ src/soc/intel/elkhartlake/finalize.c          |  5 +-
+ src/soc/intel/jasperlake/finalize.c           |  4 +-
+ src/soc/intel/skylake/finalize.c              |  4 +-
+ src/soc/intel/tigerlake/finalize.c            |  5 +-
+ 24 files changed, 238 insertions(+), 92 deletions(-)
+ create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+ create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_spi.c
+
+diff --git a/src/cpu/x86/smi_trigger.c b/src/cpu/x86/smi_trigger.c
+index d164f65965..5b4ba97a03 100644
+--- a/src/cpu/x86/smi_trigger.c
++++ b/src/cpu/x86/smi_trigger.c
+@@ -40,8 +40,19 @@ enum cb_err apm_control(u8 cmd)
+ 
+ 	apmc_log(__func__, cmd);
+ 
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM) && cmd == APM_CNT_FINALIZE)
++		outb(0xff, APM_STS);
++
+ 	/* Now raise the SMI. */
+ 	call_smm(cmd, 0, NULL);
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM) && cmd == APM_CNT_FINALIZE) {
++		u8 status = inb(APM_STS);
++
++		if (status) {
++			printk(BIOS_ERR, "SMM finalization failed: %u\n", status);
++			return CB_ERR;
++		}
++	}
+ 
+ 	printk(BIOS_DEBUG, "APMC done.\n");
+ 	return CB_SUCCESS;
+diff --git a/src/drivers/intel/fsp2_0/notify.c b/src/drivers/intel/fsp2_0/notify.c
+index 358589d549..06534e8de4 100644
+--- a/src/drivers/intel/fsp2_0/notify.c
++++ b/src/drivers/intel/fsp2_0/notify.c
+@@ -22,7 +22,8 @@ struct fsp_notify_phase_data {
+ static const struct fsp_notify_phase_data notify_data[] = {
+ 	{
+ 		.notify_phase     = AFTER_PCI_ENUM,
+-		.skip             = !CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM),
++		.skip             = !CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM) ||
++				    CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM),
+ 		.post_code_before = POSTCODE_FSP_NOTIFY_BEFORE_ENUMERATE,
+ 		.post_code_after  = POSTCODE_FSP_NOTIFY_AFTER_ENUMERATE,
+ 		.timestamp_before = TS_FSP_ENUMERATE_START,
+diff --git a/src/security/lockdown/lockdown.c b/src/security/lockdown/lockdown.c
+index 6a75111f6b..9604c8c7d7 100644
+--- a/src/security/lockdown/lockdown.c
++++ b/src/security/lockdown/lockdown.c
+@@ -77,7 +77,8 @@ void boot_device_security_lockdown(void)
+ 
+ static void lock(void *unused)
+ {
+-	boot_device_security_lockdown();
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
++		boot_device_security_lockdown();
+ }
+ 
+ /*
+diff --git a/src/security/vboot/vboot_logic.c b/src/security/vboot/vboot_logic.c
+index f98b083d69..b250881b86 100644
+--- a/src/security/vboot/vboot_logic.c
++++ b/src/security/vboot/vboot_logic.c
+@@ -251,7 +251,8 @@ void verstage_main(void)
+ 	timestamp_add_now(TS_VBOOT_START);
+ 
+ 	/* Lockdown SPI flash controller if required */
+-	if (CONFIG(BOOTMEDIA_LOCK_IN_VERSTAGE))
++	if (CONFIG(BOOTMEDIA_LOCK_IN_VERSTAGE) &&
++	    !CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
+ 		boot_device_security_lockdown();
+ 
+ 	/* Set up context and work buffer */
+diff --git a/src/soc/intel/alderlake/finalize.c b/src/soc/intel/alderlake/finalize.c
+index 6eca7eb4ad..dbdc68f356 100644
+--- a/src/soc/intel/alderlake/finalize.c
++++ b/src/soc/intel/alderlake/finalize.c
+@@ -85,7 +85,10 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
++
+ 	tbt_finalize();
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+ 			 CONFIG(USE_FSP_NOTIFY_PHASE_END_OF_FIRMWARE))
+diff --git a/src/soc/intel/cannonlake/finalize.c b/src/soc/intel/cannonlake/finalize.c
+index 19fcf1387f..b868f0c6c6 100644
+--- a/src/soc/intel/cannonlake/finalize.c
++++ b/src/soc/intel/cannonlake/finalize.c
+@@ -87,7 +87,10 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
++
+ 	if (soc_disable_heci1_at_pre_boot() &&
+ 			CONFIG(SOC_INTEL_COMMON_BLOCK_HECI1_DISABLE_USING_PMC_IPC))
+ 		heci1_disable();
+diff --git a/src/soc/intel/common/block/fast_spi/fast_spi_flash.c b/src/soc/intel/common/block/fast_spi/fast_spi_flash.c
+index 89ae6d2cd3..34ef54e7ce 100644
+--- a/src/soc/intel/common/block/fast_spi/fast_spi_flash.c
++++ b/src/soc/intel/common/block/fast_spi/fast_spi_flash.c
+@@ -404,33 +404,20 @@ static int fast_spi_flash_ctrlr_setup(const struct spi_slave *dev)
+  * Protect range of SPI flash defined by [start, start+size-1] using Flash
+  * Protected Range (FPR) register if available.
+  */
+-static int fast_spi_flash_protect(const struct spi_flash *flash,
+-				  const struct region *region,
+-				  const enum ctrlr_prot_type type)
++static int fast_spi_ctrlr_protect_region(const struct region *region,
++					 const enum ctrlr_prot_type type)
+ {
+ 	u32 start = region_offset(region);
+ 	u32 end = start + region_sz(region) - 1;
+ 	u32 reg;
+ 	u32 protect_mask = 0;
++	u32 expected;
+ 	int fpr;
+ 	uintptr_t fpr_base;
++	uintptr_t free_fpr_base = 0;
++	int free_fpr = -1;
+ 	BOILERPLATE_CREATE_CTX(ctx);
+ 
+-	fpr_base = ctx->mmio_base + SPIBAR_FPR_BASE;
+-
+-	/* Find first empty FPR */
+-	for (fpr = 0; fpr < SPIBAR_FPR_MAX; fpr++) {
+-		reg = read32p(fpr_base);
+-		if (reg == 0)
+-			break;
+-		fpr_base += sizeof(uint32_t);
+-	}
+-
+-	if (fpr >= SPIBAR_FPR_MAX) {
+-		printk(BIOS_ERR, "No SPI FPR free!\n");
+-		return -1;
+-	}
+-
+ 	switch (type) {
+ 	case WRITE_PROTECT:
+ 		protect_mask |= SPI_FPR_WPE;
+@@ -446,22 +433,57 @@ static int fast_spi_flash_protect(const struct spi_flash *flash,
+ 		return -1;
+ 	}
+ 
+-	/* Set protected range base and limit */
+-	reg = SPI_FPR(start, end) | protect_mask;
++	expected = SPI_FPR(start, end) | protect_mask;
++	fpr_base = ctx->mmio_base + SPIBAR_FPR_BASE;
+ 
+-	/* Set the FPR register and verify it is protected */
+-	write32p(fpr_base, reg);
+-	reg = read32p(fpr_base);
+-	if (!(reg & protect_mask)) {
+-		printk(BIOS_ERR, "Unable to set SPI FPR %d\n", fpr);
+-		return -1;
++	/* Reuse an exact match, otherwise remember the first empty FPR. */
++	for (fpr = 0; fpr < SPIBAR_FPR_MAX; fpr++) {
++		reg = read32p(fpr_base);
++		if (reg == expected) {
++			printk(BIOS_INFO, "%s: FPR %d already protects range "
++			       "0x%08x-0x%08x\n", __func__, fpr, start, end);
++			return 0;
++		}
++
++		if (reg == 0 && free_fpr < 0) {
++			free_fpr = fpr;
++			free_fpr_base = fpr_base;
++		}
++
++		fpr_base += sizeof(uint32_t);
++	}
++
++	if (free_fpr < 0) {
++		printk(BIOS_ERR, "No SPI FPR free!\n");
++		return -2;
++	}
++
++	/* Program the FPR and verify its complete contents. */
++	write32p(free_fpr_base, expected);
++	reg = read32p(free_fpr_base);
++	if (reg != expected) {
++		printk(BIOS_ERR, "Unable to set SPI FPR %d: expected 0x%08x, "
++		       "read 0x%08x\n", free_fpr, expected, reg);
++		return -3;
+ 	}
+ 
+ 	printk(BIOS_INFO, "%s: FPR %d is enabled for range 0x%08x-0x%08x\n",
+-	       __func__, fpr, start, end);
++	       __func__, free_fpr, start, end);
+ 	return 0;
+ }
+ 
++int fast_spi_flash_write_protect(const struct region *region)
++{
++	return fast_spi_ctrlr_protect_region(region, WRITE_PROTECT);
++}
++
++static int fast_spi_flash_protect(const struct spi_flash *flash,
++				  const struct region *region,
++				  const enum ctrlr_prot_type type)
++{
++	return fast_spi_ctrlr_protect_region(region, type);
++}
++
+ const struct spi_ctrlr fast_spi_flash_ctrlr = {
+ 	.setup = fast_spi_flash_ctrlr_setup,
+ 	.max_xfer_size = SPI_CTRLR_DEFAULT_MAX_XFER_SIZE,
+diff --git a/src/soc/intel/common/block/include/intelblocks/fast_spi.h b/src/soc/intel/common/block/include/intelblocks/fast_spi.h
+index 6c28f25430..8a53fa6f8c 100644
+--- a/src/soc/intel/common/block/include/intelblocks/fast_spi.h
++++ b/src/soc/intel/common/block/include/intelblocks/fast_spi.h
+@@ -5,6 +5,8 @@
+ 
+ #include <types.h>
+ 
++struct region;
++
+ /* Clear any SPI outstanding status bits, i.e., FCERR, FDONE etc. */
+ void fast_spi_clear_outstanding_status(void);
+ /* Check if SPI transaction is pending */
+@@ -72,6 +74,8 @@ void fast_spi_early_init(uintptr_t spi_base_address);
+  * mapping.
+  */
+ extern const struct spi_ctrlr fast_spi_flash_ctrlr;
++/* Program and verify controller write protection for a flash region. */
++int fast_spi_flash_write_protect(const struct region *region);
+ /*
+  * Clear SPI Synchronous SMI status bit and return its value.
+  */
+diff --git a/src/soc/intel/common/block/lpc/Makefile.mk b/src/soc/intel/common/block/lpc/Makefile.mk
+index b510cd0ec3..60792654b5 100644
+--- a/src/soc/intel/common/block/lpc/Makefile.mk
++++ b/src/soc/intel/common/block/lpc/Makefile.mk
+@@ -5,3 +5,7 @@ romstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ 
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc.c
++
++ifeq ($(CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM),y)
++smm-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
++endif
+diff --git a/src/soc/intel/common/block/smbus/smbus.c b/src/soc/intel/common/block/smbus/smbus.c
+index 573aea5b8e..ed6fac4713 100644
+--- a/src/soc/intel/common/block/smbus/smbus.c
++++ b/src/soc/intel/common/block/smbus/smbus.c
+@@ -33,7 +33,8 @@ static void pch_smbus_init(struct device *dev)
+  */
+ static void finalize_smbus(struct device *dev)
+ {
+-	if (!CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM))
++	if (!CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM) ||
++	    CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
+ 		tco_lockdown();
+ }
+ 
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+index 622a7d9707..1b13e0e7fb 100644
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -16,6 +16,7 @@
+ #include <device/pci_ops.h>
+ #include <drivers/option/cfr_runtime.h>
+ #include <elog.h>
++#include <intelblocks/cfg.h>
+ #include <intelblocks/fast_spi.h>
+ #include <intelblocks/msr.h>
+ #include <intelblocks/oc_wdt.h>
+@@ -23,6 +24,7 @@
+ #include <intelblocks/smihandler.h>
+ #include <intelblocks/tco.h>
+ #include <intelblocks/uart.h>
++#include <intelpch/lockdown.h>
+ #include <option.h>
+ #include <security/lockdown/lockdown.h>
+ #include <security/tcg/opal_s3_smm.h>
+@@ -385,15 +387,26 @@ static void enable_smm_code_access_check(void)
+ 	printk(BIOS_DEBUG, "Enabled and locked SMM code check\n");
+ }
+ 
+-static void finalize(void)
++static int finalize(void)
+ {
+ 	static int finalize_done;
+ 
+ 	if (finalize_done) {
+ 		printk(BIOS_DEBUG, "SMM already finalized.\n");
+-		return;
++		return 0;
++	}
++
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM)) {
++		int status;
++
++		/* SPI lock down configuration */
++		status = fast_spi_lockdown_bios(CHIPSET_LOCKDOWN_COREBOOT);
++		if (status < 0)
++			return status;
++
++		/* LPC/eSPI lock down configuration */
++		lpc_lockdown_config(CHIPSET_LOCKDOWN_COREBOOT);
+ 	}
+-	finalize_done = 1;
+ 
+ 	if (CONFIG(SPI_FLASH_SMM))
+ 		/* Re-init SPI driver to handle locked BAR */
+@@ -419,6 +432,8 @@ static void finalize(void)
+ 	smihandler_soc_at_finalize();
+ 
+ 	enable_smm_code_access_check();
++	finalize_done = 1;
++	return 0;
+ }
+ 
+ void smihandler_southbridge_apmc(
+@@ -442,10 +457,13 @@ void smihandler_southbridge_apmc(
+ 		if (CONFIG(SMMSTORE))
+ 			southbridge_smi_store(save_state_ops);
+ 		break;
+-	case APM_CNT_FINALIZE:
+-		finalize();
++	case APM_CNT_FINALIZE: {
++		int status = finalize();
++
++		outb(status < 0 ? -status : 0, APM_STS);
+ 		break;
+ 	}
++	}
+ 
+ 	if (opal_s3_smi_apmc(reg8))
+ 		return;
+diff --git a/src/soc/intel/common/feature/finalize/finalize.c b/src/soc/intel/common/feature/finalize/finalize.c
+index 362c1ec6d2..f9b1595b16 100644
+--- a/src/soc/intel/common/feature/finalize/finalize.c
++++ b/src/soc/intel/common/feature/finalize/finalize.c
+@@ -60,7 +60,10 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
++
+ 	tbt_finalize();
+ 	sa_finalize();
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+diff --git a/src/soc/intel/common/feature/lockdown/lockdown.c b/src/soc/intel/common/feature/lockdown/lockdown.c
+index 0d06a84899..6921c6f2fa 100644
+--- a/src/soc/intel/common/feature/lockdown/lockdown.c
++++ b/src/soc/intel/common/feature/lockdown/lockdown.c
+@@ -28,11 +28,13 @@ static void pmc_lockdown_config(int chipset_lockdown)
+ 		setbits32(pmcbase + GEN_PMCON_B, SMI_LOCK);
+ 
+ 	/*
+-	 * When FSP PostPciEnumeration notify is enabled, FSP owns the PMC
+-	 * BIOS-reset/PCI-enumeration handoff. Sending the native IPC as well
+-	 * has caused PMC IPC timeouts on validated StarLabs Lite ADL firmware.
++	 * FSP normally owns the PMC BIOS-reset/PCI-enumeration handoff when
++	 * PostPciEnumeration notify is enabled. Deferred SPI lockdown cannot
++	 * call that phase because FSP locks the SPI controller, so use the
++	 * native handoff instead.
+ 	 */
+-	if (!CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM)) {
++	if (!CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM) ||
++	    CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM)) {
+ 		setbits32(pmcbase + PMC_FDIS_LOCK_REG, ST_FDIS_LOCK);
+ 		setbits32(pmcbase + SSML, SSML_SSL_EN);
+ 		setbits32(pmcbase + PM_CFG, PM_CFG_DBG_MODE_LOCK |
+@@ -44,7 +46,8 @@ static void pmc_lockdown_config(int chipset_lockdown)
+ 
+ static void soc_die_lockdown_cfg(void)
+ {
+-	if (CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM))
++	if (CONFIG(USE_FSP_NOTIFY_PHASE_POST_PCI_ENUM) &&
++	    !CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
+ 		return;
+ 
+ 	/* Enable IOSF Primary Trunk Clock Gating */
+diff --git a/src/soc/intel/common/pch/include/intelpch/lockdown.h b/src/soc/intel/common/pch/include/intelpch/lockdown.h
+index 427f07ac91..97ef21df48 100644
+--- a/src/soc/intel/common/pch/include/intelpch/lockdown.h
++++ b/src/soc/intel/common/pch/include/intelpch/lockdown.h
+@@ -25,4 +25,7 @@ int get_lockdown_config(void);
+  */
+ void soc_lockdown_config(int chipset_lockdown);
+ 
++int fast_spi_lockdown_bios(int chipset_lockdown);
++void lpc_lockdown_config(int chipset_lockdown);
++
+ #endif /* SOC_INTEL_COMMON_PCH_LOCKDOWN_H */
+diff --git a/src/soc/intel/common/pch/lockdown/Kconfig b/src/soc/intel/common/pch/lockdown/Kconfig
+index 38f60d2056..61ea57c02a 100644
+--- a/src/soc/intel/common/pch/lockdown/Kconfig
++++ b/src/soc/intel/common/pch/lockdown/Kconfig
+@@ -3,7 +3,21 @@
+ config SOC_INTEL_COMMON_PCH_LOCKDOWN
+ 	bool
+ 	default n
++	select HAVE_INTEL_CHIPSET_LOCKDOWN
+ 	help
+ 	  This option allows to have chipset lockdown for DMI, FAST_SPI and
+ 	  soc_lockdown_config() to implement any additional lockdown as PMC,
+ 	  LPC for supported PCH.
++
++config SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM
++	bool "Lock down SPI controller in SMM"
++	default n
++	depends on HAVE_SMI_HANDLER && !INTEL_CHIPSET_LOCKDOWN
++	depends on BOOTMEDIA_LOCK_CONTROLLER && BOOTMEDIA_LOCK_WHOLE_RO
++	select SPI_FLASH_SMM
++	help
++	  Defer FAST_SPI and LPC controller locking until the payload sends an
++	  APM_CNT_FINALIZE SMI. Recreate whole-ROM controller write protection
++	  before final locking because payload flash tools may clear unlocked
++	  protected-range registers. This lets Heads update firmware before
++	  protecting it from the operating system.
+diff --git a/src/soc/intel/common/pch/lockdown/Makefile.mk b/src/soc/intel/common/pch/lockdown/Makefile.mk
+index 71466f8edd..64aad562ac 100644
+--- a/src/soc/intel/common/pch/lockdown/Makefile.mk
++++ b/src/soc/intel/common/pch/lockdown/Makefile.mk
+@@ -1,2 +1,7 @@
+ ## SPDX-License-Identifier: GPL-2.0-only
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown.c
++ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_lpc.c
++ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_spi.c
++
++smm-$(CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM) += lockdown_lpc.c
++smm-$(CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM) += lockdown_spi.c
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown.c b/src/soc/intel/common/pch/lockdown/lockdown.c
+index 70f6d047aa..c206dfb460 100644
+--- a/src/soc/intel/common/pch/lockdown/lockdown.c
++++ b/src/soc/intel/common/pch/lockdown/lockdown.c
+@@ -27,6 +27,10 @@ int get_lockdown_config(void)
+ {
+ 	const struct soc_intel_common_config *common_config;
++
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
++		return CHIPSET_LOCKDOWN_COREBOOT;
++
+ 	common_config = chip_get_common_soc_structure();
+ 
+ 	return common_config->chipset_lockdown;
+ }
+@@ -65,56 +65,18 @@ static void fast_spi_lockdown_cfg(int chipset_lockdown)
+ 	/* Set FAST_SPI opcode menu */
+ 	fast_spi_set_opcode_menu();
+ 
+-	/* Discrete Lock Flash PR registers */
+-	fast_spi_pr_dlock();
+-
+ 	/* Check if SPI transaction is pending */
+ 	fast_spi_cycle_in_progress();
+ 
+ 	/* Clear any outstanding status bits like AEL, FCERR, FDONE, SAF etc. */
+ 	fast_spi_clear_outstanding_status();
+ 
+-	/* Lock FAST_SPIBAR */
+-	fast_spi_lock_bar();
+-
+ 	/* Set Vendor Component Lock (VCL) */
+ 	fast_spi_vscc0_lock();
+ 
+-	/* Set BIOS Interface Lock, BIOS Lock */
+-	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
+-		/* BIOS Interface Lock */
+-		fast_spi_set_bios_interface_lock_down();
+-
+-		/* Only allow writes in SMM */
+-		if (enable_smm_bios_protection()) {
+-			fast_spi_set_eiss();
+-			fast_spi_enable_wp();
+-		}
+-
+-		/* BIOS Lock */
+-		fast_spi_set_lock_enable();
+-
+-		/* EXT BIOS Lock */
+-		fast_spi_set_ext_bios_lock_enable();
+-	}
+-}
+-
+-static void lpc_lockdown_config(int chipset_lockdown)
+-{
+-	/* Set BIOS Interface Lock, BIOS Lock */
+-	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
+-		/* BIOS Interface Lock */
+-		lpc_set_bios_interface_lock_down();
+-
+-		/* Only allow writes in SMM */
+-		if (enable_smm_bios_protection()) {
+-			lpc_set_eiss();
+-			lpc_enable_wp();
+-		}
+-
+-		/* BIOS Lock */
+-		lpc_set_lock_enable();
+-	}
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM) &&
++	    fast_spi_lockdown_bios(chipset_lockdown) < 0)
++		die("Unable to protect SPI flash\n");
+ }
+ 
+ static void sa_lockdown_config(int chipset_lockdown)
+@@ -156,8 +118,9 @@ static void platform_lockdown_config(void *unused)
+ 	/* SPI lock down configuration */
+ 	fast_spi_lockdown_cfg(chipset_lockdown);
+ 
+-	/* LPC/eSPI lock down configuration */
+-	lpc_lockdown_config(chipset_lockdown);
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM))
++		/* LPC/eSPI lock down configuration */
++		lpc_lockdown_config(chipset_lockdown);
+ 
+ 	/* GPMR lock down configuration */
+ 	gpmr_lockdown_cfg();
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown_lpc.c b/src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+new file mode 100644
+index 0000000000..b57cb076f5
+--- /dev/null
++++ b/src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <intelblocks/cfg.h>
++#include <intelblocks/lpc_lib.h>
++#include <intelpch/lockdown.h>
++#include <security/lockdown/lockdown.h>
++
++void lpc_lockdown_config(int chipset_lockdown)
++{
++	/* Set BIOS Interface Lock, BIOS Lock */
++	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
++		/* BIOS Interface Lock */
++		lpc_set_bios_interface_lock_down();
++
++		/* Only allow writes in SMM */
++		if (enable_smm_bios_protection()) {
++			lpc_set_eiss();
++			lpc_enable_wp();
++		}
++
++		/* BIOS Lock */
++		lpc_set_lock_enable();
++	}
++}
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown_spi.c b/src/soc/intel/common/pch/lockdown/lockdown_spi.c
+new file mode 100644
+index 0000000000..b658da4e25
+--- /dev/null
++++ b/src/soc/intel/common/pch/lockdown/lockdown_spi.c
+@@ -0,0 +1,46 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <commonlib/region.h>
++#include <console/console.h>
++#include <intelblocks/cfg.h>
++#include <intelblocks/fast_spi.h>
++#include <intelpch/lockdown.h>
++#include <security/lockdown/lockdown.h>
++
++int fast_spi_lockdown_bios(int chipset_lockdown)
++{
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM)) {
++		const struct region bootmedia = region_create(0, CONFIG_ROM_SIZE);
++		int status;
++
++		status = fast_spi_flash_write_protect(&bootmedia);
++		if (status < 0)
++			return status;
++	}
++
++	/* Discrete Lock Flash PR registers */
++	fast_spi_pr_dlock();
++
++	/* Lock FAST_SPIBAR */
++	fast_spi_lock_bar();
++
++	/* Set BIOS Interface Lock, BIOS Lock */
++	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
++		/* BIOS Interface Lock */
++		fast_spi_set_bios_interface_lock_down();
++
++		/* Only allow writes in SMM */
++		if (enable_smm_bios_protection()) {
++			fast_spi_set_eiss();
++			fast_spi_enable_wp();
++		}
++
++		/* BIOS Lock */
++		fast_spi_set_lock_enable();
++
++		/* EXT BIOS Lock */
++		fast_spi_set_ext_bios_lock_enable();
++	}
++
++	return 0;
++}
+diff --git a/src/soc/intel/denverton_ns/lpc.c b/src/soc/intel/denverton_ns/lpc.c
+index 7dc971ea92..68c84c5c2f 100644
+--- a/src/soc/intel/denverton_ns/lpc.c
++++ b/src/soc/intel/denverton_ns/lpc.c
+@@ -536,7 +536,9 @@ static const struct pci_driver lpc_driver __pci_driver = {
+ 
+ static void finalize_chipset(void *unused)
+ {
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
+ }
+ 
+ BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, finalize_chipset, NULL);
+diff --git a/src/soc/intel/elkhartlake/finalize.c b/src/soc/intel/elkhartlake/finalize.c
+index 509eda5aaa..1b4080adc9 100644
+--- a/src/soc/intel/elkhartlake/finalize.c
++++ b/src/soc/intel/elkhartlake/finalize.c
+@@ -43,7 +43,10 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
++
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+ 		 CONFIG(USE_FSP_NOTIFY_PHASE_END_OF_FIRMWARE))
+ 		heci_finalize();
+diff --git a/src/soc/intel/jasperlake/finalize.c b/src/soc/intel/jasperlake/finalize.c
+index 8788db155d..959e76a47b 100644
+--- a/src/soc/intel/jasperlake/finalize.c
++++ b/src/soc/intel/jasperlake/finalize.c
+@@ -76,7 +76,9 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
+ 
+ 	/* Indicate finalize step with post code */
+ 	post_code(POSTCODE_OS_BOOT);
+diff --git a/src/soc/intel/skylake/finalize.c b/src/soc/intel/skylake/finalize.c
+index a6a451364d..fc4706f771 100644
+--- a/src/soc/intel/skylake/finalize.c
++++ b/src/soc/intel/skylake/finalize.c
+@@ -105,7 +105,9 @@ static void soc_finalize(void *unused)
+ 	pch_finalize_script(dev);
+ 
+ 	soc_lockdown(dev);
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
+ 
+ 	/* Indicate finalize step with post code */
+ 	post_code(POSTCODE_OS_BOOT);
+diff --git a/src/soc/intel/tigerlake/finalize.c b/src/soc/intel/tigerlake/finalize.c
+index 63a46ac02e..e261dbfffc 100644
+--- a/src/soc/intel/tigerlake/finalize.c
++++ b/src/soc/intel/tigerlake/finalize.c
+@@ -55,7 +55,10 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	if ((CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3()) &&
++	    apm_control(APM_CNT_FINALIZE) != CB_SUCCESS)
++		die("SMM chipset finalization failed\n");
++
+ 	tbt_finalize();
+ 	if (soc_disable_heci1_at_pre_boot())
+ 		heci1_disable();
+-- 
+2.53.0

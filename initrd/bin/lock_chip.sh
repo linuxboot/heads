@@ -9,18 +9,39 @@
 
 TRACE_FUNC
 if [ "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]; then
-	APM_CNT=0xb2
-	FIN_CODE=0xcb
+	APM_CNT=${CONFIG_FINALIZE_PLATFORM_LOCKING_APM_CNT:-0xb2}
+	APM_STS=${CONFIG_FINALIZE_PLATFORM_LOCKING_APM_STS:-}
+	FIN_CODE=${CONFIG_FINALIZE_PLATFORM_LOCKING_CODE:-0xcb}
 fi
 
 if [ -n "$APM_CNT" -a -n "$FIN_CODE" ]; then
 	# PR0 lockdown is enabled by setting a lock bit (FLOCKDN) in the SPI controller,
 	# which prevents further changes to the SPI controller configuration. The flash
 	# will become write protected in the range specified in the PR0 register. Once
-	# the protection is set and locked, it cannot be disabled 
+	# the protection is set and locked, it cannot be disabled
 	# until the next system reset.
 	STATUS "Finalizing chipset write protection via SMI PR0 lockdown"
-	io386 -o b -b x $APM_CNT $FIN_CODE
+	if [ -n "$APM_STS" ]; then
+		if ! io386 -o b -b x "$APM_STS" 0xff; then
+			DIE "Unable to clear chipset write-protection status"
+		fi
+	fi
+	if ! io386 -o b -b x "$APM_CNT" "$FIN_CODE"; then
+		DIE "Unable to trigger chipset write protection"
+	fi
+	if [ -n "$APM_STS" ]; then
+		if ! FINALIZE_STATUS=$(io386 -i b "$APM_STS"); then
+			DIE "Unable to read chipset write-protection status"
+		fi
+		case "$FINALIZE_STATUS" in
+		''|*[!0-9]*)
+			DIE "Invalid chipset write-protection status ($FINALIZE_STATUS)"
+			;;
+		esac
+		if [ "$FINALIZE_STATUS" -ne 0 ]; then
+			DIE "Chipset write protection failed (status $FINALIZE_STATUS)"
+		fi
+	fi
 	STATUS_OK "Chipset write protection locked"
 else
 	NOTE "NOT finalizing chipset - lock_chip.sh called without valid APM_CNT and FIN_CODE"

@@ -280,7 +280,7 @@ report_integrity_measurements() {
 	# via detect_usb_security_dongle_branding().
 	detect_usb_security_dongle_branding
 
-	if [ "$CONFIG_TPM" = "y" ]; then
+	if [ "$CONFIG_TPM" = "y" ] && [ -x /bin/totp ]; then
 		totp_state="UNAVAILABLE"
 		if [ "$CONFIG_TPM2_TOOLS" != "y" ] || [ -f /tmp/secret/primary.handle ]; then
 			DEBUG "report_integrity_measurements: unsealing integrity TOTP from TPM"
@@ -649,7 +649,7 @@ investigate_integrity_discrepancies() {
 			;;
 		r)
 			local msg
-			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount /boot read-write:\n    mount -o rw,remount /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the '"${CONFIG_BRAND_NAME}"$' menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; '"${CONFIG_BRAND_NAME}"$' will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
+			msg=$'Integrity discrepancies detected (paths are under /boot):\n\n'"${details}"$'\n\nTo investigate:\n 1. remount the backing filesystem and its /boot view read-write:\n    mount -o remount,rw /boot_root\n    mount -o remount,bind,rw /boot\n 2. edit files with vi (use :wq to save and exit) and save your changes\n 3. unsafe boot is still possible via the '"${CONFIG_BRAND_NAME}"$' menu: Options -> Boot Options -> Ignore tampering and force a boot\n    while /boot remains untrusted\n 4. run reboot when done; '"${CONFIG_BRAND_NAME}"$' will re-audit on next boot\n\nBe cautious. If unsure, reinstall and restore from backups.'
 			recovery "$msg"
 			;;
 		u)

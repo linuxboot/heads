@@ -183,6 +183,11 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
+# Star Labs release 26.07.1.
+coreboot-starlabs_2607_repo := https://github.com/StarLabsLtd/coreboot.git
+coreboot-starlabs_2607_commit_hash := 3531cde8002a9afff8ad4c272b2c4ea015f45012
+$(eval $(call coreboot_module,starlabs_2607,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")

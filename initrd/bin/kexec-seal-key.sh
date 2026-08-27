@@ -316,11 +316,11 @@ shred -n 10 -z -u "$pcrf" 2>/dev/null ||
 shred -n 10 -z -u "$DUK_KEY_FILE" 2>/dev/null ||
 	WARN "Failed to delete key file - continuing"
 
-mount -o rw,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RW - continuing"
+remount_boot_device rw "$paramsdir" || WARN "Failed to remount $paramsdir in RW - continuing"
 cp -f /tmp/kexec_key_devices_filtered.txt "$KEY_DEVICES" ||
 	DIE "kexec-seal-key.sh: failed to update $KEY_DEVICES"
 DEBUG "kexec-seal-key.sh: $KEY_DEVICES updated"
 rm -f /tmp/kexec_key_devices_filtered.txt
 cp -f /tmp/luksDump.txt "$paramsdir/kexec_lukshdr_hash.txt" ||
 	WARN "Failed to copy LUKS header hashes to /boot - continuing"
-mount -o ro,remount "$paramsdir" || WARN "Failed to remount $paramsdir in RO - continuing"
+remount_boot_device ro "$paramsdir" || WARN "Failed to remount $paramsdir in RO - continuing"

@@ -1,0 +1,65 @@
+From 346d781877295b051eefc3eb2f06f71207a694d0 Mon Sep 17 00:00:00 2001
+From: Sean Rhodes <sean@starlabs.systems>
+Date: Thu, 27 Aug 2026 07:07:51 +0100
+Subject: [PATCH] mainboard/starlabs: Set CBFS sizes from FMAP layouts
+
+Set each platform CBFS size to the space following FMAP in its BIOS region.
+This keeps the Heads CBFS above 8 MiB without extending beyond the board
+layout.
+
+Change-Id: I8a836fa7a7603ea3a8d56ad20764af91a85bbaab
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ src/mainboard/starlabs/adl/Kconfig         | 3 +++
+ src/mainboard/starlabs/starbook/Kconfig    | 7 +++++++
+ src/mainboard/starlabs/starfighter/Kconfig | 3 +++
+ 3 files changed, 13 insertions(+)
+
+diff --git a/src/mainboard/starlabs/adl/Kconfig b/src/mainboard/starlabs/adl/Kconfig
+index fea848e825e..9210a60d080 100644
+--- a/src/mainboard/starlabs/adl/Kconfig
++++ b/src/mainboard/starlabs/adl/Kconfig
+@@ -71,6 +71,9 @@ config BOARD_STARLABS_BYTE_TWL
+ 
+ if BOARD_STARLABS_ADL_SERIES
+ 
++config CBFS_SIZE
++	default 0x92f000
++
+ config CONSOLE_SERIAL
+ 	default n if !EDK2_DEBUG
+ 
+diff --git a/src/mainboard/starlabs/starbook/Kconfig b/src/mainboard/starlabs/starbook/Kconfig
+index 43db40c1ad3..cb789aa51b3 100644
+--- a/src/mainboard/starlabs/starbook/Kconfig
++++ b/src/mainboard/starlabs/starbook/Kconfig
+@@ -123,6 +123,13 @@ config BOARD_STARLABS_STARBOOK_MTL
+ 
+ if BOARD_STARLABS_STARBOOK_SERIES
+ 
++config CBFS_SIZE
++	default 0xb2fe00 if BOARD_STARLABS_LABTOP_CML
++	default 0xf2f000 if BOARD_STARLABS_STARBOOK_ADL || BOARD_STARLABS_STARBOOK_RPL
++	default 0x92f000 if BOARD_STARLABS_STARBOOK_ADL_N
++	default 0xd2f000 if BOARD_STARLABS_STARBOOK_MTL
++	default 0xa2f000 if BOARD_STARLABS_STARBOOK_TGL
++
+ config CCD_PORT
+ 	int
+ 	default 6 if BOARD_STARLABS_LABTOP_CML
+diff --git a/src/mainboard/starlabs/starfighter/Kconfig b/src/mainboard/starlabs/starfighter/Kconfig
+index c22601b845f..082805c20ef 100644
+--- a/src/mainboard/starlabs/starfighter/Kconfig
++++ b/src/mainboard/starlabs/starfighter/Kconfig
+@@ -52,6 +52,9 @@ config BOARD_STARLABS_STARFIGHTER_MTL
+ 
+ if BOARD_STARLABS_STARFIGHTER_SERIES
+ 
++config CBFS_SIZE
++	default 0xf2f000
++
+ config CCD_PORT
+ 	int
+ 	default 4
+-- 
+2.53.0
