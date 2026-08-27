@@ -6,6 +6,10 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 patch_file="$repo_root/patches/coreboot-starlabs_2607/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch"
 lock_script="$repo_root/initrd/bin/lock_chip.sh"
+board_configs=(
+	"$repo_root/boards/starlabs/physical-intel.config"
+	"$repo_root/boards/starlabs/compact-intel.config"
+)
 
 grep -F '+	depends on BOOTMEDIA_LOCK_CONTROLLER && BOOTMEDIA_LOCK_WHOLE_RO' \
 	"$patch_file" >/dev/null
@@ -26,10 +30,28 @@ if grep -F 'die("Unable to restore SPI boot-media protection before lockdown' \
 	exit 1
 fi
 
-grep -F '	io386 -o b -b x $APM_STS 0xff' "$lock_script" >/dev/null
-grep -F '	FINALIZE_STATUS=$(io386 -i b $APM_STS)' "$lock_script" >/dev/null
-grep -F '		DIE "Chipset write protection failed (status $FINALIZE_STATUS)"' \
+grep -F '	APM_STS=${CONFIG_FINALIZE_PLATFORM_LOCKING_APM_STS:-}' \
 	"$lock_script" >/dev/null
+grep -F '			DIE "Chipset write protection failed (status $FINALIZE_STATUS)"' \
+	"$lock_script" >/dev/null
+grep -F 'if ! io386 -o b -b x "$APM_STS" 0xff; then' "$lock_script" >/dev/null
+grep -F 'if ! io386 -o b -b x "$APM_CNT" "$FIN_CODE"; then' "$lock_script" >/dev/null
+grep -F 'if ! FINALIZE_STATUS=$(io386 -i b "$APM_STS"); then' "$lock_script" >/dev/null
+grep -F "''|*[!0-9]*)" "$lock_script" >/dev/null
+
+for board_config in "${board_configs[@]}"; do
+	grep -F 'export CONFIG_FINALIZE_PLATFORM_LOCKING_APM_CNT=0xb2' \
+		"$board_config" >/dev/null
+	grep -F 'export CONFIG_FINALIZE_PLATFORM_LOCKING_APM_STS=0xb3' \
+		"$board_config" >/dev/null
+	grep -F 'export CONFIG_FINALIZE_PLATFORM_LOCKING_CODE=0xcb' \
+		"$board_config" >/dev/null
+done
+
+if grep -F $'\tAPM_STS=0xb3' "$lock_script" >/dev/null; then
+	echo "Shared lock script still hardcodes the Star Labs status port" >&2
+	exit 1
+fi
 
 protect_line=$(grep -n -F '+		status = fast_spi_flash_write_protect(&bootmedia);' \
 	"$patch_file" | cut -d: -f1)

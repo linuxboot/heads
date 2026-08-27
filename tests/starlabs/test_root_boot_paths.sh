@@ -56,6 +56,16 @@ grep -F 'mount -w -o remount,rw "$boot_dev" /boot_root' \
 	"$repo_root/initrd/etc/functions.sh" >/dev/null
 grep -F 'mount -w -o remount,bind,rw "$boot_dev" /boot' \
 	"$repo_root/initrd/etc/functions.sh" >/dev/null
+grep -F 'mount -o remount,rw /boot_root' \
+	"$repo_root/initrd/etc/gui_functions.sh" >/dev/null
+grep -F 'mount -o remount,bind,rw /boot' \
+	"$repo_root/initrd/etc/gui_functions.sh" >/dev/null
+
+if grep -F 'mount -o remount,rw /boot\\n' \
+	"$repo_root/initrd/etc/gui_functions.sh" >/dev/null; then
+	echo "Recovery instructions bypass the backing /boot filesystem" >&2
+	exit 1
+fi
 
 if grep -R -E 'mount -o [^ ]*remount[^ ]* /boot([[:space:]]|$)' \
 	"$repo_root/initrd/bin" "$repo_root/initrd/etc/luks-functions.sh"; then

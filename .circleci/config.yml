@@ -551,13 +551,6 @@ workflows:
             - starlabs_lite_adl [seed:coreboot-starlabs_2607]
 
       - build:
-          name: starlabs_byte_cezanne
-          target: starlabs_byte_cezanne
-          subcommand: ""
-          requires:
-            - starlabs_lite_adl [seed:coreboot-starlabs_2607]
-
-      - build:
           name: starlabs_byte_twl
           target: starlabs_byte_twl
           subcommand: ""
@@ -588,13 +581,6 @@ workflows:
       - build:
           name: starlabs_starbook_adl_n
           target: starlabs_starbook_adl_n
-          subcommand: ""
-          requires:
-            - starlabs_lite_adl [seed:coreboot-starlabs_2607]
-
-      - build:
-          name: starlabs_starbook_cezanne
-          target: starlabs_starbook_cezanne
           subcommand: ""
           requires:
             - starlabs_lite_adl [seed:coreboot-starlabs_2607]

@@ -6,11 +6,19 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-Heads payload uses APM_CNT_FINALIZE SMI to set and lock down the SPI controller with PR0 flash protection for pre-Skylake platforms.
+Heads payload uses APM_CNT_FINALIZE SMI to set and lock down the SPI
+controller with PR0 flash protection for pre-Skylake platforms.
 
-Add an option to defer LPC and FAST SPI lockdown to the APM_CNT_FINALIZE SMI handler. Reuse INTEL_CHIPSET_LOCKDOWN to avoid issuing APM_CNT_FINALIZE on the normal boot path, as on pre-Skylake platforms. Split SPI and LPC lockdown into separate modules so they can be linked into SMM.
+Add an option to defer LPC and FAST SPI lockdown to the APM_CNT_FINALIZE
+SMI handler. Reuse INTEL_CHIPSET_LOCKDOWN to avoid issuing
+APM_CNT_FINALIZE on the normal boot path, as on pre-Skylake platforms.
+Split SPI and LPC lockdown into separate modules so they can be linked into
+SMM.
 
-Defer boot-media protection as part of that mode. At finalization, reuse an exact whole-ROM FPR or program and verify a free register before setting DLOCK and FLOCKDN. Report setup failures through APM_STS instead of halting inside SMM.
+Defer boot-media protection as part of that mode. At finalization, reuse an
+exact whole-ROM FPR or program and verify a free register before setting
+DLOCK and FLOCKDN. Report setup failures through APM_STS instead of halting
+inside SMM.
 
 Make the SMM mode use coreboot lockdown ownership even when the mainboard
 normally selects FSP lockdown. Otherwise FSP can lock empty protected-range
@@ -20,11 +28,16 @@ FSP's PostPciEnumeration notify locks the SPI controller even when its
 lockdown UPDs are disabled. Skip that phase in SMM lockdown mode and run the
 equivalent native PMC and TCO finalization instead.
 
-The expected configuration is to unselect INTEL_CHIPSET_LOCKDOWN and select SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM.
+The expected configuration is to unselect INTEL_CHIPSET_LOCKDOWN and select
+SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM.
 
-Testing various microarchitectures happens on heads repository: https://github.com/linuxboot/heads/pull/1818
+Testing various microarchitectures happens on the Heads repository:
+https://github.com/linuxboot/heads/pull/1818
 
-TEST=Lock the SPI flash using APM_CNT_FINALIZE in heads on Alder Lake (Protectli VP66xx) and Comet Lake (Protectli VP46xx) platforms. Check if flash is unlocked in the heads recovery console. Check if flash is locked in the kexeced OS.
+TEST=Lock the SPI flash using APM_CNT_FINALIZE in Heads on Alder Lake
+(Protectli VP66xx) and Comet Lake (Protectli VP46xx) platforms. Check if
+flash is unlocked in the Heads recovery console. Check if flash is locked in
+the kexeced OS.
 
 Change-Id: Icbcc6fcde90e5b0a999aacb720e2e3dc2748c838
 

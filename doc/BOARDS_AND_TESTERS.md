@@ -174,7 +174,18 @@ All Active.
 
 Star Labs
 ===
+- [ ] StarBook Horizon (Alder Lake): @Sean-StarLabs
+- [ ] Byte Mk II (Alder Lake-N): @Sean-StarLabs
+- [ ] Byte Mk III (Twin Lake-N): @Sean-StarLabs
+- [ ] LabTop Mk IV (Comet Lake): @Sean-StarLabs
 - [ ] StarLite Mk V (Alder Lake-N): @Sean-StarLabs
+- [ ] StarBook Mk V (Tiger Lake): @Sean-StarLabs
+- [ ] StarBook Mk VI (Alder Lake): @Sean-StarLabs
+- [ ] StarBook Mk VI (Raptor Lake): @Sean-StarLabs
+- [ ] StarBook Mk VII (Alder Lake-N): @Sean-StarLabs
+- [ ] StarBook Mk VII (Meteor Lake): @Sean-StarLabs
+- [ ] StarFighter Mk I (Raptor Lake): @Sean-StarLabs
+- [ ] StarFighter Mk II (Meteor Lake): @Sean-StarLabs
 
 Desktops / Servers
 ==
