@@ -1,4 +1,4 @@
-# T480 Blobs
+# xx80 Blobs
 
 The following blobs are needed:
 
@@ -22,6 +22,7 @@ As specified in the first link, this ME can be deployed to:
 
 * T480
 * T480s
+* X280
 
 ## ifd.bin and gbe.bin
 
