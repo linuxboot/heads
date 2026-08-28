@@ -167,6 +167,7 @@ jobs:
           command: |
             ./blobs/xx80/t480_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
             ./blobs/xx80/t480s_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
+            ./blobs/xx80/x280_download_clean_deguard_me_pad_tb.sh -m $(readlink -f ./blobs/utils/me_cleaner/me_cleaner.py) ./blobs/xx80/
       - run:
           name: Download, neuter and deguard m900 ME (keep generated GBE and extracted IFD in tree)
           command: |
@@ -476,6 +477,15 @@ workflows:
           requires:
             - x86-musl-cross-make [cross compiler]
 
+      # 25.12 fork — builds coreboot-25.12 toolchain
+      - x86_coreboot:
+          name: EOL_x280-hotp-maximized [seed:coreboot-25.12]
+          target: EOL_x280-hotp-maximized
+          subcommand: ""
+          coreboot_dir: coreboot-25.12
+          requires:
+            - x86-musl-cross-make [cross compiler]
+
       # ── Dasharo shared toolchain ──────────────────────────────────────────
       # 4 forks share crossgcc (verified by sum-file diff).
       # novacustom-nv4x_adl is the only seed; all other Dasharo boards are
@@ -526,6 +536,15 @@ workflows:
           coreboot_dir: coreboot-purism
           requires:
             - x86-musl-cross-make [cross compiler]
+
+      # ── coreboot 25.12 boards X280-hotp-maximized acts as seed ───────────────────────────────
+
+      - build:
+          name: EOL_x280-maximized
+          target: EOL_x280-maximized
+          subcommand: ""
+          requires:
+            - EOL_x280-hotp-maximized [seed:coreboot-25.12]
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
