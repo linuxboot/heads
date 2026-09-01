@@ -628,22 +628,36 @@ show_main_menu() {
 
 show_options_menu() {
 	TRACE_FUNC
+	local cfr_available=''
+	if [ -r /etc/heads-cfr-enabled ] &&
+		[ -d /sys/class/firmware-attributes/coreboot-cfr/attributes ]; then
+		cfr_available='y'
+	fi
+	local -a options_menu
+	options_menu=(
+		'b' ' Boot Options -->'
+		't' ' TPM/TOTP/HOTP Options -->'
+		'i' ' Investigate integrity discrepancies -->'
+		'h' ' Change system time'
+		'u' ' Update checksums and sign all files in /boot'
+		'c' ' Change configuration settings -->'
+		'f' ' Flash/Update the BIOS -->'
+		'g' ' GPG Options -->'
+		'F' ' OEM Factory Reset / Re-Ownership -->'
+		'C' ' Reencrypt LUKS container -->'
+		'P' ' Change LUKS Disk Recovery Key passphrase ->'
+		'R' ' Check/Update file hashes on root disk -->'
+	)
+	[ -n "$cfr_available" ] && options_menu+=(
+		'e' ' Coreboot Firmware Settings -->'
+	)
+	options_menu+=(
+		'x' ' Exit to recovery shell'
+		'r' ' <-- Return to main menu'
+	)
 	whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
 		--menu "" 0 80 10 \
-		'b' ' Boot Options -->' \
-		't' ' TPM/TOTP/HOTP Options -->' \
-		'i' ' Investigate integrity discrepancies -->' \
-		'h' ' Change system time' \
-		'u' ' Update checksums and sign all files in /boot' \
-		'c' ' Change configuration settings -->' \
-		'f' ' Flash/Update the BIOS -->' \
-		'g' ' GPG Options -->' \
-		'F' ' OEM Factory Reset / Re-Ownership -->' \
-		'C' ' Reencrypt LUKS container -->' \
-		'P' ' Change LUKS Disk Recovery Key passphrase ->' \
-		'R' ' Check/Update file hashes on root disk -->' \
-		'x' ' Exit to recovery shell' \
-		'r' ' <-- Return to main menu' \
+		"${options_menu[@]}" \
 		2>/tmp/whiptail || recovery "GUI menu failed"
 
 	option=$(cat /tmp/whiptail)
@@ -665,6 +679,9 @@ show_options_menu() {
 		;;
 	c)
 		config-gui.sh
+		;;
+	e)
+		/bin/cfr-settings.sh
 		;;
 	f)
 		flash-gui.sh

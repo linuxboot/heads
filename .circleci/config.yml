@@ -65,6 +65,19 @@ commands:
 
 jobs:
 
+  cfr_settings_tests:
+    docker:
+      # cimg/base:2026.08 provides Bash and ShellCheck for this host-only job.
+      - image: cimg/base@sha256:e8f07526f593ac5dee29362b7f98c6fec94c412722d6bbece731e4cc885abccb
+    steps:
+      - checkout
+      - run:
+          name: CFR settings host fixture
+          command: ./tests/cfr/test_cfr_settings.sh
+      - run:
+          name: CFR settings shellcheck
+          command: shellcheck initrd/bin/cfr-settings.sh tests/cfr/test_cfr_settings.sh
+
   # ═══════════════════════════════════════════════════════════════════════════
   # Glossary (see doc/circleci.md for full cache model)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -416,6 +429,7 @@ workflows:
   build_and_test:
     max_auto_reruns: 3
     jobs:
+      - cfr_settings_tests
       - create_hashes:
           name: create_hashes [cache keys]
 
