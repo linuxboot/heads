@@ -65,6 +65,14 @@ commands:
 
 jobs:
 
+  opal_tests:
+    executor: heads-docker
+    steps:
+      - checkout
+      - run:
+          name: TCG Opal functional fixture
+          command: ./tests/opal/test_heads_opal.sh
+
   # ═══════════════════════════════════════════════════════════════════════════
   # Glossary (see doc/circleci.md for full cache model)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -419,6 +427,9 @@ workflows:
       - create_hashes:
           name: create_hashes [cache keys]
 
+      - opal_tests:
+          name: TCG Opal functional fixture
+
       # ── x86 blobs ───────────────────────────────────────────────────────
       # Chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
       - x86_blobs:
@@ -753,6 +764,13 @@ workflows:
       - build:
           name: qemu-coreboot-fbwhiptail-tpm2-hotp
           target: qemu-coreboot-fbwhiptail-tpm2-hotp
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+
+      - build:
+          name: qemu-coreboot-fbwhiptail-tpm2-opal
+          target: qemu-coreboot-fbwhiptail-tpm2-opal
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized [seed:coreboot-25.09]

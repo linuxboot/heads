@@ -256,6 +256,18 @@ else
 	DEBUG "No board-init.sh found; skipping board-specific init"
 fi
 
+if [ -x /bin/heads-opal ]; then
+	/bin/heads-opal-unlock.sh
+	opal_rc=$?
+	if [ "$opal_rc" -eq 2 ]; then
+		WARN "TCG Opal rollback failed; powering off without entering recovery"
+		poweroff -f
+		while true; do sleep 3600; done
+	elif [ "$opal_rc" -ne 0 ]; then
+		recovery "TCG Opal disk unlock failed"
+	fi
+fi
+
 if [ ! -x "$CONFIG_BOOTSCRIPT" -a ! -x "$CONFIG_BOOTSCRIPT_NETWORK" ]; then
 	DEBUG "No boot script found (CONFIG_BOOTSCRIPT=$CONFIG_BOOTSCRIPT, CONFIG_BOOTSCRIPT_NETWORK=$CONFIG_BOOTSCRIPT_NETWORK); entering recovery"
 	recovery 'Boot script missing?  Entering recovery shell'
