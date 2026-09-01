@@ -173,10 +173,6 @@ All Active.
 - [ ] Novacustom NV4x (Alder Lake, 12th Gen): @tlaurion @daringer
 - [ ] Novacustom v540tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
 - [ ] Novacustom v560tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
-- [ ] Nitropad NS50 (Alder Lake: Intel 12th Gen CPU): @daringer
-- [ ] Novacustom NV4x (Alder Lake: Intel 12th Gen CPU): @tlaurion @daringer
-- [ ] Novacustom v540tu (Meteor Lake: Intel Core Ultra 7 155H, Core Ultra Series 1 – 14th Gen Mobile): @tlaurion @daringer @mkopec
-- [ ] Novacustom v560tu (Meteor Lake: Intel Core Ultra 7 155H, Core Ultra Series 1 – 14th Gen Mobile): @tlaurion @daringer @mkopec
 
 Chromebooks
 - [ ] Acer Chromebook Spin 714 CP714-1WN (KANO): @cwiggs
@@ -195,14 +191,7 @@ All EOL unless marked Active.
 
 MSI (Alder/Raptor Lake — Active)
 ---
-<<<<<<< HEAD
 - [ ] MSI PRO Z690-A (WIFI) (DDR4): **None** - Board is untested. (Active, Alder Lake 12th Gen)
 - [ ] MSI PRO Z690-A (WIFI) (DDR5): **None** - Board is untested. (Active, Alder Lake 12th Gen)
 - [ ] MSI PRO Z790-P (WIFI) (DDR4): **None** - Board is untested. (Active, Raptor Lake 13th Gen)
 - [ ] MSI PRO Z790-P (WIFI) (DDR5): @Tonux599 (Active, Raptor Lake 13th Gen)
-=======
-- [ ] MSI PRO Z690-A (WIFI) (DDR4): **None** - Board is untested.
-- [ ] MSI PRO Z690-A (WIFI) (DDR5): **None** - Board is untested.
-- [ ] MSI PRO Z790-P (WIFI) (DDR4): **None** - Board is untested.
-- [ ] MSI PRO Z790-P (WIFI) (DDR5): @Tonux599
->>>>>>> 047513db (adding KANO laptop to boards and testers doc)
