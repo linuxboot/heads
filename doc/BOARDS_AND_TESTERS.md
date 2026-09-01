@@ -40,6 +40,7 @@ Dates below are as of the document's last update and may be stale.
 | `EOL_librem_15v4` | 7th | Kaby Lake | Mar 31, 2024 | 2024-03 |
 | `EOL_t480` | 8th | Kaby Lake-R | Mar 31, 2026 ¹ | 2024-03 |
 | `EOL_t480s` | 8th | Kaby Lake-R | Mar 31, 2026 ¹ | 2024-03 |
+| `EOL_x280` | 8th | Kaby Lake-R | Mar 31, 2026 ¹ | 2024-03 |
 
 ¹ KBL-R falls under Whiskey Lake ESU (Mar 31, 2026); also classified under Coffee Lake ESU (Jun 30, 2025). Both dates have passed.
 
@@ -153,6 +154,7 @@ xx8x (Kaby Lake Refresh, 8th Gen Mobile -- EOL)
 ===
 - [ ] t480: @gaspar-ilom @doritos4mlady @MattClifton76 @notgivenby @akunterkontrolle @nestire (Nitrokey)
 - [ ] t480s: @thickfont @kjkent @HarleyGodfrey @nestire (Nitrokey)
+- [ ] x280: @NobodyNo0ne @AlguienSasaki
 
 Librem
 ===

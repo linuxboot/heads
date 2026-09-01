@@ -85,6 +85,10 @@ coreboot-25.03_hash := 9182f84c0bf869cb97601594edd50f5891e97b9dc34c0e158bce2cf9e
 coreboot-blobs-25.03_hash := 03e8f565f73b932f942f08f0058d37080e1d2b0ce866596c25e607d14d1e95f0
 $(eval $(call coreboot_module,25.03,))
 
+coreboot-25.12_hash := 486a737f089f28e16a9dd73566763ff879149784a2cc0ce8cdf6927af8786c94
+coreboot-blobs-25.12_hash := d17f14124bb133adfb3e4d4575755472d72a4dd918688b734310e5ef8e748cee
+$(eval $(call coreboot_module,25.12,))
+
 # coreboot git forks
 
 # talos_2 could use the 4.20.1 toolchain, but it's the only ppc64 fork, so
