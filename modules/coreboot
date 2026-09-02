@@ -2,6 +2,8 @@ ifeq "$(CONFIG_COREBOOT)" "y"
 
 CONFIG_COREBOOT_ROM			?= coreboot.rom
 CONFIG_COREBOOT_BOOTBLOCK	?=
+CONFIG_COREBOOT_IFDTOOL_HAP_OPT		?= --altmedisable 1
+CONFIG_COREBOOT_IFDTOOL_GPR0_OPT	?= --gpr0-disable
 
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 	COREBOOT_TARGET := i386
@@ -358,20 +360,35 @@ $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 		--board-dir "$(build)/$(BOARD)" \
 		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
 	@echo ""
-	@if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" ]; then \
+	@if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" -o -n "$(CONFIG_COREBOOT_GPR0_DISABLE)" ]; then \
 		echo "==================================================================="; \
-		echo "ME Runtime State (HAP/AltMeDisable)"; \
+		echo "IFD post-build processing (ifdtool)"; \
 		echo "==================================================================="; \
 		platform="$$(grep '^CONFIG_IFD_CHIPSET=' "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" | cut -d'"' -f2 || true)"; \
 		platflag=""; \
 		if [ -n "$$platform" ]; then \
 			platflag="--platform $$platform"; \
 		fi; \
-		"$(build)/$(coreboot_dir)/util/ifdtool/ifdtool" $$platflag -M 1 "$(dir $<)$(CONFIG_COREBOOT_ROM)" \
-			-O "$(dir $<)$(CONFIG_COREBOOT_ROM).new" && \
-		mv "$(dir $<)$(CONFIG_COREBOOT_ROM).new" "$(dir $<)$(CONFIG_COREBOOT_ROM)" || exit 1; \
-		echo "==================================================================="; \
-		echo "ME HAP bit applied -- ME will disable after hardware init"; \
+		ifdtool="$(build)/$(coreboot_dir)/util/ifdtool/ifdtool"; \
+		rom="$(dir $<)$(CONFIG_COREBOOT_ROM)"; \
+		if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" ]; then \
+			echo "  ME HAP (High Assurance Platform) bit -- sets the AltMeDisable strap to"; \
+			echo "  disable the Management Engine at runtime after hardware init."; \
+			before="$$($$ifdtool $$platflag -d "$$rom" 2>/dev/null | grep -Eo 'HAP bit is (set|not set)' | head -1 | sed 's/HAP bit is //')"; \
+			$$ifdtool $$platflag $(CONFIG_COREBOOT_IFDTOOL_HAP_OPT) "$$rom" \
+				-O "$$rom.new" >/dev/null && [ -e "$$rom.new" ] && mv "$$rom.new" "$$rom"; \
+			after="$$($$ifdtool $$platflag -d "$$rom" 2>/dev/null | grep -Eo 'HAP bit is (set|not set)' | head -1 | sed 's/HAP bit is //')"; \
+			echo "    HAP bit: $$before -> $$after"; \
+		fi; \
+		if [ -n "$(CONFIG_COREBOOT_GPR0_DISABLE)" ]; then \
+			echo "  GPR0 (Global Protected Range 0) -- hardware IFD strap that makes the ME"; \
+			echo "  region read-only; clearing it allows the ME region to be flashed."; \
+			before="$$($$ifdtool $$platflag -c "$$rom" 2>/dev/null | grep -Eo 'GPR0 status: (Enabled|Disabled)' | head -1 | awk '{print $$NF}')"; \
+			$$ifdtool $$platflag $(CONFIG_COREBOOT_IFDTOOL_GPR0_OPT) "$$rom" \
+				-O "$$rom.new" >/dev/null && [ -e "$$rom.new" ] && mv "$$rom.new" "$$rom"; \
+			after="$$($$ifdtool $$platflag -c "$$rom" 2>/dev/null | grep -Eo 'GPR0 status: (Enabled|Disabled)' | head -1 | awk '{print $$NF}')"; \
+			echo "    GPR0 status: $$before -> $$after"; \
+		fi; \
 		echo "==================================================================="; \
 		echo ""; \
 	fi
