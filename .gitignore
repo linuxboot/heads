@@ -27,3 +27,4 @@ typescript*
 result
 .claude/
 tmpDir/
+.code-graph/
