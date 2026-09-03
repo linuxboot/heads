@@ -547,7 +547,7 @@ workflows:
             - EOL_x280-hotp-maximized [seed:coreboot-25.12]
 
       # mrchromebox fork (coreboot 26.03 based) -- builds coreboot-mrchromebox-26.03 toolchain
-      # Downstream boards: kano
+      # Downstream boards: kano, kano-hotp
       - x86_coreboot:
           name: kano [seed:coreboot-mrchromebox-26.03]
           target: kano
@@ -555,6 +555,14 @@ workflows:
           coreboot_dir: coreboot-mrchromebox-26.03
           requires:
             - x86-musl-cross-make [cross compiler]
+
+      # kano-hotp (seeded by kano)
+      - build:
+          name: kano-hotp
+          target: kano-hotp
+          subcommand: ""
+          requires:
+            - kano [seed:coreboot-mrchromebox-26.03]
 
       # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
       - build:
