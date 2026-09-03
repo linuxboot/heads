@@ -189,12 +189,10 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
-# Upstream coreboot 26.03 (kano). Upstream tag 26.03 (git commit e5c99fe).
-# Two heads-maintained patches still required: 0001 (cbmem musl) and 0002
-# (SPI/LPC SMM lockdown for PR0), both unmerged upstream.
-coreboot-26.03_repo := https://github.com/coreboot/coreboot
-coreboot-26.03_commit_hash := e5c99fe9e0fe75c176186dde5194dd2bc6504a66
-$(eval $(call coreboot_module,26.03,))
+# MrChromebox fork, based on coreboot 26.03, focusing on Chromebooks / Chromeboxes.
+coreboot-mrchromebox-26.03_repo := https://github.com/MrChromebox/coreboot.git
+coreboot-mrchromebox-26.03_commit_hash := f8244f2508d486d833eb8dee5c0b1d777cf37d39
+$(eval $(call coreboot_module,mrchromebox-26.03,))
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""

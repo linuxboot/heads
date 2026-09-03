@@ -20,14 +20,27 @@ INTEL_CHIPSET_LOCKDOWN and select SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM.
 
 Also present as: patches/coreboot-25.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch
 
-Adapted for upstream coreboot 26.03 (heads kano):
+Adapted for MrChromebox fork (coreboot 26.03 based):
+- lockdown.c already had fast_spi_lockdown_cfg() and
+  lpc_lockdown_config() as separate functions (no refactoring needed)
+- SoCs not present in MrChromebox fork (meteorlake, pantherlake)
+  omitted — no directory or files exist for them in this fork
 - fast_spi_lockdown_bios() extracted to lockdown_spi.c
 - lpc_lockdown_config() extracted to lockdown_lpc.c
 - SMI handler calls both functions when
   SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM is enabled
 - lpc_lib.c added to SMM build for lpc_set_* functions
-- cannonlake/tigerlake finalize.c context updated for the upstream HECI1
-  disable rename (soc_disable_heci1_at_pre_boot() -> CONFIG(DISABLE_HECI1_AT_PRE_BOOT))
+- cannonlake/tigerlake finalize.c adapted for mrchromebox context
+- lockdown.c already had fast_spi_lockdown_cfg() and
+  lpc_lockdown_config() as separate functions (no refactoring needed)
+- SoCs not present in MrChromebox fork (meteorlake, pantherlake)
+  omitted — no directory or files exist for them in this fork
+- fast_spi_lockdown_bios() extracted to lockdown_spi.c
+- lpc_lockdown_config() extracted to lockdown_lpc.c
+- SMI handler calls both functions when
+  SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM is enabled
+- lpc_lib.c added to SMM build for lpc_set_* functions
+- cannonlake/tigerlake finalize.c adapted for mrchromebox context
 
 Signed-off-by: Michal Zygowski <michal.zygowski@3mdeb.com>
 diff --git a/src/soc/intel/alderlake/finalize.c b/src/soc/intel/alderlake/finalize.c
@@ -56,7 +69,7 @@ index 19fcf1387f..15119343ed 100644
 -	apm_control(APM_CNT_FINALIZE);
 +	if (CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3())
 +		apm_control(APM_CNT_FINALIZE);
- 	if (CONFIG(DISABLE_HECI1_AT_PRE_BOOT) &&
+ 	if (soc_disable_heci1_at_pre_boot() &&
  			CONFIG(SOC_INTEL_COMMON_BLOCK_HECI1_DISABLE_USING_PMC_IPC))
  		heci1_disable();
 diff --git a/src/soc/intel/common/block/lpc/Makefile.mk b/src/soc/intel/common/block/lpc/Makefile.mk
@@ -337,7 +350,7 @@ index 63a46ac02e..03c28f958c 100644
 +	if (CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3())
 +		apm_control(APM_CNT_FINALIZE);
  	tbt_finalize();
- 	if (CONFIG(DISABLE_HECI1_AT_PRE_BOOT))
+ 	if (soc_disable_heci1_at_pre_boot())
  		heci1_disable();
 diff --git a/src/soc/intel/xeon_sp/finalize.c b/src/soc/intel/xeon_sp/finalize.c
 index a7b3602744..f0cd8a1998 100644
