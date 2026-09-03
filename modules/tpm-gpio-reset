@@ -1,6 +1,10 @@
-# TPM GPIO Reset Vulnerability PoC (CVE-2025-32399 and related)
-# Minimal fork of kukrimate/tpm-gpio-fail: platform families + Makefile fixes only
-# Two binaries as in upstream kukri:
+# TPM GPIO Reset Vulnerability PoC (no CVE yet; Intel best-practices doc only).
+# Heads pins tlaurion/tpm-gpio-fail (Thierry Laurion): a Heads-leaning fork
+# of the original kukrimate/tpm-gpio-fail (Mate Kukri) PoC with extended
+# platform support. The pinned revision also carries platform and cleanup
+# commits from Kondix10/tpm-gpio-fail (Konrad Dadasiewicz): Alder Lake-N,
+# Elkhart Lake, Gemini Lake, Jasper Lake support and build/output fixups.
+# Two binaries, as in upstream kukri:
 #   tpm-gpio-detect   detection-only audit of GPIO lock status (no CLI args)
 #   tpm-gpio-assert   assertion/execute tool (kukri's modified coreboot inteltool)
 modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
