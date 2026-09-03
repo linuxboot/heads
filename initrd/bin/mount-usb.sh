@@ -8,9 +8,9 @@ TRACE_FUNC
 
 function usage() {
 	cat <<USAGE_END
-usage: $0 [options...] <--mode [ro|rw]> <--device device> <--mountpoint mountpoint> <--pass passphrase>
+usage: $0 [options...] <--mode [ro|rw]> <--device device> <--mountpoint mountpoint> [--pass passphrase|--pass-file /path/to/file]
        $0 --help
-       
+
 parameters: 
   --mode: ro or rw (default ro)
   --device: device to mount (default: first USB device found)
@@ -18,6 +18,7 @@ parameters:
   --pass: passphrase for LUKS device (default: none)
   --whole-disk: probe whole USB disks (not partitions) for a bootable
                 filesystem, e.g. a dd-written hybrid ISO (default: off)
+  --pass-file: path to file containing passphrase
   --help: Show this help
 USAGE_END
 }
@@ -26,6 +27,7 @@ MODE="ro"
 DEVICE=""
 MOUNTPOINT="/media"
 PASS=""
+PASS_FILE=""
 WHOLE_DISK=""
 
 #Only assign --mode, --device, --mountpoint and --pass parameters only if variables following them are not empty
@@ -65,6 +67,16 @@ while [ $# -gt 0 ]; do
 		WHOLE_DISK="y"
 		shift
 		;;
+	--pass-file)
+		if [ -z "$2" ]; then
+			DIE "ERROR: --pass-file requires a file argument"
+		elif [ ! -r "$2" ]; then
+			DIE "ERROR: --pass-file: unreadable file: $2"
+		fi
+		PASS_FILE="$2"
+		shift
+		shift
+		;;
 	*)
 		usage
 		exit 1
@@ -73,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 #Show parameters content but not LUKS passphrase: if empty, show "empty", if provided, show "provided"
-DEBUG "Parameters: --mode=$MODE, --device=${DEVICE:-empty}, --mountpoint=$MOUNTPOINT, --pass=${PASS:+provided}"
+DEBUG "Parameters: --mode=$MODE, --device=${DEVICE:-empty}, --mountpoint=$MOUNTPOINT, --pass=${PASS:+provided}${PASS_FILE:+ (file: $PASS_FILE)}"
 
 enable_usb
 enable_usb_storage
@@ -142,7 +154,7 @@ else
 	# When a passphrase is provided and multiple devices are present,
 	# auto-select the LUKS partition (e.g. GPG backup drive: LUKS private + exFAT public).
 	# This avoids burdening the user with selecting the right partition.
-	if [ -z "$USB_MOUNT_DEVICE" ] && [ -n "$PASS" ]; then
+	if [ -z "$USB_MOUNT_DEVICE" ] && { [ -n "$PASS" ] || [ -n "$PASS_FILE" ]; }; then
 		luks_dev=""
 		luks_count=0
 		while IFS= read -r dev; do
@@ -209,14 +221,30 @@ if cryptsetup isLuks "$USB_MOUNT_DEVICE"; then
 		cryptsetup close "usb_mount_$(basename "$USB_MOUNT_DEVICE")"
 	fi
 	DEBUG "Opening LUKS device $USB_MOUNT_DEVICE"
-	#Pass LUKS passphrase to cryptsetup only if we received one
-	if [ -z "$PASS" ]; then
-		#We haven't received a passphrase
-		cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" ||
+	#Pass the LUKS passphrase to cryptsetup only if we received one.
+	if [ -n "$PASS_FILE" ]; then
+		# A passphrase file path was given: pass it directly to cryptsetup
+		# via --key-file. The secret stays on disk; it is never read into a
+		# shell variable nor staged in a temp file.
+		cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file "$PASS_FILE" ||
 			DIE "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+	elif [ -n "$PASS" ]; then
+		# We received a passphrase via --pass.  Avoid forking `echo` with the
+		# passphrase in its argv (leakable via /proc/<pid>/cmdline): stage it
+		# under /tmp/secret and pass that to cryptsetup, then shred/rm it on
+		# both success and failure.
+		mkdir -p /tmp/secret
+		key_file=/tmp/secret/cryptsetup_keyfile
+		printf '%s' "$PASS" >"$key_file"
+		if cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file "$key_file"; then
+			shred -n 10 -z -u "$key_file" 2>/dev/null || rm -f "$key_file"
+		else
+			shred -n 10 -z -u "$key_file" 2>/dev/null || rm -f "$key_file"
+			DIE "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
+		fi
 	else
-		#We received a pasphrase
-		cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" --key-file <(echo -n "${PASS}") ||
+		# We haven't received a passphrase
+		cryptsetup open "$USB_MOUNT_DEVICE" "usb_mount_$(basename "$USB_MOUNT_DEVICE")" ||
 			DIE "ERROR: Failed to open ${USB_MOUNT_DEVICE} LUKS device"
 	fi
 

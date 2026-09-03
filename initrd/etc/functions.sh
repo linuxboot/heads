@@ -432,6 +432,23 @@ INPUT() {
 	fi
 }
 
+# Prompt until the entered value's length is within [min,max], then store it
+# in the variable named by var (indirect assignment).  Input is collected with
+# `read -s` so secrets are not echoed.  Used by every PIN/passphrase prompt
+# with both a minimum and maximum length.
+_read_pin() {
+	local prompt="$1" min="$2" max="$3" var="$4"
+	local val=""
+	while :; do
+		INPUT "$prompt" -r -s val
+		if [ -n "$val" ] && [ "${#val}" -ge "$min" ] && [ "${#val}" -le "$max" ]; then
+			break
+		fi
+		NOTE "Invalid length: must be $min-$max chars."
+	done
+	printf -v "$var" '%s' "$val"
+}
+
 # Filter known harmless LVM warning noise while preserving all other stderr.
 # Messages that are expected during device scanning (e.g. "not an LVM PV") are
 # redirected to the debug log only - they are not errors and should not appear
@@ -2420,7 +2437,14 @@ update_checksums() {
 # Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
-	find ./ ! -path './kexec*' -print0 | sort -z
+	DEBUG "print_tree: CWD=$(pwd)"
+	local _pt_tmp
+	# The fallback tree must byte-match the sorted regeneration done at
+	# verification time even when /tmp is unavailable.
+	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0 | sort -z; return; }
+	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
+	sort -z <"$_pt_tmp"
+	rm -f "$_pt_tmp"
 }
 
 # Escape zero-delimited standard input to safely display it to the user in e.g.
@@ -2500,6 +2524,18 @@ assert_signable() {
 		local user_out="/tmp/hash_output_mismatches"
 		local add="Please investigate!"
 		[ -f "$user_out" ] && add="Please investigate the following relative paths to /boot (where # are sanitized invalid characters):"$'\n'"$(cat "$user_out")"
+		# Name the offending entries so field reports are actionable:
+		# list every path containing bytes outside printable ASCII, or a
+		# backslash, escaped for safe display.
+		local bad_list="" _as_entry
+		while IFS= read -r -d '' _as_entry; do
+			case "$_as_entry" in
+			*[!\ -~]*|*\\*)
+				bad_list+="${bad_list:+$'\n'}$(printf '%s' "$_as_entry" | escape_zero '')"
+				;;
+			esac
+		done </tmp/signable.ref
+		[ -n "$bad_list" ] && add="$add"$'\n'"Offending entries:"$'\n'"$bad_list"
 		recovery "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"$add"
 	fi
 	rm -f /tmp/signable.*

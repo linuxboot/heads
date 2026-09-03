@@ -242,9 +242,10 @@ prompt_missing_gpg_key_action() {
 		retry_msg="Cannot sign /boot because no private GPG signing key is available ($DONGLE_BRAND not inserted, wiped, or key not set up).\n\nInsert your $DONGLE_BRAND and retry.\n\nHow would you like to proceed?"
 	fi
 	whiptail_error --title "ERROR: GPG signing key unavailable" \
-		--menu "$retry_msg" 0 80 4 \
+		--menu "$retry_msg" 0 80 5 \
 		'r' "$retry_label" \
 		'F' ' OEM Factory Reset / Re-Ownership' \
+		'K' ' Reprovision USB Security dongle from GPG key backup' \
 		'm' ' Return to main menu' \
 		'x' ' Exit to recovery shell' \
 		2>/tmp/whiptail || recovery "GUI menu failed"
@@ -256,6 +257,9 @@ prompt_missing_gpg_key_action() {
 		;;
 	F)
 		oem-factory-reset.sh
+		;;
+	K)
+		reprovision_smartcard_from_backup
 		;;
 	x)
 		recovery "User requested recovery shell"
@@ -543,9 +547,28 @@ clean_boot_check() {
 	fi
 
 	# OS is installed, no kexec files present, no GPG keys in keyring, security token present
-	# prompt user to run OEM factory reset
-	oem-factory-reset.sh \
-		"Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?"
+	# prompt user to run OEM factory reset or reprovision from key backup
+	whiptail_error --title 'Clean Boot Detected' \
+		--menu "Clean boot detected: OS installed, no boot signatures, and no GPG keys in the keyring.\n\nHow would you like to proceed?" 0 80 4 \
+		'F' ' OEM Factory Reset / Re-Ownership' \
+		'K' ' Reprovision USB Security dongle from GPG key backup' \
+		'i' ' Ignore and continue to main menu' \
+		'x' ' Exit to recovery shell' \
+		2>/tmp/whiptail || return
+	option=$(cat /tmp/whiptail)
+	case "$option" in
+	F)
+		oem-factory-reset.sh "Clean Boot Detected - Perform OEM Factory Reset / Re-Ownership?"
+		;;
+	K)
+		reprovision_smartcard_from_backup
+		;;
+	x)
+		recovery "User requested recovery shell"
+		;;
+	i | *)
+		;;
+	esac
 }
 
 check_gpg_key() {
@@ -559,9 +582,10 @@ check_gpg_key() {
 		local gpg_error_msg
 		gpg_error_msg="ERROR: $CONFIG_BRAND_NAME couldn't find any GPG keys in your keyring.\n\nIf this is the first time the system has booted, you should add a public GPG key to the BIOS now.\n\nIf you just reflashed a new BIOS, you'll need to add at least one public key to the keyring.\n\nIf you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!\n\nHow would you like to proceed?"
 		whiptail_error --title "ERROR: GPG keyring empty!" \
-			--menu "$gpg_error_msg" 0 80 4 \
+			--menu "$gpg_error_msg" 0 80 5 \
 			'g' ' Add a GPG key to the running BIOS' \
 			'F' ' OEM Factory Reset / Re-Ownership' \
+			'K' ' Reprovision USB Security dongle from GPG key backup' \
 			'i' ' Ignore error and continue to main menu' \
 			'x' ' Exit to recovery shell' \
 			2>/tmp/whiptail || recovery "GUI menu failed"
@@ -577,6 +601,9 @@ check_gpg_key() {
 			;;
 		F)
 			oem-factory-reset.sh
+			;;
+		K)
+			reprovision_smartcard_from_backup && BG_COLOR_MAIN_MENU="normal"
 			;;
 
 		x)
@@ -972,9 +999,10 @@ EOF
 			_menu_text="$preflight_menu_text"
 		fi
 		whiptail_error --title 'ERROR: TPM State Inconsistent' \
-			--menu "$_menu_text" 26 80 4 \
+			--menu "$_menu_text" 26 80 5 \
 			'i' ' Show integrity report -->' \
 			'o' ' OEM Factory Reset / Re-Ownership -->' \
+			'K' ' Reprovision USB Security dongle from GPG key backup' \
 			't' ' Reset the TPM' \
 			'm' ' Continue to main menu' \
 			2>/tmp/whiptail || recovery "GUI menu failed"
@@ -988,6 +1016,17 @@ EOF
 			;;
 		o)
 			INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+				rollback_preflight_failed="n"
+				BG_COLOR_MAIN_MENU="normal"
+			fi
+			;;
+		K)
+			reprovision_smartcard_from_backup
+			# Reprovision re-owns the TPM and rewrites kexec_rollback.txt,
+			# so the preflight can pass; re-validate like the o/t arms so
+			# a successful run exits this gate instead of looping the
+			# error menu.
 			if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
 				rollback_preflight_failed="n"
 				BG_COLOR_MAIN_MENU="normal"

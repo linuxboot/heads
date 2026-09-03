@@ -48,8 +48,9 @@ and ext4 filesystem.  Older images (from before `qemu-img create`)
 may be flat — check with `sudo fdisk -l` first.
 
 Note: the Docker container bind-mounts only the cloned Heads directory
-(`$(pwd)`), so images must reside within the clone — use the `qemu_img/`
-directory inside the repo as a backing store (see hardlink workflow below).
+(`$(pwd)`), so images used by QEMU must live inside the clone.  Backup
+copies belong in `~/Qemu_img/` (same filesystem as the clone) and are
+hardlinked back into `build/` when Docker needs them (see below).
 
 
 2. Build Heads
@@ -98,25 +99,22 @@ Ex: `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub
 ## Saving Disk Images from Build-Dir Wipes
 
 **The Docker container can only see files inside the cloned Heads directory**
-(`docker/common.sh` line 1446: `-v "$(pwd):$(pwd)"`).  Any backup copy
-must live at a path inside the clone — `~/QemuImages/` and other
-user-home paths are invisible to Docker.
+(`docker/common.sh` line 1446: `-v "$(pwd):$(pwd)"`).  `~/Qemu_img/` is
+invisible to Docker — files must be hardlinked back into `build/` before
+Docker can use them.
 
 **The build directory (`build/x86/<board>/`) is ephemeral.**  A `make clean`
 or fresh checkout deletes `build/` entirely, including installed OS images
-and populated USB disks.  Use hardlinks to keep safe copies inside the
-clone and share across board variants:
+and populated USB disks.  Hardlink important files to `~/Qemu_img/`
+(same filesystem as the clone) to keep them safe across wipes:
 
-    mkdir -p qemu_img                         # safe storage inside clone
-    cp build/x86/<board>/root.qcow2 qemu_img/ # copy OS install to safety
-    rm build/x86/<board>/root.qcow2           # remove build-tree copy
-    cp -alf qemu_img/root.qcow2 build/x86/<board>/  # hardlink back
-    # Now both paths point to the same data on disk.
-    # Wiping build/ won't touch qemu_img/.
+    cp -alf build/x86/<board>/root.qcow2 ~/Qemu_img/    # backup
+    cp -alf build/x86/<board>/usb_fd.raw ~/Qemu_img/    # backup
 
-    # Restore after a wipe:
-    cp -alf qemu_img/root.qcow2 build/x86/<board>/root.qcow2
-    cp -alf qemu_img/usb_fd.img  build/x86/<board>/usb_fd.raw
+After a wipe, restore from `~/Qemu_img/`:
+
+    cp -alf ~/Qemu_img/root.qcow2 build/x86/<board>/    # restore
+    cp -alf ~/Qemu_img/usb_fd.raw build/x86/<board>/    # restore
 
 `cp -alf` creates a hardlink — a second directory entry pointing to the
 same data blocks (zero additional space).  Data is freed only when the
@@ -126,17 +124,13 @@ Use `qemu-img snapshot` before modifying the root disk.
 ### USB flash drive workflow
 
 ```bash
-mkdir -p qemu_img                             # safe storage inside clone
-
 # Step 1: Create the USB image via the Makefile.
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 \
   QEMU_USB_SIZE=64G run
 # → build/x86/.../usb_fd.raw now exists.
 
 # Step 2: Save a master copy IMMEDIATELY (before population).
-cp build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw qemu_img/usb_fd.img
-rm build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
+cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw ~/Qemu_img/
 
 # Step 3: Populate with ISOs.
 sudo losetup --find --show --partscan build/x86/.../usb_fd.raw
@@ -144,22 +138,82 @@ sudo mount /dev/loop0p1 /mnt
 cp ~/Downloads/ISOs/*.iso /mnt/
 sudo umount /mnt && sudo losetup -d /dev/loop0
 
-# Step 4: Hardlink into other board build directories.
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.raw
+# Step 4: Restore after a wipe or hardlink into other board build dirs.
+cp -alf ~/Qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
+cp -alf ~/Qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
 
 # Next run uses the hardlink — Makefile skips creation since the file exists.
 ```
 
 ### Daily development cycle
 
-After OS install + USB provisioned, reference both from `./qemu_img/`:
+Run the daily cycle directly against the `build/` images:
 
     ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
       PUBKEY_ASC=pubkey.asc \
       USB_TOKEN=Nitrokey3NFC \
-      ROOT_DISK_IMG=./qemu_img/root.qcow2 \
       inject_gpg run
+
+After an OS install or any other state you want to keep, refresh the
+master copies in `~/Qemu_img/` (same filesystem, zero-cost hardlinks)
+so `make clean` won't destroy them:
+
+    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 ~/Qemu_img/
+    cp -alf build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw ~/Qemu_img/
+
+If a rebuild wiped the `build/` images, restore them from the master
+copies before running:
+
+    cp -alf ~/Qemu_img/root.qcow2 build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/
+    cp -alf ~/Qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/
+
+### Testing GPG key reprovision from a backup drive
+
+The GPG key reprovision flow ('k' in the GPG Management Menu, or the 'K'
+option when signing fails) restores subkeys from a LUKS-encrypted backup
+drive created during OEM factory reset onto a (new) OpenPGP smartcard.
+This can be tested in QEMU.
+
+First run OEM factory reset to populate the virtual USB drive with backup
+material (this creates `build/x86/<board>/usb_fd.raw` with the LUKS private
++ exFAT public partition layout).  Afterwards, save the virtual USB drive
+and canokey state, then hardlink back for the second run:
+
+```bash
+# ~/Qemu_img is the home-directory store for QEMU images (outside the
+# clone).  It must be on the same partition/disk as the ~/heads build
+# directory so cp -alf hardlinks work (hardlinks cannot cross filesystems).
+mkdir -p ~/Qemu_img
+
+# Save canokey state and populated USB backup image (hardlink, zero-cost).
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file \
+       ~/Qemu_img/.canokey-file
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw \
+       ~/Qemu_img/backup_drive.raw
+
+# Hardlink back into the build dir so make run picks them up; make
+# requires the raw image to live inside the local heads dir.
+cp -alf ~/Qemu_img/.canokey-file \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file
+cp -alf ~/Qemu_img/backup_drive.raw \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+
+# Second run uses the preserved backup with no USB_FD_IMG override.
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp run
+```
+
+Inside the VM: Options -> GPG Options -> 'k' Reprovision USB Security dongle
+from GPG key backup.  Enter the backup passphrase (the Admin PIN you set
+during OEM factory reset).  The flow will:
+- Detect the key type (RSA or ECC) from the backup
+- Factory-reset the virtual canokey and set matching key attributes
+- Import the master key and subkeys from the LUKS partition
+- Move subkeys to the smartcard via keytocard
+- Set the card identity (name, email) from the backup key's UID
+- Reset the TPM and create a fresh rollback counter (TPM boards)
+- Re-sign /boot so the next boot trusts the restored state
+- Skip flashing the public key to ROM automatically (QEMU cannot reflash;
+  inject the exported pubkey into the firmware image instead)
 
 
 Running via Docker wrappers
@@ -267,6 +321,31 @@ How I tested these wrappers (smoke checks)
 
 - Minimal: `source docker/common.sh && build_docker_opts` — should print a short description and show flags such as `--device=/dev/kvm` when KVM is available and `-v /tmp/heads-docker-xauth-XXXXXX:...` (or `-v /tmp/.docker.xauth-<uid>:...` as fallback) when Xauthority was created.
 - Functional (examples tested by PR author): see the tests in the PR body (Ubuntu, Debian, Fedora installer flows). Consider testing `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run` locally to verify KVM+GTK behavior.
+
+Resetting state
+---
+
+QEMU boards using the default virtual token persist canokey and TPM state
+between runs.  To simulate a fresh dongle and TPM for testing:
+
+```bash
+# Wipe the virtual Canokey (new dongle, no keys on card).
+sudo rm -f build/x86/<BOARD>/.canokey-file
+
+# Wipe the virtual TPM (new TPM, no sealed secrets or counters).
+sudo rm -rf build/x86/<BOARD>/vtpm/
+```
+
+The next `make run` will create fresh `.canokey-file` and `vtpm/`
+directories automatically.  The Heads setup wizard will then offer OEM
+factory reset (F) or reprovision from backup (K).
+
+To preserve canokey state for reuse:
+
+```bash
+cp build/x86/<BOARD>/.canokey-file ~/Qemu_img/.canokey-file.bak
+cp ~/Qemu_img/.canokey-file.bak build/x86/<BOARD>/.canokey-file
+```
 
 Troubleshooting
 ---

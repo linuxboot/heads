@@ -151,10 +151,10 @@ nix develop --command make BOARD=$BOARD
 | Target | What it does |
 |--------|-------------|
 | `real.clean` | Remove all build artifacts |
-| `real.gitclean` | `git clean` — remove all untracked files |
-| `real.gitclean_keep_packages` | `git clean` but keep downloaded tarballs in `packages/` |
-| `real.remove_canary_files-extract_patch_rebuild_what_changed` | Remove all `.canary` sentinels, clear install + coreboot/board build caches, then rebuild.  Use this after changing patches. |
-| `real.gitclean_keep_packages_and_build` | Keep packages + clean + full rebuild |
+| `real.gitclean` | `git clean -fxd` — remove all untracked and ignored files |
+| `real.gitclean_keep_packages` | `git clean -fxd` but keep downloaded tarballs in `packages/` |
+| `real.gitclean_keep_packages_and_build` | `git clean -fxd` keeping `packages/` and `build/` |
+| `real.remove_canary_files-extract_patch_rebuild_what_changed` | Delete `.canary` stamps so the next `make` re-extracts, re-patches, and rebuilds only what changed |
 
 All run under `nix develop` (local) or `./docker_repro.sh` (Docker):
 
