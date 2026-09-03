@@ -18,6 +18,14 @@
 *.xz
 *~
 .*.sw*
+*.bak
+*.bck
+*.orig
+*.rej
+*.save
+*.tmp
+-patch
+.md-patch
 /.direnv
 *.bin
 clean
