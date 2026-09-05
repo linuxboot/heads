@@ -57,6 +57,24 @@ We welcome contributions to the Heads project! Before contributing, please read 
 Heads builds inside a versioned Docker image. The supported and tested workflow uses the
 provided Docker wrappers — no host-side QEMU or swtpm installation is needed.
 
+### Clone the Repository
+
+Clone with full history to ensure version tags are available for
+`git describe --tags` (used at build time for artifact filenames):
+
+```bash
+git clone https://github.com/linuxboot/heads.git
+cd heads
+```
+
+To repair an existing shallow clone (`--depth 1` was used) or if
+artifact filenames show a trailing `_-` (missing git abbreviation):
+
+```bash
+git fetch --unshallow origin
+git fetch --tags origin
+```
+
 **Quick start** (requires [Docker CE](https://docs.docker.com/engine/install/)):
 
 ```bash

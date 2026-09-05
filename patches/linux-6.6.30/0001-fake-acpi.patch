@@ -1,0 +1,32 @@
+diff --recursive -u ./clean/linux-4.9.80/drivers/acpi/acpica/evxfevnt.c linux-4.9.80/drivers/acpi/acpica/evxfevnt.c
+--- ./clean/linux-4.9.80/drivers/acpi/acpica/evxfevnt.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.80/drivers/acpi/acpica/evxfevnt.c	2018-02-07 15:51:28.786502597 -0500
+@@ -111,6 +111,8 @@
+ 	}
+ 
+ 	ACPI_ERROR((AE_INFO, "Hardware did not enter ACPI mode"));
++printk("%s:%d faking ACPI mode\n", __func__, __LINE__);
++	return_ACPI_STATUS(AE_OK);
+ 	return_ACPI_STATUS(AE_NO_HARDWARE_RESPONSE);
+ }
+ 
+diff --recursive -u ./clean/linux-4.9.80/drivers/acpi/acpica/hwacpi.c linux-4.9.80/drivers/acpi/acpica/hwacpi.c
+--- ./clean/linux-4.9.80/drivers/acpi/acpica/hwacpi.c	2018-02-03 11:05:43.000000000 -0500
++++ linux-4.9.80/drivers/acpi/acpica/hwacpi.c	2018-02-07 15:51:35.126557868 -0500
+@@ -168,12 +168,16 @@
+ 
+ 	status = acpi_read_bit_register(ACPI_BITREG_SCI_ENABLE, &value);
+ 	if (ACPI_FAILURE(status)) {
++printk("%s:%d faking ACPI mode\n", __func__, __LINE__);
++		return_UINT32(ACPI_SYS_MODE_ACPI);
+ 		return_UINT32(ACPI_SYS_MODE_LEGACY);
+ 	}
+ 
+ 	if (value) {
+ 		return_UINT32(ACPI_SYS_MODE_ACPI);
+ 	} else {
++//printk("%s:%d faking ACPI mode\n", __func__, __LINE__);
++//		return_UINT32(ACPI_SYS_MODE_ACPI);
+ 		return_UINT32(ACPI_SYS_MODE_LEGACY);
+ 	}
+ }

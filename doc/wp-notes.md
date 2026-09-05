@@ -35,6 +35,10 @@ performs the lockdown itself, not coreboot at boot-time.
 **Coreboot patch** (required for Skylake+):
 `patches/coreboot-25.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
 
+For kano (MrChromebox coreboot fork), the same patch is carried at:
+`patches/coreboot-mrchromebox-26.03/0002-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
+(rebased for the fork's context; the fork's `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` is set in `config/coreboot-kano.config`).
+
 This is a copy of [review.coreboot.org/+/85278](https://review.coreboot.org/c/coreboot/+/85278).
 It adds the `SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM` Kconfig and refactors
 SPI+LPC locking from boot-time ramstage into an SMM handler.  Without
@@ -89,10 +93,10 @@ PR0-protected range.  Only a system reset clears the lock.
 
 ### Board coverage
 
-**PR0-enabled (29 Intel boards):**
+**PR0-enabled (30 Intel boards):**
 
-Skylake+ (10 boards, require SMM lockdown patch):
-`novacustom-nv4x_adl`, `novacustom-v540tu`, `novacustom-v560tu`,
+Skylake+ (11 boards, require SMM lockdown patch):
+`kano`, `novacustom-nv4x_adl`, `novacustom-v540tu`, `novacustom-v560tu`,
 `t480-maximized`, `t480s-maximized`, `nitropad-ns50`,
 `msi_z690a_ddr4`, `msi_z690a_ddr5`, `msi_z790p_ddr4`, `msi_z790p_ddr5`
 

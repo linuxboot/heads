@@ -1,0 +1,29 @@
+The cbmem utility uses le32toh() and le16toh() which are
+defined in <endian.h>.  On glibc these are pulled in indirectly
+via <arpa/inet.h>, but musl does not transitively include
+<endian.h>.  Add the explicit include to fix the build under
+the Heads musl cross-compiler.
+
+Same approach as patches/coreboot-25.09/0005-Fix-local-build-issues.patch.
+
+Fixes:
+  cbmem.c:513: error: implicit declaration of function 'le32toh'
+  cbmem.c:551: error: implicit declaration of function 'le16toh'
+  cbmem.c:549: error: comparison of integer expressions of different signedness
+
+---
+ util/cbmem/cbmem.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/util/cbmem/cbmem.c b/util/cbmem/cbmem.c
+index 018ea871f9..dcdc3aab6a 100644
+--- a/util/cbmem/cbmem.c
++++ b/util/cbmem/cbmem.c
+@@ -3,6 +3,7 @@
+ #include <inttypes.h>
+ #include <stdbool.h>
+ #include <stdio.h>
++#include <endian.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <strings.h>

@@ -65,11 +65,19 @@ every boot.  Present on: `t430-legacy`, `t430-maximized`,
 
 Writes century byte to CMOS register `0x32` (`RTC_CLK_ALTCENTURY`) and
 reports it in ACPI FADT.  Coreboot default is `y` when
-`!USE_OPTION_TABLE`.  Help: "May be useful for legacy OSes that assume
-its presence."  Heads boots Linux directly which handles century
-internally -- no functional impact either way.
+`!USE_OPTION_TABLE`.
 
-Total: **29 `=y`**, **18 `not set`**
+**Heads impact:** When `=y`, coreboot reads the century byte via
+`rtc_get()` (mc146818rtc.c:237) and adds `bcd2bin(century) * 100` to
+the year.  If vendor firmware left `0x20` (2000s) in register 0x32,
+this causes the RTC year to be computed as 20xx + the year register,
+e.g. 2070.  Heads builds with `BUILD_TIMELESS=1` (epoch 1970) and
+detects wrong dates at boot to prompt the user for correction -- a
+century byte of `0x20` shifts the epoch to 2070, breaking that
+detection.  Boards MUST have this `not set` so `rtc_get()` uses the
+fallback `year += 1900` path instead of reading the century register.
+
+Total: **29 `=y`**, **19 `not set`**
 
 `=y` boards (using coreboot default, never explicitly disabled):
 `librem_11`, `librem_13v2`, `librem_13v4`, `librem_14`,
@@ -83,7 +91,7 @@ Total: **29 `=y`**, **18 `not set`**
 `x230-maximized-fhd_edp`, `z220-cmt`
 
 `not set` boards (explicitly cleaned):
-`librem_mini`, `librem_mini_v2`, `nitropad-ns50`,
+`kano`, `librem_mini`, `librem_mini_v2`, `nitropad-ns50`,
 `novacustom-nv4x_adl`, `novacustom-v540tu`, `novacustom-v560tu`,
 `t420-maximized` *(cleaned 2026-07-01)*, `t430-legacy`,
 `t430-legacy-flash`, `t430-maximized`, `t530-dgpu-maximized`,
@@ -93,6 +101,9 @@ Total: **29 `=y`**, **18 `not set`**
 
 Note: T430/T530/W530 are `not set` because their `USE_OPTION_TABLE=y`
 flips the default to `n` -- they were never explicitly set.
+kano is `not set` because `USE_PC_CMOS_ALTCENTURY=y` would read the
+vendor's century byte (0x20) from CMOS 0x32, shifting the epoch 1970
+to 2070 and breaking Heads' date detection at boot.
 
 ### CONFIG_RAMINIT_ENABLE_ECC
 
@@ -136,6 +147,8 @@ CONFIG_STATIC_OPTION_TABLE=y
 # CONFIG_RAMINIT_ENABLE_ECC is not set
 # CONFIG_TIMESTAMPS_ON_CONSOLE is not set
 CONFIG_PCI_ALLOW_BUS_MASTER=y
+CONFIG_PCIEXP_HOTPLUG_IO=0x2000   # 2/38 boards
+CONFIG_USE_LEGACY_8254_TIMER=y    # 2/38 boards
 ```
 
 ### Specifics
@@ -144,6 +157,20 @@ CONFIG_PCI_ALLOW_BUS_MASTER=y
 
 ```
 CONFIG_USE_LEGACY_8254_TIMER=y
+```
+
+#### Purism boards
+
+```text
+CONFIG_CPU_UCODE_BINARIES="3rdparty/purism-blobs/mainboard/purism/librem_cnl/cpu_microcode_blob.bin"
+CONFIG_ME_BIN_PATH="3rdparty/purism-blobs/mainboard/purism/librem_skl/me.bin"
+```
+
+#### QEMU
+
+```text
+CONFIG_DRIVERS_EMULATION_QEMU_XRES=1024
+CONFIG_DRIVERS_EMULATION_QEMU_YRES=768
 ```
 
 ## Removed undesirables
@@ -186,7 +213,42 @@ CONFIG_PCIEXP_HOTPLUG_IO=0x2000
 config/coreboot-x230-maximized-fhd_edp.config
 CONFIG_PCIEXP_HOTPLUG_IO=0x2000
 config/coreboot-x230-maximized.config
-CONFIG_PCIEXP_HOTPLUG_IO=0x2000
 # CONFIG_PCI_ALLOW_BUS_MASTER is not set
 CONFIG_PCIEXP_HOTPLUG_IO=0x2000
+```
+
+## Chromebook defconfig backups
+
+Defconfig backups for Chromebook boards are saved as
+`config/coreboot-<board>.config_defconfig` at the end of a board bring-up,
+so the deviation from upstream defaults is visible at a glance:
+
+```
+# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set
+CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y
+CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y
+```
+
+Generated via:
+```
+make BOARD=<board> coreboot.save_in_defconfig_format_backup
+```
+
+Intended for diffing with upstream defconfigs and for reviewing what
+non-default options a board sets.
+
+## Heads-common options (present in 20+ defconfigs)
+
+These are non-default options shared by most Heads boards.  They are not
+questionable — they represent the expected Heads configuration:
+
+```text
+CONFIG_PAYLOAD_LINUX=y                     # 37/38
+CONFIG_BOOTSPLASH=y                         # 36/38
+CONFIG_TPM_MEASURED_BOOT=y                  # 33/38
+CONFIG_HAVE_ME_BIN=y                        # 33/38
+CONFIG_HAVE_IFD_BIN=y                       # 33/38
+CONFIG_GENERIC_LINEAR_FRAMEBUFFER=y         # 26/38
+CONFIG_LINUX_COMMAND_LINE="quiet loglevel=2" # 25/38
+CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y          # 23/38
 ```
