@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Download Intel ME firmware for the Dell OptiPlex 9020 SFF, neutralize it,
+# and shrink it to the minimum bootable size.
+#
+# The 9020 SFF is a Haswell + Lynx Point platform (Intel ME 9.1). It shares
+# the same ME firmware generation as the ThinkPad T440p, so this script
+# reuses the publicly available Lenovo installer (glrg22ww.exe) as the ME
+# source. The ME firmware is platform-generic for Lynx Point, not
+# vendor-specific.
+#
+# Usage:  ./download-clean-me <path_to_output_directory>
+#
+# Requires COREBOOT_DIR pointing at a built coreboot source tree (for
+# util/me_cleaner) and the innoextract tool.
+# =============================================================================
+set -e
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0") path_to_output_directory
+Download Intel ME firmware from Lenovo, neutralize, and shrink.
+"
+}
+
+# Expected SHA256 of the resulting neutralized me.bin.
+# Sourced from the Lenovo glrg22ww.exe installer (same as the t440p).
+ME_BIN_HASH="b7cf4c0cf514bbf279d9fddb12c34fca5c1c23e94b000c26275369b924ab9c25"
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        if [[ -z "${COREBOOT_DIR}" ]]; then
+            echo "ERROR: No COREBOOT_DIR variable defined."
+            exit 1
+        fi
+
+        output_dir="$(realpath "${1:-./}")"
+
+        if [[ ! -f "${output_dir}/me.bin" ]]; then
+            # Unpack Lenovo's Windows installer into a temporary directory and
+            # extract the Intel ME blob.
+            pushd "$(mktemp -d)"
+
+            curl -O https://download.lenovo.com/pccbbs/mobiles/glrg22ww.exe
+            innoextract glrg22ww.exe
+
+            mv app/ME9.1_5M_Production.bin "${COREBOOT_DIR}/util/me_cleaner"
+
+            popd
+
+            # Neutralize and shrink Intel ME. Note that this doesn't include
+            # --soft-disable to set the "ME Disable" or "ME Disable B" (e.g.,
+            # High Assurance Program) bits, as they are defined within the Flash
+            # Descriptor.
+            # https://github.com/corna/me_cleaner/wiki/External-flashing#neutralize-and-shrink-intel-me-useful-only-for-coreboot
+            pushd "${COREBOOT_DIR}/util/me_cleaner"
+
+            python me_cleaner.py -r -t -O me_shrinked.bin ME9.1_5M_Production.bin
+
+            mv me_shrinked.bin "${output_dir}/me.bin"
+            rm ./*.bin
+
+            popd
+        fi
+
+        if ! echo "${ME_BIN_HASH} ${output_dir}/me.bin" | sha256sum --check; then
+            echo "ERROR: SHA256 checksum for me.bin doesn't match."
+            exit 1
+        fi
+    fi
+fi
