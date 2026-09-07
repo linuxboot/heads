@@ -1,0 +1,66 @@
+#!/bin/bash
+
+state_file=/tmp/heads-opal-qemu-unlocked
+device=/dev/nvme0n1
+
+log_serial() {
+	printf '%s\n' "$*" >/dev/ttyS0 2>/dev/null || true
+}
+
+case "${1:-}" in
+scan)
+	log_serial "HEADS_OPAL_QEMU: mock scan completed"
+	if [ -e "$state_file" ]; then
+		printf '%s unlocked\n' "$device"
+	else
+		printf '%s locked\n' "$device"
+	fi
+	;;
+status)
+	[ "${2:-}" = "$device" ] || exit 1
+	if [ -e "$state_file" ]; then
+		printf '%s\n' unlocked
+		log_serial "HEADS_OPAL_QEMU: post-unlock state confirmed"
+	else
+		printf '%s\n' locked
+	fi
+	;;
+unlock)
+	[ "${2:-}" = "$device" ] || exit 1
+	[ "$#" -eq 2 ] || exit 1
+	if [ -e /tmp/secret/heads-opal-password ]; then
+		log_serial "HEADS_OPAL_QEMU: password file remained linked during unlock"
+		exit 1
+	fi
+	password=$(cat)
+	case "$(tr '\0' ' ' </proc/$$/cmdline)" in
+	*qemu-opal-password*)
+		log_serial "HEADS_OPAL_QEMU: password leaked through argv"
+		exit 1
+		;;
+	esac
+	if env | grep -q 'qemu-opal-password'; then
+		log_serial "HEADS_OPAL_QEMU: password leaked through environment"
+		exit 1
+	fi
+	if [ "$password" != "qemu-opal-password" ]; then
+		unset password
+		exit 3
+	fi
+	unset password
+	touch "$state_file"
+	log_serial "HEADS_OPAL_QEMU: unlock and S3 handoff accepted"
+	;;
+lock)
+	[ "${2:-}" = "$device" ] || exit 1
+	[ "$#" -eq 2 ] || exit 1
+	password=$(cat)
+	[ "$password" = "qemu-opal-password" ] || exit 3
+	unset password
+	rm -f "$state_file"
+	log_serial "HEADS_OPAL_QEMU: rollback lock and S3 clear accepted"
+	;;
+*)
+	exit 64
+	;;
+esac

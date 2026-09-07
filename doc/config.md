@@ -73,6 +73,8 @@ These are not intended to be changed in user config.
 | CONFIG_CRYPTSETUP2 | cryptsetup2 tools (used for LUKS) |
 | CONFIG_DROPBEAR | DropBear SSH server (for debug / troubleshooting) |
 | CONFIG_FBWHIPTAIL | fbwhiptail, framebuffer-based graphical whiptail implementation.  Alternative is CONFIG_NEWT |
+| CONFIG_HEADS_OPAL | Build an immutable gate for every boot mode that discovers and unlocks TCG Opal disks. Requires Linux 6.1 or later with CONFIG_BLK_SED_OPAL=y. |
+| CONFIG_HEADS_OPAL_S3_APMC_V1 | Compile coreboot's OPAL S3 APMC ABI v1 into the helper. Requires compatible coreboot and CONFIG_PROC_PAGE_MONITOR=y. |
 
 :point_right: TODO: document these:
 
