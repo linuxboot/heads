@@ -877,10 +877,19 @@ endif
 # --- TOOLS.CPIO ---
 
 # tools.cpio is built from all binaries, libraries, and config staged in initrd_tools_dir
+initrd_feature_markers :=
+ifeq ($(CONFIG_HEADS_CFR),y)
+initrd_feature_markers += $(initrd_tools_dir)/etc/heads-cfr-enabled
+$(initrd_tools_dir)/etc/heads-cfr-enabled: $(CONFIG)
+	@mkdir -p "$(dir $@)"
+	@printf 'enabled\n' > "$@"
+endif
+
 $(build)/$(initrd_dir)/tools.cpio: \
 	$(initrd_bins) \
 	$(initrd_libs) \
 	$(initrd_tools_dir)/etc/config \
+	$(initrd_feature_markers) \
 	FORCE
 	$(call do-cpio,$@,$(initrd_tools_dir))
 	@$(RM) -rf "$(initrd_tools_dir)"

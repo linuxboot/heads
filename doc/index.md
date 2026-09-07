@@ -9,6 +9,7 @@ Quick reference: read the relevant doc when working on a topic.
 | `build-artifacts.md` | ROM filenames, update-package zip layout, LVFS conventions |
 | `build-freshness.md` | Why rebuilds produce stale artifacts and how to force a full rebuild |
 | `circleci.md` | CI pipeline: job dependency graph, cache layers, workspace persistence |
+| `cfr.md` | Optional coreboot firmware-settings UI |
 | `docker.md` | Docker-based build environment with pinned, reproducible images |
 | `modules.md` | Module system: toolchain and bin modules, inclusion rules, sentinel chain |
 | `patches.md` | Creating and maintaining source patches for upstream packages |
