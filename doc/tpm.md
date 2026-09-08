@@ -565,17 +565,22 @@ tpmr.sh bad_auth <counter_id>    # explicit counter
 
 Deliberately attempts a counter increment with a wrong
 passphrase, bumping the TPM's DA failedTries counter on demand.
-Distinguishes auth-failure from active lockout via the
-`da_state` output. Primary tool for reproducing and verifying
-lockout detection end-to-end on both TPM versions.
+Distinguishes auth-failure from active lockout by the
+return code of the increment itself — if the TPM is already
+in DA lockout, nvincrement returns TPM_RC_LOCKOUT (TPM2) or
+TPM_DEFEND_LOCK_RUNNING (TPM1) immediately, and bad_auth
+reports that without spending extra time on a TPM query that
+would hang against a wedged response. After a real auth
+attempt, `da_state` is queried once for the AFTER timer.
+Primary tool for reproducing and verifying lockout detection
+end-to-end on both TPM versions.
 
 ### Output and visibility
 
-Each progress marker (start, BEFORE state captured, attempt,
-outcome, AFTER state capturing, DONE, ABORTED) is emitted in
-two channels so it reaches both the user's terminal and any
-`/dev/kmsg` capture (e.g. for post-mortem analysis without
-serial access):
+Each user-facing progress marker (start, attempt, outcome, AFTER
+state capturing, DONE, ABORTED) is emitted in two channels so it
+reaches both the user's terminal and any `/dev/kmsg` capture (e.g.
+for post-mortem analysis without serial access):
 
 * `STATUS` (or `echo ... >&2`) writes to `/dev/console` and
   `/tmp/debug.log` — always visible to a user on the framebuffer
@@ -588,8 +593,64 @@ serial access):
 The two channels carry identical text, so the order in any
 post-mortem log file matches the order on screen. If only the
 `DEBUG` line is visible (e.g. capture started mid-test), the
-missing `STATUS`/echo line is implied by the surrounding DEBUG
+missing `STATUS`/`echo` line is implied by the surrounding DEBUG
 context.
+
+### Strategy markers — DEBUG only
+
+Two markers in `bad_auth` are emitted as DEBUG-only (no
+`echo >&2` companion) because they describe test strategy, not
+a user-visible event:
+
+* `bad_auth (TPM1): no BEFORE state capture — counter_increment is the
+  actual test, not the da_state query`
+* `bad_auth (TPM2): no BEFORE state capture — nvincrement is the
+  actual test, not the da_state query`
+
+`bad_auth` deliberately skips the BEFORE `da_state` capture because
+`tpm2 getcap properties-variable` and the TPM1 `getcapability
+-cap 0x19` query both block indefinitely against a wedged PTT
+lockout state (see `Esys_GetCapability` in tpm2-tss which forces
+`timeout = -1` for `_Finish`). The increment attempt itself is
+the actual test -- it returns promptly with
+`TPM_RC_LOCKOUT 0x921` (TPM2, exit 1) or
+`TPM_DEFEND_LOCK_RUNNING 0x803` (TPM1, exit 255) when the
+TPM is already locked out. The AFTER `da_state` query runs
+unconditionally after every attempt and captures the current
+DA counter / threshold / timer -- on a wedged TPM this
+call may also block, but it is the only path to surface the
+timer information for lockout recovery guidance.
+
+### Lockout detection on TPM2 — what to look for
+
+`tpm2-tools` 5.6 does NOT print the literal string "lockout" when
+`nvincrement` is rejected by a locked TPM. Its error output looks
+like:
+
+```
+ERROR: Failed to increment NV counter at index 0x1180918
+ERROR: Esys Finish failed: Tss2_ESys_NV_Increment (0x00000921)
+```
+
+`tpm2_bad_auth` matches the lockout case with
+`grep -Eqi 'lockout|TPM_RC_LOCKOUT|0x?0*22d'`, which catches:
+
+* `lockout`/`TPM_RC_LOCKOUT` — sometimes emitted by the kernel TPM
+  driver at the transport layer (PTT) or by the tpm2-tools build
+  when configured for verbose diagnostics.
+* `0x921` / `0x00000921` / `0921` — the TCG-spec constant for
+  `TPM_RC_LOCKOUT`, always emitted by tpm2 `Esys Finish` on a
+  locked TPM.
+
+Without the hex pattern, the detection degenerates to "does the
+kernel driver happen to surface the word `lock`?" — which is not
+reliable across PTT, CR50, swtpm, and discrete TPMs. The hex
+pattern is the spec-anchored fallback.
+
+On TPM1, `tpm counter_increment` returns cleanly with exit code 255
+and prints `TPM_DEFEND_LOCK_RUNNING` in its error message — the
+existing `grep -qi 'defend\|lock'` in `tpm1_bad_auth` matches that
+reliably without an rc-string patch.
 
 ### Marker-file protocol
 
