@@ -1131,6 +1131,32 @@ recovery() {
 			done
 		fi
 
+		# Show DA lockout state so users who landed in recovery due to
+		# repeated auth failures see lockout status and remaining time.
+		# Full detail goes to debug.log at LOG level; a single STATUS
+		# line summarizes the user-relevant state on console (visible
+		# in Quiet mode, since STATUS always reaches console).
+		if [ "$CONFIG_TPM" = "y" ]; then
+			local da_output da_summary da_unavail
+			da_output="$(tpmr.sh da_state 2>/dev/null)" || true
+			if [ -n "$da_output" ]; then
+				# Full detail to debug.log only.
+				echo "$da_output" | while IFS= read -r line; do
+					LOG "$line"
+				done
+				da_summary="$(echo "$da_output" | grep '^=> ' | head -1)"
+				if [ -n "$da_summary" ]; then
+					STATUS "TPM DA: ${da_summary#=> }"
+				else
+					# No => line means DA state unavailable on this TPM
+					# (e.g. STM TPM1 with no TPM_CAP_DA_LOGIC support);
+					# surface the self-descriptive "TPM DA state: ..." line.
+					da_unavail="$(echo "$da_output" | grep '^TPM DA state:' | head -1)"
+					[ -n "$da_unavail" ] && STATUS "$da_unavail"
+				fi
+			fi
+		fi
+
 		# Drain any queued serial input before starting the interactive shell.
 		# This avoids stale bytes being interpreted as bash commands on entry.
 		# NOTE: -t 0 in BusyBox returns immediately (poll-only, does not consume
