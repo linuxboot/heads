@@ -1480,9 +1480,10 @@ tpm2_bad_auth() {
 		*)   nv_region_tpm2="other" ;;
 	esac
 	DEBUG "TPM2 NV region for 0x$counter_id: $nv_region_tpm2"
-	STATUS "bad_auth (TPM2): testing NV index 0x$counter_id"
+	STATUS "bad_auth (TPM2): starting -- counter=0x$counter_id region=$nv_region_tpm2"
 	DEBUG "DA state BEFORE bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
 	tpm2_da_state
+	STATUS "bad_auth (TPM2): BEFORE state captured"
 	if [ -z "$counter_id" ]; then
 		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
 		STATUS "bad_auth (TPM2): ABORTED -- no counter ID"
@@ -1494,7 +1495,7 @@ tpm2_bad_auth() {
 	# us to exit with "Counter does not exist" without ever running the
 	# actual bad-auth attempt -- exactly the failure mode this tool exists
 	# to test. The discovery loop has the check; this one doesn't need it.
-	DEBUG "Attempting increment with wrong NV index auth on 0x$counter_id..."
+	STATUS "bad_auth (TPM2): attempting nvincrement with WRONG auth on 0x$counter_id..."
 	# NV index auth failure (-C <idx> -P <wrong>) bumps LOCKOUT_COUNTER.
 	# Use -C explicitly so the auth context is unambiguous across tpm2-tools
 	# versions; without -C, -P can be interpreted as owner hierarchy auth on
@@ -1511,26 +1512,24 @@ tpm2_bad_auth() {
 	if [ "$tpm2_increment_rc" -ne 0 ]; then
 		if echo "$tpm2_increment_output" | grep -qi 'lockout\|lock'; then
 			DEBUG "bad_auth: DA LOCKOUT already active (TPM_RC_LOCKOUT 0x22d)"
-			STATUS "bad_auth: DA lockout confirmed. TPM rejected increment (rc=$tpm2_increment_rc = lockout)."
-			local da_state_output da_summary
-			da_state_output="$(tpm2_da_state 2>/dev/null)" || true
-			if [ -n "$da_state_output" ]; then
-				da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
-				[ -n "$da_summary" ] && STATUS "TPM DA: ${da_summary#=> }"
-			fi
+			STATUS "bad_auth (TPM2): nvincrement REJECTED by TPM lockout (rc=$tpm2_increment_rc)"
 		else
 			DEBUG "bad_auth: auth failure (rc=$tpm2_increment_rc = TPM_RC_AUTH_FAIL 0x22e or similar)"
+			STATUS "bad_auth (TPM2): nvincrement FAILED with wrong auth (rc=$tpm2_increment_rc) -- DA counter bumped"
 			echo "Auth failure (rc=$tpm2_increment_rc = expected with wrong NV index auth, DA counter bumped)."
 			echo "Run again to accumulate failures toward DA lockout."
 		fi
 	else
 		DEBUG "bad_auth: UNEXPECTED SUCCESS (rc=0 = TPM_SUCCESS) -- wrong password was accepted!"
+		STATUS "bad_auth (TPM2): nvincrement SUCCEEDED with wrong auth (rc=0) -- counter has no auth, test inconclusive"
 		echo "UNEXPECTED: wrong NV index auth was accepted (rc=0)."
 		echo "This means the counter does not require NV index auth (authValue is empty),"
 		echo "or this TPM does not enforce NV index auth on increment. Bad-auth test inconclusive."
 	fi
+	STATUS "bad_auth (TPM2): AFTER state -- capturing..."
 	DEBUG "DA state AFTER bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
 	tpm2_da_state
+	STATUS "bad_auth (TPM2): DONE"
 }
 
 if [ "$CONFIG_TPM" != "y" ]; then
