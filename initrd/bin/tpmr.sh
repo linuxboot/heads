@@ -1480,17 +1480,21 @@ tpm2_bad_auth() {
 		*)   nv_region_tpm2="other" ;;
 	esac
 	DEBUG "TPM2 NV region for 0x$counter_id: $nv_region_tpm2"
+	STATUS "bad_auth (TPM2): testing NV index 0x$counter_id"
 	DEBUG "DA state BEFORE bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
 	tpm2_da_state
 	if [ -z "$counter_id" ]; then
 		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
+		STATUS "bad_auth (TPM2): ABORTED -- no counter ID"
 		return 1
 	fi
-	if ! tpm2 nvread "0x$counter_id" >/dev/null 2>&1; then
-		DEBUG "Counter 0x$counter_id does not exist on this TPM."
-		return 1
-	fi
-	DEBUG "Attempting increment with wrong passphrase..."
+	# Skip the existence check. Discovery already proved the counter exists
+	# (NV enumeration probed each index). A bare 'tpm2 nvread' here would
+	# silently fail with TPM_RC_LOCKOUT when the TPM is in lockout, causing
+	# us to exit with "Counter does not exist" without ever running the
+	# actual bad-auth attempt -- exactly the failure mode this tool exists
+	# to test. The discovery loop has the check; this one doesn't need it.
+	DEBUG "Attempting increment with wrong NV index auth on 0x$counter_id..."
 	# NV index auth failure (-C <idx> -P <wrong>) bumps LOCKOUT_COUNTER.
 	# Use -C explicitly so the auth context is unambiguous across tpm2-tools
 	# versions; without -C, -P can be interpreted as owner hierarchy auth on
@@ -1525,7 +1529,7 @@ tpm2_bad_auth() {
 		echo "This means the counter does not require NV index auth (authValue is empty),"
 		echo "or this TPM does not enforce NV index auth on increment. Bad-auth test inconclusive."
 	fi
-	DEBUG "DA state AFTER bad auth:"
+	DEBUG "DA state AFTER bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
 	tpm2_da_state
 }
 
