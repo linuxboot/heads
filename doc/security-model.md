@@ -408,6 +408,7 @@ creating additional hardware binding:
 │  │  Includes: PCR 5, PCR 6 → More restrictive                         │  │
 │  │  → Changing kernel modules or LUKS headers requires resealing DUK    │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
