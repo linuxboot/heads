@@ -865,14 +865,27 @@ tpm2_unseal() {
 	fi
 
 	# tpm2 unseal will write the unsealed data to stdout and any errors to
-	# stderr; capture stderr to log.
+	# stderr. Capture stderr to a temp file for both lockout detection
+	# (TPM2_RC_LOCKOUT) and post-mortem logging.
+	TMP_STDERR="$(mktemp)"
 	if ! tpm2 unseal -Q -c "$handle" -p "session:$POLICY_SESSION$UNSEAL_PASS_SUFFIX" \
-		-S "$ENC_SESSION_FILE" >"$file" 2> >(SINK_LOG "tpm2 stderr"); then
+		-S "$ENC_SESSION_FILE" >"$file" 2>"$TMP_STDERR"; then
+		LOG "tpm2 unseal stderr: $(cat "$TMP_STDERR")"
+		# Detect DA lockout (TPM2 returns TPM2_RC_LOCKOUT). Set the marker
+		# file so callers (gui-init.sh update_totp) can route to a
+		# lockout-specific dialog instead of the generic TOTP failure
+		# dialog. The marker is consumed by commit 6.
+		if grep -qi 'lockout\|lock\|auth.*fail\|0x98e\|0x149' "$TMP_STDERR" 2>/dev/null; then
+			WARN "TPM2 dictionary attack lockout active. Unseal rejected."
+			mkdir -p /tmp/secret 2>/dev/null || true
+			touch /tmp/secret/tpm_da_lockout 2>/dev/null || true
+		fi
+		rm -f "$TMP_STDERR"
 		WARN "Unable to unseal secret from TPM NVRAM"
-
 		# should succeed, exit if it doesn't
 		exit 1
 	fi
+	rm -f "$TMP_STDERR"
 	rm -f "$TMP_ERR_FILE"
 }
 
@@ -964,6 +977,28 @@ tpm1_unseal() {
 		return 0
 	fi
 	DEBUG "tpm1_unseal unsealfile output: $(cat "$TMP_UNSEAL_OUT")"
+	# Detect DA lockout from unseal failure output. Works on TPMs that
+	# don't expose DA state via TPM_CAP_DA_LOGIC (e.g. STM TPM1 returning
+	# TPM_BAD_MODE 44), where the only signal is the "Defend lock running"
+	# error from tpmtotp. Set the marker file so callers (gui-init.sh
+	# update_totp) can route to a lockout-specific dialog instead of the
+	# generic TOTP failure dialog. The marker is consumed by commit 6.
+	if grep -qi 'defend\|lock' "$TMP_UNSEAL_OUT" 2>/dev/null; then
+		WARN "TPM dictionary attack lockout active. Unseal rejected."
+		mkdir -p /tmp/secret 2>/dev/null || true
+		touch /tmp/secret/tpm_da_lockout 2>/dev/null || true
+		# Best-effort: stash a da_state summary line so the GUI dialog
+		# can show the remaining backoff time, not just "lockout active".
+		local da_state_output da_summary
+		da_state_output="$(tpm1_da_state 2>/dev/null)" || true
+		if [ -n "$da_state_output" ]; then
+			da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
+			if [ -n "$da_summary" ]; then
+				STATUS "TPM DA: ${da_summary#=> }"
+				echo "${da_summary#=> }" >/tmp/secret/tpm_da_lockout_msg 2>/dev/null || true
+			fi
+		fi
+	fi
 	if [ "$HEADS_NONFATAL_UNSEAL" = "y" ]; then
 		DEBUG "nonfatal tpm1_unseal failure: unable to unseal TPM NVRAM blob"
 		return 1
