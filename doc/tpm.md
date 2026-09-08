@@ -522,3 +522,103 @@ None are invoked by Heads, so their absence has no functional impact:
 | GetTime (0x187) | TPM time attestation |
 | EC_Ephemeral (0x18E), ZGen_2Phase (0x18D) | ECC 2-phase operations |
 | FieldUpgradeStart (0x18F), FieldUpgradeData (0x190) | Firmware field upgrade |
+
+---
+
+## TPM dictionary-attack (DA) lockout detection
+
+Heads detects and reports TPM DA lockout at every TPM-gated code
+path that can hit it: rollback-counter preflight (the gate every
+boot runs before TOTP/HOTP), the TOTP/HOTP unseal path, the
+increment-counter reseal path (`update_checksums`,
+`oem-factory-reset.sh`), and the recovery shell.
+
+### `tpmr.sh da_state` — DA state query
+
+```
+tpmr.sh da_state
+```
+
+Returns the TPM's current dictionary-attack state for both TPM1
+and TPM2, plus a machine-parsable summary line:
+
+* TPM1 (`tpm1_da_state`): queries `TPM_CAP_DA_LOGIC` (0x19).
+  Outputs `currentCount`, `thresholdCount`, and
+  `actionDependValue` (seconds remaining for TPM 1.2 defend
+  lock). When the TPM does not support `TPM_CAP_DA_LOGIC` (e.g.
+  STM returning `TPM_BAD_MODE 44`), reports "unavailable".
+* TPM2 (`tpm2_da_state`): queries `getcap properties-variable`
+  for `TPM2_PT_LOCKOUT_COUNTER`, `MAX_AUTH_FAIL`,
+  `LOCKOUT_INTERVAL`, and `LOCKOUT_RECOVERY`. When locked,
+  estimates time-to-unlock as `(counter - maxAuth + 1) * interval`.
+
+Both functions emit a final `DA: state=… current=… threshold=…
+timer=…` line for machine parsing. The preflight guard and the
+recovery shell rely on this line.
+
+### `tpmr.sh bad_auth` — manual reproducer
+
+```
+tpmr.sh bad_auth                 # uses counter from /boot/kexec_rollback.txt
+tpmr.sh bad_auth <counter_id>    # explicit counter
+```
+
+Deliberately attempts a counter increment with a wrong
+passphrase, bumping the TPM's DA failedTries counter on demand.
+Distinguishes auth-failure from active lockout via the
+`da_state` output. Primary tool for reproducing and verifying
+lockout detection end-to-end on both TPM versions.
+
+### Marker-file protocol
+
+When any TPM-gated code path detects lockout, it sets the
+marker file `/tmp/secret/tpm_da_lockout` and (if a timer is
+known) `/tmp/secret/tpm_da_lockout_msg`. The marker is consumed
+by:
+
+* `gui-init.sh` early boot STATUS line — surfaces the timer
+  before any auth attempt that could extend it.
+* `preflight_rollback_counter_before_reseal` error menu (in
+  `gui-init.sh`) — replaces the generic "TPM swap attack"
+  warning with a lockout-specific dialog explaining common
+  causes and showing remaining backoff time.
+* `update_totp` (in `gui-init.sh`) — replaces the generic
+  "TOTP Generation Failed!" alarming message with a lockout-
+  specific dialog.
+* `recovery()` (in `functions.sh`) — emits a STATUS line with
+  the `da_state` summary so users who drop to recovery see
+  remaining time immediately.
+
+The marker is consumed (deleted) by whichever dialog reads it.
+This makes the protocol one-shot per failure, so re-preflight
+failures re-set it cleanly from scratch via the gate.
+
+### Common lockout causes
+
+* **Repeated failed auth attempts** — wrong TPM owner
+  passphrase entered at the TOTP/HOTP prompt enough times.
+* **Unclean shutdowns on Intel PTT and similar firmware TPMs**
+  — interrupted boots (long-press power button, hard reset
+  during kexec, recovery-shell exit) skip `TPM2_Shutdown` and
+  can bump the PTT DA counter. After enough of these, the TPM
+  enters lockout even though no user-facing auth was attempted.
+  Observed on T480 (ThinkPad) and other Intel PTT platforms.
+
+### Recovery
+
+* TPM2 lockout clears after the TCG backoff timer expires
+  (TCG-standard exponential: seconds → minutes → hours). Power
+  cycling does **not** clear TPM2 lockout state.
+* TPM1 defend lock clears on power cycle on some firmwares
+  but not all (Infineon in particular). `tpm-reset.sh` from
+  the recovery shell clears the DA counter.
+* For long timers, "Reset the TPM" from the GUI (Options →
+  TPM/TOTP/HOTP Options → Reset the TPM) is faster than
+  waiting. This requires the user to know (or set) the owner
+  passphrase and re-provision TOTP/HOTP secrets.
+
+For TPM1 chips that do not expose DA state via
+`TPM_CAP_DA_LOGIC` (STM and some Infineon), the preflight
+guard is a no-op — lockout is detected only when the
+increment / unseal itself fails and reports "Defend lock
+running" / TPM_RC_LOCKOUT.
