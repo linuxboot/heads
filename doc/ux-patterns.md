@@ -400,6 +400,110 @@ echo "$index: $hex_val"
 echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
 ```
 
+### Capturing TPM command stderr
+
+For TPM queries whose stderr is the diagnostic (e.g. `tpm2 getcap`,
+`tpm getcapability`, `tpm2 dictionarylockout`), **do not redirect
+stderr to `/dev/null`** — that swallows the specific failure reason
+the user needs to diagnose lockout, auth-fail, or device-busy errors.
+
+Use a captured stderr file with explicit logging at DEBUG level:
+
+```bash
+# CORRECT — stderr captured to file, logged on failure
+TMP_STDERR="$(mktemp)"
+if cap_out="$(tpm2 getcap properties-variable 2>"$TMP_STDERR")"; then
+    rm -f "$TMP_STDERR"
+else
+    local rc=$?
+    DEBUG "tpm2_da_state: getcap stderr: $(cat "$TMP_STDERR" 2>/dev/null)"
+    rm -f "$TMP_STDERR"
+    return 1
+fi
+
+# WRONG — silent stderr suppression hides TPM_RC_LOCKOUT vs. busy vs. no-access
+cap_out="$(tpm2 getcap properties-variable 2>/dev/null)" || return 1
+```
+
+The captured stderr file means the diagnostic reaches both the
+debug log (and `/dev/kmsg` in debug mode, where the user captures
+it) and any subsequent `grep` for specific error patterns like
+`lockout|lock|RC_LOCKOUT`.
+
+`2>/dev/null` IS appropriate for enumeration loops (probing every
+NV index, where most probes are expected to fail) — see
+`tpm2_bad_auth` and `tpm1_bad_auth` counter-discovery loops for
+examples of legitimately-quiet enumeration with `|| continue`.
+
+Mirror this rule in any TPM-gated code path; do not rely on the
+script's caller to interpret a swallowed failure mode.
+
+### Three acceptable shapes for TPM command stderr
+
+The codebase uses three shapes for `TMP_STDERR` capture in TPM
+queries. All three log stderr at DEBUG on failure and clean up
+the temp file on every code path; choose based on what else the
+call site needs:
+
+#### Shape A: simple stderr capture (no rc needed)
+
+For version / identity queries whose rc the caller doesn't
+inspect, use the lightweight shape:
+
+```bash
+TMP_STDERR="$(mktemp)"
+ver_output="$(tpm getcapability -cap 0x1a 2>"$TMP_STDERR")" || {
+    DEBUG "...failed (rc=$?, stderr: $(cat "$TMP_STDERR" 2>/dev/null))"
+}
+[ -s "$TMP_STDERR" ] && DEBUG "...stderr: $(cat "$TMP_STDERR")"
+rm -f "$TMP_STDERR"
+```
+
+Used at: `tpm1_da_state` and `tpm1_bad_auth` version-query sites.
+
+#### Shape B: capture rc + stderr
+
+When the caller inspects the exit code (e.g. distinguishes
+`TPM_BAD_MODE` 44 from other failures), keep the `|| rc=$?`
+pattern and add stderr capture:
+
+```bash
+TMP_STDERR="$(mktemp)"
+da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>"$TMP_STDERR")" || rc=$?
+if [ -n "$TMP_STDERR" ]; then
+    [ -s "$TMP_STDERR" ] && DEBUG "...stderr: $(cat "$TMP_STDERR")"
+    rm -f "$TMP_STDERR"
+fi
+```
+
+Used at: `tpm1_da_state` DA-query site.
+
+#### Shape C: if/then/else on the assignment
+
+For TPM2 queries whose success/failure branches diverge visibly
+(log different messages, return early, escalate to WARN):
+
+```bash
+TMP_STDERR="$(mktemp)"
+if cap_out="$(tpm2 getcap properties-variable 2>"$TMP_STDERR")"; then
+    rm -f "$TMP_STDERR"
+else
+    local rc=$?
+    WARN "... (tpm2 getcap rc=$rc)"
+    DEBUG "...stderr: $(cat "$TMP_STDERR" 2>/dev/null)"
+    rm -f "$TMP_STDERR"
+    return 1
+fi
+```
+
+Used at: `tpm2_da_state`.
+
+All three shapes share two invariants:
+
+1. `TMP_STDERR=$(mktemp)` is created exactly once per call site.
+2. `rm -f "$TMP_STDERR"` runs on every code path (success, failure,
+   early return, branch exit).
+
 ---
 
 ## `HEADS_TTY` — terminal device routing

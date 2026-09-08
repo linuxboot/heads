@@ -1191,7 +1191,12 @@ tpm1_da_state() {
 	local ver_output vendor_id rev_major rev_minor rev_major_dec rev_minor_dec
 
 	# Log TPM chip identity for diagnostics (works on all TPM 1.2 chips).
-	ver_output="$(tpm getcapability -cap 0x1a 2>/dev/null)" || true
+	TMP_STDERR="$(mktemp)"
+	ver_output="$(tpm getcapability -cap 0x1a 2>"$TMP_STDERR")" || {
+		DEBUG "tpm1_da_state: getcapability -cap 0x1a failed (rc=$?, stderr: $(cat "$TMP_STDERR" 2>/dev/null))"
+	}
+	[ -s "$TMP_STDERR" ] && DEBUG "tpm1_da_state: getcapability stderr: $(cat "$TMP_STDERR")"
+	rm -f "$TMP_STDERR"
 	if [ -n "$ver_output" ]; then
 		vendor_id="$(echo "$ver_output" | grep 'VendorID' | tail -1 | sed 's/.*: *//')"
 		rev_major="$(echo "$ver_output" | grep 'revMajor' | sed 's/.*: 0x//')"
@@ -1201,7 +1206,12 @@ tpm1_da_state() {
 		DEBUG "tpm1_da_state: TPM vendor=\"$vendor_id\" firmware=$rev_major_dec.$rev_minor_dec"
 	fi
 
-	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>/dev/null)" || rc=$?
+	TMP_STDERR="$(mktemp)"
+	da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>"$TMP_STDERR")" || rc=$?
+	if [ -n "$TMP_STDERR" ]; then
+		[ -s "$TMP_STDERR" ] && DEBUG "tpm1_da_state: getcapability stderr: $(cat "$TMP_STDERR")"
+		rm -f "$TMP_STDERR"
+	fi
 	if [ -z "$da_out" ] || ! echo "$da_out" | grep -q 'State'; then
 		[ -n "${rc-}" ] && DEBUG "tpm1_da_state: getcapability exit=$rc"
 		if [ "${rc-}" = "44" ]; then
@@ -1262,11 +1272,16 @@ tpm1_da_state() {
 tpm2_da_state() {
 	TRACE_FUNC
 	local cap_out da_out counter_hex max_auth_hex interval_hex recovery_hex counter max_auth interval recovery fw_ver
-	cap_out="$(tpm2 getcap properties-variable 2>/dev/null)" || {
-		WARN "Unable to query TPM2 dictionary attack state"
-		DEBUG "tpm2_da_state: getcap properties-variable failed (no TPM access?)"
+	TMP_STDERR="$(mktemp)"
+	if cap_out="$(tpm2 getcap properties-variable 2>"$TMP_STDERR")"; then
+		rm -f "$TMP_STDERR"
+	else
+		local rc=$?
+		WARN "Unable to query TPM2 dictionary attack state (tpm2 getcap rc=$rc)"
+		DEBUG "tpm2_da_state: getcap properties-variable stderr: $(cat "$TMP_STDERR" 2>/dev/null)"
+		rm -f "$TMP_STDERR"
 		return 1
-	}
+	fi
 	fw_ver="$(echo "$cap_out" | grep 'TPM2_PT_FIRMWARE_VERSION_1' | sed 's/.*0x//')"
 	[ -n "$fw_ver" ] && DEBUG "tpm2_da_state: TPM firmware version: $(printf '%d.%d' $((0x${fw_ver}>>16)) $((0x${fw_ver}&0xffff)) 2>/dev/null)"
 	da_out="$(echo "$cap_out" | grep -E \
@@ -1371,7 +1386,12 @@ tpm1_bad_auth() {
 		return 1
 	fi
 
-	ver_output="$(tpm getcapability -cap 0x1a 2>/dev/null)" || true
+	TMP_STDERR="$(mktemp)"
+	ver_output="$(tpm getcapability -cap 0x1a 2>"$TMP_STDERR")" || {
+		DEBUG "tpm1_bad_auth: getcapability -cap 0x1a failed (rc=$?, stderr: $(cat "$TMP_STDERR" 2>/dev/null))"
+	}
+	[ -s "$TMP_STDERR" ] && DEBUG "tpm1_bad_auth: getcapability stderr: $(cat "$TMP_STDERR")"
+	rm -f "$TMP_STDERR"
 	if [ -n "$ver_output" ]; then
 		vendor_id="$(echo "$ver_output" | grep 'VendorID' | tail -1 | sed 's/.*: *//')"
 		rev_major="$(echo "$ver_output" | grep 'revMajor' | sed 's/.*: 0x//')"
@@ -1409,10 +1429,7 @@ tpm1_bad_auth() {
 	DEBUG "bad_auth: TPM1 NV region for 0x$rollback_counter_id: $nv_region_tpm1"
 	echo "bad_auth (TPM1): starting -- counter=0x$rollback_counter_id region=$nv_region_tpm1" >&2
 	DEBUG "bad_auth (TPM1): starting -- counter=0x$rollback_counter_id region=$nv_region_tpm1"
-	DEBUG "DA state BEFORE bad auth (TPM1 NV 0x$rollback_counter_id, region: $nv_region_tpm1):"
-	tpm1_da_state
-	echo "bad_auth (TPM1): BEFORE state captured" >&2
-	DEBUG "bad_auth (TPM1): BEFORE state captured"
+	DEBUG "bad_auth (TPM1): no BEFORE state capture — counter_increment is the actual test, not the da_state query"
 	echo "bad_auth (TPM1): attempting increment with WRONG auth on 0x$rollback_counter_id..." >&2
 	DEBUG "bad_auth (TPM1): attempting increment with WRONG auth on 0x$rollback_counter_id..."
 	increment_command_output=$(tpm counter_increment -ix "$rollback_counter_id" -pwdc "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" 2>&1) || increment_exit_code=$?
@@ -1497,10 +1514,6 @@ tpm2_bad_auth() {
 	DEBUG "TPM2 NV region for 0x$counter_id: $nv_region_tpm2"
 	echo "bad_auth (TPM2): starting -- counter=0x$counter_id region=$nv_region_tpm2" >&2
 	DEBUG "bad_auth (TPM2): starting -- counter=0x$counter_id region=$nv_region_tpm2"
-	DEBUG "DA state BEFORE bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
-	tpm2_da_state
-	echo "bad_auth (TPM2): BEFORE state captured" >&2
-	DEBUG "bad_auth (TPM2): BEFORE state captured"
 	if [ -z "$counter_id" ]; then
 		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
 		STATUS "bad_auth (TPM2): ABORTED -- no counter ID"
@@ -1513,6 +1526,7 @@ tpm2_bad_auth() {
 	# us to exit with "Counter does not exist" without ever running the
 	# actual bad-auth attempt -- exactly the failure mode this tool exists
 	# to test. The discovery loop has the check; this one doesn't need it.
+	DEBUG "bad_auth (TPM2): no BEFORE state capture — nvincrement is the actual test, not the da_state query"
 	echo "bad_auth (TPM2): attempting nvincrement with WRONG auth on 0x$counter_id..." >&2
 	DEBUG "bad_auth (TPM2): attempting nvincrement with WRONG auth on 0x$counter_id..."
 	# NV index auth failure (-C <idx> -P <wrong>) bumps LOCKOUT_COUNTER.
@@ -1529,12 +1543,17 @@ tpm2_bad_auth() {
 	tpm2_increment_rc="${tpm2_increment_rc:-0}"
 	DEBUG "bad_auth: nvincrement rc=$tpm2_increment_rc output='$tpm2_increment_output'"
 	if [ "$tpm2_increment_rc" -ne 0 ]; then
-		if echo "$tpm2_increment_output" | grep -qi 'lockout\|lock'; then
-			DEBUG "bad_auth: DA LOCKOUT already active (TPM_RC_LOCKOUT 0x22d)"
+		# Match either the kernel/driver's text ("lockout", "lock") or the
+		# canonical TPM_RC_LOCKOUT return code (0x921) printed by tpm2-tools.
+		# The lockout text is unreliable across TPM2 stacks (PTT, CR50,
+		# swtpm all differ); the 0x921 code is the TCG-spec constant and is
+		# reliably emitted by tpm2 Esys Finish on a locked TPM.
+		if echo "$tpm2_increment_output" | grep -Eqi 'lockout|TPM_RC_LOCKOUT|0x?0*921'; then
+			DEBUG "bad_auth: DA LOCKOUT already active (TPM_RC_LOCKOUT 0x921)"
 			echo "bad_auth (TPM2): nvincrement REJECTED by TPM lockout (rc=$tpm2_increment_rc)" >&2
 			DEBUG "bad_auth (TPM2): nvincrement REJECTED by TPM lockout (rc=$tpm2_increment_rc)"
 		else
-			DEBUG "bad_auth: auth failure (rc=$tpm2_increment_rc = TPM_RC_AUTH_FAIL 0x22e or similar)"
+			DEBUG "bad_auth: auth failure (rc=$tpm2_increment_rc = TPM_RC_AUTH_FAIL 0x91C or similar)"
 			echo "bad_auth (TPM2): nvincrement FAILED with wrong auth (rc=$tpm2_increment_rc) -- DA counter bumped" >&2
 			DEBUG "bad_auth (TPM2): nvincrement FAILED with wrong auth (rc=$tpm2_increment_rc) -- DA counter bumped"
 			echo "Auth failure (rc=$tpm2_increment_rc = expected with wrong NV index auth, DA counter bumped)."
