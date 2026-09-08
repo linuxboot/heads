@@ -2244,6 +2244,58 @@ increment_tpm_counter() {
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
 	fi
 
+	# Preflight DA state check before incrementing. Catches TPM lockout
+	# before we attempt any operation that would extend it.
+	#
+	# TPM1: timer=0 means state inactive; timer>0 means locked.
+	#        NOTE: some TPM1 chips (e.g., STM, some Infineon) do not
+	#        support TPM_CAP_DA_LOGIC and return TPM_BAD_MODE (44).
+	#        da_state returns "unavailable" and the guard has no DA info
+	#        -- lockout is detected only when the increment itself fails
+	#        (handled in the increment block below).
+	# TPM2: timer absent when count<threshold; timer>0 when locked.
+	# TPM1 timer>0 or TPM2 timer>0: set marker, DIE with remaining time.
+	# TPM1 timer=0, count>=threshold: above threshold but not locked, WARN.
+	# Both: count>=threshold-1 without lockout: WARN.
+	if [ "$CONFIG_TPM" = "y" ]; then
+		local da_line da_current da_threshold da_timer lockout_msg
+		da_line="$(tpmr.sh da_state 2>/dev/null | grep '^DA: ')"
+		da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+		da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+		# With sed -n /p, da_timer stays empty when timer= field absent (TPM2 clean)
+		da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		if [ -n "$da_current" ] && [ -n "$da_threshold" ]; then
+			if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				local timer_display="${da_timer}s"
+				if [ "$da_timer" -ge 3600 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 3600)) hour(s)"
+				elif [ "$da_timer" -ge 60 ] 2>/dev/null; then
+					timer_display="~$((da_timer / 60)) min"
+				fi
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (locked, ${timer_display})"
+				# Set marker before DIE so recovery shell (commit 5) can
+				# display the DA state, and so gui-init.sh (commit 6)
+				# sees the lockout marker if the failure cascades.
+				mkdir -p /tmp/secret 2>/dev/null || true
+				touch /tmp/secret/tpm_da_lockout 2>/dev/null || true
+				lockout_msg="TPM dictionary attack lockout active (DA $da_current/$da_threshold, ${timer_display} remaining). Wait for the timer, or reset the TPM from GUI: Options -> TPM/TOTP/HOTP Options -> Reset the TPM."
+				echo "${timer_display}" >/tmp/secret/tpm_da_lockout_msg 2>/dev/null || true
+				DIE "$lockout_msg"
+			fi
+			if [ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (above threshold, not locked)"
+				WARN "DA counter above threshold ($da_current/$da_threshold). Auth failures will trigger lockout."
+			elif [ "$da_current" -ge $((da_threshold - 1)) ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (nearing threshold)"
+				WARN "DA counter nearing threshold ($da_current/$da_threshold). One more auth failure may trigger lockout."
+			else
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (within threshold)"
+			fi
+		else
+			DEBUG "increment_tpm_counter: TPM DA state unavailable or limited"
+		fi
+	fi
+
 	# Try to increment the counter.  We normally hide the verbose
 	# output of tpmr.sh commands to avoid overwhelming the console, but we
 	# must *not* swallow any interactive prompts.  The previous implementation
