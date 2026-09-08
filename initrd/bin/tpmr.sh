@@ -1469,7 +1469,18 @@ tpm2_bad_auth() {
 	fi
 	DEBUG "=== BAD AUTH TEST (TPM2) ==="
 	DEBUG "Counter: ${counter_id:-<none>}"
-	DEBUG "DA state BEFORE bad auth:"
+	# Classify NV index by TPM2 hierarchy. counter_id has the 0x prefix
+	# stripped during discovery, so case patterns match without the prefix.
+	local nv_region_tpm2="unknown"
+	case "$counter_id" in
+		1*)  nv_region_tpm2="user-defined (0x01000000-0x01FFFFFF)" ;;
+		40*) nv_region_tpm2="TPM-reserved (0x40000000-0x400FFFFF)" ;;
+		80*) nv_region_tpm2="persistent (0x80000000-0x803FFFFF)" ;;
+		10*) nv_region_tpm2="platform (0x10000000-0x10000FFF)" ;;
+		*)   nv_region_tpm2="other" ;;
+	esac
+	DEBUG "TPM2 NV region for 0x$counter_id: $nv_region_tpm2"
+	DEBUG "DA state BEFORE bad auth (TPM2 NV 0x$counter_id, region: $nv_region_tpm2):"
 	tpm2_da_state
 	if [ -z "$counter_id" ]; then
 		DEBUG "No counter ID found. Use tpmr.sh bad_auth <counter_id>."
