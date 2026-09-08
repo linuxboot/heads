@@ -569,6 +569,28 @@ Distinguishes auth-failure from active lockout via the
 `da_state` output. Primary tool for reproducing and verifying
 lockout detection end-to-end on both TPM versions.
 
+### Output and visibility
+
+Each progress marker (start, BEFORE state captured, attempt,
+outcome, AFTER state capturing, DONE, ABORTED) is emitted in
+two channels so it reaches both the user's terminal and any
+`/dev/kmsg` capture (e.g. for post-mortem analysis without
+serial access):
+
+* `STATUS` (or `echo ... >&2`) writes to `/dev/console` and
+  `/tmp/debug.log` — always visible to a user on the framebuffer
+  console in any output mode (see doc/logging.md).
+* A matching `DEBUG "..."` line writes to `/tmp/debug.log` and
+  (when `CONFIG_DEBUG_OUTPUT=y`) also to `/dev/kmsg` +
+  `/dev/console`. The `DEBUG` companion is the channel that
+  reaches `/dev/kmsg`, which `/dev/console` and `STATUS` do not.
+
+The two channels carry identical text, so the order in any
+post-mortem log file matches the order on screen. If only the
+`DEBUG` line is visible (e.g. capture started mid-test), the
+missing `STATUS`/echo line is implied by the surrounding DEBUG
+context.
+
 ### Marker-file protocol
 
 When any TPM-gated code path detects lockout, it sets the
