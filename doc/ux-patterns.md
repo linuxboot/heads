@@ -81,6 +81,47 @@ constants.  Any values passed are silently discarded.
 - For dialogs with static text, use a fixed width (typically `80`).  This
   produces a stable, readable layout in newt and is a no-op in fbwhiptail.
 
+**Always use `0` for height.** Hardcoded heights (e.g. `26 80 4`) are a
+historical leftover from before the doc convention existed; they were
+tuned for a specific dialog length and silently overflow when content
+changes. See "Minimal supported screen sizes" below for the floor that
+hardcoded heights can collide with.
+
+### Minimal supported screen sizes
+
+Heads must render correctly on the smallest screen configuration any
+supported board might use, since dialogs run before the boot menu
+reaches the user and a dialog overflow can leave the device stuck.
+
+| Backend | Floor | Boards that hit it |
+|---|---|---|
+| fbwhiptail (linear framebuffer) | any (auto-sizes from content) | all boards with `CONFIG_LINEAR_FRAMEBUFFER=y` |
+| newt (text framebuffer / serial console) | **80×25** (Linux VGA text mode default; some setups reach 80×50) | `config/coreboot-kgpe-d16_server*.config` (`CONFIG_VGA_TEXT_FRAMEBUFFER=y`) |
+
+Linear framebuffer sizes currently configured in `config/coreboot*.config`:
+
+| Resolution | Count | Boards |
+|---|---|---|
+| 2560×1600 | 21 | T420 / T430 / T440p / **T480** / T480s / OptiPlex 7019/9010 |
+| 3840×2160 | 10 | Librem 11/13/14/15, M900, others |
+
+fbwhiptail backends have plenty of room; the constraint is the newt
+text-mode case (kgpe-d16_server boards) where the default 25-row terminal
+is the floor. **Dialogs longer than 25 lines will overflow on the
+serial console / VGA text-mode boards** even with auto-height, because
+newt's `guessSize()` clamps to the terminal size.
+
+In practice:
+
+- Aim for **≤15 visible lines** for any user-facing dialog so it fits
+  comfortably on a 25-line text-mode terminal with margin for title
+  bar and menu items.
+- One paragraph of context, one actionable recommendation, and the
+  menu items. Avoid restating what the menu items already imply.
+- If you find yourself needing more than ~10 lines of context, the
+  detail probably belongs in `/tmp/debug.log` (LOG level) with a
+  one-line pointer in the dialog.
+
 In practice:
 
 ```bash
