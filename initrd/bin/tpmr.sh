@@ -1342,6 +1342,25 @@ tpm1_bad_auth() {
 		rollback_counter_id=$(grep -Eo 'counter-[0-9a-fA-F]+' /boot/kexec_rollback.txt | \
 			sed 's/counter-//' | head -1)
 	fi
+	# Fallback: enumerate NV indices and probe for a counter. Counters in
+	# TPM 1.2 return exactly 4 bytes (8 hex chars) from nv_readvalue; sealed
+	# objects return larger blobs. This lets bad_auth work from the
+	# recovery shell even when /boot is not mounted.
+	if [ -z "$rollback_counter_id" ]; then
+		local probe_index probe_val
+		for probe_index in $(tpm getcapability -cap 0x11 2>/dev/null | \
+			grep -oE '0x[0-9a-fA-F]+'); do
+			probe_val="$(tpm nv_readvalue -ix "$probe_index" 2>/dev/null | \
+				xxd -pc8 2>/dev/null)" || continue
+			# 4 bytes = 8 hex chars = TPM1 counter. Anything else (sealed
+			# blobs are 200+ chars) is not a counter.
+			if [ "${#probe_val}" -eq 8 ]; then
+				rollback_counter_id="${probe_index#0x}"
+				DEBUG "bad_auth: discovered TPM1 counter at $probe_index via NV enumeration"
+				break
+			fi
+		done
+	fi
 	DEBUG "=== BAD AUTH TEST (TPM1) ==="
 	DEBUG "Counter: ${rollback_counter_id:-<none>}"
 	if [ -z "$rollback_counter_id" ]; then
@@ -1372,18 +1391,30 @@ tpm1_bad_auth() {
 	#   1   = TPM_AUTHFAIL (wrong password rejected, DA counter bumped)
 	#   255 = TPM_DEFEND_LOCK_RUNNING (0x803) -- DA lockout active
 	increment_exit_code=0
+	# Classify NV index by TPM 1.2 NV range:
+	#   0x0001xxxx : permanent (TPM-reserved)
+	#   0x0002xxxx : legacy user NV
+	#   0x0003xxxx : legacy user NV
+	#   0x4xxxxxxx : platform-reserved
+	#   0x8xxxxxxx : transport/reserved
+	local nv_region_tpm1="unknown"
+	case "$rollback_counter_id" in
+		0001*) nv_region_tpm1="permanent (0x0001xxxx, TPM-reserved)" ;;
+		0002*) nv_region_tpm1="legacy user NV (0x0002xxxx)" ;;
+		0003*) nv_region_tpm1="legacy user NV (0x0003xxxx)" ;;
+		4*)     nv_region_tpm1="platform-reserved (0x4xxxxxxx)" ;;
+		8*)     nv_region_tpm1="transport/reserved (0x8xxxxxxx)" ;;
+		*)      nv_region_tpm1="user NV" ;;
+	esac
+	DEBUG "bad_auth: TPM1 NV region for 0x$rollback_counter_id: $nv_region_tpm1"
+	DEBUG "DA state BEFORE bad auth (TPM1 NV 0x$rollback_counter_id, region: $nv_region_tpm1):"
+	tpm1_da_state
 	increment_command_output=$(tpm counter_increment -ix "$rollback_counter_id" -pwdc "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" 2>&1) || increment_exit_code=$?
 	DEBUG "bad_auth: counter_increment rc=$increment_exit_code output='$increment_command_output'"
 	if [ "$increment_exit_code" -ne 0 ]; then
 		if echo "$increment_command_output" | grep -qi 'defend\|lock'; then
 			DEBUG "bad_auth: DA LOCKOUT ACTIVE (rc=$increment_exit_code)"
 			STATUS "bad_auth: DA lockout confirmed. TPM rejected increment (rc=255 = defend lock running)."
-			local da_state_output da_summary
-			da_state_output="$(tpm1_da_state 2>/dev/null)" || true
-			if [ -n "$da_state_output" ]; then
-				da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
-				[ -n "$da_summary" ] && STATUS "TPM DA: ${da_summary#=> }"
-			fi
 		else
 			DEBUG "bad_auth: auth failure (rc=$increment_exit_code = TPM_AUTHFAIL)"
 			echo "Auth failure (rc=$increment_exit_code = TPM_AUTHFAIL, expected with wrong password)."
@@ -1393,6 +1424,8 @@ tpm1_bad_auth() {
 		DEBUG "bad_auth: UNEXPECTED SUCCESS (rc=0 = TPM_SUCCESS)"
 		echo "UNEXPECTED: wrong password was accepted (rc=0 = TPM_SUCCESS)."
 	fi
+	DEBUG "DA state AFTER bad auth (TPM1 NV 0x$rollback_counter_id, region: $nv_region_tpm1):"
+	tpm1_da_state
 }
 
 tpm2_bad_auth() {
@@ -1401,6 +1434,38 @@ tpm2_bad_auth() {
 	if [ -z "$counter_id" ] && [ -r /boot/kexec_rollback.txt ]; then
 		counter_id=$(grep -Eo 'counter-[0-9a-fA-F]+' /boot/kexec_rollback.txt | \
 			sed 's/counter-//' | head -1)
+	fi
+	# Fallback: enumerate NV indices and probe for a counter. Counters in
+	# TPM2 return exactly 8 bytes (16 hex chars) from nvread; sealed
+	# objects return larger blobs. Verification uses nvreadpublic to
+	# confirm TPMA_NV_COUNTER (bit 4 of attributes, value 0x10) so we
+	# don't mistake a DUK or sealed secret for the rollback counter.
+	if [ -z "$counter_id" ]; then
+		local probe_index probe_val probe_attrs
+		for probe_index in $(tpm2 getcap handles-nv-index 2>/dev/null | \
+			grep -oE '0x[0-9a-fA-F]+'); do
+			# Counter nvread returns exactly 8 bytes (16 hex chars).
+			probe_val="$(tpm2 nvread "$probe_index" 2>/dev/null | \
+				xxd -pc8 2>/dev/null)" || continue
+			if [ "${#probe_val}" -ne 16 ]; then
+				continue
+			fi
+			# Confirm counter attribute via nvreadpublic. TPMA_NV_COUNTER
+			# is bit 4 (value 0x10); the attributes field is the second
+			# numeric column in nvreadpublic output. Match on hex ending
+			# in 0 or other digits where bit 4 is set.
+			probe_attrs="$(tpm2 nvreadpublic "$probe_index" 2>/dev/null | \
+				awk '/0x[0-9a-fA-F]+/{print}' | grep -oE '0x[0-9a-fA-F]+' | tail -1)" || continue
+			# Parse the attributes value: TPMA_NV_COUNTER is bit 4 (0x10).
+			# Strip leading 0x and check that bit 4 is set.
+			local attrs_hex="${probe_attrs#0x}"
+			if [ -n "$attrs_hex" ] && \
+				[ $((0x${attrs_hex} & 0x10)) -ne 0 ] 2>/dev/null; then
+				counter_id="${probe_index#0x}"
+				DEBUG "bad_auth: discovered TPM2 counter at $probe_index via NV enumeration (attrs=$probe_attrs)"
+				break
+			fi
+		done
 	fi
 	DEBUG "=== BAD AUTH TEST (TPM2) ==="
 	DEBUG "Counter: ${counter_id:-<none>}"
@@ -1415,9 +1480,40 @@ tpm2_bad_auth() {
 		return 1
 	fi
 	DEBUG "Attempting increment with wrong passphrase..."
-	# NV index auth failure (-P) bumps LOCKOUT_COUNTER. Owner auth failure
-	# (-C o -P) does not bump DA on some TPM2 implementations, so we use -P.
-	tpm2 nvincrement -P "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" "0x$counter_id" 2>&1 || true
+	# NV index auth failure (-C <idx> -P <wrong>) bumps LOCKOUT_COUNTER.
+	# Use -C explicitly so the auth context is unambiguous across tpm2-tools
+	# versions; without -C, -P can be interpreted as owner hierarchy auth on
+	# older releases. Capture exit code and distinguish lockout from auth-
+	# failure vs. silent success so the user can tell whether the test
+	# actually exercised the TPM.
+	local tpm2_increment_rc tpm2_increment_output
+	tpm2_increment_output=$(tpm2 nvincrement \
+		-C "0x$counter_id" \
+		-P "TPM_DEFEND_LOCK_TEST_WRONG_PASSWORD" 2>&1) \
+		|| tpm2_increment_rc=$?
+	tpm2_increment_rc="${tpm2_increment_rc:-0}"
+	DEBUG "bad_auth: nvincrement rc=$tpm2_increment_rc output='$tpm2_increment_output'"
+	if [ "$tpm2_increment_rc" -ne 0 ]; then
+		if echo "$tpm2_increment_output" | grep -qi 'lockout\|lock'; then
+			DEBUG "bad_auth: DA LOCKOUT already active (TPM_RC_LOCKOUT 0x22d)"
+			STATUS "bad_auth: DA lockout confirmed. TPM rejected increment (rc=$tpm2_increment_rc = lockout)."
+			local da_state_output da_summary
+			da_state_output="$(tpm2_da_state 2>/dev/null)" || true
+			if [ -n "$da_state_output" ]; then
+				da_summary="$(echo "$da_state_output" | grep '^=> ' | head -1)"
+				[ -n "$da_summary" ] && STATUS "TPM DA: ${da_summary#=> }"
+			fi
+		else
+			DEBUG "bad_auth: auth failure (rc=$tpm2_increment_rc = TPM_RC_AUTH_FAIL 0x22e or similar)"
+			echo "Auth failure (rc=$tpm2_increment_rc = expected with wrong NV index auth, DA counter bumped)."
+			echo "Run again to accumulate failures toward DA lockout."
+		fi
+	else
+		DEBUG "bad_auth: UNEXPECTED SUCCESS (rc=0 = TPM_SUCCESS) -- wrong password was accepted!"
+		echo "UNEXPECTED: wrong NV index auth was accepted (rc=0)."
+		echo "This means the counter does not require NV index auth (authValue is empty),"
+		echo "or this TPM does not enforce NV index auth on increment. Bad-auth test inconclusive."
+	fi
 	DEBUG "DA state AFTER bad auth:"
 	tpm2_da_state
 }
