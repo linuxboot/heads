@@ -2097,8 +2097,86 @@ preflight_rollback_counter_before_reseal() {
 	fi
 
 	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
-	if ! tpmr.sh counter_read -ix "$counter_id" >/dev/null 2>&1; then
-		fail_preflight "TPM integrity counter cannot be read. Possible cause: TPM was swapped or reset. This could indicate a TPM swap attack. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+	# Capture stderr from counter_read so the actual tpm2 error lands in debug.log
+	# (issue #2205: pre-fix code did `>/dev/null 2>&1` and swallowed the tpm2 rc,
+	# making DA-lockout-vs-handle-missing-and-everything-else indistinguishable).
+	# DO_WITH_DEBUG logs the command's stdout/stderr at LOG level (debug.log only).
+	# We also stash stderr locally so the preflight can branch on DA lockout.
+	preflight_counter_err="$(mktemp)"
+	if DO_WITH_DEBUG tpmr.sh counter_read -ix "$counter_id" \
+			2>"$preflight_counter_err" >/dev/null; then
+		rm -f "$preflight_counter_err"
+	else
+		preflight_counter_msg="$(cat "$preflight_counter_err" 2>/dev/null || true)"
+		rm -f "$preflight_counter_err"
+		LOG "Preflight: counter_read failed; tpm2 stderr: $preflight_counter_msg"
+
+		# Diagnose: DA lockout vs other failure. PR #2124 added
+		# tpmr.sh da_state (TPM1+TPM2) emitting a machine-parsable
+		# "DA: state=… current=… threshold=… timer=…" line. timer>0 means
+		# currently locked (TCG backoff countdown). Full output goes to
+		# debug.log at LOG level; we only extract the policy fields here.
+		da_state_out="$(tpmr.sh da_state 2>/dev/null || true)"
+		LOG "Preflight: da_state output:\n$da_state_out"
+		local da_line da_current da_threshold da_timer lockout_detected timer_display
+		da_line="$(echo "$da_state_out" | grep '^DA: ' || true)"
+		da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+		da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+		da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		lockout_detected="n"
+		if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+			lockout_detected="y"
+		elif [ -n "$da_current" ] && [ -n "$da_threshold" ] && \
+			[ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+			lockout_detected="y"
+		fi
+		DEBUG "Preflight: lockout_detected=$lockout_detected (da_current='$da_current' da_threshold='$da_threshold' da_timer='$da_timer')"
+
+		if [ "$lockout_detected" = "y" ]; then
+			# Marker file signals the GUI menu loop (gui-init.sh update_totp)
+			# to use PR #2124's DA-lockout-specific whiptail instead of the
+			# generic reset-required dialog. Consistent with tpm1_unseal /
+			# tpm2_unseal which also set this marker on lockout.
+			mkdir -p /tmp/secret || true
+			: >/tmp/secret/tpm_da_lockout
+			[ -n "$preflight_counter_msg" ] && \
+				echo "$preflight_counter_msg" >/tmp/secret/tpm_da_lockout_msg 2>/dev/null || true
+			timer_display="${da_timer}s"
+			if [ "${da_timer:-0}" -ge 3600 ] 2>/dev/null; then
+				timer_display="~$((da_timer / 3600)) hour(s)"
+			elif [ "${da_timer:-0}" -ge 60 ] 2>/dev/null; then
+				timer_display="~$((da_timer / 60)) min"
+			fi
+			# Short whiptail -- full probable causes and "what not to do"
+			# guidance live in /tmp/debug.log (LOG above). The 76-column
+			# word wrap is handled by _whiptail_preprocess_args.
+			fail_preflight "TPM is in dictionary-attack lockout (DA $da_current/$da_threshold).
+
+Time until next auth can succeed: ${timer_display}.
+
+Common causes: repeated auth failures, or repeated unclean shutdowns
+that skipped TPM2_Shutdown (notably on Intel PTT).
+
+Wait ${timer_display} then reboot, or reset the TPM from the GUI
+(Options -> TPM/TOTP/HOTP Options -> Reset the TPM).
+
+Full diagnostics in /tmp/debug.log."
+			return 1
+		fi
+
+		# Not lockout (or da_state unavailable -- e.g. STM TPM1 with no
+		# TPM_CAP_DA_LOGIC support): genuine counter / TPM replacement or
+		# some other read failure. Keep reset guidance but drop the
+		# "TPM swap attack" alarmism; full captured error lives in
+		# debug.log so future #2205-style reports are diagnosable from
+		# the same log the user already attached.
+		fail_preflight "TPM rollback counter $counter_id cannot be read.
+
+The counter may have been reset or removed, or the TPM may have been
+replaced. The captured tpm2 error is in /tmp/debug.log.
+
+Recommended: reset the TPM from the GUI
+(Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 		return 1
 	fi
 
