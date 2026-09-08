@@ -1003,15 +1003,6 @@ Cannot verify TPM rollback protection.
 
 $preflight_reason
 
-Possible causes:
- - TPM was reset or replaced
- - /boot disk was swapped or restored
- - TPM state tampering occurred
-
-WARNING: If none of the above were intentional, treat /boot as
-UNTRUSTED. A disk or TPM swap attack cannot be ruled out.
-Verify integrity before trusting any boot files.
-
 Recommended first step:
  - Show integrity report (TOTP/HOTP + /boot)
 
@@ -1101,7 +1092,7 @@ EOF
 			_menu_text="$preflight_menu_text"
 		fi
 		whiptail_error --title 'ERROR: TPM State Inconsistent' \
-			--menu "$_menu_text" 26 80 4 \
+			--menu "$_menu_text" 0 80 4 \
 			'i' ' Show integrity report -->' \
 			'o' ' OEM Factory Reset / Re-Ownership -->' \
 			't' ' Reset the TPM' \
