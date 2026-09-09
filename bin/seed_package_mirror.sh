@@ -48,17 +48,45 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo
 echo "Cleaning build to download all packages..."
-# fetch packages for representative boards
-rm -rf build/x86 build/ppc64
-rm -rf packages/x86 packages/ppc64
+# Clear cached tarballs and .canary build stamps (modeled on the Makefile
+# real.remove_canary_files-extract_patch_rebuild_what_changed helper), so
+# module tarballs are re-downloaded and hash-verified AND coreboot forks
+# re-enter their build to produce the crossgcc toolchain tarballs that
+# seed the mirror.  Compiled artifacts are left intact — only the stamps
+# and cached sources that gate re-fetch are removed.
+rm -rf packages/*/*
+find build -type f -name ".canary" -delete 2>/dev/null || true
 echo
 echo "Downloading packages..."
-make packages BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp
-make packages BOARD=UNTESTED_talos-2 # newt, PPC
-make packages BOARD=librem_l1um_v2 # TPM2
-make packages BOARD=EOL_librem_l1um # coreboot 4.11
-make packages BOARD=EOL_x230-maximized # io386
+# Discover all boards dynamically and fetch every module tarball.
+# 'make BOARD=X packages' triggers the 'packages:' target defined by
+# define_module (Makefile:571) for every versioned module that board
+# enables.  Tarballs are cached by filename in packages/<arch>/, so
+# redundant downloads for boards sharing tarballs cost only Make
+# setup overhead (~2s each).
+# A board that fails (e.g. dead upstream URL) is reported but does not
+# abort seeding the remaining boards.
+failed=0
+boards=()
+for cfg in boards/*/[!.]*.config; do
+	[ -f "$cfg" ] || continue
+	boards+=("$(basename "$(dirname "$cfg")")")
+done
+for board in "${boards[@]}"; do
+	echo "  make BOARD=$board packages"
+	# Redirect stdin from /dev/null so make/wget cannot consume the
+	# script's stdin — under set -e + if ! that can cause bash to
+	# misparse the loop and produce an intermittent syntax error.
+	if ! make BOARD="$board" packages </dev/null; then
+		echo "  WARNING: $board failed to fetch all packages" >&2
+		failed=$((failed+1))
+	fi
+done
+[ "$failed" -eq 0 ] || echo "Warning: $failed board(s) failed to fetch all packages" >&2
 echo
 echo "Copying to mirror directory..."
 mkdir -p "$ARG_MIRROR_DIR"
-cp packages/x86/* packages/ppc64/* "$ARG_MIRROR_DIR/"
+for arch_dir in packages/*/; do
+	[ -d "$arch_dir" ] || continue
+	cp "$arch_dir"* "$ARG_MIRROR_DIR/" 2>/dev/null || true
+done
