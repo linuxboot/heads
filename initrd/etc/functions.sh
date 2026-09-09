@@ -3677,8 +3677,9 @@ show_mac(){
 	
 	if [ "$CONFIG_IFDTOOL" = "y" ]; then
 
-		# read whole SPI-chip and save it to /tmp/$CONFIG_BOARD.rom
-		CHANGE_FLASH_OPTIONS=whole_spi /bin/flash.sh -r /tmp/${CONFIG_BOARD}.rom
+		# Read ifd + fd + gbe from SPI (region-restricted path; flashprog
+		# needs --ifd --image fd so ifdtool can locate the gbe section).
+		CHANGE_FLASH_OPTIONS=gbe_only /bin/flash.sh -r /tmp/${CONFIG_BOARD}.rom
 
 		# test if file is > 0 byte
 		if [ ! -s /tmp/${CONFIG_BOARD}.rom ]; then
@@ -3793,7 +3794,10 @@ change_mac() {
 		clean_up_mac
 	fi
 
+	#Clean /tmp artifacts
 	clean_up_mac
+	#Flash options were overridden: rebooting.
+	reboot.sh
 }
 
 clean_up_mac(){
