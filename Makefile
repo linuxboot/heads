@@ -776,6 +776,7 @@ bin_modules-$(CONFIG_KBD) += kbd
 bin_modules-$(CONFIG_ZSTD) += zstd
 bin_modules-$(CONFIG_E2FSPROGS) += e2fsprogs
 bin_modules-$(CONFIG_EXFATPROGS) += exfatprogs
+bin_modules-$(CONFIG_NVMUTIL) += nvmutil
 
 $(foreach m, $(bin_modules-y), \
 	$(call map,initrd_bin_add,$(call bins,$m)) \
@@ -800,6 +801,9 @@ ifeq ($(CONFIG_COREBOOT),y)
 $(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/cbmem/cbmem))
 #$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/superiotool/superiotool))
 #$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/inteltool/inteltool))
+ifeq ($(CONFIG_IFDTOOL),y)
+$(eval $(call initrd_bin_add,$(COREBOOT_UTIL_DIR)/ifdtool/ifdtool))
+endif
 endif
 
 $(COREBOOT_UTIL_DIR)/cbmem/cbmem \
@@ -814,6 +818,11 @@ $(COREBOOT_UTIL_DIR)/inteltool/inteltool \
 $(COREBOOT_UTIL_DIR)/superiotool/superiotool: \
 	$(build)/$(zlib_dir)/.build \
 	$(build)/$(pciutils_dir)/.build \
+
+$(COREBOOT_UTIL_DIR)/ifdtool/ifdtool: $(build)/$(coreboot_base_dir)/.canary musl-cross-make
+	+$(call do,MAKE,$(notdir $@),\
+		$(MAKE) -C "$(dir $@)" $(CROSS_TOOLS) \
+	)
 
 #
 # --- INITRD IMAGE CREATION ---

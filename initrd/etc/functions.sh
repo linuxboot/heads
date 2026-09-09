@@ -3671,3 +3671,132 @@ _build_final_cmdline() {
 	echo "$_combined"
 }
 
+# Show current MAC address
+show_mac(){
+	TRACE_FUNC
+	
+	if [ "$CONFIG_IFDTOOL" = "y" ]; then
+
+		# read whole SPI-chip and save it to /tmp/$CONFIG_BOARD.rom
+		CHANGE_FLASH_OPTIONS=whole_spi /bin/flash.sh -r /tmp/${CONFIG_BOARD}.rom
+
+		# test if file is > 0 byte
+		if [ ! -s /tmp/${CONFIG_BOARD}.rom ]; then
+			whiptail_error --title 'ERROR' --msgbox "Unable to read BIOS" 0 80
+			recovery
+		fi
+	(
+		cd /tmp
+		# Extract GBE from ifdtool
+		ifdtool -x ${CONFIG_BOARD}.rom
+		if [ ! -s flashregion_3_gbe.bin ]; then
+			whiptail_error --title 'ERROR' --msgbox "Unable to extract gbe region" 0 80
+			recovery
+		fi
+
+		# Show just the current MAC, cut the rest
+		if ! DUMP_OUTPUT=$(nvm flashregion_3_gbe.bin dump); then
+ 			whiptail_error --title 'ERROR' --msgbox "Unable to read MAC address from GbE region" 0 80
+ 			recovery
+		fi 
+		# Find the line that contains the MAC address and print
+		CURRENT_MAC=$(printf "%s\n" "$DUMP_OUTPUT" | sed -n 's/^MAC (part 0): //p')
+	
+	 	if [ -z "$CURRENT_MAC" ]; then
+ 			whiptail_error --title 'ERROR' --msgbox "No MAC address found in GbE region" 0 80
+ 			recovery
+ 		fi
+		whiptail_type $BG_COLOR_MAIN_MENU --title "Show current MAC address" --msgbox "Current MAC address: $CURRENT_MAC" 0 80
+	)
+	else
+		whiptail_error --title 'ERROR' --msgbox "Ifdtool is needed" 0 80
+	
+	fi
+	
+}
+
+change_mac() {
+	TRACE_FUNC
+
+	local mac_type="$1"
+
+	if [ "$CONFIG_IFDTOOL" = "y" ] && [ "$CONFIG_NVMUTIL" = "y" ]; then
+
+		show_mac
+
+		# Change MAC address randomly
+		# "nvmutil cannot specify multicast addresses"
+		# "nvmutil cannot specify 00:00:00:00:00:00"
+		# "randomly generated addresses are always unicast and local"
+		# See https://libreboot.org/docs/install/nvmutil.html
+
+		# Change MAC address randomly with intel OUI
+		# MAC Prefix: 00:1F:3B
+		# MAC Range: 00:1F:3B:00:00:00 - 00:1F:3B:FF:FF:FF
+		# See https://uic.io/en/mac/address/001f3b/
+		# There are a lot of prefixes from intel, this one is randomly picked
+		# So generated addresses claim Intel's globally administered address space and can collide with a legitimately assigned Intel device!
+
+		case "$mac_type" in
+			"random")
+				MAC_PATTERN="xx:xx:xx:xx:xx:xx"
+				CONFIRM_EXTRA=""
+				;;
+			"intel")
+				MAC_PATTERN="00:1f:3b:xx:xx:xx"
+				CONFIRM_EXTRA="\n\nNote: generated addresses claim Intel's globally administered address space and can collide with a legitimately assigned Intel device."
+				;;
+			*)
+				return 0
+				;;
+		esac
+
+		# Set mac to users choice
+		if ! nvm /tmp/flashregion_3_gbe.bin setmac "$MAC_PATTERN"; then
+ 			whiptail_error --title "Error" --msgbox "Failed to generate a new Ethernet MAC address" 0 80
+ 			clean_up_mac
+ 			recovery 
+		fi
+
+		# Show MAC address to be flashed
+		if ! NEWDUMP_OUTPUT=$(nvm /tmp/flashregion_3_gbe.bin dump); then
+			whiptail_error --title "Error" --msgbox "Unable to read back generated MAC address" 0 80
+			clean_up_mac
+			recovery 
+		fi 
+		# Find the line that contains the MAC address and print
+		CHANGED_MAC=$(printf "%s\n" "$NEWDUMP_OUTPUT" | sed -n 's/^MAC (part 0): //p')
+		whiptail_warning --title "Change ethernet MAC" --msgbox "New, modified ethernet MAC address to be flashed: $CHANGED_MAC" 0 80
+
+		# Decision: flash the new MAC address?
+		if whiptail_warning --title "Change ethernet MAC" --yesno "Do you really want to change the ethernet MAC address?${CONFIRM_EXTRA}" 0 80 --no-button "Do not change" --yes-button "Change"; then
+			# Insert modified GBE into ${CONFIG_BOARD}.rom
+			if ! ifdtool -i gbe:/tmp/flashregion_3_gbe.bin /tmp/${CONFIG_BOARD}.rom; then
+				whiptail_error --title "Error" --msgbox "Failed to insert modified GBE!" 0 80
+				recovery
+			fi
+
+			# Flash back modified GBE only
+			if  CHANGE_FLASH_OPTIONS=gbe_only /bin/flash.sh /tmp/${CONFIG_BOARD}.rom.new; then
+				whiptail_type $BG_COLOR_MAIN_MENU --title "Change ethernet MAC" --msgbox "Flashing completed successfully!" 0 80
+			else
+				whiptail_error --title "Error" --msgbox "Flashing FAILED!" 0 80
+				recovery
+			fi
+		else
+			whiptail_warning --title "Canceled" --msgbox "Ethernet MAC address change canceled." 0 80
+			clean_up_mac 
+		fi
+
+	else 
+		whiptail_error --title 'ERROR' --msgbox "Ifdtool and nvmutil is needed for mac randomization" 0 80
+		clean_up_mac
+	fi
+
+	clean_up_mac
+}
+
+clean_up_mac(){
+	# Don't leave temporary files lying around
+	rm -f /tmp/${CONFIG_BOARD}.* /tmp/flashregion_*.bin
+}
