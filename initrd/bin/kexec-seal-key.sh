@@ -269,10 +269,8 @@ for dev in $key_devices; do
 	STATUS_OK "$dev: LUKS TPM Disk Unlock Key added to slot $duk_keyslot"
 done
 
-# Now that we have setup the new keys, measure the PCRs
-# We don't care what ends up in PCR 6; we just want
-# to get the /tmp/luksDump.txt file.  We use PCR16
-# since it should still be zero
+# Now that we have setup the new keys, measure the LUKS headers into PCR 6.
+# The dump goes to /tmp/luksDump.txt for calcfuturepcr to use as input.
 STATUS "Measuring TPM Disk Unlock Key (DUK) for sealing policy (PCR[6])"
 echo "$key_devices" | xargs /bin/qubes-measure-luks.sh ||
 	DIE "Unable to measure the LUKS headers"

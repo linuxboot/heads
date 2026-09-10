@@ -164,7 +164,6 @@ unchanged; the TXT mechanism adds the DRTM capability on top of it.
 | 5 | Heads `insmod` wrapper | Each loaded kernel module: parameters + binary content (default `MODULE_PCR=5`) |
 | 6 | Heads `qubes-measure-luks.sh` | LUKS header dump for each encrypted drive |
 | 7 | Heads `cbfs-init.sh`, `uefi-init.sh` | Each CBFS/UEFI file: filename then content (default `CONFIG_PCR=7`) — covers `config.user`, GPG keyring, user CBFS files |
-| 16 | `tpmr.sh calcfuturepcr` (scratch use only) | Resettable debug PCR used as scratch pad during pre-computation of future PCR values; not part of any sealing policy |
 
 PCRs 0-3 are read at seal time and included in sealing policies. The zero
 state of PCRs 0, 1, and 3 is intentional — any unexpected extension of those

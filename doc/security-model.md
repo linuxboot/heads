@@ -409,13 +409,6 @@ creating additional hardware binding:
 │  │  → Changing kernel modules or LUKS headers requires resealing DUK    │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │  PCR 16 (Scratch)                                                   │  │
-│  │                                                                      │  │
-│  │  Used internally for calcfuturepcr (pre-computing future values)   │  │
-│  │  Not part of any sealing policy - purely for calculation             │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
