@@ -522,3 +522,236 @@ None are invoked by Heads, so their absence has no functional impact:
 | GetTime (0x187) | TPM time attestation |
 | EC_Ephemeral (0x18E), ZGen_2Phase (0x18D) | ECC 2-phase operations |
 | FieldUpgradeStart (0x18F), FieldUpgradeData (0x190) | Firmware field upgrade |
+
+---
+
+## TPM dictionary-attack (DA) lockout detection
+
+Heads detects and reports TPM DA lockout at every TPM-gated code
+path that can hit it: rollback-counter preflight (the gate every
+boot runs before TOTP/HOTP), the TOTP/HOTP unseal path, the
+increment-counter reseal path (`update_checksums`,
+`oem-factory-reset.sh`), and the recovery shell.
+
+### `tpmr.sh da_state` — DA state query
+
+```
+tpmr.sh da_state
+```
+
+Returns the TPM's current dictionary-attack state for both TPM1
+and TPM2, plus a machine-parsable summary line:
+
+* TPM1 (`tpm1_da_state`): queries `TPM_CAP_DA_LOGIC` (0x19).
+  Outputs `currentCount`, `thresholdCount`, and
+  `actionDependValue` (seconds remaining for TPM 1.2 defend
+  lock). When the TPM does not support `TPM_CAP_DA_LOGIC` (e.g.
+  STM returning `TPM_BAD_MODE 44`), reports "unavailable".
+* TPM2 (`tpm2_da_state`): queries `getcap properties-variable`
+  for `TPM2_PT_LOCKOUT_COUNTER`, `MAX_AUTH_FAIL`,
+  `LOCKOUT_INTERVAL`, and `LOCKOUT_RECOVERY`. When locked, the
+  `timer=` field carries `LOCKOUT_INTERVAL` (seconds between DA
+  counter decrements — the recoveryTime Heads deploys), not
+  `LOCKOUT_RECOVERY` (that governs lockoutAuth password blocking
+  and is often 0). No TPM2 command reports remaining lockout
+  time, so the user-facing countdown is computed as
+  interval − elapsed since lockout start, clamped to
+  [0, interval] (`tpmr.sh da_remaining`).
+
+Both functions emit a final `DA: state=… current=… threshold=…
+timer=…` line for machine parsing. The preflight guard and the
+recovery shell rely on this line.
+
+### `tpmr.sh bad_auth` — manual reproducer
+
+```
+tpmr.sh bad_auth                              # uses counter from /boot/kexec_rollback.txt
+tpmr.sh bad_auth <counter_id>                 # explicit counter
+tpmr.sh bad_auth --until-lockout [counter_id] # loop until DA lockout is reported
+tpmr.sh bad_auth --until-esc [counter_id]     # loop, printing da_state, until ESC
+```
+
+Deliberately attempts a counter increment with a wrong
+passphrase, bumping the TPM's DA failedTries counter on demand.
+Distinguishes auth-failure from active lockout by the
+return code of the increment itself — if the TPM is already
+in DA lockout, nvincrement returns TPM_RC_LOCKOUT (TPM2) or
+TPM_DEFEND_LOCK_RUNNING (TPM1) immediately, and bad_auth
+reports that without spending extra time on a TPM query that
+would hang against a wedged response. After a real auth
+attempt, `da_state` is queried once for the AFTER timer.
+Primary tool for reproducing and verifying lockout detection
+end-to-end on both TPM versions.
+
+Two optional, mutually-exclusive loop modes extend the single
+increment:
+
+* `--until-lockout` loops the deliberate bad-auth attempt, bumping the
+  DA counter each iteration until the increment itself reports DA
+  lockout. The stop condition is the increment output (`defend|lock`
+  on TPM1, `lockout|TPM_RC_LOCKOUT|0x?0*921` on TPM2) — it does not
+  depend on `getcap`/`da_state`, so it stops promptly even on a wedged
+  PTT where `getcap` would block. On lockout it stops and reports via
+  the normal AFTER `da_state` path.
+* `--until-esc` loops the deliberate bad-auth attempt, printing
+  `da_state` output (the real remaining lockout time) after each
+  increment, until the user presses ESC.
+
+Both modes reproduce a lockout from a clean state without the caller
+writing a manual `while` loop — useful for confirming the lockout
+threshold, the prompt `TPM_RC_LOCKOUT` return, and the AFTER
+`da_state` timer on real hardware.
+
+Before the first increment, `bad_auth` prints a warning that the
+test deliberately triggers DA lockout and requires confirmation
+(press Enter to continue, or ESC to cancel) so the operator cannot
+lock the TPM out by accident.
+
+### Output and visibility
+
+Each user-facing progress marker (start, attempt, outcome, AFTER
+state capturing, DONE, ABORTED) is emitted in two channels so it
+reaches both the user's terminal and any `/dev/kmsg` capture (e.g.
+for post-mortem analysis without serial access):
+
+* `STATUS` (or `echo ... >&2`) writes to `/dev/console` and
+  `/tmp/debug.log` — always visible to a user on the framebuffer
+  console in any output mode (see doc/logging.md).
+* A matching `DEBUG "..."` line writes to `/tmp/debug.log` and
+  (when `CONFIG_DEBUG_OUTPUT=y`) also to `/dev/kmsg` +
+  `/dev/console`. The `DEBUG` companion is the channel that
+  reaches `/dev/kmsg`, which `/dev/console` and `STATUS` do not.
+
+The two channels carry identical text, so the order in any
+post-mortem log file matches the order on screen. If only the
+`DEBUG` line is visible (e.g. capture started mid-test), the
+missing `STATUS`/`echo` line is implied by the surrounding DEBUG
+context.
+
+### Strategy markers — DEBUG only
+
+Two markers in `bad_auth` are emitted as DEBUG-only (no
+`echo >&2` companion) because they describe test strategy, not
+a user-visible event:
+
+* `bad_auth (TPM1): no BEFORE state capture — counter_increment is the
+  actual test, not the da_state query`
+* `bad_auth (TPM2): no BEFORE state capture — nvincrement is the
+  actual test, not the da_state query`
+
+`bad_auth` deliberately skips the BEFORE `da_state` capture because
+`tpm2 getcap properties-variable` and the TPM1 `getcapability
+-cap 0x19` query both block indefinitely against a wedged PTT
+lockout state (see `Esys_GetCapability` in tpm2-tss which forces
+`timeout = -1` for `_Finish`). The increment attempt itself is
+the actual test -- it returns promptly with
+`TPM_RC_LOCKOUT 0x921` (TPM2, exit 1) or
+`TPM_DEFEND_LOCK_RUNNING 0x803` (TPM1, exit 255) when the
+TPM is already locked out. The AFTER `da_state` query runs
+unconditionally after every attempt and captures the current
+DA counter / threshold / timer -- on a wedged TPM this
+call may also block, but it is the only path to surface the
+timer information for lockout recovery guidance.
+
+### Lockout detection on TPM2 — what to look for
+
+`tpm2-tools` 5.6 does NOT print the literal string "lockout" when
+`nvincrement` is rejected by a locked TPM. Its error output looks
+like:
+
+```
+ERROR: Failed to increment NV counter at index 0x1180918
+ERROR: Esys Finish failed: Tss2_ESys_NV_Increment (0x00000921)
+```
+
+`tpm2_bad_auth` matches the lockout case with
+`grep -Eqi 'lockout|TPM_RC_LOCKOUT|0x?0*921'`, which catches:
+
+* `lockout`/`TPM_RC_LOCKOUT` — sometimes emitted by the kernel TPM
+  driver at the transport layer (PTT) or by the tpm2-tools build
+  when configured for verbose diagnostics.
+* `0x921` / `0x00000921` / `0921` — the TCG-spec constant for
+  `TPM_RC_LOCKOUT`, always emitted by tpm2 `Esys Finish` on a
+  locked TPM.
+
+Without the hex pattern, the detection degenerates to "does the
+kernel driver happen to surface the word `lock`?" — which is not
+reliable across PTT, CR50, swtpm, and discrete TPMs. The hex
+pattern is the spec-anchored fallback.
+
+On TPM1, `tpm counter_increment` returns cleanly with exit code 255
+and prints `TPM_DEFEND_LOCK_RUNNING` in its error message — the
+existing `grep -qi 'defend\|lock'` in `tpm1_bad_auth` matches that
+reliably without an rc-string patch.
+
+### Marker-file protocol
+
+When any TPM-gated code path detects lockout, it sets the
+marker file `/tmp/secret/tpm_da_lockout`. The marker is consumed
+by:
+
+* `gui-init.sh` early boot STATUS line — surfaces the timer
+  before any auth attempt that could extend it.
+* `preflight_rollback_counter_before_reseal` error menu (in
+  `gui-init.sh`) — replaces the generic "TPM swap attack"
+  warning with a lockout-specific dialog built by
+  `da_lockout_msg`: the X/N failed-attempts count, the
+  recovery duration (Z), a line3 describing when auth
+  becomes available again, plus a one-line cause hint
+  (repeated auth failures, unclean power off/reset) and a
+  reset note (reseals secrets). **Waiting is the default** —
+  the first menu item (`w`) re-queries `da_remaining` and
+  re-displays the countdown, exiting automatically once the
+  counter drops back below maxTries.
+* `update_totp` (in `gui-init.sh`) — replaces the generic
+  "TOTP Generation Failed!" alarming message with a lockout-
+  specific dialog (same `da_lockout_msg` shape).
+* `recovery()` (in `functions.sh`) — emits a STATUS line with
+  the `da_state` summary so users who drop to recovery see
+  remaining time immediately.
+
+The marker is consumed (deleted) by whichever dialog reads it.
+This makes the protocol one-shot per failure, so re-preflight
+failures re-set it cleanly from scratch via the gate.
+
+### Common lockout causes
+
+* **Repeated failed auth attempts** — wrong TPM owner
+  passphrase entered at the TOTP/HOTP prompt enough times.
+* **Unclean shutdowns on Intel PTT and similar firmware TPMs**
+  — interrupted boots (long-press power button, hard reset
+  during kexec, recovery-shell exit) skip `TPM2_Shutdown` and
+  can bump the PTT DA counter. After enough of these, the TPM
+  enters lockout even though no user-facing auth was attempted.
+  Observed on T480 (ThinkPad) and other Intel PTT platforms.
+
+### Recovery
+
+<!-- FLAG (stale, retained not deleted): the previous bullets here claimed
+     "TPM2 lockout clears after the TCG backoff timer expires
+     (TCG-standard exponential: seconds -> minutes -> hours)". Heads resets
+     the DA policy to a fixed maxTries/recoveryTime via tpmr.sh tpm2_reset()
+     (max-tries=10 --recovery-time=3600 --lockout-recovery-time=0), and the
+     user-facing copy therefore shows the fixed recoveryTime, not an
+     exponential backoff. Remove this note once hardware confirms the fixed
+     policy everywhere. -->
+
+* TPM2 lockout self-heals: with no new failures, the DA counter
+  decrements by one every recoveryTime (Heads resets it to
+  `recoveryTime=3600`, i.e. `LOCKOUT_INTERVAL`), so one attempt
+  frees up after that window and lockout lifts once the counter
+  drops below maxTries. Power cycling does **not** clear TPM2
+  lockout state.
+* TPM1 defend lock clears on power cycle on some firmwares
+  but not all (Infineon in particular). `tpm-reset.sh` from
+  the recovery shell clears the DA counter.
+* For long timers, "Reset the TPM" from the GUI (Options →
+  TPM/TOTP/HOTP Options → Reset the TPM) is faster than
+  waiting. This requires the user to know (or set) the owner
+  passphrase and re-provision TOTP/HOTP secrets.
+
+For TPM1 chips that do not expose DA state via
+`TPM_CAP_DA_LOGIC` (STM and some Infineon), the preflight
+guard is a no-op — lockout is detected only when the
+increment / unseal itself fails and reports "Defend lock
+running" / TPM_RC_LOCKOUT.

@@ -432,6 +432,114 @@ INPUT() {
 	fi
 }
 
+# format_dhms <seconds> -> D:H:M:S
+#
+# Convert an integer number of seconds to a colon-separated
+# "days:hours:minutes:seconds" string (e.g. `0:0:2:15`). No zero-padding
+# and no unit labels -- used for the TPM DA-lockout countdown where a real,
+# machine-read value is preferred over an approximate "~N min".
+# Non-numeric or empty input is treated as 0.
+format_dhms() {
+	local total="${1:-0}"
+	case "$total" in
+		''|*[!0-9]*) total=0 ;;
+	esac
+	local d h m s
+	d=$((total / 86400))
+	total=$((total % 86400))
+	h=$((total / 3600))
+	total=$((total % 3600))
+	m=$((total / 60))
+	s=$((total % 60))
+	printf '%d:%d:%d:%d' "$d" "$h" "$m" "$s"
+}
+
+# Human-readable duration for lockout estimates: "about 1 hour",
+# "about 59 minutes", "less than a minute". Machine-facing output
+# (da_remaining seconds, DA: timer=) stays numeric.
+format_human_duration() {
+	local s="$1" m h d hm rem out
+	case "$s" in (*[!0-9]*) s=0;; esac
+	[ -n "$s" ] || s=0
+	if [ "$s" -lt 60 ]; then echo "less than a minute"; return 0; fi
+	m=$(( (s + 30) / 60 ))          # round to nearest minute
+	if [ "$m" -lt 60 ]; then
+		[ "$m" -eq 1 ] && echo "1 minute" || echo "$m minutes"
+		return 0
+	fi
+	d=$((m / 1440)); hm=$((m % 1440)); h=$((hm / 60)); rem=$((hm % 60))
+	if [ "$d" -gt 0 ]; then
+		out="${d} day"; [ "$d" -ne 1 ] && out="${out}s"
+		if [ "$h" -gt 0 ]; then out="${out} ${h} hour"; [ "$h" -ne 1 ] && out="${out}s"; fi
+	elif [ "$h" -gt 0 ]; then
+		out="${h} hour"; [ "$h" -ne 1 ] && out="${out}s"
+		if [ "$rem" -gt 0 ]; then out="${out} ${rem} min"; fi
+	else
+		out="${m} minutes"
+	fi
+	echo "$out"
+}
+
+# Shared DA-lockout message body (dialogs + preflight). Args:
+#   $1 counter (X)   $2 threshold (N)   $3 interval-seconds (Z)   $4 line3
+# Output: status lines, a one-line cause hint, and a reset note -- kept
+# short so it fits the 80x25 newt floor (x230 / qemu use text mode).
+# Never exits non-zero on normal input; the interval-guard is set -e-safe.
+da_lockout_msg() {
+	local counter="${1:-}" threshold="${2:-}" interval="${3:-}" line3="${4:-}" z out
+	if [ -n "$counter" ] && [ -n "$threshold" ] && \
+		echo "$counter" | grep -qE '^[0-9]+$' && echo "$threshold" | grep -qE '^[0-9]+$'; then
+		out="TPM lockout: ${counter} of ${threshold} allowed auth attempts used."
+	else
+		out="TPM lockout: allowed auth attempts exhausted."
+	fi
+	if [ -z "$interval" ] || [ "$interval" -le 0 ] 2>/dev/null; then
+		interval="$HEADS_TPM2_DA_RECOVERY_TIME"
+	fi
+	z="$(format_human_duration "$interval")"
+	printf '%s\n%s\n%s\n\n%s\n%s\n\n%s\n' \
+		"$out" \
+		"One attempt frees up after ${z} without new failures;" \
+		"$line3" \
+		"Causes: repeated auth failures, unclean power off/reset." \
+		"Reset the TPM now (reseals secrets) if you can't wait." \
+		"Choose an option below."
+}
+
+# Keep in sync with tpmr.sh tpm2_reset() --recovery-time=3600.
+# Defaults to 3600 (1 hour); tpmr.sh sets it on TPM2 reset.
+[ -z "${HEADS_TPM2_DA_RECOVERY_TIME:-}" ] && HEADS_TPM2_DA_RECOVERY_TIME=3600
+
+# run_with_timeout <seconds> <command...>
+#
+# Run <command...> and return after at most <seconds>, killing it if it
+# exceeds the deadline. stdout/stderr pass through to the caller (so
+# command substitution captures stdout normally). Returns the command's
+# exit code, or 124 if it was killed for exceeding the timeout.
+#
+# Heads' busybox is built with CONFIG_TIMEOUT unset, so the standard
+# `timeout` tool is unavailable; this is the in-shell equivalent. It is
+# used to bound `tpm2 getcap` / `tpm getcapability`, which can block
+# indefinitely during DA lockout on some TPMs (notably Intel PTT).
+run_with_timeout() {
+	local secs="$1" pid waited=0 rc
+	shift
+	"$@" &
+	pid=$!
+	while kill -0 "$pid" 2>/dev/null; do
+		waited=$((waited + 1))
+		if [ "$waited" -ge "$secs" ]; then
+			kill "$pid" 2>/dev/null || true
+			wait "$pid" 2>/dev/null || true
+			return 124
+		fi
+		sleep 1
+	done
+	rc=0
+	wait "$pid" 2>/dev/null || rc=$?
+	return "$rc"
+}
+
 # Filter known harmless LVM warning noise while preserving all other stderr.
 # Messages that are expected during device scanning (e.g. "not an LVM PV") are
 # redirected to the debug log only - they are not errors and should not appear
@@ -1131,6 +1239,38 @@ recovery() {
 			done
 		fi
 
+		# Show DA lockout state so users who landed in recovery due to
+		# repeated auth failures see lockout status and remaining time.
+		# Full detail goes to debug.log at LOG level; a single STATUS
+		# line summarizes the user-relevant state on console (visible
+		# in Quiet mode, since STATUS always reaches console).
+		if [ "$CONFIG_TPM" = "y" ]; then
+			local da_output da_summary da_unavail
+			da_output="$(tpmr.sh da_state 2>/dev/null)" || true
+			if [ -n "$da_output" ]; then
+				# Full detail to debug.log only.
+				echo "$da_output" | while IFS= read -r line; do
+					LOG "$line"
+				done
+				# da_state always emits a '=>' summary, but only the
+				# lockout-active lines warrant surfacing on the console.
+				# Everything else (within threshold, above threshold,
+				# limited info) is routine and stays in debug.log only.
+				da_summary="$(echo "$da_output" | grep -E '^=> (TPM LOCKOUT ACTIVE|TPM DEFEND LOCK ACTIVE)' | head -1)"
+				if [ -n "$da_summary" ]; then
+					STATUS "TPM DA: ${da_summary#=> }"
+				else
+					# No lockout-active => line: either DA state is
+					# unavailable on this TPM (e.g. STM TPM1 with no
+					# TPM_CAP_DA_LOGIC support), or the TPM is simply
+					# within/above threshold but not currently locked.
+					# Only surface the self-descriptive unavailable line.
+					da_unavail="$(echo "$da_output" | grep '^TPM DA state:' | head -1)"
+					[ -n "$da_unavail" ] && STATUS "$da_unavail"
+				fi
+			fi
+		fi
+
 		# Drain any queued serial input before starting the interactive shell.
 		# This avoids stale bytes being interpreted as bash commands on entry.
 		# NOTE: -t 0 in BusyBox returns immediately (poll-only, does not consume
@@ -1572,15 +1712,32 @@ debug_tpm_reset_required_state() {
 
 set_tpm_reset_required() {
 	TRACE_FUNC
-	local reason source
-	reason="${1:-TPM state marked invalid by unknown caller}"
-	source="${2:-unknown}"
+	local reason="${1:-TPM state marked invalid by unknown caller}"
+	local source="${2:-unknown}"
+	local da_counter="${3:-}" da_threshold="${4:-}" da_interval="${5:-}"
 	mkdir -p /tmp/secret || true
 	echo "$reason" >"$(tpm_reset_required_reason_path)" 2>/dev/null || true
 	echo "$source" >"$(tpm_reset_required_source_path)" 2>/dev/null || true
 	date -u "+%Y-%m-%d %H:%M:%S UTC" >"$(tpm_reset_required_timestamp_path)" 2>/dev/null || true
 	: >"$(tpm_reset_required_marker_path)"
-	WARN "TPM reset required: $reason"
+	if [ -n "$da_counter" ] && [ -n "$da_threshold" ] && \
+		echo "$da_counter" | grep -qE '^[0-9]+$' && echo "$da_threshold" | grep -qE '^[0-9]+$'; then
+		local z="${da_interval:-}"
+		if [ -z "$z" ] || [ "$z" -le 0 ] 2>/dev/null; then
+			z="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+		fi
+		z="$(format_human_duration "$z")"
+		WARN "TPM lockout: ${da_counter} of ${da_threshold} attempts used; one attempt frees up after ${z} without new failures."
+	else
+		# Missing numbers — if interval is available, this is a DA context
+		local z="${da_interval:-}"
+		if [ -n "$z" ] && echo "$z" | grep -qE '^[0-9]+$' && [ "$z" -gt 0 ] 2>/dev/null; then
+			z="$(format_human_duration "$z")"
+			WARN "TPM lockout: attempts exhausted; one attempt frees up after ${z} without new failures."
+		else
+			WARN "TPM reset required: $reason"
+		fi
+	fi
 }
 
 clear_tpm_reset_required() {
@@ -2066,9 +2223,10 @@ preflight_rollback_counter_before_reseal() {
 
 	fail_preflight() {
 		local message="$1"
+		local da_c="${2:-}" da_t="${3:-}" da_i="${4:-}"
 		mkdir -p /tmp/secret || true
 		: >"$reset_required_marker"
-		set_tpm_reset_required "$message" "preflight_rollback_counter_before_reseal"
+		set_tpm_reset_required "$message" "preflight_rollback_counter_before_reseal" "$da_c" "$da_t" "$da_i"
 		if [ "$on_error" = "return" ]; then
 			echo "$message" >"$error_file"
 			return 1
@@ -2097,8 +2255,102 @@ preflight_rollback_counter_before_reseal() {
 	fi
 
 	DEBUG "Preflight: validating rollback counter $counter_id before protected operations"
-	if ! tpmr.sh counter_read -ix "$counter_id" >/dev/null 2>&1; then
-		fail_preflight "TPM integrity counter cannot be read. Possible cause: TPM was swapped or reset. This could indicate a TPM swap attack. Reset TPM from GUI (Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
+	# Capture stderr from counter_read so the actual tpm2 error lands in debug.log
+	# (issue #2205: pre-fix code did `>/dev/null 2>&1` and swallowed the tpm2 rc,
+	# making DA-lockout-vs-handle-missing-and-everything-else indistinguishable).
+	# DO_WITH_DEBUG logs the command's stdout/stderr at LOG level (debug.log only).
+	# We also stash stderr locally so the preflight can branch on DA lockout.
+	preflight_counter_err="$(mktemp)"
+	if DO_WITH_DEBUG tpmr.sh counter_read -ix "$counter_id" \
+			>"$preflight_counter_err" 2>&1; then
+		rm -f "$preflight_counter_err"
+	else
+		preflight_counter_msg="$(cat "$preflight_counter_err" 2>/dev/null || true)"
+		rm -f "$preflight_counter_err"
+		LOG "Preflight: counter_read failed; output: $preflight_counter_msg"
+
+		# Detect DA lockout directly from the failed counter_read's own
+		# output, exactly as tpm1_unseal / tpm2_unseal do. During lockout
+		# the TPM rejects the read with TPM_RC_LOCKOUT (TPM2: "0x921",
+		# "lockout") or TPM_DEFEND_LOCK_RUNNING (TPM1: "defend"). This is
+		# the authoritative signal -- issue #2205 was precisely that the
+		# pre-fix code discarded this output (">/dev/null 2>&1"), making
+		# lockout indistinguishable from a swapped/missing counter. TPM1
+		# tpmtotp prints errors to stdout and TPM2 tpm2-tools to stderr,
+		# so both streams are captured above and grepped together.
+		local da_line da_current da_threshold da_timer lockout_detected timer_display
+		lockout_detected="n"
+		if echo "$preflight_counter_msg" | grep -Eqi 'lockout|TPM_RC_LOCKOUT|0x?0*921|defend'; then
+			lockout_detected="y"
+		fi
+
+		# Best-effort policy/timer enrichment from da_state. getcap can fail
+		# or block during lockout on some TPMs (notably Intel PTT), so this
+		# is non-fatal: the output grep above decides the branch; this only
+		# supplies current/threshold/remaining-backoff when available.
+		da_state_out="$(tpmr.sh da_state 2>/dev/null || true)"
+		LOG "Preflight: da_state output:\n$da_state_out"
+		da_line="$(echo "$da_state_out" | grep '^DA: ' || true)"
+		# Guard sed parse: an empty or malformed DA: line must
+		# yield empty fields, not the whole line.
+		if [ -n "$da_line" ]; then
+			da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+			da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+			da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		else
+			da_current=""
+			da_threshold=""
+			da_timer=""
+		fi
+		if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+			lockout_detected="y"
+		elif [ -n "$da_current" ] && [ -n "$da_threshold" ] && \
+			[ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+			lockout_detected="y"
+		fi
+		DEBUG "Preflight: lockout_detected=$lockout_detected (da_current='$da_current' da_threshold='$da_threshold' da_timer='$da_timer')"
+
+		if [ "$lockout_detected" = "y" ]; then
+			# Marker file signals the GUI menu loop (gui-init.sh update_totp)
+			# to use PR #2124's DA-lockout-specific whiptail instead of the
+			# generic reset-required dialog. Consistent with tpm1_unseal /
+			# tpm2_unseal which also set this marker on lockout.
+			mkdir -p /tmp/secret || true
+			: >/tmp/secret/tpm_da_lockout
+			# Record when the lockout started (first detection wins).
+			[ -f /tmp/secret/tpm_da_lockout_start ] || date +%s > /tmp/secret/tpm_da_lockout_start
+			# Resolve Z: da_timer (numeric>0) or fall back to HEADS_TPM2_DA_RECOVERY_TIME
+			local Z="${da_timer:-}"
+			if ! echo "$Z" | grep -qE '^[0-9]+$' || [ "$Z" -le 0 ] 2>/dev/null; then
+				Z="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+			fi
+			# Resolve line3: live remaining if available, else typically about Z
+			local line3 rem
+			rem="$(tpmr.sh da_remaining 2>/dev/null || true)"
+			if [ -n "$rem" ] && echo "$rem" | grep -qE '^[0-9]+$' && [ "$rem" -gt 0 ] 2>/dev/null; then
+				line3="about $(format_human_duration "$rem") until the TPM accepts auth again."
+			else
+				line3="typically about $(format_human_duration "$Z") until the TPM accepts auth again."
+			fi
+			local preflight_da_msg
+			preflight_da_msg="$(da_lockout_msg "${da_current:-}" "${da_threshold:-}" "$Z" "$line3")"
+			fail_preflight "$preflight_da_msg" "$da_current" "$da_threshold" "$Z"
+			return 1
+		fi
+
+		# Not lockout (or da_state unavailable -- e.g. STM TPM1 with no
+		# TPM_CAP_DA_LOGIC support): genuine counter / TPM replacement or
+		# some other read failure. Keep reset guidance but drop the
+		# "TPM swap attack" alarmism; full captured error lives in
+		# debug.log so future #2205-style reports are diagnosable from
+		# the same log the user already attached.
+		fail_preflight "TPM rollback counter $counter_id cannot be read.
+
+The counter may have been reset or removed, or the TPM may have been
+replaced. The captured tpm2 error is in /tmp/debug.log.
+
+Recommended: reset the TPM from the GUI
+(Options -> TPM/TOTP/HOTP Options -> Reset the TPM)."
 		return 1
 	fi
 
@@ -2146,7 +2398,7 @@ read_tpm_counter() {
 
 increment_tpm_counter() {
 	TRACE_FUNC
-	local counter_id counter_present tpm_passphrase increment_ok
+	local counter_id counter_present tpm_passphrase increment_ok inc_err
 	counter_id="$(echo "$1" | tr -d '\n')"
 	tpm_passphrase="$2"
 	counter_present="n"
@@ -2166,6 +2418,72 @@ increment_tpm_counter() {
 		tpm_passphrase="$(cat /tmp/secret/tpm_owner_passphrase)"
 	fi
 
+	# Preflight DA state check before incrementing. Catches TPM lockout
+	# before we attempt any operation that would extend it.
+	#
+	# TPM1: timer=0 means state inactive; timer>0 means locked.
+	#        NOTE: some TPM1 chips (e.g., STM, some Infineon) do not
+	#        support TPM_CAP_DA_LOGIC and return TPM_BAD_MODE (44).
+	#        da_state returns "unavailable" and the guard has no DA info
+	#        -- lockout is detected only when the increment itself fails
+	#        (handled in the increment block below).
+	# TPM2: timer absent when count<threshold; timer>0 when locked.
+	# TPM1 timer>0 or TPM2 timer>0: set marker, DIE with remaining time.
+	# TPM1 timer=0, count>=threshold: above threshold but not locked, WARN.
+	# Both: count>=threshold-1 without lockout: WARN.
+	if [ "$CONFIG_TPM" = "y" ]; then
+		local da_line da_current da_threshold da_timer lockout_msg
+		da_line="$(run_with_timeout 3 tpmr.sh da_state 2>/dev/null | grep '^DA: ' || true)"
+		da_current=$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/')
+		da_threshold=$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/')
+		# With sed -n /p, da_timer stays empty when timer= field absent (TPM2 clean)
+		da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+		if [ -n "$da_current" ] && [ -n "$da_threshold" ]; then
+			if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				local timer_display
+				timer_display="$(format_human_duration "$da_timer")"
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (locked, ${timer_display})"
+				# Set marker before DIE so recovery shell (commit 5) can
+				# display the DA state, and so gui-init.sh (commit 6)
+				# sees the lockout marker if the failure cascades.
+				mkdir -p /tmp/secret 2>/dev/null || true
+				touch /tmp/secret/tpm_da_lockout 2>/dev/null || true
+				lockout_msg="TPM dictionary attack lockout active (DA $da_current/$da_threshold)."
+				if [ -n "$da_timer" ] && echo "$da_timer" | grep -qE '^[0-9]+$' && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+					lockout_msg="$lockout_msg
+
+Clears in about $(format_human_duration "$da_timer")."
+				else
+					lockout_msg="$lockout_msg
+
+Typically clears in about $(format_human_duration "$HEADS_TPM2_DA_RECOVERY_TIME")."
+				fi
+				DIE "$lockout_msg"
+			fi
+			if [ "$da_current" -ge "$da_threshold" ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (above threshold, not locked)"
+				local z="${da_timer:-}"
+				if [ -z "$z" ] || [ "$z" -le 0 ] 2>/dev/null; then
+					z="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+				fi
+				z="$(format_human_duration "$z")"
+				WARN "TPM lockout: ${da_current} of ${da_threshold} attempts used; one attempt frees up after ${z} without new failures."
+			elif [ "$da_current" -ge $((da_threshold - 1)) ] 2>/dev/null; then
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (nearing threshold)"
+				local z="${da_timer:-}"
+				if [ -z "$z" ] || [ "$z" -le 0 ] 2>/dev/null; then
+					z="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+				fi
+				z="$(format_human_duration "$z")"
+				WARN "TPM lockout: ${da_current} of ${da_threshold} attempts used; one attempt frees up after ${z} without new failures."
+			else
+				DEBUG "increment_tpm_counter: DA $da_current/$da_threshold (within threshold)"
+			fi
+		else
+			DEBUG "increment_tpm_counter: TPM DA state unavailable or limited"
+		fi
+	fi
+
 	# Try to increment the counter.  We normally hide the verbose
 	# output of tpmr.sh commands to avoid overwhelming the console, but we
 	# must *not* swallow any interactive prompts.  The previous implementation
@@ -2176,6 +2494,11 @@ increment_tpm_counter() {
 	# file while still letting stdout appear on the console (and logging
 	# stderr to debug log).
 	DEBUG "incrementing TPM counter $counter_id"
+	# Capture the increment's own stderr (TPM2) so a DA-lockout rejection can
+	# be distinguished from a swapped/missing counter (issue #2205). TPM1
+	# tpmtotp prints errors to stdout, which lands in /tmp/counter-$counter_id
+	# via the tee below, so only TPM2 needs this stderr temp file.
+	inc_err="$(mktemp)"
 
 	if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
 		# TPM2: counter_increment tries bare nvincrement (index auth) first,
@@ -2186,7 +2509,7 @@ increment_tpm_counter() {
 			set -o pipefail
 			DO_WITH_DEBUG --mask-position 5 \
 				tpmr.sh counter_increment -ix "$counter_id" -pwdc "${tpm_passphrase:-}" \
-				2>/dev/null |
+				2>"$inc_err" |
 				tee /tmp/counter-"$counter_id" >/dev/null
 		); then
 			increment_ok="y"
@@ -2210,6 +2533,55 @@ increment_tpm_counter() {
 	fi
 
 	if [ "$increment_ok" != "y" ]; then
+		# Detect DA lockout from the increment's own failure output, exactly
+		# as the preflight guard and tpm1_unseal / tpm2_unseal do. During
+		# lockout the TPM rejects the increment with TPM_RC_LOCKOUT (TPM2:
+		# "0x921", "lockout") or TPM_DEFEND_LOCK_RUNNING (TPM1: "defend").
+		# TPM2 tpm2-tools prints errors to stderr (captured in $inc_err);
+		# TPM1 tpmtotp prints errors to stdout (captured in
+		# /tmp/counter-$counter_id via tee). The pre-increment da_state guard
+		# above can't catch this reliably because getcap fails or blocks
+		# during lockout on some TPMs (notably Intel PTT).
+		local da_state_out da_line da_timer timer_display lockout_detected lockout_msg
+		lockout_detected="n"
+		if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+			if grep -Eqi 'lockout|TPM_RC_LOCKOUT|0x?0*921' "$inc_err" 2>/dev/null; then
+				lockout_detected="y"
+			fi
+		else
+			if grep -Eqi 'defend|lock' "/tmp/counter-$counter_id" 2>/dev/null; then
+				lockout_detected="y"
+			fi
+		fi
+		rm -f "$inc_err"
+		DEBUG "increment_tpm_counter: lockout_detected=$lockout_detected"
+
+		if [ "$lockout_detected" = "y" ]; then
+			mkdir -p /tmp/secret || true
+			touch /tmp/secret/tpm_da_lockout 2>/dev/null || true
+			# Best-effort policy/timer enrichment from da_state. getcap can
+			# fail or block during lockout on some TPMs (notably Intel PTT),
+			# so this is non-fatal; the output grep above decides the branch.
+			da_state_out="$(tpmr.sh da_state 2>/dev/null || true)"
+			da_line="$(echo "$da_state_out" | grep '^DA: ' || true)"
+			da_timer=$(echo "$da_line" | sed -n 's/.*timer=\([^ ]*\).*/\1/p')
+			timer_display=""
+			if [ -n "$da_timer" ] && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				timer_display="$(format_human_duration "$da_timer")"
+			fi
+			lockout_msg="TPM is in dictionary-attack lockout."
+			if [ -n "$da_timer" ] && echo "$da_timer" | grep -qE '^[0-9]+$' && [ "$da_timer" -gt 0 ] 2>/dev/null; then
+				lockout_msg="$lockout_msg
+
+Clears in about $(format_human_duration "$da_timer")."
+			else
+				lockout_msg="$lockout_msg
+
+Typically clears in about $(format_human_duration "$HEADS_TPM2_DA_RECOVERY_TIME")."
+			fi
+			DIE "$lockout_msg"
+		fi
+
 		if [ "$counter_present" = "y" ]; then
 			mkdir -p /tmp/secret || true
 			: >"$reset_required_marker"
@@ -2236,6 +2608,7 @@ increment_tpm_counter() {
 		DIE "TPM counter increment failed for rollback prevention. Reset the TPM using the GUI menu (Options -> TPM/TOTP/HOTP Options -> Reset the TPM) to clear the counter and allow a fresh one to be created."
 	fi
 
+	rm -f "$inc_err"
 	DEBUG "TPM counter incremented successfully for index $counter_id"
 }
 

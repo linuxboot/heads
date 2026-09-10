@@ -286,8 +286,95 @@ update_totp() {
 			DEBUG "TPM state at TOTP failure:"
 			DEBUG "$(pcrs)"
 
-			totp_menu_text=$(
-				cat <<EOF
+			# If the unseal path set the DA lockout marker (commit 3),
+			# route to a lockout-specific dialog instead of the generic
+			# "TOTP Generation Failed!" alarming message. This matches
+			# the preflight gate's behavior and avoids telling the user
+			# "THIS COULD INDICATE TAMPERING!" when the real cause is a
+			# recoverable TPM lockout.
+			if [ -f /tmp/secret/tpm_da_lockout ]; then
+				rm -f /tmp/secret/tpm_da_lockout
+				# Consume the marker file here (the start-time file
+				# persists -- it records when the lockout was first
+				# detected, so subsequent boots can compute elapsed time).
+				rm -f /tmp/secret/tpm_da_lockout_msg
+				# Preserve the verbose cause/backoff explanation on the
+				# console/log (debug.log) instead of inflating the dialog.
+				LOG "TPM dictionary-attack lockout prevented TOTP unseal."
+				LOG "Cause: repeated bad TPM auth attempts, typically from an incorrect TPM owner passphrase."
+				LOG "Lockout self-heals: one failed attempt is forgotten per recoveryTime (Heads sets ~1 hour); lockout lifts once the counter drops below maxTries."
+				# Waiting is the default action: 'w' re-queries the live
+				# countdown each pass (the TPM self-heals ~one attempt per
+				# recoveryTime) and re-displays until the lockout lifts
+				# (TOTP then unseals in place) or the user picks a real
+				# option. ESC still escapes to the recovery shell.
+				lockout_lifted="n"
+				while true; do
+					# Source cached DA policy (counter, max_auth, interval)
+					# for the dialog body when getcap is blocked in lockout.
+					if [ -s /tmp/secret/tpm_da_props ]; then
+						. /tmp/secret/tpm_da_props
+					fi
+					# tpmr.sh da_remaining returns final seconds remaining
+					# (TPM2: recovery - elapsed; TPM1: actionDependValue).
+					rem="$(tpmr.sh da_remaining 2>/dev/null || true)"
+					if [ -n "$rem" ] && echo "$rem" | grep -qE '^[0-9]+$'; then
+						_lockout_timer_line="about $(format_human_duration "$rem") until the TPM accepts auth again."
+					elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+						_int_raw="$(tpm2 getcap properties-variable 2>/dev/null \
+							| grep 'TPM2_PT_LOCKOUT_INTERVAL' \
+							| sed -n 's/.*: *//p' || true)"
+						_int_dec="$(echo "$_int_raw" | sed 's/^0x//' | awk '{print $1}' || true)"
+						if echo "$_int_raw" | grep -qE '^0x'; then
+							_int=$((16#$_int_dec))
+						else
+							_int=$_int_dec
+						fi
+						if ! echo "$_int" | grep -qE '^[0-9]+$' || [ "$_int" -le 0 ] 2>/dev/null; then
+							_int="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+						fi
+						_lockout_timer_line="typically about $(format_human_duration "$_int") until the TPM accepts auth again."
+					else
+						_lockout_timer_line="Lockout countdown unavailable."
+					fi
+					totp_menu_text="$(da_lockout_msg "${counter:-}" "${max_auth:-}" "${_int:-}" "$_lockout_timer_line")"
+					whiptail_error --title 'ERROR: TPM Dictionary Attack Lockout' \
+						--menu "$totp_menu_text" 0 80 5 \
+						'w' ' Wait -- refresh countdown' \
+						'p' ' Reset the TPM' \
+						'i' ' Ignore error and continue to main menu' \
+						's' ' Recovery shell' \
+						'x' ' Exit to recovery shell' \
+						2>/tmp/whiptail || recovery "GUI menu failed"
+					option=$(cat /tmp/whiptail)
+					case "$option" in
+					w)
+						# Refresh: re-check whether the lockout lifted
+						# (counter back below maxTries) and if so retry
+						# the unseal in place.
+						da_state_out="$(tpmr.sh da_state 2>/dev/null || true)"
+						da_line="$(echo "$da_state_out" | grep '^DA: ' || true)"
+						da_cur="$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/' || true)"
+						da_max="$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/' || true)"
+						if echo "$da_cur" | grep -qE '^[0-9]+$' && echo "$da_max" | grep -qE '^[0-9]+$' && \
+							[ "$da_cur" -lt "$da_max" ] 2>/dev/null; then
+							STATUS "TPM lockout lifted (${da_cur} of ${da_max} failures); retrying TOTP unseal."
+							TOTP="$(HEADS_NONFATAL_UNSEAL=y unseal-totp.sh)"
+							if [ $? -eq 0 ]; then
+								BG_COLOR_MAIN_MENU="normal"
+								lockout_lifted="y"
+								break
+							fi
+						fi
+						;;
+					*)
+						break
+						;;
+					esac
+				done
+			else
+				totp_menu_text=$(
+					cat <<EOF
 ERROR: $CONFIG_BRAND_NAME couldn't generate the TOTP code.
 
 After OEM Factory Reset / Re-Ownership, this is expected on first boot
@@ -303,18 +390,22 @@ If you have not just reflashed your BIOS, THIS COULD INDICATE TAMPERING!
 
 How would you like to proceed?
 EOF
-			)
-			whiptail_error --title "ERROR: TOTP Generation Failed!" \
-				--menu "$totp_menu_text" 0 80 4 \
-				'g' ' Generate new HOTP/TOTP secret' \
-				'p' ' Reset the TPM' \
-				'i' ' Ignore error and continue to main menu' \
-				'x' ' Exit to recovery shell' \
-				2>/tmp/whiptail || recovery "GUI menu failed"
+				)
+				whiptail_error --title "ERROR: TOTP Generation Failed!" \
+					--menu "$totp_menu_text" 0 80 4 \
+					'g' ' Generate new HOTP/TOTP secret' \
+					'p' ' Reset the TPM' \
+					'i' ' Ignore error and continue to main menu' \
+					'x' ' Exit to recovery shell' \
+					2>/tmp/whiptail || recovery "GUI menu failed"
+			fi
 
-			option=$(cat /tmp/whiptail)
-			case "$option" in
-			g)
+			# Skip the option dispatch when the lockout lifted and the
+			# in-place TOTP retry already succeeded (lockout_lifted=y).
+			if [ "$lockout_lifted" != "y" ]; then
+				option=$(cat /tmp/whiptail)
+				case "$option" in
+				g)
 				if tpm_reset_required; then
 					debug_tpm_reset_required_state
 					whiptail_error --title 'ERROR: TPM Reset Required' \
@@ -347,10 +438,14 @@ EOF
 					reseal_tpm_disk_decryption_key || prompt_missing_gpg_key_action
 				fi
 				;;
+			s)
+				recovery "User requested recovery shell"
+				;;
 			x)
 				recovery "User requested recovery shell"
 				;;
 			esac
+			fi
 		else
 			INTEGRITY_GATE_REQUIRED="n"
 		fi
@@ -908,6 +1003,24 @@ force_unsafe_boot() {
 # gui-init start
 TRACE_FUNC
 
+# Surface TPM DA lockout status as early as possible, before any auth
+# attempt that could extend the lockout. Non-mutating query -- safe to
+# run before HOTP detection. If lockout is active, print a STATUS line
+# so the user sees remaining backoff time immediately. If no lockout,
+# silently continue (no noise on every boot).
+if [ "$CONFIG_TPM" = "y" ]; then
+	da_state_out="$(run_with_timeout 3 tpmr.sh da_state 2>/dev/null || true)"
+	if [ -n "$da_state_out" ]; then
+		# Only surface a STATUS line when lockout is actually active --
+		# da_state always emits a '=>' summary, but most boots are
+		# "Within lockout threshold" which should stay silent.
+		da_summary="$(echo "$da_state_out" | grep -E '^=> (TPM LOCKOUT ACTIVE|TPM DEFEND LOCK ACTIVE)' | head -1)"
+		if [ -n "$da_summary" ]; then
+			STATUS "TPM DA: ${da_summary#=> }"
+		fi
+	fi
+fi
+
 if [ -x /bin/hotp_verification ]; then
 	# HOTP required by board config, always detect branding
 	detect_usb_security_dongle_branding
@@ -947,23 +1060,125 @@ Cannot verify TPM rollback protection.
 
 $preflight_reason
 
-Possible causes:
- - TPM was reset or replaced
- - /boot disk was swapped or restored
- - TPM state tampering occurred
-
-WARNING: If none of the above were intentional, treat /boot as
-UNTRUSTED. A disk or TPM swap attack cannot be ruled out.
-Verify integrity before trusting any boot files.
-
 Recommended first step:
  - Show integrity report (TOTP/HOTP + /boot)
 
 Choose an action:
 EOF
 	)
+
+	# If the preflight gate detected DA lockout (commit 2 sets the marker),
+	# the generic "TPM swap attack" warning block above is misleading --
+	# the user is not under attack, the TPM is in lockout and will recover.
+	# Replace the menu text with a lockout-specific version. The marker
+	# file is consumed here (deleted after the dialog) so subsequent
 	_preflight_report_shown="n"
 	while [ "$rollback_preflight_failed" = "y" ]; do
+		# If the preflight gate detected DA lockout (commit 2 sets the
+		# marker), show a lockout-specific dialog instead of the generic
+		# "TPM swap attack" menu. The marker is consumed here (deleted
+		# after the dialog) so subsequent re-preflight failures re-set
+		# it from scratch.
+		if [ -f /tmp/secret/tpm_da_lockout ]; then
+			rm -f /tmp/secret/tpm_da_lockout
+			# Consume the marker file here (the start-time file
+			# persists -- it records when the lockout was first
+			# detected, so subsequent boots can compute elapsed time).
+			rm -f /tmp/secret/tpm_da_lockout_msg
+			# Waiting is the default action: 'w' re-queries the live
+			# countdown each pass (the TPM self-heals ~one attempt per
+			# recoveryTime) and re-displays until the lockout lifts or
+			# the user picks a real option.
+			lockout_lifted="n"
+			while true; do
+				# Source cached DA policy (counter, max_auth, interval)
+				# for the dialog body when getcap is blocked in lockout.
+				if [ -s /tmp/secret/tpm_da_props ]; then
+					. /tmp/secret/tpm_da_props
+				fi
+				rem="$(tpmr.sh da_remaining 2>/dev/null || true)"
+				if [ -n "$rem" ] && echo "$rem" | grep -qE '^[0-9]+$'; then
+					_lockout_timer_line="about $(format_human_duration "$rem") until the TPM accepts auth again."
+				elif [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+					_int_raw="$(tpm2 getcap properties-variable 2>/dev/null \
+						| grep 'TPM2_PT_LOCKOUT_INTERVAL' \
+						| sed -n 's/.*: *//p' || true)"
+					_int_dec="$(echo "$_int_raw" | sed 's/^0x//' | awk '{print $1}' || true)"
+					if echo "$_int_raw" | grep -qE '^0x'; then
+						_int=$((16#$_int_dec))
+					else
+						_int=$_int_dec
+					fi
+					if ! echo "$_int" | grep -qE '^[0-9]+$' || [ "$_int" -le 0 ] 2>/dev/null; then
+						_int="${HEADS_TPM2_DA_RECOVERY_TIME:-3600}"
+					fi
+					_lockout_timer_line="typically about $(format_human_duration "$_int") until the TPM accepts auth again."
+				else
+					_lockout_timer_line="Lockout countdown unavailable."
+				fi
+				lockout_menu_text="$(da_lockout_msg "${counter:-}" "${max_auth:-}" "${_int:-}" "$_lockout_timer_line")"
+				whiptail_error --title 'ERROR: TPM DA Lockout' \
+					--menu "$lockout_menu_text" 0 80 5 \
+					'w' ' Wait -- refresh countdown' \
+					'r' ' Reset the TPM' \
+					'o' ' OEM Factory Reset / Re-Ownership -->' \
+					's' ' Recovery shell' \
+					'm' ' Continue to main menu' \
+					2>/tmp/whiptail || recovery "GUI menu failed"
+				option=$(cat /tmp/whiptail)
+				case "$option" in
+				w)
+					# Refresh: re-check whether the lockout lifted
+					# (counter back below maxTries) and exit if so.
+					da_state_out="$(tpmr.sh da_state 2>/dev/null || true)"
+					da_line="$(echo "$da_state_out" | grep '^DA: ' || true)"
+					da_cur="$(echo "$da_line" | sed 's/.*current=\([^ ]*\).*/\1/' || true)"
+					da_max="$(echo "$da_line" | sed 's/.*threshold=\([^ ]*\).*/\1/' || true)"
+					if echo "$da_cur" | grep -qE '^[0-9]+$' && echo "$da_max" | grep -qE '^[0-9]+$' && \
+						[ "$da_cur" -lt "$da_max" ] 2>/dev/null; then
+						STATUS "TPM lockout lifted (${da_cur} of ${da_max} failures); retrying preflight."
+						rollback_preflight_failed="n"
+						BG_COLOR_MAIN_MENU="normal"
+						lockout_lifted="y"
+						break
+					fi
+					;;
+				*)
+					break
+					;;
+				esac
+			done
+			if [ "$lockout_lifted" != "y" ]; then
+				case "$option" in
+				r)
+					if reset_tpm && preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+						rollback_preflight_failed="n"
+						BG_COLOR_MAIN_MENU="normal"
+					fi
+					;;
+				o)
+					INTEGRITY_REPORT_ALREADY_SHOWN=1 oem-factory-reset.sh
+					if preflight_rollback_counter_before_reseal /boot/kexec_rollback.txt "" return; then
+						rollback_preflight_failed="n"
+						BG_COLOR_MAIN_MENU="normal"
+					fi
+					;;
+				s)
+					recovery "User requested recovery shell"
+					;;
+				m | *)
+					break
+					;;
+				esac
+			fi
+			if [ "$rollback_preflight_failed" = "y" ]; then
+				preflight_error_msg="$(cat /tmp/rollback_preflight_error 2>/dev/null)"
+				[ -n "$preflight_error_msg" ] && DEBUG "Rollback preflight failure: $preflight_error_msg"
+			fi
+			# Skip the generic preflight dialog this iteration.
+			continue
+		fi
+
 		# After the user has seen the integrity report, drop the recommendation
 		# and mark it shown so oem-factory-reset.sh skips it.
 		if [ "$_preflight_report_shown" = "y" ]; then
@@ -972,7 +1187,7 @@ EOF
 			_menu_text="$preflight_menu_text"
 		fi
 		whiptail_error --title 'ERROR: TPM State Inconsistent' \
-			--menu "$_menu_text" 26 80 4 \
+			--menu "$_menu_text" 0 80 4 \
 			'i' ' Show integrity report -->' \
 			'o' ' OEM Factory Reset / Re-Ownership -->' \
 			't' ' Reset the TPM' \

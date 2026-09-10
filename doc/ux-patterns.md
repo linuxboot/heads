@@ -81,6 +81,54 @@ constants.  Any values passed are silently discarded.
 - For dialogs with static text, use a fixed width (typically `80`).  This
   produces a stable, readable layout in newt and is a no-op in fbwhiptail.
 
+**Always use `0` for height.** Hardcoded heights (e.g. `26 80 4`) are a
+historical leftover from before the doc convention existed; they were
+tuned for a specific dialog length and silently overflow when content
+changes. See "Minimal supported screen sizes" below for the floor that
+hardcoded heights can collide with.
+
+<!-- FLAG (stale, retained not deleted): "Minimal supported screen sizes"
+     predates the height-0 dialog convention and the short (4-line) lockout
+     dialogs added by the DA-lockout copy rounds. The 0-height rule above
+     already supersedes the collision concern for new dialogs; this section
+     is kept intact for the hardcoded-height cleanup checklist pending
+     review. -->
+
+### Minimal supported screen sizes
+
+Heads must render correctly on the smallest screen configuration any
+supported board might use, since dialogs run before the boot menu
+reaches the user and a dialog overflow can leave the device stuck.
+
+| Backend | Floor | Boards that hit it |
+|---|---|---|
+| fbwhiptail (linear framebuffer) | any (auto-sizes from content) | all boards with `CONFIG_LINEAR_FRAMEBUFFER=y` |
+| newt (text framebuffer / serial console) | **80×25** (Linux VGA text mode default; some setups reach 80×50) | `config/coreboot-kgpe-d16_server*.config` (`CONFIG_VGA_TEXT_FRAMEBUFFER=y`) |
+
+Linear framebuffer sizes currently configured in `config/coreboot*.config`:
+
+| Resolution | Count | Boards |
+|---|---|---|
+| 2560×1600 | 21 | T420 / T430 / T440p / **T480** / T480s / OptiPlex 7019/9010 |
+| 3840×2160 | 10 | Librem 11/13/14/15, M900, others |
+
+fbwhiptail backends have plenty of room; the constraint is the newt
+text-mode case (kgpe-d16_server boards) where the default 25-row terminal
+is the floor. **Dialogs longer than 25 lines will overflow on the
+serial console / VGA text-mode boards** even with auto-height, because
+newt's `guessSize()` clamps to the terminal size.
+
+In practice:
+
+- Aim for **≤15 visible lines** for any user-facing dialog so it fits
+  comfortably on a 25-line text-mode terminal with margin for title
+  bar and menu items.
+- One paragraph of context, one actionable recommendation, and the
+  menu items. Avoid restating what the menu items already imply.
+- If you find yourself needing more than ~10 lines of context, the
+  detail probably belongs in `/tmp/debug.log` (LOG level) with a
+  one-line pointer in the dialog.
+
 In practice:
 
 ```bash
@@ -358,6 +406,110 @@ echo "$index: $hex_val"
 # WRONG — echo always exits 0; partial/empty hex is silently written
 echo "$index: $(tpm2 nvread 0x$index | xxd -pc8)"
 ```
+
+### Capturing TPM command stderr
+
+For TPM queries whose stderr is the diagnostic (e.g. `tpm2 getcap`,
+`tpm getcapability`, `tpm2 dictionarylockout`), **do not redirect
+stderr to `/dev/null`** — that swallows the specific failure reason
+the user needs to diagnose lockout, auth-fail, or device-busy errors.
+
+Use a captured stderr file with explicit logging at DEBUG level:
+
+```bash
+# CORRECT — stderr captured to file, logged on failure
+TMP_STDERR="$(mktemp)"
+if cap_out="$(tpm2 getcap properties-variable 2>"$TMP_STDERR")"; then
+    rm -f "$TMP_STDERR"
+else
+    local rc=$?
+    DEBUG "tpm2_da_state: getcap stderr: $(cat "$TMP_STDERR" 2>/dev/null)"
+    rm -f "$TMP_STDERR"
+    return 1
+fi
+
+# WRONG — silent stderr suppression hides TPM_RC_LOCKOUT vs. busy vs. no-access
+cap_out="$(tpm2 getcap properties-variable 2>/dev/null)" || return 1
+```
+
+The captured stderr file means the diagnostic reaches both the
+debug log (and `/dev/kmsg` in debug mode, where the user captures
+it) and any subsequent `grep` for specific error patterns like
+`lockout|lock|RC_LOCKOUT`.
+
+`2>/dev/null` IS appropriate for enumeration loops (probing every
+NV index, where most probes are expected to fail) — see
+`tpm2_bad_auth` and `tpm1_bad_auth` counter-discovery loops for
+examples of legitimately-quiet enumeration with `|| continue`.
+
+Mirror this rule in any TPM-gated code path; do not rely on the
+script's caller to interpret a swallowed failure mode.
+
+### Three acceptable shapes for TPM command stderr
+
+The codebase uses three shapes for `TMP_STDERR` capture in TPM
+queries. All three log stderr at DEBUG on failure and clean up
+the temp file on every code path; choose based on what else the
+call site needs:
+
+#### Shape A: simple stderr capture (no rc needed)
+
+For version / identity queries whose rc the caller doesn't
+inspect, use the lightweight shape:
+
+```bash
+TMP_STDERR="$(mktemp)"
+ver_output="$(tpm getcapability -cap 0x1a 2>"$TMP_STDERR")" || {
+    DEBUG "...failed (rc=$?, stderr: $(cat "$TMP_STDERR" 2>/dev/null))"
+}
+[ -s "$TMP_STDERR" ] && DEBUG "...stderr: $(cat "$TMP_STDERR")"
+rm -f "$TMP_STDERR"
+```
+
+Used at: `tpm1_da_state` and `tpm1_bad_auth` version-query sites.
+
+#### Shape B: capture rc + stderr
+
+When the caller inspects the exit code (e.g. distinguishes
+`TPM_BAD_MODE` 44 from other failures), keep the `|| rc=$?`
+pattern and add stderr capture:
+
+```bash
+TMP_STDERR="$(mktemp)"
+da_out="$(tpm getcapability -cap 0x19 -scap 0x0000 2>"$TMP_STDERR")" || rc=$?
+if [ -n "$TMP_STDERR" ]; then
+    [ -s "$TMP_STDERR" ] && DEBUG "...stderr: $(cat "$TMP_STDERR")"
+    rm -f "$TMP_STDERR"
+fi
+```
+
+Used at: `tpm1_da_state` DA-query site.
+
+#### Shape C: if/then/else on the assignment
+
+For TPM2 queries whose success/failure branches diverge visibly
+(log different messages, return early, escalate to WARN):
+
+```bash
+TMP_STDERR="$(mktemp)"
+if cap_out="$(tpm2 getcap properties-variable 2>"$TMP_STDERR")"; then
+    rm -f "$TMP_STDERR"
+else
+    local rc=$?
+    WARN "... (tpm2 getcap rc=$rc)"
+    DEBUG "...stderr: $(cat "$TMP_STDERR" 2>/dev/null)"
+    rm -f "$TMP_STDERR"
+    return 1
+fi
+```
+
+Used at: `tpm2_da_state`.
+
+All three shapes share two invariants:
+
+1. `TMP_STDERR=$(mktemp)` is created exactly once per call site.
+2. `rm -f "$TMP_STDERR"` runs on every code path (success, failure,
+   early return, branch exit).
 
 ---
 
