@@ -87,6 +87,13 @@ tuned for a specific dialog length and silently overflow when content
 changes. See "Minimal supported screen sizes" below for the floor that
 hardcoded heights can collide with.
 
+<!-- FLAG (stale, retained not deleted): "Minimal supported screen sizes"
+     predates the height-0 dialog convention and the short (4-line) lockout
+     dialogs added by the DA-lockout copy rounds. The 0-height rule above
+     already supersedes the collision concern for new dialogs; this section
+     is kept intact for the hardcoded-height cleanup checklist pending
+     review. -->
+
 ### Minimal supported screen sizes
 
 Heads must render correctly on the smallest screen configuration any
