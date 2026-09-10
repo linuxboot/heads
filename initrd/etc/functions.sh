@@ -2420,7 +2420,15 @@ update_checksums() {
 # Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
-	find ./ ! -path './kexec*' -print0 | sort -z
+	DEBUG "print_tree: CWD=$(pwd)"
+	local _pt_tmp
+	# Keep the fallback sorted too: the tree manifest must byte-match the
+	# sorted regeneration done at verification time even when /tmp is
+	# unavailable.
+	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0 | sort -z; return; }
+	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
+	sort -z <"$_pt_tmp"
+	rm -f "$_pt_tmp"
 }
 
 # Escape zero-delimited standard input to safely display it to the user in e.g.
@@ -2500,6 +2508,18 @@ assert_signable() {
 		local user_out="/tmp/hash_output_mismatches"
 		local add="Please investigate!"
 		[ -f "$user_out" ] && add="Please investigate the following relative paths to /boot (where # are sanitized invalid characters):"$'\n'"$(cat "$user_out")"
+		# Name the offending entries so field reports are actionable:
+		# list every path containing bytes outside printable ASCII, or a
+		# backslash, escaped for safe display.
+		local bad_list="" _as_entry
+		while IFS= read -r -d '' _as_entry; do
+			case "$_as_entry" in
+			*[!\ -~]*|*\\*)
+				bad_list+="${bad_list:+$'\n'}$(printf '%s' "$_as_entry" | escape_zero '')"
+				;;
+			esac
+		done </tmp/signable.ref
+		[ -n "$bad_list" ] && add="$add"$'\n'"Offending entries:"$'\n'"$bad_list"
 		recovery "Some /boot file names contain characters that are currently not supported by heads: $del"$'\n'"$add"
 	fi
 	rm -f /tmp/signable.*
