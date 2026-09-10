@@ -160,6 +160,57 @@ If you already have a provisioned USB Security dongle:
 3. Follow the steps.  After reflashing, reboot.
 4. Generate a new TOTP/HOTP secret when prompted.
 
+## Restoring Keys from Backup
+
+If you chose the in-memory backup path during OEM factory reset and your
+dongle is lost, broken, or wiped:
+
+1. Insert the backup USB thumb drive and your (new) dongle.
+2. Go to `Options -> GPG Management -> 'k' Reprovision USB Security dongle from GPG key backup`.
+3. Enter the backup passphrase when prompted.
+4. Heads detects the key type from the backup, factory-resets the dongle,
+   restores the subkeys, sets the card identity, resets the TPM, creates a
+   fresh rollback counter, and re-signs /boot (see below).
+5. After success, flash the public key to the running BIOS for persistence
+   (skipped automatically on QEMU boards).
+6. Reboot to finalize.
+
+This requires the LUKS-encrypted backup USB drive created during OEM factory
+reset (answer Y to "format an encrypted USB Thumb drive").  Without it, run
+a new OEM Factory Reset / Re-Ownership to rekey the device.
+
+The reprovision flow is reachable from several places, not just the GPG
+Management Menu:
+
+- `Options -> GPG Management -> 'k'` — always visible (gpg-gui.sh).
+- `'K'` in the empty-GPG-keyring error dialog (`check_gpg_key` in gui-init.sh).
+- `'K'` in the measured integrity report (`report_integrity_measurements` in
+  gui_functions.sh), both the normal and the DONGLE KEY NOT ROM-TRUSTED
+  variants.
+- `'K'` in the TPM State Inconsistent (rollback preflight) dialog — since
+  reprovisioning resets the TPM and creates a fresh counter, the preflight
+  check re-runs afterwards and the gate proceeds to boot when it passes.
+- `'K'` in the clean boot wizard (`clean_boot_check`), next to `F` (OEM
+  Factory Reset), `i` (ignore), and `x` (recovery shell).
+
+**TPM handling:** reprovisioning is an ownership-level operation, so like
+OEM Factory Reset it resets the TPM itself rather than punting a manual
+"Reset the TPM" step to you.  After you set the new TPM owner passphrase,
+Heads clears the old ownership, drops stale rollback-counter references,
+creates a fresh rollback counter, and re-signs /boot — all through the same
+`kexec-sign-config.sh` path used by OEM factory reset.  Signing is atomic:
+the new manifests are staged under /tmp and moved into /boot only after
+signing and verification succeed.  If any step fails, /boot keeps its
+previous valid signatures, no ROM flash is offered, and Heads explains how
+to recover (re-sign via `Options -> Update checksums and sign all files in
+/boot`, or reset the TPM first if that failed).
+
+Because the TPM was reset, unsealing the old TOTP/HOTP secrets on the next
+boot will fail; Heads offers to regenerate them (choose `g`).
+
+After reprovisioning, the recovery shell and USB boot will require GPG
+smartcard authentication; see [recovery-shell.md](recovery-shell.md#authentication).
+
 ## Forgotten GPG User PIN
 
 From Recovery Shell with the dongle inserted:
