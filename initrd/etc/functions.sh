@@ -2420,7 +2420,15 @@ update_checksums() {
 # Print the file and directory structure of /boot to caller's stdout
 print_tree() {
 	TRACE_FUNC
-	find ./ ! -path './kexec*' -print0 | sort -z
+	DEBUG "print_tree: CWD=$(pwd)"
+	local _pt_tmp
+	# Keep the fallback sorted too: the tree manifest must byte-match the
+	# sorted regeneration done at verification time even when /tmp is
+	# unavailable.
+	_pt_tmp=$(mktemp) || { find ./ ! -path './kexec*' -print0 | sort -z; return; }
+	find ./ ! -path './kexec*' -print0 >"$_pt_tmp"
+	sort -z <"$_pt_tmp"
+	rm -f "$_pt_tmp"
 }
 
 # Escape zero-delimited standard input to safely display it to the user in e.g.
