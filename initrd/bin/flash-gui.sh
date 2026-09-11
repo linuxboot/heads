@@ -19,9 +19,11 @@ UPDATE_PLAIN_EXT=rom
 # as its own integrity check.  This isn't integrated with the "update package"
 # workflow (as-is, a .tgz could be inside that package in theory) but more work
 # would be needed to properly integrate it.
-if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
-	UPDATE_PLAIN_EXT=tgz
-fi
+case "$CONFIG_BOARD" in
+	*talos-2*)
+		UPDATE_PLAIN_EXT=tgz
+		;;
+esac
 
 # Check that a glob matches exactly one thing.  If so, echoes the single value.
 # Otherwise, fails.  As always, do not quote the glob.
@@ -62,10 +64,12 @@ while true; do
 			if grep -q /media /proc/mounts; then
 				# 'find' parameters to match desired ROM extensions
 				FIND_ROM_EXTS=(\( -name "*.$UPDATE_PLAIN_EXT" -o -type f -name "*.zip" \))
-				if [ "${CONFIG_BOARD%_*}" = talos-2 ]; then
-					# Show only *.tgz on talos-2 (lacks ZIP update package support)
-					FIND_ROM_EXTS=(-name "*.$UPDATE_PLAIN_EXT")
-				fi
+				case "$CONFIG_BOARD" in
+					*talos-2*)
+						# Show only *.tgz on talos-2 (lacks ZIP update package support)
+						FIND_ROM_EXTS=(-name "*.$UPDATE_PLAIN_EXT")
+						;;
+				esac
 				# Media errors can cause this to fail (flash drive pulled, filesystem
 				# corruption, etc.)
 				if ! find /media ! -path '*/\.*' -type f "${FIND_ROM_EXTS[@]}" | sort -r >/tmp/filelist.txt; then
@@ -125,25 +129,28 @@ while true; do
 				else
 					# talos-2 uses a .tgz file for its "plain" update, contains other parts as well, validated against hashes under flash.sh
 					# Skip prompt for hash validation for talos-2. Only method is through tgz or through bmc with individual parts
-					if [ "${CONFIG_BOARD%_*}" != talos-2 ]; then
-						# Though a plain ROM isn't a package, copy it to /tmp before doing
-						# anything, so we can be sure the media won't disappear or fail
-						# while flashing.
-						if ! cp "$PKG_FILE" "$PKG_EXTRACT/"; then
-							whiptail_error --title 'Failed to read ROM' \
-								--msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\nPlease check your file (e.g. re-download).\n" 0 0
-							exit 1
-						fi
-						ROM="$PKG_EXTRACT/$(basename "$PKG_FILE")"
-						ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}')
-						if ! (whiptail_error --title 'Flash ROM without integrity check?' \
-							--yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 0); then
-							exit 1
-						fi
-					else
-						#We are on talos-2, so we have a tgz file. We will pass it directly to flash.sh which will take care of it
-						ROM="$PKG_FILE"
-					fi
+					case "$CONFIG_BOARD" in
+						*talos-2*)
+							#We are on talos-2, so we have a tgz file. We will pass it directly to flash.sh which will take care of it
+							ROM="$PKG_FILE"
+							;;
+						*)
+							# Though a plain ROM isn't a package, copy it to /tmp before doing
+							# anything, so we can be sure the media won't disappear or fail
+							# while flashing.
+							if ! cp "$PKG_FILE" "$PKG_EXTRACT/"; then
+								whiptail_error --title 'Failed to read ROM' \
+									--msgbox "Failed to read ROM:\n$PKG_FILE_DISPLAY\n\nPlease check your file (e.g. re-download).\n" 0 0
+								exit 1
+							fi
+							ROM="$PKG_EXTRACT/$(basename "$PKG_FILE")"
+							ROM_HASH=$(sha256sum "$ROM" | awk '{print $1}')
+							if ! (whiptail_error --title 'Flash ROM without integrity check?' \
+								--yesno "You have provided a *.$UPDATE_PLAIN_EXT file. The integrity of the file can not be\nchecked automatically for this file type.\n\nROM: $PKG_FILE_DISPLAY\nSHA256SUM: $ROM_HASH\n\nIf you do not know how to check the file integrity yourself,\nyou should use a *.zip file instead.\n\nIf the file is damaged, you will not be able to boot anymore.\nDo you want to proceed flashing without file integrity check?" 0 0); then
+								exit 1
+							fi
+							;;
+					esac
 				fi
 
 				if [ "$menu_choice" == "c" ]; then

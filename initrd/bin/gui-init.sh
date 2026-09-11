@@ -628,8 +628,7 @@ show_main_menu() {
 
 show_options_menu() {
 	TRACE_FUNC
-	whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
-		--menu "" 0 80 10 \
+	local menu_options=(
 		'b' ' Boot Options -->' \
 		't' ' TPM/TOTP/HOTP Options -->' \
 		'i' ' Investigate integrity discrepancies -->' \
@@ -637,6 +636,13 @@ show_options_menu() {
 		'u' ' Update checksums and sign all files in /boot' \
 		'c' ' Change configuration settings -->' \
 		'f' ' Flash/Update the BIOS -->' \
+	)
+
+	if [ "$CONFIG_NVMUTIL" = "y" ] && [ "$CONFIG_IFDTOOL" = "y" ]; then
+	      menu_options+=('m' ' Ethernet MAC address randomization -->')
+	fi
+
+	menu_options+=(
 		'g' ' GPG Options -->' \
 		'F' ' OEM Factory Reset / Re-Ownership -->' \
 		'C' ' Reencrypt LUKS container -->' \
@@ -644,6 +650,11 @@ show_options_menu() {
 		'R' ' Check/Update file hashes on root disk -->' \
 		'x' ' Exit to recovery shell' \
 		'r' ' <-- Return to main menu' \
+	)
+
+	whiptail_type $BG_COLOR_MAIN_MENU --title "$CONFIG_BRAND_NAME Options" \
+		--menu "" 0 80 10 \
+		"${menu_options[@]}" \
 		2>/tmp/whiptail || recovery "GUI menu failed"
 
 	option=$(cat /tmp/whiptail)
@@ -668,6 +679,9 @@ show_options_menu() {
 		;;
 	f)
 		flash-gui.sh
+		;;
+	m)
+		mac_randomization_options_menu
 		;;
 	g)
 		gpg-gui.sh
@@ -903,6 +917,33 @@ force_unsafe_boot() {
 		--yesno "WARNING: You have chosen to skip all tamper checks and boot anyway.\n\nThis is an unsafe option!\n\nDo you want to proceed?" 0 80); then
 		mount_boot && kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -f
 	fi
+}
+
+mac_randomization_options_menu() {
+	TRACE_FUNC
+	whiptail_type $BG_COLOR_MAIN_MENU --title "Ethernet MAC randomization" \
+		--menu "Select An Option" 0 80 10 \
+		'r' 'Generate a fully randomized ethernet MAC address' \
+		'i' 'Use a intel based universal pattern (OUI) to generate a random ethernet MAC address' \
+		's' 'Show the current ethernet MAC address' \
+		'm' ' <-- Return to main menu' \
+		2>/tmp/whiptail || recovery "GUI menu failed"
+
+	option=$(cat /tmp/whiptail)
+	case "$option" in
+	r)
+		change_mac "random"
+		;;
+	i)
+		change_mac "intel"
+		;;
+	s)
+		show_mac
+		clean_up_mac
+		;;
+	m) ;;
+
+	esac
 }
 
 # gui-init start
