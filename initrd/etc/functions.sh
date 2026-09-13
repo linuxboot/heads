@@ -3683,14 +3683,16 @@ show_mac(){
 
 		# test if file is > 0 byte
 		if [ ! -s /tmp/${CONFIG_BOARD}.rom ]; then
-			whiptail_error --title 'ERROR' --msgbox "Unable to read BIOS" 0 80
+			whiptail_error --title 'ERROR' --msgbox "Unable to read flash descriptor/GbE regions" 0 80
 			recovery
 		fi
 	(
 		cd /tmp
-		# Extract GBE from ifdtool
-		ifdtool -x ${CONFIG_BOARD}.rom
-		if [ ! -s flashregion_3_gbe.bin ]; then
+		# Extract GBE from ifdtool. gui-init.sh does not run under set -e,
+		# so check the exit status explicitly; remove any stale artifact
+		# first so a failed extraction cannot leave an old gbe region behind.
+		rm -f flashregion_3_gbe.bin
+		if ! ifdtool -x ${CONFIG_BOARD}.rom || [ ! -s flashregion_3_gbe.bin ]; then
 			whiptail_error --title 'ERROR' --msgbox "Unable to extract gbe region" 0 80
 			recovery
 		fi
@@ -3790,7 +3792,7 @@ change_mac() {
 		fi
 
 	else 
-		whiptail_error --title 'ERROR' --msgbox "Ifdtool and nvmutil is needed for mac randomization" 0 80
+		whiptail_error --title 'ERROR' --msgbox "Both ifdtool and nvmutil are required for MAC randomization" 0 80
 		clean_up_mac
 	fi
 

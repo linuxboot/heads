@@ -1,14 +1,15 @@
 # Flash concepts
 
 Four concepts govern how the flash dispatcher handles writes to the SPI
-chip. This document states them concisely for future maintainers and AI agents reading the code.
+chip.
 
 ## 1. Flash paths
 
 The dispatcher supports two write paths:
 
-- **Whole-chip write** (default; `CHANGE_FLASH_OPTIONS` unset or empty):
-  rewrites the entire SPI image. Used for firmware upgrades.
+ - **Board-configured write** (default; `CHANGE_FLASH_OPTIONS` unset or empty):
+  uses the board's `CONFIG_FLASH_OPTIONS`; affected boards select `bios`,
+  `me`, and `fd`, preserving GbE.
 - **Region-limited write** (`CHANGE_FLASH_OPTIONS=gbe_only`): rewrites only
   the IFD, Flash Descriptor (`fd`), and GbE regions. Used for narrow
   mutations (MAC randomization).
@@ -55,15 +56,16 @@ A user-facing submenu offers three actions:
   extract the address, display it. Read-only.
 - **Randomize fully**: read → extract GbE → mutate MAC bytes (any
   locally-administered unicast) → read back to verify → user confirms
-  → region-restricted write (GbE only).
-- **Randomize with vendor prefix**: same flow but preserves a vendor
-  prefix in the upper bytes.
+  → region-restricted write (fd + GbE).
+- **Randomize with vendor prefix**: same flow but uses a fixed vendor
+  prefix (`00:1f:3b`, Intel OUI) in the upper bytes.
 
-The write touches only the GbE region. The rest of the chip stays
-byte-identical. Confirmation gates the write. Any failure funnels to
-the recovery shell. A successful or cancelled mutation triggers a
-reboot so the session's overridden flash-option state does not leak
-into the next action.
+The write is scoped to the descriptor and GbE regions. Only the GbE
+bytes are modified; the FD is carried through unchanged. The rest of
+the chip stays byte-identical. Confirmation gates the write. Any
+failure funnels to the recovery shell. A successful or cancelled
+mutation triggers a reboot so the session's overridden flash-option
+state does not leak into the next action.
 
 ## Board name conventions
 
