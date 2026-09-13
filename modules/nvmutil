@@ -1,0 +1,18 @@
+modules-$(CONFIG_NVMUTIL) += nvmutil
+
+nvmutil_version := 26.01rev1
+nvmutil_base_dir := lbmk
+nvmutil_dir := lbmk/util/nvmutil
+nvmutil_tar := $(nvmutil_version).tar.gz
+nvmutil_url := https://codeberg.org/libreboot/lbmk/archive/$(nvmutil_version).tar.gz
+nvmutil_hash := 05ad4171b211258afc4bc2211fac274566e63726016c735b9ca6742302488e3c
+
+
+nvmutil_configure :=
+nvmutil_target := \
+	$(MAKE_JOBS) \
+	$(CROSS_TOOLS) \
+	CFLAGS="$(CFLAGS) -Os -Wall -Wextra -std=c99 -pedantic"
+
+nvmutil_output := nvm
+nvmutil_depends := $(musl_dep)
