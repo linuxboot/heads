@@ -134,14 +134,17 @@ IBB is self-referential — it asserts its own integrity. To address this,
 processor vendors provide external RoT mechanisms that validate the IBB via
 hardware before execution:
 
-- **Intel BootGuard** — validates the bootblock against a signed manifest fused
-  into the CPU/PCH before any code runs
+- **Intel BootGuard** — validates the IBB against a signed manifest fused into
+  the CPU/PCH at reset. On the legacy Intel TXT path the IBB is the CBFS file
+  or files referenced by FIT type 7; on CBnT boards coreboot does not use FIT
+  type 7 for the IBB and the digest comes from the signed Boot Policy Manifest
 - **AMD Hardware Validated Boot (HVB)** — equivalent AMD mechanism
 
 These are hardware features of the platform, not coreboot configuration choices.
-Where a board's CPU supports BootGuard or HVB, that hardware layer sits below
-the coreboot SRTM chain and provides additional assurance for the S-CRTM
-integrity.
+Where a board's CPU supports BootGuard or HVB, that hardware layer validates the
+IBB below the coreboot SRTM chain. A BootGuard measurement reaches PCR 0 only
+when the platform is provisioned with a boot profile that includes measurement;
+see [PCR assignments](#pcr-assignments) for what is measured and when.
 
 #### Intel TXT path (OptiPlex 7019/9010 TXT only)
 
@@ -156,7 +159,7 @@ unchanged; the TXT mechanism adds the DRTM capability on top of it.
 
 | PCR | Extended by | Content |
 | --- | --- | --- |
-| 0 | unused by Heads | Read live at seal time — normally zero; BootGuard Measured Boot, if enabled, measures the IBB into PCR 0 before coreboot |
+| 0 | unused by Heads | Read live at seal time — normally zero; a BootGuard measurement lands in PCR 0 only when the platform is provisioned with a boot profile that includes measurement |
 | 1 | unused by Heads | Read live at seal time — normally zero; coreboot's boot mode and HWID measurement features are not enabled |
 | 2 | coreboot SRTM | Boot block, ROM stage, RAM stage, Heads Linux kernel + initrd (payload), plus other loaded CBFS files (`bootsplash.jpg`, `fallback/*`) |
 | 3 | unused by Heads | Read live at seal time — normally zero; MRC cache runtime measurement is disabled |
@@ -166,9 +169,18 @@ unchanged; the TXT mechanism adds the DRTM capability on top of it.
 | 7 | Heads `cbfs-init.sh`, `uefi-init.sh` | Each CBFS/UEFI file: filename then content (default `CONFIG_PCR=7`) — covers `config.user`, GPG keyring, user CBFS files, not UEFI Secure Boot state |
 
 PCRs 0 through 3 are read at seal time and included in sealing policies. PCRs 1
-and 3 are zero while their coreboot features stay disabled; PCR 0 is zero unless
-BootGuard Measured Boot records the IBB before coreboot. Any extension of these
-PCRs changes the value recorded in the policy and breaks the seal.
+and 3 are zero while their coreboot features stay disabled. PCR 0 is normally
+zero and holds a measurement only when the platform is provisioned with a
+BootGuard boot profile that includes measurement; in that case the BootGuard ACM
+measures the Key Manifest, Boot Policy Manifest, IBB and policy data into PCR 0
+at locality 3. Historically this came from the server TXT path, but BootGuard and
+CBnT can measure on client silicon as well; most client machines ship verified
+boot only, so PCR 0 stays zero. Any extension of these PCRs changes the value
+recorded in the policy and breaks the seal.
+
+For the measurement behavior and its history see the [heads PR #1172
+discussion](https://github.com/linuxboot/heads/pull/1172) and the [Dasharo PCR
+measurements knowledge base](https://docs.dasharo.com/kb/pcr-measurements/).
 
 Only PCRs 0 through 7 are extended or sealed against by Heads; other PCRs are not
 used (the integrity report may still read and display all PCRs). PCR 16 is not

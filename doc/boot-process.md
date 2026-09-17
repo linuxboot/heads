@@ -312,7 +312,7 @@ counter is read from the TPM. The SHA-256 of the counter file is then checked
 against the hash stored in `kexec_rollback.txt`. A missing rollback record
 blocks boot only when `CONFIG_BOOT_REQ_ROLLBACK=y`; an existing record mismatch
 aborts boot unless `CONFIG_IGNORE_ROLLBACK=y`. No board config enables the
-missing record check.
+missing record check; the counter mechanics are in [tpm.md](tpm.md#rollback-counter).
 
 ### OS boot execution (`do_boot`)
 

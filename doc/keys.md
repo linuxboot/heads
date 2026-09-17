@@ -18,7 +18,7 @@ Key passphrase.
 ## TPMTOTP / HOTP Shared Secret
 
 A random 20-byte value generated when a new TOTP/HOTP secret is created,
-normally on the first boot after OEM Factory Reset / Re-Ownership.
+normally on the first boot after OEM Factory Reset / Reownership.
 
 - **TOTP (smartphone):** sealed into TPM NVRAM against PCR values; on each
   boot Heads unseals it if PCRs match and displays the current TOTP code for
@@ -79,20 +79,7 @@ firmware image and used to verify `/boot` signatures on every boot.
 
 ## TPM PCR Map
 
-| PCR | Content |
-|-----|---------|
-| 0 | (unused by Heads; zero unless BootGuard's Measured Boot policy populates it before coreboot) |
-| 1 | (reserved) |
-| 2 | coreboot bootblock, ROM stage, RAM stage, Heads Linux kernel + initrd |
-| 3 | (reserved) |
-| 4 | Boot path (`"usb"` = USB boot, `"generic"` = normal boot, `"recovery"` = recovery shell; precomputed at seal time from the firmware event log) |
-| 5 | Heads Linux kernel modules |
-| 6 | Drive LUKS headers |
-| 7 | Heads user-specific CBFS files (config.user, GPG keyring, etc.) |
-
-TOTP/HOTP is sealed against PCRs 0,1,2,3,4,7; the LUKS DUK against PCRs
-0,1,2,3,4,5,6,7.  A firmware, kernel module, LUKS header, or CBFS config change
-breaks the relevant unseal until secrets are sealed again.
+Heads extends and seals only PCRs 0 through 7; the assignments are in [tpm.md](tpm.md#pcr-assignments) and the seal policies in [tpm.md](tpm.md#sealing-policies).
 
 ## TPM Unseal Errors
 
@@ -103,11 +90,7 @@ A different TPM_Unseal error can have several causes, including a decryption
 failure or TPM dictionary attack lockout. Check the event log (`cbmem -L`) and
 the TPM state before assuming tampering.
 
-Review the PCR2 TCPA event log from Recovery Shell:
-
-```
-cbmem -L
-```
+See [tpm.md](tpm.md#tpm-event-log) for the event log and unseal errors.
 
 ## LUKS Key Derivation
 

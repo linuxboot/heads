@@ -58,6 +58,7 @@ verify each other, preventing single points of failure.
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+Seal policies are listed in [tpm.md](tpm.md#sealing-policies).
 
 ---
 
@@ -143,32 +144,9 @@ On boards with `CONFIG_TPM_MEASURED_BOOT=y` + `CONFIG_TPM_INIT_RAMSTAGE=y`
 (the majority of maintained boards), ramstage initializes the TPM, reads each
 prior stage from CBFS, and extends PCR 2. Older coreboot versions (4.11) used
 `CONFIG_TPM_INIT=y` before this config key existed; some boards have no TPM
-hardware. See [tpm.md](tpm.md) for the full breakdown.
+hardware. See [tpm.md](tpm.md#pcr-assignments) for the PCR map and the
+PCR 4 boot path values.
 
-PCRs 0, 1, and 3 are unused — the `CONFIG_PCR_*` entries for those registers
-are slot assignments for optional coreboot features that are not enabled. They
-are read live at seal time and are normally zero (BootGuard Measured Boot, if
-enabled, populates PCR 0 before coreboot). On boards with coreboot measured
-boot, PCR 2 is not zero: it carries the SRTM chain.
-
-Heads extends additional PCRs during userspace boot:
-
-- **PCR 4** — boot path tracking; see below
-- **PCR 5** — each kernel module loaded via the `insmod` wrapper (binary + parameters)
-- **PCR 6** — LUKS header dump (by `qubes-measure-luks`) before disk unlock
-- **PCR 7** — each CBFS/UEFI file extracted from ROM (by `cbfs-init`/`uefi-init`)
-
-Heads extends PCR 4 further depending on execution path:
-
-- **USB boot**: PCR 4 is extended with `"usb"`, locking out unsealing on the USB
-  boot path.
-- **Normal boot**: `calcfuturepcr 4` pre-computes the expected value and secrets
-  are sealed against it; the running path then extends `"generic"` to lock out
-  further unsealing.
-- **Recovery shell**: PCR 4 is extended with `"recovery"`, invalidating
-  normal-boot unsealing for the rest of the session.
-
-See [tpm.md](tpm.md) for the full PCR table and sealing policies.
 For board-specific RoT configuration and the files that control each PCR,
 see [tpm.md — Configuration reference for developers](tpm.md#configuration-reference-for-developers).
 
@@ -184,7 +162,7 @@ which the user observes as a TOTP/HOTP mismatch.
 ### TOTP
 
 A 20-byte random secret is generated when a new TOTP/HOTP secret is created,
-normally on the first boot after OEM Factory Reset / Re-Ownership, and sealed
+normally on the first boot after OEM Factory Reset / Reownership, and sealed
 to TPM NVRAM. At each boot, `unseal-totp` retrieves it and generates the current
 30-second code. The user compares this against their authenticator app.
 
@@ -300,7 +278,7 @@ and the /boot disk, preventing swap attacks.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    ROLLBACK COUNTER ATTACK PREVENTION                         │
+│                     ROLLBACK COUNTER ATTACK PREVENTION                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────┐                     ┌─────────────┐                       │
@@ -312,15 +290,15 @@ and the /boot disk, preventing swap attacks.
 │         │                                   │                               │
 │         │                                   │                               │
 │         ▼                                   ▼                               │
-│   ┌─────────────────────────────────────────────────────────┐             │
-│   │              ATTACK SCENARIO: Old TPM + Old /boot        │             │
-│   │                                                               │             │
-│   │   Attacker uses old TPM (counter=5) with old /boot        │             │
-│   │   (hash=5). This would bypass security updates!           │             │
-│   │                                                               │             │
-│   │   → BLOCKED: TPM unseal requires current PCR values          │             │
-│   │   → BLOCKED: GPG signature must match current /boot         │             │
-│   └─────────────────────────────────────────────────────────────┘             │
+│   ┌─────────────────────────────────────────────────────────┐               │
+│   │          ATTACK SCENARIO: Old TPM + Old /boot           │               │
+│   │                                                         │               │
+│   │   Attacker uses old TPM (counter=5) with old /boot      │               │
+│   │   (hash=5). This would bypass security updates!         │               │
+│   │                                                         │               │
+│   │   → BLOCKED: TPM unseal requires current PCR values     │               │
+│   │   → BLOCKED: GPG signature must match current /boot     │               │
+│   └─────────────────────────────────────────────────────────┘               │
 │                                                                             │
 │   ┌─────────────┐                     ┌─────────────┐                       │
 │   │  NEW TPM    │                     │  OLD /boot  │                       │
@@ -332,25 +310,20 @@ and the /boot disk, preventing swap attacks.
 │         │                                   │                               │
 │         │                                   │                               │
 │         ▼                                   ▼                               │
-│   ┌─────────────────────────────────────────────────────────┐             │
-│   │              ATTACK SCENARIO: New TPM + Old /boot         │             │
-│   │                                                               │             │
-│   │   Attacker swaps TPM. New TPM has no sealed secrets.        │             │
-│   │   Old /boot has old counter hash.                          │             │
-│   │                                                               │             │
-│   │   → BLOCKED: TOTP/HOTP/DUK unseal fails (no secrets)       │             │
-│   │   → BLOCKED: Rollback counter mismatch detected              │             │
-│   └─────────────────────────────────────────────────────────────┘             │
+│   ┌─────────────────────────────────────────────────────────┐               │
+│   │          ATTACK SCENARIO: New TPM + Old /boot           │               │
+│   │                                                         │               │
+│   │   Attacker swaps TPM. New TPM has no sealed secrets.    │               │
+│   │   Old /boot has old counter hash.                       │               │
+│   │                                                         │               │
+│   │   → BLOCKED: TOTP/HOTP/DUK unseal fails (no secrets)    │               │
+│   │   → BLOCKED: Rollback counter mismatch detected         │               │
+│   └─────────────────────────────────────────────────────────┘               │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### How the binding works
-
-1. **TPM stores counter**: A monotonic counter is created in TPM NVRAM at OEM Factory Reset, at TPM reset, or by signing when `kexec_rollback.txt` is missing
-2. **/boot stores hash**: the sha256sum of the counter state file (`counter-<ID>`, index and value) is stored in `/boot/kexec_rollback.txt`
-3. **Counter increments on signing**: Every `kexec-sign-config` run with rollback enabled increments the counter and updates the hash
-4. **Verification at boot**: `kexec-select-boot` verifies the counter matches the stored hash
+The counter mechanics are in [tpm.md](tpm.md#rollback-counter).
 
 A missing rollback record blocks boot only when `CONFIG_BOOT_REQ_ROLLBACK=y`;
 no board config enables that requirement. An existing record mismatch aborts
@@ -364,66 +337,33 @@ boot unless `CONFIG_IGNORE_ROLLBACK=y`.
 │  OEM FACTORY RESET                     NORMAL BOOT                         │
 │  ─────────────────                     ────────────                         │
 │                                                                             │
-│  1. Create counter in TPM NVRAM         1. Read counter from TPM          │
-│     └─▶ create counter, then increment to 1 │                               │
-│  2. Hash counter → /boot                   ▼                              │
-│     └─▶ kexec_rollback.txt              2. Hash counter                   │
-│           contains hash of "1"                  │                              │
-│                                               ▼                              │
-│                                           3. Compare with /boot hash       │
-│                                               │                              │
-│                                               ▼                              │
-│  OS UPDATE                                4. Match? → Continue           │
-│  ──────────                               5. Mismatch? → Die             │
+│  1. Create counter in TPM NVRAM               1. Read counter from TPM      │
+│     └─▶ create counter, then increment to 1      │                          │
+│  2. Hash counter → /boot                         ▼                          │
+│     └─▶ kexec_rollback.txt                    2. Hash counter               │
+│                                                  │                          │
+│                                                  ▼                          │
+│                                               3. Compare with /boot hash    │
+│                                                  │                          │
+│                                                  ▼                          │
+│  OS UPDATE                                    4. Match? → Continue          │
+│  ──────────                                   5. Mismatch? → Die            │
 │                                                                             │
-│  1. kexec-sign-config runs                TPM SEALED SECRETS                │
-│     │                                    ──────────────────                │
-│     ▼                                    TOTP/HOTP/DUK can only unseal    │
-│  2. Increment TPM counter                 if:                              │
-│     └─▶ counter_value = 1                   - PCRs match seal policy     │
-│  3. Hash new value → /boot                 - TPM is the SAME TPM           │
-│     └─▶ kexec_rollback.txt                 - /boot is the SAME /boot      │
-│           updates hash of "1"                                                │
+│  1. kexec-sign-config runs                    TPM SEALED SECRETS            │
+│     │                                         ──────────────────            │
+│     ▼                                         TOTP/HOTP/DUK can only unseal │
+│  2. Increment TPM counter                     if:                           │
+│     └─▶ counter_value = 1                       - PCRs match seal policy    │
+│  3. Hash new value → /boot                      - TPM is the SAME TPM       │
+│     └─▶ kexec_rollback.txt                      - /boot is the SAME /boot   │
+│                                                                             │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### PCR binding in TPM sealing
 
-TPM-sealed secrets (TOTP, HOTP, LUKS DUK) are bound to specific PCR values,
-creating additional hardware binding:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    TPM SEALING PCR POLICIES                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │  TOTP/HOTP Secret Seal Policy: PCRs 0,1,2,3,4,7                    │  │
-│  │                                                                      │  │
-│  │  PCR 0,1,3: Normally zero               PCR 2: coreboot SRTM        │  │
-│  │  PCR 4:          Boot path ("usb"/"generic"/"recovery")             │  │
-│  │  PCR 7:          CBFS/ROM files (user-injected)                     │  │
-│  │                                                                      │  │
-│  │  NOT included: PCR 5 (kernel modules), PCR 6 (LUKS headers)         │  │
-│  │  → Allows disk updates without resealing TOTP/HOTP                   │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │  LUKS DUK Seal Policy: PCRs 0,1,2,3,4,5,6,7                        │  │
-│  │                                                                      │  │
-│  │  PCR 0,1,3: Normally zero               PCR 2: coreboot SRTM        │  │
-│  │  PCR 4:          Boot path ("usb"/"generic"/"recovery")             │  │
-│  │  PCR 5:          Kernel modules (if loaded)                         │  │
-│  │  PCR 6:          LUKS header (measured at seal time)                 │  │
-│  │  PCR 7:          CBFS/ROM files                                     │  │
-│  │                                                                      │  │
-│  │  Includes: PCR 5, PCR 6 → More restrictive                         │  │
-│  │  → Changing kernel modules or LUKS headers requires resealing DUK    │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+The seal policy for each secret is in [tpm.md](tpm.md#sealing-policies).
 
 ---
 
@@ -432,7 +372,7 @@ creating additional hardware binding:
 The LUKS Disk Unlock Key (DUK) is a random binary key that:
 
 1. Is generated from `/dev/urandom` by `kexec-seal-key` (128 bytes — 1024 bits of entropy, i.e. a $2^{1024}$ brute-force space).
-2. Is sealed to TPM NVRAM with PCR policy `0,1,2,3,4,5,6,7`.
+2. Is sealed to TPM NVRAM with the LUKS DUK seal policy in [tpm.md](tpm.md#sealing-policies).
 3. Is added as a LUKS key slot alongside the user's Disk Recovery Key (DRK).
 4. At boot, `kexec-insert-key` unseals it and injects it into a minimal
    initrd prepended to the OS initrd. The OS kernel unlocks LUKS without
@@ -458,7 +398,7 @@ secrets and verifies:
 
 If any check fails, the sealing operation is aborted. This prevents new
 secrets from being sealed against a potentially compromised `/boot`. If the
-flag is not set, only the reset-required check runs.
+flag is not set, only the reset required check runs.
 
 For the UNKNOWN_KEY scenario and correct error messaging, see
 [ux-patterns.md](ux-patterns.md#security-ux--integrity-report-and-unknown-keys).
