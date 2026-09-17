@@ -15,7 +15,6 @@ HOST="$1"
 if [ -z "$HOST" ]; then
 	HOST="TPMTOTP"
 fi
-TPM_PASSWORD="$2"
 
 TOTP_SECRET="/tmp/secret/totp.key"
 TOTP_SEALED="/tmp/secret/totp.sealed"
@@ -39,7 +38,7 @@ tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
 DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR4)"
 # pcr 4 is expected to either:
-#  zero on bare coreboot+linuxboot on x86 (boot mode: init)
+#  zero on bare coreboot+linuxboot on x86 (before any boot path extend)
 #  already extended on ppc64 per BOOTKERNEL (skiboot) which boots heads.
 # Read from event log to catch both cases, even when called from recovery shell.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
@@ -50,7 +49,8 @@ DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not fir
 # pcr 7 is containing measurements of user injected stuff in cbfs
 DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
 tpmr.sh pcrread -a 7 "$pcrf"
-#Make sure we clear the TPM Owner Passphrase from memory in case it failed to be used to seal TOTP
+# tpmr.sh seal prompts for the owner passphrase and caches it under
+# /tmp/secret; the cache is shredded only after a failed attempt.
 
 # if the board has TPM2 tools, check for the primary handle before
 # attempting to seal; a missing handle is the most common reason for
@@ -63,7 +63,7 @@ fi
 # or other TPM state issues. Avoid DO_WITH_DEBUG so interactive prompts
 # (TPM owner passphrase on TPM1) are not hidden from the user.
 STATUS "Sealing TOTP secret to TPM NVRAM"
-if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSPHRASE"; then
+if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 ""; then
 	# tpmr.sh already logged details; guide user generically to reset TPM
 	DIE "Unable to seal TOTP secret to TPM NVRAM; reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) and try again."
 fi

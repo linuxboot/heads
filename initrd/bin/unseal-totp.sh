@@ -7,8 +7,8 @@ TOTP_SECRET="/tmp/secret/totp.key"
 
 fail_unseal_reset_required() {
 	TRACE_FUNC
-	# A TPM-side unseal failure generally indicates that reset/re-ownership is
-	# required before allowing reseal/generate workflows again.
+	# The TPM2 primary handle is missing (the TPM was reset or replaced):
+	# mark reset required before allowing reseal/generate workflows again.
 	set_tpm_reset_required "$*" "unseal-totp.sh:fail_unseal_reset_required"
 	DEBUG "fail_unseal_reset_required: reason='$*'"
 	fail_unseal "$@"

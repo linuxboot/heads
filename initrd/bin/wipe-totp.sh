@@ -1,7 +1,8 @@
 #!/bin/bash
-# Wipe the sealed TOTP/HOTP secret.  The secret is overwritten with all-0,
-# rather than deleted, because deletion requires authorization.  Wiping the
-# secret will cause the next boot to prompt to regenerate the secret.
+# Wipe the sealed TOTP/HOTP secret. TPM1 overwrites the blob with all zeros;
+# TPM2 evicts the object. TPM1 deletion needs authorization, so the blob is
+# overwritten instead. Wiping the secret will cause the next boot to prompt
+# to regenerate the secret.
 
 . /etc/functions.sh
 

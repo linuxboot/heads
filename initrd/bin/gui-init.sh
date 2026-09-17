@@ -838,8 +838,12 @@ reset_tpm() {
 
 			TRACE_FUNC
 			# As a countermeasure for existing primary handle hash, we will now force sign /boot without it.
-			# NOTE: At seal time, PCR5 is IGNORED (not measured) - only used on HOTP board variants. So USB
-			# modules loading here don't affect DUK seal. GPG card needs USB to be enabled first.
+			# The DUK seal always includes PCR 5; it binds the live value when extra
+			# kernel modules are expected and the zeroed future value otherwise.
+			# The TOTP/HOTP shared secret (PCRs
+			# 0,1,2,3,4,7) is sealed by seal-totp.sh; HOTP unseals that shared
+			# secret and seals nothing of its own. GPG card needs USB to be
+			# enabled first.
 			STATUS "Preparing USB and GPG signing key access for /boot signing"
 			enable_usb
 			if wait_for_gpg_card; then

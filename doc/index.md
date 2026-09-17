@@ -31,6 +31,7 @@ Quick reference: read the relevant doc when working on a topic.
 | `configuring-keys.md` | Setting up GPG keys for signing firmware updates |
 | `gpg.md` | GPG tool operation for firmware signing and verification |
 | `hotp.md` | HOTP-based remote attestation of firmware state |
+| `ibb-measurement.md` | IBB measurement paths, PCR 0 prerequisites, provisioning and signing keys |
 | `keys.md` | Key management for firmware signing |
 | `security-model.md` | TPM measured boot, trust chain, flash write protection |
 | `TPM_GPIO_Reset_Approaches.md` | Eight approaches for resetting TPM via GPIO |

@@ -13,11 +13,12 @@ gives direct access to block devices, GPG, TPM tools, and flash utilities.
 
 ## Limitations
 
-The Recovery Shell boots with PCR 4 set to `recovery` instead of
-`normal-boot`.  This means:
+Entering the Recovery Shell extends PCR 4 with `recovery` instead of the
+normal `generic` value (or the unextended state).  This means:
 
 - **TPM-sealed secrets will not unseal** — PCRs no longer match.
-- TOTP/HOTP sealing and TPM Disk Unlock Key creation/unsealing do not work.
+- TOTP/HOTP and TPM Disk Unlock Key unsealing fail; the GUI flows that
+  create or reseal secrets are not available in the recovery shell.
 - To perform seal/unseal operations return to the normal GUI boot.
 
 ## Common Operations

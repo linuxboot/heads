@@ -17,7 +17,8 @@ Key passphrase.
 
 ## TPMTOTP / HOTP Shared Secret
 
-A random 20-byte value generated during OEM Factory Reset / Re-Ownership.
+A random 20-byte value generated when a new TOTP/HOTP secret is created,
+normally on the first boot after OEM Factory Reset / Reownership.
 
 - **TOTP (smartphone):** sealed into TPM NVRAM against PCR values; on each
   boot Heads unseals it if PCRs match and displays the current TOTP code for
@@ -67,7 +68,7 @@ from the expected firmware.
 
 - Ties the disk to one machine.
 - In recovery mode PCRs will not match; use the Disk Recovery Key instead.
-- After 3 failed unlock attempts Heads falls back to the Disk Recovery Key.
+- After 3 failed unlock attempts Heads offers to boot using the Disk Recovery Key.
 - **Recommended length:** 3 Diceware words.
 
 ## Owner's GPG Key
@@ -78,35 +79,18 @@ firmware image and used to verify `/boot` signatures on every boot.
 
 ## TPM PCR Map
 
-| PCR | Content |
-|-----|---------|
-| 0 | (reserved; populated by binary blobs where applicable for SRTM) |
-| 1 | (reserved) |
-| 2 | coreboot bootblock, ROM stage, RAM stage, Heads Linux kernel + initrd |
-| 3 | (reserved) |
-| 4 | Boot mode (0 during `/init`, then `recovery` or `normal-boot`) |
-| 5 | Heads Linux kernel modules |
-| 6 | Drive LUKS headers |
-| 7 | Heads user-specific CBFS files (config.user, GPG keyring, etc.) |
-| 16 | Used for TPM future-calc of LUKS header during DUK setup |
-
-Secrets sealed against PCRs 2, 4, 5, 6, 7.  If any of these change
-(firmware update, kernel module change, LUKS header change, config change)
-unseal operations fail until secrets are re-sealed.
+Heads extends and seals only PCRs 0 through 7; the assignments are in [tpm.md](tpm.md#pcr-assignments) and the seal policies in [tpm.md](tpm.md#sealing-policies).
 
 ## TPM Unseal Errors
 
 `Error Authentication failed (Incorrect Password) from TPM_Unseal`
 — PCRs match but the passphrase is wrong (expected; just re-enter it).
 
-Any other TPM_Unseal error means the PCR measurements differ from when
-secrets were sealed — potential tampering or an unsigned firmware update.
+A different TPM_Unseal error can have several causes, including a decryption
+failure or TPM dictionary attack lockout. Check the event log (`cbmem -L`) and
+the TPM state before assuming tampering.
 
-Review the PCR2 TCPA event log from Recovery Shell:
-
-```
-cbmem -L
-```
+See [tpm.md](tpm.md#tpm-event-log) for the event log and unseal errors.
 
 ## LUKS Key Derivation
 

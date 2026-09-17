@@ -97,7 +97,7 @@ whiptail_error --title 'ERROR' \
 
 ## `INPUT` — inline terminal prompts
 
-`INPUT` (defined in `initrd/etc/functions`) is the standard way to prompt the user for typed
+`INPUT` (defined in `initrd/etc/functions.sh`) is the standard way to prompt the user for typed
 input in non-whiptail contexts (e.g. recovery shell, passphrase entry, confirmation tokens).
 
 ```bash
@@ -213,7 +213,7 @@ All GPG signing in Heads uses `--pinentry-mode=loopback` with
 cache file through the loopback channel. `initrd/.gnupg/gpg-agent.conf`
 sets `allow-loopback-pinentry` to permit this.
 
-`confirm_gpg_card` in `initrd/etc/functions` is a thin wrapper around
+`confirm_gpg_card` in `initrd/etc/functions.sh` is a thin wrapper around
 `cache_gpg_signing_pin`, which implements both key paths below.
 
 ### Priming the cache: test-sign in cache_gpg_signing_pin
@@ -273,7 +273,7 @@ some_display_function() {
 `/tmp` is on tmpfs and is cleared at reboot, so the guard is automatically
 lifted on the next boot. No cleanup code is needed.
 
-This pattern is used by `hotpkey_fw_display` in `initrd/etc/functions` to show
+This pattern is used by `hotpkey_fw_display` in `initrd/etc/functions.sh` to show
 the USB security dongle firmware version at most once per session, regardless
 of how many times the function is called from different code paths.
 
@@ -330,8 +330,9 @@ tab-prefixed line. Also normalize `fw_ver` to add a `v` prefix if absent so
 
 ### Reading counters
 
-`read_tpm_counter` in `initrd/etc/functions` reads a TPM NV counter by index and writes the
-output to `/tmp/counter-<id>`. The format is `<hex_index>: <hex_value>`.
+`read_tpm_counter` in `initrd/etc/functions.sh` reads a TPM NV counter by index and writes the
+output to `/tmp/counter-<id>`. The format is `<index>: <hex_value>`: TPM 1
+writes the decimal counter ID, TPM 2 the generated hex index.
 
 **Pipeline exit status**: Never pipe `tpmr counter_read` through `tee` with `|| die` — the
 `||` checks the exit status of `tee` (always 0), not `tpmr`. Use a direct redirect:
