@@ -173,10 +173,9 @@ and 3 are zero while their coreboot features stay disabled. PCR 0 is normally
 zero and holds a measurement only when the platform is provisioned with a
 BootGuard boot profile that includes measurement; in that case the BootGuard ACM
 measures the Key Manifest, Boot Policy Manifest, IBB and policy data into PCR 0
-at locality 3. Historically this came from the server TXT path, but BootGuard and
-CBnT can measure on client silicon as well; most client machines ship verified
-boot only, so PCR 0 stays zero. Any extension of these PCRs changes the value
-recorded in the policy and breaks the seal.
+at locality 3; a platform provisioned without such a profile leaves PCR 0
+unchanged. Any extension of these PCRs changes the value recorded in the policy
+and breaks the seal.
 
 For the measurement behavior and its history see the [heads PR #1172
 discussion](https://github.com/linuxboot/heads/pull/1172) and the [Dasharo PCR
