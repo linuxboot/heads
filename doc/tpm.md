@@ -187,6 +187,10 @@ used (the integrity report may still read and display all PCRs). PCR 16 is not
 used: `calcfuturepcr` replays the `cbmem -L` event log (`replay_pcr` rejects
 `pcr >= 8`), so no scratch PCR is needed.
 
+The prerequisites for a PCR 0 measurement (fuses, signed manifests, the
+Startup ACM, and coreboot's role) are described in
+[ibb-measurement.md](ibb-measurement.md).
+
 ### Sealing policies
 
 #### LUKS Disk Unlock Key (DUK) — kexec-seal-key
