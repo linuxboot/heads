@@ -1971,7 +1971,7 @@ check_tpm_counter() {
 	else
 		DEBUG "$1 does not exist - creating new TPM counter"
 		# Create TPM counter with empty counter auth per TCG spec (no secret).
-		# Owner passphrase is not needed for the counter auth itself.
+		# The owner passphrase is still needed to define the counter, but not to increment it.
 		DEBUG "Invoking tpmr.sh counter_create with label $LABEL"
 		# run it, then record the exit status explicitly; the '!' operator
 		# cannot be used because it would hide the real return code.

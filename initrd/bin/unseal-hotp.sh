@@ -1,5 +1,6 @@
 #!/bin/bash
-# Retrieve the sealed file and counter from the NVRAM, unseal it and compute the hotp
+# Retrieve the sealed HOTP secret from the TPM NVRAM and read the counter from
+# /boot, unseal the secret and compute the hotp
 
 . /etc/functions.sh
 
@@ -17,9 +18,9 @@ mount_boot_or_die() {
 
 TRACE_FUNC
 
-# Store counter in file instead of TPM for now, as it conflicts with Heads
-# config TPM counter as TPM 1.2 can only increment one counter between reboots
-# get current value of HOTP counter in TPM, create if absent
+# Read the HOTP counter from the /boot file instead of the TPM, separate from
+# the Heads rollback counter, to avoid sharing one counter.
+# get the current value of the HOTP counter from the file
 mount_boot_or_die
 
 #check_tpm_counter $HOTP_COUNTER hotp \

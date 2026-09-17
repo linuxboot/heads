@@ -38,7 +38,7 @@ tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
 DEBUG "Sealing TOTP with boot state of PCR4 (Going to recovery shell extends PCR4)"
 # pcr 4 is expected to either:
-#  zero on bare coreboot+linuxboot on x86 (boot mode: init)
+#  zero on bare coreboot+linuxboot on x86 (before any boot path extend)
 #  already extended on ppc64 per BOOTKERNEL (skiboot) which boots heads.
 # Read from event log to catch both cases, even when called from recovery shell.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
@@ -49,7 +49,8 @@ DEBUG "Sealing TOTP without PCR6 involvement (LUKS header consistency is not fir
 # pcr 7 is containing measurements of user injected stuff in cbfs
 DEBUG "Sealing TOTP with actual state of PCR7 (User injected stuff in cbfs)"
 tpmr.sh pcrread -a 7 "$pcrf"
-#Make sure we clear the TPM Owner Passphrase from memory in case it failed to be used to seal TOTP
+# tpmr.sh seal prompts for the owner passphrase and caches it under
+# /tmp/secret; the cache is shredded only after a failed attempt.
 
 # if the board has TPM2 tools, check for the primary handle before
 # attempting to seal; a missing handle is the most common reason for

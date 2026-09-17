@@ -34,8 +34,10 @@ else
 	STATUS_OK "HOTP secret derived from ROM hash"
 fi
 
-# Store counter in file instead of TPM for now, as it conflicts with Heads
-# config TPM counter as TPM 1.2 can only increment one counter between reboots
+# Store the HOTP counter in a /boot file instead of the TPM. TPM 1.2 allows
+# incrementing only one counter handle per boot; a different handle fails until
+# the next TPM_Startup clear, so the HOTP counter cannot share the boot with the
+# Heads rollback counter.
 # get current value of HOTP counter in TPM, create if absent
 mount_boot || exit 1
 

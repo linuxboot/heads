@@ -269,10 +269,8 @@ for dev in $key_devices; do
 	STATUS_OK "$dev: LUKS TPM Disk Unlock Key added to slot $duk_keyslot"
 done
 
-# Now that we have setup the new keys, measure the PCRs
-# We don't care what ends up in PCR 6; we just want
-# to get the /tmp/luksDump.txt file.  We use PCR16
-# since it should still be zero
+# Now that we have setup the new keys, measure the LUKS headers into PCR 6.
+# The dump goes to /tmp/luksDump.txt for calcfuturepcr to use as input.
 STATUS "Measuring TPM Disk Unlock Key (DUK) for sealing policy (PCR[6])"
 echo "$key_devices" | xargs /bin/qubes-measure-luks.sh ||
 	DIE "Unable to measure the LUKS headers"
@@ -284,7 +282,8 @@ tpmr.sh pcrread 0 "$pcrf"
 tpmr.sh pcrread -a 1 "$pcrf"
 tpmr.sh pcrread -a 2 "$pcrf"
 tpmr.sh pcrread -a 3 "$pcrf"
-# Note that PCR 4 needs to be set with the "normal-boot" path value, read it from event log.
+# PCR 4 is sealed at its value before the normal boot extend (read from the
+# event log); "generic" is extended later, after unseal, to block further unsealing.
 tpmr.sh calcfuturepcr 4 >>"$pcrf"
 if [ "$CONFIG_USER_USB_KEYBOARD" = "y" ] || [ "$CONFIG_USB_KEYBOARD_REQUIRED" = "y" ] || [ -r /lib/modules/libata.ko ] || [ -x /bin/hotp_verification ]; then
 	DEBUG "Sealing LUKS TPM Disk Unlock Key with PCR5 involvement (additional kernel modules are loaded per board config)..."

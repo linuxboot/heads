@@ -202,7 +202,8 @@ $0 ~ pcr {
 # usage: replay_pcr <alg> <pcr_num> [ <input_file>|<input_hash> ... ]
 # Replays PCR value from CBMEM event log. Note that this contains only the
 # measurements performed by firmware, without those performed by Heads (USB
-# modules, LUKS header etc). First argument is PCR number, followed by optional
+# modules, LUKS header etc). The first argument is the hash algorithm and the
+# second is the PCR number, followed by optional
 # hashes and/or files extended to given PCR after firmware. Resulting PCR value
 # is returned in binary form.
 replay_pcr() {
@@ -686,7 +687,9 @@ tpm2_seal() {
 # - Exit code 2: index doesn't exist (normal on first seal after TPM reset)
 # - Exit code 3+: other errors (permission denied, bad passphrase, etc.)
 #
-# PCR policy: At seal time, PCR5 is IGNORED (not measured) - only relevant for HOTP.
+# PCR policy is set by the caller's pcrl argument; this function adds no
+# PCRs. seal-totp.sh seals the TOTP/HOTP shared secret against 0,1,2,3,4,7;
+# kexec-seal-key.sh seals the LUKS DUK against 0,1,2,3,4,5,6,7.
 tpm1_seal() {
 	TRACE_FUNC
 	file="$1"
@@ -1109,7 +1112,7 @@ tpm1_reset() {
 	DO_WITH_DEBUG tpm physicalsetdeactivated -c >/dev/null 2>&1 || LOG "tpm1_reset: unable to clear deactivated state (final)"
 }
 
-# Perform final cleanup before boot and lock the platform heirarchy.
+# Perform final cleanup before boot and lock the platform hierarchy.
 tpm2_kexec_finalize() {
 	TRACE_FUNC
 
