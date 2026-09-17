@@ -124,9 +124,9 @@ For example:
 
 * `INFO "TPM: Extending PCR[4] with string 'text' (hash: abc123...)"` — string extend
 * `INFO "TPM: Extending PCR[4] with content of /path/file (hash: abc123...)"` — file content extend
-* `INFO "Measuring /boot/vmlinuz into TPM PCR[4]"` — integrity measurement start
+* `INFO "TPM: Extending PCR[4] with content of string 'generic' to prevent secret unsealing"` — boot path string extend on the normal boot path
 * `INFO "TPM: PCR[4] after extend: 0x..."` — PCR state after extend
-* `STATUS "Measuring TPM Disk Unlock Key (DUK) into PCR[6]"` — action announcement (PCR[6] for LUKS sealing)
+* `STATUS "Measuring TPM Disk Unlock Key (DUK) for sealing policy (PCR[6])"` — action announcement (PCR[6] for LUKS sealing)
 
 Do NOT use INFO for:
 

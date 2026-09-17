@@ -26,7 +26,7 @@ scripts call `tpmr.sh` rather than invoking `tpm` or `tpm2` directly.
 | --- | --- |
 | `pcrread` | Read a PCR value |
 | `pcrsize` | Print PCR byte size (20 or 32) |
-| `calcfuturepcr` | Replay PCR extension to compute a future value |
+| `calcfuturepcr` | Compute a PCR value by replaying the firmware event log |
 | `extend` | Extend a PCR with a hash or file |
 | `seal` | Seal a file to TPM NVRAM with a PCR policy |
 | `unseal` | Unseal from TPM NVRAM |
@@ -36,7 +36,7 @@ scripts call `tpmr.sh` rather than invoking `tpm` or `tpm2` directly.
 | `counter_create` | Create a new monotonic counter |
 | `destroy` | Destroy an NVRAM index |
 | `reset` | Reset the TPM |
-| `kexec_finalize` | Finalize PCR state before kexec (TPM2 only) |
+| `kexec_finalize` | Flush TPM2 sessions, lock platform hierarchy (TPM2 only) |
 | `shutdown` | Orderly shutdown (TPM2 only) |
 
 ---
@@ -50,10 +50,10 @@ optional coreboot measured-boot features. Coreboot supports several modes:
 
 | coreboot mode | PCRs used | Status in Heads |
 | --- | --- | --- |
-| SRTM (Static Root of Trust for Measurement) | PCR 2 (`CONFIG_PCR_SRTM=2`) | **Active on all boards with TPM hardware and `CONFIG_TPM_MEASURED_BOOT=y`** |
+| SRTM (Static Root of Trust for Measurement) | PCR 2 (`CONFIG_PCR_SRTM=2`) | **Active on TPM boards with measured boot — current coreboot uses `CONFIG_TPM_MEASURED_BOOT=y`; older forks (KGPE-D16, Librem L1UM) use the legacy `CONFIG_TPM_INIT=y`** |
 | Boot mode measurement | PCR 1 (`CONFIG_PCR_BOOT_MODE=1`) | Not enabled |
 | Hardware ID measurement | PCR 1 (`CONFIG_PCR_HWID=1`) | Not enabled |
-| Runtime data | PCR 3 (`CONFIG_PCR_RUNTIME_DATA=3`) | Not enabled — coreboot's default slot for runtime data, but the feature is not activated in Heads; PCR 3 remains zero |
+| Runtime data | PCR 3 (`CONFIG_PCR_RUNTIME_DATA=3`) | Not enabled — `CONFIG_TPM_MEASURE_MRC_CACHE` is off and `CONFIG_TPM_MEASURED_BOOT_RUNTIME_DATA` is empty, so PCR 3 stays zero |
 | Firmware version | PCR 10 (`CONFIG_PCR_FW_VER=10`) | Not enabled |
 
 ### Root of Trust and SRTM chain
@@ -96,7 +96,7 @@ stack. Any modification to any of these stages produces a different PCR 2
 value, causing unseal operations to fail.
 
 Under the active Heads configuration, only PCR 2 is extended by coreboot.
-PCRs 0, 1, and 3 remain at zero and are anchored as zero in sealing policies.
+PCRs 0, 1, and 3 are read live at seal time and are normally zero.
 
 #### Boards with different or absent coreboot measured boot
 
@@ -156,19 +156,24 @@ unchanged; the TXT mechanism adds the DRTM capability on top of it.
 
 | PCR | Extended by | Content |
 | --- | --- | --- |
-| 0 | unused | Zero; anchored in sealing policies |
-| 1 | unused | Zero; anchored in sealing policies |
-| 2 | coreboot SRTM | Boot block, ROM stage, RAM stage, Heads Linux kernel + initrd |
-| 3 | unused | Zero; anchored in sealing policies |
-| 4 | Heads (`usb-init.sh`, `kexec-insert-key.sh`, `initrd/etc/functions.sh`) | Boot mode tracking: `"usb"` during USB init, `"generic"` after DUK unsealed, `"recovery"` when recovery shell entered |
+| 0 | unused by Heads | Read live at seal time — normally zero; BootGuard Measured Boot, if enabled, measures the IBB into PCR 0 before coreboot |
+| 1 | unused by Heads | Read live at seal time — normally zero; coreboot's boot mode and HWID measurement features are not enabled |
+| 2 | coreboot SRTM | Boot block, ROM stage, RAM stage, Heads Linux kernel + initrd (payload), plus other loaded CBFS files (`bootsplash.jpg`, `fallback/*`) |
+| 3 | unused by Heads | Read live at seal time — normally zero; MRC cache runtime measurement is disabled |
+| 4 | Heads (`usb-init.sh`, `kexec-insert-key.sh`, `kexec-select-boot.sh`, `initrd/etc/functions.sh`) | Boot path: `"usb"` on USB boot, `"generic"` on normal boot (after the DUK is unsealed, to block further unsealing), `"recovery"` on entering the recovery shell. Sealing records the value before any of these extensions |
 | 5 | Heads `insmod` wrapper | Each loaded kernel module: parameters + binary content (default `MODULE_PCR=5`) |
 | 6 | Heads `qubes-measure-luks.sh` | LUKS header dump for each encrypted drive |
-| 7 | Heads `cbfs-init.sh`, `uefi-init.sh` | Each CBFS/UEFI file: filename then content (default `CONFIG_PCR=7`) — covers `config.user`, GPG keyring, user CBFS files |
-| 16 | `tpmr.sh calcfuturepcr` (scratch use only) | Resettable debug PCR used as scratch pad during pre-computation of future PCR values; not part of any sealing policy |
+| 7 | Heads `cbfs-init.sh`, `uefi-init.sh` | Each CBFS/UEFI file: filename then content (default `CONFIG_PCR=7`) — covers `config.user`, GPG keyring, user CBFS files, not UEFI Secure Boot state |
 
-PCRs 0-3 are read at seal time and included in sealing policies. The zero
-state of PCRs 0, 1, and 3 is intentional — any unexpected extension of those
-PCRs (e.g. enabling an optional coreboot feature) would break the seal.
+PCRs 0 through 3 are read at seal time and included in sealing policies. PCRs 1
+and 3 are zero while their coreboot features stay disabled; PCR 0 is zero unless
+BootGuard Measured Boot records the IBB before coreboot. Any extension of these
+PCRs changes the value recorded in the policy and breaks the seal.
+
+Only PCRs 0 through 7 are extended or sealed against by Heads; other PCRs are not
+used (the integrity report may still read and display all PCRs). PCR 16 is not
+used: `calcfuturepcr` replays the `cbmem -L` event log (`replay_pcr` rejects
+`pcr >= 8`), so no scratch PCR is needed.
 
 ### Sealing policies
 
@@ -185,7 +190,7 @@ to a dedicated LUKS key slot and sealed to TPM NVRAM with the policy below.
 | 1 | `pcrread` (current value) | Platform state at seal time |
 | 2 | `pcrread` (current value) | coreboot SRTM measurement |
 | 3 | `pcrread` (current value) | Platform state at seal time |
-| 4 | `calcfuturepcr` | Pre-computed normal-boot path (before any USB init or recovery) |
+| 4 | `calcfuturepcr` | Replayed from the event log: PCR 4 before any Heads extension, normally zero |
 | 5 | `pcrread` or `calcfuturepcr 5` | Actual if extra modules loaded; zeroed future value if no extra modules |
 | 6 | `calcfuturepcr 6 /tmp/luksDump.txt` | Pre-computed LUKS header measurement |
 | 7 | `pcrread` (current value) | User CBFS files |
@@ -211,7 +216,7 @@ the LUKS header changes (key slot added/removed), the DUK unseal fails.
 | 1 | Yes | Platform state |
 | 2 | Yes | coreboot SRTM measurement |
 | 3 | Yes | Platform state |
-| 4 | Yes | Pre-computed normal-boot value |
+| 4 | Yes | PCR 4 before any Heads extension, normally zero |
 | 5 | **No** | Kernel modules are not firmware integrity attestation |
 | 6 | **No** | LUKS header consistency is not firmware integrity attestation |
 | 7 | Yes | User CBFS files |
@@ -227,17 +232,18 @@ ROM configuration integrity, not disk state.
 `tpmr.sh extend -ix <pcr_num> -ic <string>` extends a PCR with the hash of a
 string. `-if <file>` extends with the hash of a file.
 
-`calcfuturepcr` replays the expected extend sequence to compute what a PCR
-will contain after the normal boot path, without actually extending it.
-This is used to seal secrets against a known-future PCR state (e.g. PCR 4
-after normal init, before any recovery shell entry).
+`calcfuturepcr` replays the firmware event log (`cbmem -L`) to compute a PCR
+value without reading or extending the TPM. Any file or hash arguments are
+folded in after the log entries, which is how PCR 5 and PCR 6 are modeled.
+Sealing uses it to record the value a PCR will hold at unseal time, before any
+Heads extension.
 
 ### Recovery PCR extension
 
 When a recovery shell is entered, `initrd/etc/functions.sh` extends PCR 4 with
 the string `"recovery"`. This permanently invalidates TOTP and LUKS DUK
 unsealing for the rest of the boot session — the TPM will refuse to unseal
-secrets that were sealed against the normal-boot PCR 4 value.
+secrets that were sealed against the PCR 4 value from before any Heads extension.
 
 ### TPM event log
 
@@ -280,8 +286,10 @@ The rollback counter prevents **TPM swap attacks** and **/boot disk swap attacks
 
 ### How it works
 
-The counter is stored **in the TPM** (NVRAM index `0x3135106223`), ensuring
-hardware binding. A SHA-256 hash of the counter value is stored on **/boot**
+The counter is stored **in the TPM** NVRAM: on TPM 1 the TPM assigns the counter
+ID at creation (the `-la` label is only a caller supplied tag), and on TPM 2
+Heads generates the NV index at creation time. Both bind the counter to that TPM.
+A SHA-256 hash of the counter value is stored on **/boot**
 (`/boot/kexec_rollback.txt`). This creates a two-way binding:
 
 - Cannot swap TPM without breaking /boot consistency
@@ -292,18 +300,43 @@ counter hash matches. Before presenting TOTP/HOTP prompts, `preflight_rollback_c
 validates the counter is readable from TPM, ensuring secrets can actually be
 unsealed.
 
-The counter is created during OEM Factory Reset by `check_tpm_counter` in
-`initrd/etc/functions.sh`.
+The counter is created via `tpmr.sh counter_create` during OEM Factory Reset
+(`initrd/bin/oem-factory-reset.sh`), or by `check_tpm_counter`
+(`initrd/etc/functions.sh`) on the `kexec-sign-config` / `gui-init` paths.
+
+### NV index selection
+
+On TPM 2, Heads generates the rollback counter's NV index when it creates the
+counter (`tpm2_counter_create` in `initrd/bin/tpmr.sh`): a `1` prefix plus 3
+random bytes, yielding a valid NV handle (`0x01` handle type prefix) in
+`0x01000000` through `0x01FFFFFF`.
+
+Only `0x01800000` through `0x01BFFFFF` is allocatable by the owner; the
+generated range also overlaps the TPM manufacturer and platform manufacturer
+ranges (`0x01000000` through `0x017FFFFF`) and the TCG/global range
+(`0x01C00000` through `0x01FFFFFF`). The TPM does not enforce these allocation
+ranges, so an index authorized by the owner but outside the owner range is
+normally accepted — but it can collide with an index provisioned by the
+manufacturer or by the TCG; if that index already exists, creation fails with
+`TPM_RC_NV_DEFINED` (`TPM_RC_NV_SPACE` if NV space is exhausted).
+
+References:
+
+- TCG, [Registry of Reserved TPM 2.0 Handles and Localities](https://trustedcomputinggroup.org/wp-content/uploads/Registry-Of-Reserved-TPM2-Handles-And-Localities-Version-1.2-Revision-0.91_8September2023.pdf) — NV index ranges; "The TPM does not enforce the conventional usage of NV indices".
+- TCG, [TPM 2.0 Part 3: Commands](https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p64_Part3_Commands_code_15may2021.pdf), §31.3 `TPM2_NV_DefineSpace` — error codes.
 
 ### Counter state file
 
 `read_tpm_counter` in `initrd/etc/functions.sh` reads the counter from the TPM
 and writes the result to `/tmp/counter-<index>`. The format is
-`<hex_index>: <hex_value>`.
+`<index>: <hex_value>`: TPM 1 writes the decimal counter ID, TPM 2 the
+generated hex index.
 
 `/boot/kexec_rollback.txt` stores the SHA-256 hash of that counter file.
 At boot, `kexec-select-boot` reads the counter, hashes the file, and checks
-it against the stored hash. Any discrepancy aborts the boot.
+it against the stored hash. A missing rollback record blocks boot only when
+`CONFIG_BOOT_REQ_ROLLBACK=y`; an existing record mismatch aborts boot unless
+`CONFIG_IGNORE_ROLLBACK=y`. No board config enables the missing record check.
 
 ### Rollback preflight: boot-time validation
 
@@ -402,11 +435,11 @@ policy, or investigating why a seal/unseal operation fails.
 | Which coreboot version / fork a board uses | `modules/coreboot` + `boards/<board>/` | `CONFIG_COREBOOT_VERSION` in board config selects the coreboot source defined in `modules/coreboot` |
 | LUKS DUK sealing policy (which PCRs) | `initrd/bin/kexec-seal-key.sh` | `tpmr.sh seal` call and surrounding `pcrread` / `calcfuturepcr` calls; DEBUG comments explain each PCR |
 | TOTP/HOTP sealing policy (which PCRs) | `initrd/bin/seal-totp.sh` | `tpmr.sh seal` call; DEBUG messages explain why PCR 5 and PCR 6 are excluded |
-| PCR 4 (boot mode) tracking | `initrd/bin/usb-init.sh`, `initrd/bin/kexec-insert-key.sh`, `initrd/etc/functions.sh` | `tpmr.sh extend` calls with `"usb"`, `"generic"`, `"recovery"` |
-| PCR 5 (kernel modules) | `initrd/sbin/insmod` | `MODULE_PCR` variable; default `MODULE_PCR=5`; each `insmod` extends PCR 5 |
+| PCR 4 (boot path) tracking | `initrd/bin/usb-init.sh`, `initrd/bin/kexec-insert-key.sh`, `initrd/bin/kexec-select-boot.sh`, `initrd/etc/functions.sh` | `tpmr.sh extend` calls with `"usb"`, `"generic"`, `"recovery"` |
+| PCR 5 (kernel modules) | `initrd/sbin/insmod.sh` | `MODULE_PCR` variable; default `MODULE_PCR=5`; each `insmod` extends PCR 5 |
 | PCR 6 (LUKS header) | `initrd/bin/qubes-measure-luks.sh` | `tpmr.sh extend` call against `/tmp/luksDump.txt` |
 | PCR 7 (CBFS / ROM files) | `initrd/bin/cbfs-init.sh`, `initrd/bin/uefi-init.sh` | `CONFIG_PCR` variable; default `CONFIG_PCR=7`; each extracted file extends PCR 7 |
-| Rollback counter logic | `initrd/etc/functions.sh` | `check_tpm_counter`, `read_tpm_counter`, `counter_increment` |
+| Rollback counter logic | `initrd/etc/functions.sh` | `check_tpm_counter`, `read_tpm_counter`, `increment_tpm_counter` |
 
 ### Adding a new board
 
@@ -435,9 +468,9 @@ To verify that a new board's coreboot config matches the expected RoT:
 | PCR hash | SHA-1 (20 bytes) | SHA-256 (32 bytes) |
 | Sealing | `tpm sealfile2 -ix <pcr> <hash> ...` (specify PCRs and expected values) | `tpm2 nvdefine` + policy session |
 | Unsealing | `tpm unsealfile` (no PCR args — TPM enforces from baked blob) | `tpm2 unseal` with policy session |
-| Counter | `tpm nv*` | `tpm2 nvincrement` |
+| Counter | `tpm counter_create`, `counter_read`, `counter_increment` | `tpm2 nvdefine`, `nvread`, `nvincrement` |
 | Auth sessions | Not used | Required for policy-based unseal |
-| `kexec_finalize` | No-op | Extends PCRs, then `tpm2 shutdown` |
+| `kexec_finalize` | Does nothing | Flushes sessions and locks the platform hierarchy; does not extend PCRs |
 | `startsession` | No-op | Creates encryption session |
 
 ---

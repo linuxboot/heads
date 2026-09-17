@@ -35,7 +35,10 @@ Source of truth for IDs is `initrd/etc/dongle-versions`.
 
 **HOTP (recommended when available):**
 - Heads generates HOTP codes and the dongle verifies them automatically.
-- Pass = green LED, fail = red LED and boot halt.
+- Pass = green LED; fail = red LED and an error screen whose options depend
+  on the failure: an invalid code offers generating a new secret, ignoring
+  the error, or exiting to the recovery shell; a dongle communication error
+  offers retrying or ignoring it.
 - Does not require accurate time.
 
 **TPMTOTP (smartphone fallback):**

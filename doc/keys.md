@@ -17,7 +17,8 @@ Key passphrase.
 
 ## TPMTOTP / HOTP Shared Secret
 
-A random 20-byte value generated during OEM Factory Reset / Re-Ownership.
+A random 20-byte value generated when a new TOTP/HOTP secret is created,
+normally on the first boot after OEM Factory Reset / Re-Ownership.
 
 - **TOTP (smartphone):** sealed into TPM NVRAM against PCR values; on each
   boot Heads unseals it if PCRs match and displays the current TOTP code for
@@ -67,7 +68,7 @@ from the expected firmware.
 
 - Ties the disk to one machine.
 - In recovery mode PCRs will not match; use the Disk Recovery Key instead.
-- After 3 failed unlock attempts Heads falls back to the Disk Recovery Key.
+- After 3 failed unlock attempts Heads offers to boot using the Disk Recovery Key.
 - **Recommended length:** 3 Diceware words.
 
 ## Owner's GPG Key
@@ -80,27 +81,27 @@ firmware image and used to verify `/boot` signatures on every boot.
 
 | PCR | Content |
 |-----|---------|
-| 0 | (reserved; populated by binary blobs where applicable for SRTM) |
+| 0 | (unused by Heads; zero unless BootGuard's Measured Boot policy populates it before coreboot) |
 | 1 | (reserved) |
 | 2 | coreboot bootblock, ROM stage, RAM stage, Heads Linux kernel + initrd |
 | 3 | (reserved) |
-| 4 | Boot mode (0 during `/init`, then `recovery` or `normal-boot`) |
+| 4 | Boot path (`"usb"` = USB boot, `"generic"` = normal boot, `"recovery"` = recovery shell; precomputed at seal time from the firmware event log) |
 | 5 | Heads Linux kernel modules |
 | 6 | Drive LUKS headers |
 | 7 | Heads user-specific CBFS files (config.user, GPG keyring, etc.) |
-| 16 | Used for TPM future-calc of LUKS header during DUK setup |
 
-Secrets sealed against PCRs 2, 4, 5, 6, 7.  If any of these change
-(firmware update, kernel module change, LUKS header change, config change)
-unseal operations fail until secrets are re-sealed.
+TOTP/HOTP is sealed against PCRs 0,1,2,3,4,7; the LUKS DUK against PCRs
+0,1,2,3,4,5,6,7.  A firmware, kernel module, LUKS header, or CBFS config change
+breaks the relevant unseal until secrets are sealed again.
 
 ## TPM Unseal Errors
 
 `Error Authentication failed (Incorrect Password) from TPM_Unseal`
 — PCRs match but the passphrase is wrong (expected; just re-enter it).
 
-Any other TPM_Unseal error means the PCR measurements differ from when
-secrets were sealed — potential tampering or an unsigned firmware update.
+A different TPM_Unseal error can have several causes, including a decryption
+failure or TPM dictionary attack lockout. Check the event log (`cbmem -L`) and
+the TPM state before assuming tampering.
 
 Review the PCR2 TCPA event log from Recovery Shell:
 

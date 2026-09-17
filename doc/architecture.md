@@ -37,7 +37,7 @@ without a second-stage bootloader.  Measured boot is transitive: each stage meas
 next before executing it.  The CRTM (running in bootblock) measures FMAP and the bootblock
 image into the preram log.  Measurements taken before the TPM hardware is initialized are
 cached in the preram log and flushed to PCR 2 once TPM setup is complete.  See
-[tpm.md](tpm.md#srtm-in-coreboot) for per-board TPM init timing.
+[tpm.md](tpm.md#root-of-trust-and-srtm-chain) for TPM init timing for each board.
 
 The framebuffer initialized by coreboot (libgfxinit on pre-Alder Lake,
 FSP GOP on Alder Lake and newer) must survive across kexec for display
@@ -74,7 +74,7 @@ execution. Source lives in `initrd/`.
 | Boot signing | `initrd/bin/kexec-sign-config.sh` | GPG-sign /boot files, create checksums |
 | Boot verification | `initrd/bin/kexec-select-boot.sh` | Verify checksums, select and kexec the OS |
 | LUKS key sealing | `initrd/bin/kexec-seal-key.sh` | Seal disk encryption key to TPM |
-| TOTP/HOTP | `initrd/bin/seal-totp.sh`, `initrd/bin/seal-hotpkey.sh` | Seal attestation secrets to TPM |
+| TOTP/HOTP | `initrd/bin/seal-totp.sh` (seal), `initrd/bin/seal-hotpkey.sh` (reuse) | TOTP secret sealed to TPM; the same secret programs the HOTP dongle |
 | OEM reset | `initrd/bin/oem-factory-reset.sh` | Full re-ownership: GPG, TPM, TOTP, checksums |
 | Config GUI | `initrd/bin/config-gui.sh` | Runtime configuration menus |
 | Functions lib | `initrd/etc/functions.sh` | Shared utilities: logging, INPUT, TPM helpers |
@@ -132,7 +132,7 @@ The CI pipeline's workspace and cache behavior is documented in
 ## Key design principles
 
 - **No network at boot** — all verification is local; no certificate authorities
-- **Hardware root of trust** — the coreboot bootblock (IBB) is the Static Core Root of Trust for Measurement (S-CRTM): the first code executed by the CPU, directly from SPI flash.  Coreboot implements a transitive measurement chain: the CRTM measures FMAP and the bootblock image into the preram log, then each subsequent stage measures the next before executing it — bootblock measures romstage, romstage measures ramstage, ramstage measures the Heads payload.  Measurements are taken during CBFS file loading, before decompression, and are recorded in TPM PCR 2 (SRTM) once the TPM hardware is initialized (`tpm_setup()`).  Measurements taken before TPM init are cached in the preram log and flushed to PCR 2 by `tspi_measure_cache_to_pcr()` during `tpm_setup()`.  The full chain — bootblock → romstage → ramstage → Heads Linux kernel + initrd — is recorded into PCR 2.  PCRs 0, 1, and 3 remain zero as policy anchors.  See [tpm.md](tpm.md#srtm-in-coreboot) for TPM init timing per board.  See [wp-notes.md](wp-notes.md#pr0-chipset-locking) for SPI write-protection and PR0 chipset locking details.
+- **Hardware root of trust** — the coreboot bootblock (IBB) is the Static Core Root of Trust for Measurement (S-CRTM): the first code executed by the CPU, directly from SPI flash.  Coreboot implements a transitive measurement chain: the CRTM measures FMAP and the bootblock image into the preram log, then each subsequent stage measures the next before executing it — bootblock measures romstage, romstage measures ramstage, ramstage measures the Heads payload.  Measurements are taken during CBFS file loading, before decompression, and are recorded in TPM PCR 2 (SRTM) once the TPM hardware is initialized (`tpm_setup()`).  Measurements taken before TPM init are cached in the preram log and flushed to PCR 2 by `tspi_measure_cache_to_pcr()` during `tpm_setup()`.  The full chain — bootblock → romstage → ramstage → Heads Linux kernel + initrd — is recorded into PCR 2.  PCRs 1 and 3 are read live at seal time and are zero while their coreboot features stay disabled; PCR 0 is normally zero but may be populated by BootGuard Measured Boot.  See [tpm.md](tpm.md#root-of-trust-and-srtm-chain) for TPM init timing per board.  See [wp-notes.md](wp-notes.md#pr0-chipset-locking) for SPI write protection and PR0 chipset locking details.
 - **Fail-closed** — failed integrity verification drops to a recovery shell.  Recovery shell authentication via GPG smartcard is enforced when GPG key backup has been configured (`CONFIG_HAVE_GPG_KEY_BACKUP=y`), which is set by answering "y" to `"Would you like to format an encrypted USB Thumb drive to store GPG key material? (Required to enable GPG authentication)"` during OEM Factory Reset / Re-Ownership.  Otherwise the recovery shell is unauthenticated.  An "Ignore tampering and force a boot (Unsafe!)" option is available to override this.
 - **Separation of duties** — the public key that verifies `/boot` signatures is stored in CBFS (ROM).  The private key that signs `/boot` stays on a USB security dongle and never leaves it.
 - **Auditability** — all source is open, builds are reproducible, ROM images are verifiable

@@ -309,7 +309,10 @@ Optionally, root partition hashes are also checked if `CONFIG_ROOT_CHECK_AT_BOOT
 
 The TPM monotonic counter index is read from `/boot/kexec_rollback.txt` and the
 counter is read from the TPM. The SHA-256 of the counter file is then checked
-against the hash stored in `kexec_rollback.txt`. Any discrepancy aborts the boot.
+against the hash stored in `kexec_rollback.txt`. A missing rollback record
+blocks boot only when `CONFIG_BOOT_REQ_ROLLBACK=y`; an existing record mismatch
+aborts boot unless `CONFIG_IGNORE_ROLLBACK=y`. No board config enables the
+missing record check.
 
 ### OS boot execution (`do_boot`)
 

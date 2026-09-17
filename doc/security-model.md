@@ -147,19 +147,24 @@ hardware. See [tpm.md](tpm.md) for the full breakdown.
 
 PCRs 0, 1, and 3 are unused — the `CONFIG_PCR_*` entries for those registers
 are slot assignments for optional coreboot features that are not enabled. They
-remain at zero and are anchored as zero in sealing policies.
+are read live at seal time and are normally zero (BootGuard Measured Boot, if
+enabled, populates PCR 0 before coreboot). On boards with coreboot measured
+boot, PCR 2 is not zero: it carries the SRTM chain.
 
 Heads extends additional PCRs during userspace boot:
 
-- **PCR 4** — boot mode tracking; see below
+- **PCR 4** — boot path tracking; see below
 - **PCR 5** — each kernel module loaded via the `insmod` wrapper (binary + parameters)
 - **PCR 6** — LUKS header dump (by `qubes-measure-luks`) before disk unlock
 - **PCR 7** — each CBFS/UEFI file extracted from ROM (by `cbfs-init`/`uefi-init`)
 
 Heads extends PCR 4 further depending on execution path:
 
+- **USB boot**: PCR 4 is extended with `"usb"`, locking out unsealing on the USB
+  boot path.
 - **Normal boot**: `calcfuturepcr 4` pre-computes the expected value and secrets
-  are sealed against it.
+  are sealed against it; the running path then extends `"generic"` to lock out
+  further unsealing.
 - **Recovery shell**: PCR 4 is extended with `"recovery"`, invalidating
   normal-boot unsealing for the rest of the session.
 
@@ -178,8 +183,9 @@ which the user observes as a TOTP/HOTP mismatch.
 
 ### TOTP
 
-A 20-byte random secret is generated at OEM Factory Reset and sealed to
-TPM NVRAM. At each boot, `unseal-totp` retrieves it and generates the current
+A 20-byte random secret is generated when a new TOTP/HOTP secret is created,
+normally on the first boot after OEM Factory Reset / Re-Ownership, and sealed
+to TPM NVRAM. At each boot, `unseal-totp` retrieves it and generates the current
 30-second code. The user compares this against their authenticator app.
 
 ### HOTP (Reverse HOTP)
@@ -206,10 +212,10 @@ in TPM NVRAM).
 On boards where `CONFIG_NO_TPM=y` (currently the Librem Mini, Librem Mini v2,
 and Librem 11), there is no TPM to seal secrets against PCR values. Heads falls
 back to a different HOTP secret derivation implemented in `secret_from_rom_hash`
-in `initrd/etc/functions`:
+in `initrd/etc/functions.sh`:
 
 1. At seal time, `flash.sh` reads the full SPI ROM via flashrom/flashprog.
-2. The SHA-256 of the ROM image is used directly as the HOTP secret.
+2. The first 20 bytes of the SHA-256 of the ROM image are used as the HOTP secret.
 3. The secret is programmed onto the USB security dongle.
 4. At each boot, the ROM is read again, SHA-256 recomputed, and the HOTP code
    sent to the dongle for comparison. A changed ROM produces a different hash,
@@ -241,8 +247,10 @@ does not provide the same tamper-evident guarantees as TPM PCR sealing.
 
 ### Attestation failure handling
 
-If TOTP or HOTP unseal fails, `INTEGRITY_GATE_REQUIRED` is set and all TPM
-secret sealing operations are blocked until the integrity gate passes.
+If a TOTP unseal fails, `INTEGRITY_GATE_REQUIRED` is set and sealing new TPM
+secrets is blocked until the integrity gate passes. A failed HOTP unseal or
+missing token only shows a warning and returns to the menu; a failed HOTP code
+check sets the gate.
 See [ux-patterns.md](ux-patterns.md#gate-before-sealing).
 
 ---
@@ -259,8 +267,9 @@ When the user installs or updates the OS, `kexec-sign-config`:
 1. Hashes all non-`kexec*` files in `/boot` into `kexec_hashes.txt` and
    generates a directory tree listing in `kexec_tree.txt`.
 2. Signs the hash manifest with a GPG key, producing `kexec.sig`.
-3. Increments the TPM rollback counter and stores the new counter hash in
-   `kexec_rollback.txt`.
+3. When signing runs with the rollback counter enabled (`-r` on TPM boards
+   without `CONFIG_IGNORE_ROLLBACK`), increments the TPM rollback counter and
+   stores the new counter hash in `kexec_rollback.txt`.
 
 The signing key lives on a hardware security dongle (OpenPGP smartcard),
 never in the ROM. Signing requires physical possession of the card and
@@ -338,10 +347,14 @@ and the /boot disk, preventing swap attacks.
 
 ### How the binding works
 
-1. **TPM stores counter**: A monotonic counter is created in TPM NVRAM at OEM Factory Reset
-2. **/boot stores hash**: SHA-256 hash of counter value is stored in `/boot/kexec_rollback.txt`
-3. **Counter increments on update**: Every `kexec-sign-config` run increments the counter and updates the hash
+1. **TPM stores counter**: A monotonic counter is created in TPM NVRAM at OEM Factory Reset, at TPM reset, or by signing when `kexec_rollback.txt` is missing
+2. **/boot stores hash**: the sha256sum of the counter state file (`counter-<ID>`, index and value) is stored in `/boot/kexec_rollback.txt`
+3. **Counter increments on signing**: Every `kexec-sign-config` run with rollback enabled increments the counter and updates the hash
 4. **Verification at boot**: `kexec-select-boot` verifies the counter matches the stored hash
+
+A missing rollback record blocks boot only when `CONFIG_BOOT_REQ_ROLLBACK=y`;
+no board config enables that requirement. An existing record mismatch aborts
+boot unless `CONFIG_IGNORE_ROLLBACK=y`.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -352,10 +365,10 @@ and the /boot disk, preventing swap attacks.
 │  ─────────────────                     ────────────                         │
 │                                                                             │
 │  1. Create counter in TPM NVRAM         1. Read counter from TPM          │
-│     └─▶ counter_value = 0                   │                              │
+│     └─▶ create counter, then increment to 1 │                               │
 │  2. Hash counter → /boot                   ▼                              │
 │     └─▶ kexec_rollback.txt              2. Hash counter                   │
-│           contains hash of "0"                  │                              │
+│           contains hash of "1"                  │                              │
 │                                               ▼                              │
 │                                           3. Compare with /boot hash       │
 │                                               │                              │
@@ -388,8 +401,8 @@ creating additional hardware binding:
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  TOTP/HOTP Secret Seal Policy: PCRs 0,1,2,3,4,7                    │  │
 │  │                                                                      │  │
-│  │  PCR 0,1,2,3: Platform configuration (unused but anchored as zero)    │  │
-│  │  PCR 4:          Boot mode (normal/recovery/usb)                     │  │
+│  │  PCR 0,1,3: Normally zero               PCR 2: coreboot SRTM        │  │
+│  │  PCR 4:          Boot path ("usb"/"generic"/"recovery")             │  │
 │  │  PCR 7:          CBFS/ROM files (user-injected)                     │  │
 │  │                                                                      │  │
 │  │  NOT included: PCR 5 (kernel modules), PCR 6 (LUKS headers)         │  │
@@ -399,21 +412,14 @@ creating additional hardware binding:
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  LUKS DUK Seal Policy: PCRs 0,1,2,3,4,5,6,7                        │  │
 │  │                                                                      │  │
-│  │  PCR 0,1,2,3: Platform configuration                               │  │
-│  │  PCR 4:          Boot mode                                          │  │
+│  │  PCR 0,1,3: Normally zero               PCR 2: coreboot SRTM        │  │
+│  │  PCR 4:          Boot path ("usb"/"generic"/"recovery")             │  │
 │  │  PCR 5:          Kernel modules (if loaded)                         │  │
 │  │  PCR 6:          LUKS header (measured at seal time)                 │  │
 │  │  PCR 7:          CBFS/ROM files                                     │  │
 │  │                                                                      │  │
 │  │  Includes: PCR 5, PCR 6 → More restrictive                         │  │
 │  │  → Changing kernel modules or LUKS headers requires resealing DUK    │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │  PCR 16 (Scratch)                                                   │  │
-│  │                                                                      │  │
-│  │  Used internally for calcfuturepcr (pre-computing future values)   │  │
-│  │  Not part of any sealing policy - purely for calculation             │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -439,8 +445,9 @@ to prompting for the DRK passphrase. The DRK is always a valid recovery path.
 
 ## Integrity gate before sealing
 
-Before any operation that seals new TPM secrets, `gate_reseal_with_integrity_report`
-in `gui-init` verifies:
+When a prior TOTP/HOTP failure has set `INTEGRITY_GATE_REQUIRED`,
+`gate_reseal_with_integrity_report` in `gui-init` runs before sealing new TPM
+secrets and verifies:
 
 1. TPM is not in a reset-required state.
 2. No prior TOTP/HOTP failure is recorded (`INTEGRITY_GATE_REQUIRED` is unset).
@@ -450,7 +457,8 @@ in `gui-init` verifies:
 6. User explicitly confirms proceeding.
 
 If any check fails, the sealing operation is aborted. This prevents new
-secrets from being sealed against a potentially compromised `/boot`.
+secrets from being sealed against a potentially compromised `/boot`. If the
+flag is not set, only the reset-required check runs.
 
 For the UNKNOWN_KEY scenario and correct error messaging, see
 [ux-patterns.md](ux-patterns.md#security-ux--integrity-report-and-unknown-keys).
@@ -470,9 +478,9 @@ For the UNKNOWN_KEY scenario and correct error messaging, see
 3. **TPM rollback counter creation** — creates a new monotonic counter and
    stores its initial hash in `/boot/kexec_rollback.txt`.
 4. **`/boot` signing** — hashes and GPG-signs the initial `/boot` state.
-5. **TOTP/HOTP and LUKS DUK sealing** — TOTP/HOTP secrets are sealed
-   immediately; LUKS DUK sealing is performed by the user on the next boot
-   via the GUI menu.
+5. **TOTP/HOTP and LUKS DUK sealing** — the HOTP counter file is created, but
+   TOTP/HOTP secrets are generated and sealed on the next boot; LUKS DUK
+   sealing is performed by the user from the GUI menu.
 
 ---
 
@@ -482,8 +490,13 @@ All verification failures are fatal by default:
 
 - GPG signature mismatch → `die` (recovery shell)
 - Hash mismatch → `die` (recovery shell)
-- TPM counter mismatch → `die` (recovery shell)
+- TPM counter mismatch (when `CONFIG_IGNORE_ROLLBACK` is not set and the
+  rollback file exists) → `die` (recovery shell)
 - TOTP unseal failure → error menu (no unattended boot)
 - LUKS DUK unseal failure → OS prompts for DRK passphrase (no silent failure)
 
-There is no "continue anyway" path for integrity failures.
+Some failures remain overridable: the TOTP/HOTP error menus offer an ignore
+option, and the boot options menu offers an unsafe forced boot. Overrides
+stay on screen in their error or warning color; for TOTP failures and
+invalid HOTP codes the integrity gate stays set, and ignoring a dongle
+communication error clears it.

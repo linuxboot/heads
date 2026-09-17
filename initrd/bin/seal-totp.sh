@@ -15,7 +15,6 @@ HOST="$1"
 if [ -z "$HOST" ]; then
 	HOST="TPMTOTP"
 fi
-TPM_PASSWORD="$2"
 
 TOTP_SECRET="/tmp/secret/totp.key"
 TOTP_SEALED="/tmp/secret/totp.sealed"
@@ -63,7 +62,7 @@ fi
 # or other TPM state issues. Avoid DO_WITH_DEBUG so interactive prompts
 # (TPM owner passphrase on TPM1) are not hidden from the user.
 STATUS "Sealing TOTP secret to TPM NVRAM"
-if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 "" "$TPM_PASSPHRASE"; then
+if ! tpmr.sh seal "$TOTP_SECRET" "$TPM_NVRAM_SPACE" 0,1,2,3,4,7 "$pcrf" 312 ""; then
 	# tpmr.sh already logged details; guide user generically to reset TPM
 	DIE "Unable to seal TOTP secret to TPM NVRAM; reset the TPM (Options -> TPM/TOTP/HOTP Options -> Reset the TPM in the GUI) and try again."
 fi
