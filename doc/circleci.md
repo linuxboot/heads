@@ -43,7 +43,7 @@ coreboot fork caches.
 All inputs come from the seed's workspace (including crossgcc, blobs, musl,
 and fork source for same-fork boards).  For Dasharo shared-toolchain boards
 where the seed uses a different fork (nv4x), fork source is cloned fresh
-during `make` (seconds).
+during `make`.
 
 ---
 
@@ -72,8 +72,8 @@ by all x86 jobs.  Restored before seeds run, persisted to workspace.
   `make` finds `.heads-toolchain`, skips crossgcc rebuild.
   Only changed artifacts rebuild.
 - **Coreboot fork hits, Modules misses** (e.g., non-coreboot module
-  changed): Fork source and crossgcc restored.  Modules rebuild.
-  Saves ~30-40 min of crossgcc build time.
+  changed): Fork source and crossgcc are restored; the broader module set is
+  rebuilt without unnecessarily rebuilding the coreboot fork toolchain.
 - **Musl only hits**: No coreboot fork source or coreboot crossgcc (`build/{arch}/{coreboot_dir}`).  The musl toolchain (`crossgcc/{arch}`) is present, but the coreboot fork tree -- including coreboot's own crossgcc under `util/crossgcc/` -- must be built from scratch.
 - **Nothing hits**: Everything from scratch.
 
@@ -108,7 +108,7 @@ fork source is inherited through the workspace -- no clone needed.
 
 For Dasharo shared-toolchain `build` jobs where the seed uses a different
 fork (nv4x), the fork source directory is not in the workspace.  Each
-such `build` job clones its own fork fresh during `make` (seconds).
+such `build` job clones its own fork fresh during `make`.
 This prevents them from independently cache-missing under their own
 `{coreboot_dir}` suffix and triggering a redundant crossgcc rebuild.
 
@@ -140,8 +140,9 @@ All jobs run under the `heads-docker` executor (pinned Docker image at
 for the image definition and reproducibility details, and
 [flake.nix](../flake.nix) for the Nix-based build environment used to
 generate it).  The shared `build_board` command runs `make V=1 BOARD=<target>`,
-refreshes restored build stamps to prevent spurious rebuilds, and archives
-build logs on failure.
+refreshes restored build stamps to prevent spurious rebuilds, and creates
+`logs.tar.gz` on every build.  A separate step emits recent failing-build logs
+and returns failure only when the marker created by the build step is present.
 
 1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
    files and persists `tmpDir/` to workspace.  Four hash files are created:
@@ -152,13 +153,13 @@ build logs on failure.
      — used by **Coreboot fork** cache layer
    - `musl-cross-make.sha256sums`: `flake.lock`,
      `modules/musl-cross-make*` — used by **Musl** cache layer
-   - `blobs_listing.sha256sums`: `blobs/**/*.sh` — used by **Blobs** cache
+   - `blobs_listing.sha256sums`: every file under `blobs/` — used by the **Blobs** cache
    All downstream jobs get the same global hashes (`tmpDir/` from workspace).
    Per-seed differentiation comes from the `{coreboot_dir}` suffix on cache
    keys, not from the hash.
 
 2. **`x86_blobs`**: Downloads x86 firmware blobs (ME, GBE, IFD).
-   Restores blob cache keyed on blob script listing hash (`x86-blobs-...`).
+   Restores blob cache keyed on blob full `blobs/` file-listing hash (`x86-blobs-...`).
    Persists `blobs/` to workspace.  Only for x86 (ppc64 has no blobs).
 
 3. **`x86-musl-cross-make [cross compiler]`**: Builds musl-cross-make arch-specific toolchain
@@ -185,17 +186,18 @@ build logs on failure.
 - See [architecture.md](architecture.md) and [config.md](config.md) for
   ppc64 board and build details.
 
-### Seeds (5 total)
+### Seeds (6 x86; 1 ppc64)
 
 Seed job names in CircleCI include their upstream coreboot base in
 `[seed:coreboot-VERSION]` format:
 
-| Job name in CircleCI | Seeds | Upstream base |
+| Job name in CircleCI | Downstream jobs | Upstream base |
 |---|---|---|
-| `novacustom-nv4x_adl [seed:coreboot-24.12]` | 4 Dasharo families (8 boards) | coreboot 24.12 |
-| `librem_14 [seed:coreboot-24.02.01]` | 8 purism boards | coreboot 24.02.01 |
-| `kano [seed:coreboot-mrchromebox-26.03]` | none (standalone) | MrChromebox fork (coreboot 26.03) |
-| `EOL_t480-hotp-maximized [seed:coreboot-25.09]` | 28 x86 boards | coreboot 25.09 |
+| `novacustom-nv4x_adl [seed:coreboot-24.12]` | 7 (8 configured Dasharo boards including this seed) | coreboot 24.12 |
+| `librem_14 [seed:coreboot-24.02.01]` | 8 Purism boards | coreboot 24.02.01 |
+| `kano [seed:coreboot-mrchromebox-26.03]` | 1 (`kano-hotp`) | MrChromebox fork (coreboot 26.03) |
+| `EOL_t480-hotp-maximized [seed:coreboot-25.09]` | 30 | coreboot 25.09 |
+| `EOL_x280-hotp-maximized [seed:coreboot-25.12]` | 1 (`EOL_x280-maximized`) | coreboot 25.12 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
 
@@ -334,3 +336,4 @@ invalidation on CI config changes.  Files used:
   `./patches/coreboot*`
 - `musl-cross-make.sha256sums`: `./flake.lock`,
   `./modules/musl-cross-make*`
+- `blobs_listing.sha256sums`: every file under `./blobs/`

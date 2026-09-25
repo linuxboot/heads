@@ -1,8 +1,13 @@
 # Heads Docker Build Environment
 
-Heads builds inside a versioned Docker image that provides a reproducible, hermetic build
-environment. Docker images are built with Nix since
-[PR #1661](https://github.com/linuxboot/heads/pull/1661).
+Heads builds inside a versioned Docker image that provides a consistent build
+environment. ROM reproducibility still depends on matching source and build
+inputs. Docker images are built with Nix since
+[PR #1661](https://github.com/linuxboot/heads/pull/1661).  `flake.nix` and
+`flake.lock` define the local image's Nix inputs; the published image selected
+by `docker_repro.sh` is pinned separately through `docker/DOCKER_REPRO_DIGEST`
+(or its environment override) and cross-checked against the canonical CI image
+pin.  A local image build does not by itself establish bit-identical ROM output.
 
 See also: [General reproducible-build notes](../README.md#general-notes-on-reproducible-builds),
 [Reproducible build practices](reproducible-builds.md),
@@ -18,14 +23,14 @@ The short path to build Heads is to do what CircleCI does:
 - Run `./docker_repro.sh make BOARD=XYZ`
 
 ```bash
-# Canonical, reproducible build (recommended for all users)
-./docker_repro.sh make BOARD=x230-hotp-maximized
+# Pinned-image build (recommended for all users)
+./docker_repro.sh make BOARD=EOL_x230-hotp-maximized
 
 # Build and run a QEMU board
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
 
-`./docker_repro.sh` is the canonical, reproducible way to build and test Heads.
+`./docker_repro.sh` is the canonical wrapper for the configured pinned image.
 `docker_local_dev.sh` is intended for developers who need to modify the local image built
 from `flake.nix`/`flake.lock` and is not recommended for general testing.
 
@@ -53,12 +58,12 @@ You can also use Nix to enter a development shell or build Heads directly withou
 nix develop
 
 # Or run a single command in the environment
-nix develop --command make BOARD=x230-hotp-maximized
+nix develop --command make BOARD=EOL_x230-hotp-maximized
 ```
 
 Note: `nix develop` provides QEMU, `swtpm`, and other required dependencies in the shell
 environment, so separate host installs are not needed for this workflow. The Docker
-workflow is still recommended for its canonical isolation and reproducibility benefits.
+workflow is still recommended for its consistent container image identity.
 
 ---
 
@@ -68,13 +73,13 @@ Three wrappers cover different use cases:
 
 | Script | Use case | Reproducibility | When to use |
 | --- | --- | --- | --- |
-| `./docker_repro.sh` | **Canonical reproducible builds** | Pinned to immutable digest | **All users & maintainers**: Standard way to build Heads; matches CircleCI exactly; use for releases and critical builds |
+| `./docker_repro.sh` | **Canonical build environment** | Pinned to an image manifest digest | **Canonical default path**: cross-checks the pinned image against the current CI digest; ROM equality still depends on matching source/build inputs |
 | `./docker_local_dev.sh` | **Developer customization** | Local build may differ if flake changes | **Developers only**: Rebuilds from local `flake.nix`/`flake.lock` when dirty; use `HEADS_CHECK_REPRODUCIBILITY=1` to verify against published version |
-| `./docker_latest.sh` | **Convenience** | Defaults to reproducible digest; may be unpinned if no digest is available | **Testing/convenience**: Uses latest published image; by default falls back to the reproducible digest (`DOCKER_REPRO_DIGEST`) when available (no confirmation needed). Runs unpinned only when no digest is configured, in which case it requires confirmation unless `HEADS_ALLOW_UNPINNED_LATEST=1` or `DOCKER_LATEST_DIGEST` is set. |
+| `./docker_latest.sh` | **Convenience** | Defaults to the configured digest; may be unpinned if none is available | **Testing/convenience**: Uses the selected image; by default falls back to `DOCKER_REPRO_DIGEST` when available. Runs unpinned only when no digest is configured, in which case confirmation is required unless `HEADS_ALLOW_UNPINNED_LATEST=1` or `DOCKER_LATEST_DIGEST` is set. |
 
 **Recommendation by role**:
 
-- **End users & QA**: Use `./docker_repro.sh` for all builds (ensures reproducibility and security)
+- **End users & QA**: Use `./docker_repro.sh` when the pinned image identity is desired; verify ROM reproducibility separately when required
 - **Developers**: Use `./docker_local_dev.sh` when iterating on the build system or Nix flake,
   but verify reproducibility with `HEADS_CHECK_REPRODUCIBILITY=1` before committing
 - **Maintainers**: Use `./docker_repro.sh` for official releases; see [Maintenance workflow](#maintenance-workflow)
@@ -83,31 +88,38 @@ Three wrappers cover different use cases:
 
 ```bash
 # Canonical builds
-./docker_repro.sh make BOARD=x230-hotp-maximized
+./docker_repro.sh make BOARD=EOL_x230-hotp-maximized
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 
 # Developer workflow (verify before committing)
-./docker_local_dev.sh make BOARD=nitropad-nv41
-HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh make BOARD=nitropad-nv41
+./docker_local_dev.sh make BOARD=UNTESTED_nitropad-ns50
+HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh make BOARD=UNTESTED_nitropad-ns50
 ```
 
 If you are already inside the container interactively, run `make BOARD=board_name` as usual.
 
 ### QEMU workflow examples
 
+The current worktree is bind-mounted at the same path inside the container.
+X11 sockets, `/dev/kvm` when available, and USB devices are passed separately.
+This does not make arbitrary host paths visible: repository, build, key, disk,
+and install-image paths passed to the build must resolve inside the worktree.
+Use repository-contained paths such as `./qemu_img/`.
+
 ```bash
 # Build ROM, then export public key to emulated USB storage at QEMU runtime
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2
 
 # Inject a GPG public key into the ROM image
-./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=~/pubkey.asc inject_gpg
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 \
+  PUBKEY_ASC=./qemu_img/public-key.asc inject_gpg
 
-# Full install run with hardware token, disk image, and install ISO
+# QEMU run with repository-contained disk and install-image paths
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 \
   USB_TOKEN=Nitrokey3NFC \
-  PUBKEY_ASC=~/pubkey.asc \
-  ROOT_DISK_IMG=~/qemu-disks/debian-9.cow2 \
-  INSTALL_IMG=~/Downloads/debian-9.13.0-amd64-xfce-CD-1.iso \
+  PUBKEY_ASC=./qemu_img/public-key.asc \
+  ROOT_DISK_IMG=./qemu_img/root.qcow2 \
+  INSTALL_IMG=./install-images/installer.iso \
   run
 ```
 
@@ -169,12 +181,13 @@ warn and will not attempt automatic cookie creation (GUI may fail).
 **`HEADS_SKIP_DOCKER_REBUILD=1`** — skip automatically rebuilding the local image when
 `flake.nix`/`flake.lock` are dirty.
 
-**`HEADS_CHECK_REPRODUCIBILITY=1`** — **recommended for verifying reproducible builds**.
-After building/loading the local image, automatically compares its digest with the
-published maintainer image to verify reproducibility. Requires network access. By default
-compares against `${HEADS_MAINTAINER_DOCKER_IMAGE}:latest`. Use
-`HEADS_CHECK_REPRODUCIBILITY_REMOTE` to specify a different tag (e.g., `v0.2.7`). See
-[Verifying reproducibility](#verifying-reproducibility) below for detailed examples.
+**`HEADS_CHECK_REPRODUCIBILITY=1`** — compares the locally built image ID with
+the remote maintainer image's config digest through
+`compare_image_reproducibility()`.  This checks Docker image identity only; it
+does not compare Heads ROMs or authenticate the publisher.  It requires network
+access and compares against `${HEADS_MAINTAINER_DOCKER_IMAGE}:latest` by default.
+Use `HEADS_CHECK_REPRODUCIBILITY_REMOTE` for a different tag (for example
+`v0.2.7`).  See [Verifying reproducibility](#verifying-reproducibility) below.
 
 **`HEADS_AUTO_INSTALL_NIX=1`** — automatically attempt to download the Nix single-user
 installer when `nix` is missing (interactive prompt suppressed).
@@ -221,11 +234,13 @@ confirmation unless `DOCKER_LATEST_DIGEST` is set or the wrapper can fall back t
 ### `./docker_repro.sh`
 
 **`DOCKER_REPRO_DIGEST`** — pin the image used by `./docker_repro.sh` to an immutable
-digest: `tlaurion/heads-dev-env@<digest>` (recommended for reproducible and secure
-builds). Note: `DOCKER_REPRO_DIGEST` is *consumed by* `./docker_repro.sh` via
-`resolve_docker_image` in `docker/common.sh` and is the canonical way to pin the repro
-image for reproducible builds. The repository file `docker/DOCKER_REPRO_DIGEST` contains
-the pinned digest used by default.
+digest: `tlaurion/heads-dev-env@<digest>`.  A non-empty environment value takes
+precedence; otherwise `docker_repro.sh` falls back to the non-comment digest in
+`docker/DOCKER_REPRO_DIGEST`.  The pin fixes image identity only; it does not
+guarantee ROM reproducibility.  On the canonical default
+`tlaurion/heads-dev-env` path, the wrapper also extracts the digest from
+`.circleci/config.yml` and aborts on a mismatch.  Fork or other non-canonical
+repository overrides can skip that CI digest cross-check.
 
 ---
 
@@ -236,10 +251,33 @@ USB token (for example `scdaemon` or `pcscd`). The wrapper will warn and, on int
 shells, give a **3-second abort window** before attempting to kill those processes to free
 the token. Set `HEADS_DISABLE_USB=1` to opt out of this automatic cleanup.
 
-For fully unattended builds (script/non-interactive shell), combine with
-`script` to provide the pseudo-TTY that docker_repro.sh's `-ti` requires:
+For fully unattended builds (script/non-interactive shell), wrap the command in
+`script` to provide the pseudo-TTY that `docker_repro.sh`'s `-ti` requires. Pass
+`-f` (flush) as well: without it, `script` buffers its output and a non-tty/agent
+context that reads the stream incrementally can see the build stall or lose
+output. `HEADS_DISABLE_USB=1` skips the USB token passthrough (and its 3-second
+abort window) so nothing prompts:
 
-    HEADS_DISABLE_USB=1 script -qec './docker_repro.sh make BOARD=...' /dev/null
+```bash
+script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized"
+script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x220-maximized"
+```
+
+`script` (util-linux) allocates a pseudo-terminal (PTY) so `docker run -ti` has
+a TTY in a non-interactive/agent context; the command's output is still shown on
+screen (stdout). The options used above:
+
+- `-c "<cmd>"` runs that command.
+- `-q` suppresses `script`'s own start/done banners.
+- `-e` propagates the command's exit status, so a failed build is detectable.
+- `-f` flushes output as it is written (no buffering), so incremental readers
+  don't see it stall.
+
+`script` also records the session to a file — by default `./typescript`, which
+this repo gitignores (`.gitignore:34` `typescript*`). Leave it default to keep
+the transcript; pass `/dev/null` as the trailing argument to skip recording.
+
+`HEADS_DISABLE_USB=1` skips USB-token passthrough and its 3-second abort window.
 
 Both `HEADS_DISABLE_USB=1` and `script` are unnecessary when running from
 an interactive terminal.
@@ -308,33 +346,45 @@ If you prefer to run these inside the container, prefix with `./docker_repro.sh`
 
 ## Building with the published Docker image
 
-The canonical, reproducible way to build Heads is to use `./docker_repro.sh`, which
-automatically pulls the pinned Docker image digest from `docker/DOCKER_REPRO_DIGEST` and
-ensures your builds match the CI environment exactly.
+The canonical build wrapper is `./docker_repro.sh`.  It prefers a non-empty
+`DOCKER_REPRO_DIGEST` environment value, falls back to the pinned value in
+`docker/DOCKER_REPRO_DIGEST`, and resolves the selected reference to an immutable
+manifest digest.  The canonical default `tlaurion/heads-dev-env` path
+cross-checks that digest against `.circleci/config.yml` before running the
+command; fork/non-canonical overrides can skip that check.  The pin fixes the
+container image identity only; it does not compare or guarantee equality with CI
+build outputs when the repository commit, working-tree state, or other build
+inputs differ.
 
 ```bash
-./docker_repro.sh make BOARD=x230-hotp-maximized
+./docker_repro.sh make BOARD=EOL_x230-hotp-maximized
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
 
 This will:
 
-1. Resolve the canonical image digest from `docker/DOCKER_REPRO_DIGEST` (immutable, pinned to a specific version)
-2. Pull the image if not present locally
-3. Execute your build inside that exact Docker environment
-4. Guarantee reproducibility: your ROM output will match official CircleCI builds for that commit
+1. Select `DOCKER_REPRO_DIGEST` from the environment, falling back to `docker/DOCKER_REPRO_DIGEST`
+2. Validate and resolve the selected reference to a manifest digest; on the canonical default path, cross-check `.circleci/config.yml` (fork/non-canonical overrides can skip this)
+3. Pull that exact image if it is not present locally
+4. Execute the requested build or QEMU command in the resolved image
+
+`docker_repro.sh` does not download or compare CI `hashes.txt`, final ROM
+hashes, or other build outputs.  Use the separate verification procedure in
+[reproducible-builds.md](reproducible-builds.md#comparing-rom-output)
+when a same-commit ROM comparison is wanted.
 
 **About the published image**:
 
 - **Repository**: `tlaurion/heads-dev-env` on Docker Hub is the maintainer's canonical image (configurable via `HEADS_MAINTAINER_DOCKER_IMAGE`)
 - **Versioning**: Tagged with version numbers (e.g., `v0.2.7`) for stability; `:latest` is mutable and not recommended
-- **Pinning**: The repository file `docker/DOCKER_REPRO_DIGEST` pins an immutable digest (`tlaurion/heads-dev-env@sha256:...`) to ensure reproducibility
-- **Trust**: As long as `flake.nix` and `flake.lock` are not modified locally, your build will produce identical digests, confirming integrity
+- **Pinning**: `DOCKER_REPRO_DIGEST` from the environment takes precedence; `docker/DOCKER_REPRO_DIGEST` is the fallback manifest reference (`tlaurion/heads-dev-env@sha256:...`)
+- **Local image comparison**: Rebuilding the flake without local changes is intended to reproduce the image, but a digest comparison is a verification step, not a premise that guarantees success
 - **Fork/Override**: To use a different image repository, set `HEADS_MAINTAINER_DOCKER_IMAGE="youruser/your-image"` before running any Docker wrapper script
 
 `DOCKER_REPRO_DIGEST` (the environment variable or the repository file `docker/DOCKER_REPRO_DIGEST`)
-is consumed by `./docker_repro.sh` via `resolve_docker_image()`; pinning ensures
-reproducible builds and mitigates supply-chain risk from mutable `:latest` tags.
+is consumed by `./docker_repro.sh` via `resolve_docker_image()`; pinning fixes
+image identity and avoids accidental selection of a mutable `:latest` tag.  It
+does not prove ROM reproducibility or authenticate the publisher.
 
 ---
 
@@ -398,8 +448,9 @@ nix build --print-build-logs --verbose --out-link docker/result .#dockerImage &&
 ./docker_local_dev.sh
 ```
 
-Your local docker image `linuxboot/heads:dev-env` is ready to use, reproducible for the
-specific Heads commit used to build it, and will produce ROMs reproducible for that commit ID.
+Your local Docker image `linuxboot/heads:dev-env` is ready to use.  Image
+identity can be compared with the helper, but ROM reproducibility still
+depends on matching repository and build inputs.
 
 On some hardened OSes, you may encounter problems with ptrace:
 
@@ -435,6 +486,24 @@ fast.  No sudo, no Docker.
 See [modules.md](modules.md#build-lifecycle) for the sentinel chain and
 how to force a rebuild after changing patches.
 
+### Stale host-built tooling can be incompatible with the container
+
+The host and container share `build/`.  Binaries produced by one environment
+can therefore be unusable in the other if their runtime/toolchain assumptions
+differ.  This is a generic cleanup case, not a claim about one particular Nix
+loader path or a reproduced incident.
+
+The conservative recovery is to remove the affected kernel build directory so
+the container regenerates it:
+
+```bash
+rm -rf build/x86/linux-<ver>/<kconfig-name>
+```
+
+If only a specific helper is known to be stale, remove that helper and rerun;
+otherwise keep host and container build trees separate to avoid mixed artifacts.
+
+
 ### Verify reproducibility before committing
 
 ```bash
@@ -456,14 +525,17 @@ HEADS_CHECK_REPRODUCIBILITY=1 \
 
 ## Verifying reproducibility
 
-**Best practice**: Verify that your locally-built Docker image is reproducible by
-comparing its digest with the published maintainer image.
+`compare_image_reproducibility()` compares the local Docker image ID with the
+remote image's config digest.  This is an image-build identity check only: it
+does not compare Heads ROMs or authenticate the publisher.
 
-The Heads project maintains the canonical `tlaurion/heads-dev-env` Docker image on Docker
-Hub (configurable via `HEADS_MAINTAINER_DOCKER_IMAGE` for forks or testing). As long as
-you do not modify `flake.nix` or `flake.lock`, your locally-built image **should produce
-an identical digest** to the published image, demonstrating that your build is fully
-reproducible.
+The Heads project maintains `tlaurion/heads-dev-env` on Docker Hub (the
+repository is configurable through `HEADS_MAINTAINER_DOCKER_IMAGE`).  The
+repository's pinned `repo@digest` reference is a **manifest digest**: it
+identifies the exact manifest, including its config digest and layer
+references, selected from the registry.  A matching manifest digest is the
+strongest registry-level equality check.  The wrapper helper instead performs a
+local image-ID versus remote config-digest comparison.
 
 ### Quick reference
 
@@ -495,35 +567,34 @@ HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh
 # Local image (linuxboot/heads:dev-env):   sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
 # Remote image (tlaurion/heads-dev-env:latest): sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
 # (via registry+jq)
-# ✓ MATCH: Config digests identical (bit-for-bit reproducible)
+# ✓ MATCH: Config digests identical
 # Config digest: sha256:8ae7744cc8b4ff0e959aa6dfeeb40dbd40d20ac6fa1f7071dd21ec0c2d0f9f41
-# Note: manifest digest differs from config (normal - manifest includes metadata)
+# Note: this check compares image config IDs, not manifest identity
 # Docker Hub: https://hub.docker.com/layers/tlaurion/heads-dev-env/latest/images/sha256-5f890f3d...
 # === End Reproducibility Check ===
 ```
 
 ### Understanding config digest vs manifest digest
 
-Docker images have two different digests that serve different purposes:
+Docker images expose two distinct identities:
 
-- **Config digest** (authoritative): SHA256 hash of the image's config JSON — the actual build
-  contents (layers, env, entrypoint). Shown as Image ID in `docker images` and
-  `docker inspect --format='{{.Id}}'`.
-- **Manifest digest**: SHA256 hash of the manifest JSON — wraps the config digest plus layer
-  blob references and media types. Shown in Docker Hub layer URLs.
+- **Config digest / image ID** is the SHA-256 of the image config JSON.  It
+  names a config that references layer digests and runtime metadata such as
+  environment and entrypoint.  `docker inspect --format='{{.Id}}'` prints this
+  value.  Equal image IDs are useful evidence that two images have the same
+  config and layer references, but they do not identify the exact registry
+  manifest selected by a tag.
+- **Manifest digest** is the SHA-256 of the manifest that lists the config and
+  layer blobs.  A `repo@sha256:...` pin uses this digest.  Different manifests
+  can reference the same config digest, for example with different manifest
+  media types or annotations.
 
-**For reproducibility verification, the config digest is authoritative** because it represents
-the actual build contents. The manifest can change (e.g., when metadata is added) while the
-config stays the same.
-
-To verify manually on Docker Hub:
-
-1. Run the check with `HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh`
-2. Note the **Config digest** value shown
-3. Go to the Docker Hub tags page: `https://hub.docker.com/r/{repo}/tags`
-4. Click your tag (e.g., `latest`)
-5. The URL will be `https://hub.docker.com/layers/{repo}/{tag}/images/sha256-{digest}` - this shows the **manifest digest**
-6. The config digest should match what the script reported (fetched via registry API)
+Accordingly, a config-ID match is narrower than a manifest-digest match.  A
+config-ID mismatch proves the images differ; a config-ID match alone does not
+prove that the published manifest has the same media type or annotations as a
+locally compared one.  Use `docker buildx imagetools inspect`,
+`docker manifest inspect`, or the helper's `repo@digest` output when registry
+manifest identity is the property being checked.
 
 To test against a **specific version tag** instead of `:latest`:
 
@@ -546,26 +617,29 @@ HEADS_CHECK_REPRODUCIBILITY=1 \
 # Could not fetch remote image config digest via registry; falling back to 'docker pull' to compare image IDs (progress will be shown).
 # Tip: Install jq and curl for faster registry-based checks (no pull needed).
 # Pulling remote image (progress will be shown)...
-# Remote image (pulled tlaurion/heads-dev-env:v0.2.6): sha256:75af4c81...
+# Remote image (pulled tlaurion/heads-dev-env:v0.2.7): sha256:75af4c81...
 # ✗ MISMATCH: Image IDs differ after pull.
 #   Local:  sha256:5f890f3d...
 #   Remote: sha256:75af4c81...
 # === End Reproducibility Check ===
 ```
 
-Note: The reproducibility check compares **config digests** (what matters for reproducibility).
-The script also shows manifest digests for reference - these can differ from config digests
-because manifest includes additional metadata. The config digest is authoritative.
+`compare_image_reproducibility()` compares the local **image ID** with the
+remote image's **config digest**.  Use a manifest inspection when the
+requirement is to verify the exact `repo@digest`
+reference or distinguish images that share a config but use different manifest
+metadata.
 
-### Method 2: Standalone reproducibility check
+### Method 2: Standalone image comparison
+
+The standalone helper delegates to the same centralized image comparison used
+by the wrapper.  Its output and exit status are governed by
+`docker/common.sh`; it compares image identity, not Heads ROMs or build
+manifests.
 
 ```bash
-# Compare your local dev image with a published version
-./docker/check_reproducibility.sh linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.2.7
-
-# Output (example of a match):
-# ✓ SUCCESS: Digests match!
-#   Your local build is reproducible and identical to tlaurion/heads-dev-env:v0.2.7
+./docker/check_reproducibility.sh \
+  linuxboot/heads:dev-env tlaurion/heads-dev-env:v0.2.7
 ```
 
 ### Method 3: Manual digest inspection
@@ -579,10 +653,13 @@ docker pull tlaurion/heads-dev-env:v0.2.7
 docker inspect --format='{{.Id}}' tlaurion/heads-dev-env:v0.2.7
 ```
 
-### When digests should match
+### Interpreting the helper comparison
 
-✓ **Digests match** — your build is **reproducible and trustworthy**; matches the
-maintainer's published image for that Nix snapshot. Happens when:
+✓ **Image ID/config digest match** — the local Docker image ID equals the remote
+image config digest reported by `compare_image_reproducibility()`.  This
+compares build-environment identity only; it is not a ROM comparison, does not
+prove manifest-digest equality, and does not authenticate the publisher.  The
+comparison can succeed when:
 
 - `flake.nix` and `flake.lock` are **not modified** (repository is clean relative to these files)
 - The same Nix version and dependencies are used
@@ -596,17 +673,17 @@ maintainer's published image for that Nix snapshot. Happens when:
 
 ### Trust model
 
-The `tlaurion/heads-dev-env` image on Docker Hub is the **maintainer's canonical build**
-and serves as the source of truth for reproducibility. By verifying that your
-locally-built image produces the same digest as the published version you confirm:
+A manifest-digest pin fixes the registry object requested by the wrapper, but
+a digest by itself does not establish who published that image or prove that the
+local build environment was uncompromised.  A matching local image ID and
+remote config digest establish only that image-config identity comparison; a
+matching manifest digest establishes exact registry-manifest identity.
+Supply-chain review and signature/provenance checks
+are separate concerns.
 
-1. **No tampering**: Your build environment has not been compromised
-2. **Reproducibility**: The Heads build system is deterministic for your specific Nix snapshot
-3. **Auditability**: You can map your build back to a specific published, reviewed version
-
-**Recommendation**: Always pin to a specific version tag (e.g., `tlaurion/heads-dev-env:v0.2.7`)
-rather than `:latest`, and verify the digest matches the published value before using it
-for critical builds.
+**Recommendation**: pin the canonical `repo@sha256:...` reference for critical
+builds rather than a mutable tag, and record both the manifest digest and the
+source commit used for the build.
 
 ---
 
@@ -655,10 +732,11 @@ To change what `./docker_latest.sh` uses as the "latest" image:
 
 # Omit the wrapper — helper defaults to './docker_latest.sh'
 ./docker/pin-and-run.sh tlaurion/heads-dev-env:v0.2.7 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
-
-# Explicit wrapper flag (avoids ambiguity)
-./docker/pin-and-run.sh -w ./docker_repro.sh tlaurion/heads-dev-env:v0.2.7 -- make BOARD=qemu-coreboot-fbwhiptail-tpm2
 ```
+
+Use `docker_latest.sh` for the historical `v0.2.7` image.  Do not select that
+historical tag through `docker_repro.sh`, whose digest source is the current
+reproducible-image configuration.
 
 Alternative manual commands without the helper:
 
@@ -740,7 +818,7 @@ git push origin docker/squash-docker-changes
 
 ### Maintainer checklist
 
-1. **Reproducibility**: Before pushing, verify `nix build --out-link docker/result .#dockerImage` produces a deterministic result (`flake.nix` and `flake.lock` must be committed and clean).
+1. **Image comparison**: Build the local image with committed, clean `flake.nix`/`flake.lock`, then compare its image ID/config digest with the intended published image.  One local `nix build` is not evidence of deterministic or bit-identical output.
 2. **Digest verification**: After pushing, use `./docker/check_reproducibility.sh` to verify local and remote digests match.
 3. **Supply chain**: Pin digest in `docker/DOCKER_REPRO_DIGEST` and `.circleci/config.yml` to ensure all builds reference an immutable, auditable image.
 4. **Documentation**: Update the version comment in `docker/DOCKER_REPRO_DIGEST` so users know which image version is pinned.
@@ -748,8 +826,8 @@ git push origin docker/squash-docker-changes
 
 Notes:
 
-- Local builds can use `:latest` tag, which will use the latest tested successful CircleCI run
-- To reproduce CircleCI results, make sure to use the same versioned tag declared under `.circleci/config.yml`'s `image:`
+- `:latest` is a mutable registry tag; its contents are not established by this repository documentation
+- `docker_repro.sh` uses the image digest declared by `.circleci/config.yml`; reproducing a CI ROM additionally requires the same repository/build inputs and a separate artifact comparison
 
 ### For forks and alternate maintainers
 
@@ -757,13 +835,14 @@ Notes:
 export HEADS_MAINTAINER_DOCKER_IMAGE="youruser/heads-dev-env"
 
 # All scripts will now reference your repository
-./docker_local_dev.sh make BOARD=x230
+./docker_local_dev.sh make BOARD=EOL_x230-maximized
 HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh
 
 # Reproducibility check compares against youruser/heads-dev-env:latest
 # resolve_docker_image uses youruser/heads-dev-env as the base image
 ```
 
-The repository file `docker/DOCKER_REPRO_DIGEST` pins the canonical reproducible image
-used by `./docker_repro.sh`, ensuring immutable, secure builds. Update the appropriate
-file after publishing a new image to keep the repo in sync.
+The repository file `docker/DOCKER_REPRO_DIGEST` pins the image identity used
+by `./docker_repro.sh`.  Update it after publishing a new image to keep the
+configured reference synchronized; pinning alone does not establish ROM
+reproducibility or publisher authenticity.

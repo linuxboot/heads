@@ -147,16 +147,18 @@ See [build-artifacts.md](build-artifacts.md) for the full ROM filename
 convention.  Quick reference:
 
 ```bash
-# Release build (clean tag, e.g. v0.2.1):
-heads-x230-v0.2.1.rom
+# Release-selected exact tag (e.g. v0.2.1):
+heads-EOL_x230-hotp-maximized-v0.2.1.rom
 
 # Development build (any other state):
-heads-x230-20260327-202007-my-feature-branch-v0.2.1-42-g0b9d8e4-dirty.rom
-#              ^timestamp  ^branch name           ^git describe
+heads-EOL_x230-hotp-maximized-20260327-2020-v0.2.1-42-g0b9d8e4-dirty.rom
+#                                      ^timestamp     ^git describe
 ```
 
-The timestamp sorts builds chronologically.  The branch name identifies which
-PR or feature a binary corresponds to without consulting git.
+The minute-resolution last-commit committer date is a filename prefix, not a
+guaranteed chronological ordering.  The `git describe` suffix identifies the
+nearest tag, commit distance, abbreviated commit, and dirty state.  Branch
+names are not embedded in the filename.
 
 When testing a development build, the ROM filename is your primary build
 identifier — include it verbatim in bug reports and PR comments.
@@ -174,8 +176,8 @@ When touching provisioning code (`oem-factory-reset`, `seal-hotpkey`,
 
 When touching the Makefile or build system:
 
-- [ ] Verify dev build filename includes timestamp + branch
-- [ ] Verify a locally-tagged clean commit produces the short filename
+- [ ] Verify dev build filename includes timestamp + `git describe`
+- [ ] Verify an exact tag selected as a release produces the expected suffix
 - [ ] Verify `.zip` package extracts and `sha256sum -c` passes
 - [ ] If changing `.circleci/config.yml`, verify the documented cache/workspace
   behavior in [circleci.md](circleci.md) still matches the pipeline

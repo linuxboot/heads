@@ -13,7 +13,9 @@ See also: [architecture.md](architecture.md), [tpm.md](tpm.md),
 ## Security Architecture Overview
 
 Heads implements a **cross-validated boot chain** where multiple security mechanisms
-verify each other, preventing single points of failure.
+verify each other, preventing single points of failure.  The TPM/PCR portion of
+the diagram below is a typical x86 path for targets with TPM support and
+`CONFIG_TPM_MEASURED_BOOT=y`, not a universal Talos/LinuxBoot or no-TPM path.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -64,7 +66,9 @@ Seal policies are listed in [tpm.md](tpm.md#sealing-policies).
 
 ## Cross-Validation Matrix
 
-This table shows how each component verifies the others:
+This table shows how each component verifies the others.  Rows involving TPM
+measurements, PCR binding, or TPM-sealed secrets apply only to boards with the
+corresponding TPM support and measured-boot configuration:
 
 | Component | Verifies | Verified By | Prevents |
 |----------|----------|------------|----------|
@@ -80,13 +84,15 @@ This table shows how each component verifies the others:
 
 ## Trust hierarchy
 
-The diagram below shows the standard TPM-based boot path. For boards without
-TPM hardware, see [HOTP on boards without a TPM](#hotp-on-boards-without-a-tpm-rom-hash-mode).
+The diagram below shows a typical x86 TPM-based boot path for targets with TPM
+support and `CONFIG_TPM_MEASURED_BOOT=y`.  It is not the Talos/LinuxBoot path,
+and it does not apply to boards without TPM support.  For those boards, see
+[HOTP on boards without a TPM](#hotp-on-boards-without-a-tpm-rom-hash-mode).
 
 ```text
 SPI flash ROM  (hardware root of trust)
   │
-  │  coreboot SRTM measures boot block + payload into PCR 2; PCRs 0,1,3 unused
+  │  typical x86 measured-boot path extends PCR 2; PCRs 0,1,3 unused here
   ▼
 TPM PCR values  (hardware-attested firmware state)
   │
@@ -114,8 +120,14 @@ Decrypted OS disk  (disk encryption key delivered without passphrase prompt)
 The trust anchor is the SPI flash ROM containing coreboot. Heads treats this
 as the immutable starting point:
 
-- Coreboot measures firmware stages and the Linux payload into TPM PCR 2 (SRTM) before executing it.
-- The Linux payload is embedded in the ROM (no network, no external media required).
+- On the typical maintained x86 coreboot path with TPM support and
+  `CONFIG_TPM_MEASURED_BOOT=y`, coreboot measures firmware stages and the Linux
+  payload into TPM PCR 2 (SRTM) before executing it.  This is not the Talos or
+  LinuxBoot path, and exceptions include X280 measured boot being disabled and
+  Librem Mini TPM support being disabled.
+- The x86 coreboot payload and external initrd are carried in the ROM.  Talos
+  follows coreboot → skiboot and ships `zImage.bundled` separately; the
+  unmaintained LinuxBoot path packages its own ROM path.
 - **Flash write protection**: On supported Intel boards, the SPI ROM is
   locked against writes via chipset-level PR0 lockdown just before
   kexec.  See [wp-notes.md](wp-notes.md#pr0-chipset-locking) for the
@@ -128,13 +140,13 @@ access during the verified boot path.
 
 ## Measured boot
 
-The **bootblock** (IBB — Initial Boot Block) is the Static Core Root of Trust
-for Measurement (S-CRTM): the first code executed by the CPU, directly from
-SPI flash, before anything else has run. All subsequent stages are measured
-from it.
+For a typical x86 target with TPM support and `CONFIG_TPM_MEASURED_BOOT=y`, the
+**bootblock** (IBB — Initial Boot Block) is the Static Core Root of Trust for
+Measurement (S-CRTM): the first code executed by the CPU, directly from SPI
+flash, before anything else has run.  Subsequent measured stages extend from it.
 
-Coreboot's measured boot (`CONFIG_TPM_MEASURED_BOOT=y`) measures the full
-firmware chain into **PCR 2** (`CONFIG_PCR_SRTM=2`):
+In that typical x86 path, coreboot's measured boot records the firmware chain in
+**PCR 2** (`CONFIG_PCR_SRTM=2`):
 
 ```text
 bootblock → romstage → ramstage → Heads Linux kernel + initrd (payload)
@@ -143,9 +155,10 @@ bootblock → romstage → ramstage → Heads Linux kernel + initrd (payload)
 On boards with `CONFIG_TPM_MEASURED_BOOT=y` + `CONFIG_TPM_INIT_RAMSTAGE=y`
 (the majority of maintained boards), ramstage initializes the TPM, reads each
 prior stage from CBFS, and extends PCR 2. Older coreboot versions (4.11) used
-`CONFIG_TPM_INIT=y` before this config key existed; some boards have no TPM
-hardware. See [tpm.md](tpm.md#pcr-assignments) for the PCR map and the
-PCR 4 boot path values.
+`CONFIG_TPM_INIT=y` before this config key existed.  This is not universal: X280
+measured boot is disabled, Librem Mini TPM support is disabled, and Talos and
+LinuxBoot do not follow this direct x86 path. See [tpm.md](tpm.md#pcr-assignments)
+for the PCR map and the PCR 4 boot path values.
 
 For board-specific RoT configuration and the files that control each PCR,
 see [tpm.md — Configuration reference for developers](tpm.md#configuration-reference-for-developers).
@@ -229,7 +242,7 @@ If a TOTP unseal fails, `INTEGRITY_GATE_REQUIRED` is set and sealing new TPM
 secrets is blocked until the integrity gate passes. A failed HOTP unseal or
 missing token only shows a warning and returns to the menu; a failed HOTP code
 check sets the gate.
-See [ux-patterns.md](ux-patterns.md#gate-before-sealing).
+See [ux-patterns.md](ux-patterns.md#gate-before-sealing-new-secrets).
 
 ---
 

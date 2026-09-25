@@ -1,13 +1,15 @@
 # BusyBox vs GNU: Heads usage reference
 
-Heads initrd scripts run under BusyBox v1.36.1, compiled from `config/busybox.config`.
-Not all GNU coreutils features are available. This documents every tool used by
-Heads initrd scripts and the adaptations required for BusyBox.
+When `CONFIG_BUSYBOX=y`, Heads initrd scripts can use BusyBox v1.36.1, compiled
+from `config/busybox.config`.  Not all GNU coreutils features are available.
+This documents the tools used by Heads scripts and the adaptations required
+for BusyBox.
 
-BusyBox applets are always available. Standalone binaries (built by modules/*
-and included via `bin_modules-$(CONFIG_FOO)` in the Makefile) are noted separately.
+BusyBox, zstd, bash, and kbd are default-enabled but configurable: board or
+UROOT configuration can set `CONFIG_BUSYBOX=n`, `CONFIG_ZSTD=n`,
+`CONFIG_BASH=n`, or `CONFIG_KBD=n`.  Standalone binaries are noted separately.
 
-## BusyBox applets (from `busybox --list`)
+## BusyBox applets when `CONFIG_BUSYBOX=y` (from `busybox --list`)
 
 ```
 [, [[, arch, arp, ascii, ash, awk, base32, basename, blkid, blockdev,
@@ -31,8 +33,9 @@ usleep, vconfig, vi, wc, wget, which, xargs, xxd, xz, xzcat, zcat
 
 **Notably missing:** `od` (CONFIG_OD is not set). Use `hexdump -v -e` instead.
 
-**Shell builtins (available via bash):** `kill`, `printf`, `pwd`, `test`, `echo`, `false`, `true`.
-These are listed by `busybox --list` but the bash builtin takes precedence in the initrd.
+**Shell builtins when `CONFIG_BASH=y`:** `kill`, `printf`, `pwd`, `test`,
+`echo`, `false`, `true`.  These are listed by `busybox --list`; when bash is
+enabled, its builtins take precedence in the initrd.
 
 ## Tool-by-tool reference
 
@@ -95,7 +98,7 @@ Correct: `grep -E "foo|bar"` or `grep "foo\|bar"`.
 Verified against Heads BusyBox 1.36.1 (`CONFIG_GREP=y` + `CONFIG_FEATURE_GREP_CONTEXT=y`).
 Note: `CONFIG_EGREP` and `CONFIG_FGREP` are **not set** in Heads config (no separate
 `egrep`/`fgrep` binaries), but `grep -E` and `grep -F` are core features of `grep` itself
-and always available.
+and available whenever this BusyBox build is enabled.
 **Pipefail gotcha:** With `set -e -o pipefail`, a pipeline like `grep ... | head -1` may
 abort when `head` terminates early and `grep` receives SIGPIPE.  Always append `|| true`
 after the pipeline to suppress the error:
@@ -125,9 +128,10 @@ Heads usage: `mktemp -p /tmp -t prefix.XXXXXX`.
 
 ### sed
 
-**Basic regex only:** BusyBox `sed` does NOT support `-E` (extended regex).  Use `sed` with
-basic regex patterns only.  Grouping with `\(\)` works, but `(^| )` does not.
-For anchored replacements, use `[[:space:]]` character classes instead:
+BusyBox `sed` uses basic regular expressions by default, but supports `-r` and
+its `-E` synonym for extended regular expressions.  Use basic-regex patterns
+unless extended mode is explicitly requested.  Grouping with `\(\)` works in
+basic mode; use `[[:space:]]` character classes for anchored replacements:
 ```bash
 # BAD  --  matches "iso=" inside "findiso=":
 sed 's|iso=[^ ]*|newval|g'
@@ -135,7 +139,7 @@ sed 's|iso=[^ ]*|newval|g'
 sed 's| iso=[^ ]*| newval|g'
 ```
 **Delimiter:** Use `|` instead of `/` when the replacement contains paths: `s|/old/path|/new/path|`.
-Supports `-i[SFX]` (in-place), `-n` (quiet), `-r,-E` (extended regex).
+Supports `-i[SFX]` (in-place), `-n` (quiet), and `-r`/`-E` (extended regex).
 Heads usage: `sed 's|^/dev/||'`, `sed 's/^append //'`, `sed -i 's/a/b/g' file`.
 
 ### sort
@@ -170,24 +174,25 @@ Heads usage: `tr "$cf1\n$cf2" "\n$cf2=" < "$img"` (extract-ikconfig pattern).
 Supports `-c` (stdout), `-f` (force), `-k` (keep). `-d` decompresses.
 `xz -d` and `unxz` are equivalent. Used in kernel binary decompression.
 
-**BCJ patches (since Heads ISO boot refactor):** BusyBox's default xz
-configuration has ALL BCJ filters disabled in `xz_config.h`
-(`/* #define XZ_DEC_X86 */`).  Heads applies two patches to enable
-kernel XZ decompression across all supported architectures:
+**BCJ and memory-limit patches:** BusyBox's bundled xz decoder has the x86
+and PowerPC BCJ decoders disabled by default in `xz_config.h`.  These patches
+affect userspace `unxz`/`xzcat` calls; they do not configure which filters
+Heads puts in an image.
 
-- `patches/busybox-1.36.1/0002-xz_config-enable-bcj.patch`  --  uncomments
-  `#define XZ_DEC_X86` and `#define XZ_DEC_POWERPC` to enable the x86
-  and PowerPC BCJ (Branch/Call/Jump) filters used by kernel bzImage XZ
-  payloads.  Required for x86 boards (x230, t440p, QEMU, etc.) and
-  POWER9 boards (Talos II).
-- `patches/busybox-1.36.1/0003-xz_decompress-memlimit.patch`  --  raises
-  the xz decoder memory limit from 64 MiB to 256 MiB.  Kernel LZMA2
-  dictionaries can reach 128 MiB (prop value 0x1e -> dict_size = 2 << 26),
-  which exceeds the default 64 MiB limit.
+- `patches/busybox-1.36.1/0002-xz_config-enable-bcj.patch` enables
+  `XZ_DEC_X86` and `XZ_DEC_POWERPC`.  The decoder can reverse those filters
+  when an external kernel image contains them.  This is separate from the
+  x86 `--x86` BCJ used for the final initrd: final initrd decompression is
+  performed by the Linux kernel's XZ decoder, not BusyBox.
+- `patches/busybox-1.36.1/0003-xz_decompress-memlimit.patch` raises
+  BusyBox's dynamic-allocation limit from 64 MiB to 256 MiB so it can decode
+  the LZMA2 dictionary sizes used by supported kernel images.
 
-Without these patches, `unxz`/`xzcat` silently rejects kernel XZ streams
-with "corrupted data" (actually `XZ_MEMLIMIT_ERROR` caught by the catch-all
-handler).  Initramfs XZ decompression is unaffected (no BCJ filter used).
+Without BCJ decoder support, BusyBox cannot decode a stream that declares the
+corresponding BCJ filter.  Without enough decoder memory, it reports a decoder
+error (the caller may present that as a generic decompression failure).  See
+[build-freshness.md](build-freshness.md#why-no-bcj-filter-on-non-x86) for the
+separate initrd encoder/decoder path.
 
 `check_kernel_for_fb()` and `check_kernel_has_driver()` in
 `initrd/etc/functions.sh` use the patched BusyBox `xzcat` to decompress
@@ -223,16 +228,20 @@ Built by modules/* and included via `bin_modules-$(CONFIG_FOO)` in the Makefile.
 Available based on board config. See `doc/modules.md` for inclusion rules.
 
 ### zstd-decompress
-Built from zstd 1.5.5 source, included in all initrds via `CONFIG_ZSTD ?= y` in `modules/zstd`.
+Built from zstd 1.5.5 source.  `modules/zstd` defaults `CONFIG_ZSTD ?= y`, so
+it is included by default but can be disabled by board/UROOT configuration.
 Accepts `-d` (decompress mode  --  required, binary name not recognized by CLI detection).
 Reads from stdin (`zstd-decompress -d < input.zst`), writes to stdout.
 
 ### bash
-Bash 5.1, included in all initrds via `CONFIG_BASH ?= y` in the Makefile.
-Used for interactive recovery shell and scripts requiring bash features.
+Bash 5.1 is default-enabled through `CONFIG_BASH ?= y` in the Makefile, but
+board/UROOT configuration can set `CONFIG_BASH=n`.  When enabled, it provides
+the interactive recovery shell and scripts requiring bash features.
 
 ### kbd (setfont, loadkeys)
-Built from kbd 2.6.1, included via `CONFIG_KBD ?= y`. Provides keymap loading.
+Built from kbd 2.6.1.  `CONFIG_KBD ?= y` in the Makefile makes it
+default-enabled, but board/UROOT configuration can set `CONFIG_KBD=n`.  When
+enabled, it provides keymap loading.
 
 ## Summary of required BusyBox workarounds
 

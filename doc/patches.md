@@ -1,7 +1,10 @@
 # Patch creation conventions
 
-The build system extracts a tarball and applies patches from `patches/`.
-The naming convention determines how patches are applied.
+The build system applies patches from `patches/` while preparing a module's
+source.  Tarball and git modules have different source-preparation branches:
+tarball modules extract and patch before creating `.canary`, while git modules
+write or update `.canary` before the `.patched` guard decides whether patches
+need to be applied.
 
 ## Single patch file
 
@@ -9,7 +12,7 @@ The naming convention determines how patches are applied.
 
 Example: `patches/kexec-2.0.26.patch` (deprecated — now uses multi-patch directory)
 
-A single `git apply --directory` patch is applied to the extracted source.
+A single `git apply --directory` patch is applied to the prepared module source.
 This is the simplest form.  When a single patch grows unwieldy, split into
 a multi-patch directory (see below).
 
@@ -30,16 +33,45 @@ Prefer the multi-patch directory when:
 
 ## How the build applies patches
 
-From `Makefile`:
+The `.canary` recipe has two source branches:
 
-```
-extract tarball to build/$ARCH/$base_dir/
-if patches/$name.patch exists  → git apply single patch
-if patches/$name/ exists        → git apply each *.patch in sorted order
-touch .patched to mark completion
+```text
+tarball: extract to build/$ARCH/$base_dir/ → apply patches → create .canary
+git:     init/reset/clean pinned source → write/update .canary
+         → if .patched absent: process zero or more patches → create .patched
+         → .configured → .build
 ```
 
-On next build, the `.patched` file prevents re-extraction and re-patching.
+> **Git-source recovery note:** deleting `.canary` on an existing git source
+> enters resynchronization.  The path removes the existing `origin`, adds it
+> again, fetches, hard-resets, cleans, and reapplies patches; an existing
+> `origin` is not itself a failure.  Network, permission, fetch, reset, clean,
+> and patch failures remain possible.  Removing/recreating the source tree is
+> conservative recovery if that path fails.
+
+For either branch when patches are being applied:
+
+```text
+if patches/$name.patch exists → git apply the single patch
+if patches/$name/ exists      → git apply each *.patch in sorted order
+```
+
+A git module touches untracked `.patched` after its patch branch completes.
+The branch processes zero or more configured patches and then creates the marker
+even when no patches are configured; when `.patched` already exists, the branch
+is a no-op.  `.canary` records the intended repo/revision for the initialized or
+reset source; `.patched` is the separate git patch-completion marker, not a
+universal target between `.canary` and `.configured`.  During git resynchronization,
+`git clean -df` runs before the `.patched` guard and removes that untracked
+marker, so the following patch branch runs.  Tarball
+modules do not normally create `.patched`; if that marker already exists when
+`.canary` is missing, the tarball branch reverses and reapplies the patches,
+removes the stale marker, and only then recreates `.canary`.
+
+`.configured` depends on `.canary`; `.build` depends on `.configured` and
+dependency-module `.build` stamps.  See
+[modules.md](modules.md#build-lifecycle) for the complete lifecycle and
+[modules.md](modules.md#rebuild-helpers) for the actual invalidation steps.
 
 ## Creating a patch
 
@@ -124,7 +156,8 @@ Multi-file changes for the same goal stay in one patch.
 
 ## Build directory permissions
 
-The build extracts tarballs and applies patches inside `build/$ARCH/`.
+The build prepares tarball or git module source and applies patches inside
+`build/$ARCH/`.
 When the build runs in Docker (the default), extracted files and
 directories are owned by `root`.  User-level tools (`cp`, `rm`,
 `touch`, editors) cannot modify them.
@@ -143,5 +176,11 @@ The actual build runs as root inside Docker and applies patches from
 `patches/` automatically.  Only use `pkexec` for manual development
 iterations outside Docker.
 
-After creating a patch, see [modules.md](modules.md#build-lifecycle) for
-how to trigger a rebuild — `.canary` sentinels do not track patch files.
+After creating a patch, `.canary` sentinels do not track patch files, so source
+preparation must be invalidated.  For tarball modules, remove `.canary`.  For
+git modules, remove `.canary` to trigger the normal remove/re-add `origin`,
+fetch/reset/clean, and patch-reapply path.  If network, permission, fetch,
+reset, clean, or patch handling fails, remove/recreate the source tree as
+conservative recovery.  Downstream `.configured`/`.build` removal is optional
+for tarballs and normally unnecessary when the whole git source tree is removed.
+Do not rely on touching prepared source alone.

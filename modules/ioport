@@ -7,12 +7,7 @@ ioport_url := https://deb.debian.org/debian/pool/main/i/ioport/$(ioport_tar)
 ioport_hash := 7fac1c4b61eb9411275de0e1e7d7a8c3f34166f64f16413f50741e8fce2b8dc0
 
 
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused functions and data; each function is in its own section so the
-# linker can drop what the initrd never calls, shrinking the binary.
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
 ioport_configure := CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \

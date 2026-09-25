@@ -9,13 +9,7 @@ openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 
 # The only optional algorithm that's enabled is SM3.  tpm2-tss uses SHA, AES,
 # and SM3.
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused OpenSSL paths; the initrd only needs the crypto primitives for
-# TLS and the TPM driver, so the rest is dropped.
-
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
 openssl_configure := \
 	$(CROSS_TOOLS) \

@@ -11,12 +11,7 @@ bash_hash := 5bac17218d3911834520dad13cd1f85ab944e1c09ae1aba55906be1f8192f558
 # BASH_ARGV/BASH_ARGC.  (Otherwise BASH_SOURCE[0] is empty when calling a
 # function, it's only set in top level script code.)
 
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused functions and data; each function is in its own section so the
-# linker can drop what the initrd never calls, shrinking the binary.
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
 bash_configure := CFLAGS="-g0 -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-s -Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \

@@ -1,10 +1,14 @@
 # Reproducible Builds
 
-See `doc/docker.md` for build-environment reproducibility.
+See also: [modules.md](modules.md) for module stamps and rebuilds,
+[build-artifacts.md](build-artifacts.md#size-and-hash-manifest-semantics) for
+artifact measurements, [build-freshness.md](build-freshness.md) for stale-output
+debugging, and [docker.md](docker.md) for build-environment pinning.
 
 These practices follow the [reproducible-builds.org](https://reproducible-builds.org/)
-project's documentation.  Every mechanism below contributes to producing
-bit-identical output across independent environments (CI and local).
+project's documentation.  The mechanisms below reduce common sources of build
+variation.  They are inputs to a reproducibility comparison, not a guarantee
+that independent environments produce bit-identical output.
 
 ## Cross-compiler (musl-cross-make)
 
@@ -30,8 +34,10 @@ and suppressing non-deterministic compiler flag recording in debug info.
 `EXTRA_FLAGS` passes `-fdebug-prefix-map=$(pwd)=heads -gno-record-gcc-switches`
 to the kernel build.  `KBUILD_BUILD_USER` (pinned to the Linux config filename),
 `KBUILD_BUILD_HOST=linuxboot`, `KBUILD_BUILD_TIMESTAMP="1970-00-00"`, and
-`KBUILD_BUILD_VERSION=0` pin all kernel build-identity variables.  Modules are
-stripped with `strip --strip-debug --preserve-dates`.
+`KBUILD_BUILD_VERSION=0` pin all kernel build-identity variables.  Kernel
+modules are copied with `strip --strip-unneeded --preserve-dates`; for
+relocatable kernel modules this removes symbol information that is not needed
+for loading while retaining relocation and loader metadata.
 
 ## Prefix normalization
 
@@ -58,7 +64,8 @@ defines from `config.h`.
 
 ## coreboot
 
-`BUILD_TIMELESS=1` is passed to coreboot's build to produce reproducible ROMs.
+`BUILD_TIMELESS=1` is passed to coreboot's build to omit build-time metadata.
+A same-commit ROM comparison is still needed to establish byte identity.
 
 ## Busybox
 
@@ -68,6 +75,11 @@ ld.bfd `--gc-sections` (ASLR-influenced hash tables in binutils 2.44).
 `patches/busybox-1.36.1/0001-messages.patch` replaces `AUTOCONF_TIMESTAMP`
 with a fixed `"(heads)"` string.  The install rule copies the binary and runs
 `applets/install.sh` directly, avoiding `make install`'s FORCE re-link.
+
+Any exact byte figures attached to local XZ/patch experiments are unverified
+local measurements, not CI evidence.  Reproducible or CI confirmation remains a
+separate follow-up; the patch files themselves are outside this documentation
+correction.
 
 ## Patches for reproducibility
 
@@ -92,15 +104,26 @@ with a fixed `"(heads)"` string.  The install rule copies the binary and runs
 
 ## Archive determinism
 
-`bin/cpio-clean.pl` rewrites every newc cpio entry for determinism: files
-sorted by name, inodes derived from MD5(filename), timestamps/uid/gid zeroed,
-nlink=0, devmajor/devminor=0, check=0, and 512-byte trailing padding.
-`blobs/dev.cpio` is a pre-built, git-tracked archive providing a reproducible
-`/dev/console`.
+`bin/cpio-clean.pl` rewrites every newc cpio entry for determinism:
+directories first (by full path), then the remaining entries by
+(extension, size descending, name); inodes set to 0; timestamps/uid/gid
+zeroed, nlink=0, devmajor/devminor=0, check=0, and 512-byte trailing
+padding.  The zero inode is safe because nlink is also 0, so the kernel
+never builds a hardlink key.  Directories must precede their contents:
+the kernel's `init/initramfs.c do_name()` silently skips a file whose
+parent directory has not been unpacked yet.  The original full-name sort
+already placed parents before children; the `(extension, size, name)`
+grouping broke that guarantee, since a dot-directory such as `.gnupg`
+(whose basename looks like it has an extension) could sort after the files
+it contains, so directories are kept in a leading group.
+`blobs/dev.cpio` is a pre-built, git-tracked archive providing a fixed
+`/dev/console` input.  Before merging named inputs, `bin/cpio-clean.pl` verifies that
+each one can be opened.  An unreadable or missing component therefore aborts the
+recipe instead of being silently omitted from the initrd.
 
-`modules/linux` adds a `FORCE` dependency on `modules.cpio` so `hashes.txt`
-is always complete on every rebuild, not just cold builds.  The `do-cpio`
-macro uses `cmp --quiet` to short-circuit identical output, avoiding
+`modules/linux` adds a `FORCE` dependency on `modules.cpio` so its archive
+hashes and sizes are refreshed on every rebuild, not just cold builds.  The
+`do-cpio` macro uses `cmp --quiet` to short-circuit identical output, avoiding
 unnecessary rewrites.
 
 ## Tarball downloads
@@ -111,12 +134,12 @@ preference, fast wget timeout).  All download attempts are logged to
 pre-seeds musl-cross-make component tarballs into `packages/` via
 fetch_source_archive.sh.
 
-## Verifying ROM Reproducibility
+## Comparing ROM output
 
 ### Prerequisites
-- Same git commit on both CI and local (different commits produce different ROMs — see below)
-- Build with `docker_repro.sh` locally (same Docker image as CI)
-- Clean working tree (no uncommitted changes) — a dirty tree adds `dirty` to GIT_STATUS in build metadata, which changes ROM output
+- Same git commit on both CI and local (different commits normally produce different ROMs — see below)
+- For a same-CI-image comparison, use the default canonical `docker_repro.sh` path and verify that its resolved digest matches `.circleci/config.yml`.  Pin sources are the `DOCKER_REPRO_DIGEST` environment value when set, otherwise `docker/DOCKER_REPRO_DIGEST`.  A fork/noncanonical repository override can skip the CI cross-check and is not a same-CI-image comparison
+- For a same-commit comparison, avoid changes that affect build metadata.  The build's `git diff` check misses staged-only and untracked changes; `git describe --dirty` detects staged tracked changes but not untracked files, so neither path is a complete cleanliness test
 - Download CI `hashes.txt` from CircleCI artifacts for the same commit (see
   [Downloading Heads](https://osresearch.net/Downloading) for details).
   Example URL:
@@ -127,20 +150,53 @@ fetch_source_archive.sh.
 
 ### Output files
 
-A build produces these hash-related files under `build/<arch>/<board>/`:
+Every Makefile parse resets these files under `build/<arch>/<board>/` through
+`BOARD_LOG := $(shell ...)`; measurement recipes append their records as they
+execute:
 
 | File | Content |
 |---|---|
-| `hashes.txt` | SHA-256 of every build artifact (cpio archives, bzImage, ROM) plus per-file hashes inside each cpio.  Reset at each `make` invocation; appended by each build rule.  The authoritative source for reproducibility verification. |
-| `sizes.txt` | Byte sizes of each artifact, matching the hashes.txt entries. |
-| `sha256sum.txt` | SHA-256 of the final ROM only.  Packaged inside the update zip for integrity checks during flash updates. |
+| `hashes.txt` | Rule-dependent records from explicit measurement recipes, not a complete manifest.  `do-cpio` components receive archive rows plus per-file staging-directory sections; static `dev.cpio`, direct empty `board.cpio`, and direct `u-root.cpio` receive neither independent rows nor per-file sections here. |
+| `sizes.txt` | GNU `stat` logical byte sizes in `stat -c '%8s:%n'` format.  It is not a CBFS-region, flash-budget, compressed-payload, or disk-allocation report. |
+| `sha256sum.txt` | In an x86 update ZIP, SHA-256 of the packaged ROM.  Talos II instead generates a `sha256sum.txt` inside its `.tgz` for the ROM, bootblock, and bundled Linux image. |
 
-Both `hashes.txt` and `sha256sum.txt` are included in the update zip for offline reproducibility verification.
+`hashes.txt` and `sizes.txt` are rule-dependent records, not complete manifests:
+only explicit measurement recipes append rows.
+
+Every Makefile parse resets the manifests before recipes are considered,
+including `make -n`, because `BOARD_LOG := $(shell ...)` writes the headers at
+parse time.  Measurement recipes then append records, including FORCE-driven
+cpio/artifact recipes even when generated bytes are unchanged.
+
+> **Dry-run warning:** `make -n` is not side-effect-free in this build.  It
+> resets `hashes.txt` and `sizes.txt` but does not execute the measurement
+> recipes, so it can leave both files header-only.  A non-default target that
+> executes no measurement recipe can have the same result.  This is not the
+> normal result of a default incremental build.  Resetting manifests does not
+> rebuild an existing update ZIP: its copied `hashes.txt` can therefore remain
+> older.  CI removes `*.rom` and `*.zip` before its default build so the stored
+> package is regenerated.
+
+`hashes.txt` and `sizes.txt` are related measurements, not guaranteed
+one-to-one: for example, the bundled ppc64 kernel is hashed without a
+corresponding `sizes.txt` append.  See
+[build-artifacts.md](build-artifacts.md#size-and-hash-manifest-semantics) for the
+measurement boundary.
+
+The x86 update ZIP receives a copy of `hashes.txt` only when its ZIP recipe
+rebuilds the package; a manifest reset alone does not rewrite an existing ZIP.
+Inside a rebuilt ZIP, `hashes.txt` supports same-commit build comparison, while
+`sha256sum.txt` is the update package's final-ROM integrity check.
 
 ### Understanding hashes.txt
 
-`build/$ARCH/$BOARD/hashes.txt` records the SHA256 of **every file inside every
-cpio archive**, not just the cpio archives themselves.  Each cpio section is
+For every cpio component rebuilt through `do-cpio`,
+`build/$ARCH/$BOARD/hashes.txt` records the archive's SHA-256 followed by
+SHA-256 values for regular files in that component's staging directory.  These
+are component measurements, not a separate list extracted from the merged
+initrd.  Static `dev.cpio`, direct empty `board.cpio`, and direct
+`u-root.cpio` receive neither independent rows nor these per-file sections.
+Each `do-cpio` section is
 separated by `-----` lines:
 
 ```
@@ -158,36 +214,40 @@ separated by `-----` lines:
 -----
 ```
 
-### Same commit: everything should match
+### Same commit: compare the recorded outputs
 
-When CI and local build the **same git commit**, the ROM hash should match.
-If it does, the build is reproducible:
+When CI and local build the **same git commit** with comparable invocations, the
+recorded hashes may match.  A match is evidence for the compared artifacts; it
+does not by itself establish reproducibility for every board, environment, or
+future build.
 
 ```bash
 grep '\.rom' /tmp/ci-hashes.txt build/x86/EOL_t480-hotp-maximized/hashes.txt
 ```
 
-If the ROM differs, step down: `initrd.cpio.xz`/`bzImage` → `tools.cpio` →
-individual files.  The innermost differing file (e.g. `./bin/busybox`) is the
-root cause — fix it and the cascade resolves.  `hashes.txt` records every file
-at every level so no diffoscope is needed until you've identified what differs.
+If the ROM differs, step down through the entries produced by both runs:
+`initrd.cpio.xz`/kernel image → cpio components → individual files.  The first
+differing file is a useful starting point, but the manifest covers only files
+measured by the recipes that ran.  Use `diffoscope` on the differing artifacts
+when the recorded entries do not identify the cause.
 
 For a comprehensive same-commit check:
 ```bash
 diff <(grep '^[0-9a-f]\{64\}' /tmp/ci-hashes.txt | sort) \
      <(grep '^[0-9a-f]\{64\}' build/x86/EOL_t480-hotp-maximized/hashes.txt | sort)
 ```
-Zero output = all hash and path entries match.
+Zero output = the recorded hash and path entries match.  This is meaningful
+only when both manifests were populated by comparable build invocations; see
+[build-freshness.md](build-freshness.md) if a manifest contains only its header.
 
-### Different commits: ROMs always differ
+### Different commits: embedded metadata changes
 
 `tools.cpio` contains `./etc/config`, which embeds `GIT_HASH` from
-`git rev-parse HEAD`.  Every commit changes `GIT_HASH`, so `./etc/config`
-differs between ANY two commits.  This cascades: `./etc/config` → `tools.cpio`
-→ `initrd.cpio.xz` → ROM.  The ROM hash WILL differ between different commits —
-this is expected.
+`git rev-parse HEAD`.  Different commits have different `GIT_HASH` values, so
+`./etc/config` differs.  This normally cascades through `tools.cpio` and
+`initrd.cpio.xz` into the ROM, making a ROM-hash difference expected.
 
-When `./etc/config` is the **only** differing file inside `tools.cpio`, the
-build is still reproducible — all binaries (busybox, kexec, gpg, etc.) are
-byte-identical.  A binary mismatch is the actual reproducibility bug to
-investigate.
+When `./etc/config` is the **only** differing file inside `tools.cpio`, that
+comparison shows the other recorded binary payloads (busybox, kexec, gpg, etc.)
+are byte-identical.  A binary mismatch identifies an additional source of
+variation to investigate.

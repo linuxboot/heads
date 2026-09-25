@@ -163,14 +163,20 @@ else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
 endif
 
-# Initrd BCJ: an optional filter that only helps one instruction set and needs
-# the matching kernel decoder.  It is applied ONLY on x86 (--x86), which
-# requires CONFIG_XZ_DEC_X86 (all x86 configs set it).  Non-x86 boards get no
-# BCJ: their initrd is plain LZMA2, needing only CONFIG_XZ_DEC + CONFIG_RD_XZ.
-# For ppc64 this is also the only useful choice: xz's PowerPC BCJ is big-endian
-# only and talos-2 is ppc64le, so --powerpc would transform nothing while
-# adding a decoder requirement.  See doc/build-freshness.md "Why no BCJ filter
-# on non-x86".
+# Initrd BCJ: an optional instruction-set filter requiring a matching kernel
+# decoder.  The filter is gated only by CONFIG_TARGET_ARCH=x86; maintained x86
+# coreboot configs enable CONFIG_XZ_DEC_X86, while legacy LinuxBoot is an exception.
+# Non-x86 uses plain LZMA2.  CONFIG_RD_XZ is needed only where the kernel unpacks
+# an external initrd; the built-in initramfs stream needs CONFIG_XZ_DEC.  On Talos
+# the build host decompresses initrd.cpio.xz to raw cpio, which is embedded in
+# zImage.bundled, so the guest never decodes that stream; the guest instead
+# decodes the kernel's own built-in initramfs XZ stream, which also has no BCJ.
+# For ppc64 this is also the only useful choice: xz's PowerPC BCJ matches
+# big-endian PowerPC branch encoding, and talos-2 is ppc64le, so --powerpc would
+# not match the little-endian branch encoding and would yield no useful size
+# reduction.  It is safe rather than forbidden, since the decoder is already
+# present (config/linux-talos-2.config sets CONFIG_XZ_DEC_POWERPC=y); it would
+# just be pointless.  See doc/build-freshness.md "Why no BCJ filter on non-x86".
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 INITRD_XZ_ARCH_FILTER := --x86
 else

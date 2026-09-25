@@ -14,14 +14,7 @@ e2fsprogs_hash := 144af53f2bbd921cef6f8bea88bb9faddca865da3fbc657cc9b4d2001097d5
 # we use the install target so that they will be copied to the correct
 # location.
 
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused functions and data; each function is in its own section so the
-# linker can drop what the initrd never calls, shrinking the binary.
-
-
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
 e2fsprogs_configure := \
 	$(CROSS_TOOLS) \

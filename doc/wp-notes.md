@@ -2,7 +2,7 @@
 
 Heads uses two complementary mechanisms to protect the SPI flash ROM
 from modification after boot:
-1. **PR0 chipset locking** (all Intel boards) — the primary mechanism
+1. **PR0 chipset locking** (supported Intel board configurations) — the primary mechanism
 2. **WP# pin** (subset of boards) — optional hardware reinforcement
 
 ## PR0 chipset locking
@@ -93,26 +93,19 @@ PR0-protected range.  Only a system reset clears the lock.
 
 ### Board coverage
 
-**PR0-enabled (30 Intel boards):**
+PR0 applicability is configuration-driven rather than represented by a fixed
+Intel-board count.  Until the HCL is deployed, this section is non-exhaustive.
+The authoritative inputs are each board's `boards/<board>/<board>.config`
+values, especially `CONFIG_FINALIZE_PLATFORM_LOCKING`, together with the
+selected coreboot configuration's SPI-lockdown options.  When this narrative
+and those configurations differ, the board and selected coreboot configs
+describe the target's compiled behavior.
 
-Skylake+ (11 boards, require SMM lockdown patch):
-`kano`, `novacustom-nv4x_adl`, `novacustom-v540tu`, `novacustom-v560tu`,
-`t480-maximized`, `t480s-maximized`, `nitropad-ns50`,
-`msi_z690a_ddr4`, `msi_z690a_ddr5`, `msi_z790p_ddr4`, `msi_z790p_ddr5`
-
-Pre-Skylake (19 boards):
-`t420-maximized`, `t430-maximized`, `t440p`, `t520-maximized`,
-`t530-maximized`, `t530-dgpu-maximized`, `w530-maximized`,
-`w530-dgpu-K1000m-maximized`, `w530-dgpu-K2000m-maximized`,
-`w541`, `x220`, `x220-maximized`, `x230-maximized`,
-`x230-maximized-fhd_edp`, `z220-cmt`, `optiplex-7019_9010-maximized`,
-`optiplex-7019_9010_TXT-maximized`, `p8z77-m_pro-tpm1`, `t530-dgpu-maximized`
-
-**Not applicable (no Intel chipset locking):**
-AMD boards: `kgpe-d16_*` (4 variants), `librem_l1um` — use alternative
-or no WP.  Emulated: `qemu-tpm1`, `qemu-tpm2`, `qemu-tpm1-prod`,
-`qemu-tpm2-prod`, `talos-2`, `librem_11` (disabled via
-`BOOTMEDIA_LOCK_NONE=y`).
+Skylake-and-newer supported configurations require the SMM lockdown patch and
+options listed above.  Pre-Skylake configurations use the upstream SMI path.
+AMD, emulated, POWER9/Talos, and explicitly disabled configurations are not
+Intel PR0-locking targets.  Do not derive a repository-wide count from this
+narrative; count only board configs that satisfy the documented requirements.
 
 ### User-facing toggle
 

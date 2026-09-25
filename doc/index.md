@@ -6,20 +6,21 @@ Quick reference: read the relevant doc when working on a topic.
 
 | File | What it covers |
 |------|----------------|
-| `build-artifacts.md` | ROM filenames, update-package zip layout, LVFS conventions |
-| `build-freshness.md` | Why rebuilds produce stale artifacts and how to force a full rebuild |
-| `circleci.md` | CI pipeline: job dependency graph, cache layers, workspace persistence |
-| `docker.md` | Docker-based build environment with pinned, reproducible images |
-| `modules.md` | Module system: toolchain and bin modules, inclusion rules, sentinel chain |
-| `patches.md` | Creating and maintaining source patches for upstream packages |
-| `prerequisites.md` | Tools and libraries needed before building Heads |
-| `reproducible-builds.md` | Deterministic build flags and verifying ROM hashes against CI |
+| [`build-artifacts.md`](build-artifacts.md) | x86/ppc64 output layout, ROM/package names, and [size/hash manifest semantics](build-artifacts.md#size-and-hash-manifest-semantics) |
+| [`build-freshness.md`](build-freshness.md) | Why rebuilds produce stale artifacts, cpio/XZ composition, and rebuild guidance |
+| [`circleci.md`](circleci.md) | CI pipeline: job dependency graph, cache layers, workspace persistence |
+| [`docker.md`](docker.md) | Docker-based build environment with pinned image identity |
+| [`modules.md`](modules.md) | Module inclusion, stamps/rebuild helpers, and the external HCL dependency |
+| [`patches.md`](patches.md) | Creating and maintaining source patches for upstream packages |
+| [`prerequisites.md`](prerequisites.md) | Tools and libraries needed before building Heads |
+| [`reproducible-builds.md`](reproducible-builds.md) | Deterministic build/archive flags and verifying recorded hashes against CI |
+| Hardware Compatibility — intended publication target | Not a working link: `https://osresearch.net/Hardware-Compatibility/` currently returns 404.  Board configs carry the HCL summaries and anchors; the deployment status is recorded once, in [`modules.md`](modules.md#hardware-compatibility-list-hcl) |
 
 ## Architecture & Boot Flow
 
 | File | What it covers |
 |------|----------------|
-| `architecture.md` | System layout: coreboot → Linux → initramfs, config hierarchy |
+| [`architecture.md`](architecture.md) | System layout, x86 versus ppc64/Talos II, and config hierarchy |
 | `boot-process.md` | Boot flow stages, ISO boot steps, [OK]/[~]/[X] progress markers |
 | `iso_boot.md` | ISO kernel parameters: which framework uses each option |
 | `kexec_handoff.md` | Kernel kexec handoff: screen_info, EBDA, sysfb/simpledrm/vesadrm |
@@ -45,7 +46,7 @@ Quick reference: read the relevant doc when working on a topic.
 |------|----------------|
 | `BOARDS_AND_TESTERS.md` | Board EOL/ESU status, CPU generations, tester registry |
 | `busybox_perks.md` | GNU vs BusyBox command differences for initrd scripts |
-| `config.md` | Board config hierarchy: defconfig, oldconfig, variation-to-defconfig |
+| [`config.md`](config.md) | Board config hierarchy, module selection, and architecture/output settings |
 | `development.md` | Development environment setup and contribution workflow |
 | `faq.md` | Frequently asked questions |
 | `logging.md` | Message levels (STATUS, WARN, NOTE, INFO, DEBUG, TRACE) |

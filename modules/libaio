@@ -7,15 +7,7 @@ libaio_url := https://deb.debian.org/debian/pool/main/liba/libaio/$(libaio_tar)
 libaio_hash := 2c44d1c5fd0d43752287c9ae1eb9c023f04ef848ea8d4aafa46e9aedb678200b
 
 
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused functions and data; each function is in its own section so the
-# linker can drop what the initrd never calls, shrinking the binary.
-# The -Wl,--no-eh-frame-hdr LDFLAGS flag is added by a later commit.
-
-
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
 libaio_target := \
 	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Wall -I. -fPIC" \

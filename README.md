@@ -29,13 +29,16 @@ Heads codebase. Start here:
 
 | Document | What it covers |
 | --- | --- |
-| [doc/architecture.md](doc/architecture.md) | Component overview: coreboot, Linux payload, initrd, build system, configuration layers |
+| [doc/architecture.md](doc/architecture.md) | Component overview, x86/ppc64 differences, and build-system layers |
+| [doc/build-artifacts.md](doc/build-artifacts.md) | x86/ppc64 output layout, filename rules, and [size/hash manifest semantics](doc/build-artifacts.md#size-and-hash-manifest-semantics) |
+| [doc/reproducible-builds.md](doc/reproducible-builds.md) | Variance-reduction practices and same-commit comparison workflow |
+| [doc/modules.md](doc/modules.md) | Module selection, build stamps, rebuild helpers, and HCL dependencies |
 | [doc/security-model.md](doc/security-model.md) | Trust hierarchy, measured boot, TOTP/HOTP attestation, GPG boot signing, LUKS DUK, fail-closed design |
 | [doc/boot-process.md](doc/boot-process.md) | Step-by-step boot flow: /init → gui-init → kexec-select-boot → OS handoff |
 | [doc/tpm.md](doc/tpm.md) | PCR assignments, sealing policies, SRTM chain, board-specific TPM variations, developer config reference |
 | [doc/ux-patterns.md](doc/ux-patterns.md) | GUI/UX conventions: whiptail wrappers, integrity report, error flows |
 | [doc/config.md](doc/config.md) | Board and user configuration system |
-| [doc/docker.md](doc/docker.md) | Reproducible build workflow using Docker |
+| [doc/docker.md](doc/docker.md) | Pinned-image build and comparison workflow using Docker |
 | [doc/circleci.md](doc/circleci.md) | CircleCI pipeline layout, workspace flow, and cache behavior |
 | [doc/qemu.md](doc/qemu.md) | QEMU board targets for development and testing |
 | [doc/wp-notes.md](doc/wp-notes.md) | Flash write-protection status per board |
@@ -44,7 +47,8 @@ Heads codebase. Start here:
 | [doc/faq.md](doc/faq.md) | Common questions: UEFI vs coreboot, TPM, LUKS, threat models |
 | [doc/keys.md](doc/keys.md) | All keys and secrets: TPM owner, GPG PINs, Disk Recovery Key, LUKS DUK |
 | [doc/development.md](doc/development.md) | Commit conventions, coding standards, testing checklist |
-| [doc/build-freshness.md](doc/build-freshness.md) | Debugging stale builds: initrd.cpio.xz composition, verification |
+| [doc/build-freshness.md](doc/build-freshness.md) | Debugging stale builds: cpio composition, BCJ/XZ filters, verification |
+| Hardware Compatibility — intended publication target | Not a working link: `https://osresearch.net/Hardware-Compatibility/` currently returns 404.  Per-board summaries and HCL anchors live in the board configs; the deployment status is recorded once, in [doc/modules.md](doc/modules.md#hardware-compatibility-list-hcl) |
 
 For user-facing documentation and guides, see [Heads-wiki](https://osresearch.net).
 
@@ -78,9 +82,34 @@ git fetch --tags origin
 **Quick start** (requires [Docker CE](https://docs.docker.com/engine/install/)):
 
 ```bash
-./docker_repro.sh make BOARD=x230-hotp-maximized
+./docker_repro.sh make BOARD=EOL_x230-hotp-maximized
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
+
+From a non-interactive context (CI, agents, no TTY), `docker_repro.sh`'s `-ti`
+still needs a pseudo-TTY: wrap the command in `script`. Pass `-f` so `script`
+flushes output as it is written instead of buffering it, and set
+`HEADS_DISABLE_USB=1` to skip the USB token passthrough:
+
+```bash
+script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized"
+```
+
+`script` (util-linux) allocates a pseudo-terminal (PTY) so `docker run -ti` has
+a TTY in a non-interactive/agent context; the command's output is still shown on
+screen (stdout). The options used above:
+
+- `-c "<cmd>"` runs that command.
+- `-q` suppresses `script`'s own start/done banners.
+- `-e` propagates the command's exit status, so a failed build is detectable.
+- `-f` flushes output as it is written (no buffering), so incremental readers
+  don't see it stall.
+
+`script` also records the session to a file — by default `./typescript`, which
+this repo gitignores (`.gitignore:34` `typescript*`). Leave it default to keep
+the transcript; pass `/dev/null` as the trailing argument to skip recording.
+
+`HEADS_DISABLE_USB=1` skips USB-token passthrough and its 3-second abort window.
 
 **No hardware required for testing** — Docker provides the full build stack
 and QEMU runtime with software TPM (swtpm) and the bundled `canokey-qemu`
@@ -88,6 +117,10 @@ virtual OpenPGP smartcard. Build and test entirely in software before flashing r
 
 Build targets are the directory names under `boards/`. For the current set of
 tested and maintained targets, see [doc/BOARDS_AND_TESTERS.md](doc/BOARDS_AND_TESTERS.md).
+Outputs go under `build/<arch>/<board>/`: x86 boards use `build/x86/`, while
+`UNTESTED_talos-2` uses `build/ppc64/` and its Talos-specific `.tgz` layout. See
+[architecture.md](doc/architecture.md#supported-architectures) and
+[build-artifacts.md](doc/build-artifacts.md#architecture-specific-output-layout).
 
 For full details — wrapper scripts, Nix local dev, reproducibility verification, and
 maintainer workflow — see **[doc/docker.md](doc/docker.md)**.
@@ -102,20 +135,17 @@ For troubleshooting build issues see **[doc/faq.md](doc/faq.md)** and
 
 ## General notes on reproducible builds
 
-In order to build reproducible firmware images, Heads builds a specific
-version of gcc and uses it to compile the Linux kernel and various tools
-that go into the initrd.  Unfortunately this means the first step is a
-little slow since it will clone the `musl-cross-make` tree and build gcc...
+Heads applies reproducibility-oriented mechanisms: a selected GCC build,
+verified package inputs, pinned timestamps/build flags, normalized archive
+metadata, and a pinned Docker image on the canonical wrapper path.  These reduce
+common sources of variation but do not make one build's output inherently
+bit-identical to another.
 
-Once that is done, the top level `Makefile` will handle most of the
-remaining details -- it downloads the various packages, verifies the
-hashes, applies Heads specific patches, configures and builds them
-with the cross compiler, and then copies the necessary parts into
-the `initrd` directory.
-
-There are still dependencies on the build system's coreutils in
-`/bin` and `/usr/bin/`, but any problems should be detectable if you
-end up with a different hash than the official builds.
+After the toolchain is available, the top-level `Makefile` downloads packages,
+verifies their hashes, applies Heads-specific patches, builds with the selected
+compiler, and stages the resulting files into the initrd.  Establishing
+bit-identical ROM output requires comparable same-commit builds and an explicit
+artifact/hash comparison; see [doc/reproducible-builds.md](doc/reproducible-builds.md).
 
 ## Key components
 
@@ -124,7 +154,7 @@ enabled by most board configs include:
 
 * [musl-cross-make](https://github.com/richfelker/musl-cross-make) — cross-compiler toolchain
 * [coreboot](https://www.coreboot.org/) — minimal firmware replacing vendor BIOS/UEFI
-* [Linux](https://kernel.org) — minimal kernel payload (no built-in initrd; boots with external initrd such as `initrd.cpio.xz`)
+* [Linux](https://kernel.org) — minimal kernel payload; maintained x86 coreboot targets use a separate `initrd.cpio.xz`, while ppc64/Talos II bundles the initrd into `zImage.bundled`
 * [busybox](https://busybox.net/) — core utilities
 * [kexec](https://wiki.archlinux.org/index.php/kexec) — Linux kernel executor (loads kernels from boot partition, USB, network)
 * [tpmtotp](https://github.com/osresearch/tpmtotp) — TPM-based TOTP/HOTP one-time password generator
@@ -142,7 +172,7 @@ kernel.
 ### Notes
 
 * Building coreboot's cross compilers can take a while.  Luckily this is only done once.
-* Builds are finally reproducible! The [reproduciblebuilds tag](https://github.com/osresearch/heads/issues?q=is%3Aopen+is%3Aissue+milestone%3Areproduciblebuilds) tracks any regressions.
+* Reproducibility-oriented mechanisms are enabled, but bit-identical output must be demonstrated with comparable same-commit builds and recorded artifact hashes.
 * Current tested and maintained boards are tracked in [doc/BOARDS_AND_TESTERS.md](doc/BOARDS_AND_TESTERS.md). Board targets themselves live under `boards/`.
 * Xen does not work in QEMU.  Signing, HOTP, and TOTP do work; see below.
 * Blob requirements are board- or board-family-specific. Check the relevant documentation under `blobs/` for the target you are building.

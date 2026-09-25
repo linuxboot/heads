@@ -8,21 +8,12 @@ libhidapi-libusb_tar := hidapi-$(libhidapi-libusb_version).tar.gz
 libhidapi-libusb_url := https://github.com/libusb/hidapi/archive/$(libhidapi-libusb_tar)
 libhidapi-libusb_hash := 630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
 
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 MY_CROSS_TOOLS := \
 	CC="$(heads_cc) -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
 	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	$(CROSS_TOOLS_NOCC) \
-
-
-
-# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
-# discard unused functions and data; each function is in its own section so the
-# linker can drop what the initrd never calls, shrinking the binary.
-
-
-# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
-# tables; the initrd is single-purpose and never needs stack unwinding, saving
-# meaningful bytes in the initrd payload.
 
 libhidapi-libusb_configure := ./bootstrap && \
 	./configure \
