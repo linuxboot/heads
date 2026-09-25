@@ -163,14 +163,14 @@ else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
 endif
 
-# BCJ only helps x86 machine code, and the kernel needs CONFIG_XZ_DEC_X86 to
-# decompress it; non-x86 boards (ppc64/talos-2) gain nothing and may fail to
-# unpack the initrd, so --x86 is x86-only.  CONFIG_TARGET_ARCH is set by the
-# board include above.
-#
-# TODO(ppc64): talos-2 is untested and gets no arch filter.  xz's --powerpc BCJ
-# is big-endian only while the talos-2 kernel and initrd are little-endian, so
-# no filter applies today; revisit once the board is validated.
+# Initrd BCJ: an optional filter that only helps one instruction set and needs
+# the matching kernel decoder.  It is applied ONLY on x86 (--x86), which
+# requires CONFIG_XZ_DEC_X86 (all x86 configs set it).  Non-x86 boards get no
+# BCJ: their initrd is plain LZMA2, needing only CONFIG_XZ_DEC + CONFIG_RD_XZ.
+# For ppc64 this is also the only useful choice: xz's PowerPC BCJ is big-endian
+# only and talos-2 is ppc64le, so --powerpc would transform nothing while
+# adding a decoder requirement.  See doc/build-freshness.md "Why no BCJ filter
+# on non-x86".
 ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 INITRD_XZ_ARCH_FILTER := --x86
 else

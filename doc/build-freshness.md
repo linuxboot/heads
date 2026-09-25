@@ -24,6 +24,63 @@ The final packaging rule:
 $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y)
 ```
 
+### xz recipe
+
+The final `initrd.cpio.xz` is compressed with:
+
+```makefile
+xz --check=crc32 $(INITRD_XZ_ARCH_FILTER) $(INITRD_XZ_FILTER)
+```
+
+| Variable | Value | Applies to |
+|----------|-------|------------|
+| `INITRD_XZ_ARCH_FILTER` | `--x86` | x86 targets only; empty otherwise |
+| `INITRD_XZ_FILTER` | `--lzma2=preset=9e,lc=4,lp=0,pb=1,mf=bt3,nice=128` | all targets |
+
+- The x86 BCJ filter only helps x86 code, and the kernel needs
+  `CONFIG_XZ_DEC_X86` to decompress it, so it is gated to x86 targets.
+- The chain must be BCJ then LZMA2; a bare `-9`/`-9e` cannot be combined
+  with `--x86` because it replaces the chain, so the level rides on the
+  LZMA2 filter as `preset=9e`.
+- The comma must live in a variable: make splits `$(call)` arguments on
+  commas before expansion.
+- `--check=crc32` because the kernel's XZ decoder rejects CRC64.
+
+### Why no BCJ filter on non-x86
+
+An xz stream is a chain of filters: an optional BCJ filter (a reversible byte
+transform tuned to one instruction set, which improves LZMA2's ratio on
+branch-heavy code) followed by LZMA2 (the entropy coder). BCJ only changes how
+well data compresses; it never changes whether the stream can be decoded. Two
+consequences:
+
+- No BCJ filter means plain LZMA2, decodable by any xz decoder, on any CPU and
+  any endianness (LZMA2 itself is endianness-agnostic).
+- A BCJ filter means the decoder must be built with support for that specific
+  filter.
+
+Heads applies `--x86` BCJ to the initrd only on x86 (see
+`INITRD_XZ_ARCH_FILTER`), which requires `CONFIG_XZ_DEC_X86` (every x86 kernel
+config sets it). Non-x86 boards get no BCJ filter, so their initrd is plain
+LZMA2 and needs only `CONFIG_XZ_DEC=y` and `CONFIG_RD_XZ=y`.
+
+For ppc64 (talos-2) the endianness question never arises, for two independent
+reasons:
+
+1. xz's PowerPC BCJ is big-endian only: it matches BE-encoded branch
+   instructions. talos-2 is ppc64le, so `--powerpc` would transform nothing
+   while adding a `CONFIG_XZ_DEC_POWERPC` requirement to the decoder. Heads
+   therefore applies no BCJ on ppc64.
+2. On ppc64 the kernel image is compressed by the ppc boot wrapper
+   (`arch/powerpc/boot/wrapper`, which runs `xz --check=crc32 -f -6`), and that
+   path never uses BCJ. The `powerpc) BCJ=--powerpc` line in the kernel's
+   `scripts/xz_wrap.sh` is dead code for ppc, because that script is not used
+   by the ppc build.
+
+So BCJ and the little-/big-endian distinction never get in the way: either no
+BCJ is applied (plain LZMA2), or, on x86, it is applied together with the
+matching decoder support.
+
 ## Build Flow
 
 ### 1. Initrd Build (Makefile)
