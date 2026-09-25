@@ -502,6 +502,8 @@ define define_module =
     # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
+	# Only the module's own board dir is wiped; $(build)/$(BOARD) is shared
+	# and owned by the cpio/initrd targets.
 	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
 		echo "INFO: .canary file and directory not found. Creating standalone clone of $($1_repo) at $(build)/$($1_base_dir)" && \
 		mkdir -p "$(build)/$($1_base_dir)" && \
@@ -538,7 +540,7 @@ define define_module =
 		echo "INFO: Updating submodules (init and checkout)" && \
 		git submodule update --init --checkout && \
 		echo "INFO: Cleaning board-specific build directories to prevent stale artifacts" && \
-		rm -rf "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
+		rm -rf "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Recreating board directories" && \
 		mkdir -p "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Updating .canary file with new repo info" && \

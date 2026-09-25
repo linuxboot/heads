@@ -27,10 +27,24 @@ tpmtotp_target := \
 tpmtotp_output := \
 	totp \
 	hotp \
-	qrenc \
-	util/tpm \
+	qrenc
 
-tpmtotp_libraries := \
-	libtpm/libtpm.so \
+# TPM1.2-only: util/tpm (installed as bin/tpm) and libtpm.so are the TPM1
+# stack.  tpmr.sh dispatches TPM1 vs TPM2 on CONFIG_TPM2_TOOLS and never
+# execs tpm on TPM2 boards; totp/hotp/qrenc do not link libtpm.so, so both
+# are safe to drop.  insmod.sh's /bin/tpm probe also accepts the TPM2 path
+# (/dev/tpmrm0 + /bin/tpm2), so it does not need bin/tpm.
+# See doc/modules.md "TPM1 vs TPM2 tools".
+
+tpmtotp_libraries :=
+
+ifneq "$(CONFIG_TPM2_TOOLS)" "y"
+tpmtotp_output += \
+	util/tpm
+
+tpmtotp_libraries += \
+	libtpm/libtpm.so
+
+endif
 
 tpmtotp_configure := 
