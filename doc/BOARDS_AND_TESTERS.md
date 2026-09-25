@@ -98,7 +98,7 @@ QSB-107 exposure rates.
 
 Many Intel platforms are vulnerable to a TPM GPIO reset bypass
 ([mkukri.xyz, 2024](https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html)).
-See the [Heads Wiki Threat Model](https://github.com/linuxboot/heads-wiki/blob/master/About/Heads-threat-model.md)
+See the [Heads Wiki Threat Model](https://osresearch.net/Heads-threat-model/)
 for per-platform status and mitigation. Test with:
 
 ```bash

@@ -40,6 +40,17 @@ Not all tools are BusyBox applets — many are standalone binaries compiled as s
 | 745 | **`CONFIG_ZSTD`** | **zstd** | **Standalone** |
 | 746 | `CONFIG_E2FSPROGS` | e2fsprogs | Standalone |
 
+## Hardware compatibility list (HCL)
+
+The canonical hardware compatibility list is maintained in the heads-wiki:
+
+<https://osresearch.net/Hardware-Compatibility/>
+
+Each `boards/*/*.config` carries a short hardware-compatibility summary and
+links to its canonical HCL entry (the `unmaintained_boards/*` configs do not);
+the full platform, integrated USB3/xHCI and USB4, flash-size, and TPM details
+live in the wiki.
+
 ## BusyBox applets (always available)
 
 BusyBox v1.36.1 provides the following applets relevant to Heads scripts.

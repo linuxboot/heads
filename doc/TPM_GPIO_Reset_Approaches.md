@@ -344,13 +344,13 @@ unseal requirements.
 
 ### 5.3 Mitigations
 
-See [Heads Wiki Threat Model](https://github.com/linuxboot/heads-wiki/blob/master/About/Heads-threat-model.md) for mitigations.
+See [Heads Wiki Threat Model](https://osresearch.net/Heads-threat-model/) for mitigations.
 
 ---
 
 ## 6. Community Testing Request
 
-See [Heads Wiki Recovery Shell](https://github.com/linuxboot/heads-wiki/blob/master/Installing-and-Configuring/RecoveryShell.md#tpm-gpio-reset-vulnerability-testing) for testing instructions using the C tools (`tpm-gpio-detect`, `tpm-gpio-assert`).
+See [Heads Wiki Recovery Shell](https://osresearch.net/RecoveryShell/#tpm-gpio-reset-vulnerability-testing) for testing instructions using the C tools (`tpm-gpio-detect`, `tpm-gpio-assert`).
 
 ---
 
