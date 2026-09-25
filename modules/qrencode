@@ -6,10 +6,21 @@ qrencode_tar := qrencode-$(qrencode_version).tar.gz
 qrencode_url := https://web.archive.org/web/20240910005455/https://fukuchi.org/works/qrencode/$(qrencode_tar)
 qrencode_hash := e794e26a96019013c0e3665cb06b18992668f352c5553d0a553f5d144f7f2a72
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 qrencode_libraries := .libs/libqrencode.so.3
 
 qrencode_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

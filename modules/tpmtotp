@@ -1,5 +1,15 @@
 modules-$(CONFIG_TPMTOTP) += tpmtotp
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
 tpmtotp_version := 4d63d21c8b7db2e92ddb393057f168aead147f47
@@ -11,8 +21,8 @@ tpmtotp_hash := eaac1e8f652f1da7f5a1ed6a8cfefb6511f1e5e1dabf93b44db3b29c18c5ae53
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-I$(INSTALL)/include -Os" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	CFLAGS="-I$(INSTALL)/include -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 
 tpmtotp_output := \
 	totp \

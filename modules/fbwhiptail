@@ -1,5 +1,15 @@
 modules-$(CONFIG_FBWHIPTAIL) += fbwhiptail
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 fbwhiptail_depends := cairo $(musl_dep)
 
 fbwhiptail_version := 1.3
@@ -10,8 +20,8 @@ fbwhiptail_hash := 2eb8fadfd3e2d574de52327bbc80ed6313739a3db9f4d87840c534352c66d
 
 fbwhiptail_target := \
 	$(MAKE_JOBS) \
-    CFLAGS="-g0 -Os" \
-    LDFLAGS="-s" \
+    CFLAGS="-g0 -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+    LDFLAGS="-s -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	$(CROSS_TOOLS) \
 	fbwhiptail
 

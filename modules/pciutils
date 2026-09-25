@@ -1,5 +1,15 @@
 modules-$(CONFIG_PCIUTILS) += pciutils
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 pciutils_depends := $(musl_dep)
 
 #pciutils_version := git
@@ -19,6 +29,8 @@ pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe6
 pciutils_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	OPT="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	HOST=$(MUSL_ARCH)-linux-musl \
 	ZLIB=no \
 	HWDB=no \
@@ -30,6 +42,8 @@ pciutils_target := \
 	$(MAKE) \
 	-C $(build)/$(pciutils_dir) \
 	$(CROSS_TOOLS) \
+	OPT="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	ZLIB=no \
 	HWDB=no \
 	LIBKMOD=no \

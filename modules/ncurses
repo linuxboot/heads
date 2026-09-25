@@ -1,5 +1,15 @@
 modules-$(CONFIG_NEWT) += ncurses
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 ncurses_depends := $(musl_dep)
 
 ncurses_version := 6.5
@@ -9,7 +19,7 @@ ncurses_url := https://invisible-island.net/archives/ncurses/ncurses-$(ncurses_v
 ncurses_hash := 136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6
 
 ncurses_configure := \
-	CFLAGS="-Os" ./configure \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--without-ada \

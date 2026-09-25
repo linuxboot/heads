@@ -9,12 +9,23 @@ zstd_tar := zstd-$(zstd_version).tar.gz
 zstd_url := https://github.com/facebook/zstd/releases/download/v$(zstd_version)/$(zstd_tar)
 zstd_hash := 9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 zstd_configure := true
 
 # Only the decompressor is built and installed, to be able to read zstd-compressed
 # initramfs archives.
 zstd_target := \
-	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Os" \
+	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	HAVE_ZLIB=0 \
 	HAVE_LZMA=0 \
 	HAVE_LZ4=0 \

@@ -1,5 +1,15 @@
 modules-$(CONFIG_FLASHTOOLS) += flashtools
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 flashtools_depends := $(musl_dep)
 
 flashtools_version := d1e6f12568cb23387144a4b7a6535fe1bc1e79b1
@@ -11,8 +21,8 @@ flashtools_hash := a68cdb4a2e312f96862119a6d829ac900b53d0cbc80caa5632efd43b5b7ee
 flashtools_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	CFLAGS="-Os -I$(INSTALL)/include -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 
 flashtools_output := \
 	flashtool \

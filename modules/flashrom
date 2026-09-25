@@ -1,5 +1,15 @@
 modules-$(CONFIG_FLASHROM) += flashrom
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 flashrom_depends := pciutils $(musl_dep)
 
 flashrom_version := 1776bb46ba6ea3d1ab2ec3f0cd88158aabed7400
@@ -29,10 +39,10 @@ endif
 
 flashrom_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Os -I$(INSTALL)/include/pci -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	PREFIX="$(INSTALL)" \
 	$(CROSS_TOOLS) \
 	$(flashrom_cfg) \

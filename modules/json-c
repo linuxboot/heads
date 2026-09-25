@@ -24,11 +24,21 @@ set\(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY\)\n\
 set\(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY\)
 endef 
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 json-c_configure := \
 	echo -e "$(toolchain_file)" | sed 's/\\//g' > toolchain && \
 	mkdir -p build && \
 	cd build && \
-	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel
+	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr"
 
 json-c_target := \
 	$(CROSS_TOOLS) $(MAKE_JOBS) -C $(build)/$(json-c_dir)/build \

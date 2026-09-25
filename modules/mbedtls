@@ -6,13 +6,24 @@ mbedtls_tar := mbedtls-$(mbedtls_version).tar.gz
 mbedtls_url := https://github.com/ARMmbed/mbedtls/archive/$(mbedtls_tar)
 mbedtls_hash := b7afab6a0f86e29c6055848b70d183c4e2531cb0ec955b66c0e4e1b7e4954bf4
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 mbedtls_libraries := library/libmbedcrypto.so.0
 
 mbedtls_configure :=
 
 mbedtls_target := \
 	SHARED=1 \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	DESTDIR=$(INSTALL) \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \

@@ -6,10 +6,21 @@ powerpc-utils_tar := powerpc-utils-$(powerpc-utils_version).tar.gz
 powerpc-utils_url := https://github.com/ibm-power-utilities/powerpc-utils/archive/v$(powerpc-utils_version)/$(powerpc-utils_tar)
 powerpc-utils_hash := 77efe3978ac9c251c4728a35b9aebd6076583939a8e26cc7f07ffa86432a8bf0
 
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+
+
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
 powerpc-utils_configure := \
 	./autogen.sh && \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

@@ -6,7 +6,15 @@ slang_tar := slang-$(slang_version).tar.bz2
 slang_url := https://www.jedsoft.org/releases/slang/$(slang_tar)
 slang_hash := f9145054ae131973c61208ea82486d5dd10e3c5cdad23b7c4a0617743c8f5a18
 
-slang_configure := ./configure \
+
+# -ffunction-sections -fdata-sections and -Wl,--gc-sections -Wl,--no-eh-frame-hdr
+# discard unused functions and data; each function is in its own section so the
+# linker can drop what the initrd never calls, shrinking the binary.
+# -fno-asynchronous-unwind-tables -fno-unwind-tables: drop .eh_frame and unwind
+# tables; the initrd is single-purpose and never needs stack unwinding, saving
+# meaningful bytes in the initrd payload.
+
+slang_configure := CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	ac_cv_path_nc5config=ncurses-config \
 	--host $(MUSL_ARCH)-elf-linux \
