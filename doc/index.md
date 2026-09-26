@@ -34,6 +34,7 @@ Quick reference: read the relevant doc when working on a topic.
 | `hotp.md` | HOTP-based remote attestation of firmware state |
 | `ibb-measurement.md` | IBB measurement paths, PCR 0 prerequisites, provisioning and signing keys |
 | `keys.md` | Key management for firmware signing |
+| `opal.md` | TCG Opal disk unlock and optional coreboot S3 credential handoff |
 | `security-model.md` | TPM measured boot, trust chain, flash write protection |
 | `TPM_GPIO_Reset_Approaches.md` | Eight approaches for resetting TPM via GPIO |
 | `TPM_GPIO_Reset_Vulnerability.md` | TPM GPIO reset vulnerability analysis |
