@@ -6,9 +6,13 @@ libgcrypt_tar := libgcrypt-$(libgcrypt_version).tar.bz2
 libgcrypt_url := https://gnupg.org/ftp/gcrypt/libgcrypt/$(libgcrypt_tar)
 libgcrypt_hash := ef14ae546b0084cd84259f61a55e07a38c3b53afc0f546bffcef2f01baffe9de
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 libgcrypt_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host=$(MUSL_ARCH)-linux-musl \
 	--prefix "/" \

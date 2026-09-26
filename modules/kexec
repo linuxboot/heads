@@ -6,8 +6,12 @@ kexec_tar := kexec-tools-$(kexec_version).tar.gz
 kexec_url := https://kernel.org/pub/linux/utils/kernel/kexec/$(kexec_tar)
 kexec_hash := 89bdd941542c64fec16311858df304ed3a3908c1a60874d69df5d9bf1611e062
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 kexec_configure := \
-	CFLAGS="-g -Os -fno-strict-aliasing -Wall -Wstrict-prototypes" \
+	CFLAGS="-g -Os -fno-strict-aliasing -Wall -Wstrict-prototypes -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

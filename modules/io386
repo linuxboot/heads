@@ -1,5 +1,8 @@
 modules-$(CONFIG_IO386) += io386
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 io386_depends := $(musl_dep)
 
 io386_version := fc73fcf8e51a70638679c3e9b0ada10527f8a7c1
@@ -11,7 +14,8 @@ io386_hash := 874898af57d86dc057cea39b4a7e0621fc64aa4fb777dfb1eeb11e9134bc9a06
 io386_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	SHARED=yes \
 	PREFIX="/" \
 	&& \

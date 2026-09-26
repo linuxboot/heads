@@ -6,7 +6,10 @@ ioport_tar := ioport_$(ioport_version).tar.gz
 ioport_url := https://deb.debian.org/debian/pool/main/i/ioport/$(ioport_tar)
 ioport_hash := 7fac1c4b61eb9411275de0e1e7d7a8c3f34166f64f16413f50741e8fce2b8dc0
 
-ioport_configure := CFLAGS=-Os ./configure \
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
+ioport_configure := CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	--host i386-elf-linux \
 	--prefix "/" \

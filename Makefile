@@ -163,6 +163,26 @@ else
 $(error "Unexpected value of $$(CONFIG_TARGET_ARCH): $(CONFIG_TARGET_ARCH)")
 endif
 
+# Initrd BCJ: an optional instruction-set filter requiring a matching kernel
+# decoder.  The filter is gated only by CONFIG_TARGET_ARCH=x86; maintained x86
+# coreboot configs enable CONFIG_XZ_DEC_X86, while legacy LinuxBoot is an exception.
+# Non-x86 uses plain LZMA2.  CONFIG_RD_XZ is needed only where the kernel unpacks
+# an external initrd; the built-in initramfs stream needs CONFIG_XZ_DEC.  On Talos
+# the build host decompresses initrd.cpio.xz to raw cpio, which is embedded in
+# zImage.bundled, so the guest never decodes that stream; the guest instead
+# decodes the kernel's own built-in initramfs XZ stream, which also has no BCJ.
+# For ppc64 this is also the only useful choice: xz's PowerPC BCJ matches
+# big-endian PowerPC branch encoding, and talos-2 is ppc64le, so --powerpc would
+# not match the little-endian branch encoding and would yield no useful size
+# reduction.  It is safe rather than forbidden, since the decoder is already
+# present (config/linux-talos-2.config sets CONFIG_XZ_DEC_POWERPC=y); it would
+# just be pointless.  See doc/build-freshness.md "Why no BCJ filter on non-x86".
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+INITRD_XZ_ARCH_FILTER := --x86
+else
+INITRD_XZ_ARCH_FILTER :=
+endif
+
 ifneq "$(BOARD_TARGETS)" ""
 include $(foreach TARGET,$(BOARD_TARGETS),targets/$(TARGET).mk)
 endif
@@ -488,6 +508,8 @@ define define_module =
     # XXX: "git clean -dffx" is a hack for coreboot during commit switching, need
 	#      module-specific cleanup action to get rid of it.
     $(build)/$($1_base_dir)/.canary: FORCE
+	# Only the module's own board dir is wiped; $(build)/$(BOARD) is shared
+	# and owned by the cpio/initrd targets.
 	if [ ! -e "$$@" ] && [ ! -d "$(build)/$($1_base_dir)" ]; then \
 		echo "INFO: .canary file and directory not found. Creating standalone clone of $($1_repo) at $(build)/$($1_base_dir)" && \
 		mkdir -p "$(build)/$($1_base_dir)" && \
@@ -524,7 +546,7 @@ define define_module =
 		echo "INFO: Updating submodules (init and checkout)" && \
 		git submodule update --init --checkout && \
 		echo "INFO: Cleaning board-specific build directories to prevent stale artifacts" && \
-		rm -rf "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
+		rm -rf "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Recreating board directories" && \
 		mkdir -p "$(build)/$(BOARD)" "$(build)/$($1_base_dir)/$(BOARD)" && \
 		echo "INFO: Updating .canary file with new repo info" && \
@@ -834,8 +856,9 @@ $(COREBOOT_UTIL_DIR)/ifdtool/ifdtool: $(build)/$(coreboot_base_dir)/.canary musl
 # The blobs/dev.cpio is also included in the Linux kernel
 # and has a reproducible version of /dev/console.
 #
-# The xz parameters are copied from the Linux kernel build scripts.
-# Without them the kernel will not decompress the initrd.
+# Only --check=crc32 (together with the kernel's CONFIG_RD_XZ) is required
+# for the kernel to decompress the initrd; the preset=9e,... LZMA2 tuning
+# below is ours.
 #
 # The padding is to ensure that if anyone wants to cat another
 # file onto the initrd then the kernel will be able to find it.
@@ -948,14 +971,42 @@ $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 
 # --- FINAL INITRD PACKAGING ---
 
+# Initrd compression.  What each xz option does here:
+#   --check=crc32    the kernel's XZ decoder rejects CRC64 (the .xz default);
+#                    CRC32 is the strongest check it accepts.
+#   --x86            BCJ filter; rewrites x86 relative branches and calls as
+#                    absolute so LZMA2 sees repeated patterns.  x86-only, set
+#                    by $(INITRD_XZ_ARCH_FILTER) above.
+#   preset=9e        extreme LZMA2 preset; implies dict=64MiB.  Deliberately not
+#                    lowered: a window smaller than the payload caps match
+#                    distances (ratio can only get worse), while the only
+#                    saving would be transient decoder memory -- the kernel
+#                    unpacks an external initrd in multi-call mode, vmallocing
+#                    the declared dictionary (~64MiB) until unpack finishes.
+#   lc=4/lp=0/pb=1   LZMA2 context bits: literal-context 4, literal-position 0,
+#                    position 1 (defaults 3/0/2).
+#   mf=bt3,nice=128  match finder and nice length; encoder-only knobs, so the
+#                    stream stays a plain LZMA2 stream.
+#
+# The chain must be BCJ then LZMA2; a bare -9/-9e cannot be combined with
+# --x86 (it replaces the chain) and a trailing preset silently drops earlier
+# filter options, so the level rides on the LZMA2 filter as preset=9e.  The
+# old --lzma2=dict=1MiB -9 (dict=1MiB added in 54cded7f595) never took effect,
+# because -9 replaced the chain.
+#
+# The filter string must live in a variable: make splits $(call) arguments on
+# commas before expansion, so a literal comma in the recipe would be taken as
+# an argument separator and truncate the filter list.
+INITRD_XZ_FILTER := --lzma2=preset=9e,lc=4,lp=0,pb=1,mf=bt3,nice=128
+
 $(build)/$(initrd_dir)/initrd.cpio.xz: $(initrd-y) FORCE
 	$(call do,CPIO-XZ  ,$@,\
 	$(pwd)/bin/cpio-clean.pl \
 		$(filter-out FORCE,$^) \
 	| xz \
 		--check=crc32 \
-		--lzma2=dict=1MiB \
-		-9 \
+		$(INITRD_XZ_ARCH_FILTER) \
+		$(INITRD_XZ_FILTER) \
 	| dd bs=512 conv=sync status=none > "$@.tmp" \
 	)
 	@if ! cmp --quiet "$@.tmp" "$@" ; then \

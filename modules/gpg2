@@ -5,6 +5,9 @@ gpg2_dir := gnupg-$(gpg2_version)
 gpg2_tar := gnupg-$(gpg2_version).tar.bz2
 gpg2_url := https://www.gnupg.org/ftp/gcrypt/gnupg/$(gpg2_tar)
 gpg2_hash := 1d79158dd01d992431dd2e3facb89fdac97127f89784ea2cb610c600fb0c1483
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 
 # For reproducibility reasons we have to override the exec_prefix
@@ -14,7 +17,8 @@ gpg2_depends := libgpg-error libgcrypt libksba libassuan npth libusb $(musl_dep)
 # location.
 gpg2_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	CPPFLAGS="-I$(INSTALL)/include/libusb-1.0" \
 	--host $(MUSL_ARCH)-linux-musl \

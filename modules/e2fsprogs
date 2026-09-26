@@ -13,9 +13,13 @@ e2fsprogs_hash := 144af53f2bbd921cef6f8bea88bb9faddca865da3fbc657cc9b4d2001097d5
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 e2fsprogs_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "" \

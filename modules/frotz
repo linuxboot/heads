@@ -6,11 +6,16 @@ frotz_tar := frotz-$(frotz_version).tar.gz
 frotz_url := https://github.com/DavidGriffith/frotz/archive/$(frotz_version).tar.gz
 frotz_hash := dbb5eb3bc95275dcb984c4bdbaea58bc1f1b085b20092ce6e86d9f0bf3ba858f
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 frotz_configure := touch .config
 
 frotz_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	dumb && \
 	mv $(build)/$(frotz_dir)/dfrotz $(build)/$(frotz_dir)/frotz
 

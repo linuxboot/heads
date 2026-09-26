@@ -1,5 +1,8 @@
 modules-$(CONFIG_MSRTOOLS) += msrtools
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 msrtools_depends := $(musl_dep)
 
 #msrtools_version := git
@@ -15,8 +18,8 @@ msrtools_hash := 80554790d0a404205fe215c9ae8d2de159e980ec23821d636f201f12550e6ac
 msrtools_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	CFLAGS="-I$(INSTALL)/include" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	CFLAGS="-I$(INSTALL)/include -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 
 msrtools_output := \
 	wrmsr \

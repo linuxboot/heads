@@ -1,5 +1,8 @@
 modules-$(CONFIG_CRYPTSETUP) += cryptsetup
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 cryptsetup_depends := util-linux popt lvm2 $(musl_dep)
 
 cryptsetup_version := 1.7.3
@@ -12,7 +15,8 @@ cryptsetup_hash := af2b04e8475cf40b8d9ffd97a1acfa73aa787c890430afd89804fb544d6ad
 # build path.
 cryptsetup_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

@@ -262,9 +262,9 @@ jobs:
   # x86_coreboot: builds a coreboot fork and saves cache.
   #   See doc/circleci.md for full documentation.
   # Workspace chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
-  # Seeds (one per unique toolchain): coreboot-4.11, coreboot-25.09,
-  #   coreboot-dasharo_nv4x, coreboot-mrchromebox-26.03, coreboot-purism
-  # Dasharo v56/msi_z690/msi_z790 are build jobs, not x86_coreboot.
+  # Seeds (6 x86; 1 ppc64): coreboot-4.11, coreboot-24.02.01, coreboot-24.12,
+  #   coreboot-25.09, coreboot-25.12, coreboot-mrchromebox-26.03;
+  #   ppc64 uses coreboot-talos-2. Dasharo v56/msi_z690/msi_z790 are build jobs.
   x86_coreboot:
     executor: heads-docker
     parameters:
@@ -468,7 +468,7 @@ workflows:
             - x86-musl-cross-make [cross compiler]
 
       # 25.09 fork — builds coreboot-25.09 toolchain
-      # Downstream boards: (all 28 board builds below)
+      # Downstream boards: 30 board builds below
       - x86_coreboot:
           name: EOL_t480-hotp-maximized [seed:coreboot-25.09]
           target: EOL_t480-hotp-maximized

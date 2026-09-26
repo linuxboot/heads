@@ -6,10 +6,14 @@ powerpc-utils_tar := powerpc-utils-$(powerpc-utils_version).tar.gz
 powerpc-utils_url := https://github.com/ibm-power-utilities/powerpc-utils/archive/v$(powerpc-utils_version)/$(powerpc-utils_tar)
 powerpc-utils_hash := 77efe3978ac9c251c4728a35b9aebd6076583939a8e26cc7f07ffa86432a8bf0
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 powerpc-utils_configure := \
 	./autogen.sh && \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

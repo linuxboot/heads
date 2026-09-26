@@ -6,7 +6,10 @@ npth_tar := npth-$(npth_version).tar.bz2
 npth_url := https://gnupg.org/ftp/gcrypt/npth/$(npth_tar)
 npth_hash := 1393abd9adcf0762d34798dc34fdcf4d0d22a8410721e76f1e3afcd1daa4e2d1
 
-npth_configure := ./configure \
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
+npth_configure := CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "/" \

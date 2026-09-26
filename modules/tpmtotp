@@ -1,5 +1,8 @@
 modules-$(CONFIG_TPMTOTP) += tpmtotp
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 tpmtotp_depends := mbedtls qrencode $(musl_dep)
 
 tpmtotp_version := 4d63d21c8b7db2e92ddb393057f168aead147f47
@@ -11,16 +14,30 @@ tpmtotp_hash := eaac1e8f652f1da7f5a1ed6a8cfefb6511f1e5e1dabf93b44db3b29c18c5ae53
 tpmtotp_target := \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \
-	CFLAGS="-I$(INSTALL)/include -Os" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	CFLAGS="-I$(INSTALL)/include -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 
 tpmtotp_output := \
 	totp \
 	hotp \
-	qrenc \
-	util/tpm \
+	qrenc
 
-tpmtotp_libraries := \
-	libtpm/libtpm.so \
+# TPM1.2-only: util/tpm (installed as bin/tpm) and libtpm.so are the TPM1
+# stack.  tpmr.sh dispatches TPM1 vs TPM2 on CONFIG_TPM2_TOOLS and never
+# execs tpm on TPM2 boards; totp/hotp/qrenc do not link libtpm.so, so both
+# are safe to drop.  insmod.sh's /bin/tpm probe also accepts the TPM2 path
+# (/dev/tpmrm0 + /bin/tpm2), so it does not need bin/tpm.
+# See doc/modules.md "TPM1 vs TPM2 tools".
+
+tpmtotp_libraries :=
+
+ifneq "$(CONFIG_TPM2_TOOLS)" "y"
+tpmtotp_output += \
+	util/tpm
+
+tpmtotp_libraries += \
+	libtpm/libtpm.so
+
+endif
 
 tpmtotp_configure := 

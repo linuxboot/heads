@@ -6,13 +6,17 @@ mbedtls_tar := mbedtls-$(mbedtls_version).tar.gz
 mbedtls_url := https://github.com/ARMmbed/mbedtls/archive/$(mbedtls_tar)
 mbedtls_hash := b7afab6a0f86e29c6055848b70d183c4e2531cb0ec955b66c0e4e1b7e4954bf4
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 mbedtls_libraries := library/libmbedcrypto.so.0
 
 mbedtls_configure :=
 
 mbedtls_target := \
 	SHARED=1 \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	DESTDIR=$(INSTALL) \
 	$(CROSS_TOOLS) \
 	$(MAKE_JOBS) \

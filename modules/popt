@@ -6,7 +6,10 @@ popt_tar := popt-$(popt_version).tar.gz
 popt_url := https://fossies.org/linux/misc/$(popt_tar)
 popt_hash := c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9
 
-popt_configure := ./configure \
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
+popt_configure := CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

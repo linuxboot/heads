@@ -6,10 +6,14 @@ qrencode_tar := qrencode-$(qrencode_version).tar.gz
 qrencode_url := https://web.archive.org/web/20240910005455/https://fukuchi.org/works/qrencode/$(qrencode_tar)
 qrencode_hash := e794e26a96019013c0e3665cb06b18992668f352c5553d0a553f5d144f7f2a72
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 qrencode_libraries := .libs/libqrencode.so.3
 
 qrencode_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

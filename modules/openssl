@@ -9,9 +9,12 @@ openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 
 # The only optional algorithm that's enabled is SM3.  tpm2-tss uses SHA, AES,
 # and SM3.
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 openssl_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./Configure \
 		--prefix="/" \
 		linux-$(strip $(arch)) \

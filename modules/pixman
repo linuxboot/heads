@@ -6,9 +6,13 @@ pixman_tar := pixman-$(pixman_version).tar.gz
 pixman_url := https://www.cairographics.org/releases/$(pixman_tar)
 pixman_hash := 21b6b249b51c6800dc9553b65106e1e37d0e25df942c90531d4c3997aa20a88e
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 pixman_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \

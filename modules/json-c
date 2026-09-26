@@ -24,11 +24,14 @@ set\(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY\)\n\
 set\(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY\)
 endef 
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 json-c_configure := \
 	echo -e "$(toolchain_file)" | sed 's/\\//g' > toolchain && \
 	mkdir -p build && \
 	cd build && \
-	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel
+	cmake .. -DCMAKE_INSTALL_PREFIX="$(INSTALL)" -DCMAKE_TOOLCHAIN_FILE=../toolchain -DCMAKE_BUILD_TYPE=minsizerel -DCMAKE_C_FLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr"
 
 json-c_target := \
 	$(CROSS_TOOLS) $(MAKE_JOBS) -C $(build)/$(json-c_dir)/build \

@@ -22,11 +22,14 @@ tpm2-tools_hash := 52c8bcbaadca082abfe5eb7ee4967d2d632d84b1677675f2f071b6d2ec22c
 #  We pass additional remapping of prefix-map from $INSTALL to local dir
 #
 # TODO: remove all patches and uniformize with similar sed calls.
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 tpm2-tools_configure := \
 	echo "$(tpm2-tools_version)" > ./VERSION \
 	&& ./bootstrap \
 	&& sed -i 's/hardcode_libdir_flag_spec=.*/hardcode_libdir_flag_spec=" "/' configure \
-	&& ./configure \
+	&& CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" ./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix "/" \

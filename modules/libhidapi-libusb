@@ -8,10 +8,12 @@ libhidapi-libusb_tar := hidapi-$(libhidapi-libusb_version).tar.gz
 libhidapi-libusb_url := https://github.com/libusb/hidapi/archive/$(libhidapi-libusb_tar)
 libhidapi-libusb_hash := 630ee1834bdd5c5761ab079fd04f463a89585df8fcae51a7bfe4229b1e02a652
 
-MY_CROSS_TOOLS := \
-	CC="$(heads_cc) -Os" \
-	$(CROSS_TOOLS_NOCC) \
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
+MY_CROSS_TOOLS := \
+	CC="$(heads_cc) -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
+	$(CROSS_TOOLS_NOCC) \
 
 libhidapi-libusb_configure := ./bootstrap && \
 	./configure \

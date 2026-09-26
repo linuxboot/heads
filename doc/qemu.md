@@ -10,7 +10,8 @@ Heads is currently unable to reflash firmware within qemu, which means that OEM 
  cannot be fully performed within the VM.  Instead, a GPG key can be injected in the Heads image from the
  host during the build.
 
-The TPM and disks for this configuration are persisted in the build/qemu-coreboot-fbwhiptail-tpm1-hotp/ directory by default.
+The TPM state, virtual disks, and token state for this configuration are
+persisted under `build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/` by default.
 
 Bootstrapping a working system
 ===
@@ -42,24 +43,27 @@ install `qemu-utils` for `qemu-img`.  Mounting uses `losetup` (from
     # → /dev/loopN; use sudo fdisk -l /dev/loopN to check partitions
     sudo mount /dev/loopNp1 /mnt   # partitioned, or /dev/loopN if flat
 
-The Makefile creates `usb_fd.raw` (sparse — ~200K for a 64G virtual
-disk, grows only as ISOs are copied in) with an MBR partition table
-and ext4 filesystem.  Older images (from before `qemu-img create`)
-may be flat — check with `sudo fdisk -l` first.
+The Makefile creates a sparse `usb_fd.raw` with an MBR partition table and
+ext4 filesystem.  Its 64G default is virtual capacity, not its initial host
+allocation; host usage grows as data is written.  Older images may be flat —
+check with `sudo fdisk -l` first.
 
-Note: the Docker container bind-mounts only the cloned Heads directory
-(`$(pwd)`), so images must reside within the clone — use the `qemu_img/`
-directory inside the repo as a backing store (see hardlink workflow below).
+Note: the Docker container bind-mounts the current worktree at the same path and
+passes selected X11, KVM, and USB devices separately.  Arbitrary host paths are
+not thereby visible, so build data, keys, disk images, and installer images must
+resolve inside the worktree.  Use `qemu_img/` inside the repository as a backing
+store (see the hardlink workflow below).
 
 
 2. Build Heads
    * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp`
-3. Install OS
-   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp INSTALL_IMG=<~/heads/path_to_iso.iso> run`
+3. Optionally attach an installer ISO (this attaches the ISO in place of the normal virtual USB flash; it does not run the installer automatically)
+   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp INSTALL_IMG=./qemu_img/installer.iso run`
    * Lightweight desktops (XFCE, LXDE, etc.) are recommended, especially if KVM acceleration is not available (such nested in Qubes OS)
    * When running nested in a qube, disable memory ballooning for the qube, or performance will be very poor.
-   * Include `QEMU_MEMORY_SIZE=6G` to set the guest's memory (`6G`, `8G`, etc.).  The default is 4G to be conservative, but more may be needed depending on the guest OS.
-   * Include `QEMU_DISK_SIZE=30G` to set the guest's disk size, the default is `20G`.
+   * `QEMU_MEMORY_SIZE` is recorded in the board's `memory` file only when that file is first created; delete it to change the guest-memory setting.  The default is 4G.
+   * `QEMU_DISK_SIZE` applies when `root.qcow2` is first created; delete/recreate that image to change its virtual size.  The default is `20G`.
+   * `QEMU_USB_SIZE` likewise applies when `usb_fd.raw` is first created; delete/recreate it to change the USB-image size.
 4. Shut down and boot Heads with the USB token attached, proceed with OEM reset
    * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=<token> run`
    * If you do not set `USB_TOKEN`, the included `canokey-qemu` virtual token will be used by default.
@@ -83,29 +87,46 @@ directory inside the repo as a backing store (see hardlink workflow below).
         sudo fdisk -l /dev/loopN          # verify partition layout
         sudo mount /dev/loopNp2 /media/fd_heads_gpg  # second/public partition
 
-    * Look in `/media/fd_heads_gpg` and copy the most recent public key
+     * `mkdir -p qemu_img`
+     * Copy the most recent public key from `/media/fd_heads_gpg` into the worktree:
+     * `cp /media/fd_heads_gpg/<key-file> ./qemu_img/public-key.asc`
+
     * `sudo umount /media/fd_heads_gpg`
     * `sudo losetup -d /dev/loopN`  # detach (replace N with the actual number)
 6. Inject the GPG key into the Heads image and run again
-   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=<path_to_key.asc> inject_gpg`
-   * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=<path_to_key.asc> run`
+    * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp PUBKEY_ASC=./qemu_img/public-key.asc inject_gpg`
+    * `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp USB_TOKEN=LibremKey PUBKEY_ASC=./qemu_img/public-key.asc run`
+
 7. Initialize the TPM - select "Reset the TPM" at the TOTP error prompt and follow prompts
 8. Select "Default boot" and follow prompts to sign /boot for the first time and set a default boot option
 
-You can reuse an already created ROOT_DISK_IMG by passing its path at runtime.
-Ex: `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1 PUBKEY_ASC=~/pub_key_counterpart_of_usb_dongle.asc USB_TOKEN=NitrokeyStorage ROOT_DISK_IMG=~/heads/build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/root.qcow2 run`
+You can reuse an existing root disk by passing `ROOT_DISK_IMG` and a path inside
+the current worktree.  The default is a QCOW2 image named `root.qcow2`:
+
+```bash
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
+  PUBKEY_ASC=./qemu_img/public-key.asc \
+  USB_TOKEN=NitrokeyStorage \
+  ROOT_DISK_IMG=./qemu_img/root.qcow2 \
+  run
+```
 
 ## Saving Disk Images from Build-Dir Wipes
 
-**The Docker container can only see files inside the cloned Heads directory**
-(`docker/common.sh` line 1446: `-v "$(pwd):$(pwd)"`).  Any backup copy
-must live at a path inside the clone — `~/QemuImages/` and other
-user-home paths are invisible to Docker.
+**The current worktree is bind-mounted at the same path inside the container**
+(`docker/common.sh`: `-v "$(pwd):$(pwd)"`); X11 sockets, KVM, and USB devices are
+passed separately.  Build-data paths must still resolve inside that worktree.
+Any backup copy used by the build must live inside it — `~/QemuImages/` and
+other user-home paths are not exposed by the worktree bind mount.
 
-**The build directory (`build/x86/<board>/`) is ephemeral.**  A `make clean`
-or fresh checkout deletes `build/` entirely, including installed OS images
-and populated USB disks.  Use hardlinks to keep safe copies inside the
-clone and share across board variants:
+**QEMU state under `build/x86/<board>/` persists only in the same worktree when
+ordinary rebuilds/checkouts do not run a repo-wide `git clean`.**  A new clone
+has no copied build state.  `build/` is ignored, so a normal checkout does not
+remove an existing state tree, but `git clean -fxd` can remove untracked
+`qemu_img/` data unless it is protected or backed up.  The disk/token files are
+also removed by named cleanup helpers that remove the relevant build tree, or
+by manual deletion.  Use hardlinks to keep backups inside the worktree and
+share them across board variants:
 
     mkdir -p qemu_img                         # safe storage inside clone
     cp build/x86/<board>/root.qcow2 qemu_img/ # copy OS install to safety
@@ -116,7 +137,7 @@ clone and share across board variants:
 
     # Restore after a wipe:
     cp -alf qemu_img/root.qcow2 build/x86/<board>/root.qcow2
-    cp -alf qemu_img/usb_fd.img  build/x86/<board>/usb_fd.raw
+    cp -alf qemu_img/usb_fd.raw  build/x86/<board>/usb_fd.raw
 
 `cp -alf` creates a hardlink — a second directory entry pointing to the
 same data blocks (zero additional space).  Data is freed only when the
@@ -128,25 +149,26 @@ Use `qemu-img snapshot` before modifying the root disk.
 ```bash
 mkdir -p qemu_img                             # safe storage inside clone
 
-# Step 1: Create the USB image via the Makefile.
+# Step 1: Create the USB image via the Makefile, then launch QEMU.
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 \
   QEMU_USB_SIZE=64G run
-# → build/x86/.../usb_fd.raw now exists.
+# → build/x86/.../usb_fd.raw now exists; the command also starts QEMU.
 
 # Step 2: Save a master copy IMMEDIATELY (before population).
-cp build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw qemu_img/usb_fd.img
+cp build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw qemu_img/usb_fd.raw
 rm build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
+cp -alf qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
 
-# Step 3: Populate with ISOs.
+# Step 3: Populate with ISOs stored inside the clone.
+mkdir -p qemu_img/isos
 sudo losetup --find --show --partscan build/x86/.../usb_fd.raw
 sudo mount /dev/loop0p1 /mnt
-cp ~/Downloads/ISOs/*.iso /mnt/
+cp qemu_img/isos/*.iso /mnt/
 sudo umount /mnt && sudo losetup -d /dev/loop0
 
 # Step 4: Hardlink into other board build directories.
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
-cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.raw
+cp -alf qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+cp -alf qemu_img/usb_fd.raw build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.raw
 
 # Next run uses the hardlink — Makefile skips creation since the file exists.
 ```
@@ -156,7 +178,7 @@ cp -alf qemu_img/usb_fd.img build/x86/qemu-coreboot-fbwhiptail-tpm2-hotp/usb_fd.
 After OS install + USB provisioned, reference both from `./qemu_img/`:
 
     ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp \
-      PUBKEY_ASC=pubkey.asc \
+      PUBKEY_ASC=./qemu_img/public-key.asc \
       USB_TOKEN=Nitrokey3NFC \
       ROOT_DISK_IMG=./qemu_img/root.qcow2 \
       inject_gpg run
@@ -173,7 +195,7 @@ Wrapper comparison
 |---|---:|---|
 | `docker_latest.sh` | Defaults to pinned digest when available | Convenience: run the latest published image |
 | `docker_local_dev.sh` | `linuxboot/heads:dev-env` | Development: use local image built from the flake (rebuilds when flake files are dirty) |
-| `docker_repro.sh` | Image pinned from `.circleci/config.yml` | Reproducible builds that match CircleCI |
+| `docker_repro.sh` | `DOCKER_REPRO_DIGEST` environment value, falling back to `docker/DOCKER_REPRO_DIGEST` | On the default canonical repository path, the resolved digest is cross-checked against `.circleci/config.yml`; fork/noncanonical overrides can skip that check.  The wrapper does not compare ROMs or `hashes.txt` with CI |
 
 What the wrappers handle
 ---
@@ -190,33 +212,41 @@ Make variables such as `USB_TOKEN`, `PUBKEY_ASC`, `INSTALL_IMG`,
 `QEMU_MEMORY_SIZE`, `QEMU_DISK_SIZE`, `QEMU_USB_SIZE`,
 `ROOT_DISK_IMG`, `CPUS` and `V`
 are forwarded to the `make` invocation and affect how
-`targets/qemu.mk` runs QEMU. See `targets/qemu.mk` for token formats
-and examples.
+`targets/qemu.mk` runs QEMU.  `QEMU_MEMORY_SIZE` is written only when the
+board's `memory` file is first created; delete that file to apply a new value.
+See `targets/qemu.mk` for token formats and examples.
 
-The virtual USB flash drive (`usb_fd.qcow2` by default, or `usb_fd.raw`
-if an existing raw image from a previous build is found) is created at
-build time under `build/x86/<BOARD>/`.  Default virtual size is 64 GB
-— overridable via `QEMU_USB_SIZE`.  QCOW2 is sparse: only written blocks
-consume host disk space (initial size ~200K).  Raw files are also sparse
-when created via `qemu-img create -f raw`.
+The two default virtual disks have different formats:
 
-The Makefile auto-detects: if `usb_fd.raw` exists in the build directory,
-it's used directly; otherwise it creates a new `usb_fd.qcow2` from a
-raw temp (partitioned + formatted via losetup, then converted to qcow2).
-The conversion is sparse — only written blocks are preserved.
+- `root.qcow2` is the QCOW2 root disk.  It is created with
+  `qemu-img create -f qcow2`; its default virtual size is 20G.
+  `QEMU_DISK_SIZE` is used only when this file is first created; delete/recreate
+  the image to change the size.
+- `usb_fd.raw` is a raw virtual USB flash image.  It is created with
+  `qemu-img create -f raw`, partitioned, and formatted; its default virtual size
+  is 64G.  `QEMU_USB_SIZE` is used only on first creation; delete/recreate the
+  image to change its size.  It is not converted to QCOW2.
 
-See **Hardlinks for Reusable Images** above for the recommended workflow:
+Both are created under `build/x86/<BOARD>/`.  Both formats can be sparse: actual
+host allocation grows only as blocks are written, so virtual capacity is not
+the initial host-disk footprint.  For example,
+`INSTALL_IMG=./qemu_img/installer.iso` substitutes an image inside the worktree
+for `usb_fd.raw` for the QEMU run.
+
+See [Saving Disk Images from Build-Dir Wipes](#saving-disk-images-from-build-dir-wipes)
+above for the recommended workflow:
 save a master copy immediately, hardlink it back into the build directory,
 then populate it (which modifies the shared blocks).
 
 Quick mount reference (after following the hardlink workflow):
 
 ```bash
+mkdir -p qemu_img/isos
 sudo losetup --find --show --partscan \
   build/x86/qemu-coreboot-fbwhiptail-tpm2/usb_fd.raw
 # → /dev/loopN; check partitions with sudo fdisk -l /dev/loopN
 sudo mount /dev/loopNp1 /mnt   # or /dev/loopN if flat
-cp ~/Downloads/ISOs/*.iso /mnt/
+cp qemu_img/isos/*.iso /mnt/
 sudo umount /mnt && sudo losetup -d /dev/loopN
 
 Note: when USB passthrough is active the wrapper will warn and, on
@@ -250,10 +280,10 @@ Environment variables reference
 Examples
 ---
 
-- Reproducible (uses image version from CircleCI config):
+- Canonical pinned-image path: `DOCKER_REPRO_DIGEST` environment value or `docker/DOCKER_REPRO_DIGEST` fallback, with the resolved canonical digest checked against `.circleci/config.yml` (no CI output comparison):
   - `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
-  - `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=pubkey.asc USB_TOKEN=Nitrokey3NFC inject_gpg`
-  - `HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=pubkey.asc run`
+  - `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=./qemu_img/public-key.asc USB_TOKEN=Nitrokey3NFC inject_gpg`
+  - `HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 PUBKEY_ASC=./qemu_img/public-key.asc run`
   - `HEADS_X11_XAUTH=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
 
 - Local development image (uses locally built `linuxboot/heads:dev-env`):
@@ -262,11 +292,12 @@ Examples
 - Published latest image (convenience):
   - `./docker_latest.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run`
 
-How I tested these wrappers (smoke checks)
+Inspecting wrapper options
 ---
 
-- Minimal: `source docker/common.sh && build_docker_opts` — should print a short description and show flags such as `--device=/dev/kvm` when KVM is available and `-v /tmp/heads-docker-xauth-XXXXXX:...` (or `-v /tmp/.docker.xauth-<uid>:...` as fallback) when Xauthority was created.
-- Functional (examples tested by PR author): see the tests in the PR body (Ubuntu, Debian, Fedora installer flows). Consider testing `./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run` locally to verify KVM+GTK behavior.
+`source docker/common.sh && build_docker_opts` displays the options that would
+be used, including KVM and X11-related mounts when their host prerequisites are
+present.  This is an inspection path, not a QEMU or wrapper behavior test.
 
 Troubleshooting
 ---

@@ -98,7 +98,7 @@ QSB-107 exposure rates.
 
 Many Intel platforms are vulnerable to a TPM GPIO reset bypass
 ([mkukri.xyz, 2024](https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html)).
-See the [Heads Wiki Threat Model](https://github.com/linuxboot/heads-wiki/blob/master/About/Heads-threat-model.md)
+See the [Heads Wiki Threat Model](https://osresearch.net/Heads-threat-model/)
 for per-platform status and mitigation. Test with:
 
 ```bash
@@ -123,7 +123,9 @@ and [coreboot patch series](https://review.coreboot.org/q/topic:%22intel_gpio_lo
 Boards under `boards/*` must be tested by listed owners for coreboot/linux
 version bumps. This file is the primary board tester registry.
 To be added or removed as a tester, comment on [issue #692](https://github.com/linuxboot/heads/issues/692).
-For HCL details: `boards/BOARD_NAME/BOARD_NAME.config`.
+Board configs retain their HCL summaries and anchors.  The companion HCL
+publication target is not live; see
+[modules.md](modules.md#hardware-compatibility-list-hcl) for its status.
 
 Laptops
 ==

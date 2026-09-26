@@ -13,9 +13,13 @@ exfatprogs_hash := a6f3b1fb4bd37835c8f8cb421aac4eb75b880a51342b29850c40639731622
 # be generated with the correct paths, but then re-write them when
 # we use the install target so that they will be copied to the correct
 # location.
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 exfatprogs_configure := \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	--host $(MUSL_ARCH)-linux-musl \
 	--prefix "" \

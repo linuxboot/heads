@@ -10,8 +10,12 @@ libusb-compat_tar := libusb-compat-$(libusb-compat_version).tar.bz2
 libusb-compat_url := https://downloads.sourceforge.net/project/libusb/libusb-compat-0.1/libusb-compat-$(libusb-compat_version)/$(libusb-compat_tar)
 libusb-compat_hash := 404ef4b6b324be79ac1bfb3d839eac860fbc929e6acb1ef88793a6ea328bc55a
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 libusb-compat_configure := \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	./configure \
 	$(CROSS_TOOLS) \
 	--host $(MUSL_ARCH)-elf-linux \

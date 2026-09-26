@@ -6,10 +6,32 @@ cairo_tar := cairo-$(cairo_version).tar.xz
 cairo_url := https://www.cairographics.org/releases/$(cairo_tar)
 cairo_hash := 8c90f00c500b2299c0a323dd9beead2a00353752b2092ead558139bd67f7bf16
 
+# gc-sections makes the AX_C_FLOAT_WORDS_BIGENDIAN probe unusable: its test
+# LINKS a program and strings-greps the executable for a magic double, which
+# --gc-sections discards, so configure dies with "Unknown float word ordering".
+# The override is x86-only: CONFIG_TARGET_ARCH=x86 is x86_64, where little-
+# endian is a fact.  It must not be widened to "not x86": that would assert
+# little-endian for any future big-endian target instead of deriving it from
+# the target.  The only non-x86 board (talos-2) builds powerpc64le but does not
+# enable CONFIG_CAIRO, so the else branch is dead today and is not a verified
+# fallback -- it would rerun the probe under the same gc-sections LDFLAGS.  If
+# a non-x86 board ever enables cairo, pass a value chosen from that target's
+# endianness.
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+cairo_float_words_bigendian := ax_cv_c_float_words_bigendian=no
+else
+cairo_float_words_bigendian :=
+endif
+
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 cairo_configure := \
-	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os"  \
+	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables"  \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	$(CROSS_TOOLS) \
 	./configure \
+	$(cairo_float_words_bigendian) \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
 	--disable-fc \

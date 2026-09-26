@@ -1,5 +1,8 @@
 modules-$(CONFIG_FLASHPROG) += flashprog
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 flashprog_depends := pciutils $(musl_dep)
 
 flashprog_version := eb2c04185f8f471c768b742d66e4c552effdd9cb
@@ -29,10 +32,10 @@ endif
 
 flashprog_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Os -I$(INSTALL)/include/pci -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	PREFIX="$(INSTALL)" \
 	$(CROSS_TOOLS) \
 	$(flashprog_cfg) \

@@ -1,5 +1,8 @@
 modules-$(CONFIG_HOTPKEY) += hotp-verification
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 hotp-verification_depends := libusb $(musl_dep)
 
 # v1.7 + non-released stuff under 1.7 version bump (Nitrokey will do PR to change this in the future and also fixes to Heads related to regression fixes under Heads)
@@ -17,10 +20,22 @@ hotp-verification_output := \
 	hotp_verification \
 	hotp_initialize
 
+# This module's hand-written Makefile defines CFLAGS itself (no autotools), so
+# passing CFLAGS on the make command line replaces that definition wholesale.
+# The override below therefore repeats the flags the Makefile supplies (-c,
+# -std=gnu11, -DNDEBUG, -DNK_REMOVE_PTHREAD, the libusb include) and adds the
+# size flags:
+#   -c -std=gnu11            compile only, use GNU C11 (required by the source)
+#   -I$(INSTALL)/include/libusb-1.0  find libusb headers at install prefix
+#   -DNDEBUG                 suppress assertions in the embedded crypto path
+#   -DNK_REMOVE_PTHREAD      strip pthread wrappers the initrd does not need
+#   -ffunction-sections etc. section GC for size
+#   -Wl,--gc-sections -Wl,--no-eh-frame-hdr  drop unused sections and unwind
+
 hotp-verification_configure := \
   INSTALL="$(INSTALL)" \
   CROSS="$(CROSS)" \
-  $(CROSS_TOOLS) $(MAKE) LDFLAGS="$(INSTALL)/lib/libusb-1.0.so" GITVERSION="" LIBUSB_FLAGS="-I$(INSTALL)/include/libusb-1.0" PKGCONFIG="" && $(MAKE) install INSTALL="$(INSTALL)"
+  $(CROSS_TOOLS) $(MAKE) CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Wall -Wextra -fno-guess-branch-probability -Wdate-time -frandom-seed=42 -gno-record-gcc-switches -DNDEBUG -fdebug-prefix-map=$(build)/$(hotp-verification_dir)=heads -c -std=gnu11 -DNK_REMOVE_PTHREAD -I$(INSTALL)/include/libusb-1.0" LDFLAGS="$(INSTALL)/lib/libusb-1.0.so -Wl,--gc-sections -Wl,--no-eh-frame-hdr" GITVERSION="" LIBUSB_FLAGS="-I$(INSTALL)/include/libusb-1.0" PKGCONFIG="" && $(MAKE) install INSTALL="$(INSTALL)"
 
 hotp-verification_depends  += hidapi
 modules-y += hidapi

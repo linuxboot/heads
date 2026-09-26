@@ -1,5 +1,8 @@
 modules-$(CONFIG_FLASHROM) += flashrom
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 flashrom_depends := pciutils $(musl_dep)
 
 flashrom_version := 1776bb46ba6ea3d1ab2ec3f0cd88158aabed7400
@@ -29,10 +32,10 @@ endif
 
 flashrom_target := \
 	$(MAKE_JOBS) \
-	CFLAGS="-Os -I$(INSTALL)/include/pci" \
+	CFLAGS="-Os -I$(INSTALL)/include/pci -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
 	DESTDIR="$(INSTALL)" \
 	INSTALL="$(INSTALL)" \
-	LDFLAGS="-L$(INSTALL)/lib" \
+	LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	PREFIX="$(INSTALL)" \
 	$(CROSS_TOOLS) \
 	$(flashrom_cfg) \

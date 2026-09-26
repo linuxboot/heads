@@ -14,10 +14,10 @@ for the trust model.
 Power-on
   │
   ▼
-coreboot (SPI flash)
-  │  hardware init, SRTM measurement into PCR 2
+maintained x86 coreboot (SPI flash)
+  │  typical TPM path: hardware init, SRTM measurement into PCR 2
   ▼
-Linux kernel (coreboot payload, no initramfs)
+bzImage payload + separate CBFS initrd.cpio.xz
   │
   ▼
 /init  ← first userspace process
@@ -31,6 +31,14 @@ kexec-select-boot
   ▼
 kexec  ← hands off to OS kernel
 ```
+
+The diagram is the maintained x86 coreboot layout: `bzImage` plus a separate
+CBFS `initrd.cpio.xz`, with the PCR 2 step applying when TPM support and
+`CONFIG_TPM_MEASURED_BOOT=y` are enabled.  LinuxBoot instead receives external
+`bzImage` and initrd inputs through `modules/linuxboot`.  Talos follows
+coreboot → skiboot and ships its bundled Linux image separately; it does not
+use the direct maintained-x86 payload layout.  Measured boot/TPM availability
+varies by board.
 
 ---
 

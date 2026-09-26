@@ -7,14 +7,19 @@ zlib_tar := zlib-$(zlib_version).tar.gz
 zlib_url := https://zlib.net/fossils/$(zlib_tar)
 zlib_hash := c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 zlib_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
 	./configure \
 	--prefix="/" \
 
 zlib_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	DESTDIR="$(INSTALL)" \
 	install \
 

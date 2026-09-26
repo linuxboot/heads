@@ -8,11 +8,15 @@ nvmutil_url := https://codeberg.org/libreboot/lbmk/archive/$(nvmutil_version).ta
 nvmutil_hash := 05ad4171b211258afc4bc2211fac274566e63726016c735b9ca6742302488e3c
 
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 nvmutil_configure :=
 nvmutil_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
-	CFLAGS="$(CFLAGS) -Os -Wall -Wextra -std=c99 -pedantic"
+	CFLAGS="$(CFLAGS) -Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Wall -Wextra -std=c99 -pedantic" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr"
 
 nvmutil_output := nvm
 nvmutil_depends := $(musl_dep)

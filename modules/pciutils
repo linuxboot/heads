@@ -1,5 +1,8 @@
 modules-$(CONFIG_PCIUTILS) += pciutils
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 pciutils_depends := $(musl_dep)
 
 #pciutils_version := git
@@ -19,6 +22,8 @@ pciutils_hash := 64293c6ab9318c40ef262b76d87bd9097531759752bac556e50979b1e63cfe6
 pciutils_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	OPT="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	HOST=$(MUSL_ARCH)-linux-musl \
 	ZLIB=no \
 	HWDB=no \

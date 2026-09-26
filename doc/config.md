@@ -1,5 +1,10 @@
 # Heads Configuration Variables
 
+For module inclusion, see [modules.md](modules.md).  For the selected
+architecture and resulting output tree/package, see
+[architecture.md](architecture.md#supported-architectures) and
+[build-artifacts.md](build-artifacts.md#architecture-specific-output-layout).
+
 Heads contains a number of configuration variables.
 
 All variables can be set at build time.
@@ -42,6 +47,8 @@ These are not intended to be changed in user config.
 
 | Variable | Purpose |
 |---|---|
+| CONFIG_TARGET_ARCH | Build architecture and output-tree selector (`x86` or `ppc64`).  It defaults to `x86`; a non-x86 board config overrides it.  It selects the musl/Linux target and `build/<arch>/` layout and is not a runtime setting. |
+| CONFIG_LINUX_BUNDLED | Bundles the decompressed initrd into the Linux image.  Used by ppc64/Talos II for `zImage.bundled`; x86 uses a separate `initrd.cpio.xz`. |
 | CONFIG_BOARD | Internal name of the board being built.  Avoid testing this for specific boards in initrd/, instead add a customization point and override it with boards/<name>/initrd/bin/<file>.sh.  (For example, boards/librem_mini_v2/initrd/bin/board-init.sh.) |
 | CONFIG_BOARD_NAME | Display name of the board being built.  Use this to show the board name to the user. |
 | CONFIG_BRAND_NAME | Brand name to use to refer to the firmware itself.  Upstream, this is "Heads".  For example, "Heads main menu", "Enable Heads debug tracing", etc.  Distributions can override this to their specific brand name (usually in site-local/config). |
@@ -97,7 +104,6 @@ CONFIG_LINUXBOOT
 CONFIG_LINUX_AHCI
 CONFIG_LINUX_ATA
 CONFIG_LINUX_BCM
-CONFIG_LINUX_BUNDLED
 CONFIG_LINUX_COMMAND_LINE
 CONFIG_LINUX_CONFIG
 CONFIG_LINUX_E1000

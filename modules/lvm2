@@ -8,8 +8,13 @@ lvm2_hash := 74e794a9e9dee1bcf8a2065f65b9196c44fdf321e22d63b98ed7de8c9aa17a5d
 
 # cross compiling test assumes malloc/realloc aren't glibc compat
 # so we force it via the configure cache.
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 lvm2_configure := \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--no-eh-frame-hdr" \
 	ac_cv_func_malloc_0_nonnull=yes \
 	ac_cv_func_realloc_0_nonnull=yes \
 	./configure \

@@ -9,6 +9,9 @@
 #   tpm-gpio-assert   assertion/execute tool (kukri's modified coreboot inteltool)
 modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
 
+
+# See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
+
 tpm-gpio-reset_depends := pciutils $(tpm2-tools_dep)
 tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
 tpm-gpio-reset_commit_hash := 3e3a695655b3b9e3188bb9aad70874dbcfb03145
@@ -19,8 +22,8 @@ tpm-gpio-reset_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
 tpm-gpio-reset_target := \
     CC="$(heads_cc)" \
     AR="$(AR)" \
-    CFLAGS="-Os -I$(INSTALL)/include" \
-    LDFLAGS="-L$(INSTALL)/lib"
+    CFLAGS="-Os -I$(INSTALL)/include -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables" \
+    LDFLAGS="-L$(INSTALL)/lib -Wl,--gc-sections -Wl,--no-eh-frame-hdr"
 
 tpm-gpio-reset_output := detect/tpm-gpio-detect reset/tpm-gpio-assert
 tpm-gpio-reset_install := bin/tpm-gpio-detect bin/tpm-gpio-assert

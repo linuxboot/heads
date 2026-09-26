@@ -1,0 +1,42 @@
+From: Thierry Laurion <insurgo@riseup.net>
+Date: Tue, 22 Sep 2026 18:52:24 -0400
+Subject: [PATCH] xz: tune the x86 kernel-image LZMA2 preset
+
+The x86 kernel image was packed with --lzma2=dict=32MiB at xz's default
+parameters because scripts/xz_wrap.sh left LZMA2OPTS empty for the x86
+case.  Set the x86 case to preset=9e,lc=4,lp=0,pb=1; the exec line still
+appends ,dict=32MiB, so the level rides on the LZMA2 filter the same way
+the initrd recipe does.
+
+Why this must be a kernel patch: the kernel-image xz options are
+hardcoded in scripts/xz_wrap.sh.  There is no Kconfig symbol, KCFLAGS or
+environment hook to override them, so the only way to change the preset
+is to patch the script itself.  (The initrd recipe is overridable via
+INITRD_XZ_FILTER and is documented in doc/build-freshness.md; the
+kernel image has no equivalent.)
+
+Measured with xz 5.4.6 from the pinned tlaurion/heads-dev-env image on
+the preboot payload (vmlinux.bin + vmlinux.relocs):
+  t480        2,763,788 B -> 2,753,884 B  (-9,904 B)
+  x230-max    2,789,692 B -> 2,764,580 B  (-25,112 B)
+total -35,016 B.  mf/nice alternatives were measured and rejected; only
+the x86 branch changes, all non-x86 branches are byte-identical.
+
+Signed-off-by: Thierry Laurion <insurgo@riseup.net>
+---
+ scripts/xz_wrap.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/xz_wrap.sh b/scripts/xz_wrap.sh
+index 76e9cbcfbea..ae24ac7355c 100755
+--- a/scripts/xz_wrap.sh
++++ b/scripts/xz_wrap.sh
+@@ -13,7 +13,7 @@
+ LZMA2OPTS=
+ 
+ case $SRCARCH in
+-	x86)            BCJ=--x86 ;;
++	x86)            BCJ=--x86; LZMA2OPTS=preset=9e,lc=4,lp=0,pb=1 ;;
+ 	powerpc)        BCJ=--powerpc ;;
+ 	ia64)           BCJ=--ia64; LZMA2OPTS=pb=4 ;;
+ 	arm)            BCJ=--arm ;;
