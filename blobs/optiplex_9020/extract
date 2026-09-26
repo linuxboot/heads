@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Extract Intel firmware blobs (IFD, ME, GbE) from an original Dell OptiPlex
+# 9020 SFF BIOS backup, and neutralize the Intel ME.
+#
+# Usage:  ./extract <path_to_original_rom.bin> <path_to_output_directory>
+#
+# Produces in the output directory:
+#   ifd.bin  - Intel Flash Descriptor (resized: ME region shrunk, BIOS grown)
+#   me.bin   - Intel ME firmware (neutralized + soft-disabled + truncated)
+#   gbe.bin  - Intel Gigabit Ethernet configuration (incl. LAN MAC address)
+#
+# Modelled on blobs/t440p/extract. Requires COREBOOT_DIR pointing at a built
+# coreboot source tree (for util/me_cleaner and util/ifdtool).
+# =============================================================================
+set -e
+
+function usage() {
+    echo -n \
+        "Usage: $(basename "$0") path_to_original_rom path_to_output_directory
+Extract Intel firmware from the original Dell OptiPlex 9020 SFF BIOS backup.
+Neutralizes the ME via me_cleaner (-S -r -t -d) and shrinks the IFD regions.
+"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    if [[ "${1:-}" == "--help" ]]; then
+        usage
+    else
+        if [[ -z "${COREBOOT_DIR}" ]]; then
+            echo "ERROR: No COREBOOT_DIR variable defined."
+            echo "       Export COREBOOT_DIR=/path/to/built/coreboot source tree."
+            exit 1
+        fi
+
+        original_rom="$(realpath "$1")"
+        output_dir="$(realpath "${2:-./}")"
+
+        if [[ ! -f "${original_rom}" ]]; then
+            echo "ERROR: original ROM not found: ${original_rom}"
+            exit 1
+        fi
+
+        echo ">>> Source ROM: ${original_rom} ($(stat -c%s "${original_rom}") bytes)"
+        echo ">>> Output dir: ${output_dir}"
+        echo
+
+        # Step 1: Neutralize Intel ME + resize the IFD regions in one pass.
+        # Flags (same as t440p reference):
+        #   -S  soft-disable  (set AltMeDisable / HAP bit in PCHSTRP10)
+        #   -r  remove        (strip non-essential ME modules)
+        #   -t  truncate      (shrink ME region to minimum bootable size)
+        #   -d  deactivate    (additionally disable ME features)
+        #   -O  output full image (descriptor + neutered ME)
+        #   -D  output shrinked descriptor
+        #   -M  output truncated ME image
+        echo ">>> me_cleaner: neutralizing + soft-disabling Intel ME..."
+        pushd "${COREBOOT_DIR}/util/me_cleaner"
+
+        python me_cleaner.py -S -r -t -d \
+            -O out.bin \
+            -D ifd_shrinked.bin \
+            -M me_shrinked.bin \
+            "${original_rom}"
+
+        mv ifd_shrinked.bin "${output_dir}/ifd.bin"
+        mv me_shrinked.bin  "${output_dir}/me.bin"
+        rm -f ./*.bin
+
+        popd
+        echo "    -> ifd.bin ($(stat -c%s "${output_dir}/ifd.bin") bytes)"
+        echo "    -> me.bin  ($(stat -c%s "${output_dir}/me.bin") bytes)"
+
+        # Step 2: Extract the Intel Gigabit Ethernet (GbE) configuration blob
+        # (contains the LAN MAC address) using ifdtool.
+        echo ">>> ifdtool: extracting GbE configuration blob..."
+        pushd "${COREBOOT_DIR}/util/ifdtool"
+
+        make
+        ./ifdtool -x "${original_rom}"
+
+        mv flashregion_3_gbe.bin "${output_dir}/gbe.bin"
+        rm -f flashregion_*.bin
+
+        popd
+        echo "    -> gbe.bin ($(stat -c%s "${output_dir}/gbe.bin") bytes)"
+
+        echo
+        echo ">>> Done. Blobs in ${output_dir}:"
+        ls -la "${output_dir}"/ifd.bin "${output_dir}"/me.bin "${output_dir}"/gbe.bin
+    fi
+fi
