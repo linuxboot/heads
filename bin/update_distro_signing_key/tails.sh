@@ -8,6 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 exec "$SCRIPT_DIR/lib/helper.sh" \
 	"Tails" \
-	"https://tails.boum.org/tails-signing.key" \
-	"tails@boum.org" \
+	"https://tails.net/tails-signing.key" \
+	"tails@tails.net" \
 	"initrd/etc/distro/keys/tails.key"
