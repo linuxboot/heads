@@ -89,6 +89,7 @@ correction.
 | `busybox-1.36.1/0001-messages.patch` | Replaces `AUTOCONF_TIMESTAMP` with fixed `"(heads)"` |
 | `busybox-1.36.1/0004-trylink-reproducible.patch` | Disables `--gc-sections` when `SOURCE_DATE_EPOCH` set |
 | `coreboot-4.11/0073-build-race-condition-fixes.patch` | Fixes parallel-make race conditions (non-deterministic ordering) |
+| `coreboot-4.11/0077-build-objcbfs-objgenerated-at-parse-time.patch` | Adds `$(objcbfs)` and `$(objgenerated)` to `$(additional-dirs)`, which the parse-time `mkdir -p` already consumes, so both exist before any recipe runs; backport of upstream coreboot 51318 |
 | `openssl-3.0.8.patch` | `SOURCE_DATE_EPOCH` replaces `time()` in `mkbuildinf.pl`; compiler flags replaced with fixed literal |
 | `tpm2-tools-5.6.patch` | Disables `git describe --tags --dirty > VERSION` |
 
