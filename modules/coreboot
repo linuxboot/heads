@@ -189,6 +189,13 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
+# Upstream coreboot 26.09 (release cut 2026-09-24), pinned from the annotated
+# tag 26.09 as a git module.  The tag object is annotated, so the commit below
+# is the peeled commit the tag points at.
+coreboot-26.09_repo := https://github.com/coreboot/coreboot
+coreboot-26.09_commit_hash := 8b0e34f90e08547cf19e550a43ed72f69c39d6ed
+$(eval $(call coreboot_module,26.09,))
+
 # MrChromebox fork, based on coreboot 26.03, focusing on Chromebooks / Chromeboxes.
 coreboot-mrchromebox-26.03_repo := https://github.com/MrChromebox/coreboot.git
 coreboot-mrchromebox-26.03_commit_hash := f8244f2508d486d833eb8dee5c0b1d777cf37d39
