@@ -1,0 +1,78 @@
+coreboot 4.11: use additional-dirs for $(objcbfs) and $(objgenerated)
+
+Backport of coreboot 10a879e65bd24ac261b29445ee720538cad37653 (Gerrit 51318,
+Nico Huber).
+Change-Id: I85abaa74cddefd2bd669e2b5c8934352775070fe
+
+Upstream commit message:
+
+  Makefile.inc: Use `additional-dirs` for $(objcbfs), $(objgenerated)`
+
+  We use `additional-dirs` for a single `mkdir -p` invocation for all
+  directiories. I don't see why these two, $(objcbfs) and $(objgenerated),
+  should be an exception.
+
+  Fixes clean builds for targets that don't include the phony `coreboot`
+  target, e.g. `make qemu`.
+
+In 4.11 both directories are created only by the .PHONY build-dirs rule
+(Makefile.inc:516), a *sibling* of the rules that write into them, so a writer
+can be scheduled before that mkdir. Observed on the librem_l1um CI job:
+
+  sh: line 1: EOL_librem_l1um/generated/bootblock.inc.d: No such file or directory
+
+The mkdir in Makefile already takes $(additional-dirs), so only that variable's
+contents change; as a $(shell ...) it expands at parse time, before any target
+is considered.
+
+Heads-local: build-dirs is retained, where upstream deletes it, because the tree
+this series produces still references it in five places: Makefile.inc:71, :86,
+:516, src/arch/x86/Makefile.inc:59 (from 0073) and :156. Upstream holds that
+depending on a parent directory is undesirable (913e1718cdb3, Gerrit 6276,
+Patrick Georgi), so this adds no per-rule prerequisites.
+
+0073 is retained as the 4.11 backport of 6f5e5e5aa89 (Gerrit 42883, Patrick
+Georgi).
+
+diff --git a/Makefile b/Makefile
+index f3f95926..b904c854 100644
+--- a/Makefile
++++ b/Makefile
+@@ -42,6 +42,8 @@ objutil ?= $(obj)/util
+ objk := $(objutil)/kconfig
+ absobj := $(abspath $(obj))
+ 
++additional-dirs :=
++
+ COREBOOT_EXPORTS := COREBOOT_EXPORTS
+ COREBOOT_EXPORTS += top src srck obj objutil objk
+ 
+diff --git a/Makefile.inc b/Makefile.inc
+index 66144cd2..fc793212 100644
+--- a/Makefile.inc
++++ b/Makefile.inc
+@@ -52,6 +52,7 @@ COREBOOT_EXPORTS += MAINBOARDDIR VARIANT_DIR
+ ## rom image file, are placed under $(objcbfs).
+ ## These typically have suffixes .debug .elf .bin and .map
+ objcbfs := $(obj)/cbfs/$(CONFIG_CBFS_PREFIX)
++additional-dirs += $(objcbfs)
+ COREBOOT_EXPORTS += objcbfs
+ 
+ ## Based on the active configuration, Makefile conditionally collects
+@@ -59,6 +60,7 @@ COREBOOT_EXPORTS += objcbfs
+ ## Such files that do not have a clear one-to-one relation to a source
+ ## file under src/ are placed and built under $(objgenerated)
+ objgenerated := $(obj)/generated
++additional-dirs += $(objgenerated)
+ COREBOOT_EXPORTS += objgenerated
+ 
+ ## CCACHE_EXTRAFILES can be set by individual rules to help CCACHE
+@@ -486,7 +488,7 @@ ifeq ($(CONFIG_DEBUG_ADA_CODE),y)
+ ADAFLAGS_common += -gnata
+ endif
+ 
+-additional-dirs := $(objutil)/cbfstool $(objutil)/romcc $(objutil)/ifdtool \
++additional-dirs += $(objutil)/cbfstool $(objutil)/romcc $(objutil)/ifdtool \
+ 		   $(objutil)/options $(objutil)/amdfwtool \
+ 		   $(objutil)/cbootimage $(objutil)/bimgtool
+ 
