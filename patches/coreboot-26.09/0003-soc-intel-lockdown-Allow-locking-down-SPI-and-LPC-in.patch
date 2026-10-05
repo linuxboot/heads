@@ -1,0 +1,459 @@
+From 4c284454c9b76706009cde2622bfd52938cff51d Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@gmail.com>
+Date: Wed, 2 Sep 2026 15:07:23 -0500
+Subject: [PATCH] soc/intel/lockdown: Allow locking down SPI and LPC in SMM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Heads uses APM_CNT_FINALIZE to set and lock the SPI controller with PR0
+flash protection. Add SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM so coreboot
+skips SPI/LPC BIOS lockdown in ramstage and applies it from the
+APM_CNT_FINALIZE SMI handler instead. When that option is selected,
+coreboot also skips issuing APM_CNT_FINALIZE on the normal boot path
+(still issues it on S3 resume, where the payload does not run).
+
+This feature is load-bearing for Heads: without it coreboot locks SPI at
+BS_DEV_RESOURCES during ramstage, which breaks Heads flashprog/flashrom
+firmware updates and hardware reflash, because Heads runs as payload and
+needs SPI to remain software-writable.
+
+Carried downstream to coreboot 26.09 by Heads; this feature is not
+present in any coreboot release (25.09, 25.12, 26.03, 26.06, 26.09) nor
+in current upstream main.  Taken verbatim from upstream Gerrit change
+85278 (https://review.coreboot.org/c/coreboot/+/85278), patchset 4,
+commit b5ea6e76248f0538b064703eec25a815515cf70d.  The only local
+reconciliation is in src/soc/intel/denverton_ns/lpc.c, where 26.09 adds
+an extra #include <pc80/i8259.h> that shifts the include block context.
+
+Change-Id: Icbcc6fcde90e5b0a999aacb720e2e3dc2748c838
+Co-authored-by: Michał Żygowski <michal.zygowski@3mdeb.com>
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ src/soc/intel/alderlake/finalize.c            |  5 +++--
+ src/soc/intel/cannonlake/finalize.c           |  5 +++--
+ .../block/include/intelblocks/apm_finalize.h  | 19 +++++++++++++++++++
+ src/soc/intel/common/block/lpc/Makefile.mk    |  2 ++
+ src/soc/intel/common/block/smm/smihandler.c   | 15 +++++++++++++++
+ .../intel/common/feature/finalize/finalize.c  |  6 ++++--
+ src/soc/intel/common/pch/lockdown/Kconfig     | 17 +++++++++++++++++
+ src/soc/intel/common/pch/lockdown/Makefile.mk |  3 +++
+ src/soc/intel/common/pch/lockdown/lockdown.c  | 14 +++++++++-----
+ src/soc/intel/denverton_ns/lpc.c              |  3 ++-
+ src/soc/intel/elkhartlake/finalize.c          |  7 ++++---
+ src/soc/intel/jasperlake/finalize.c           |  4 ++--
+ src/soc/intel/skylake/finalize.c              |  4 ++--
+ src/soc/intel/snowridge/finalize.c            |  4 ++--
+ src/soc/intel/tigerlake/finalize.c            |  5 +++--
+ src/soc/intel/xeon_sp/finalize.c              |  8 ++++----
+ 16 files changed, 94 insertions(+), 27 deletions(-)
+ create mode 100644 src/soc/intel/common/block/include/intelblocks/apm_finalize.h
+
+diff --git a/src/soc/intel/alderlake/finalize.c b/src/soc/intel/alderlake/finalize.c
+index 6eca7eb4..d260a527 100644
+--- a/src/soc/intel/alderlake/finalize.c
++++ b/src/soc/intel/alderlake/finalize.c
+@@ -9,9 +9,9 @@
+ #include <bootstate.h>
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cse.h>
+ #include <intelblocks/lpc_lib.h>
+ #include <intelblocks/pcr.h>
+@@ -85,7 +85,8 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
++
+ 	tbt_finalize();
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+ 			 CONFIG(USE_FSP_NOTIFY_PHASE_END_OF_FIRMWARE))
+diff --git a/src/soc/intel/cannonlake/finalize.c b/src/soc/intel/cannonlake/finalize.c
+index 19fcf138..c7a03599 100644
+--- a/src/soc/intel/cannonlake/finalize.c
++++ b/src/soc/intel/cannonlake/finalize.c
+@@ -3,9 +3,9 @@
+ #include <bootstate.h>
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cpulib.h>
+ #include <intelblocks/cse.h>
+ #include <intelblocks/lpc_lib.h>
+@@ -87,7 +87,8 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
++
+ 	if (soc_disable_heci1_at_pre_boot() &&
+ 			CONFIG(SOC_INTEL_COMMON_BLOCK_HECI1_DISABLE_USING_PMC_IPC))
+ 		heci1_disable();
+diff --git a/src/soc/intel/common/block/include/intelblocks/apm_finalize.h b/src/soc/intel/common/block/include/intelblocks/apm_finalize.h
+new file mode 100644
+index 00000000..3b7f2b31
+--- /dev/null
++++ b/src/soc/intel/common/block/include/intelblocks/apm_finalize.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef SOC_INTEL_COMMON_BLOCK_APM_FINALIZE_H
++#define SOC_INTEL_COMMON_BLOCK_APM_FINALIZE_H
++
++#include <acpi/acpi.h>
++#include <cpu/x86/smm.h>
++
++/*
++ * Issue APM_CNT_FINALIZE unless SPI/LPC lockdown was deferred to the payload.
++ * On S3 resume the payload does not run, so always finalize in that case.
++ */
++static inline void intel_apm_control_finalize(void)
++{
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM) || acpi_is_wakeup_s3())
++		apm_control(APM_CNT_FINALIZE);
++}
++
++#endif /* SOC_INTEL_COMMON_BLOCK_APM_FINALIZE_H */
+diff --git a/src/soc/intel/common/block/lpc/Makefile.mk b/src/soc/intel/common/block/lpc/Makefile.mk
+index 99125219..35953d14 100644
+--- a/src/soc/intel/common/block/lpc/Makefile.mk
++++ b/src/soc/intel/common/block/lpc/Makefile.mk
+@@ -6,3 +6,5 @@ romstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lock.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc.c
++
++smm-$(CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM) += lpc_lock.c
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+index 43b5bc01..68c813e4 100644
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -15,6 +15,7 @@
+ #include <device/pci_def.h>
+ #include <device/pci_ops.h>
+ #include <elog.h>
++#include <intelblocks/cfg.h>
+ #include <intelblocks/fast_spi.h>
+ #include <intelblocks/msr.h>
+ #include <intelblocks/oc_wdt.h>
+@@ -23,6 +24,7 @@
+ #include <intelblocks/tco.h>
+ #include <intelblocks/uart.h>
+ #include <intelblocks/wadt_wake.h>
++#include <intelpch/lockdown.h>
+ #include <option.h>
+ #include <security/lockdown/lockdown.h>
+ #include <security/tcg/opal_s3_smm.h>
+@@ -397,6 +399,19 @@ static void finalize(void)
+ 	}
+ 	finalize_done = 1;
+ 
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM)) {
++		/*
++		 * Always use CHIPSET_LOCKDOWN_COREBOOT here (not
++		 * get_lockdown_config()): this path defers the BIOS SPI/LPC
++		 * locks so the payload can program PR0 first, regardless of
++		 * whether FSP locked other IPs.
++		 */
++		fast_spi_pr_dlock();
++		fast_spi_lock_bar();
++		fast_spi_lockdown_bios(CHIPSET_LOCKDOWN_COREBOOT);
++		lpc_lockdown_config(CHIPSET_LOCKDOWN_COREBOOT);
++	}
++
+ 	enable_smm_code_access_check();
+ 
+ 	if (CONFIG(SPI_FLASH_SMM))
+diff --git a/src/soc/intel/common/feature/finalize/finalize.c b/src/soc/intel/common/feature/finalize/finalize.c
+index 7ad8f218..dc1117a8 100644
+--- a/src/soc/intel/common/feature/finalize/finalize.c
++++ b/src/soc/intel/common/feature/finalize/finalize.c
+@@ -1,9 +1,10 @@
+ /* SPDX-License-Identifier: GPL-2.0-only */
+ 
+ #include <bootstate.h>
++#include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cfg.h>
+ #include <intelblocks/cpulib.h>
+ #include <intelblocks/cse.h>
+@@ -65,7 +66,8 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
++
+ 	tbt_finalize();
+ 	sa_finalize();
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+diff --git a/src/soc/intel/common/pch/lockdown/Kconfig b/src/soc/intel/common/pch/lockdown/Kconfig
+index 38f60d20..0fca399f 100644
+--- a/src/soc/intel/common/pch/lockdown/Kconfig
++++ b/src/soc/intel/common/pch/lockdown/Kconfig
+@@ -7,3 +7,20 @@ config SOC_INTEL_COMMON_PCH_LOCKDOWN
+ 	  This option allows to have chipset lockdown for DMI, FAST_SPI and
+ 	  soc_lockdown_config() to implement any additional lockdown as PMC,
+ 	  LPC for supported PCH.
++
++config SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM
++	bool "Lock down SPI and LPC controllers in SMM"
++	default n
++	depends on HAVE_SMI_HANDLER
++	select SPI_FLASH_SMM
++	help
++	  Skip locking the FAST_SPI and LPC controllers in ramstage. The
++	  payload or OS must lock them later by issuing APM_CNT_FINALIZE SMI,
++	  which also performs the deferred SPI/LPC lockdown in SMM.
++
++	  When this option is selected, coreboot does not issue APM_CNT_FINALIZE
++	  on the normal boot path (it still does on S3 resume, where the payload
++	  does not run). Used by Heads to set and lock PR0 flash protection
++	  before handing off to the OS.
++
++	  If unsure, say N.
+diff --git a/src/soc/intel/common/pch/lockdown/Makefile.mk b/src/soc/intel/common/pch/lockdown/Makefile.mk
+index a4cf7041..8a9c7d57 100644
+--- a/src/soc/intel/common/pch/lockdown/Makefile.mk
++++ b/src/soc/intel/common/pch/lockdown/Makefile.mk
+@@ -2,3 +2,6 @@
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_lpc.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_spi.c
++
++smm-$(CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM) += lockdown_lpc.c
++smm-$(CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM) += lockdown_spi.c
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown.c b/src/soc/intel/common/pch/lockdown/lockdown.c
+index a9ead2a1..0c25ae1a 100644
+--- a/src/soc/intel/common/pch/lockdown/lockdown.c
++++ b/src/soc/intel/common/pch/lockdown/lockdown.c
+@@ -60,7 +60,8 @@ static void fast_spi_lockdown_cfg(int chipset_lockdown)
+ 	fast_spi_set_opcode_menu();
+ 
+ 	/* Discrete Lock Flash PR registers */
+-	fast_spi_pr_dlock();
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM))
++		fast_spi_pr_dlock();
+ 
+ 	/* Check if SPI transaction is pending */
+ 	fast_spi_cycle_in_progress();
+@@ -69,12 +70,14 @@ static void fast_spi_lockdown_cfg(int chipset_lockdown)
+ 	fast_spi_clear_outstanding_status();
+ 
+ 	/* Lock FAST_SPIBAR */
+-	fast_spi_lock_bar();
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM))
++		fast_spi_lock_bar();
+ 
+ 	/* Set Vendor Component Lock (VCL) */
+ 	fast_spi_vscc0_lock();
+ 
+-	fast_spi_lockdown_bios(chipset_lockdown);
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM))
++		fast_spi_lockdown_bios(chipset_lockdown);
+ }
+ 
+ static void sa_lockdown_config(int chipset_lockdown)
+@@ -100,8 +103,9 @@ static void platform_lockdown_config(void *unused)
+ 	/* SPI lock down configuration */
+ 	fast_spi_lockdown_cfg(chipset_lockdown);
+ 
+-	/* LPC/eSPI lock down configuration */
+-	lpc_lockdown_config(chipset_lockdown);
++	if (!CONFIG(SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM))
++		/* LPC/eSPI lock down configuration */
++		lpc_lockdown_config(chipset_lockdown);
+ 
+ 	/* GPMR lock down configuration */
+ 	gpmr_lockdown_cfg();
+diff --git a/src/soc/intel/denverton_ns/lpc.c b/src/soc/intel/denverton_ns/lpc.c
+index 00b5f195..cdba2107 100644
+--- a/src/soc/intel/denverton_ns/lpc.c
++++ b/src/soc/intel/denverton_ns/lpc.c
+@@ -8,6 +8,7 @@
+ #include <device/pci_ops.h>
+ #include <arch/ioapic.h>
+ #include <acpi/acpi.h>
++#include <intelblocks/apm_finalize.h>
+ #include <cpu/x86/smm.h>
+ #include <bootstate.h>
+ #include <pc80/i8259.h>
+@@ -540,7 +541,7 @@ static const struct pci_driver lpc_driver __pci_driver = {
+ 
+ static void finalize_chipset(void *unused)
+ {
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
+ }
+ 
+ BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, finalize_chipset, NULL);
+diff --git a/src/soc/intel/elkhartlake/finalize.c b/src/soc/intel/elkhartlake/finalize.c
+index 509eda5a..50599916 100644
+--- a/src/soc/intel/elkhartlake/finalize.c
++++ b/src/soc/intel/elkhartlake/finalize.c
+@@ -1,11 +1,11 @@
+ /* SPDX-License-Identifier: GPL-2.0-only */
+ 
+ #include <bootstate.h>
+-#include <console/console.h>
+ #include <commonlib/console/post_codes.h>
+-#include <cpu/x86/smm.h>
++#include <console/console.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cse.h>
+ #include <intelblocks/lpc_lib.h>
+ #include <intelblocks/pcr.h>
+@@ -43,7 +43,8 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
++
+ 	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+ 		 CONFIG(USE_FSP_NOTIFY_PHASE_END_OF_FIRMWARE))
+ 		heci_finalize();
+diff --git a/src/soc/intel/jasperlake/finalize.c b/src/soc/intel/jasperlake/finalize.c
+index 8788db15..d4657e82 100644
+--- a/src/soc/intel/jasperlake/finalize.c
++++ b/src/soc/intel/jasperlake/finalize.c
+@@ -3,9 +3,9 @@
+ #include <bootstate.h>
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/lpc_lib.h>
+ #include <intelblocks/pcr.h>
+ #include <intelblocks/pmclib.h>
+@@ -76,7 +76,7 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
+ 
+ 	/* Indicate finalize step with post code */
+ 	post_code(POSTCODE_OS_BOOT);
+diff --git a/src/soc/intel/skylake/finalize.c b/src/soc/intel/skylake/finalize.c
+index a6a45136..d59b8b30 100644
+--- a/src/soc/intel/skylake/finalize.c
++++ b/src/soc/intel/skylake/finalize.c
+@@ -4,10 +4,10 @@
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+ #include <cpu/x86/mp.h>
+-#include <cpu/x86/smm.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
+ #include <device/pci_ops.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cpulib.h>
+ #include <intelblocks/cse.h>
+ #include <intelblocks/lpc_lib.h>
+@@ -105,7 +105,7 @@ static void soc_finalize(void *unused)
+ 	pch_finalize_script(dev);
+ 
+ 	soc_lockdown(dev);
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
+ 
+ 	/* Indicate finalize step with post code */
+ 	post_code(POSTCODE_OS_BOOT);
+diff --git a/src/soc/intel/snowridge/finalize.c b/src/soc/intel/snowridge/finalize.c
+index 476b2c1f..0694bdc1 100644
+--- a/src/soc/intel/snowridge/finalize.c
++++ b/src/soc/intel/snowridge/finalize.c
+@@ -3,13 +3,13 @@
+ #include <bootstate.h>
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
++#include <intelblocks/apm_finalize.h>
+ 
+ static void soc_finalize(void *unused)
+ {
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
+ 
+ 	/* Indicate finalize step with post code */
+ 	post_code(POSTCODE_OS_BOOT);
+diff --git a/src/soc/intel/tigerlake/finalize.c b/src/soc/intel/tigerlake/finalize.c
+index 63a46ac0..efad3891 100644
+--- a/src/soc/intel/tigerlake/finalize.c
++++ b/src/soc/intel/tigerlake/finalize.c
+@@ -9,9 +9,9 @@
+ #include <bootstate.h>
+ #include <commonlib/console/post_codes.h>
+ #include <console/console.h>
+-#include <cpu/x86/smm.h>
+ #include <device/mmio.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelblocks/cse.h>
+ #include <intelblocks/lpc_lib.h>
+ #include <intelblocks/pcr.h>
+@@ -55,7 +55,8 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
++
+ 	tbt_finalize();
+ 	if (soc_disable_heci1_at_pre_boot())
+ 		heci1_disable();
+diff --git a/src/soc/intel/xeon_sp/finalize.c b/src/soc/intel/xeon_sp/finalize.c
+index a7b36027..a70fbde7 100644
+--- a/src/soc/intel/xeon_sp/finalize.c
++++ b/src/soc/intel/xeon_sp/finalize.c
+@@ -4,15 +4,15 @@
+ #include <console/console.h>
+ #include <console/debug.h>
+ #include <cpu/x86/mp.h>
+-#include <cpu/x86/smm.h>
+ #include <device/pci.h>
++#include <intelblocks/apm_finalize.h>
+ #include <intelpch/lockdown.h>
++#include <smp/spinlock.h>
+ #include <soc/msr.h>
+ #include <soc/pci_devs.h>
+ #include <soc/pm.h>
+-#include <soc/util.h>
+ #include <soc/soc_util.h>
+-#include <smp/spinlock.h>
++#include <soc/util.h>
+ 
+ #include "chip.h"
+ 
+@@ -59,7 +59,7 @@ static void soc_finalize(void *unused)
+ 	if (!CONFIG(USE_PM_ACPI_TIMER))
+ 		setbits8(pmc_mmio_regs() + PCH_PWRM_ACPI_TMR_CTL, ACPI_TIM_DIS);
+ 
+-	apm_control(APM_CNT_FINALIZE);
++	intel_apm_control_finalize();
+ 
+ 	if (CONFIG_MAX_SOCKET > 1) {
+ 		/* This MSR is package scope but run for all cpus for code simplicity */
+-- 
+2.47.3
+
