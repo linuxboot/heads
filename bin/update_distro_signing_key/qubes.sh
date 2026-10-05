@@ -1,11 +1,6 @@
 #! /usr/bin/env bash
 # Update all Qubes OS distro signing keys (release 4.2, 4.3, weekly builds).
-# See bin/update_distro_signing_key/helper.sh for details.
-#
-# Key fingerprints:
-#   Qubes 4.2:      9C88 4DF3 F810 64A5 69A4  A9FA E022 E58F 8E34 D89F
-#   Qubes 4.3:      F3FA 3F99 D628 1F7B 3A3E  5E87 1C3D 9B62 7F3F ADA4
-#   Qubes weekly:   9B7E 61D3 BB70 C4B1 335C  E5B6 7B72 A119 CCCA 57BB
+# See bin/update_distro_signing_key/lib/helper.sh for details.
 
 set -eo pipefail
 
@@ -13,21 +8,45 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HELPER="$SCRIPT_DIR/lib/helper.sh"
 
 rc=0
-run() { "$HELPER" "$@" || { local e=$?; [ $e -gt $rc ] && rc=$e; }; }
+first=yes
+# Every channel always runs and the highest status wins: Qubes rotates all
+# three channels together, so no single channel may veto the next.
+run() {
+	local e=0
+	# Separate the per-key report blocks; the first channel gets no separator,
+	# whatever ran before it already left one.
+	if [ "$first" != yes ]; then
+		echo ""
+	fi
+	first=no
+	"$HELPER" "$@" || e=$?
+	if [ "$e" -gt "$rc" ]; then
+		rc="$e"
+	fi
+	return 0
+}
 
+# Each key's fingerprint is declared directly above its own run, so no
+# invocation can pick up another channel's pin.
+FPR_42="9C884DF3F81064A569A4A9FAE022E58F8E34D89F"
 run "Qubes OS 4.2" \
 	"https://keys.qubes-os.org/keys/qubes-release-4.2-signing-key.asc" \
 	"Qubes OS Release 4.2 Signing Key" \
-	"initrd/etc/distro/keys/qubes-4.2.key"
+	"initrd/etc/distro/keys/qubes-4.2.key" \
+	"$FPR_42"
 
+FPR_43="F3FA3F99D6281F7B3A3E5E871C3D9B627F3FADA4"
 run "Qubes OS 4.3" \
 	"https://keys.qubes-os.org/keys/qubes-release-4.3-signing-key.asc" \
 	"Qubes OS Release 4.3 Signing Key" \
-	"initrd/etc/distro/keys/qubes-4.3.key"
+	"initrd/etc/distro/keys/qubes-4.3.key" \
+	"$FPR_43"
 
+FPR_WEEKLY="9B7E61D3BB70C4B1335CE5B67B72A119CCCA57BB"
 run "Qubes OS weekly builds" \
 	"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9B7E61D3BB70C4B1335CE5B67B72A119CCCA57BB" \
 	"Qubes OS Weekly Builds Signing Key" \
-	"initrd/etc/distro/keys/qubes-weekly-builds-signing-key.asc"
+	"initrd/etc/distro/keys/qubes-weekly-builds-signing-key.asc" \
+	"$FPR_WEEKLY"
 
 exit "$rc"
