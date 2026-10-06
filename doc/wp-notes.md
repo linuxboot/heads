@@ -21,18 +21,24 @@ the firmware in-place.
 ### Coreboot build-time requirements
 
 The coreboot config must prepare the SPI controller for SMM-initiated
-lockdown.  **`CONFIG_INTEL_CHIPSET_LOCKDOWN` must be disabled** — Heads
-performs the lockdown itself, not coreboot at boot-time.
+lockdown.  On pre-Skylake boards **`CONFIG_INTEL_CHIPSET_LOCKDOWN` must
+be disabled** — Heads performs the lockdown itself, not coreboot at
+boot-time, and upstream ramstage otherwise issues the finalize SMI on the
+normal boot path.  From Skylake on the symbol does not exist: it depends
+on `HAVE_INTEL_CHIPSET_LOCKDOWN`, which at 26.09 only pre-Skylake
+southbridges select, so it emits no line and cannot be set.
 
 | Config | Pre-Skylake | >= Skylake |
 |--------|:-----------:|:----------:|
 | `CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y` | Required | Required |
 | `CONFIG_BOOTMEDIA_LOCK_WHOLE_RO=y`   | Required | Required |
-| `# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set` | Required | Required |
-| `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` | N/A | Required |
-| `CONFIG_SPI_FLASH_SMM=y`  | N/A | Required |
+| `# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set` | Required | N/A (symbol does not exist) |
+| `CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM=y` | N/A | Required (coreboot 26.09) |
+| `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` | N/A | Required (coreboot 25.09) |
+| `CONFIG_SPI_FLASH_SMM=y`  | N/A | auto-selected by the patch |
 
-**Coreboot patch** (required for Skylake+):
+**Coreboot patch** (required for Skylake+), one copy per coreboot version:
+`patches/coreboot-26.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
 `patches/coreboot-25.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
 
 For kano (MrChromebox coreboot fork), the same patch is carried at:
@@ -40,7 +46,8 @@ For kano (MrChromebox coreboot fork), the same patch is carried at:
 (rebased for the fork's context; the fork's `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` is set in `config/coreboot-kano.config`).
 
 This is a copy of [review.coreboot.org/+/85278](https://review.coreboot.org/c/coreboot/+/85278).
-It adds the `SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM` Kconfig and refactors
+It adds the `SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM` Kconfig (named
+`SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM` in the 25.09 copy) and refactors
 SPI+LPC locking from boot-time ramstage into an SMM handler.  Without
 this patch, coreboot issues `APM_CNT_FINALIZE` unconditionally during
 ramstage, leaving Heads no control over the lock timing.
@@ -66,7 +73,7 @@ Just before kexec hands control to the OS, `kexec-boot.sh` calls
 `lock_chip.sh`:
 
 ```text
-kexec-boot.sh:221-223
+kexec-boot.sh:211-213
   if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]
     └─ lock_chip.sh
          └─ io386 -o b -b x 0xb2 0xcb
