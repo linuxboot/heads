@@ -118,6 +118,15 @@ has no passphrase, enabling unseal with forged PCRs.
 The fix must come from coreboot. Tracked at [coreboot ticket #576](https://ticket.coreboot.org/issues/576)
 and [coreboot patch series](https://review.coreboot.org/q/topic:%22intel_gpio_lock%22).
 
+## Thunderbolt
+
+The `EOL_t480`, `EOL_t480s` and `EOL_x280` boards build with discrete
+Thunderbolt (`dtbt`) support enabled, and the compiled driver is part of the
+default configuration of every one of their variants (maximized and
+hotp). The evidence for this is build-level: the driver is configured and
+compiled for every variant. It has not been verified on hardware as part of
+this work.
+
 ## Board Testers
 
 Boards under `boards/*` must be tested by listed owners for coreboot/linux
