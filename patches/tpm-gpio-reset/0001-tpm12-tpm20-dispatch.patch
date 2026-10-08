@@ -1,0 +1,76 @@
+diff --git a/reset/inteltool.c b/reset/inteltool.c
+index aef394f..9a29de2 100644
+--- a/reset/inteltool.c
++++ b/reset/inteltool.c
+@@ -44,6 +44,31 @@ void unmap_physical(void *virt_addr, size_t len)
+ }
+ #endif
+ 
++/*
++ * TPM stack dispatch.  TPM 2.0 exposes /dev/tpmrm0 (kernel resource manager);
++ * TPM 1.2 does not.  Heads ships bin/tpm2 on CONFIG_TPM2_TOOLS boards and
++ * bin/tpm (tpmtotp) on TPM1.2 boards, so version follows board config and
++ * the two stacks are never both present.
++ */
++static int is_tpm2(void)
++{
++	return access("/dev/tpmrm0", R_OK) == 0;
++}
++
++static const char *tpm_read_pcr_cmd(void)
++{
++	if (is_tpm2())
++		return "tpm2 startup -c 2>/dev/null; tpm2 pcrread 2>/dev/null | grep -A24 'sha256:' || echo '  (TPM not accessible)'";
++	return "tpm startup 2>/dev/null; tpm pcrread -ix 0 2>/dev/null || echo '  (TPM not accessible)'";
++}
++
++static const char *tpm_startup_cmd(void)
++{
++	if (is_tpm2())
++		return "tpm2 startup -c 2>/dev/null";
++	return "tpm startup 2>/dev/null";
++}
++
+ int main(int argc, char *argv[])
+ {
+ 	setbuf(stdout, NULL);
+@@ -378,13 +403,17 @@ int main(int argc, char *argv[])
+ 		/* Read PCRs before assertion */
+ 		printf("\n--- PCR State Before Assertion ---\n");
+ 		fflush(stdout);
+-		system("tpm2 startup -c 2>/dev/null; tpm2 pcrread 2>/dev/null | grep -A24 'sha256:' || echo '  (TPM not accessible)'");
++		system(tpm_read_pcr_cmd());
+ 
+ 		/* Cleanly shut down TPM session before assertion (kukri procedure) */
+ 		printf("\n--- TPM Session Preparation ---\n");
+-		printf("Running tpm2 shutdown -c to cleanly shut down TPM session\n");
+-		fflush(stdout);
+-		system("tpm2 shutdown -c 2>/dev/null");
++		if (is_tpm2()) {
++			printf("Running tpm2 shutdown -c to cleanly shut down TPM session\n");
++			fflush(stdout);
++			system("tpm2 shutdown -c 2>/dev/null");
++		} else {
++			printf("TPM1.2 has no shutdown; startup after the assert clears PCRs\n");
++		}
+ 
+ 		printf("\n*** WARNING: About to assert PLTRST# -- TPM may reboot (PCRs clear, NVRAM preserved) ***\n");
+ 		sleep(2);
+@@ -446,14 +475,14 @@ int main(int argc, char *argv[])
+ 		printf("Registers restored\n");
+ 
+ 		/* Reinitialize TPM after reset (kukri procedure) */
+-		printf("Running tpm2 startup -c to reinitialize TPM\n");
++		printf("Running TPM startup to reinitialize TPM\n");
+ 		fflush(stdout);
+-		system("tpm2 startup -c 2>/dev/null");
++		system(tpm_startup_cmd());
+ 
+ 		/* Read PCRs after assertion */
+ 		printf("\n--- PCR State After Assertion ---\n");
+ 		fflush(stdout);
+-		system("tpm2 startup -c 2>/dev/null; tpm2 pcrread 2>/dev/null | grep -A24 'sha256:' || echo '  (TPM not accessible)'");
++		system(tpm_read_pcr_cmd());
+ 
+ 		exit_code = dw0_ok ? 0 : 1;
+ 	}

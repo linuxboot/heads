@@ -7,12 +7,24 @@
 # Two binaries, as in upstream kukri:
 #   tpm-gpio-detect   detection-only audit of GPIO lock status (no CLI args)
 #   tpm-gpio-assert   assertion/execute tool (kukri's modified coreboot inteltool)
-modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
+#
+# Pad-register tooling that shells out to whichever TPM stack the board has:
+# bin/tpm2 on CONFIG_TPM2_TOOLS boards, bin/tpm (tpmtotp) on TPM1.2 boards.
+# Both are pure pad-register reads/writes, so any-TPM gating applies.  Keep
+# the Makefile bin_modules-$(TPM_ANY) line in sync with this gate.
+TPM_ANY := $(CONFIG_TPM)
+ifeq "$(CONFIG_TPM2_TOOLS)" "y"
+TPM_ANY := y
+endif
+modules-$(TPM_ANY) += tpm-gpio-reset
 
 
 # See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
-tpm-gpio-reset_depends := pciutils $(tpm2-tools_dep)
+# pciutils for libpci only; tpm2-tools is a runtime dependency at best
+# (shelled out by the assert tool), never a link dependency, so do not
+# pull it into the build for TPM1.2 boards.
+tpm-gpio-reset_depends := pciutils
 tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
 tpm-gpio-reset_commit_hash := 3e3a695655b3b9e3188bb9aad70874dbcfb03145
 tpm-gpio-reset_version := $(tpm-gpio-reset_commit_hash)
