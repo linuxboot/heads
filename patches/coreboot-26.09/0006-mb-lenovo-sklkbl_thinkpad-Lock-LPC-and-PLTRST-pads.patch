@@ -1,0 +1,234 @@
+From c46f21f9eaaf06713a2bdf1b7a70ee7bb107fb38 Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Sun, 07 Jun 2026 20:27:12 -0600
+Subject: [PATCH] mb/lenovo/sklkbl_thinkpad: Lock GPIO pins
+
+The GPIO configs for various pads such as the LPC bus and PLTRST should
+be locked to prevent attacks such as TPM reset attacks [1]. Use the
+PAD_CFG_NF_LOCK macro with the LOCK_FULL parameter to lock both the
+configuration and Tx state as recommended by Intel [2].
+
+TEST=Run the detect utility from [3] and confirm that all GPIOs tested
+show OK.
+
+[1] https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html
+[2] https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/technical-documentation/gpio-configuration-best-practices.html
+[3] https://github.com/kukrimate/tpm-gpio-fail
+
+Change-Id: Ib7f2c489b24c97bdb7a828ececfe67a50c65f584
+Ticket: https://ticket.coreboot.org/issues/576
+Signed-off-by: Nicholas Chin <nic.c3.14@gmail.com>
+
+Upstream status verified 2026-10-07T00:33:08-04:00: Gerrit 93324,
+patch set 4, OPEN and unmerged with unresolved review comments about
+the pad list and hardware verification.
+---
+
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/gpio.c
+index 277b27c..6c09109 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/gpio.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t470s/gpio.c
+@@ -8,15 +8,15 @@
+ 
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
+-	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
+-	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
+-	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
+-	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
+-	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
+-	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
+-	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
+-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
+-	PAD_CFG_NF(GPP_A9, DN_20K, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF_LOCK(GPP_A1, NATIVE, NF1, LOCK_FULL),		/* LPC_AD0 */
++	PAD_CFG_NF_LOCK(GPP_A2, NATIVE, NF1, LOCK_FULL),		/* LPC_AD1 */
++	PAD_CFG_NF_LOCK(GPP_A3, NATIVE, NF1, LOCK_FULL),		/* LPC_AD2 */
++	PAD_CFG_NF_LOCK(GPP_A4, NATIVE, NF1, LOCK_FULL),		/* LPC_AD3 */
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),			/* -LPC_FRAME */
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),			/* IRQSER */
++	PAD_CFG_NF_LOCK(GPP_A7, NONE, NF1, LOCK_FULL),			/* -TPM_IRQ */
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),			/* -CLKRUN */
++	PAD_CFG_NF_LOCK(GPP_A9, DN_20K, NF1, LOCK_FULL),		/* LPCCLK_EC_24M */
+ 	PAD_CFG_NF(GPP_A10, DN_20K, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_CFG_NF(GPP_A11, NONE, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_NC(GPP_A12, NONE),
+@@ -46,7 +46,7 @@
+ 	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE5 (SSD) */
+ 	PAD_CFG_NF(GPP_B11, NONE, DEEP, NF1),				/* -EXT_PWR_GATE */
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),			/* -PLTRST */
+ 	PAD_CFG_NF(GPP_B14, NATIVE, DEEP, NF1),				/* PCH_SPKR */
+ 	PAD_CFG_GPO(GPP_B15, 0, DEEP),					/* NFC_DLREQ */
+ 	PAD_NC(GPP_B16, NONE),
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
+index ffd2841..7b7d764 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480/gpio.c
+@@ -3,24 +3,21 @@
+ #include <soc/gpio.h>
+ #include "../../variant.h"
+ 
+-/* FIXME: There are multiple GPIOs here that should be locked to prevent "TPM GPIO fail" style
+- * attacks. Unfortunately SKL/KBL GPIO locking *does not* work currently. */
+-
+ static const struct pad_config gpio_table[] = {
+ 
+ 	/* ------- GPIO Community 0 ------- */
+ 
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
+-	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
+-	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
+-	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
+-	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
+-	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
+-	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
+-	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
+-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
+-	PAD_CFG_NF(GPP_A9, NATIVE, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF_LOCK(GPP_A1, NATIVE, NF1, LOCK_FULL),		/* LPC_AD0 */
++	PAD_CFG_NF_LOCK(GPP_A2, NATIVE, NF1, LOCK_FULL),		/* LPC_AD1 */
++	PAD_CFG_NF_LOCK(GPP_A3, NATIVE, NF1, LOCK_FULL),		/* LPC_AD2 */
++	PAD_CFG_NF_LOCK(GPP_A4, NATIVE, NF1, LOCK_FULL),		/* LPC_AD3 */
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),			/* -LPC_FRAME */
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),			/* IRQSER */
++	PAD_CFG_NF_LOCK(GPP_A7, NONE, NF1, LOCK_FULL),			/* -TPM_IRQ */
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),			/* -CLKRUN */
++	PAD_CFG_NF_LOCK(GPP_A9, NATIVE, NF1, LOCK_FULL),		/* LPCCLK_EC_24M */
+ 	PAD_CFG_NF(GPP_A10, NATIVE, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_NC(GPP_A11, NONE),
+ 	PAD_NC(GPP_A12, NONE),
+@@ -50,7 +47,7 @@
+ 	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE10 */
+ 	PAD_NC(GPP_B11, NONE),
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),			/* -PLTRST */
+ 	PAD_CFG_NF(GPP_B14, NATIVE, DEEP, NF1),				/* PCH_SPKR */
+ 	PAD_CFG_GPO(GPP_B15, 1, DEEP),					/* NFC_DLREQ */
+ 	PAD_NC(GPP_B16, NONE),
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
+index c24c1ab..3b48ecd 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t480s/gpio.c
+@@ -8,15 +8,15 @@
+ 
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
+-	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
+-	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
+-	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
+-	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
+-	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
+-	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
+-	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
+-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
+-	PAD_CFG_NF(GPP_A9, DN_20K, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF_LOCK(GPP_A1, NATIVE, NF1, LOCK_FULL),		/* LPC_AD0 */
++	PAD_CFG_NF_LOCK(GPP_A2, NATIVE, NF1, LOCK_FULL),		/* LPC_AD1 */
++	PAD_CFG_NF_LOCK(GPP_A3, NATIVE, NF1, LOCK_FULL),		/* LPC_AD2 */
++	PAD_CFG_NF_LOCK(GPP_A4, NATIVE, NF1, LOCK_FULL),		/* LPC_AD3 */
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),		/* -LPC_FRAME */
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),		/* IRQSER */
++	PAD_CFG_NF_LOCK(GPP_A7, NONE, NF1, LOCK_FULL),		/* -TPM_IRQ */
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),		/* -CLKRUN */
++	PAD_CFG_NF_LOCK(GPP_A9, DN_20K, NF1, LOCK_FULL),		/* LPCCLK_EC_24M */
+ 	PAD_CFG_NF(GPP_A10, DN_20K, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_NC(GPP_A11, NONE),
+ 	PAD_NC(GPP_A12, NONE),
+@@ -46,7 +46,7 @@
+ 	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE8 (SSD) */
+ 	PAD_NC(GPP_B11, NONE),
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),			/* -PLTRST */
+ 	PAD_CFG_NF(GPP_B14, NONE, DEEP, NF1),				/* PCH_SPKR */
+ 	PAD_CFG_GPO(GPP_B15, 0, DEEP),					/* NFC_DLREQ */
+ 	PAD_NC(GPP_B16, NONE),
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/gpio.c
+index 04c04cf..f74e9c1 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/gpio.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/t580/gpio.c
+@@ -3,24 +3,21 @@
+ #include <soc/gpio.h>
+ #include "../../variant.h"
+ 
+-/* FIXME: There are multiple GPIOs here that should be locked to prevent "TPM GPIO fail" style
+- * attacks. Unfortunately SKL/KBL GPIO locking *does not* work currently. */
+-
+ static const struct pad_config gpio_table[] = {
+ 
+ 	/* ------- GPIO Community 0 ------- */
+ 
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
+-	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
+-	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
+-	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
+-	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
+-	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
+-	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
+-	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
+-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
+-	PAD_CFG_NF(GPP_A9, NATIVE, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF_LOCK(GPP_A1, NATIVE, NF1, LOCK_FULL),		/* LPC_AD0 */
++	PAD_CFG_NF_LOCK(GPP_A2, NATIVE, NF1, LOCK_FULL),		/* LPC_AD1 */
++	PAD_CFG_NF_LOCK(GPP_A3, NATIVE, NF1, LOCK_FULL),		/* LPC_AD2 */
++	PAD_CFG_NF_LOCK(GPP_A4, NATIVE, NF1, LOCK_FULL),		/* LPC_AD3 */
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),			/* -LPC_FRAME */
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),			/* IRQSER */
++	PAD_CFG_NF_LOCK(GPP_A7, NONE, NF1, LOCK_FULL),			/* -TPM_IRQ */
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),			/* -CLKRUN */
++	PAD_CFG_NF_LOCK(GPP_A9, NATIVE, NF1, LOCK_FULL),		/* LPCCLK_EC_24M */
+ 	PAD_CFG_NF(GPP_A10, NATIVE, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_NC(GPP_A11, NONE),
+ 	PAD_NC(GPP_A12, NONE),
+@@ -50,7 +47,7 @@
+ 	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE6 */
+ 	PAD_NC(GPP_B11, NONE),
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),			/* -PLTRST */
+ 	PAD_CFG_NF(GPP_B14, NATIVE, DEEP, NF1),				/* PCH_SPKR */
+ 	PAD_CFG_GPO(GPP_B15, 1, DEEP),					/* NFC_DLREQ */
+ 	PAD_NC(GPP_B16, NONE),
+diff --git a/src/mainboard/lenovo/sklkbl_thinkpad/variants/x280/gpio.c b/src/mainboard/lenovo/sklkbl_thinkpad/variants/x280/gpio.c
+index 13c4a52..e3542dc 100644
+--- a/src/mainboard/lenovo/sklkbl_thinkpad/variants/x280/gpio.c
++++ b/src/mainboard/lenovo/sklkbl_thinkpad/variants/x280/gpio.c
+@@ -8,15 +8,15 @@
+ 
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, DEEP, NF1),				/* -KBRC */
+-	PAD_CFG_NF(GPP_A1, NATIVE, DEEP, NF1),				/* LPC_AD0 */
+-	PAD_CFG_NF(GPP_A2, NATIVE, DEEP, NF1),				/* LPC_AD1 */
+-	PAD_CFG_NF(GPP_A3, NATIVE, DEEP, NF1),				/* LPC_AD2 */
+-	PAD_CFG_NF(GPP_A4, NATIVE, DEEP, NF1),				/* LPC_AD3 */
+-	PAD_CFG_NF(GPP_A5, NONE, DEEP, NF1),				/* -LPC_FRAME */
+-	PAD_CFG_NF(GPP_A6, NONE, DEEP, NF1),				/* IRQSER */
+-	PAD_CFG_NF(GPP_A7, NONE, DEEP, NF1),				/* -TPM_IRQ */
+-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),				/* -CLKRUN */
+-	PAD_CFG_NF(GPP_A9, DN_20K, DEEP, NF1),				/* LPCCLK_EC_24M */
++	PAD_CFG_NF_LOCK(GPP_A1, NATIVE, NF1, LOCK_FULL),		/* LPC_AD0 */
++	PAD_CFG_NF_LOCK(GPP_A2, NATIVE, NF1, LOCK_FULL),		/* LPC_AD1 */
++	PAD_CFG_NF_LOCK(GPP_A3, NATIVE, NF1, LOCK_FULL),		/* LPC_AD2 */
++	PAD_CFG_NF_LOCK(GPP_A4, NATIVE, NF1, LOCK_FULL),		/* LPC_AD3 */
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),			/* -LPC_FRAME */
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),			/* IRQSER */
++	PAD_CFG_NF_LOCK(GPP_A7, NONE, NF1, LOCK_FULL),			/* -TPM_IRQ */
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),			/* -CLKRUN */
++	PAD_CFG_NF_LOCK(GPP_A9, DN_20K, NF1, LOCK_FULL),		/* LPCCLK_EC_24M */
+ 	PAD_CFG_NF(GPP_A10, DN_20K, DEEP, NF1),				/* LPCCLK_DEBUG_24M */
+ 	PAD_NC(GPP_A11, NONE),
+ 	PAD_NC(GPP_A12, NONE),
+@@ -46,7 +46,7 @@
+ 	PAD_CFG_NF(GPP_B10, NONE, DEEP, NF1),				/* -CLKREQ_PCIE5 (WWAN) */
+ 	PAD_CFG_NF(GPP_B11, NONE, DEEP, NF1),				/* -EXT_PWR_GATE */
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),				/* -PCH_SLP_S0 */
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),				/* -PLTRST */
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),			/* -PLTRST */
+ 	PAD_CFG_NF(GPP_B14, NATIVE, DEEP, NF1),				/* PCH_SPKR */
+ 	PAD_CFG_GPO(GPP_B15, 0, DEEP),					/* NFC_DLREQ */
+ 	PAD_NC(GPP_B16, NONE),
