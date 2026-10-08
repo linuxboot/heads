@@ -42,9 +42,35 @@ register map:
   PCR_BASE, community port, pad index, and PAD_CFG_BASE, including the
   per-pad register layout (2 vs 4 DWORDS per pad) for each generation.
 
-Note: Intel doc 834810 does not cover pre-Tiger Lake platforms. SPT/KBP
-(Skylake/Kaby Lake) PADCFGLOCK offsets (0xA8 per kukri) have no public
-Intel verification.
+Note: Intel doc 834810 does not cover pre-Tiger Lake platforms. The SPT/KBP
+(Skylake/Kaby Lake) community-0 PADCFGLOCK offsets therefore rest on kukri's
+platform table rather than on a public Intel register map. That table puts
+GPP_A1-A9 at `0xa0` and GPP_B13 at `0xb0`
+(`build/x86/tpm-gpio-fail-*/detect/platforms/skl_kbl.c`), identically in its
+`platform_skl_kbl_s_h` and `platform_skl_kbl_lp` entries.
+
+**PCH-H lock offset: the public tables and merged coreboot disagree.** Checked
+2026-10-07: Intel 100 Series/C230 S/H PCH Volume 2 (332691) and 200 Series
+PCH Volume 2 (335193) both list community-0 `PADCFGLOCK_GPP_A` at `0xA0` and
+`GPP_B` at `0xA8`. Merged coreboot change 95661 instead uses `0x90` as the
+base for **all** PCH-H communities, justified by Linux Sunrise Point and
+edk2 KabylakeSiliconPkg register maps plus reported M900 register testing.
+The upstream commit message cites document 332996 as the 100 Series PCH
+Volume 2, but 332996 describes sixth-generation processor U/Y I/O; 332691 is
+the S/H PCH volume. So `0x90` is **not** independently confirmed by the
+published PCH datasheet tables -- it rests on the reported hardware test.
+Heads carries 95661 as-is for PCH-H and does not claim that the Intel tables
+agree.
+
+The published pair does not conflict with coreboot's own addressing.
+`gpio_non_smm_lock_pad()` computes
+`offset = comm->pad_cfg_lock_offset + group_index * 8`
+(`src/soc/intel/common/block/gpio/gpio.c:693,700-701`), and community 0
+declares GPP_A then GPP_B as its two groups
+(`src/soc/intel/skylake/gpio.c:21-24`), so a `0xA0` base puts GPP_A at `0xA0`
+and GPP_B at `0xA8` -- exactly Intel's published pair, and exactly what the
+pre-patch `PAD_CFG_LOCK_OFFSET_COM0` already was. The datasheet agrees with
+the pre-patch value and disagrees with merged 95661.
 
 Note: CML-U (0x066x) and some CML-U steppings in the 0x9d8* range have
 PADCFGLOCK at 0x88. Not all 0x9d8* devices have lock registers -- verify
@@ -395,6 +421,107 @@ force-unlocking all pads regardless of the board configuration.
 
 ---
 
+## 7A. SKL/KBL Pad Locking Carried in Heads coreboot-26.09
+
+Heads carries the ramstage pad-lock path for the SKL/KBL boards built on
+upstream coreboot 26.09 (M900 tower, T480, T480s, X280, plus HOTP variants),
+as four patches in `patches/coreboot-26.09/`. The set supplies three roles:
+offset (`0004`), method (`0005`), board table (`0006`/`0007`).
+
+| Patch | Origin | Status |
+|---|---|---|
+| `0004` Correct `pad_cfg_lock_offset` for PCH-H | upstream 95661 | merged |
+| `0005` Select `GPIO_LOCK_USING_SBI` | upstream 90885 | merged |
+| `0006` Lock LPC/CLKRUN and PLTRST pads, SKL/KBL ThinkPads | upstream 93324 | **open upstream** |
+| `0007` Lock LPC/CLKRUN and PLTRST pads, M900 | Heads-only adaptation of the 90885 M900 test | downstream |
+
+The lock path is `gpio_configure_pads()` -> nonzero `lock_action` ->
+`gpio_lock_pad()` -> `gpio_non_smm_lock_pad()`, which needs a nonzero lock
+offset, a lock method, and board pad-table entries carrying a nonzero
+`lock_action`. The patches add no literal config line. What `0005` adds is a
+Kconfig `select`; because `SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI` is
+promptless (`src/soc/intel/common/block/gpio/Kconfig:41-46`, `bool` with
+`default n` and no `prompt`), `olddefconfig` materialises
+`CONFIG_SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI=y` into each of the four
+full configs -- and that same promptlessness is why `savedefconfig` omits it
+from the `_defconfig` backups.
+
+### 7A.1 `0004` is load-bearing for the M900 only
+
+`0004`'s behaviour change is gated on `CONFIG(SKYLAKE_SOC_PCH_H)`.
+`SKYLAKE_SOC_PCH_H` is selected by `src/mainboard/lenovo/m900/Kconfig:19` and
+by `SOC_INTEL_SKYLAKE_LGA1151_V2`
+(`src/soc/intel/skylake/Kconfig:96`); the m900 config confirms
+`CONFIG_SKYLAKE_SOC_PCH_H=y`. The KBL ThinkPads select
+`SOC_INTEL_KABYLAKE`, which reaches `SOC_INTEL_COMMON_SKYLAKE_BASE` but not
+`SKYLAKE_SOC_PCH_H` (`src/mainboard/lenovo/sklkbl_thinkpad/Kconfig:36,43,49`);
+the symbol is absent from `config/coreboot-t480-maximized.config` and its
+siblings. On the `#else` branch the patch replaces four macros that were all
+`0xa0` with a single `0xa0`, so it changes nothing there.
+
+So the datasheet-alignment asymmetry runs the other way from what the patch
+header alone suggests. **The KBL ThinkPads keep `0xA0`, which is what the
+Intel tables say; only the M900 moves to `0x90`, which they contradict.** The
+upstream "community 0 pads fail to lock without this" claim is therefore a
+PCH-H claim and does not apply to t480/t480s/x280.
+
+Nor was an offset ever missing on the KBL boards: pre-patch,
+`gpio_non_smm_lock_pad()` already had a nonzero `pad_cfg_lock_offset`
+available (`src/soc/intel/common/block/gpio/gpio.c:693-698`), and the
+pre-patch `#else` branch set it to `0xa0` for all four communities. "An
+offset is required" is true only of the PCH-H community-0 case.
+
+### 7A.2 `0006` deletes upstream's "this does not work" FIXME
+
+The most consequential thing this change set does is stated nowhere in its
+own patch header: `0006` (upstream 93324, verbatim) **removes upstream's
+FIXME asserting that SKL/KBL GPIO locking does not work on this silicon**.
+From `variants/t480/gpio.c` and `variants/t580/gpio.c`:
+
+```
+/* FIXME: There are multiple GPIOs here that should be locked to prevent "TPM GPIO fail" style
+ * attacks. Unfortunately SKL/KBL GPIO locking *does not* work currently. */
+```
+
+Note the asymmetry: only `t480` and `t580` carried that comment.
+`t470s`, `t480s` and `x280` never did, so for those three the pad-table
+change lands without a prior upstream statement being withdrawn.
+
+`0006` is where upstream withdrew the claim, not where this repo verified it.
+Gerrit 93324 is still open with unresolved review comments about the pad
+list and about hardware verification, and **this repo has not re-tested
+whether SKL/KBL GPIO locking now works** -- it carries the deletion because
+the patch is applied, not because the underlying question was answered here.
+
+### 7A.3 Residual risks
+
+**`PAD_CFG_NF_LOCK` also changes the pad reset domain to `PWROK`**
+(`src/soc/intel/common/block/include/intelblocks/gpio_defs.h:224-229`), while
+the pads it replaces were configured `DEEP` or `PLTRST`. That side effect is
+inherent to the macro, not to these patches, and it is the main hardware risk:
+S3/resume and TPM behaviour must be checked on real machines. All eight
+affected ROMs build and carry the SBI selection, but **no image has been
+tested on hardware**, so the board configs still describe these platforms as
+TPM GPIO reset vulnerable.
+
+The pad lists differ in scope between `0006` and `0007`: `0006` follows
+upstream 93324 and locks GPP_A1-A9 plus GPP_B13 (including `-TPM_IRQ` and
+`-CLKRUN`), while `0007` uses only the pads named in the 90885 M900 test --
+GPP_A1-A6, GPP_A8, GPP_A9, GPP_B13 -- which upstream's own TEST= line calls
+"LPC pins and PLTRST#". The narrower list is deliberate and matches the
+reported test, but it is a subset of what upstream chose for the ThinkPads.
+It also leaves **GPP_A7 unlocked on the M900**, because the 90885 test does
+not name it; on the ThinkPads GPP_A7 is `-TPM_IRQ`, which is exactly the kind
+of pad the FIXME was about.
+
+The M900 board table carries no per-pad signal comments
+(`src/mainboard/lenovo/m900/gpio.h`), so GPP_A8/A9 signal names come from
+elsewhere: the ThinkPad variant tables (`-CLKRUN`, `LPCCLK_EC_24M`) and
+kukri's `skl_kbl.c`, which names the same two pads `CLKRUN` and
+`CLKOUT_LPC0`.
+
+---
+
 ## Appendix A: Key Register Addresses Reference
 
 Register definitions are in the C source:
@@ -421,11 +548,21 @@ Register definitions are in the C source:
 - **coreboot patch series** -- "intel_gpio_lock"
   https://review.coreboot.org/q/topic:%22intel_gpio_lock%22
   - `#90884` (merged): Set `pad_cfg_lock_offset` in Skylake GPIO communities.
-  - `#90885` (open): Select `SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_PCR` for
-    Skylake -- tested, does not work on real hardware.
-  - `#93324` (open): Board-level GPIO lock for Lenovo SKL/KBL ThinkPads
-    (T480/T480s). Depends on 90885. Stalled on Intel maintainer review
-    alongside 90885 -- no human Code-Review since June 2026.
+  - `#90885` (merged, verified 2026-10-07, PS8): Select
+    `SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI` for Skylake. The PCR variant
+    was tried first and does not work on real hardware; SBI replaced it. The
+    SoC patch alone locks no pad.
+  - `#95661` (merged, verified 2026-10-07, PS4): Correct `pad_cfg_lock_offset`
+    for PCH-H to `0x90` for all GPIO communities. Without it, community 0
+    (GPP_A/GPP_B) pads fail to lock **on PCH-H**. The change is gated on
+    `CONFIG(SKYLAKE_SOC_PCH_H)`; on the `#else` branch it rewrites four `0xa0`
+    macros into one `0xa0` and changes nothing.
+  - `#93324` (open, verified 2026-10-07, PS4): Board-level GPIO lock for
+    Lenovo SKL/KBL ThinkPads (T470s/T480/T480s/T580/X280). Depends on 90885.
+    Unmerged with unresolved review comments about the pad list and hardware
+    verification. Its pad list is GPP_A1-A9 plus GPP_B13, which includes the
+    `-TPM_IRQ` and `-CLKRUN` pads, not only the LPC and `-PLTRST` pads the
+    M900 test named.
   - `#93422` (open): Split FSP lockdown (includes Star Labs PchUnlockGpioPads
     fix commit 06f3c07, updated July 22 2026). Awaiting Intel maintainer review.
 

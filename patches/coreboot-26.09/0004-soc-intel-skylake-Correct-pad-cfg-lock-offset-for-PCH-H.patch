@@ -1,0 +1,114 @@
+From f4bbea4250e8186191b27f58a5003f3bc8a860b3 Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Sat, 19 Sep 2026 13:01:13 -0600
+Subject: [PATCH] soc/intel/skylake: Correct pad_cfg_lock_offset for PCH-H
+
+The PCH-H datasheets [1][2] suggest that the GPIO pad config lock offset
+is at 0xA0 for community 0 and 0x90 for communities 1-3.
+
+Commit e2d3d9758dea ("soc/intel/skylake: Set pad_cfg_lock_offset in
+skl_gpio_communities") set pad_cfg_lock_offset based on this, but this
+seems to be incorrect as it causes gpio_non_smm_lock_pad() to fail to
+lock community 0 pads i.e. pads in GPIO groups A and B. The Linux
+Sunrise Point pinctrl driver and the (now removed) KabylakeSiliconPkg
+from edk2-platforms both seem to use 0x90 for all PCH-H GPIO
+communities, so use that value as it does work and makes more sense.
+This also simplifies the macros as all communities now have the same
+pad_cfg_lock_offset value.
+
+TEST=Lock at least one GPIO in each GPIO group in the Lenovo ThinkCentre
+M900 GPIO config, then verify that the corresponding bits were set to 1
+in the lock registers by running `./inteltool --pcr=0xaf --pcr 0xae
+--pcr 0xad --pcr 0xac` to dump the GPIO config registers for each GPIO
+community
+
+[1] Intel 100 Series PCH Datasheet Volume 2, Document 332996
+[2] Intel 200 Series PCH Datasheet Volume 2, Document 335193
+
+Change-Id: I595ba9a7bd92bbf749d8ad461db33f133f56e6d9
+Signed-off-by: Nicholas Chin <nic.c3.14@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/95661
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Sean Rhodes <sean@starlabs.systems>
+
+Upstream status verified 2026-10-07T00:33:07-04:00: Gerrit 95661,
+patch set 4, MERGED after the pinned coreboot 26.09 revision. The
+change reports M900 GPIO lock-register testing.
+
+Intel document check 2026-10-07T00:39:17-04:00: public 100 Series/C230
+S/H PCH Volume 2 (332691) and 200 Series PCH Volume 2 (335193) list
+community-0 GPP_A/B locks at A0h/A8h, conflicting with this PCH-H
+90h base. The original [1] cites 332996, the U/Y processor I/O volume,
+not the 100 Series S/H PCH volume. Upstream declares the departure from
+those tables in its own commit message and justifies 90h by the Linux
+and edk2 register maps plus the reported M900 test; this backport
+inherits that choice and makes no claim that the tables agree with it.
+This matters only for PCH-H: the diff is gated on
+CONFIG(SKYLAKE_SOC_PCH_H), and on the #else branch it replaces four
+0xa0 macros with a single 0xa0, which is no change at all. The KBL
+ThinkPads (t480/t480s/x280) do not select SKYLAKE_SOC_PCH_H and keep
+0xa0, which is the datasheet value; only the M900 moves to 0x90.
+---
+
+diff --git a/src/soc/intel/skylake/gpio.c b/src/soc/intel/skylake/gpio.c
+index 0009979..d1d773b 100644
+--- a/src/soc/intel/skylake/gpio.c
++++ b/src/soc/intel/skylake/gpio.c
+@@ -57,7 +57,7 @@
+ 		.last_pad = GPP_B23,
+ 		.num_gpi_regs = NUM_GPIO_COM0_GPI_REGS,
+ 		.pad_cfg_base = PAD_CFG_BASE,
+-		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET_COM0,
++		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET,
+ 		.host_own_reg_0 = HOSTSW_OWN_REG_0,
+ 		.gpi_int_sts_reg_0 = GPI_INT_STS_0,
+ 		.gpi_int_en_reg_0 = GPI_INT_EN_0,
+@@ -82,7 +82,7 @@
+ #endif
+ 		.num_gpi_regs = NUM_GPIO_COM1_GPI_REGS,
+ 		.pad_cfg_base = PAD_CFG_BASE,
+-		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET_COM1,
++		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET,
+ 		.host_own_reg_0 = HOSTSW_OWN_REG_0,
+ 		.gpi_int_sts_reg_0 = GPI_INT_STS_0,
+ 		.gpi_int_en_reg_0 = GPI_INT_EN_0,
+@@ -108,7 +108,7 @@
+ #endif
+ 		.num_gpi_regs = NUM_GPIO_COM3_GPI_REGS,
+ 		.pad_cfg_base = PAD_CFG_BASE,
+-		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET_COM3,
++		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET,
+ 		.host_own_reg_0 = HOSTSW_OWN_REG_0,
+ 		.gpi_int_sts_reg_0 = GPI_INT_STS_0,
+ 		.gpi_int_en_reg_0 = GPI_INT_EN_0,
+@@ -129,7 +129,7 @@
+ 		.last_pad = GPD11,
+ 		.num_gpi_regs = NUM_GPIO_COM2_GPI_REGS,
+ 		.pad_cfg_base = PAD_CFG_BASE,
+-		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET_COM2,
++		.pad_cfg_lock_offset = PAD_CFG_LOCK_OFFSET,
+ 		.host_own_reg_0 = HOSTSW_OWN_REG_0,
+ 		.gpi_int_sts_reg_0 = GPI_INT_STS_0,
+ 		.gpi_int_en_reg_0 = GPI_INT_EN_0,
+diff --git a/src/soc/intel/skylake/include/soc/gpio_defs.h b/src/soc/intel/skylake/include/soc/gpio_defs.h
+index f91dd63..8ff4d5b 100644
+--- a/src/soc/intel/skylake/include/soc/gpio_defs.h
++++ b/src/soc/intel/skylake/include/soc/gpio_defs.h
+@@ -211,15 +211,9 @@
+ #define HOSTSW_OWN_REG_0	0xd0
+ 
+ #if CONFIG(SKYLAKE_SOC_PCH_H)
+-#define PAD_CFG_LOCK_OFFSET_COM0 0xa0
+-#define PAD_CFG_LOCK_OFFSET_COM1 0x90
+-#define PAD_CFG_LOCK_OFFSET_COM2 0x90
+-#define PAD_CFG_LOCK_OFFSET_COM3 0x90
++#define PAD_CFG_LOCK_OFFSET	0x90
+ #else
+-#define PAD_CFG_LOCK_OFFSET_COM0 0xa0
+-#define PAD_CFG_LOCK_OFFSET_COM1 0xa0
+-#define PAD_CFG_LOCK_OFFSET_COM2 0xa0
+-#define PAD_CFG_LOCK_OFFSET_COM3 0xa0
++#define PAD_CFG_LOCK_OFFSET	0xa0
+ #endif /* CONFIG(SKYLAKE_SOC_PCH_H) */
+ 
+ #define PAD_CFG_BASE		0x400
