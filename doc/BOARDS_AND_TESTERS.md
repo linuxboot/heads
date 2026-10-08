@@ -105,6 +105,20 @@ for per-platform status and mitigation. Test with:
 tpm-gpio-detect 2>&1 | tee /media/tpm-gpio-detect.log
 tpm-gpio-assert 2>&1 | tee /media/tpm-gpio-assert.log
 ```
+
+On ROMs that lock the PLTRST pad in coreboot (this branch), the expected
+result of `tpm-gpio-assert` is a failed pad write ("pad may be locked")
+with a non-zero exit: the lock is working and the reset edge cannot be
+created. `tpm-gpio-detect` reports the pad as locked. To demonstrate the
+reset flow itself, run the tools on firmware without the pad lock.
+
+The `tpm-gpio-*` tools build on any board with a TPM (1.2 or 2.0); `tpm-gpio-assert` dispatches at runtime on `/dev/tpmrm0` presence:
+
+- **TPM 2.0** (`t480`/`t480s`): `tpm2 startup -c` before and after, `tpm2 pcrread` (sha256) for the PCR dumps, and `tpm2 shutdown -c` immediately before the PLTRST# assertion for a clean session shutdown. The initrd carries the `tpm2` multi-call binary; the TPM1 `bin/tpm` and `libtpm.so` are deliberately not shipped.
+- **TPM 1.2** (`m900`): `tpm startup` and `tpm pcrread -ix 0` for the PCR dumps. There is no shutdown step -- TPM 1.x has no TPM_Shutdown command -- so the `tpm startup` run after the assertion is what clears the PCRs. The initrd carries `bin/tpm` (with `startup`) and `libtpm.so`; no `tpm2-*` binaries.
+
+`tpm startup` is a new tpmtotp subcommand that runs TPM_Startup with ST_CLEAR: it clears the PCRs without dropping ownership.
+
 The TPM Reset clears all PCRs to zero. A subsequent attacker would need
    to replay known PCR measurements to reconstruct the sealed state and
    extract TOTP/HOTP shared secrets -- this PoC proves the reset is possible
@@ -117,6 +131,10 @@ has no passphrase, enabling unseal with forged PCRs.
 
 The fix must come from coreboot. Tracked at [coreboot ticket #576](https://ticket.coreboot.org/issues/576)
 and [coreboot patch series](https://review.coreboot.org/q/topic:%22intel_gpio_lock%22).
+
+The audit and reset tooling now works on both TPM versions, but affected
+boards remain **VULNERABLE**: the reset path has not been verified on
+hardware as part of this work, and no reseal behavior was changed.
 
 ## Thunderbolt
 

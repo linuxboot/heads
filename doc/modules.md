@@ -40,7 +40,7 @@ Not all tools are BusyBox applets — many are standalone binaries compiled as s
 | `CONFIG_UTIL_LINUX` | util-linux | Standalone |
 | `CONFIG_OPENSSL` | openssl | Standalone |
 | `CONFIG_TPM2_TOOLS` | tpm2-tools | Standalone |
-| `CONFIG_TPM2_TOOLS` | tpm-gpio-reset | Standalone |
+| `TPM_ANY` (derived) | tpm-gpio-reset | Standalone |
 | `CONFIG_BASH` | bash | Standalone |
 | `CONFIG_POWERPC_UTILS` | powerpc-utils | Standalone |
 | `CONFIG_IO386` | io386 | Standalone |
@@ -167,6 +167,13 @@ The TPM1 `tpm` mega-binary and its library (`util/tpm` → `bin/tpm`,
 `CONFIG_TPM2_TOOLS` is not `y` (TPM1.2 boards); TPM2 boards enable
 `CONFIG_TPM2_TOOLS`, which pulls in the `tpm2-tools` module instead, and
 `tpmr.sh` dispatches TPM1 vs TPM2 subcommands on that flag.
+
+The `tpm-gpio-reset` module (`modules/tpm-gpio-reset`) builds `tpm-gpio-detect` / `tpm-gpio-assert` for any board with a TPM: `TPM_ANY` is `y` when `CONFIG_TPM=y` (TPM1.2) or `CONFIG_TPM2_TOOLS=y` (TPM2.0), and the module depends on `pciutils` for libpci only, since it shells out to the board's TPM stack at runtime.  `tpm-gpio-assert` dispatches on `/dev/tpmrm0` presence:
+
+- **TPM2.0**: `tpm2 startup -c` before and after, `tpm2 pcrread` (sha256) for the PCR dumps, and `tpm2 shutdown -c` immediately before the PLTRST# assertion for a clean session shutdown.
+- **TPM1.2**: `tpm startup` and `tpm pcrread -ix 0`; there is no shutdown step, because TPM 1.x has no TPM_Shutdown command, so the `tpm startup` run after the assertion is what clears the PCRs.
+
+`tpm startup` is a new tpmtotp subcommand (`util/startup.c`); it runs TPM_Startup with `TPM_ST_CLEAR`, clearing the PCRs without dropping ownership.
 
 ### Board-enabled modules
 
