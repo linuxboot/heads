@@ -1,0 +1,110 @@
+diff --git a/util/Makefile b/util/Makefile
+index f1e6b22..226d55d 100644
+--- a/util/Makefile
++++ b/util/Makefile
+@@ -32,6 +32,7 @@ PROGS += \
+ 	activateidentity \
+ 	identity \
+ 	calcfuturepcr \
++	startup \
+ 
+ NOPROGS += \
+ 	certifykey \
+diff --git a/util/startup.c b/util/startup.c
+new file mode 100644
+index 0000000..2549121
+--- /dev/null
++++ b/util/startup.c
+@@ -0,0 +1,91 @@
++/********************************************************************************/
++/*										*/
++/*			     TPM_Startup(ST_CLEAR) recovery 				*/
++/*										*/
++/* (c) Copyright IBM Corporation 2006, 2010.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "tpm.h"
++#include "tpmutil.h"
++#include "tpmfunc.h"
++#include "tpm_constants.h"
++
++static void printUsage(void);
++
++int startup_main(int argc, char *argv[])
++{
++	int i;
++
++	TPM_setlog(0);
++
++	for (i=1 ; i<argc ; i++) {
++	    if (!strcmp(argv[i], "-h")) {
++		printUsage();
++		return 0;
++	    }
++	    else if (!strcmp(argv[i], "-v")) {
++		TPM_setlog(1);
++	    }
++	    else {
++		printf("\n%s is not a valid option\n", argv[i]);
++		printUsage();
++		return -1;
++	    }
++	}
++
++	uint32_t ret = TPM_Startup(TPM_ST_CLEAR);
++	if (0 != ret) {
++	    printf("Error %s from TPM_Startup\n",
++		   TPM_GetErrMsg(ret));
++	    return ret;
++	}
++	printf("TPM_Startup(ST_CLEAR) ok\n");
++	return 0;
++}
++
++static void printUsage(void)
++{
++    printf("\n");
++    printf("startup\n");
++    printf("\n");
++    printf("Runs TPM_Startup(ST_CLEAR) - restart the TPM after a platform\n");
++    printf("reset signal without touching ownership.  PCRs are cleared.\n");
++    printf("\n");
++    return;
++}
++
++#include "tpm_command.h"
++tpm_command_register("startup", startup_main, printUsage)
+\ No newline at end of file
