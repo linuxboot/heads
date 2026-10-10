@@ -460,13 +460,13 @@ workflows:
 
       # 4.11 fork
       # Downstream boards: (none — standalone)
-      - x86_coreboot:
-          name: EOL_librem_l1um [seed:coreboot-4.11]
-          target: EOL_librem_l1um
-          subcommand: ""
-          coreboot_dir: coreboot-4.11
-          requires:
-            - x86-musl-cross-make [cross compiler]
+      #- x86_coreboot:
+      #    name: EOL_librem_l1um [seed:coreboot-4.11]
+      #    target: EOL_librem_l1um
+      #    subcommand: ""
+      #    coreboot_dir: coreboot-4.11
+      #    requires:
+      #      - x86-musl-cross-make [cross compiler]
 
       # 26.09 fork — builds coreboot-26.09 toolchain (the single x86 upstream seed)
       # Downstream boards: 33 board builds (32 below + EOL_x280-maximized above)
