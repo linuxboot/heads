@@ -262,9 +262,10 @@ jobs:
   # x86_coreboot: builds a coreboot fork and saves cache.
   #   See doc/circleci.md for full documentation.
   # Workspace chain: create_hashes -> x86_blobs -> x86_musl_cross_make -> x86_coreboot
-  # Seeds (6 x86; 1 ppc64): coreboot-4.11, coreboot-24.02.01, coreboot-24.12,
-  #   coreboot-25.09, coreboot-25.12, coreboot-mrchromebox-26.03;
-  #   ppc64 uses coreboot-talos-2. Dasharo v56/msi_z690/msi_z790 are build jobs.
+  # Seeds (5 x86; 1 ppc64), by build dir: coreboot-4.11, coreboot-26.09,
+  #   coreboot-purism (upstream 24.02.01), coreboot-dasharo_nv4x (upstream 24.12),
+  #   coreboot-mrchromebox-26.03; ppc64 uses coreboot-talos_2.
+  #   Dasharo v56/msi_z690/msi_z790 are build jobs.
   x86_coreboot:
     executor: heads-docker
     parameters:
@@ -274,7 +275,7 @@ jobs:
         type: string
       coreboot_dir:
         type: string
-        description: "The build/x86/coreboot-* directory built by this fork (e.g. coreboot-24.02.01)"
+        description: "The build/x86/coreboot-* directory built by this fork (e.g. coreboot-purism)"
     steps:
       - checkout
       - attach_workspace:
@@ -459,30 +460,21 @@ workflows:
 
       # 4.11 fork
       # Downstream boards: (none — standalone)
-      - x86_coreboot:
-          name: EOL_librem_l1um [seed:coreboot-4.11]
-          target: EOL_librem_l1um
-          subcommand: ""
-          coreboot_dir: coreboot-4.11
-          requires:
-            - x86-musl-cross-make [cross compiler]
+      #- x86_coreboot:
+      #    name: EOL_librem_l1um [seed:coreboot-4.11]
+      #    target: EOL_librem_l1um
+      #    subcommand: ""
+      #    coreboot_dir: coreboot-4.11
+      #    requires:
+      #      - x86-musl-cross-make [cross compiler]
 
-      # 25.09 fork — builds coreboot-25.09 toolchain
-      # Downstream boards: 30 board builds below
+      # 26.09 fork — builds coreboot-26.09 toolchain (the single x86 upstream seed)
+      # Downstream boards: 33 board builds (32 below + EOL_x280-maximized above)
       - x86_coreboot:
-          name: EOL_t480-hotp-maximized [seed:coreboot-25.09]
+          name: EOL_t480-hotp-maximized [seed:coreboot-26.09]
           target: EOL_t480-hotp-maximized
           subcommand: ""
-          coreboot_dir: coreboot-25.09
-          requires:
-            - x86-musl-cross-make [cross compiler]
-
-      # 25.12 fork — builds coreboot-25.12 toolchain
-      - x86_coreboot:
-          name: EOL_x280-hotp-maximized [seed:coreboot-25.12]
-          target: EOL_x280-hotp-maximized
-          subcommand: ""
-          coreboot_dir: coreboot-25.12
+          coreboot_dir: coreboot-26.09
           requires:
             - x86-musl-cross-make [cross compiler]
 
@@ -537,14 +529,14 @@ workflows:
           requires:
             - x86-musl-cross-make [cross compiler]
 
-      # ── coreboot 25.12 boards X280-hotp-maximized acts as seed ───────────────────────────────
+      # ── coreboot 26.09 boards depending on the single upstream seed ──────────────────────────
 
       - build:
           name: EOL_x280-maximized
           target: EOL_x280-maximized
           subcommand: ""
           requires:
-            - EOL_x280-hotp-maximized [seed:coreboot-25.12]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       # mrchromebox fork (coreboot 26.03 based) -- builds coreboot-mrchromebox-26.03 toolchain
       # Downstream boards: kano, kano-hotp
@@ -564,216 +556,230 @@ workflows:
           requires:
             - kano [seed:coreboot-mrchromebox-26.03]
 
-      # ── coreboot 25.09 boards (alphabetical) ───────────────────────────────
+      # ── coreboot 26.09 boards (alphabetical) ───────────────────────────────
       - build:
           name: EOL_m900_tower-hotp-maximized
           target: EOL_m900_tower-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_m900_tower-maximized
           target: EOL_m900_tower-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_optiplex-7010_9010-hotp-maximized
           target: EOL_optiplex-7010_9010-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_optiplex-7010_9010-maximized
           target: EOL_optiplex-7010_9010-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_optiplex-7010_9010_TXT-hotp-maximized
           target: EOL_optiplex-7010_9010_TXT-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_optiplex-7010_9010_TXT-maximized
           target: EOL_optiplex-7010_9010_TXT-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t420-hotp-maximized
           target: EOL_t420-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t420-maximized
           target: EOL_t420-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t430-hotp-maximized
           target: EOL_t430-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t430-maximized
           target: EOL_t430-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t440p-hotp-maximized
           target: EOL_t440p-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t440p-maximized
           target: EOL_t440p-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t480-maximized
           target: EOL_t480-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t480s-hotp-maximized
           target: EOL_t480s-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_t480s-maximized
           target: EOL_t480s-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_UNTESTED_t530-hotp-maximized
           target: EOL_UNTESTED_t530-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_UNTESTED_t530-maximized
           target: EOL_UNTESTED_t530-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_w530-hotp-maximized
           target: EOL_w530-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_w530-maximized
           target: EOL_w530-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_w541-hotp-maximized
           target: EOL_w541-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_w541-maximized
           target: EOL_w541-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x220-hotp-maximized
           target: EOL_x220-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x220-maximized
           target: EOL_x220-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x230-hotp-maximized
           target: EOL_x230-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x230-hotp-maximized-fhd_edp
           target: EOL_x230-hotp-maximized-fhd_edp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
+
+      - build:
+          name: EOL_x230-hotp-maximized_usb-kb
+          target: EOL_x230-hotp-maximized_usb-kb
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x230-maximized
           target: EOL_x230-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_x230-maximized-fhd_edp
           target: EOL_x230-maximized-fhd_edp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
+
+      - build:
+          name: EOL_x280-hotp-maximized
+          target: EOL_x280-hotp-maximized
+          subcommand: ""
+          requires:
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_z220-cmt-hotp-maximized
           target: EOL_z220-cmt-hotp-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: EOL_z220-cmt-maximized
           target: EOL_z220-cmt-maximized
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       - build:
           name: qemu-coreboot-fbwhiptail-tpm2-hotp
           target: qemu-coreboot-fbwhiptail-tpm2-hotp
           subcommand: ""
           requires:
-            - EOL_t480-hotp-maximized [seed:coreboot-25.09]
+            - EOL_t480-hotp-maximized [seed:coreboot-26.09]
 
       # ── purism boards (alphabetical) ──────────────────────────────────────
       - build:

@@ -1,0 +1,71 @@
+Subject: [PATCH] mb/lenovo/m900: Lock LPC, CLKRUN and PLTRST pads in ramstage
+
+The pad list (GPP_A1-A6, GPP_A8, GPP_A9, GPP_B13) comes from the M900
+TEST= description in merged Gerrit 90885, patch set 8. The original
+pull, reset, and native-function settings are from the pinned 26.09
+src/mainboard/lenovo/m900/gpio.h:15-20,22-23,53 -- the locked lines only.
+Gerrit 90885 changes only Skylake Kconfig; it does not contain an M900
+board-table patch.
+
+Note that the list covers more than the LPC address/data and PLTRST pads:
+GPP_A8 and GPP_A9 are also in it. They are the pads the ThinkPad variant
+tables name -CLKRUN and LPCCLK_EC_24M, and kukri's skl_kbl.c names the
+same two CLKRUN and CLKOUT_LPC0; upstream's 90885 TEST= line groups all
+nine as "LPC pins and PLTRST#".
+
+GPP_A7 is deliberately left unlocked, because the 90885 M900 test does
+not name it. On the SKL/KBL ThinkPads GPP_A7 is -TPM_IRQ, so the M900
+list is a strict subset of what upstream 93324 locks for those boards,
+and the pad most like -TPM_IRQ is the one this leaves open.
+
+This is a separate downstream adaptation of that reported test, not
+upstream-authored board code. PAD_CFG_NF_LOCK also changes the reset
+domain to PWROK
+(src/soc/intel/common/block/include/intelblocks/gpio_defs.h:224-229),
+which requires board-level validation.
+
+Intel's GPIO Configuration Best Practices, document 834810 (listed in
+doc/TPM_GPIO_Reset_Approaches.md, Appendix C), recommends locking
+security-sensitive pad configurations before third-party code runs.
+It does not identify this board's pads or the Skylake PCH-H offsets;
+those come from the upstream M900 test and Gerrit 95661 respectively.
+
+Based-on: https://review.coreboot.org/c/coreboot/+/90885
+Origin verified 2026-10-07T00:33:08-04:00: upstream MERGED, local board
+adaptation not submitted upstream.
+---
+
+diff --git a/src/mainboard/lenovo/m900/gpio.h b/src/mainboard/lenovo/m900/gpio.h
+--- a/src/mainboard/lenovo/m900/gpio.h
++++ b/src/mainboard/lenovo/m900/gpio.h
+@@ -13,13 +13,13 @@ static const struct pad_config gpio_table[] = {
+ 	/* ------- GPIO Group GPP_A ------- */
+ 	PAD_CFG_NF(GPP_A0, NONE, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A1, UP_20K, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A2, UP_20K, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A3, UP_20K, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A4, UP_20K, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A5, NONE, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A6, NONE, PLTRST, NF1),
++	PAD_CFG_NF_LOCK(GPP_A1, UP_20K, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A2, UP_20K, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A3, UP_20K, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A4, UP_20K, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A5, NONE, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A6, NONE, NF1, LOCK_FULL),
+ 	PAD_CFG_NF(GPP_A7, NONE, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A8, NONE, PLTRST, NF1),
+-	PAD_CFG_NF(GPP_A9, DN_20K, PLTRST, NF1),
++	PAD_CFG_NF_LOCK(GPP_A8, NONE, NF1, LOCK_FULL),
++	PAD_CFG_NF_LOCK(GPP_A9, DN_20K, NF1, LOCK_FULL),
+ 	PAD_CFG_NF(GPP_A10, DN_20K, PLTRST, NF1),
+ 	PAD_CFG_NF(GPP_A11, NONE, PLTRST, NF1),
+@@ -50,7 +50,7 @@ static const struct pad_config gpio_table[] = {
+ 	PAD_CFG_NF(GPP_B10, NONE, PLTRST, NF1),
+ 	PAD_CFG_GPO(GPP_B11, 0, PLTRST),
+ 	PAD_CFG_NF(GPP_B12, NONE, DEEP, NF1),
+-	PAD_CFG_NF(GPP_B13, NONE, DEEP, NF1),
++	PAD_CFG_NF_LOCK(GPP_B13, NONE, NF1, LOCK_FULL),
+ 	PAD_CFG_NF(GPP_B14, DN_20K, PLTRST, NF1),
+ 	PAD_CFG_GPO(GPP_B15, 0, PLTRST),
+ 	PAD_CFG_GPO(GPP_B16, 0, PLTRST),

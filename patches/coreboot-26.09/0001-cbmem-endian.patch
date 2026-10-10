@@ -1,0 +1,11 @@
+diff --git a/util/cbmem/cbmem.c b/util/cbmem/cbmem.c
+--- a/util/cbmem/cbmem.c
++++ b/util/cbmem/cbmem.c
+@@ -3,6 +3,7 @@
+ #include <inttypes.h>
+ #include <stdbool.h>
+ #include <stdio.h>
++#include <endian.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <strings.h>
