@@ -547,7 +547,25 @@ workflows:
             - EOL_x280-hotp-maximized [seed:coreboot-25.12]
 
       # mrchromebox fork (coreboot 26.03 based) -- builds coreboot-mrchromebox-26.03 toolchain
-      # Downstream boards: kano, kano-hotp
+      # Downstream boards:
+      # - kano, kano-hotp
+      # - fizz, fizz-hotp
+      - x86_coreboot:
+          name: fizz [seed:coreboot-mrchromebox-26.03]
+          target: fizz
+          subcommand: ""
+          coreboot_dir: coreboot-mrchromebox-26.03
+          requires:
+            - x86-musl-cross-make [cross compiler]
+
+      # fizz-hotp (seeded by fizz)
+      - build:
+          name: fizz-hotp
+          target: fizz-hotp
+          subcommand: ""
+          requires:
+            - fizz [seed:coreboot-mrchromebox-26.03]
+
       - x86_coreboot:
           name: kano [seed:coreboot-mrchromebox-26.03]
           target: kano
