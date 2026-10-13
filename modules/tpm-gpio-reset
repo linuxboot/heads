@@ -10,11 +10,17 @@
 #
 # Pad-register tooling that shells out to whichever TPM stack the board has:
 # bin/tpm2 on CONFIG_TPM2_TOOLS boards, bin/tpm (tpmtotp) on TPM1.2 boards.
-# Both are pure pad-register reads/writes, so any-TPM gating applies.  Keep
-# the Makefile bin_modules-$(TPM_ANY) line in sync with this gate.
+# Both are pure pad-register reads/writes, so any-TPM gating applies.
+# x86 only: the tools are Intel/x86-specific (iopl(3),
+# PCI_ACCESS_I386_TYPE1), so TPM_ANY stays empty on other architectures --
+# the ppc64 talos-2 sets CONFIG_TPM=y but must not select this module.
+# Keep the Makefile bin_modules-$(TPM_ANY) line in sync with this gate.
+TPM_ANY :=
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
 TPM_ANY := $(CONFIG_TPM)
 ifeq "$(CONFIG_TPM2_TOOLS)" "y"
 TPM_ANY := y
+endif
 endif
 modules-$(TPM_ANY) += tpm-gpio-reset
 
