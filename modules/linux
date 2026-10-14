@@ -276,6 +276,7 @@ linux.modify_and_save_oldconfig_in_place:
 
 #Add some tooling to permit us to keep track of what we currently use.
 # save_in_defconfig_format_in_place: regenerate a defconfig from current board linux config and overwrites it
+# save_in_defconfig_format_backup: same as above but doesn't overwrite: writes the defconfig to <config>_defconfig next to it
 # save_in_versioned_defconfig_format: same as avove but doesn't overwrite: writes it in seperate versioned file
 # same for oldconfig
 linux.save_in_defconfig_format_in_place:
@@ -287,6 +288,16 @@ linux.save_in_defconfig_format_in_place:
 		CROSS_COMPILE="$(CROSS)" \
 		savedefconfig \
 	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+
+linux.save_in_defconfig_format_backup:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		savedefconfig \
+	&& cp "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig"
 
 linux.save_in_versioned_defconfig_format:
 	mkdir -p "$(build)/$(linux_dir)" \
