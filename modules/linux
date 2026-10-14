@@ -321,6 +321,18 @@ linux.save_in_olddefconfig_format_in_place:
 		olddefconfig \
 	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
 
+# non-interactive: olddefconfig (accepts defaults for new options), not the
+# interactive oldconfig used by save_in_versioned_oldconfig
+linux.save_in_oldconfig_format_backup:
+	mkdir -p "$(build)/$(linux_dir)" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
+		O="$(build)/$(linux_dir)" \
+		ARCH="$(LINUX_ARCH)" \
+		CROSS_COMPILE="$(CROSS)" \
+		olddefconfig \
+	&& cp "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig"
+
 linux.save_in_versioned_oldconfig:
 	mkdir -p "$(build)/$(linux_dir)" \
 	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
