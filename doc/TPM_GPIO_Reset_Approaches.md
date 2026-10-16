@@ -43,11 +43,14 @@ register map:
   per-pad register layout (2 vs 4 DWORDS per pad) for each generation.
 
 Note: Intel doc 834810 does not cover pre-Tiger Lake platforms. The SPT/KBP
-(Skylake/Kaby Lake) community-0 PADCFGLOCK offsets therefore rest on kukri's
-platform table rather than on a public Intel register map. That table puts
-GPP_A1-A9 at `0xa0` and GPP_B13 at `0xb0`
-(`build/x86/tpm-gpio-fail-*/detect/platforms/skl_kbl.c`), identically in its
-`platform_skl_kbl_s_h` and `platform_skl_kbl_lp` entries.
+(Skylake/Kaby Lake) community-0 PADCFGLOCK offsets therefore come from the
+Linux Sunrise Point pinctrl driver (`SPT_H_PADCFGLOCK 0x090`,
+`SPT_LP_PADCFGLOCK 0x0a0`) and merged coreboot 95661, not from an Intel
+register map. The detector table
+(`build/x86/tpm-gpio-fail-*/detect/platforms/skl_kbl.c`) follows that:
+`platform_skl_kbl_s_h` (PCH-H) has GPP_A1-A9 at `0x90` and GPP_B13 at
+`0x98`; `platform_skl_kbl_lp` has GPP_A1-A9 at `0xa0` and GPP_B13 at
+`0xa8`.
 
 **PCH-H lock offset: the public tables and merged coreboot disagree.** Checked
 2026-10-07: Intel 100 Series/C230 S/H PCH Volume 2 (332691) and 200 Series
