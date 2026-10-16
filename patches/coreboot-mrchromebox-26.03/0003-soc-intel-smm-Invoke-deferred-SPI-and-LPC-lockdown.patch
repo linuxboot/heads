@@ -1,0 +1,44 @@
+From: Chris Wiggins <chris@cwiggs.com>
+Subject: [PATCH] soc/intel/smm: Invoke deferred SPI and LPC lockdown
+
+The MrChromebox adaptation of the deferred SPI lockdown patch links the
+SPI and LPC lockdown helpers into SMM, but omits the calls from the
+APM_CNT_FINALIZE handler. As a result, the linker discards both helpers
+and the finalize SMI leaves the SPI controller unlocked.
+
+Invoke both helpers before reinitializing the SPI driver, matching the
+original coreboot patch.
+
+Signed-off-by: Chris Wiggins <chris@cwiggs.com>
+---
+ src/soc/intel/common/block/smm/smihandler.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -15,6 +15,7 @@
+ #include <device/pci_def.h>
+ #include <device/pci_ops.h>
+ #include <elog.h>
++#include <intelblocks/cfg.h>
+ #include <intelblocks/fast_spi.h>
+ #include <intelblocks/oc_wdt.h>
+ #include <intelblocks/pmclib.h>
+@@ -321,6 +321,14 @@ static void finalize(void)
+ 	}
+ 	finalize_done = 1;
+ 
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM)) {
++		/* SPI lock down configuration */
++		fast_spi_lockdown_bios(CHIPSET_LOCKDOWN_COREBOOT);
++
++		/* LPC/eSPI lock down configuration */
++		lpc_lockdown_config(CHIPSET_LOCKDOWN_COREBOOT);
++	}
++
+ 	if (CONFIG(SPI_FLASH_SMM))
+ 		/* Re-init SPI driver to handle locked BAR */
+ 		fast_spi_init();
+-- 
+2.39.5
