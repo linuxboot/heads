@@ -1,0 +1,363 @@
+From 8bbcfc24d8edc3deea39c8c9af637042eab4d6e8 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@gmail.com>
+Date: Wed, 2 Sep 2026 15:07:08 -0500
+Subject: [PATCH] soc/intel/lockdown: Extract SPI and LPC lockdown helpers
+
+Move FAST_SPI and LPC BIOS lockdown into dedicated compilation units so
+they can be reused from SMM without pulling unrelated code. Also split
+the LPC BIOS-control helpers out of lpc_lib.c into lpc_lock.c.
+
+No functional change.
+
+Carried downstream to coreboot 26.09 by Heads; this refactor is not
+present in any coreboot release.  Taken verbatim from upstream Gerrit
+change 95221 (https://review.coreboot.org/c/coreboot/+/95221), patchset 1,
+commit 2502024d702187124ba301e2b5e63b35629bb36a.
+
+Change-Id: I7a2e9c4b1f8d6a0e5c3b9d2f7a1e4c8b0d6f3a5e
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+---
+ src/soc/intel/common/block/lpc/Makefile.mk    |  1 +
+ src/soc/intel/common/block/lpc/lpc_lib.c      | 69 ----------------
+ src/soc/intel/common/block/lpc/lpc_lock.c     | 79 +++++++++++++++++++
+ .../common/pch/include/intelpch/lockdown.h    |  3 +
+ src/soc/intel/common/pch/lockdown/Makefile.mk |  2 +
+ src/soc/intel/common/pch/lockdown/lockdown.c  | 41 +---------
+ .../intel/common/pch/lockdown/lockdown_lpc.c  | 24 ++++++
+ .../intel/common/pch/lockdown/lockdown_spi.c  | 27 +++++++
+ 8 files changed, 138 insertions(+), 108 deletions(-)
+ create mode 100644 src/soc/intel/common/block/lpc/lpc_lock.c
+ create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+ create mode 100644 src/soc/intel/common/pch/lockdown/lockdown_spi.c
+
+diff --git a/src/soc/intel/common/block/lpc/Makefile.mk b/src/soc/intel/common/block/lpc/Makefile.mk
+index b510cd0e..99125219 100644
+--- a/src/soc/intel/common/block/lpc/Makefile.mk
++++ b/src/soc/intel/common/block/lpc/Makefile.mk
+@@ -4,4 +4,5 @@ bootblock-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ romstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
+ 
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lib.c
++ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc_lock.c
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_BLOCK_LPC) += lpc.c
+diff --git a/src/soc/intel/common/block/lpc/lpc_lib.c b/src/soc/intel/common/block/lpc/lpc_lib.c
+index 41a7887f..301a7892 100644
+--- a/src/soc/intel/common/block/lpc/lpc_lib.c
++++ b/src/soc/intel/common/block/lpc/lpc_lib.c
+@@ -3,7 +3,6 @@
+ #define __SIMPLE_DEVICE__
+ 
+ #include <arch/ioapic.h>
+-#include <assert.h>
+ #include <console/console.h>
+ #include <device/pci.h>
+ #include <device/pci_ops.h>
+@@ -248,74 +247,6 @@ void lpc_open_mmio_window(uintptr_t base, size_t size)
+ 	}
+ }
+ 
+-/*
+- * Set LPC BIOS Control register based on input bit field.
+- */
+-static void lpc_set_bios_control_reg(uint8_t bios_cntl_bit)
+-{
+-	pci_devfn_t dev = PCH_DEV_LPC;
+-	uint8_t bc_cntl;
+-
+-	assert(IS_POWER_OF_2(bios_cntl_bit));
+-	bc_cntl = pci_read_config8(dev, LPC_BIOS_CNTL);
+-	bc_cntl |= bios_cntl_bit;
+-	pci_write_config8(dev, LPC_BIOS_CNTL, bc_cntl);
+-
+-	/*
+-	* Ensure an additional read back after performing lock down
+-	*/
+-	pci_read_config8(PCH_DEV_LPC, LPC_BIOS_CNTL);
+-}
+-
+-/*
+-* Set LPC BIOS Control BILD bit.
+-*/
+-void lpc_set_bios_interface_lock_down(void)
+-{
+-	lpc_set_bios_control_reg(LPC_BC_BILD);
+-}
+-
+-/*
+-* Set LPC BIOS Control LE bit.
+-*/
+-void lpc_set_lock_enable(void)
+-{
+-	lpc_set_bios_control_reg(LPC_BC_LE);
+-}
+-
+-/*
+-* Set LPC BIOS Control EISS bit.
+-*/
+-void lpc_set_eiss(void)
+-{
+-	lpc_set_bios_control_reg(LPC_BC_EISS);
+-}
+-
+-static void lpc_configure_write_protect(bool status)
+-{
+-	const pci_devfn_t dev = PCH_DEV_LPC;
+-	uint8_t bios_cntl;
+-
+-	bios_cntl = pci_read_config8(dev, LPC_BIOS_CNTL);
+-	if (status)
+-		bios_cntl &= ~LPC_BC_WPD;
+-	else
+-		bios_cntl |= LPC_BC_WPD;
+-	pci_write_config8(dev, LPC_BIOS_CNTL, bios_cntl);
+-}
+-
+-/* Enable LPC Write Protect. */
+-void lpc_enable_wp(void)
+-{
+-	lpc_configure_write_protect(true);
+-}
+-
+-/* Disable LPC Write Protect. */
+-void lpc_disable_wp(void)
+-{
+-	lpc_configure_write_protect(false);
+-}
+-
+ void lpc_set_bde(void)
+ {
+ 	const pci_devfn_t dev = PCH_DEV_LPC;
+diff --git a/src/soc/intel/common/block/lpc/lpc_lock.c b/src/soc/intel/common/block/lpc/lpc_lock.c
+new file mode 100644
+index 00000000..2224ef2e
+--- /dev/null
++++ b/src/soc/intel/common/block/lpc/lpc_lock.c
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++#define __SIMPLE_DEVICE__
++
++#include <assert.h>
++#include <device/pci.h>
++#include <device/pci_ops.h>
++#include <intelblocks/lpc_lib.h>
++#include <soc/pci_devs.h>
++#include <types.h>
++#include "lpc_def.h"
++
++/*
++ * Set LPC BIOS Control register based on input bit field.
++ */
++static void lpc_set_bios_control_reg(uint8_t bios_cntl_bit)
++{
++	pci_devfn_t dev = PCH_DEV_LPC;
++	uint8_t bc_cntl;
++
++	assert(IS_POWER_OF_2(bios_cntl_bit));
++	bc_cntl = pci_read_config8(dev, LPC_BIOS_CNTL);
++	bc_cntl |= bios_cntl_bit;
++	pci_write_config8(dev, LPC_BIOS_CNTL, bc_cntl);
++
++	/*
++	* Ensure an additional read back after performing lock down
++	*/
++	pci_read_config8(PCH_DEV_LPC, LPC_BIOS_CNTL);
++}
++
++/*
++* Set LPC BIOS Control BILD bit.
++*/
++void lpc_set_bios_interface_lock_down(void)
++{
++	lpc_set_bios_control_reg(LPC_BC_BILD);
++}
++
++/*
++* Set LPC BIOS Control LE bit.
++*/
++void lpc_set_lock_enable(void)
++{
++	lpc_set_bios_control_reg(LPC_BC_LE);
++}
++
++/*
++* Set LPC BIOS Control EISS bit.
++*/
++void lpc_set_eiss(void)
++{
++	lpc_set_bios_control_reg(LPC_BC_EISS);
++}
++
++static void lpc_configure_write_protect(bool status)
++{
++	const pci_devfn_t dev = PCH_DEV_LPC;
++	uint8_t bios_cntl;
++
++	bios_cntl = pci_read_config8(dev, LPC_BIOS_CNTL);
++	if (status)
++		bios_cntl &= ~LPC_BC_WPD;
++	else
++		bios_cntl |= LPC_BC_WPD;
++	pci_write_config8(dev, LPC_BIOS_CNTL, bios_cntl);
++}
++
++/* Enable LPC Write Protect. */
++void lpc_enable_wp(void)
++{
++	lpc_configure_write_protect(true);
++}
++
++/* Disable LPC Write Protect. */
++void lpc_disable_wp(void)
++{
++	lpc_configure_write_protect(false);
++}
+diff --git a/src/soc/intel/common/pch/include/intelpch/lockdown.h b/src/soc/intel/common/pch/include/intelpch/lockdown.h
+index b5aba06f..1b96f41a 100644
+--- a/src/soc/intel/common/pch/include/intelpch/lockdown.h
++++ b/src/soc/intel/common/pch/include/intelpch/lockdown.h
+@@ -22,4 +22,7 @@ int get_lockdown_config(void);
+  */
+ void soc_lockdown_config(int chipset_lockdown);
+ 
++void fast_spi_lockdown_bios(int chipset_lockdown);
++void lpc_lockdown_config(int chipset_lockdown);
++
+ #endif /* SOC_INTEL_COMMON_PCH_LOCKDOWN_H */
+diff --git a/src/soc/intel/common/pch/lockdown/Makefile.mk b/src/soc/intel/common/pch/lockdown/Makefile.mk
+index 71466f8e..a4cf7041 100644
+--- a/src/soc/intel/common/pch/lockdown/Makefile.mk
++++ b/src/soc/intel/common/pch/lockdown/Makefile.mk
+@@ -1,2 +1,4 @@
+ ## SPDX-License-Identifier: GPL-2.0-only
+ ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown.c
++ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_lpc.c
++ramstage-$(CONFIG_SOC_INTEL_COMMON_PCH_LOCKDOWN) += lockdown_spi.c
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown.c b/src/soc/intel/common/pch/lockdown/lockdown.c
+index ff7ca959..a9ead2a1 100644
+--- a/src/soc/intel/common/pch/lockdown/lockdown.c
++++ b/src/soc/intel/common/pch/lockdown/lockdown.c
+@@ -3,13 +3,10 @@
+ #include <bootstate.h>
+ #include <intelblocks/cfg.h>
+ #include <intelblocks/fast_spi.h>
+-#include <intelblocks/lpc_lib.h>
++#include <intelblocks/gpmr.h>
+ #include <intelblocks/pcr.h>
+ #include <intelblocks/systemagent.h>
+ #include <intelpch/lockdown.h>
+-#include <intelblocks/gpmr.h>
+-#include <option.h>
+-#include <security/lockdown/lockdown.h>
+ #include <soc/pci_devs.h>
+ #include <soc/pcr_ids.h>
+ #include <soc/soc_chip.h>
+@@ -77,41 +74,7 @@ static void fast_spi_lockdown_cfg(int chipset_lockdown)
+ 	/* Set Vendor Component Lock (VCL) */
+ 	fast_spi_vscc0_lock();
+ 
+-	/* Set BIOS Interface Lock, BIOS Lock */
+-	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
+-		/* BIOS Interface Lock */
+-		fast_spi_set_bios_interface_lock_down();
+-
+-		/* Only allow writes in SMM */
+-		if (enable_smm_bios_protection()) {
+-			fast_spi_set_eiss();
+-			fast_spi_enable_wp();
+-		}
+-
+-		/* BIOS Lock */
+-		fast_spi_set_lock_enable();
+-
+-		/* EXT BIOS Lock */
+-		fast_spi_set_ext_bios_lock_enable();
+-	}
+-}
+-
+-static void lpc_lockdown_config(int chipset_lockdown)
+-{
+-	/* Set BIOS Interface Lock, BIOS Lock */
+-	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
+-		/* BIOS Interface Lock */
+-		lpc_set_bios_interface_lock_down();
+-
+-		/* Only allow writes in SMM */
+-		if (enable_smm_bios_protection()) {
+-			lpc_set_eiss();
+-			lpc_enable_wp();
+-		}
+-
+-		/* BIOS Lock */
+-		lpc_set_lock_enable();
+-	}
++	fast_spi_lockdown_bios(chipset_lockdown);
+ }
+ 
+ static void sa_lockdown_config(int chipset_lockdown)
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown_lpc.c b/src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+new file mode 100644
+index 00000000..b57cb076
+--- /dev/null
++++ b/src/soc/intel/common/pch/lockdown/lockdown_lpc.c
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <intelblocks/cfg.h>
++#include <intelblocks/lpc_lib.h>
++#include <intelpch/lockdown.h>
++#include <security/lockdown/lockdown.h>
++
++void lpc_lockdown_config(int chipset_lockdown)
++{
++	/* Set BIOS Interface Lock, BIOS Lock */
++	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
++		/* BIOS Interface Lock */
++		lpc_set_bios_interface_lock_down();
++
++		/* Only allow writes in SMM */
++		if (enable_smm_bios_protection()) {
++			lpc_set_eiss();
++			lpc_enable_wp();
++		}
++
++		/* BIOS Lock */
++		lpc_set_lock_enable();
++	}
++}
+diff --git a/src/soc/intel/common/pch/lockdown/lockdown_spi.c b/src/soc/intel/common/pch/lockdown/lockdown_spi.c
+new file mode 100644
+index 00000000..c8a72008
+--- /dev/null
++++ b/src/soc/intel/common/pch/lockdown/lockdown_spi.c
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <intelblocks/cfg.h>
++#include <intelblocks/fast_spi.h>
++#include <intelpch/lockdown.h>
++#include <security/lockdown/lockdown.h>
++
++void fast_spi_lockdown_bios(int chipset_lockdown)
++{
++	/* Set BIOS Interface Lock, BIOS Lock */
++	if (chipset_lockdown == CHIPSET_LOCKDOWN_COREBOOT) {
++		/* BIOS Interface Lock */
++		fast_spi_set_bios_interface_lock_down();
++
++		/* Only allow writes in SMM */
++		if (enable_smm_bios_protection()) {
++			fast_spi_set_eiss();
++			fast_spi_enable_wp();
++		}
++
++		/* BIOS Lock */
++		fast_spi_set_lock_enable();
++
++		/* EXT BIOS Lock */
++		fast_spi_set_ext_bios_lock_enable();
++	}
++}
+-- 
+2.47.3
+
