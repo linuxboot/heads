@@ -32,7 +32,7 @@ modules-$(TPM_ANY) += tpm-gpio-reset
 # pull it into the build for TPM1.2 boards.
 tpm-gpio-reset_depends := pciutils
 tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
-tpm-gpio-reset_commit_hash := 13059216d08d12a35e75ea3ee79abf51a55ad28c
+tpm-gpio-reset_commit_hash := be549cd032f8c0af30c68d70a0f511fb0e51ef37
 tpm-gpio-reset_version := $(tpm-gpio-reset_commit_hash)
 tpm-gpio-reset_base_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
 tpm-gpio-reset_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
