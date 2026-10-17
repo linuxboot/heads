@@ -1,0 +1,137 @@
+From 247fe21f25ff343266eddc8f8fd125d3e23991d1 Mon Sep 17 00:00:00 2001
+From: Matt DeVillier <matt.devillier@gmail.com>
+Date: Wed, 23 Sep 2026 23:44:55 -0500
+Subject: [PATCH 6/9] soc/intel/common/block/gpio: add option to lock the PLTRST#
+ pad
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If PLTRST# stays as a writable GPIO pad, OS software can switch it to
+GPIO mode and pulse it. That resets a discrete TPM without resetting
+the host, so PCRs can be cleared and replayed. See
+https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html
+
+Since CB:58351, SMM finalize can lock the pads returned by
+soc_gpio_lock_config() when SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS
+is set, but nothing selects that symbol.
+
+Add SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_PLTRST_PAD, which selects it so
+that the PLTRST# pad is locked from SMM finalize. The option is only
+available on SoCs that select
+SOC_INTEL_COMMON_BLOCK_GPIO_HAS_PLTRST_PAD, i.e. that return that pad
+from soc_gpio_lock_config(), and is off unless selected. SoCs on which
+the SMM lock path has been verified select it in their own patches.
+
+Move the weak soc_gpio_lock_config() from the SMM handler to gpio.c,
+next to the rest of the pad lock code.
+
+Change-Id: I7d70d0360ff16a0e5f3246a8daf9ff511c0b75aa
+Co-authored-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Signed-off-by: Matt DeVillier <matt.devillier@gmail.com>
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+Origin: https://review.coreboot.org/c/coreboot/+/95514
+Upstream-Status: Pending
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; re-anchored. The smihandler.c hunk is
+	re-anchored: removing the weak soc_gpio_lock_config() is identical, but the
+	surrounding context differs from upstream main.
+
+---
+ src/soc/intel/common/block/gpio/Kconfig       | 34 +++++++++++++++++++
+ src/soc/intel/common/block/gpio/gpio.c        |  6 ++++
+ .../common/block/include/intelblocks/gpio.h   |  2 ++
+ src/soc/intel/common/block/smm/smihandler.c   |  6 ----
+ 4 files changed, 42 insertions(+), 6 deletions(-)
+
+diff --git a/src/soc/intel/common/block/gpio/Kconfig b/src/soc/intel/common/block/gpio/Kconfig
+index 60a5967..889cbf5 100644
+--- a/src/soc/intel/common/block/gpio/Kconfig
++++ b/src/soc/intel/common/block/gpio/Kconfig
+@@ -55,6 +55,40 @@ config SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_PCR
+ 	  Starting with MTL SoC, the recommendation is to use PCR for locking down the
+ 	  GPIO configuration.
+ 
++# Selected by SoCs that return the pad driving PLTRST# from
++# soc_gpio_lock_config().
++config SOC_INTEL_COMMON_BLOCK_GPIO_HAS_PLTRST_PAD
++	bool
++
++config SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_PLTRST_PAD
++	bool "Lock the PLTRST# pad configuration"
++	depends on SOC_INTEL_COMMON_BLOCK_GPIO_HAS_PLTRST_PAD
++	depends on HAVE_SMI_HANDLER
++	depends on SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI || \
++		   SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_PCR
++	select SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS
++	help
++	  PLTRST# is the native function of a GPIO pad. As long as that pad
++	  configuration stays writable, system software can switch the pad to
++	  GPIO mode and drive a platform reset edge. A discrete TPM is reset by
++	  that edge while the host keeps running, so its PCRs are cleared
++	  without restarting the measured boot chain and can be replayed with
++	  arbitrary values.
++
++	  Lock the pad configuration from the SMM finalize handler after board
++	  GPIO setup is finished so the pad mode can no longer be changed. Only
++	  the configuration is locked. The Tx state is left writable, as it has
++	  no effect while the pad drives PLTRST#.
++
++	  SoCs on which the SMM lock path has been verified select this option,
++	  making the lock mandatory. Boards using the pad as a GPIO instead of
++	  PLTRST# need an explicit exception in the SoC selection.
++
++	  On other supported SoCs, enable this only when the pad drives PLTRST#
++	  and the lock path works. Locking a pad already in GPIO mode does not
++	  prevent software from driving it. Some platforms leave P2SB SBI
++	  unusable in SMM and ignore host PADCFGLOCK writes (e.g. Comet Lake 1).
++
+ # Indicate if SoC supports 4 bits Pad Mode with PAD_CFG_DW0 registers
+ config SOC_INTEL_COMMON_BLOCK_GPIO_PMODE_4BITS
+ 	bool
+diff --git a/src/soc/intel/common/block/gpio/gpio.c b/src/soc/intel/common/block/gpio/gpio.c
+index 2031d7a..b225e9b 100644
+--- a/src/soc/intel/common/block/gpio/gpio.c
++++ b/src/soc/intel/common/block/gpio/gpio.c
+@@ -722,6 +722,12 @@ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ 	return ret;
+ }
+ 
++__weak const struct gpio_lock_config *soc_gpio_lock_config(size_t *num)
++{
++	*num = 0;
++	return NULL;
++}
++
+ static int gpio_non_smm_lock_pad(const struct gpio_lock_config *pad_info)
+ {
+ 	if (!pad_info) {
+diff --git a/src/soc/intel/common/block/include/intelblocks/gpio.h b/src/soc/intel/common/block/include/intelblocks/gpio.h
+index a501f7f..86e96c7 100644
+--- a/src/soc/intel/common/block/include/intelblocks/gpio.h
++++ b/src/soc/intel/common/block/include/intelblocks/gpio.h
+@@ -257,6 +257,8 @@ int gpio_lock_pad(const gpio_t pad, enum gpio_lock_action lock_action);
+  * the p2sb_unhide() and p2sb_hide() calls between each gpio lock that would
+  * occur if gpio_lock_pad() were used to lock each pad in the list.
+  *
++ * Call from SMM when SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS is set.
++ *
+  * @param pad_list: array of gpio_lock_config structures, one for each gpio to lock
+  * @param count: number of gpio_lock_config structs in the pad_list array
+  * @return 0 if successful,
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+index 65a15b0..44184ec 100644
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -320,12 +320,6 @@ static void southbridge_smi_store(
+ 	}
+ }
+ 
+-__weak const struct gpio_lock_config *soc_gpio_lock_config(size_t *num)
+-{
+-	*num = 0;
+-	return NULL;
+-}
+-
+ static void soc_lock_gpios(void)
+ {
+ 	const struct gpio_lock_config *soc_gpios;

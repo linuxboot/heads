@@ -1,0 +1,92 @@
+From f4bd458a7e69e8f2ebb8f011941d580a075395d8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Filip=20Lewi=C5=84ski?= <filip.lewinski@3mdeb.com>
+Date: Wed, 23 Sep 2026 23:44:59 -0500
+Subject: [PATCH 7/9] soc/intel/alderlake: lock the PLTRST# pad configuration
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Provide GPP_B13, the pad driving PLTRST#, to the common code that locks
+security relevant pads from SMM finalize, and select
+SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_PLTRST_PAD to enable the lock. Without
+it, system software can reconfigure the pad as a GPIO and reset a
+discrete TPM while the host keeps running, clearing the PCRs.
+
+TEST=On a NovaCustom NV4x (Alder Lake-P, not an upstream board),
+tpm-gpio-detect reports 'GPP_B13 PADCFGLOCK 0x00002000 (LOCKED)' and
+tpm-gpio-assert from tlaurion/tpm-gpio-fail no longer reports 'RESULT:
+DW0 write verified'.
+
+Change-Id: Ie40d7f34e8169f716135bef7aabb281a56255bee
+Signed-off-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+Origin: https://review.coreboot.org/c/coreboot/+/95515
+Upstream-Status: Pending
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; re-anchored. The alderlake/Kconfig and
+	alderlake/Makefile.mk hunks are re-anchored; the lines added are identical
+	to upstream.
+Heads-Note: gpio_lock.c drops the .expected_mode initialiser. Upstream added
+	that field to struct gpio_lock_config after the pinned fork was cut, so the
+	fork struct carries only pad and lock_action and the field does not compile
+	here. The mode check it feeds is part of the upstream pad-lock verification
+	work, which this series reaches through gpio_pad_config_lock_verify() instead.
+
+---
+ src/soc/intel/alderlake/Kconfig     |  2 ++
+ src/soc/intel/alderlake/Makefile.mk |  1 +
+ src/soc/intel/alderlake/gpio_lock.c | 22 ++++++++++++++++++++++
+ 3 files changed, 25 insertions(+)
+ create mode 100644 src/soc/intel/alderlake/gpio_lock.c
+
+diff --git a/src/soc/intel/alderlake/Kconfig b/src/soc/intel/alderlake/Kconfig
+index 4303bd7..20cd7d3 100644
+--- a/src/soc/intel/alderlake/Kconfig
++++ b/src/soc/intel/alderlake/Kconfig
+@@ -59,6 +59,8 @@ config SOC_INTEL_ALDERLAKE
+ 	select SOC_INTEL_COMMON_BLOCK_CPU_SMMRELOCATE
+ 	select SOC_INTEL_COMMON_BLOCK_DTT
+ 	select SOC_INTEL_COMMON_BLOCK_GPIO_DUAL_ROUTE_SUPPORT
++	select SOC_INTEL_COMMON_BLOCK_GPIO_HAS_PLTRST_PAD
++	select SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_PLTRST_PAD
+ 	select SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI
+ 	select SOC_INTEL_COMMON_BLOCK_GSPI_VERSION_2
+ 	select SOC_INTEL_COMMON_BLOCK_SCS if SOC_INTEL_ALDERLAKE_PCH_N
+diff --git a/src/soc/intel/alderlake/Makefile.mk b/src/soc/intel/alderlake/Makefile.mk
+index 8a38e0f..3f1871f 100644
+--- a/src/soc/intel/alderlake/Makefile.mk
++++ b/src/soc/intel/alderlake/Makefile.mk
+@@ -48,6 +48,7 @@ ramstage-y += xhci.c
+ ramstage-$(CONFIG_SOC_INTEL_CRASHLOG) += crashlog.c
+ 
+ smm-y += elog.c
++smm-$(CONFIG_SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS) += gpio_lock.c
+ smm-y += p2sb.c
+ smm-y += pmutil.c
+ smm-y += smihandler.c
+diff --git a/src/soc/intel/alderlake/gpio_lock.c b/src/soc/intel/alderlake/gpio_lock.c
+new file mode 100644
+index 0000000..938f5d6
+--- /dev/null
++++ b/src/soc/intel/alderlake/gpio_lock.c
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#include <gpio.h>
++#include <intelblocks/gpio.h>
++#include <types.h>
++
++/*
++ * GPP_B13 drives PLTRST# as its native function 1 on Alder Lake PCH-P/N as
++ * well as on PCH-S. Locking the pad configuration keeps system software from
++ * switching the pad to GPIO mode and pulsing it, which would reset a discrete
++ * TPM without restarting the measured boot chain.
++ */
++static const struct gpio_lock_config pltrst_pad[] = {
++	{ .pad = GPP_B13, .lock_action = GPIO_LOCK_CONFIG },
++};
++
++const struct gpio_lock_config *soc_gpio_lock_config(size_t *num)
++{
++	*num = ARRAY_SIZE(pltrst_pad);
++	return pltrst_pad;
++}
