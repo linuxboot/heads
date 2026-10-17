@@ -87,7 +87,7 @@ Heads extends and seals only PCRs 0 through 7; the assignments are in [tpm.md](t
 — PCRs match but the passphrase is wrong (expected; just re-enter it).
 
 A different TPM_Unseal error can have several causes, including a decryption
-failure or TPM dictionary attack lockout. Check the event log (`cbmem -L`) and
+failure or TPM dictionary attack lockout. Check the event log (`cbmem --tcpa-log`) and
 the TPM state before assuming tampering.
 
 See [tpm.md](tpm.md#tpm-event-log) for the event log and unseal errors.

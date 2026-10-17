@@ -49,11 +49,23 @@ Enter the Admin PIN when prompted, then set a new User PIN.
 ### Read the TCPA event log (debug PCR mismatches)
 
 ```bash
-cbmem -L
+cbmem --tcpa-log
 ```
 
 Shows what was measured into each PCR during the current boot.  Useful for
 diagnosing unexpected TPM unseal failures.
+
+### Read the console log (debug SMI / pad-lock output)
+
+```bash
+cbmem --console
+```
+
+Dumps the coreboot console buffer captured during the current boot.  Use
+this to inspect SMM handler output such as the PLTRST# pad-lock messages.
+The buffer is a ring and persists across boots, so a boot log stays
+retrievable from the recovery shell.  (`cbmem --tcpa-log` above reads the TCPA
+event log, not the console.)
 
 ### Mount a USB drive
 
