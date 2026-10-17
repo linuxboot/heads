@@ -14,7 +14,7 @@ modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
 
 tpm-gpio-reset_depends := pciutils $(tpm2-tools_dep)
 tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
-tpm-gpio-reset_commit_hash := 3e3a695655b3b9e3188bb9aad70874dbcfb03145
+tpm-gpio-reset_commit_hash := be549cd032f8c0af30c68d70a0f511fb0e51ef37
 tpm-gpio-reset_version := $(tpm-gpio-reset_commit_hash)
 tpm-gpio-reset_base_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
 tpm-gpio-reset_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
