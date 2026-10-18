@@ -2,7 +2,9 @@
 # For this to work:
 #  - io386 module needs to be enabled in board config
 #  - <Skylake: coreboot config need to enable CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y without enabling CONFIG_INTEL_CHIPSET_LOCKDOWN
-#  - >=Skylake: same as above and CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y, CONFIG_SPI_FLASH_SMM=y and mode (eg: CONFIG_BOOTMEDIA_LOCK_WHOLE_RO=y)
+#  - >=Skylake: same as above and the SMM lockdown SMM handler coreboot 26.09 names
+#    CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM (CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM on
+#    coreboot 25.09; selects SPI_FLASH_SMM itself) and mode (eg: CONFIG_BOOTMEDIA_LOCK_WHOLE_RO=y)
 #  - Heads is actually doing the CONFIG_INTEL_CHIPSET_LOCKDOWN equivalent here.
 
 . /etc/functions.sh
