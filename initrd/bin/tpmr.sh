@@ -216,7 +216,7 @@ replay_pcr() {
 		WARN "Illegal PCR number ($2)"
 		return
 	fi
-	local log=$(cbmem -L)
+	local log=$(cbmem --tcpa-log)
 	local alg="$1"
 	local pcr="$2"
 	local alg_digits=0
@@ -228,7 +228,7 @@ replay_pcr() {
 	replayed_pcr=$(extend_pcr_state $alg $(printf "%.${alg_digits}d" 0) \
 		$(echo "$log" | awk -v alg="$alg" -v pcr="$pcr" -f <(echo "$AWK_PROG")) "$@")
 	echo $replayed_pcr | hex2bin
-	DEBUG "Replayed cbmem -L clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
+	DEBUG "Replayed cbmem --tcpa-log clean boot state of PCR=$pcr ALG=$alg : $replayed_pcr"
 	# To manually introspect current PCR values:
 	# PCR-2:
 	#     tpmr.sh calcfuturepcr 2 | xxd -p

@@ -1,0 +1,61 @@
+From 05c79442673927d15735ccc0d411f4bf397fc52c Mon Sep 17 00:00:00 2001
+From: Thierry Laurion <insurgo@riseup.net>
+Date: Tue, 13 Oct 2026 19:10:37 -0400
+Subject: [PATCH 9/9] soc/intel/alderlake: issue APM_CNT_GPIO_LOCK before the
+ payload
+
+Refs: "TPM GPIO fail" https://mkukri.xyz/2024-06-01/tpm-gpio-fail.html ; coreboot ticket #576 ; https://github.com/tlaurion/tpm-gpio-fail
+
+soc_finalize() runs at BS_PAYLOAD_BOOT and BS_OS_RESUME, after FSP-S has
+run its notify phases and unlocked every GPIO pad, and before the
+payload is entered. That is exactly where the PLTRST# pad has to be
+locked, and it is the earliest point at which it can be: locking it
+earlier, in the romstage, is a no-op, because FSP-S unlocks every pad
+in its notify phases.
+
+Issue the dedicated APM_CNT_GPIO_LOCK SMI from there. The lock runs in
+the SMM handler, where the P2SB can be unhidden and the sideband
+interface lock message is honored: up to and including Alder Lake PCH
+the pad configuration lock registers can only be written through the
+sideband interface (Intel document 834810), and that access is armed
+for the SMI handler context, not for bare pre-payload stages. Calling
+the lock directly from the ramstage instead dies in p2sb_dev_unhide(),
+because the P2SB cannot be unhidden at that point (observed on the
+NV4x).
+
+The pad is therefore locked before anything after the firmware can
+run, without depending on INTEL_CHIPSET_LOCKDOWN, on the payload, or on
+APM_CNT_FINALIZE being issued at all. PR0/FLOCKDN keep their existing
+timing: the payload-issued APM_CNT_FINALIZE performs the SPI and LPC
+lockdown and ends with the sideband lock; when it re-locks the pad it
+is a write of a bit that is already set, verified by the readback.
+
+Signed-off-by: Thierry Laurion <insurgo@riseup.net>
+Heads-Note: heads-specific, no upstream equivalent; carried against coreboot-dasharo_nv4x 281a7fec1a1e;
+	applies unmodified to the pinned fork.
+
+---
+ src/soc/intel/alderlake/finalize.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/soc/intel/alderlake/finalize.c b/src/soc/intel/alderlake/finalize.c
+index 615729d..cdd8f9f 100644
+--- a/src/soc/intel/alderlake/finalize.c
++++ b/src/soc/intel/alderlake/finalize.c
+@@ -85,6 +85,16 @@ static void soc_finalize(void *unused)
+ 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
+ 
+ 	pch_finalize();
++	/*
++	 * Lock the PLTRST# pad configuration from its own SMI, before the
++	 * payload is entered. The SMI handler locks only the pads from
++	 * soc_gpio_lock_config(); it does not run the SPI and LPC lockdown
++	 * and does not lock down the sideband interface, so the
++	 * payload-issued APM_CNT_FINALIZE keeps its own timing for
++	 * PR0/FLOCKDN.
++	 */
++	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_PLTRST_PAD))
++		apm_control(APM_CNT_GPIO_LOCK);
+ 	if (CONFIG(INTEL_CHIPSET_LOCKDOWN) || acpi_is_wakeup_s3())
+ 		apm_control(APM_CNT_FINALIZE);
+ 

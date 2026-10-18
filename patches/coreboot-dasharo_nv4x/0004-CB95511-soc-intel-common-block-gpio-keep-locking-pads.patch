@@ -1,0 +1,57 @@
+From 623e66582fdefd9a9139619b6f7ad010fb108af2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Filip=20Lewi=C5=84ski?= <filip.lewinski@3mdeb.com>
+Date: Tue, 8 Sep 2026 15:23:17 +0200
+Subject: [PATCH 4/9] soc/intel/common/block/gpio: keep locking pads outside of SMM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+gpio_lock_pad() sent every caller outside of SMM to gpio_lock_pads()
+once SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS was selected. That
+includes gpio_configure_pad(), which locks the pads marked with a
+PAD_CFG_*_LOCK macro in the mainboard pad tables while ramstage
+configures them. gpio_lock_pads() only works in SMM, so it bailed out
+with 'must be called from SMM!' and those pads were left unlocked.
+
+Send every caller outside of SMM to gpio_non_smm_lock_pad(), whether or
+not SMM locking is enabled, so that a board can lock pads from its pad
+tables and from SMM finalize at the same time. Callers in SMM still go
+through gpio_lock_pads().
+
+Nothing selects SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS yet, so this
+changes nothing on its own. Without it, enabling SMM pad locking on
+Alder Lake would stop the PAD_CFG_*_LOCK entries in the pad tables of
+boards such as google/brya and google/brox from being locked.
+
+Change-Id: Iec16df3160c34dc96b037f89d660134f3ec4e0fb
+Signed-off-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/95511
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Nicholas Chin <nic.c3.14@gmail.com>
+Origin: https://review.coreboot.org/c/coreboot/+/95511
+Upstream-Status: Merged (2026-10-01)
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; applies unmodified to the pinned fork.
+
+---
+ src/soc/intel/common/block/gpio/gpio.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/soc/intel/common/block/gpio/gpio.c b/src/soc/intel/common/block/gpio/gpio.c
+index abd6695..933261c 100644
+--- a/src/soc/intel/common/block/gpio/gpio.c
++++ b/src/soc/intel/common/block/gpio/gpio.c
+@@ -721,7 +721,12 @@ int gpio_lock_pad(const gpio_t pad, enum gpio_lock_action lock_action)
+ 		.lock_action = lock_action
+ 	};
+ 
+-	if (!ENV_SMM && !CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS))
++	/*
++	 * gpio_lock_pads() only works in SMM. Pads locked while configuring
++	 * them, i.e. from the pad tables in ramstage, have to go through the
++	 * non-SMM path even when the SoC also locks pads from SMM.
++	 */
++	if (!ENV_SMM)
+ 		return gpio_non_smm_lock_pad(&pads);
+ 
+ 	return gpio_lock_pads(&pads, 1);
