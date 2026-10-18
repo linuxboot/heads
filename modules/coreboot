@@ -179,15 +179,24 @@ coreboot-dasharo_msi_z690_repo := https://github.com/dasharo/coreboot
 coreboot-dasharo_msi_z690_commit_hash := be7d58dac9365d8981dbb1f5c6bbbcce35df8636
 $(eval $(call coreboot_module,dasharo_msi_z690,dasharo_nv4x))
 
-# T480 is based on coreboot ~25.09 release
+# coreboot 25.09
 #  coreboot 25.09 doesn't include Thunderbolt support and support of the lower USB-C port which is still under review at https://review.coreboot.org/c/coreboot/+/75286 and https://review.coreboot.org/c/coreboot/+/88490
-#   TODO: track upstream WiP and switch to later upstream release containing patchset without relaying on libreboot downstream maintained patchset
+#   TODO: track upstream WiP and switch to later upstream release containing patchset without relying on libreboot downstream maintained patchset
 # Therefore, patches/coreboot-25.09 include upstream patches to provide Thunderbolt/full USB-C support for the T480
+#  coreboot 26.09 carries Thunderbolt support in-tree (drivers/intel/dtbt), so the T480 boards
+#  (EOL_t480-maximized, EOL_t480-hotp-maximized) build against 26.09 and need no TBT patch
 #  patches/coreboot-25.09 also includes PR0 patchset, minus xeon support which don't apply to 25.09 as per https://review.coreboot.org/c/coreboot/+/85278
-#   TODO: @miczyg1 rebase of patchset so that doenstream don't have to maintain, adapt work
+#   TODO: @miczyg1 rebase of patchset so that downstream don't have to maintain, adapt work
 coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
+
+# Upstream coreboot 26.09 (release cut 2026-09-24), pinned from the annotated
+# tag 26.09 as a git module.  The tag object is annotated, so the commit below
+# is the peeled commit the tag points at.
+coreboot-26.09_repo := https://github.com/coreboot/coreboot
+coreboot-26.09_commit_hash := 8b0e34f90e08547cf19e550a43ed72f69c39d6ed
+$(eval $(call coreboot_module,26.09,))
 
 # MrChromebox fork, based on coreboot 26.03, focusing on Chromebooks / Chromeboxes.
 coreboot-mrchromebox-26.03_repo := https://github.com/MrChromebox/coreboot.git
