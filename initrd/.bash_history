@@ -26,7 +26,7 @@ poweroff.sh  # Press Enter with this command to power off
 mount-usb.sh --mode rw && tpm-gpio-detect 2>&1 | tee /media/tpm-gpio-detect.log ; umount /media
 # Assert PLTRST# via P2SB PCR write and check TPM PCRs test results on USB thumb drive
 mount-usb.sh --mode rw && tpm-gpio-assert 2>&1 | tee /media/tpm-gpio-assert.log ; umount /media
-# Get coreboot console logs to USB thumb drive:
-mount-usb.sh --mode rw && cbmem --console 2>&1 | tee /media/cbmem_console_output.log ; umount /media
 # Verify FLOCKDN (PR0 SMI successful) for chipset locking works when calling lock_chip.sh and log everything required to USB thumb drive
 mount-usb.sh --mode rw && ( echo "---- BEFORE locking internal flasher output -----" && $CONFIG_FLASH_OPTIONS 2>&1 && lock_chip.sh 2>&1 && echo "---- AFTER locking internal flasher output -----" && $CONFIG_FLASH_OPTIONS 2>&1 ) | tee -a /media/lock_chipset.log ; umount /media
+# Get coreboot console logs to USB thumb drive:
+mount-usb.sh --mode rw && cbmem --console 2>&1 | tee /media/cbmem_console_output.log ; umount /media

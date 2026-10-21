@@ -40,7 +40,7 @@ Not all tools are BusyBox applets — many are standalone binaries compiled as s
 | `CONFIG_UTIL_LINUX` | util-linux | Standalone |
 | `CONFIG_OPENSSL` | openssl | Standalone |
 | `CONFIG_TPM2_TOOLS` | tpm2-tools | Standalone |
-| `CONFIG_TPM2_TOOLS` | tpm-gpio-reset | Standalone |
+| `TPM_ANY` (derived) | tpm-gpio-reset | Standalone |
 | `CONFIG_BASH` | bash | Standalone |
 | `CONFIG_POWERPC_UTILS` | powerpc-utils | Standalone |
 | `CONFIG_IO386` | io386 | Standalone |
@@ -167,6 +167,11 @@ The TPM1 `tpm` mega-binary and its library (`util/tpm` → `bin/tpm`,
 `CONFIG_TPM2_TOOLS` is not `y` (TPM1.2 boards); TPM2 boards enable
 `CONFIG_TPM2_TOOLS`, which pulls in the `tpm2-tools` module instead, and
 `tpmr.sh` dispatches TPM1 vs TPM2 subcommands on that flag.
+
+The `tpm-gpio-reset` module (`modules/tpm-gpio-reset`) builds `tpm-gpio-detect` / `tpm-gpio-assert` for any x86 board with a TPM: `TPM_ANY` is `y` when `CONFIG_TPM=y` (TPM1.2) or `CONFIG_TPM2_TOOLS=y` (TPM2.0); the tools are Intel/x86-specific, so `TPM_ANY` stays empty on other architectures (the ppc64 talos-2 sets `CONFIG_TPM=y` but must not select the module), and the module depends on `pciutils` for libpci only, since it shells out to the board's TPM stack at runtime.  `tpm-gpio-assert` dispatches on which TPM CLI the initramfs packs (`bin/tpm2` vs `bin/tpm`; `bin/tpm2` wins when both are present):
+
+- **TPM2.0**: `tpm2 startup -c` before and after, `tpm2 pcrread` (sha256) for the PCR dumps, and `tpm2 shutdown -c` immediately before the PLTRST# assertion for a clean session shutdown.
+- **TPM1.2**: `tpm pcrread -ix <i>` for PCRs 0-15 (bare SHA1 digests), a raw 16-byte `TPM_Startup(TPM_STARTUP_FULL)` on `/dev/tpm0` after the assertion to reinitialize (the packed tpm-tools binary has no startup subcommand), and no shutdown step -- the PLTRST# pulse itself performs a full `_TPM_Init` (PCRs zero, NVRAM preserved).
 
 ### Board-enabled modules
 
