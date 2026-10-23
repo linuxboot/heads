@@ -775,6 +775,14 @@ workflows:
           requires:
             - EOL_t480-hotp-maximized [seed:coreboot-25.09]
 
+ # ── coreboot 25.03 boards (alphabetical) ───────────────────────────────
+      - build:
+          name: kuldax
+          target: kuldax
+          subcommand: ""
+          requires:
+             - x86-musl-cross-make
+
       # ── purism boards (alphabetical) ──────────────────────────────────────
       - build:
           name: EOL_librem_13v2
