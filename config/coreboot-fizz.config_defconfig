@@ -1,7 +1,8 @@
 CONFIG_BOOTSPLASH_IMAGE=y
 CONFIG_BOOTSPLASH_FILE="@BRAND_DIR@/bootsplash.jpg"
 CONFIG_VENDOR_GOOGLE=y
-CONFIG_CONSOLE_SERIAL=y
+# Enable to help debugging
+#CONFIG_CONSOLE_SERIAL=y
 CONFIG_INCLUDE_NHLT_BLOBS=y
 CONFIG_IFD_BIN_PATH="3rdparty/blobs/mainboard/google/fizz/flashdescriptor.bin"
 CONFIG_ME_BIN_PATH="3rdparty/blobs/mainboard/google/fizz/me.bin"
