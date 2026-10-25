@@ -184,6 +184,54 @@ After OS install + USB provisioned, reference both from `./qemu_img/`:
       inject_gpg run
 
 
+### Testing GPG key reprovision from a backup drive
+
+The GPG key reprovision flow ('k' in the GPG Management Menu, or the 'K'
+option when signing fails) restores subkeys from a LUKS-encrypted backup
+drive created during OEM factory reset onto a (new) OpenPGP smartcard.
+This can be tested in QEMU.
+
+First run OEM factory reset to populate the virtual USB drive with backup
+material (this creates `build/x86/<board>/usb_fd.raw` with the LUKS private
++ exFAT public partition layout).  Afterwards, save the virtual USB drive
+and canokey state, then hardlink back for the second run:
+
+```bash
+# qemu_img/ is the in-clone store for QEMU images (Docker-visible).
+# It must be on the same filesystem as build/ so cp -alf hardlinks work.
+mkdir -p qemu_img
+
+# Save canokey state and populated USB backup image (hardlink, zero-cost).
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file \
+       qemu_img/.canokey-file
+cp -al build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw \
+       qemu_img/backup_drive.raw
+
+# Hardlink back into the build dir so make run picks them up; make
+# requires the raw image to live inside the local heads dir.
+cp -alf qemu_img/.canokey-file \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/.canokey-file
+cp -alf qemu_img/backup_drive.raw \
+       build/x86/qemu-coreboot-fbwhiptail-tpm1-hotp/usb_fd.raw
+
+# Second run uses the preserved backup with no USB_FD_IMG override.
+./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm1-hotp run
+```
+
+Inside the VM: Options -> GPG Options -> 'k' Reprovision USB Security dongle
+from GPG key backup.  Enter the backup passphrase (the Admin PIN you set
+during OEM factory reset).  The flow will:
+- Detect the key type (RSA or ECC) from the backup
+- Factory-reset the virtual canokey and set matching key attributes
+- Import the master key and subkeys from the LUKS partition
+- Move subkeys to the smartcard via keytocard
+- Set the card identity (name, email) from the backup key's UID
+- Reset the TPM and create a fresh rollback counter (TPM boards)
+- Re-sign /boot so the next boot trusts the restored state
+- Skip flashing the public key to ROM automatically (QEMU cannot reflash;
+  inject the exported pubkey into the firmware image instead)
+
+
 Running via Docker wrappers
 ===
 We provide convenient wrapper scripts at the repository root that encapsulate Docker invocation and automatically handle common host integrations needed for QEMU runs.
@@ -298,6 +346,31 @@ Inspecting wrapper options
 `source docker/common.sh && build_docker_opts` displays the options that would
 be used, including KVM and X11-related mounts when their host prerequisites are
 present.  This is an inspection path, not a QEMU or wrapper behavior test.
+
+Resetting state
+---
+
+QEMU boards using the default virtual token persist canokey and TPM state
+between runs.  To simulate a fresh dongle and TPM for testing:
+
+```bash
+# Wipe the virtual Canokey (new dongle, no keys on card).
+sudo rm -f build/x86/<BOARD>/.canokey-file
+
+# Wipe the virtual TPM (new TPM, no sealed secrets or counters).
+sudo rm -rf build/x86/<BOARD>/vtpm/
+```
+
+The next `make run` will create fresh `.canokey-file` and `vtpm/`
+directories automatically.  The Heads setup wizard will then offer OEM
+factory reset (F) or reprovision from backup (K).
+
+To preserve canokey state for reuse:
+
+```bash
+cp build/x86/<BOARD>/.canokey-file qemu_img/.canokey-file.bak
+cp qemu_img/.canokey-file.bak build/x86/<BOARD>/.canokey-file
+```
 
 Troubleshooting
 ---
