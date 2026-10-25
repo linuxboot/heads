@@ -126,6 +126,13 @@ linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-hcd.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/host/xhci-pci.ko
 linux_modules-$(CONFIG_LINUX_USB)	+= drivers/usb/storage/usb-storage.ko
 
+# PCI SD card reader modules
+linux_modules-$(CONFIG_LINUX_MMC_SDHCI_PCI)	+= drivers/mmc/core/mmc_core.ko
+linux_modules-$(CONFIG_LINUX_MMC_SDHCI_PCI)	+= drivers/mmc/core/mmc_block.ko
+linux_modules-$(CONFIG_LINUX_MMC_SDHCI_PCI)	+= drivers/mmc/host/sdhci.ko
+linux_modules-$(CONFIG_LINUX_MMC_SDHCI_PCI)	+= drivers/mmc/host/cqhci.ko
+linux_modules-$(CONFIG_LINUX_MMC_SDHCI_PCI)	+= drivers/mmc/host/sdhci-pci.ko
+
 #USB modules for Mobile USB Tethering (Most Android phones, Librem phone, etc)
 linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/mii.ko
 linux_modules-$(CONFIG_MOBILE_TETHERING)	+= drivers/net/usb/usbnet.ko
