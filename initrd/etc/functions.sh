@@ -2812,22 +2812,77 @@ fromhex_plain() {
 	fold -w 60 | xxd -p -r
 }
 
+# Before coreboot 26.09 filename pattern was charge_now. Since 26.09 energy_now.
+# We support both in the same script.
+get_battery_state_filename() {
+  local battery
+  local suffix
+  battery="$1"
+  suffix="$2"
+  if [[ -r "${battery}/energy_${suffix}" ]]; then
+    echo -n "${battery}/energy_${suffix}"
+  elif [[ -r "${battery}/charge_${suffix}" ]]; then
+    echo -n "${battery}/charge_${suffix}"
+  else
+    echo -n ""
+  fi
+}
+
 print_battery_charge() {
 	local battery
 	battery="$1"
-	echo "$((100 * $(cat "${battery}/charge_now") / $(cat "${battery}/charge_full")))"
+	local now_file full_file
+	now_file="$(get_battery_state_filename "${battery}" "now")"
+	full_file="$(get_battery_state_filename "${battery}" "full")"
+	if [[ -z "${now_file}" || -z "${full_file}" || ! -r "${now_file}" || ! -r "${full_file}" ]]; then
+		echo "N/A"
+		return
+	fi
+	local now full
+	now="$(cat "${now_file}" 2>/dev/null)"
+	full="$(cat "${full_file}" 2>/dev/null)"
+	if [[ -z "${full}" || "${full}" -eq 0 ]]; then
+		echo "N/A"
+		return
+	fi
+	echo "$((100 * now / full))"
 }
 
 print_battery_health() {
 	local battery
 	battery="$1"
-	echo "$((100 * $(cat "${battery}/charge_full") / $(cat "${battery}/charge_full_design")))"
+	local full_file full_design_file
+	full_file="$(get_battery_state_filename "${battery}" "full")"
+	if [[ -r "${battery}/energy_full_design" ]]; then
+		full_design_file="${battery}/energy_full_design"
+	elif [[ -r "${battery}/charge_full_design" ]]; then
+		full_design_file="${battery}/charge_full_design"
+	else
+		full_design_file=""
+	fi
+	if [[ -z "${full_file}" || -z "${full_design_file}" || ! -r "${full_file}" || ! -r "${full_design_file}" ]]; then
+		echo "N/A"
+		return
+	fi
+	local full full_design
+	full="$(cat "${full_file}" 2>/dev/null)"
+	full_design="$(cat "${full_design_file}" 2>/dev/null)"
+	if [[ -z "${full_design}" || "${full_design}" -eq 0 ]]; then
+		echo "N/A"
+		return
+	fi
+	echo "$((100 * full / full_design))"
 }
 
 print_battery_name() {
 	local battery
 	battery="$1"
-	echo "$(cat "${battery}/manufacturer") $(cat "${battery}/model_name")"
+	local manufacturer model_name
+	manufacturer=""
+	model_name=""
+	[[ -r "${battery}/manufacturer" ]] && manufacturer="$(cat "${battery}/manufacturer" 2>/dev/null)"
+	[[ -r "${battery}/model_name" ]] && model_name="$(cat "${battery}/model_name" 2>/dev/null)"
+	echo "${manufacturer} ${model_name}" | sed 's/^ *//;s/ *$//'
 }
 
 # Print the charging and health state for all batteries
