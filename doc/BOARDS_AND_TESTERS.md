@@ -174,7 +174,7 @@ ThinkCentre (Skylake, 6th Gen Desktop -- EOL)
 
 xx4x (Haswell, 4th Gen -- EOL)
 ===
-- [ ] t440p: @srgint @MattClifton76 @fhvyhjriur @ThePlexus @akunterkontrolle @rbreslow
+- [ ] t440p: @srgrint @MattClifton76 @fhvyhjriur @ThePlexus @akunterkontrolle @rbreslow
 - [ ] w541 (similar to t440p): @gaspar-ilom @ResendeGHF
 
 xx8x (Kaby Lake Refresh, 8th Gen Mobile -- EOL)
