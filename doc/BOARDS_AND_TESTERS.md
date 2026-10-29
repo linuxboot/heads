@@ -201,8 +201,10 @@ All Active.
 - [ ] Novacustom v540tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
 - [ ] Novacustom v560tu (Meteor Lake, Core Ultra S1): @tlaurion @daringer @mkopec
 
-Chromebooks
+ChromeOS Devices
+===
 - [ ] Acer Chromebook Spin 714 CP714-1WN (KANO): @cwiggs
+- [ ] HP Chromebox G2 (KENCH): @cwiggs
 
 Desktops / Servers
 ==
