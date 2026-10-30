@@ -297,14 +297,20 @@ linux.save_in_defconfig_format_in_place:
 	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
 
 linux.save_in_defconfig_format_backup:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
+	# Run savedefconfig on the source config (with @BRAND_NAME@, @BLOB_DIR@,
+	# etc. placeholders intact) into a temp output dir, then copy the resulting
+	# defconfig back as the _defconfig backup.  Never clobber the build
+	# $(linux_dir)/.config (already substituted by install_config) because the
+	# .bundled kernel rebuild still needs it.
+	mkdir -p "$(build)/$(linux_dir).defconfig_tmp" \
+	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).defconfig_tmp/.config" \
 	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
+		O="$(build)/$(linux_dir).defconfig_tmp" \
 		ARCH="$(LINUX_ARCH)" \
 		CROSS_COMPILE="$(CROSS)" \
 		savedefconfig \
-	&& cp "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig"
+	&& cp "$(build)/$(linux_dir).defconfig_tmp/defconfig" "$(pwd)/$(linux_kconfig)_defconfig" \
+	&& rm -rf "$(build)/$(linux_dir).defconfig_tmp"
 
 linux.save_in_versioned_defconfig_format:
 	mkdir -p "$(build)/$(linux_dir)" \

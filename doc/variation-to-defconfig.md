@@ -232,7 +232,14 @@ CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y
 Generated via:
 ```
 make BOARD=<board> coreboot.save_in_defconfig_format_backup
+make BOARD=<board> linux.save_in_defconfig_format_backup
 ```
+
+These targets now run automatically after every successful build of the
+corresponding module (see `doc/modules.md#module-level-helpers`), so
+`config/coreboot-*.config_defconfig` and `config/linux-*.config_defconfig`
+are refreshed whenever you `make BOARD=<board>`.  Backups never fail the
+build — a failed backup is reported as a warning only.
 
 Intended for diffing with upstream defconfigs and for reviewing what
 non-default options a board sets.

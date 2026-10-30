@@ -723,6 +723,20 @@ define define_module =
 	$(call do,DONE,$1,\
 		touch $(build)/$($1_dir)/.build \
 	)
+	# Auto-regenerate defconfig backups after each successful module build,
+	# so deviations from default are visible at a glance
+	# (https://github.com/linuxboot/heads/issues/2238).  Runs only for modules
+	# actually included in this board's config and never fails the build itself.
+	@case "$1" in \
+		coreboot-*) \
+			echo "==> coreboot.save_in_defconfig_format_backup"; \
+			$(MAKE) --no-print-directory coreboot.save_in_defconfig_format_backup || \
+				echo "WARNING: coreboot defconfig backup failed" >&2 ;; \
+		linux) \
+			echo "==> linux.save_in_defconfig_format_backup"; \
+			$(MAKE) --no-print-directory linux.save_in_defconfig_format_backup || \
+				echo "WARNING: linux defconfig backup failed" >&2 ;; \
+	esac
 
 
 
