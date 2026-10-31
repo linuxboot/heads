@@ -216,7 +216,7 @@ nix develop --command make BOARD=$BOARD
 | `real.clean` | `rm -rf` each module build dir under `build/$ARCH/` (all modules except `musl`/`musl-cross-make`), plus `kernel_headers` only when the caller supplies a nonempty value, and wipe `install/*`.  For coreboot, the module dir is board-specific (`coreboot-VERSION/BOARD`), so the nested source clone and its `.git` normally remain; the later overwrite helper can then rewrite the source `.canary`.  Keeps `packages/` and `crossgcc/`.  Destructive last resort. |
 | `real.gitclean` | `git clean -fxd` — remove untracked/ignored files, but Git skips nested repositories |
 | `real.gitclean_keep_packages` | `git clean -fxd -e "packages"` — keep `packages/`; Git still skips nested repositories |
-| `real.remove_canary_files-extract_patch_rebuild_what_changed` | Source/board-output freshness purge: remove every `build/**/.canary`, clear `install/*/*`, remove the board-specific `coreboot-VERSION/<board>` directory including that board's coreboot `.build`, and remove shared board output.  Non-coreboot module trees/objects and their `.build` stamps plus the coreboot source clone normally remain; this is not a from-scratch full rebuild. |
+| `real.remove_canary_files-extract_patch_rebuild_what_changed` | Source/board-output freshness purge: remove every `build/**/.canary` and `build/**/.patched`, clear `install/*/*`, remove the board-specific `coreboot-VERSION/<board>` directory including that board's coreboot `.build`, and remove shared board output.  Removing `.patched` forces patches to be re-evaluated on the next configure so patch-only changes are picked up.  Non-coreboot module trees/objects and their `.build` stamps plus the coreboot source clone normally remain; this is not a from-scratch full rebuild. |
 | `real.gitclean_keep_packages_and_build` | `git clean -fxd -e "packages" -e "build"` — keep `packages/` and `build/` |
 
 All run under `nix develop` (local) or `./docker_repro.sh` (Docker):
@@ -259,7 +259,7 @@ Helper → effect, what each removes and keeps:
 |---|---|---|
 | `<module>.clean` | that module's `.configured`, then `make -C <builddir> clean` (may delete generated sources for `tpm2-tss`/`tpm2-tools`) | `.canary`, **`.build`**; the next normal build reruns `.configured` and then `.build` |
 | `modules.clean` | regular-module `make -C <dir> clean` plus selected `.configured` stamps; excludes `musl`, `musl-cross-make`, and `kernel_headers` | `install/`, `packages/`, `.canary`, **`.build`**; normal builds rerun `.configured` then `.build` |
-| source/board-output freshness purge (`real.remove_canary_files-…`) | every `build/**/.canary`; `install/*/*`; the board-specific coreboot dir `coreboot-VERSION/<board>` (including that board's coreboot `.build`) and `build/$ARCH/<board>` | non-coreboot module trees/objects and their `.build` stamps; the coreboot source clone and nested `.git` normally remain |
+| source/board-output freshness purge (`real.remove_canary_files-…`) | every `build/**/.canary` and `build/**/.patched`; `install/*/*`; the board-specific coreboot dir `coreboot-VERSION/<board>` (including that board's coreboot `.build`) and `build/$ARCH/<board>` | non-coreboot module trees/objects and their `.build` stamps; the coreboot source clone and nested `.git` normally remain |
 | `real.clean` | each module build dir under `build/$ARCH/` (all modules except `musl`/`musl-cross-make`), `kernel_headers` only when nonempty, and `install/*`; coreboot removes only `coreboot-VERSION/<board>` | `packages/`, `crossgcc/`; the coreboot source clone and nested `.git` normally remain |
 | `real.gitclean` | untracked/ignored content outside nested repositories (via `git clean -fxd`) | tracked files and nested Git repositories, including a surviving selected coreboot clone |
 | `real.gitclean_keep_packages` | untracked/ignored content outside nested repositories | `packages/`, tracked files, and nested Git repositories, including a surviving selected coreboot clone |
@@ -317,6 +317,7 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 | `coreboot.modify_defconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as defconfig |
 | `coreboot.modify_and_save_oldconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as full .config |
 | `linux.save_in_defconfig_format_in_place` | `modules/linux` | Normalize kernel config to defconfig |
+| `linux.save_in_defconfig_format_backup` | `modules/linux` | Same as defconfig but saves as `_defconfig` backup |
 | `linux.save_in_olddefconfig_format_in_place` | `modules/linux` | Normalize to olddefconfig format |
 | `linux.save_in_versioned_defconfig_format` | `modules/linux` | Save defconfig with version stamp |
 | `linux.save_in_versioned_oldconfig` | `modules/linux` | Save full .config with version stamp |
@@ -329,6 +330,35 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 These are used after manually editing `config/coreboot-BOARD.config` or
 `config/linux-BOARD.config` to normalize the file back to the convention
 expected by the build system.
+
+Defconfig backups (`config/coreboot-*.config_defconfig` and
+`config/linux-*.config_defconfig`) and the in-place oldconfig normalization
+(`coreboot.save_in_oldconfig_format_in_place` /
+`linux.save_in_olddefconfig_format_in_place`) run as part of every board
+build — the `all`, `linux` / `coreboot-<version>`, and board artifact
+targets — ordered after the corresponding module's `.build` stamp, so both
+the committed `config/*.config` (accepting any new defaults added by
+build-system or version changes) and the `_defconfig` backups (deviations
+from default visible at a glance) are kept in step
+(https://github.com/linuxboot/heads/issues/2238).  The save targets have no
+output stamp, so they also run on warm-cache builds where the module is
+already up to date.
+
+Changes occur **only when the regenerated config differs from the committed
+one** — the operations are skipped when the content matches, so an
+unchanged config keeps its mtime and does not retrigger the module's
+`.configured` prerequisite, and a write-back is an atomic .tmp+rename whose
+result is checked.  Failures are reported as warnings only and never fail
+the build; the auto helpers also record a failed regeneration or write-back
+in the board's `.config_sync_failed` marker, so a broken sync that leaves
+`config/` looking clean is still caught.  Locally the drift shows up as a
+`git` diff (and a `-dirty` version string on the next build).  Any
+resulting `config/` changes must be reviewed and committed: the config sync
+fail-safe step in every CircleCI board job fails the job (after the
+artifacts are stored) when the committed `config/` no longer matches what
+linux and coreboot actually consumed, or when the marker records a
+save-helper failure (`doc/circleci.md`).  See
+`doc/variation-to-defconfig.md` for auditing those deviations across boards.
 
 ## Build lifecycle
 
@@ -420,7 +450,7 @@ when necessary.
 
 `real.remove_canary_files-extract_patch_rebuild_what_changed` explicitly:
 
-- deletes every `build/**/.canary`;
+- deletes every `build/**/.canary` and `build/**/.patched`;
 - clears `install/*/*`;
 - removes the current board's coreboot build directory
   `build/$ARCH/coreboot-VERSION/$BOARD`; and

@@ -286,69 +286,154 @@ linux.modify_and_save_oldconfig_in_place:
 # save_in_defconfig_format_backup: same as above but doesn't overwrite: writes the defconfig to <config>_defconfig next to it
 # save_in_versioned_defconfig_format: same as avove but doesn't overwrite: writes it in seperate versioned file
 # same for oldconfig
+#
+# All of the save helpers operate on a copy of the committed config in a
+# temp dir, so the build .config (placeholders already substituted by
+# install_config) is never clobbered.  Shared semantics: a failed
+# regeneration warns and keeps the committed config (local builds must not
+# fail here; the CircleCI config sync fail-safe is the enforcement gate) --
+# the auto helpers (the ones wired into every board build by the top-level
+# Makefile) also record the failure in $(board_build)/.config_sync_failed,
+# so a broken sync that leaves config/ looking clean is caught by the
+# fail-safe anyway; the committed file is replaced only when the regenerated
+# content differs, via an atomic .tmp+rename whose result is checked (a
+# failed write-back must not leave a truncated committed config), so
+# unchanged content keeps its mtime and does not retrigger the module's
+# .configured prerequisite; the temp dir is always removed.
+#
 linux.save_in_defconfig_format_in_place:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).inplace_defconfig_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).inplace_defconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).inplace_defconfig_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			savedefconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_defconfig_format_in_place failed; keeping committed config" >&2; \
+		rm -rf "$(build)/$(linux_dir).inplace_defconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(linux_dir).inplace_defconfig_tmp/defconfig" "$(pwd)/$(linux_kconfig)" >/dev/null; then \
+		cp "$(build)/$(linux_dir).inplace_defconfig_tmp/defconfig" "$(pwd)/$(linux_kconfig)"; \
+		echo "INFO: linux config regenerated (differs from committed)" >&2; \
+	fi; \
+	rm -rf "$(build)/$(linux_dir).inplace_defconfig_tmp"
 
 linux.save_in_defconfig_format_backup:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& cp "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).defconfig_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).defconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).defconfig_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			savedefconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_defconfig_format_backup failed; keeping committed backup" >&2; \
+		echo "linux.save_in_defconfig_format_backup: regeneration failed" >> "$(board_build)/.config_sync_failed"; \
+		rm -rf "$(build)/$(linux_dir).defconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(linux_dir).defconfig_tmp/defconfig" "$(pwd)/$(linux_kconfig)_defconfig" >/dev/null; then \
+		if ! { cp "$(build)/$(linux_dir).defconfig_tmp/defconfig" \
+				"$(pwd)/$(linux_kconfig)_defconfig.tmp" && \
+			mv "$(pwd)/$(linux_kconfig)_defconfig.tmp" "$(pwd)/$(linux_kconfig)_defconfig"; }; then \
+			echo "WARNING: linux.save_in_defconfig_format_backup failed to write the regenerated backup; keeping committed backup" >&2; \
+			echo "linux.save_in_defconfig_format_backup: write-back failed" >> "$(board_build)/.config_sync_failed"; \
+			rm -f "$(pwd)/$(linux_kconfig)_defconfig.tmp"; \
+		else \
+			echo "INFO: linux defconfig regenerated (differs from committed)" >&2; \
+		fi; \
+	fi; \
+	rm -rf "$(build)/$(linux_dir).defconfig_tmp"
 
 linux.save_in_versioned_defconfig_format:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).versioned_defconfig_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).versioned_defconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).versioned_defconfig_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			savedefconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_versioned_defconfig_format failed; no versioned defconfig written" >&2; \
+		rm -rf "$(build)/$(linux_dir).versioned_defconfig_tmp"; \
+		exit 0; \
+	fi; \
+	mv "$(build)/$(linux_dir).versioned_defconfig_tmp/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"; \
+	rm -rf "$(build)/$(linux_dir).versioned_defconfig_tmp"
 
 # This one can be used in kernel version bump, which will accept all new defconfig options for the new version.
 #  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
 linux.save_in_olddefconfig_format_in_place:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		olddefconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).inplace_oldconfig_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).inplace_oldconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).inplace_oldconfig_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			olddefconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_olddefconfig_format_in_place failed; keeping committed config" >&2; \
+		echo "linux.save_in_olddefconfig_format_in_place: regeneration failed" >> "$(board_build)/.config_sync_failed"; \
+		rm -rf "$(build)/$(linux_dir).inplace_oldconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(linux_dir).inplace_oldconfig_tmp/.config" "$(pwd)/$(linux_kconfig)" >/dev/null; then \
+		if ! { cp "$(build)/$(linux_dir).inplace_oldconfig_tmp/.config" \
+				"$(pwd)/$(linux_kconfig).tmp" && \
+			mv "$(pwd)/$(linux_kconfig).tmp" "$(pwd)/$(linux_kconfig)"; }; then \
+			echo "WARNING: linux.save_in_olddefconfig_format_in_place failed to write the regenerated config; keeping committed config" >&2; \
+			echo "linux.save_in_olddefconfig_format_in_place: write-back failed" >> "$(board_build)/.config_sync_failed"; \
+			rm -f "$(pwd)/$(linux_kconfig).tmp"; \
+		else \
+			echo "INFO: linux config regenerated (differs from committed)" >&2; \
+		fi; \
+	fi; \
+	rm -rf "$(build)/$(linux_dir).inplace_oldconfig_tmp"
 
 # non-interactive: olddefconfig (accepts defaults for new options), not the
 # interactive oldconfig used by save_in_versioned_oldconfig
 linux.save_in_oldconfig_format_backup:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		olddefconfig \
-	&& cp "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).oldconfig_backup_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).oldconfig_backup_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).oldconfig_backup_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			olddefconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_oldconfig_format_backup failed; keeping committed backup" >&2; \
+		rm -rf "$(build)/$(linux_dir).oldconfig_backup_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(linux_dir).oldconfig_backup_tmp/.config" "$(pwd)/$(linux_kconfig)_oldconfig" >/dev/null; then \
+		cp "$(build)/$(linux_dir).oldconfig_backup_tmp/.config" "$(pwd)/$(linux_kconfig)_oldconfig"; \
+		echo "INFO: linux oldconfig regenerated (differs from committed)" >&2; \
+	fi; \
+	rm -rf "$(build)/$(linux_dir).oldconfig_backup_tmp"
 
 linux.save_in_versioned_oldconfig:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		oldconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).versioned_oldconfig_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).versioned_oldconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).versioned_oldconfig_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			oldconfig; \
+	}; then \
+		echo "WARNING: linux.save_in_versioned_oldconfig failed; no versioned oldconfig written" >&2; \
+		rm -rf "$(build)/$(linux_dir).versioned_oldconfig_tmp"; \
+		exit 0; \
+	fi; \
+	mv "$(build)/$(linux_dir).versioned_oldconfig_tmp/.config" "$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)"; \
+	rm -rf "$(build)/$(linux_dir).versioned_oldconfig_tmp"
 
 # Prior of attempting to bump kernel version, call make BOARD=xyz linux.save_in_oldconfig_format_in_place
 # Then bump board config's CONFIG_LINUX_VERSION. build as usual to extract new linux tarball.
@@ -356,11 +441,21 @@ linux.save_in_versioned_oldconfig:
 #The following ask new config choice for all new symbols that should be evaluated prior of creating PR
 # Tip: Open a browser at https://www.kernelconfig.io/index.html
 linux.prompt_for_new_config_options_for_kernel_version_bump:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		oldconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
+	@if ! { \
+		mkdir -p "$(build)/$(linux_dir).prompt_tmp" && \
+		cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir).prompt_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(linux_base_dir)" \
+			O="$(build)/$(linux_dir).prompt_tmp" \
+			ARCH="$(LINUX_ARCH)" \
+			CROSS_COMPILE="$(CROSS)" \
+			oldconfig; \
+	}; then \
+		echo "WARNING: linux.prompt_for_new_config_options_for_kernel_version_bump failed; keeping committed config" >&2; \
+		rm -rf "$(build)/$(linux_dir).prompt_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(linux_dir).prompt_tmp/.config" "$(pwd)/$(linux_kconfig)" >/dev/null; then \
+		cp "$(build)/$(linux_dir).prompt_tmp/.config" "$(pwd)/$(linux_kconfig)"; \
+		echo "INFO: linux config updated via prompt (differs from committed)" >&2; \
+	fi; \
+	rm -rf "$(build)/$(linux_dir).prompt_tmp"

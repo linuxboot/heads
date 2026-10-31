@@ -251,36 +251,16 @@ USB token (for example `scdaemon` or `pcscd`). The wrapper will warn and, on int
 shells, give a **3-second abort window** before attempting to kill those processes to free
 the token. Set `HEADS_DISABLE_USB=1` to opt out of this automatic cleanup.
 
-For fully unattended builds (script/non-interactive shell), wrap the command in
-`script` to provide the pseudo-TTY that `docker_repro.sh`'s `-ti` requires. Pass
-`-f` (flush) as well: without it, `script` buffers its output and a non-tty/agent
-context that reads the stream incrementally can see the build stall or lose
-output. `HEADS_DISABLE_USB=1` skips the USB token passthrough (and its 3-second
-abort window) so nothing prompts:
+For fully unattended builds (script/non-interactive shell), set
+`HEADS_DISABLE_USB=1` to skip the USB token passthrough (and its 3-second
+abort window) so nothing prompts.  The wrapper detects when stdin is not a
+terminal and omits `-ti`, so no pseudo-TTY workaround (e.g. util-linux
+`script`) is required in an agent/CI context:
 
 ```bash
-script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized"
-script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x220-maximized"
+HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized
+HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x220-maximized
 ```
-
-`script` (util-linux) allocates a pseudo-terminal (PTY) so `docker run -ti` has
-a TTY in a non-interactive/agent context; the command's output is still shown on
-screen (stdout). The options used above:
-
-- `-c "<cmd>"` runs that command.
-- `-q` suppresses `script`'s own start/done banners.
-- `-e` propagates the command's exit status, so a failed build is detectable.
-- `-f` flushes output as it is written (no buffering), so incremental readers
-  don't see it stall.
-
-`script` also records the session to a file — by default `./typescript`, which
-this repo gitignores (`.gitignore:34` `typescript*`). Leave it default to keep
-the transcript; pass `/dev/null` as the trailing argument to skip recording.
-
-`HEADS_DISABLE_USB=1` skips USB-token passthrough and its 3-second abort window.
-
-Both `HEADS_DISABLE_USB=1` and `script` are unnecessary when running from
-an interactive terminal.
 
 ```bash
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run

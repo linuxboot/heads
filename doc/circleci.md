@@ -144,6 +144,33 @@ refreshes restored build stamps to prevent spurious rebuilds, and creates
 `logs.tar.gz` on every build.  A separate step emits recent failing-build logs
 and returns failure only when the marker created by the build step is present.
 
+Every board job ends with a **config sync fail-safe** step: after the build,
+it checks two things.  `git --no-pager status --porcelain -- config/`
+reveals whether any committed `config/` file drifted from what linux/coreboot
+actually consumed, and the board's `.config_sync_failed` marker
+(`build/<arch>/<board>/.config_sync_failed`) records a save-helper failure
+(a regeneration or write-back that could not be completed) that a clean git
+status would hide.  The build's auto-regeneration (see
+[modules.md](modules.md#module-level-helpers) and
+[variation-to-defconfig.md](variation-to-defconfig.md)) runs
+`save_in_oldconfig_format_in_place` + `save_in_defconfig_format_backup` as
+part of every board build, ordered after the linux/coreboot module `.build`
+stamps and with no output stamp of their own, so they run on warm-cache
+builds too.  Regeneration is **non-fatal**: it overwrites committed configs
+only when the regenerated content differs, and reports failures as warnings
+only (recording them in the marker).  Either condition fails the job; the
+step runs after `store_artifacts`, so it blocks without hiding the produced
+ROMs: the developer reviews the diff, keeps it minimal, and commits the
+regenerated files (e.g. a manual edit that was never regenerated, or a
+coreboot/kernel bump).  Locally, the same auto-regeneration never fails the
+build either — the drift shows up as a `git` diff (and a `-dirty` version
+string on the next build), and a failed sync leaves the marker plus the
+warning, which is what `bin/build_all_boards.sh` (a full local build of
+every board) discovers interactively; the CI step makes it a per-board
+guarantee.  The step runs its git commands with `--no-pager` because
+CircleCI runs steps with a PTY: an unpaged `git diff` would open the pager
+and hang the step until the no-output timeout.
+
 1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
    files and persists `tmpDir/` to workspace.  Four hash files are created:
    - `all_modules_and_patches.sha256sums`: `Makefile`, `flake.lock`,
@@ -195,7 +222,7 @@ Seed job names in CircleCI include their upstream coreboot base in
 |---|---|---|
 | `novacustom-nv4x_adl [seed:coreboot-24.12]` | 7 (8 configured Dasharo boards including this seed) | coreboot 24.12 |
 | `librem_14 [seed:coreboot-24.02.01]` | 8 Purism boards | coreboot 24.02.01 |
-| `kano [seed:coreboot-mrchromebox-26.03]` | 1 (`kano-hotp`) | MrChromebox fork (coreboot 26.03) |
+| `fizz [seed:coreboot-mrchromebox-26.03]` | 3 (`fizz-hotp, kano-hotp, kano`) | MrChromebox fork (coreboot 26.03) |
 | `EOL_t480-hotp-maximized [seed:coreboot-26.09]` | 33 | coreboot 26.09 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
@@ -283,9 +310,13 @@ complexity (different source types: tarball vs git fork).
 When changing `.circleci/config.yml`, update this document:
 
 - **Job graph changed**: Update Pipeline shape and seed list.
+- **`build_board` command steps changed** (e.g. the config sync fail-safe):
+  Update Step details.
 - **Cache key, restore order, or saved path changed**: Update Cache
   model and `Why musl could rebuild`.
 - **Runtime or rebuild semantics changed**: Update Pipeline details.
+- **Config regeneration behavior changed** (overwrite-on-diff, warn-not-fail):
+  Update Step details and the fail-safe description above.
 - **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
   to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in
   `.circleci/config.yml` depending on `novacustom-nv4x_adl`.  If sum
