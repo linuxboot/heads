@@ -558,21 +558,21 @@ workflows:
           requires:
             - fizz [seed:coreboot-mrchromebox-26.03]
 
-      - x86_coreboot:
-          name: kano [seed:coreboot-mrchromebox-26.03]
+      # kano (seeded by fizz -- reuses coreboot-mrchromebox-26.03 workspace)
+      - build:
+          name: kano
           target: kano
           subcommand: ""
-          coreboot_dir: coreboot-mrchromebox-26.03
           requires:
-            - x86-musl-cross-make [cross compiler]
+            - fizz [seed:coreboot-mrchromebox-26.03]
 
-      # kano-hotp (seeded by kano)
+      # kano-hotp (seeded by fizz -- reuses coreboot-mrchromebox-26.03 workspace)
       - build:
           name: kano-hotp
           target: kano-hotp
           subcommand: ""
           requires:
-            - kano [seed:coreboot-mrchromebox-26.03]
+            - fizz [seed:coreboot-mrchromebox-26.03]
 
       # ── coreboot 26.09 boards (alphabetical) ───────────────────────────────
       - build:
