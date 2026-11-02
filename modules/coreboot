@@ -364,16 +364,21 @@ $(build)/$(BOARD)/$(CB_OUTPUT_FILE): $(build)/$(coreboot_dir)/.build
 	"$(build)/$(coreboot_dir)/cbfstool" "$(dir $<)coreboot.rom" print
 	@echo ""
 	@echo "Validating final CBFS/IFD configuration..."
+	# Validate against the build .config, the config the ROM was actually
+	# built from: the config save targets run before this recipe
+	# (order-only prerequisites) and may have rewritten the committed
+	# config since .build, so $(CONFIG_COREBOOT_CONFIG) no longer
+	# necessarily describes this ROM.
 	@$(pwd)/bin/validate_cbfs_ifd_fit.sh \
 		--coreboot-dir "$(build)/$(coreboot_dir)" \
 		--board-dir "$(build)/$(BOARD)" \
-		--config "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" || exit 1
+		--config "$(build)/$(coreboot_dir)/.config" || exit 1
 	@echo ""
 	@if [ -n "$(CONFIG_COREBOOT_APPLY_HAP)" -o -n "$(CONFIG_COREBOOT_GPR0_DISABLE)" ]; then \
 		echo "==================================================================="; \
 		echo "IFD post-build processing (ifdtool)"; \
 		echo "==================================================================="; \
-		platform="$$(grep '^CONFIG_IFD_CHIPSET=' "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" | cut -d'"' -f2 || true)"; \
+		platform="$$(grep '^CONFIG_IFD_CHIPSET=' "$(build)/$(coreboot_dir)/.config" | cut -d'"' -f2 || true)"; \
 		platflag=""; \
 		if [ -n "$$platform" ]; then \
 			platflag="--platform $$platform"; \
@@ -413,38 +418,96 @@ endif
 endif
 
 #
-# Helpful target for reconfiguring the coreboot target
+# Config save helpers.  All of them operate on a copy of the committed
+# config in a temp dir, so the build .config (placeholders already
+# substituted by install_config) is never clobbered.  Semantics, shared by
+# every helper:
+#  - a failed regeneration warns and keeps the committed config (local
+#    builds must not fail here; the CircleCI config sync fail-safe is the
+#    enforcement gate); the auto helpers (the ones wired into every board
+#    build by the top-level Makefile) also record the failure in
+#    $(board_build)/.config_sync_failed, so a broken sync that leaves
+#    config/ looking clean is caught by the fail-safe anyway;
+#  - the committed file is replaced only when the regenerated content
+#    differs, via an atomic .tmp+rename, and the rename is checked: a
+#    failed write-back must not leave a truncated committed config;
+#  - the temp dir is always removed.
+#
+# coreboot's savedefconfig writes its output into the source tree
+# ($(build)/$(coreboot_base_dir)/defconfig), so that is the path compared.
 #
 coreboot.save_in_defconfig_format_in_place:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		olddefconfig && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		savedefconfig && \
-	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
+	@if ! { \
+		mkdir -p "$(build)/$(coreboot_dir).inplace_defconfig_tmp" && \
+		cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir).inplace_defconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(coreboot_base_dir)" \
+			DOTCONFIG="$(build)/$(coreboot_dir).inplace_defconfig_tmp/.config" \
+			olddefconfig && \
+		$(MAKE) -C "$(build)/$(coreboot_base_dir)" \
+			DOTCONFIG="$(build)/$(coreboot_dir).inplace_defconfig_tmp/.config" \
+			savedefconfig; \
+	}; then \
+		echo "WARNING: coreboot.save_in_defconfig_format_in_place failed; keeping committed config" >&2; \
+		rm -rf "$(build)/$(coreboot_dir).inplace_defconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" >/dev/null; then \
+		cp "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"; \
+		echo "INFO: coreboot config regenerated (differs from committed)" >&2; \
+	fi; \
+	rm -rf "$(build)/$(coreboot_dir).inplace_defconfig_tmp"
 
 coreboot.save_in_oldconfig_format_in_place:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		olddefconfig \
-	&& mv "$(build)/$(coreboot_dir)/.config" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
+	@if ! { \
+		mkdir -p "$(build)/$(coreboot_dir).inplace_oldconfig_tmp" && \
+		cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir).inplace_oldconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(coreboot_base_dir)" \
+			DOTCONFIG="$(build)/$(coreboot_dir).inplace_oldconfig_tmp/.config" \
+			olddefconfig; \
+	}; then \
+		echo "WARNING: coreboot.save_in_oldconfig_format_in_place failed; keeping committed config" >&2; \
+		echo "coreboot.save_in_oldconfig_format_in_place: regeneration failed" >> "$(board_build)/.config_sync_failed"; \
+		rm -rf "$(build)/$(coreboot_dir).inplace_oldconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(coreboot_dir).inplace_oldconfig_tmp/.config" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" >/dev/null; then \
+		if ! { cp "$(build)/$(coreboot_dir).inplace_oldconfig_tmp/.config" \
+				"$(pwd)/$(CONFIG_COREBOOT_CONFIG).tmp" && \
+			mv "$(pwd)/$(CONFIG_COREBOOT_CONFIG).tmp" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"; }; then \
+			echo "WARNING: coreboot.save_in_oldconfig_format_in_place failed to write the regenerated config; keeping committed config" >&2; \
+			echo "coreboot.save_in_oldconfig_format_in_place: write-back failed" >> "$(board_build)/.config_sync_failed"; \
+			rm -f "$(pwd)/$(CONFIG_COREBOOT_CONFIG).tmp"; \
+		else \
+			echo "INFO: coreboot config regenerated (differs from committed)" >&2; \
+		fi; \
+	fi; \
+	rm -rf "$(build)/$(coreboot_dir).inplace_oldconfig_tmp"
 
 coreboot.save_in_defconfig_format_backup:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		savedefconfig && \
-	cp "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig"
+	@if ! { \
+		mkdir -p "$(build)/$(coreboot_dir).defconfig_tmp" && \
+		cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir).defconfig_tmp/.config" && \
+		$(MAKE) -C "$(build)/$(coreboot_base_dir)" \
+			DOTCONFIG="$(build)/$(coreboot_dir).defconfig_tmp/.config" \
+			savedefconfig; \
+	}; then \
+		echo "WARNING: coreboot.save_in_defconfig_format_backup failed; keeping committed backup" >&2; \
+		echo "coreboot.save_in_defconfig_format_backup: regeneration failed" >> "$(board_build)/.config_sync_failed"; \
+		rm -rf "$(build)/$(coreboot_dir).defconfig_tmp"; \
+		exit 0; \
+	fi; \
+	if ! diff -q "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig" >/dev/null; then \
+		if ! { cp "$(build)/$(coreboot_base_dir)/defconfig" \
+				"$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig.tmp" && \
+			mv "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig.tmp" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig"; }; then \
+			echo "WARNING: coreboot.save_in_defconfig_format_backup failed to write the regenerated backup; keeping committed backup" >&2; \
+			echo "coreboot.save_in_defconfig_format_backup: write-back failed" >> "$(board_build)/.config_sync_failed"; \
+			rm -f "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig.tmp"; \
+		else \
+			echo "INFO: coreboot defconfig regenerated (differs from committed)" >&2; \
+		fi; \
+	fi; \
+	rm -rf "$(build)/$(coreboot_dir).defconfig_tmp"
 
 coreboot.modify_defconfig_in_place:
 	mkdir -p "$(build)/$(coreboot_dir)" && \

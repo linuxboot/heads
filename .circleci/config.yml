@@ -62,6 +62,40 @@ commands:
             fi
       - store_artifacts:
           path: build/<< parameters.arch >>/<< parameters.target >>
+      - run:
+          name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
+          command: |
+            # Fails the job (after store_artifacts, so the ROMs stay
+            # downloadable) if the build's config auto-regeneration (see
+            # doc/variation-to-defconfig.md) left any trace:
+            #  - config/ drift: committed files differ from what
+            #    linux/coreboot actually consumed -> dirty git status.
+            #  - save-helper failure: recorded in the board's
+            #    .config_sync_failed marker (a clean git status would hide
+            #    it).
+            # Locally both are warn-only (git diff + marker); this step is
+            # the enforcement gate.  --no-pager: CircleCI runs steps with a
+            # PTY; an unpaged git diff would hang in the pager until the
+            # step timeout.
+            marker="build/<< parameters.arch >>/<< parameters.target >>/.config_sync_failed"
+            drift=$(git --no-pager status --porcelain -- config/)
+            if [ -s "$marker" ]; then
+              echo "FAIL-SAFE: config auto-regeneration failed for this build (committed config/ left as-is):" >&2
+              sed 's/^/    /' "$marker" >&2
+            fi
+            if [ -n "$drift" ]; then
+              echo "FAIL-SAFE: committed config/ is out of sync with what this" >&2
+              echo "build actually used.  The auto-regeneration step rewrote:" >&2
+              printf '%s\n' "$drift" | sed 's/^/    /' >&2
+              echo "Review the diff below, keep it minimal, and commit the" >&2
+              echo "regenerated config files with the change that caused them" >&2
+              echo "(manual edit, coreboot/kernel bump, build-system change)." >&2
+              git --no-pager diff -- config/ >&2
+            fi
+            if [ -s "$marker" ] || [ -n "$drift" ]; then
+              exit 1
+            fi
+            echo "config/ in sync: committed files match what linux and coreboot consumed."
 
 jobs:
 

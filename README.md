@@ -86,31 +86,6 @@ git fetch --tags origin
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
 
-From a non-interactive context (CI, agents, no TTY), `docker_repro.sh`'s `-ti`
-still needs a pseudo-TTY: wrap the command in `script`. Pass `-f` so `script`
-flushes output as it is written instead of buffering it, and set
-`HEADS_DISABLE_USB=1` to skip the USB token passthrough:
-
-```bash
-script -qefc "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized"
-```
-
-`script` (util-linux) allocates a pseudo-terminal (PTY) so `docker run -ti` has
-a TTY in a non-interactive/agent context; the command's output is still shown on
-screen (stdout). The options used above:
-
-- `-c "<cmd>"` runs that command.
-- `-q` suppresses `script`'s own start/done banners.
-- `-e` propagates the command's exit status, so a failed build is detectable.
-- `-f` flushes output as it is written (no buffering), so incremental readers
-  don't see it stall.
-
-`script` also records the session to a file — by default `./typescript`, which
-this repo gitignores (`.gitignore:34` `typescript*`). Leave it default to keep
-the transcript; pass `/dev/null` as the trailing argument to skip recording.
-
-`HEADS_DISABLE_USB=1` skips USB-token passthrough and its 3-second abort window.
-
 **No hardware required for testing** — Docker provides the full build stack
 and QEMU runtime with software TPM (swtpm) and the bundled `canokey-qemu`
 virtual OpenPGP smartcard. Build and test entirely in software before flashing real hardware.
