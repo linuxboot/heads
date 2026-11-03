@@ -112,7 +112,7 @@ with a non-zero exit: the lock is working and the reset edge cannot be
 created. `tpm-gpio-detect` reports the pad as locked. To demonstrate the
 reset flow itself, run the tools on firmware without the pad lock.
 
-The `tpm-gpio-*` tools build on any x86 board with a TPM (1.2 or 2.0); `tpm-gpio-assert` dispatches at runtime on which TPM CLI the initramfs packs (`bin/tpm2` = TPM 2.0, `bin/tpm` = TPM 1.2; `bin/tpm2` wins when both are present, e.g. `x280`):
+The `tpm-gpio-*` tools build on any x86 board with a TPM (1.2 or 2.0); `tpm-gpio-assert` dispatches at runtime on which TPM CLI the initramfs packs (`bin/tpm2` = TPM 2.0, `bin/tpm` = TPM 1.2; `bin/tpm2` wins when both are present):
 
 - **TPM 2.0** (`t480`/`t480s`/`x280`): `tpm2 startup -c` before and after, `tpm2 pcrread` (sha256) for the PCR dumps, and `tpm2 shutdown -c` immediately before the PLTRST# assertion for a clean session shutdown. The initrd carries the `tpm2` multi-call binary; the TPM1 `bin/tpm` and `libtpm.so` are deliberately not shipped (except on `x280`, which packs both stacks).
 - **TPM 1.2** (`m900`): `tpm pcrread -ix <i>` for PCRs 0-15 (bare SHA1 digests) before and after, a raw 16-byte `TPM_Startup(TPM_STARTUP_FULL)` on `/dev/tpm0` after the assertion to reinitialize (the packed tpm-tools binary has no startup subcommand), and no shutdown step -- the PLTRST# pulse itself performs a full `_TPM_Init` (PCRs zero, NVRAM preserved). The initrd carries `bin/tpm` and `libtpm.so`; no `tpm2` binary.
