@@ -402,6 +402,54 @@ endef
 # as part of creating the Heads firmware image.
 include modules/*
 
+# Regenerate the in-place oldconfig and the defconfig backups as part of
+# every board build.  The save targets produce no output file, so make runs
+# them on every invocation that reaches them -- including warm-cache builds
+# where the module .build stamps are up to date -- and a restored CircleCI
+# cache can never skip them (no stamp to restore).  They are ordered after
+# the module .build stamps (the build must be done before its config is
+# normalized) and serialize oldconfig -> defconfig so the backup never reads
+# a half-regenerated config under parallel make.  Regeneration failures warn
+# and never fail the build: locally the drift surfaces as a git diff (and a
+# -dirty version string on the next build), and the config sync fail-safe
+# step in CircleCI is the enforcement gate.  A failed save helper also
+# records itself in the per-board marker below, so a broken sync that leaves
+# config/ looking clean is caught there too; the marker is cleared on every
+# Makefile parse, so each build starts from a clean slate for its board.
+$(shell rm -f "$(board_build)/.config_sync_failed")
+
+all: linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup
+linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_dir)/.build
+linux.save_in_defconfig_format_backup: linux.save_in_olddefconfig_format_in_place
+ifeq "$(CONFIG_COREBOOT)" "y"
+all: coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
+coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_dir)/.build
+coreboot.save_in_defconfig_format_backup: coreboot.save_in_oldconfig_format_in_place
+endif
+
+# Targeted module builds (make BOARD=... linux / coreboot-<version>)
+# regenerate the configs too, not only `all`.  Only the board's own coreboot
+# module hooks in; the toolchain-only and coreboot-blobs-<version> modules
+# have no board config to regenerate.
+linux: linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup
+ifeq "$(CONFIG_COREBOOT)" "y"
+$(coreboot_module): coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
+endif
+
+# Order-only prerequisites: config regeneration completes before downstream
+# artifact validation under make -j (a board artifact must never be assembled
+# or validated while config/ is being rewritten), without making the artifact
+# targets stale on warm-cache builds (a normal prerequisite with no output
+# file would rerun their recipes on every build).
+$(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(LB_OUTPUT_FILE): | \
+    linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup
+ifeq "$(CONFIG_COREBOOT)" "y"
+$(board_build)/$(CB_OUTPUT_FILE): | \
+    coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
+$(board_build)/$(CB_UPDATE_PKG_FILE) $(board_build)/$(CB_BOOTBLOCK_FILE): | \
+    coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
+endif
+
 # Collect all data files from enabled modules
 data_files :=
 $(foreach m,$(modules-y),$(eval data_files += $($(m)_data)))
@@ -1218,6 +1266,8 @@ real.remove_canary_files-extract_patch_rebuild_what_changed:
 	@echo "*** USE THIS APPROACH FIRST ***"
 	@echo "Removing ./build .canary files..."
 	@find ./build/ -type f -name ".canary" -print -delete || true
+	@echo "Removing ./build .patched files..."
+	@find ./build/ -type f -name ".patched" -print -delete || true
 	@echo "Removing install/*/* content..."
 	@find ./install/*/* -print -exec rm -rf {} + 2>/dev/null || true
 	@echo "Removing coreboot board related artifact directory: $(build)/$(coreboot_dir)"

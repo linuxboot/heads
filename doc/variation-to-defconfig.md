@@ -231,8 +231,30 @@ CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y
 
 Generated via:
 ```
+make BOARD=<board> coreboot.save_in_oldconfig_format_in_place
 make BOARD=<board> coreboot.save_in_defconfig_format_backup
+make BOARD=<board> linux.save_in_olddefconfig_format_in_place
+make BOARD=<board> linux.save_in_defconfig_format_backup
 ```
+
+These targets now run automatically as part of every board build
+(see `doc/modules.md#module-level-helpers`), ordered after the module's
+`.build` stamp, with the in-place oldconfig target running first (accepting
+defaults for new build-system/version options into the committed
+`config/*.config`) and the defconfig backup second, so
+`config/coreboot-*.config_defconfig` and `config/linux-*.config_defconfig`
+are refreshed whenever you `make BOARD=<board>` — including warm-cache
+builds, since the save targets have no output stamp to restore.  The
+committed config is overwritten **only when the regenerated content
+differs**, otherwise the operation is skipped.  A failed regeneration or
+write-back is reported as a warning only and never fails the build; the
+auto helpers also record it in the board's `.config_sync_failed` marker, so
+a broken sync that leaves `config/` looking clean is still caught.
+Locally the drift shows up as a `git` diff (and a `-dirty` version string
+on the next build).  A config sync fail-safe step in every CircleCI board
+job fails the job (after the artifacts are stored) when the committed
+`config/` no longer matches what linux and coreboot actually consumed, or
+when the marker records a save-helper failure (see `doc/circleci.md`).
 
 Intended for diffing with upstream defconfigs and for reviewing what
 non-default options a board sets.

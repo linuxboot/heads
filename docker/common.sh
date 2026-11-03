@@ -1023,7 +1023,17 @@ print_digest_info() {
 
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
-	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm -ti)
+	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm)
+	if [ -t 0 ]; then
+		# Interactive terminal? Yes: pass pseudo-terminal, interactive flags to docker
+		#
+		# --tty: Tricks the process inside the container into thinking it is connected to a physical
+		#  terminal screen
+		# --interactive: Forces Docker to listen to your keyboard inputs even if you aren't
+		#  explicitly attached
+
+		opts+=(--tty --interactive)
+	fi
 
 	# USB passthrough
 	if [ -d "/dev/bus/usb" ] && [ "${HEADS_DISABLE_USB:-0}" != "1" ]; then
