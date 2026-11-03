@@ -43,8 +43,7 @@ into TPM PCR 2 as the Static Root of Trust for Measurement (SRTM), and launches
 the Linux payload without a second-stage bootloader.  The CRTM (running in
 bootblock) measures FMAP and the bootblock image into the preram log.
 Measurements taken before TPM initialization are flushed to PCR 2 once TPM setup
-completes.  This is a typical x86 path, not a universal description: X280
-measured boot is disabled, Librem Mini has TPM support disabled, the
+completes.  This is a typical x86 path, not a universal description: Librem Mini has TPM support disabled, the
 unmaintained `CONFIG_LINUXBOOT` path builds a separate linuxboot ROM, and Talos
 uses coreboot → skiboot rather than the direct x86 coreboot → Linux chain.  See
 [tpm.md](tpm.md#root-of-trust-and-srtm-chain) for per-board TPM timing.
