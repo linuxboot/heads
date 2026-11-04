@@ -313,6 +313,26 @@ update checksums, or return to the main menu.
 
 Optionally, root partition hashes are also checked if `CONFIG_ROOT_CHECK_AT_BOOT=y`.
 
+### Default boot hash verification
+
+When booting the saved default entry, `kexec-select-boot` verifies
+`kexec_default_hashes.txt` against the files required for that entry via
+`sha256sum -c`. `CONFIG_BOOT_REQ_HASH=y` enforces this check on all boards.
+
+If verification fails, `kexec-select-boot` reports the mismatch and, when
+`CONFIG_BOOT_REQ_HASH=y`, aborts default boot (via `do_boot()` which calls
+`DIE` when `valid_hash` is `n`) so the system drops to the recovery shell
+rather than booting with out-of-sync default hashes. To recover: re-save
+the default boot entry from the boot menu, or run "Update checksums and sign
+all files in /boot" from the GUI (Options menu) to regenerate and sign
+`kexec_hashes.txt`, `kexec_tree.txt`, and the global boot signatures;
+then re-save the default entry if it still needs updating. The global
+"Update checksums" flow regenerates hashes for all non-`kexec*` files in
+`/boot` but does **not** automatically regenerate `kexec_default_hashes.txt`
+for an existing default entry—if files referenced by the default entry were
+changed, re-saving the default is required so `kexec_default_hashes.txt`
+matches current files on disk.
+
 ### Rollback counter verification (`verify_rollback_counter`)
 
 The TPM monotonic counter index is read from `/boot/kexec_rollback.txt` and the
