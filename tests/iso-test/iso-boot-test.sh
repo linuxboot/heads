@@ -317,6 +317,85 @@ echo ""
 echo ""
 
 # ================================================================
+# Step 7c (production): default-entry hash verification
+# ================================================================
+echo "=== Step 7c: Default boot hash verification ==="
+echo ""
+
+# --- Boot-side fixture: fake boot dir, menu, saved default entry, manifest ---
+FAKE_BOOT="$TMPDIR/fakeboot"
+FAKE_KEXEC="$TMPDIR/kexecdir"
+mkdir -p "$FAKE_BOOT" "$FAKE_KEXEC"
+printf 'kernel-data\n' > "$FAKE_BOOT/vmlinuz-x"
+printf 'initrd-data\n' > "$FAKE_BOOT/initrd-x"
+ENTRY='linux|linux|kernel /vmlinuz-x|initrd /initrd-x|append root=/dev/sda1'
+printf '%s\n' "$ENTRY" > "$FAKE_KEXEC/kexec_menu.txt"
+printf '%s\n' "$ENTRY" > "$FAKE_KEXEC/kexec_default.1.txt"
+
+bootdir="$FAKE_BOOT"
+TMP_MENU_FILE="$FAKE_KEXEC/kexec_menu.txt"
+TMP_DEFAULT_FILE="$FAKE_KEXEC/kexec_default.1.txt"
+TMP_DEFAULT_HASH_FILE="$FAKE_KEXEC/kexec_default_hashes.txt"
+
+# Manifest generated relative to bootdir, as kexec-save-default.sh does.
+( cd "$FAKE_BOOT" && sha256sum ./vmlinuz-x ./initrd-x ) > "$TMP_DEFAULT_HASH_FILE"
+
+# Globals read by default_select()/do_boot().
+gui_menu="n"
+CONFIG_BASIC="n"
+# The default-entry refusal does not depend on this knob: it is "n" on every board today.
+CONFIG_BOOT_REQ_HASH="n"
+CONFIG_BOOT_REQ_ROLLBACK="n"
+CONFIG_TPM="n"
+valid_hash="n"
+
+# Test 1: master's global /boot hash gate is still present (DIE form).
+# The global gate calls DIE, which exits the shell, so it cannot be invoked
+# directly here.  Assert its source instead of executing it.
+do_boot_src=$(type do_boot 2>/dev/null)
+check "$(echo "$do_boot_src" | grep -qF 'valid_hash' && echo "$do_boot_src" | grep -qF 'DIE "Missing required boot hashes"' && echo pass || echo fail)" \
+	"do_boot: global hash gate (DIE) present in source"
+
+# Stub do_boot AFTER the real-do_boot tests above, so default_select's boot
+# path is counted without touching the real kexec.
+boot_count=0
+do_boot() {
+	boot_count=$((boot_count + 1))
+	return 0
+}
+
+# Test 2: matching manifest -> verified, and the boot path runs exactly once.
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "1" ] && echo pass || echo fail)" \
+	"default_select: matching manifest boots exactly once"
+
+# Test 3: mismatching manifest -> not verified, no boot, menu fallback.
+# default_select returns (without booting) on a mismatch; the main loop then
+# sets default_failed=y so the user is prompted to set a new default.  The
+# refusal happens even though CONFIG_BOOT_REQ_HASH="n".
+printf 'mutated-kernel\n' > "$FAKE_BOOT/vmlinuz-x"
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
+	"default_select: mismatched manifest does not boot (menu fallback; CONFIG_BOOT_REQ_HASH=n)"
+
+# Test 4: stdin-marker manifest (64 hex + "  -") must be treated as failure.
+STDIN_MARKER="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  -"
+printf '%s\n' "$STDIN_MARKER" > "$TMP_DEFAULT_HASH_FILE"
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
+	"default_select: stdin-marker manifest treated as failure (no boot)"
+
+# Clean up fixture variables.
+unset bootdir option params name kernel kexectype initrd gui_menu \
+	ENTRY FAKE_BOOT FAKE_KEXEC \
+	rc boot_count valid_hash valid_rollback \
+	STDIN_MARKER do_boot_src
+echo ""
+
+# ================================================================
 # Step 6: Real ISO verification
 # ================================================================
 # Inside initramfs, auto-detect ISOs at /media/ISOs (mounted by mount-usb.sh)

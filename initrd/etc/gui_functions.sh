@@ -128,6 +128,18 @@ whiptail_type() {
 	esac
 }
 
+# Offer the OS boot menu when there is no usable default boot option — either
+# none is configured, or the saved default's files changed so its recorded
+# hashes no longer match.  Returns whiptail's status: 0 when the user chooses
+# to load the menu, non-zero when they decline (or dismiss the dialog).  Where
+# a decline goes depends on the caller (main menu, recovery, or the ISO
+# selection menu), so the prompt stays destination-neutral.
+prompt_load_boot_options_menu() {
+	TRACE_FUNC
+	whiptail_warning --title 'No Usable Default Boot Option' \
+		--yesno "There is no usable default boot option.\nWould you like to load a menu of boot options?" 0 80
+}
+
 # Create display text for a size in bytes in either MB or GB, unit selected
 # automatically, rounded to nearest
 display_size() {

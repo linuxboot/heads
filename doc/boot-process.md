@@ -313,6 +313,30 @@ update checksums, or return to the main menu.
 
 Optionally, root partition hashes are also checked if `CONFIG_ROOT_CHECK_AT_BOOT=y`.
 
+### Default boot hash verification
+
+When the user saves a default boot entry
+(`Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default`),
+`kexec-save-default.sh` hashes the files that entry needs into
+`kexec_default_hashes.txt`, which is signed together with the other `kexec*.txt`
+files. Before the saved default entry is booted, `kexec-select-boot` verifies
+that manifest with `sha256sum -c`.
+
+On non-Basic boards (`CONFIG_BASIC != y`), a mismatch gates the default entry:
+it is not booted, the mismatching files are listed, and the user is asked to set
+a new default — the same treatment as a boot entry that no longer matches the
+saved one. Setting a new default re-hashes the entry and re-signs the manifest.
+This is not a whole-system tamper alarm — `/boot` as a whole is covered
+separately by `kexec_hashes.txt` (see the subsection above).
+
+`CONFIG_BOOT_REQ_HASH=y` is a separate, board-wide policy: it requires the
+global `/boot` hash state to be valid before booting, and turns a missing
+`kexec_hashes.txt` into a recovery shell.  The default entry check above does
+not depend on it — it is enforced on every non-Basic board.  No board enables
+`CONFIG_BOOT_REQ_HASH=y` today (`n` and unset behave the same).  The option
+was added in 2017 for the default entry check, but no board config has ever
+enabled it, so the gate it controlled was never reachable.
+
 ### Rollback counter verification (`verify_rollback_counter`)
 
 The TPM monotonic counter index is read from `/boot/kexec_rollback.txt` and the
