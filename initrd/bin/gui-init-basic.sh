@@ -164,6 +164,7 @@ select_os_boot_option()
   DO_WITH_DEBUG kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -i
 }
 
+# Auto-boot the first entry (Basic) or boot the saved default; only a genuine failure reaches recovery.
 attempt_default_boot()
 {
   TRACE_FUNC
@@ -176,8 +177,11 @@ attempt_default_boot()
   if [ "$CONFIG_BASIC_NO_AUTOMATIC_DEFAULT" != "y" ]; then
     basic-autoboot.sh
   elif [ -r "$DEFAULT_FILE" ]; then
-    DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" -g -i -s \
-    || recovery "Failed default boot"
+    DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" -g -i -s
+    status=$?
+    if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
+      recovery "Failed default boot (exit $status)"
+    fi
   elif (prompt_load_boot_options_menu); then
     DO_WITH_DEBUG kexec-select-boot.sh -m -b /boot -c "grub.cfg" -g -i
   fi

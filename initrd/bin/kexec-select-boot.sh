@@ -124,6 +124,7 @@ build_legend() {
 }
 
 first_menu="y"
+# Present the boot menu and set option_index; exit 3 on cancel, 2 for a different ISO.
 get_menu_option() {
 	num_options=$(cat $TMP_MENU_FILE | wc -l)
 	if [ $num_options -eq 0 ]; then
@@ -180,7 +181,12 @@ get_menu_option() {
 			-- "${MENU_OPTIONS[@]}" \
 			2>/tmp/whiptail || option_index="a"
 
-		option_index=$(cat /tmp/whiptail)
+		# Only read whiptail's output when it succeeded. On cancel/Esc the
+		# exit status is non-zero and option_index is already "a"; the output
+		# file is empty, so reading it would erase the cancel marker.
+		if [ "$option_index" != "a" ]; then
+			option_index=$(cat /tmp/whiptail)
+		fi
 	else
 		STATUS "Select your boot option:"
 		n=0
@@ -213,7 +219,10 @@ get_menu_option() {
 
 	if [ "$option_index" = "a" ]; then
 		STATUS "Boot aborted by user"
-		exit 1
+		# Exit 3 means "cancelled by the user": distinct from 1 (a genuine
+		# failure) and 2 (different ISO). Callers use it to return to the
+		# main menu instead of entering the recovery shell.
+		exit 3
 	fi
 	if [ "$option_index" = "b" ] && [ -n "$add" ]; then
 		STATUS "Returning to ISO selection"

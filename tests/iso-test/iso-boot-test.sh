@@ -51,6 +51,8 @@ if [ -d "/etc" ] && [ -f "/etc/functions.sh" ]; then
 	KEXEC_PARSE="/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="/bin/kexec-parse-bls.sh"
 	ROOT_HASHES_GUI="/bin/root-hashes-gui.sh"
+	GUI_INIT="/bin/gui-init.sh"
+	GUI_INIT_BASIC="/bin/gui-init-basic.sh"
 	UNPACK="/bin/unpack_initramfs.sh"
 	MOUNT_CMD="mount -o loop,ro"
 	UMOUNT_CMD="umount"
@@ -67,6 +69,8 @@ else
 	KEXEC_PARSE="$REPO/initrd/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="$REPO/initrd/bin/kexec-parse-bls.sh"
 	ROOT_HASHES_GUI="$REPO/initrd/bin/root-hashes-gui.sh"
+	GUI_INIT="$REPO/initrd/bin/gui-init.sh"
+	GUI_INIT_BASIC="$REPO/initrd/bin/gui-init-basic.sh"
 	UNPACK="$REPO/initrd/bin/unpack_initramfs.sh"
 
 	# Create patched script copies that source functions.sh from the repo
@@ -404,6 +408,62 @@ unset bootdir option params name kernel kexectype initrd gui_menu \
 	ENTRY FAKE_BOOT FAKE_KEXEC \
 	rc boot_count valid_rollback removed_knob removed_hash_flag \
 	STDIN_MARKER
+echo ""
+
+# ================================================================
+# Step 7d (production): boot-menu cancel must not reach the recovery shell
+# ================================================================
+echo "=== Step 7d: Boot menu cancel routing ==="
+echo ""
+
+# Re-fixture a two-entry menu so the whiptail branch (not the single-entry
+# fast path) is exercised. TMP_MENU_FILE still names the fixture path from
+# Step 7c (the variable survives the cleanup above).
+printf '%s\n' \
+	'linux|linux|kernel /vmlinuz-x|initrd /initrd-x|append root=/dev/sda1' \
+	'linux2|linux|kernel /vmlinuz-y|initrd /initrd-y|append root=/dev/sda2' \
+	> "$TMP_MENU_FILE"
+gui_menu="y"
+rm -f /tmp/whiptail
+
+# --- Cancel path: whiptail_type fails (Esc/newt cancel) and leaves the output
+# file empty. get_menu_option runs in a subshell because it `exit 3`s on
+# cancel; the production `set -e` (sourced from kexec-select-boot.sh) is
+# inherited, so the cancel marker must survive to reach the `exit 3`.
+# whiptail_mode drives a single stub so shellcheck doesn't flag the (intended)
+# redefinition of the sourced whiptail_type.
+whiptail_type() {
+	if [ "$whiptail_mode" = "cancel" ]; then
+		return 255
+	fi
+	printf '2\n' >/tmp/whiptail
+	return 0
+}
+whiptail_mode="cancel"
+: > /tmp/whiptail
+( get_menu_option ) || rc=$?
+check "$([ "$rc" = "3" ] && echo pass || echo fail)" \
+	"get_menu_option: cancel (whiptail 255, empty output) exits 3, not a bare failure"
+
+# --- Success path: whiptail_type writes a valid index and returns 0. This is
+# the direct regression test for the lost-capture bug: the selected index must
+# survive into option_index instead of being overwritten by the empty output.
+whiptail_mode="success"
+rm -f /tmp/whiptail
+option_index=""
+get_menu_option
+check "$([ "$option_index" = "2" ] && echo pass || echo fail)" \
+	"get_menu_option: success selects the index written to /tmp/whiptail"
+
+# --- Source-level: attempt_default_boot() in both gui-init variants must route
+# only statuses other than 0 and 3 to recovery. 3 (cancel) returns to the menu.
+check "$(grep -qF 'recovery "Failed default boot (exit $status)"' "$GUI_INIT" && \
+	grep -qF '"$status" -ne 3' "$GUI_INIT" && echo pass || echo fail)" \
+	"gui-init: attempt_default_boot excludes cancel (3) from recovery"
+check "$(grep -qF 'recovery "Failed default boot (exit $status)"' "$GUI_INIT_BASIC" && \
+	grep -qF '"$status" -ne 3' "$GUI_INIT_BASIC" && echo pass || echo fail)" \
+	"gui-init-basic: attempt_default_boot excludes cancel (3) from recovery"
+
 echo ""
 
 # ================================================================
