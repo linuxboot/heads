@@ -1,0 +1,1067 @@
+--- fbwhiptail_menu.h.orig	2026-03-15 21:20:40.496261615 -0400
++++ fbwhiptail_menu.h	2026-03-15 21:28:42.426181528 -0400
+@@ -28,6 +28,20 @@
+ 
+ typedef struct Menu_s Menu;
+ 
++typedef enum {
++  MODE_NONE = 0,
++  MODE_MENU,
++  MODE_YESNO,
++  MODE_MSGBOX,
++  MODE_GAUGE,
++  MODE_INFOBOX,
++  MODE_INPUTBOX,
++  MODE_PASSWORDBOX,
++  MODE_TEXTBOX,
++  MODE_RADIOLIST,
++  MODE_CHECKLIST,
++} whiptail_mode;
++
+ typedef struct {
+   int nlines;
+   char **lines;
+@@ -48,21 +62,21 @@
+   cairo_hires_buffer_t *frame;
+   void (*callback) (Menu *menu, int accepted);
+   void (*draw) (Menu *menu, cairo_t *cr);
++  /* inputbox / passwordbox state */
++  char input_buf[512];
++  int input_len;
++  int password;           /* mask chars as '*' */
++  /* mode-level flags */
++  int nocancel;
++  whiptail_mode mode;
+ };
+ 
+ typedef struct {
+   char *tag;
+   char *item;
++  int status;   /* 0=off, 1=on — for checklist/radiolist */
+ } whiptail_menu_item;
+ 
+-typedef enum {
+-  MODE_NONE = 0,
+-  MODE_MENU,
+-  MODE_YESNO,
+-  MODE_MSGBOX,
+-  MODE_GAUGE,
+-} whiptail_mode;
+-
+ typedef struct {
+   // Whiptail arguments
+   char *title;
+@@ -77,6 +91,9 @@
+   int noitem;
+   int notags;
+   int topleft;
++  int nocancel;
++  int defaultno;
++  int separate_output;
+   int output_fd;
+   int width;
+   int height;
+@@ -150,4 +167,10 @@
+   double display_scale, unsigned int percent, float dr, float dg, float db,
+   float r, float g, float b);
+ 
++/* Refresh the text surface after modifying text.start_line or text.lines */
++void menu_refresh_text (Menu *menu);
++
++/* Load the entire content of a file into a malloc'd string (caller frees) */
++char *load_text_from_file (char *filename);
++
+ #endif
+--- fbwhiptail_menu.c.orig	2026-03-15 21:20:40.496261615 -0400
++++ fbwhiptail_menu.c	2026-03-15 21:21:25.867673143 -0400
+@@ -170,8 +170,8 @@
+   cairo_hires_buffer_destroy (frame);
+ }
+ 
+-static void
+-refresh_text_surface (Menu *menu)
++void
++menu_refresh_text (Menu *menu)
+ {
+   double x;
+   double y;
+@@ -182,6 +182,13 @@
+   cairo_t *cr;
+ 
+   cr = cairo_hires_buffer_cairo (menu->text.surface);
++
++  /* Clear the surface before redrawing so old text does not bleed through */
++  cairo_save (cr);
++  cairo_set_operator (cr, CAIRO_OPERATOR_CLEAR);
++  cairo_paint (cr);
++  cairo_restore (cr);
++
+   x = 0;
+   y = 0;
+ 
+@@ -405,7 +412,7 @@
+   menu->height = height;
+ 
+   create_text_surface (menu, text, text_size, display_scale);
+-  refresh_text_surface (menu);
++  menu_refresh_text (menu);
+   text_height = cairo_hires_buffer_logical_height (menu->text.surface);
+   background = create_standard_background (button_width, button_height,
+     display_scale, 0, 0, 0);
+--- fbwhiptail.c.orig	2026-03-15 21:20:40.492261667 -0400
++++ fbwhiptail.c	2026-03-15 21:29:22.617687028 -0400
+@@ -139,32 +139,152 @@
+     return (bbox.width * bbox.height) != 0;
+ }
+ 
+-static int handle_input(Menu *menu)
++/*
++ * Update the display text for an inputbox/passwordbox item.
++ * Item 0 shows the current input buffer (or asterisks for password).
++ */
++static void update_input_display(Menu *menu)
+ {
+-  static int escape = 0;
+-  static char input_data[10] = {0};
+-  static char input_size = 0;
++  CairoMenuItem *item = &menu->menu->items[0];
++  char display[520];
++
++  if (menu->password) {
++    int n = menu->input_len;
++    if (n > (int)sizeof(display) - 2) n = (int)sizeof(display) - 2;
++    memset(display, '*', n);
++    display[n]   = '_';
++    display[n+1] = '\0';
++  } else {
++    snprintf(display, sizeof(display), "%s_", menu->input_buf);
++  }
++
++  if (item->text) free(item->text);
++  item->text = strdup(display);
++}
++
++/*
++ * Build display text for a single checklist/radiolist item index.
++ */
++static void update_list_item_display(Menu *menu, whiptail_args *args, int idx)
++{
++  CairoMenuItem *item = &menu->menu->items[idx];
++  char text[512];
++  const char *marker;
++
++  if (args->mode == MODE_CHECKLIST)
++    marker = args->items[idx].status ? "[X]" : "[ ]";
++  else
++    marker = args->items[idx].status ? "[*]" : "[ ]";
++
++  if (args->notags) {
++    snprintf(text, sizeof(text), "%s %s", marker, args->items[idx].item);
++  } else if (args->noitem) {
++    snprintf(text, sizeof(text), "%s %s", marker, args->items[idx].tag);
++  } else {
++    snprintf(text, sizeof(text), "%s %s - %s",
++             marker, args->items[idx].tag, args->items[idx].item);
++  }
++
++  if (item->text) free(item->text);
++  item->text = strdup(text);
++}
++
++/*
++ * Toggle or set the current item for checklist/radiolist.
++ * For radiolist: select only the current item.
++ * For checklist: toggle the current item.
++ * Updates display text for affected items.
++ */
++static void toggle_list_item(Menu *menu, whiptail_args *args)
++{
++  int sel = menu->menu->selection;
++
++  if (args->mode == MODE_CHECKLIST) {
++    args->items[sel].status = !args->items[sel].status;
++    update_list_item_display(menu, args, sel);
++  } else { /* MODE_RADIOLIST */
++    int i;
++    for (i = 0; i < args->num_items; i++)
++      args->items[i].status = 0;
++    args->items[sel].status = 1;
++    for (i = 0; i < args->num_items; i++)
++      update_list_item_display(menu, args, i);
++  }
++}
++
++/*
++ * Scroll the textbox by delta lines (positive = down, negative = up).
++ * Returns 1 if the view changed (redraw needed), 0 otherwise.
++ */
++static int scroll_text(Menu *menu, int delta)
++{
++  int new_start = menu->text.start_line + delta;
++  if (new_start < 0) new_start = 0;
++  if (new_start >= menu->text.nlines) new_start = menu->text.nlines - 1;
++  if (new_start == menu->text.start_line) return 0;
++  menu->text.start_line = new_start;
++  menu_refresh_text(menu);
++  /* Frame must be rebuilt since text height may change */
++  if (menu->frame) {
++    cairo_hires_buffer_destroy(menu->frame);
++    menu->frame = NULL;
++  }
++  return 1;
++}
++
++/*
++ * handle_input: process one character from stdin.
++ *
++ * Returns:
++ *   0 = nothing to do
++ *   1 = redraw needed
++ *   2 = Enter accepted (selection confirmed)
++ */
++static int handle_input(Menu *menu, whiptail_args *args)
++{
++  /* Escape-sequence state machine */
++  static int esc = 0;
++  /* 0=normal, 1=ESC, 2=ESC [, 3=ESC [ 5 (PageUp), 4=ESC [ 6 (PageDown) */
++
++  int ci;
+   char c;
+   int result = 0;
+ 
+-  switch (c = getchar ()) {
+-    case 0x1B: // Escape character
+-      if (escape == 0)
+-        escape = 1;
+-      else
+-        cancel = 1; // Double Escape
++  ci = getchar();
++  if (ci == EOF) {
++    cancel = 1;
++    return 0;
++  }
++  c = (char)ci;
++
++  switch ((unsigned char)c) {
++
++    /* ── Escape / escape-sequence leader ───────────────────────── */
++    case 0x1B:
++      if (esc == 0) {
++        esc = 1;
++      } else {
++        /* Double-escape: cancel unless nocancel */
++        if (!menu->nocancel)
++          cancel = 1;
++        esc = 0;
++      }
+       break;
+-    case 0xA: // Enter
+-      if (escape == 0) {
++
++    /* ── Enter ──────────────────────────────────────────────────── */
++    case 0x0A:
++      if (esc == 0) {
+         if (menu->gauge) {
+-          if (input_size > 0 && input_size < sizeof(input_data)) {
++          /* Gauge reads numbers from stdin — pass through */
++          static char input_data[10] = {0};
++          static int  input_size = 0;
++          if (input_size > 0 && input_size < (int)sizeof(input_data)) {
+             int percent;
+             char *endp;
+-
+             input_data[input_size] = 0;
+-            percent = strtoul (input_data, &endp, 10);
++            percent = strtoul(input_data, &endp, 10);
+             if (*endp == '\0') {
+-              standard_menu_update_gauge (menu, atoi (input_data));
++              standard_menu_update_gauge(menu, percent);
+               result = 1;
+             }
+           }
+@@ -174,35 +294,108 @@
+           result = 2;
+         }
+       }
+-      escape = 0;
++      esc = 0;
+       break;
+-    case 0x41: // Arrow keys
+-    case 0x42:
+-    case 0x43:
+-    case 0x44:
+-      if (escape == 2) {
+-        result = handle_arrow_input (menu, c);
++
++    /* ── Backspace (DEL or BS) ──────────────────────────────────── */
++    case 0x7F:
++    case 0x08:
++      if (esc == 0) {
++        if ((menu->mode == MODE_INPUTBOX || menu->mode == MODE_PASSWORDBOX)
++            && menu->input_len > 0) {
++          menu->input_buf[--menu->input_len] = '\0';
++          update_input_display(menu);
++          result = 1;
++        }
+       }
+-    default:
+-      if (escape == 0) {
+-        if (input_size < sizeof(input_data) - 1)
+-            input_data[input_size++] = c;
++      esc = 0;
++      break;
++
++    /* ── Arrow key continuation ─────────────────────────────────── */
++    case 0x41: /* A  = Up */
++    case 0x42: /* B  = Down */
++    case 0x43: /* C  = Right */
++    case 0x44: /* D  = Left */
++      if (esc == 2) {
++        result = handle_arrow_input(menu, (short)(unsigned char)c);
++      } else if (esc == 0) {
++        /* Plain letter typed in inputbox */
++        goto printable;
+       }
+-      if (escape == 1) {
+-        escape = 2;
++      esc = 0;
++      break;
++
++    /* ── '[' — second byte of ESC [ sequences ───────────────────── */
++    case 0x5B: /* '[' */
++      if (esc == 1) {
++        esc = 2;
+       } else {
+-        escape = 0;
++        esc = 0;
++        goto printable;
+       }
+       break;
+-    case EOF:
+-      cancel = 1;
++
++    /* ── Page Up / Page Down digit ──────────────────────────────── */
++    case '5':
++      if (esc == 2) { esc = 3; break; }
++      goto check_printable;
++    case '6':
++      if (esc == 2) { esc = 4; break; }
++      goto check_printable;
++
++    /* ── Page Up / Page Down terminator ─────────────────────────── */
++    case '~':
++      if (esc == 3) {
++        /* Page Up */
++        result = scroll_text(menu, -10);
++      } else if (esc == 4) {
++        /* Page Down */
++        result = scroll_text(menu, 10);
++      }
++      esc = 0;
++      break;
++
++    default:
++    check_printable:
++      esc = 0;
++    printable:
++      if (esc != 0) { esc = 0; break; }
++
++      if (menu->mode == MODE_INPUTBOX || menu->mode == MODE_PASSWORDBOX) {
++        /* Accept any printable character */
++        if ((unsigned char)c >= 0x20 && (unsigned char)c < 0x7F) {
++          if (menu->input_len < (int)sizeof(menu->input_buf) - 1) {
++            menu->input_buf[menu->input_len++] = c;
++            menu->input_buf[menu->input_len]   = '\0';
++            update_input_display(menu);
++            result = 1;
++          }
++        }
++        break;
++      }
++
++      if (menu->mode == MODE_CHECKLIST || menu->mode == MODE_RADIOLIST) {
++        if (c == ' ') {
++          toggle_list_item(menu, args);
++          result = 1;
++          break;
++        }
++      }
++
++      if (menu->gauge) {
++        /* Accumulate digit characters for gauge percentage */
++        static char input_data[10] = {0};
++        static int  input_size = 0;
++        if ((unsigned char)c >= 0x20 && input_size < (int)sizeof(input_data) - 1)
++          input_data[input_size++] = c;
++      }
+       break;
+   }
+ 
+   return result;
+ }
+ 
+-#endif
++#endif /* !GTKWHIPTAIL */
+ 
+ void print_version (int exit_code)
+ {
+@@ -216,25 +409,18 @@
+   printf ("\t--msgbox <text> <height> <width>\n");
+   printf ("\t--yesno  <text> <height> <width>\n");
+   printf ("\t--infobox <text> <height> <width>\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--inputbox <text> <height> <width> [init] \n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--passwordbox <text> <height> <width> [init] \n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--textbox <file> <height> <width>\n");
+-  printf ("\t\tThis option is not yet supported\n");
+   printf ("\t--menu <text> <height> <width> <listheight> [tag item] ...\n");
+   printf ("\t--checklist <text> <height> <width> <listheight> [tag item status]...\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--radiolist <text> <height> <width> <listheight> [tag item status]...\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--gauge <text> <height> <width> <percent>\n");
+   printf ("Options: (depend on box-option)\n");
+   printf ("\t--clear\t\t\t\tclear screen on exit\n");
+   printf ("\t--defaultno\t\t\tdefault no button\n");
+   printf ("\t--default-item <string>\t\tset default string\n");
+   printf ("\t--fb, --fullbuttons\t\tuse full buttons\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--nocancel\t\t\tno cancel button\n");
+   printf ("\t--yes-button <text>\t\tset text of yes button\n");
+   printf ("\t--no-button <text>\t\tset text of no button\n");
+@@ -243,16 +429,14 @@
+   printf ("\t--noitem\t\t\tdon't display items\n");
+   printf ("\t--notags\t\t\tdon't display tags\n");
+   printf ("\t--separate-output\t\toutput one line at a time\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--output-fd <fd>\t\toutput to fd, not stdout\n");
+   printf ("\t--title <title>\t\t\tdisplay title\n");
+   printf ("\t--backtitle <backtitle>\t\tdisplay backtitle\n");
+   printf ("\t--scrolltext\t\t\tforce vertical scrollbars\n");
+-  printf ("\t\tThis option is not supported\n");
+   printf ("\t--topleft\t\t\tput window in top-left corner\n");
+   printf ("\t-h, --help\t\t\tprint this message\n");
+   printf ("\t-v, --version\t\t\tprint version information\n");
+-  printf ("Frambuffer options:\n");
++  printf ("Framebuffer options:\n");
+   printf ("\t--background-png <file>\t\tDisplay PNG image as background\n");
+   printf ("\t--background-gradient <start red> <start green> <start blue> <end red> <end green> <end blue>\n");
+   printf ("\t\t\t\t\tGenerate a linear gradient background from left to right\n");
+@@ -314,7 +498,7 @@
+         if (i + 1 >= argc)
+           goto missing_value;
+         args->output_fd = atoi (argv[++i]);
+-      }else if (strcmp (argv[i], "--noitem") == 0) {
++      } else if (strcmp (argv[i], "--noitem") == 0) {
+         args->noitem = 1;
+       } else if (strcmp (argv[i], "--notags") == 0) {
+         args->notags = 1;
+@@ -322,6 +506,12 @@
+         args->topleft = 1;
+       } else if (strcmp (argv[i], "--clear") == 0) {
+         args->clear = 1;
++      } else if (strcmp (argv[i], "--nocancel") == 0) {
++        args->nocancel = 1;
++      } else if (strcmp (argv[i], "--defaultno") == 0) {
++        args->defaultno = 1;
++      } else if (strcmp (argv[i], "--separate-output") == 0) {
++        args->separate_output = 1;
+       } else if (strcmp (argv[i], "--gauge") == 0) {
+         if (args->mode != MODE_NONE)
+           goto mode_already_set;
+@@ -348,7 +538,21 @@
+         args->menu_height = atoi (argv[i+4]);
+         i += 4;
+         args->mode = MODE_MENU;
+-        args->items = malloc (sizeof(whiptail_menu_item) * (argc - i) / 2);
++        args->items = malloc (sizeof(whiptail_menu_item) * (argc - i) / 2 + 1);
++      } else if (strcmp (argv[i], "--radiolist") == 0 ||
++                 strcmp (argv[i], "--checklist") == 0) {
++        if (args->mode != MODE_NONE)
++          goto mode_already_set;
++        if (i + 4 >= argc)
++          goto missing_value;
++        int is_radio = (strcmp (argv[i], "--radiolist") == 0);
++        args->text = argv[i+1];
++        args->height = atoi (argv[i+2]);
++        args->width = atoi (argv[i+3]);
++        args->menu_height = atoi (argv[i+4]);
++        i += 4;
++        args->mode = is_radio ? MODE_RADIOLIST : MODE_CHECKLIST;
++        args->items = malloc (sizeof(whiptail_menu_item) * (argc - i) / 3 + 1);
+       } else if (strcmp (argv[i], "--yesno") == 0) {
+         if (args->mode != MODE_NONE)
+           goto mode_already_set;
+@@ -369,7 +573,52 @@
+         args->width = atoi (argv[i+3]);
+         i += 3;
+         args->mode = MODE_MSGBOX;
+-      }else if (strcmp (argv[i], "--") == 0) {
++      } else if (strcmp (argv[i], "--infobox") == 0) {
++        if (args->mode != MODE_NONE)
++          goto mode_already_set;
++        if (i + 3 >= argc)
++          goto missing_value;
++        args->text = argv[i+1];
++        args->height = atoi (argv[i+2]);
++        args->width = atoi (argv[i+3]);
++        i += 3;
++        args->mode = MODE_INFOBOX;
++      } else if (strcmp (argv[i], "--inputbox") == 0) {
++        if (args->mode != MODE_NONE)
++          goto mode_already_set;
++        if (i + 3 >= argc)
++          goto missing_value;
++        args->text = argv[i+1];
++        args->height = atoi (argv[i+2]);
++        args->width = atoi (argv[i+3]);
++        i += 3;
++        /* Optional initial value */
++        if (i + 1 < argc && strncmp(argv[i+1], "--", 2) != 0)
++          args->default_item = argv[++i];
++        args->mode = MODE_INPUTBOX;
++      } else if (strcmp (argv[i], "--passwordbox") == 0) {
++        if (args->mode != MODE_NONE)
++          goto mode_already_set;
++        if (i + 3 >= argc)
++          goto missing_value;
++        args->text = argv[i+1];
++        args->height = atoi (argv[i+2]);
++        args->width = atoi (argv[i+3]);
++        i += 3;
++        if (i + 1 < argc && strncmp(argv[i+1], "--", 2) != 0)
++          args->default_item = argv[++i];
++        args->mode = MODE_PASSWORDBOX;
++      } else if (strcmp (argv[i], "--textbox") == 0) {
++        if (args->mode != MODE_NONE)
++          goto mode_already_set;
++        if (i + 3 >= argc)
++          goto missing_value;
++        args->text = argv[i+1]; /* filename */
++        args->height = atoi (argv[i+2]);
++        args->width = atoi (argv[i+3]);
++        i += 3;
++        args->mode = MODE_TEXTBOX;
++      } else if (strcmp (argv[i], "--") == 0) {
+         end_of_args = 1;
+       } else if (strcmp (argv[i], "--yes-button") == 0) {
+         if (i + 1 >= argc)
+@@ -389,22 +638,15 @@
+         args->cancel_button = argv[++i];
+       } else if (strcmp (argv[i], "--fb") == 0 ||
+           strcmp (argv[i], "--fullbuttons") == 0 ||
+-          strcmp (argv[i], "--defaultno") == 0 ||
+-          strcmp (argv[i], "--nocancel") == 0 ||
+-          strcmp (argv[i], "--scrolltext") == 0 ||
+-          strcmp (argv[i], "--separate-output") == 0 ||
+-          strcmp (argv[i], "--version") == 0) {
+-        // Ignore unsupported whiptail arguments
++          strcmp (argv[i], "--scrolltext") == 0) {
++        /* Accepted for compatibility; no-op in framebuffer mode */
+       } else if (strcmp (argv[i], "--background-png") == 0) {
+-        // FBwhiptail specific arguments
+         if (i + 1 >= argc)
+           goto missing_value;
+         args->background_png = argv[++i];
+       } else if (strcmp (argv[i], "--background-gradient") == 0) {
+-        // FBwhiptail specific arguments
+         if (i + 6 >= argc)
+           goto missing_value;
+-
+         args->background_grad_rgb[0] = (float) atoi (argv[i+1]) / 256;
+         args->background_grad_rgb[1] = (float) atoi (argv[i+2]) / 256;
+         args->background_grad_rgb[2] = (float) atoi (argv[i+3]) / 256;
+@@ -413,10 +655,8 @@
+         args->background_grad_rgb[5] = (float) atoi (argv[i+6]) / 256;
+         i += 6;
+       } else if (strcmp (argv[i], "--gauge-rgb") == 0) {
+-        // FBwhiptail specific arguments
+         if (i + 6 >= argc)
+           goto missing_value;
+-
+         args->gauge_rgb[0] = (float) atoi (argv[i+1]) / 256;
+         args->gauge_rgb[1] = (float) atoi (argv[i+2]) / 256;
+         args->gauge_rgb[2] = (float) atoi (argv[i+3]) / 256;
+@@ -425,7 +665,6 @@
+         args->gauge_rgb[5] = (float) atoi (argv[i+6]) / 256;
+         i += 6;
+       } else if (strcmp (argv[i], "--text-size") == 0) {
+-        // FBwhiptail specific arguments
+         if (i + 1 >= argc)
+           goto missing_value;
+         args->text_size = atoi (argv[++i]);
+@@ -436,16 +675,27 @@
+     } else if (args->mode == MODE_MENU) {
+       if (i + 1 >= argc)
+         goto error;
+-
+-      args->items[args->num_items].tag = argv[i++];
+-      args->items[args->num_items].item = argv[i];
++      args->items[args->num_items].tag    = argv[i++];
++      args->items[args->num_items].item   = argv[i];
++      args->items[args->num_items].status = 0;
++      args->num_items++;
++    } else if (args->mode == MODE_RADIOLIST || args->mode == MODE_CHECKLIST) {
++      if (i + 2 >= argc)
++        goto error;
++      args->items[args->num_items].tag    = argv[i++];
++      args->items[args->num_items].item   = argv[i++];
++      /* status: "on"/"ON" = 1, anything else = 0 */
++      args->items[args->num_items].status =
++          (strcasecmp(argv[i], "on") == 0) ? 1 : 0;
+       args->num_items++;
+     } else {
+       goto error;
+     }
+   }
+   if (args->mode == MODE_NONE ||
+-      (args->mode == MODE_MENU && args->num_items == 0))
++      ((args->mode == MODE_MENU ||
++        args->mode == MODE_RADIOLIST ||
++        args->mode == MODE_CHECKLIST) && args->num_items == 0))
+     goto error;
+   return 0;
+  mode_already_set:
+@@ -482,11 +732,11 @@
+ 
+   DIR *dri_dir = opendir("/dev/dri");
+   if (!dri_dir)
+-    goto done; // No DRI devices, fall back to framebuffer
++    goto done; /* No DRI devices, fall back to framebuffer */
+ 
+   struct dirent *dri_ent;
+   while (!dri && (dri_ent = readdir(dri_dir)) != NULL) {
+-    // Statically allocated buffer for snprintf() - length 5 allows 10 cards
++    /* Statically allocated buffer for snprintf() - length 5 allows 10 cards */
+     if (strncmp(dri_ent->d_name, "card", 4) == 0 &&
+       strlen(dri_ent->d_name) == 5) {
+       char card_path[15];
+@@ -495,7 +745,7 @@
+       dri = cairo_dri_open(card_path);
+     }
+ 
+-    // If it's a DRI device but has no screens, skip it and keep looking
++    /* If it's a DRI device but has no screens, skip it and keep looking */
+     if(dri && dri->num_screens == 0) {
+       cairo_dri_close(dri);
+       dri = NULL;
+@@ -507,12 +757,6 @@
+   return dri;
+ }
+ 
+-/* Toggle 0->1 or 1->0 */
+-int toggle(int val)
+-{
+-  return (val+1) % 2;
+-}
+-
+ struct screen
+ {
+   int hdisplay, vdisplay;
+@@ -537,11 +781,13 @@
+ #endif
+   int i, idx;
+   int xres, yres;
+-  /* Factor to scale drawing, e.g. for hi-res displays. */
+   double display_scale = 0.0;
+   Menu *menu = NULL;
+   whiptail_args args;
+   int return_value = 0;
++  FILE *output = NULL;
++  /* Whether we allocated args.text from a file (needs freeing) */
++  int text_allocated = 0;
+ 
+   if (parse_whiptail_args (argc, argv, &args) != 0) {
+     printf ("Invalid arguments received\n");
+@@ -549,11 +795,38 @@
+     return -1;
+   }
+ 
++  /* Open the output file descriptor for writing results */
++  output = fdopen (dup (args.output_fd), "w");
++  if (!output) {
++    perror ("fdopen output-fd");
++    return 1;
++  }
++
+   if (args.clear) {
+     printf ("\033c");
+     fflush (stdout);
+   }
+ 
++  /* For textbox: args.text is a filename — load file content */
++  if (args.mode == MODE_TEXTBOX) {
++    char *content = load_text_from_file (args.text);
++    if (!content) {
++      fprintf (stderr, "fbwhiptail: cannot open '%s': %s\n",
++               args.text, strerror(errno));
++      fclose (output);
++      return 1;
++    }
++    args.text = content;
++    text_allocated = 1;
++  }
++
++  /* For infobox: just display once and exit immediately (no interaction) */
++  if (args.mode == MODE_INFOBOX) {
++    /* We still need to initialise the display so the frame appears.
++     * Fall through to the normal setup but set a flag to exit after
++     * the first render. */
++  }
++
+ #ifdef GTKWHIPTAIL
+   gtk_init(&argc, &argv);
+ 
+@@ -574,11 +847,9 @@
+ 
+   tcgetattr( STDIN_FILENO, &oldt);
+   newt = oldt;
+-  /* ICANON normally takes care that one line at a time will be processed
+-    that means it will return if it sees a "\n" or an EOF or an EOL*/
+   newt.c_lflag &= ~(ICANON | ECHO);
+   tcsetattr( STDIN_FILENO, TCSANOW, &newt);
+-  printf ("\e[?25l"); // Hide blinking cursor (in case of linux FB)
++  printf ("\e[?25l"); /* Hide blinking cursor */
+   fflush (stdout);
+ 
+   num_screens = 0;
+@@ -628,38 +899,25 @@
+     }
+   }
+ 
+-  /* Choose a scale factor based on the display size.  For displays larger than
+-   * 1080 lines, choose a scale that results in a logical size around 1080
+-   * lines, rounded to the nearest 0.5x.
+-   *
+-   * This hits a minimum logical size at yres=1890 resulting in 945 lines at 2x,
+-   * and a maximum at yres=1350, putting the logical size right in the desired
+-   * range.
+-   *
+-   * Scale can be set manually with FBWHIPTAIL_SCALE, with a minimum of 1.0x and
+-   * a minimum logical height of 512.  The value is rounded to the nearest 0.5x.
+-   */
++  /* Choose display scale */
+   const char *env_scale = getenv("FBWHIPTAIL_SCALE");
+   if (env_scale)
+     display_scale = atof(env_scale);
+-  /* Calculate from the display size by default (including for an invalid
+-   * environment value)
+-   */
+   if (!isfinite(display_scale) || display_scale < 1.0 || floor(yres / display_scale) < 512.0)
+     display_scale = yres / 1080.0;
+-  /* Round to nearest 0.5x */
+   display_scale = 0.5 * round(display_scale * 2.0);
+   if (display_scale < 1.0)
+     display_scale = 1.0;
+-  /* Calculate the effective logical resolution */
+   xres = (int)trunc(xres / display_scale);
+   yres = (int)trunc(yres / display_scale);
+ 
+   if (num_screens == 0) {
+     printf ("Error: Can't find usable screen\n");
+-    goto error;
++    goto cleanup;
+   }
+-#endif
++#endif /* !GTKWHIPTAIL */
++
++  /* ── Build the menu widget based on mode ───────────────────────────── */
+ 
+   if (args.mode == MODE_MENU) {
+     menu = standard_menu_create (args.title, args.text, args.text_size,
+@@ -669,13 +927,11 @@
+       char *text;
+       whiptail_menu_item *item = &args.items[i];
+       if (args.notags || args.noitem) {
+-        text = malloc ((args.notags ? strlen (item->item) : strlen (item->tag)) + 1);
+-        strcpy (text, args.notags ? item->item : item->tag);
++        text = strdup (args.notags ? item->item : item->tag);
+       } else {
+-        text = malloc (strlen (item->item) + strlen (item->tag) + 1 + 3);
+-        strcpy (text, args.notags ? item->item : item->tag);
+-        strcat (text, " - ");
+-        strcat (text, item->item);
++        size_t len = strlen (item->tag) + strlen (item->item) + 4;
++        text = malloc (len);
++        snprintf (text, len, "%s - %s", item->tag, item->item);
+       }
+       idx = standard_menu_add_item (menu, text, 20);
+       menu->menu->items[idx].alignment = CAIRO_MENU_ALIGN_MIDDLE_LEFT;
+@@ -686,15 +942,26 @@
+         cairo_menu_set_selection (menu->menu, idx, &bbox);
+       }
+     }
++
+   } else if (args.mode == MODE_YESNO) {
+     menu = standard_menu_create (args.title, args.text, args.text_size,
+         xres, yres, display_scale, -1, 2);
+-    standard_menu_add_item (menu, args.yes_button, 20);
+-    standard_menu_add_item (menu, args.no_button, 20);
+-  } else if (args.mode == MODE_MSGBOX) {
++    int yes_idx = standard_menu_add_item (menu, args.yes_button, 20);
++    int no_idx  = standard_menu_add_item (menu, args.no_button,  20);
++    (void)no_idx;
++    /* --defaultno: start with "No" selected */
++    if (args.defaultno) {
++      CairoMenuRectangle bbox;
++      cairo_menu_set_selection (menu->menu, yes_idx + 1, &bbox);
++    }
++
++  } else if (args.mode == MODE_MSGBOX || args.mode == MODE_INFOBOX) {
++    int columns = (args.mode == MODE_INFOBOX) ? 0 : 1;
+     menu = standard_menu_create (args.title, args.text, args.text_size,
+-        xres, yres, display_scale, -1, 1);
+-    standard_menu_add_item (menu, args.ok_button, 20);
++        xres, yres, display_scale, -1, (columns > 0 ? columns : 1));
++    if (args.mode == MODE_MSGBOX)
++      standard_menu_add_item (menu, args.ok_button, 20);
++
+   } else if (args.mode == MODE_GAUGE) {
+     menu = standard_menu_create (args.title, args.text, args.text_size,
+         xres, yres, display_scale, -1, 1);
+@@ -707,7 +974,70 @@
+     menu->gauge_rgb[5] = args.gauge_rgb[5];
+     standard_menu_add_item (menu, "Gauge", 20);
+     standard_menu_update_gauge (menu, args.gauge_percent);
++
++  } else if (args.mode == MODE_INPUTBOX || args.mode == MODE_PASSWORDBOX) {
++    menu = standard_menu_create (args.title, args.text, args.text_size,
++        xres, yres, display_scale, -1, 1);
++    menu->mode     = args.mode;
++    menu->password = (args.mode == MODE_PASSWORDBOX);
++    menu->nocancel = args.nocancel;
++
++    /* Pre-populate with initial value if provided */
++    if (args.default_item) {
++      strncpy (menu->input_buf, args.default_item,
++               sizeof(menu->input_buf) - 1);
++      menu->input_buf[sizeof(menu->input_buf) - 1] = '\0';
++      menu->input_len = strlen (menu->input_buf);
++    }
++
++    /* Item 0 = the editable input field display */
++    idx = standard_menu_add_item (menu, "", 20);
++    menu->menu->items[idx].alignment = CAIRO_MENU_ALIGN_MIDDLE_LEFT;
++    update_input_display (menu);
++
++    /* Item 1 = OK, Item 2 = Cancel (unless nocancel) */
++    standard_menu_add_item (menu, args.ok_button, 20);
++    if (!args.nocancel)
++      standard_menu_add_item (menu, args.cancel_button, 20);
++
++  } else if (args.mode == MODE_TEXTBOX) {
++    /* Text content is in args.text; no interactive items needed */
++    menu = standard_menu_create (args.title, args.text, args.text_size,
++        xres, yres, display_scale, -1, 1);
++    menu->mode     = MODE_TEXTBOX;
++    menu->nocancel = args.nocancel;
++    /* Add a single "Close" button */
++    standard_menu_add_item (menu, args.ok_button, 20);
++
++  } else if (args.mode == MODE_RADIOLIST || args.mode == MODE_CHECKLIST) {
++    menu = standard_menu_create (args.title, args.text, args.text_size,
++        xres, yres, display_scale, -1, 1);
++    menu->mode     = args.mode;
++    menu->nocancel = args.nocancel;
++
++    for (i = 0; i < args.num_items; i++) {
++      idx = standard_menu_add_item (menu, "", 20);
++      menu->menu->items[idx].alignment = CAIRO_MENU_ALIGN_MIDDLE_LEFT;
++      update_list_item_display (menu, &args, i);
++
++      /* Set initial cursor to first ON item */
++      if (args.items[i].status) {
++        CairoMenuRectangle bbox;
++        cairo_menu_set_selection (menu->menu, idx, &bbox);
++      }
++    }
++  }
++
++  if (!menu) {
++    fprintf (stderr, "fbwhiptail: unsupported mode\n");
++    goto cleanup;
+   }
++
++  /* Store mode and nocancel in menu for handle_input */
++  menu->mode     = args.mode;
++  menu->nocancel = args.nocancel;
++
++  /* Background */
+   if (args.background_png)
+     menu->background = load_image_and_scale (args.background_png, xres, yres);
+   if (menu->background == NULL)
+@@ -716,6 +1046,8 @@
+         args.background_grad_rgb[2], args.background_grad_rgb[3],
+         args.background_grad_rgb[4], args.background_grad_rgb[5]);
+ 
++  /* ── Render / event loop ───────────────────────────────────────────── */
++
+ #ifdef GTKWHIPTAIL
+   g_signal_connect (G_OBJECT (window), "delete-event",
+       G_CALLBACK (gtk_main_quit), NULL);
+@@ -725,13 +1057,32 @@
+   gtk_main ();
+   if (result) {
+     if (args.mode == MODE_MENU)
+-      fprintf (stderr, "%s", args.items[menu->menu->selection].tag);
++      fprintf (output, "%s", args.items[menu->menu->selection].tag);
+     else if (args.mode == MODE_YESNO) {
+       if (menu->menu->selection != 0)
+         return_value = 1;
+     }
+   }
+ #else
++  /* For infobox: render once then exit immediately */
++  if (args.mode == MODE_INFOBOX) {
++    for (i = 0; i < num_screens; i++) {
++      cr = screens[i].cr;
++      cairo_save (cr);
++      cairo_translate (cr, screens[i].hdisplay / 2, screens[i].vdisplay / 2);
++      cairo_scale (cr, display_scale, display_scale);
++      cairo_translate (cr, -xres/2, -yres/2);
++      draw_background (menu, cr);
++      menu->draw (menu, cr);
++      cairo_restore (cr);
++      if (dri)
++        cairo_dri_present_buffer (screens[i].surface);
++      else
++        cairo_linuxfb_present_buffer (screens[i].surface);
++    }
++    goto cleanup;
++  }
++
+   while (!cancel) {
+ 
+     if (redraw) {
+@@ -747,7 +1098,6 @@
+         menu->draw (menu, cr);
+         cairo_restore (cr);
+ 
+-        /* Present the buffer we drew into */
+         int present_result = dri ?
+           cairo_dri_present_buffer (screens[i].surface) :
+           cairo_linuxfb_present_buffer (screens[i].surface);
+@@ -757,21 +1107,85 @@
+       }
+       redraw = 0;
+     }
+-    input_result = handle_input (menu);
+-    if (input_result == 1)
++
++    input_result = handle_input (menu, &args);
++
++    if (input_result == 1) {
+       redraw = 1;
+-    else if (input_result == 2) {
+-      if (args.mode == MODE_MENU)
+-        fprintf (stderr, "%s", args.items[menu->menu->selection].tag);
+-      else if (args.mode == MODE_YESNO) {
+-        if (menu->menu->selection != 0)
+-          return_value = 1;
++    } else if (input_result == 2) {
++      /* Enter pressed — write output based on mode */
++      switch (args.mode) {
++
++        case MODE_MENU:
++          fprintf (output, "%s", args.items[menu->menu->selection].tag);
++          break;
++
++        case MODE_YESNO:
++          /* selection 0 = Yes (return 0), 1 = No (return 1) */
++          if (menu->menu->selection != 0)
++            return_value = 1;
++          break;
++
++        case MODE_MSGBOX:
++          /* OK pressed — nothing to output */
++          break;
++
++        case MODE_INPUTBOX:
++        case MODE_PASSWORDBOX: {
++          /* Output input buffer only if OK (item 1) was selected,
++           * or if the input field itself (item 0) was selected when Enter pressed.
++           * Cancel (item 2) = return 1. */
++          int sel = menu->menu->selection;
++          int cancel_idx = args.nocancel ? -1 : 2;
++          if (sel == cancel_idx) {
++            return_value = 1;
++          } else {
++            /* item 0 (input field) or item 1 (OK button) → accept */
++            fprintf (output, "%s", menu->input_buf);
++          }
++          break;
++        }
++
++        case MODE_TEXTBOX:
++          /* Close pressed */
++          break;
++
++        case MODE_RADIOLIST:
++          /* Output the tag of the currently ON item */
++          for (i = 0; i < args.num_items; i++) {
++            if (args.items[i].status) {
++              fprintf (output, "%s", args.items[i].tag);
++              break;
++            }
++          }
++          /* If nothing is ON, output currently highlighted item */
++          if (i == args.num_items)
++            fprintf (output, "%s",
++                     args.items[menu->menu->selection].tag);
++          break;
++
++        case MODE_CHECKLIST: {
++          int need_space = 0;
++          for (i = 0; i < args.num_items; i++) {
++            if (!args.items[i].status) continue;
++            if (args.separate_output) {
++              fprintf (output, "%s\n", args.items[i].tag);
++            } else {
++              if (need_space) fprintf (output, " ");
++              fprintf (output, "\"%s\"", args.items[i].tag);
++              need_space = 1;
++            }
++          }
++          break;
++        }
++
++        default:
++          break;
+       }
+     }
+   }
+ 
+- error:
+-  /*restore the old settings*/
++ cleanup:
+   printf ("\e[?25h");
+   fflush (stdout);
+   tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
+@@ -785,13 +1199,24 @@
+     free (screens);
+   if (dri)
+     cairo_dri_close (dri);
+-#endif
++#endif /* !GTKWHIPTAIL */
+ 
+   if (menu) {
+     if (menu->menu)
+       cairo_menu_free (menu->menu);
++    if (menu->background)
++      cairo_surface_destroy (menu->background);
++    if (menu->frame)
++      cairo_hires_buffer_destroy (menu->frame);
+     free (menu);
+   }
+ 
++  if (args.items)
++    free (args.items);
++  if (text_allocated)
++    free (args.text);
++  if (output)
++    fclose (output);
++
+   return return_value;
+ }
