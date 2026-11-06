@@ -879,8 +879,8 @@ get_inverted_config_display_action() {
 # Defined here so kexec-select-boot.sh (which sources gui_functions.sh)
 # can call it without requiring gui-init.sh to be in scope.
 # Returns 0 on success (hashes match, or user updated them), 1 on failure.
-# Sets valid_hash='y' and valid_global_hash='y' on success for callers
-# that check those variables (kexec-select-boot.sh:596).
+# Sets valid_global_hash='y' on success for callers
+# that check that variable (kexec-select-boot.sh:795).
 # Dependencies: TRACE_FUNC, check_config, verify_checksums, update_checksums
 # (functions.sh), whiptail_error, investigate_integrity_discrepancies
 # (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
@@ -932,7 +932,6 @@ verify_global_hashes() {
 	DEBUG "verify_global_hashes: checking /boot files against $TMP_HASH_FILE"
 	if verify_checksums /boot; then
 		DEBUG "verify_global_hashes: /boot files match checksums in $TMP_HASH_FILE"
-		valid_hash="y"
 		valid_global_hash="y"
 		# If user enables it, check root hashes before boot as well
 		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then

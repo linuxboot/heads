@@ -50,6 +50,7 @@ if [ -d "/etc" ] && [ -f "/etc/functions.sh" ]; then
 	KEXEC_SELECT="/bin/kexec-select-boot.sh"
 	KEXEC_PARSE="/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="/bin/kexec-parse-bls.sh"
+	ROOT_HASHES_GUI="/bin/root-hashes-gui.sh"
 	UNPACK="/bin/unpack_initramfs.sh"
 	MOUNT_CMD="mount -o loop,ro"
 	UMOUNT_CMD="umount"
@@ -65,6 +66,7 @@ else
 	KEXEC_SELECT="$REPO/initrd/bin/kexec-select-boot.sh"
 	KEXEC_PARSE="$REPO/initrd/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="$REPO/initrd/bin/kexec-parse-bls.sh"
+	ROOT_HASHES_GUI="$REPO/initrd/bin/root-hashes-gui.sh"
 	UNPACK="$REPO/initrd/bin/unpack_initramfs.sh"
 
 	# Create patched script copies that source functions.sh from the repo
@@ -343,18 +345,28 @@ TMP_DEFAULT_HASH_FILE="$FAKE_KEXEC/kexec_default_hashes.txt"
 # Globals read by default_select()/do_boot().
 gui_menu="n"
 CONFIG_BASIC="n"
-# The default-entry refusal does not depend on this knob: it is "n" on every board today.
-CONFIG_BOOT_REQ_HASH="n"
 CONFIG_BOOT_REQ_ROLLBACK="n"
 CONFIG_TPM="n"
-valid_hash="n"
 
 # Test 1: master's global /boot hash gate is still present (DIE form).
 # The global gate calls DIE, which exits the shell, so it cannot be invoked
 # directly here.  Assert its source instead of executing it.
-do_boot_src=$(type do_boot 2>/dev/null)
-check "$(echo "$do_boot_src" | grep -qF 'valid_hash' && echo "$do_boot_src" | grep -qF 'DIE "Missing required boot hashes"' && echo pass || echo fail)" \
-	"do_boot: global hash gate (DIE) present in source"
+check "$(grep -qF 'DIE "Failed to verify global hashes"' "$KEXEC_SELECT" && echo pass || echo fail)" \
+	"kexec-select-boot: global hash gate (DIE) present in source"
+
+# Test 1b: the removed board-wide hash knob must not come back unnoticed.
+# The knob name is split across two adjacent string literals so its literal
+# form does not appear in this test (git grep must find it only in the docs).
+removed_knob="CONFIG_BOOT_REQ_""HASH"
+check "$(grep -qF "$removed_knob" "$KEXEC_SELECT" && echo fail || echo pass)" \
+	"kexec-select-boot: removed board-wide hash knob absent from source"
+
+# Test 1c: the hash-verification flag lost its only reader when the knob was
+# removed, so it must no longer be written in the three production sources that
+# used to set it.  Name split across two literals as above.
+removed_hash_flag="valid_""hash"
+check "$({ grep -qF "$removed_hash_flag" "$KEXEC_SELECT" "$GUI_FUNCTIONS" "$ROOT_HASHES_GUI" 2>/dev/null; } && echo fail || echo pass)" \
+	"hash-verification flag: no longer written in kexec-select-boot.sh, gui_functions.sh, root-hashes-gui.sh"
 
 # Stub do_boot AFTER the real-do_boot tests above, so default_select's boot
 # path is counted without touching the real kexec.
@@ -372,13 +384,12 @@ check "$([ "$rc" = "0" ] && [ "$boot_count" = "1" ] && echo pass || echo fail)" 
 
 # Test 3: mismatching manifest -> not verified, no boot, menu fallback.
 # default_select returns (without booting) on a mismatch; the main loop then
-# sets default_failed=y so the user is prompted to set a new default.  The
-# refusal happens even though CONFIG_BOOT_REQ_HASH="n".
+# sets default_failed=y so the user is prompted to set a new default.
 printf 'mutated-kernel\n' > "$FAKE_BOOT/vmlinuz-x"
 boot_count=0
 if default_select; then rc=0; else rc=1; fi
 check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
-	"default_select: mismatched manifest does not boot (menu fallback; CONFIG_BOOT_REQ_HASH=n)"
+	"default_select: mismatched manifest does not boot (menu fallback)"
 
 # Test 4: stdin-marker manifest (64 hex + "  -") must be treated as failure.
 STDIN_MARKER="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  -"
@@ -391,8 +402,8 @@ check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" 
 # Clean up fixture variables.
 unset bootdir option params name kernel kexectype initrd gui_menu \
 	ENTRY FAKE_BOOT FAKE_KEXEC \
-	rc boot_count valid_hash valid_rollback \
-	STDIN_MARKER do_boot_src
+	rc boot_count valid_rollback removed_knob removed_hash_flag \
+	STDIN_MARKER
 echo ""
 
 # ================================================================

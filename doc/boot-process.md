@@ -329,13 +329,12 @@ saved one. Setting a new default re-hashes the entry and re-signs the manifest.
 This is not a whole-system tamper alarm — `/boot` as a whole is covered
 separately by `kexec_hashes.txt` (see the subsection above).
 
-`CONFIG_BOOT_REQ_HASH=y` is a separate, board-wide policy: it requires the
-global `/boot` hash state to be valid before booting, and turns a missing
-`kexec_hashes.txt` into a recovery shell.  The default entry check above does
-not depend on it — it is enforced on every non-Basic board.  No board enables
-`CONFIG_BOOT_REQ_HASH=y` today (`n` and unset behave the same).  The option
-was added in 2017 for the default entry check, but no board config has ever
-enabled it, so the gate it controlled was never reachable.
+`CONFIG_BOOT_REQ_HASH` has been removed. It was introduced in 2017 to require
+the default boot entry's hash verification before a non-recovery boot, but no
+board ever enabled it, so the gate it controlled was never reachable.  The
+default boot entry's manifest is now verified on every non-Basic board
+regardless of any board flag, and a mismatch asks the user to set a new
+default instead of failing to a recovery shell.
 
 ### Rollback counter verification (`verify_rollback_counter`)
 

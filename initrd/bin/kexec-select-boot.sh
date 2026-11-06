@@ -11,7 +11,6 @@ add=""
 remove=""
 config="*.cfg"
 unique="n"
-valid_hash="n"
 valid_global_hash="n"
 valid_rollback="n"
 force_menu="n"
@@ -34,13 +33,11 @@ while getopts "b:d:p:a:r:c:uimgfs" arg; do
 	u) unique="y" ;;
 	m) force_menu="y" ;;
 	i)
-		valid_hash="y"
 		valid_rollback="y"
 		;;
 	g) gui_menu="y" ;;
 	f)
 		force_boot="y"
-		valid_hash="y"
 		valid_rollback="y"
 		;;
 	s) skip_confirm="y" ;;
@@ -664,7 +661,6 @@ default_select() {
 		if ! grep -qE '^[0-9a-f]{64}  -$' "$TMP_DEFAULT_HASH_FILE" \
 			&& (cd "$bootdir" && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
 			STATUS_OK "Verified default boot hashes"
-			valid_hash='y'
 		else
 			WARN "Default boot hash verification failed"
 			if [ "$gui_menu" = "y" ]; then
@@ -735,13 +731,10 @@ user_select() {
 	do_boot
 }
 
+# Enforce rollback/TPM state, then kexec the selected boot option (does not return on success).
 do_boot() {
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
 		DIE "Missing required rollback counter state"
-	fi
-
-	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
-		DIE "Missing required boot hashes"
 	fi
 
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ] && [ "$force_boot" != "y" ]; then
