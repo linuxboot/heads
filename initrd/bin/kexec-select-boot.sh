@@ -176,16 +176,25 @@ get_menu_option() {
 		else
 			local menu_prompt="Choose the boot option [1-$n, Esc to abort]:"
 		fi
-		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
+		# Use whiptail_type's exit status directly: on success read its output
+		# file; on cancel/Esc (non-zero) the output file is empty, so reading
+		# it would produce no index and must not overwrite the cancel marker.
+		if whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
 			--menu "$menu_prompt" 0 80 8 \
 			-- "${MENU_OPTIONS[@]}" \
-			2>/tmp/whiptail || option_index="a"
-
-		# Only read whiptail's output when it succeeded. On cancel/Esc the
-		# exit status is non-zero and option_index is already "a"; the output
-		# file is empty, so reading it would erase the cancel marker.
-		if [ "$option_index" != "a" ]; then
+			2>/tmp/whiptail; then
 			option_index=$(cat /tmp/whiptail)
+		else
+			# Any non-zero whiptail exit sets the cancel marker (return to the
+			# caller's menu).  whiptail's own cancel codes are 1 (Cancel/No)
+			# and 255 (Esc); any other status means the dialog itself failed,
+			# so surface it rather than letting a broken dialog be
+			# indistinguishable from the user pressing Esc.
+			whiptail_status=$?
+			if [ "$whiptail_status" != "1" ] && [ "$whiptail_status" != "255" ]; then
+				WARN "Boot menu dialog failed (whiptail exit status $whiptail_status)"
+			fi
+			option_index="a"
 		fi
 	else
 		STATUS "Select your boot option:"
@@ -220,8 +229,12 @@ get_menu_option() {
 	if [ "$option_index" = "a" ]; then
 		STATUS "Boot aborted by user"
 		# Exit 3 means "cancelled by the user": distinct from 1 (a genuine
-		# failure) and 2 (different ISO). Callers use it to return to the
-		# main menu instead of entering the recovery shell.
+		# failure) and 2 (different ISO).  The main-disk callers (gui-init.sh,
+		# gui-init-basic.sh, generic-init.sh) honour it by returning to their
+		# menu/prompt.  The bootable-USB path (media-scan.sh) treats a cancel
+		# as a failure because it has no menu to return to (it falls through
+		# to DIE, which usb-init.sh routes to recovery); the ISO-file path
+		# (kexec-iso-init.sh) instead returns to the ISO selection menu.
 		exit 3
 	fi
 	if [ "$option_index" = "b" ] && [ -n "$add" ]; then

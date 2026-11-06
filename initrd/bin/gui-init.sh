@@ -980,6 +980,9 @@ mac_randomization_options_menu() {
 	esac
 }
 
+# Source guard: when _HEADS_TEST=y, only load function definitions, skip main body.
+[ -n "$_HEADS_TEST" ] && return 0 2>/dev/null || true
+
 # gui-init start
 TRACE_FUNC
 

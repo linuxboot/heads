@@ -187,6 +187,9 @@ attempt_default_boot()
   fi
 }
 
+# Source guard: when _HEADS_TEST=y, only load function definitions, skip main body.
+[ -n "$_HEADS_TEST" ] && return 0 2>/dev/null || true
+
 # gui-init-basic start
 TRACE_FUNC
 

@@ -59,6 +59,8 @@ if [ -d "/etc" ] && [ -f "/etc/functions.sh" ]; then
 	IS_INITRD="y"
 	_PATCHED_ISO="$KEXEC_ISO"
 	_PATCHED_SELECT="$KEXEC_SELECT"
+	_PATCHED_GUI_INIT="$GUI_INIT"
+	_PATCHED_GUI_INIT_BASIC="$GUI_INIT_BASIC"
 else
 	# On host (development): paths relative to repo
 	REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -99,6 +101,20 @@ else
 	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
 		"$KEXEC_SELECT" > "$_PATCHED_SELECT"
 
+	# Patched copies of the two GUI callers for the Step 7d behavioural test.
+	# gui-init.sh sources gpg_functions.sh (self-contained function defs) and
+	# luks-functions.sh (which itself sources functions.sh/gui_functions.sh/
+	# tmp/config), so patch luks-functions.sh too.
+	_PATCHED_LUKS="$TMPDIR/luks-functions.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
+		"$REPO/initrd/etc/luks-functions.sh" > "$_PATCHED_LUKS"
+	_PATCHED_GUI_INIT="$TMPDIR/gui-init.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; s|\. /etc/gpg_functions\.sh|. '"$REPO/initrd/etc/gpg_functions.sh"'|g; s|\. /etc/luks-functions\.sh|. '"$_PATCHED_LUKS"'|g; /\. \/tmp\/config/d' \
+		"$GUI_INIT" > "$_PATCHED_GUI_INIT"
+	_PATCHED_GUI_INIT_BASIC="$TMPDIR/gui-init-basic.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
+		"$GUI_INIT_BASIC" > "$_PATCHED_GUI_INIT_BASIC"
+
 	# Prefer fuseiso on host, fall back to mount -o loop
 	if command -v fuseiso >/dev/null 2>&1; then
 		MOUNT_CMD="fuseiso -n"
@@ -111,13 +127,16 @@ else
 fi
 
 # ---- Source production functions and scripts ----
+# shellcheck disable=SC1090
 . "$FUNCTIONS"
 # Source kexec-iso-init.sh + kexec-select-boot.sh via sourcing guard.
 # Only function definitions are loaded; main body is skipped.
 # This replaces the old sed-extraction pattern that created copies
 # diverging from the production code.
 export _HEADS_TEST=y
+# shellcheck disable=SC1090
 . "$_PATCHED_ISO"
+# shellcheck disable=SC1090
 . "$_PATCHED_SELECT"
 unset _HEADS_TEST
 
@@ -497,7 +516,7 @@ check "$([ "$gui_rc" = "0" ] && [ ! -e "$gui_boot_sentinel" ] && [ -e "$gui_prom
 # GUI stdin-marker case: the marker guard matches, so sha256sum -c never runs
 # and /tmp/hash_output stays empty.  The hash-mismatch path is then reached
 # with an empty CHANGED_FILES, which exercises the `grep -v 'OK$' ... || true`
-# guard (grep exits 1 on empty input) under set -e -- without that guard the
+# guard (grep exits 1 on empty input) under set -e — without that guard the
 # subshell would abort here instead of reaching the prompt.  The prompt is
 # dismissed, so the subshell exits 3.
 gui_prompt_status=255
@@ -514,7 +533,7 @@ check "$([ "$gui_rc" = "3" ] && [ ! -e "$gui_boot_sentinel" ] && echo pass || ec
 unset bootdir option params name kernel kexectype initrd gui_menu \
 	ENTRY FAKE_BOOT FAKE_KEXEC \
 	rc boot_count gui_rc valid_rollback removed_knob removed_hash_flag \
-	STDIN_MARKER gui_boot_sentinel gui_prompt_sentinel
+	STDIN_MARKER STDIN_MARKER_SINGLE gui_boot_sentinel gui_prompt_sentinel
 unset -f do_boot whiptail_error whiptail_warning 2>/dev/null || true
 echo ""
 
@@ -549,13 +568,16 @@ whiptail_type() {
 }
 whiptail_mode="cancel"
 : > /tmp/whiptail
+rc=0
 ( get_menu_option ) || rc=$?
 check "$([ "$rc" = "3" ] && echo pass || echo fail)" \
 	"get_menu_option: cancel (whiptail 255, empty output) exits 3, not a bare failure"
 
-# --- Success path: whiptail_type writes a valid index and returns 0. This is
-# the direct regression test for the lost-capture bug: the selected index must
-# survive into option_index instead of being overwritten by the empty output.
+# --- Success path: smoke test of the success branch — a valid whiptail result
+# (exit 0, index written to the output file) is read into option_index.  This
+# branch never had an empty output file, so the check does not discriminate the
+# cancel-marker overwrite (that is exercised by the cancel case above); it only
+# confirms the success branch reads the selected index.
 whiptail_mode="success"
 rm -f /tmp/whiptail
 option_index=""
@@ -563,14 +585,71 @@ get_menu_option
 check "$([ "$option_index" = "2" ] && echo pass || echo fail)" \
 	"get_menu_option: success selects the index written to /tmp/whiptail"
 
-# --- Source-level: attempt_default_boot() in both gui-init variants must route
-# only statuses other than 0 and 3 to recovery. 3 (cancel) returns to the menu.
-check "$(grep -qF 'recovery "Failed default boot (exit $status)"' "$GUI_INIT" && \
-	grep -qF '"$status" -ne 3' "$GUI_INIT" && echo pass || echo fail)" \
-	"gui-init: attempt_default_boot excludes cancel (3) from recovery"
-check "$(grep -qF 'recovery "Failed default boot (exit $status)"' "$GUI_INIT_BASIC" && \
-	grep -qF '"$status" -ne 3' "$GUI_INIT_BASIC" && echo pass || echo fail)" \
-	"gui-init-basic: attempt_default_boot excludes cancel (3) from recovery"
+# --- Behavioural: drive attempt_default_boot() in both gui-init variants with
+# stubbed recovery()/DO_WITH_DEBUG so the routing is executed, not grepped.
+# The _HEADS_TEST source guard loads only the function definitions and skips
+# each caller's main menu loop.
+DEFAULT_FILE_FIXTURE="$TMPDIR/default_boot_fixture.txt"
+: > "$DEFAULT_FILE_FIXTURE"
+
+# Stub the dependencies of attempt_default_boot() and drive the currently
+# sourced caller.  DO_WITH_DEBUG stands in for kexec-select-boot.sh and returns
+# the chosen status; recovery() records its argument so the routing is asserted.
+# attempt_default_boot() itself is left untouched, so its own routing runs.
+test_default_boot_routing() {
+	local caller="$1"
+	mount_boot() { return 0; }
+	verify_global_hashes() { return 0; }
+	find() { printf '%s\n' "$DEFAULT_FILE_FIXTURE"; }
+	DO_WITH_DEBUG() { return "$do_with_debug_status"; }
+	recovery() { recovery_called="$*"; }
+
+	recovery_called=""
+	do_with_debug_status=3
+	set +e
+	attempt_default_boot
+	set -e
+	check "$([ -z "$recovery_called" ] && echo pass || echo fail)" \
+		"$caller attempt_default_boot: cancel (3) does not reach recovery"
+
+	recovery_called=""
+	do_with_debug_status=1
+	set +e
+	attempt_default_boot
+	set -e
+	check "$([ -n "$recovery_called" ] && echo pass || echo fail)" \
+		"$caller attempt_default_boot: genuine failure (1) reaches recovery"
+}
+
+export _HEADS_TEST=y
+# shellcheck disable=SC1090
+. "$_PATCHED_GUI_INIT"
+unset _HEADS_TEST
+test_default_boot_routing "gui-init"
+
+# gui-init-basic auto-boots the first entry unless CONFIG_BASIC_NO_AUTOMATIC_DEFAULT
+# is set; force the saved-default branch so its routing is exercised.
+CONFIG_BASIC_NO_AUTOMATIC_DEFAULT="y"
+export _HEADS_TEST=y
+# shellcheck disable=SC1090
+. "$_PATCHED_GUI_INIT_BASIC"
+unset _HEADS_TEST
+test_default_boot_routing "gui-init-basic"
+
+unset DEFAULT_FILE_FIXTURE recovery_called do_with_debug_status \
+	CONFIG_BASIC_NO_AUTOMATIC_DEFAULT gui_menu CONFIG_BASIC \
+	CONFIG_BOOT_REQ_ROLLBACK CONFIG_TPM whiptail_mode option_index rc
+
+# Step 7d's behavioural stubs (mount_boot/verify_global_hashes/find/
+# DO_WITH_DEBUG/recovery) leak out of test_default_boot_routing() and replace
+# the production definitions.  Re-source functions.sh so Step 6's ISO chain
+# sees the real DO_WITH_DEBUG (scan_boot_options calls it) and recovery, and
+# drop the remaining stubs/helpers: find is an external binary, and mount_boot/
+# verify_global_hashes/attempt_default_boot are not needed by Step 6.
+# shellcheck disable=SC1090
+. "$FUNCTIONS"
+unset -f mount_boot verify_global_hashes find attempt_default_boot \
+	test_default_boot_routing 2>/dev/null || true
 
 echo ""
 
