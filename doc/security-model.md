@@ -275,7 +275,17 @@ At each boot, `verify_global_hashes` in `kexec-select-boot` calls
 matches its stored hash and that `kexec.sig` is valid.  On mismatch, an
 interactive whiptail menu offers three options: investigate discrepancies,
 update checksums, or return to the main menu.  Choosing "return" causes
-`DIE` — there is no "boot anyway" path.
+`DIE` in `kexec-select-boot`'s own loop — there is no "boot anyway" path;
+in `gui-init`'s pre-check the same choice instead returns to the main menu.
+The default-entry refusal is one hash-verification failure that does not die:
+the entry is not booted, and the shared boot-options prompt offers the menu —
+yes shows it, no (or dismissing the dialog) declines.  Where a decline goes is
+caller-dependent: `gui-init` and `gui-init-basic` return to the main menu,
+while media-scan's bootable-USB path reaches recovery.  Any entry the user
+then chooses from the menu is covered by the global `/boot` check (`kexec.sig`
+plus `kexec_hashes.txt`), with no per-entry check.  It is not the only path
+back to the menu: a boot entry that has changed ("Boot Entry Has Changed")
+also returns.
 
 The ROM contains only the **public key**. Verification uses `gpgv` with
 the ROM keyring; no private key material is needed at boot.
@@ -437,14 +447,26 @@ For the UNKNOWN_KEY scenario and correct error messaging, see
 
 ## Fail-closed design
 
-All verification failures are fatal by default:
+Hash and signature verification failures are fatal by default, except the
+default boot entry hash mismatch and a global mismatch handled by `gui-init`'s
+pre-check (which returns to the main menu instead of dying).  Unseal failures
+are a separate category from verification failures, so the TOTP and LUKS DUK
+rows below are tagged "separately non-fatal":
 
 - GPG signature mismatch → `die` (recovery shell)
-- Hash mismatch → `die` (recovery shell)
+- Global `/boot` hash mismatch → `die` (recovery shell) in
+  `kexec-select-boot`'s own loop; `gui-init`'s pre-check returns to the main
+  menu instead
+- Default boot entry hash mismatch (non-Basic only) → the entry is not booted;
+  the dialog and its file list are GUI-only (the list appears only when the
+  failing files can be named); the same prompt used when no default is
+  configured offers the boot menu (non-fatal; see
+  [boot-process.md](boot-process.md#default-boot-hash-verification))
 - TPM counter mismatch (when `CONFIG_IGNORE_ROLLBACK` is not set and the
   rollback file exists) → `die` (recovery shell)
-- TOTP unseal failure → error menu (no unattended boot)
-- LUKS DUK unseal failure → OS prompts for DRK passphrase (no silent failure)
+- TOTP unseal failure → error menu (no unattended boot); separately non-fatal
+- LUKS DUK unseal failure → OS prompts for DRK passphrase (no silent failure);
+  separately non-fatal
 
 Some failures remain overridable: the TOTP/HOTP error menus offer an ignore
 option, and the boot options menu offers an unsafe forced boot. Overrides
