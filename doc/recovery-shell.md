@@ -11,6 +11,16 @@ gives direct access to block devices, GPG, TPM tools, and flash utilities.
   starts a serial `pause_recovery` path that waits for Enter, then launches
   recovery on that serial TTY.
 
+Cancelling the main-disk OS boot menu does not lead here — it returns to
+whatever menu launched it: the main menu when the cancel came from "Default
+boot" (`gui-init.sh`), the main menu when it came from "Show OS boot menu"
+(`gui-init.sh`) — the Boot Options submenu is not restored — the basic-mode
+main menu (`gui-init-basic.sh`), or its own `y/n/r/u/m` prompt on the
+serial/TOTP path (`generic-init.sh`).  The default basic auto-boot has no
+menu to cancel.  The recovery shell remains for genuine boot failures.  The
+bootable-USB boot menu treats a cancel as a failure and enters recovery; the
+ISO-file boot menu exits back to the ISO selection menu (no error dialog).
+
 ## Limitations
 
 Entering the Recovery Shell extends PCR 4 with `recovery` instead of the
@@ -214,8 +224,8 @@ reboot
 If you modified `/boot` or reflashed firmware, return to the GUI and:
 
 1. Generate new TOTP/HOTP secret (`Options -> Generate new HOTP/TOTP secret`).
-2. Update checksums and sign `/boot` (`Options -> Update checksums and sign all files in /boot`).
-3. Optionally re-seal the TPM Disk Unlock Key by selecting a default boot option.
+2. Update checksums and sign `/boot` (`Options -> Update checksums and sign all files in /boot`).  This only re-signs the existing `kexec_default_hashes.txt`; it does not recompute it.
+3. Re-save the default boot option (`Make default`) so `kexec_default_hashes.txt` is recomputed, and optionally re-seal the TPM Disk Unlock Key.
 
 ## PIN Caching
 
