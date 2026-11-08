@@ -1,0 +1,43 @@
+From a1d931c0938f2e6f8eab1fca82c65cabf74025fd Mon Sep 17 00:00:00 2001
+From: Nicholas Chin <nic.c3.14@gmail.com>
+Date: Sat, 24 Jan 2026 19:30:18 -0700
+Subject: [PATCH] soc/intel/skylake: Select SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI
+
+The gpio_non_smm_lock_pad() function requires that the SoC selects a
+method to access the GPIO config registers. Without this, GPIO pads are
+not able to be locked, resulting in vulnerabilities such as TPM GPIO
+reset attacks [1]. Select SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI, as
+the PCR method does not seem to be supported on Skylake.
+
+TEST=Lock pins A1-A6, A8, A9, and B13 (LPC pins and PLTRST#) in the GPIO
+config for the Lenovo ThinkCentre M900, then run the detect utility from
+[2] and confirm that all those GPIOs are listed as OK.
+
+[1]: https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html
+[2]: https://github.com/kukrimate/tpm-gpio-fail
+
+Change-Id: I13a2cc32f39ab635ce5c8a2d405dcf48225e8cf7
+Ticket: https://ticket.coreboot.org/issues/576
+Signed-off-by: Nicholas Chin <nic.c3.14@gmail.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/90885
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Reviewed-by: Sean Rhodes <sean@starlabs.systems>
+
+Upstream status verified 2026-10-07T00:33:08-04:00: Gerrit 90885,
+patch set 8, MERGED after the pinned coreboot 26.09 revision. The
+change reports an M900 test with a separately modified GPIO table;
+this patch only selects SBI and locks no pad alone.
+---
+
+diff --git a/src/soc/intel/skylake/Kconfig b/src/soc/intel/skylake/Kconfig
+index beb6f13..90c2495 100644
+--- a/src/soc/intel/skylake/Kconfig
++++ b/src/soc/intel/skylake/Kconfig
+@@ -45,6 +45,7 @@
+ 	select SOC_INTEL_COMMON_BLOCK_CPU_MPINIT
+ 	select SOC_INTEL_COMMON_BLOCK_CPU_SMMRELOCATE
+ 	select SOC_INTEL_COMMON_BLOCK_GPIO_DUAL_ROUTE_SUPPORT
++	select SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI
+ 	select SOC_INTEL_COMMON_BLOCK_GPIO_PADCFG_PADTOL
+ 	select SOC_INTEL_COMMON_BLOCK_GSPI
+ 	select SOC_INTEL_COMMON_BLOCK_HDA

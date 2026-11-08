@@ -1,0 +1,39 @@
+From: Chris Wiggins <chris@cwiggs.com>
+Subject: [PATCH] ec/google/chromeec: Allow After-G3 sync without CFR
+
+The After-G3 synchronization was introduced by MrChromebox commit
+bb60ab176789 ("ec/google/chromeec: Add support for After G3 State"). Its
+option lookup already falls back to CONFIG_MAINBOARD_POWER_FAILURE_STATE
+when no option backend is available, so it does not require CFR and can
+provide a static policy for payloads such as Heads.
+
+Link: https://github.com/MrChromebox/coreboot/commit/bb60ab176789c7339baff7eaa829d93b66789c45
+Signed-off-by: Chris Wiggins <chris@cwiggs.com>
+---
+ src/ec/google/chromeec/Kconfig | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/src/ec/google/chromeec/Kconfig b/src/ec/google/chromeec/Kconfig
+--- a/src/ec/google/chromeec/Kconfig
++++ b/src/ec/google/chromeec/Kconfig
+@@ -202,14 +202,13 @@ config EC_GOOGLE_CHROMEEC_INCLUDE_SSFC_IN_FW_CONFIG
+ 
+ config EC_GOOGLE_CHROMEEC_AFTER_G3_STATE
+-	bool "Enable syncing ChromeEC After G3 State with CFR at boot"
++	bool "Enable syncing ChromeEC After G3 State at boot"
+-	depends on DRIVERS_OPTION_CFR_ENABLED
+ 	help
+-	  Enable syncing ChromeEC After G3 State with CFR at boot via host
+-	  command, otherwise ChromeEC default compiled after G3 behavior
++	  Enable syncing ChromeEC After G3 State with the power failure option
++	  via host command, otherwise ChromeEC default compiled after G3 behavior
+ 	  (usually "Previous State") will override coreboot after G3
+ 	  configuration.
+ 
+-	  After G3 State is synced from existing coreboot CFR:
++	  After G3 State is synced from the coreboot option:
+ 	    "Restore AC power after loss"
+ 
+ 	  This option has no effect if ChromeEC running image does not support
+-- 
+2.39.5

@@ -21,18 +21,24 @@ the firmware in-place.
 ### Coreboot build-time requirements
 
 The coreboot config must prepare the SPI controller for SMM-initiated
-lockdown.  **`CONFIG_INTEL_CHIPSET_LOCKDOWN` must be disabled** — Heads
-performs the lockdown itself, not coreboot at boot-time.
+lockdown.  On pre-Skylake boards **`CONFIG_INTEL_CHIPSET_LOCKDOWN` must
+be disabled** — Heads performs the lockdown itself, not coreboot at
+boot-time, and upstream ramstage otherwise issues the finalize SMI on the
+normal boot path.  From Skylake on the symbol does not exist: it depends
+on `HAVE_INTEL_CHIPSET_LOCKDOWN`, which at 26.09 only pre-Skylake
+southbridges select, so it emits no line and cannot be set.
 
 | Config | Pre-Skylake | >= Skylake |
 |--------|:-----------:|:----------:|
 | `CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y` | Required | Required |
 | `CONFIG_BOOTMEDIA_LOCK_WHOLE_RO=y`   | Required | Required |
-| `# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set` | Required | Required |
-| `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` | N/A | Required |
-| `CONFIG_SPI_FLASH_SMM=y`  | N/A | Required |
+| `# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set` | Required | N/A (symbol does not exist) |
+| `CONFIG_SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM=y` | N/A | Required (coreboot 26.09) |
+| `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` | N/A | Required (coreboot 25.09) |
+| `CONFIG_SPI_FLASH_SMM=y`  | N/A | auto-selected by the patch |
 
-**Coreboot patch** (required for Skylake+):
+**Coreboot patch** (required for Skylake+), one copy per coreboot version:
+`patches/coreboot-26.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
 `patches/coreboot-25.09/0003-soc-intel-lockdown-Allow-locking-down-SPI-and-LPC-in.patch`
 
 For kano (MrChromebox coreboot fork), the same patch is carried at:
@@ -40,13 +46,65 @@ For kano (MrChromebox coreboot fork), the same patch is carried at:
 (rebased for the fork's context; the fork's `CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y` is set in `config/coreboot-kano.config`).
 
 This is a copy of [review.coreboot.org/+/85278](https://review.coreboot.org/c/coreboot/+/85278).
-It adds the `SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM` Kconfig and refactors
+It adds the `SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM` Kconfig (named
+`SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM` in the 25.09 copy) and refactors
 SPI+LPC locking from boot-time ramstage into an SMM handler.  Without
 this patch, coreboot issues `APM_CNT_FINALIZE` unconditionally during
 ramstage, leaving Heads no control over the lock timing.
 
 For pre-Skylake boards (Sandy Bridge through Broadwell), the upstream
 coreboot already supports SPI lockdown via SMI without this patch.
+
+#### How SPI protection actually resolves (pre-Skylake)
+
+Three distinct SPI mechanisms exist upstream; only the second is on the
+`lpc_final()` path.  All three live in `src/southbridge/intel/common/spi.c`.
+
+1. `spi_flash_protect` (`spi.c:1007`) performs the FPR protected-range
+   writes — `ICH9_SPI_FPR_RPE` / `SPI_FPR_WPE` at `spi.c:1034`, `1039`,
+   `1044`, masks defined at `spi.c:982-983`.  It is registered as
+   `.flash_protect` (`spi.c:1154`), invoked from
+   `drivers/spi/spi_flash.c:867-868` (CBFS region protection) — **not** from
+   the southbridge finalize path.
+2. `spi_finalize_ops` (`spi.c:1066`) is what `lpc_final()` calls,
+   unconditionally and outside the `INTEL_CHIPSET_LOCKDOWN` guard
+   (`bd82x6x/lpc.c:685`; LynxPoint `lynxpoint/lpc.c:803`).  It programs the
+   hardware sequencing — `cntlr.preop` with the EWSR/WREN opprefix
+   `{0x06, 0x50}` (initialisers `spi.c:1071`, `spi.c:1084`; written
+   `spi.c:1116-1121`) — early-returning if `spi_locked()` (`spi.c:1109`),
+   then calling `spi_set_smm_only_flashing(enable_smm_bios_protection())`
+   (`spi.c:1123`).
+3. `spi_set_smm_only_flashing` (`spi.c:1130`) is what actually changes
+   writability policy, via `BIOS_CNTL` (`common/lpc_def.h:66-69`:
+   `BIOSWE`, `BLE`, `SMM_BWP`).
+
+Consequence: with `# CONFIG_BOOTMEDIA_SMM_BWP` unset,
+`enable_smm_bios_protection()` (`src/security/lockdown/lockdown.h:9`)
+returns false, so `spi_set_smm_only_flashing(false)` takes the branch that
+clears `BLE|SMM_BWP` and **sets** `BIOSWE` (`spi.c:1143-1144`) — actively
+*ensuring* SPI stays writable from the OS.
+
+That is conditional: `spi_set_smm_only_flashing` returns before touching
+`BIOS_CNTL` unless the controller is `SOUTHBRIDGE_INTEL_I82801GX` or ICH9
+(`spi.c:1132`).  Every pre-Skylake southbridge here selects ICH9 —
+`bd82x6x/Kconfig:15`, `lynxpoint/Kconfig:12` — so the consequence holds on
+the boards this repo builds; a southbridge that did not would leave
+`spi_finalize_ops` with no write-policy effect at all.
+
+The only SPI-write gate in `lpc_final()` is the `INTEL_CHIPSET_LOCKDOWN`
+guard on `apm_control(APM_CNT_FINALIZE)` (`bd82x6x/lpc.c:688-690`;
+LynxPoint `lynxpoint/lpc.c:808-809`) — which is why that negative in the
+table above is load-bearing.  Upstream defaults the symbol to `y`
+(`southbridge/intel/common/Kconfig.common:103-107`), so a regen dropping the
+explicit negative would enable the lock and break the Heads flash-update
+path.
+
+LynxPoint's `lpc_final()` also does one unconditional unnamed RCBA write
+(`lynxpoint/lpc.c:806`); it is not `BIOS_CNTL` and is not part of this
+policy path.  Separately, `spi_finalize_ops` is not what the Skylake+
+`SOC_INTEL_COMMON_SPI_LPC_LOCKDOWN_SMM` deferral replaces — that moves
+SPI+LPC locking from boot-time ramstage into an SMM handler, a different
+mechanism from all three above.
 
 ### Heads build-time requirements
 
@@ -66,7 +124,7 @@ Just before kexec hands control to the OS, `kexec-boot.sh` calls
 `lock_chip.sh`:
 
 ```text
-kexec-boot.sh:221-223
+kexec-boot.sh:211-213
   if [ -x /bin/io386 -a "$CONFIG_FINALIZE_PLATFORM_LOCKING" = "y" ]
     └─ lock_chip.sh
          └─ io386 -o b -b x 0xb2 0xcb

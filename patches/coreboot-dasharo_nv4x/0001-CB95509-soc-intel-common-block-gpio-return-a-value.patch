@@ -1,0 +1,43 @@
+From 57f3c7cc1c27b00dd00bbb5516613ff282d8fc9e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Filip=20Lewi=C5=84ski?= <filip.lewinski@3mdeb.com>
+Date: Tue, 8 Sep 2026 15:23:16 +0200
+Subject: [PATCH 1/9] soc/intel/common/block/gpio: return a value from
+ gpio_lock_pads()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+gpio_lock_pads() is declared to return int, but the success path fell
+off the end of the function without returning anything. Every caller
+that looks at the return value, e.g. gpio_lock_pad(), therefore acted on
+an undefined value on success.
+
+Return 0 once all pads have been walked.
+
+Change-Id: I65c88e68526e258b08f801421ee4d3d26c4d1307
+Signed-off-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/95509
+Reviewed-by: Matt DeVillier <matt.devillier@gmail.com>
+Reviewed-by: Sean Rhodes <sean@starlabs.systems>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Origin: https://review.coreboot.org/c/coreboot/+/95509
+Upstream-Status: Merged (2026-09-21)
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; applies unmodified to the pinned fork.
+
+---
+ src/soc/intel/common/block/gpio/gpio.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/soc/intel/common/block/gpio/gpio.c b/src/soc/intel/common/block/gpio/gpio.c
+index 625c3f4..9d2a752 100644
+--- a/src/soc/intel/common/block/gpio/gpio.c
++++ b/src/soc/intel/common/block/gpio/gpio.c
+@@ -651,6 +651,8 @@ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ 	}
+ 
+ 	p2sb_hide();
++
++	return 0;
+ }
+ 
+ static void

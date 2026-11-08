@@ -183,7 +183,7 @@ measurements knowledge base](https://docs.dasharo.com/kb/pcr-measurements/).
 
 Only PCRs 0 through 7 are extended or sealed against by Heads; other PCRs are not
 used (the integrity report may still read and display all PCRs). PCR 16 is not
-used: `calcfuturepcr` replays the `cbmem -L` event log (`replay_pcr` rejects
+used: `calcfuturepcr` replays the `cbmem --tcpa-log` event log (`replay_pcr` rejects
 `pcr >= 8`), so no scratch PCR is needed.
 
 The prerequisites for a PCR 0 measurement (fuses, signed manifests, the
@@ -247,7 +247,7 @@ ROM configuration integrity, not disk state.
 `tpmr.sh extend -ix <pcr_num> -ic <string>` extends a PCR with the hash of a
 string. `-if <file>` extends with the hash of a file.
 
-`calcfuturepcr` replays the firmware event log (`cbmem -L`) to compute a PCR
+`calcfuturepcr` replays the firmware event log (`cbmem --tcpa-log`) to compute a PCR
 value without reading or extending the TPM. Any file or hash arguments are
 folded in after the log entries, which is how PCR 5 and PCR 6 are modeled.
 Sealing uses it to record the value a PCR will hold at unseal time, before any
@@ -267,7 +267,7 @@ are supported: coreboot-specific, TPM 1.2 spec, and TPM 2.0 spec. The log can
 be inspected from an OS or recovery shell with:
 
 ```text
-cbmem -L
+cbmem --tcpa-log
 ```
 
 This is the authoritative record of what was measured into each PCR during

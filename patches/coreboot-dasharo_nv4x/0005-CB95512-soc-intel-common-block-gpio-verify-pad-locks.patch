@@ -1,0 +1,103 @@
+From 59d18548442fec918025592fac2899930bac02ac Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Filip=20Lewi=C5=84ski?= <filip.lewinski@3mdeb.com>
+Date: Tue, 8 Sep 2026 15:23:17 +0200
+Subject: [PATCH 5/9] soc/intel/common/block/gpio: verify that pad locks took
+ effect
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Locking a pad can silently do nothing: PADCFGLOCK writes are only
+honoured when they carry the SMM security attribute, sideband messages
+are dropped when the P2SB is unreachable, and the PCR path does not look
+at the register at all. Callers relying on a pad being locked for
+security reasons then have no way of telling.
+
+Read the lock registers back after locking and report the pads that are
+still writable, so a failure shows up in the log and in the return
+value.
+
+Change-Id: I3b77dce8e7424b1f66a974f58e4f500e6da841d4
+Co-authored-by: Matt DeVillier <matt.devillier@gmail.com>
+Signed-off-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Origin: https://review.coreboot.org/c/coreboot/+/95512
+Upstream-Status: Pending
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; re-anchored. The third hunk drops the
+	"!p2sb_unhide()" error check: the pinned fork declares p2sb_unhide() void,
+	upstream main returns bool. The lock result is still propagated.
+
+---
+ src/soc/intel/common/block/gpio/gpio.c | 36 +++++++++++++++++++++++---
+ 1 file changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/src/soc/intel/common/block/gpio/gpio.c b/src/soc/intel/common/block/gpio/gpio.c
+index 933261c..2031d7a 100644
+--- a/src/soc/intel/common/block/gpio/gpio.c
++++ b/src/soc/intel/common/block/gpio/gpio.c
+@@ -556,6 +556,29 @@ int gpio_tx_get(gpio_t gpio_num)
+ 	return !!(reg & PAD_CFG0_TX_STATE);
+ }
+ 
++static int
++gpio_pad_config_lock_verify(const struct gpio_lock_config *pad_info,
++	uint8_t pid, uint16_t offset, const uint32_t bit_mask)
++{
++	int ret = 0;
++
++	if ((pad_info->lock_action & GPIO_LOCK_CONFIG) == GPIO_LOCK_CONFIG &&
++	    !(pcr_read32(pid, offset) & bit_mask)) {
++		printk(BIOS_ERR, "%s: Error: pad %d configuration still unlocked!\n",
++				__func__, pad_info->pad);
++		ret = -1;
++	}
++
++	if ((pad_info->lock_action & GPIO_LOCK_TX) == GPIO_LOCK_TX &&
++	    !(pcr_read32(pid, offset + sizeof(uint32_t)) & bit_mask)) {
++		printk(BIOS_ERR, "%s: Error: pad %d Tx state still unlocked!\n",
++				__func__, pad_info->pad);
++		ret = -1;
++	}
++
++	return ret;
++}
++
+ static void
+ gpio_pad_config_lock_using_sbi(const struct gpio_lock_config *pad_info,
+ 	uint8_t pid, uint16_t offset, const uint32_t bit_mask)
+@@ -655,13 +678,16 @@ static int gpio_pad_config_lock(const struct gpio_lock_config *pad_info)
+ 	} else {
+ 		printk(BIOS_ERR, "%s: Error: No pad configuration lock method is selected!\n",
+ 						__func__);
++		return -1;
+ 	}
+ 
+-	return 0;
++	return gpio_pad_config_lock_verify(pad_info, comm->port, offset, bit_mask);
+ }
+ 
+ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ {
++	int ret = 0;
++
+ 	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS))
+ 		return -1;
+ 
+@@ -685,13 +711,15 @@ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ 	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI))
+ 		p2sb_unhide();
+ 
+-	for (int x = 0; x < count; x++)
+-		gpio_pad_config_lock(&pad_list[x]);
++	for (int x = 0; x < count; x++) {
++		if (gpio_pad_config_lock(&pad_list[x]))
++			ret = -1;
++	}
+ 
+ 	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI))
+ 		p2sb_hide();
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static int gpio_non_smm_lock_pad(const struct gpio_lock_config *pad_info)

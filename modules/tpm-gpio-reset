@@ -7,14 +7,30 @@
 # Two binaries, as in upstream kukri:
 #   tpm-gpio-detect   detection-only audit of GPIO lock status (no CLI args)
 #   tpm-gpio-assert   assertion/execute tool (kukri's modified coreboot inteltool)
-modules-$(CONFIG_TPM2_TOOLS) += tpm-gpio-reset
+#
+# Pad-register tooling that drives whichever TPM CLI the board has:
+# bin/tpm2 from modules/tpm2-tools when CONFIG_TPM2_TOOLS is set, bin/tpm
+# from modules/tpmtotp when it is not. tpm-gpio-assert also issues TPM
+# Startup and PCR reads, so it needs one or the other present, not both.
+# x86 only: the tools are Intel/x86-specific (iopl(3),
+# PCI_ACCESS_I386_TYPE1), so TPM_ANY stays empty on other architectures --
+# the ppc64 talos-2 sets CONFIG_TPM=y but must not select this module.
+# Keep the Makefile bin_modules-$(TPM_ANY) line in sync with this gate.
+TPM_ANY :=
+ifeq "$(CONFIG_TARGET_ARCH)" "x86"
+TPM_ANY := $(CONFIG_TPM)
+ifeq "$(CONFIG_TPM2_TOOLS)" "y"
+TPM_ANY := y
+endif
+endif
+modules-$(TPM_ANY) += tpm-gpio-reset
 
 
 # See doc/modules.md "Shared module build flags" for the section-GC/unwind rationale.
 
-tpm-gpio-reset_depends := pciutils $(tpm2-tools_dep)
+tpm-gpio-reset_depends := pciutils
 tpm-gpio-reset_repo := https://github.com/tlaurion/tpm-gpio-fail.git
-tpm-gpio-reset_commit_hash := 3e3a695655b3b9e3188bb9aad70874dbcfb03145
+tpm-gpio-reset_commit_hash := a29f5bd74febd3ca826a91b197eaa03448e55b89
 tpm-gpio-reset_version := $(tpm-gpio-reset_commit_hash)
 tpm-gpio-reset_base_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)
 tpm-gpio-reset_dir := tpm-gpio-fail-$(tpm-gpio-reset_version)

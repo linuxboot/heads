@@ -123,8 +123,7 @@ as the immutable starting point:
 - On the typical maintained x86 coreboot path with TPM support and
   `CONFIG_TPM_MEASURED_BOOT=y`, coreboot measures firmware stages and the Linux
   payload into TPM PCR 2 (SRTM) before executing it.  This is not the Talos or
-  LinuxBoot path, and exceptions include X280 measured boot being disabled and
-  Librem Mini TPM support being disabled.
+  LinuxBoot path, and exceptions include Librem Mini TPM support being disabled.
 - The x86 coreboot payload and external initrd are carried in the ROM.  Talos
   follows coreboot → skiboot and ships `zImage.bundled` separately; the
   unmaintained LinuxBoot path packages its own ROM path.
@@ -155,8 +154,7 @@ bootblock → romstage → ramstage → Heads Linux kernel + initrd (payload)
 On boards with `CONFIG_TPM_MEASURED_BOOT=y` + `CONFIG_TPM_INIT_RAMSTAGE=y`
 (the majority of maintained boards), ramstage initializes the TPM, reads each
 prior stage from CBFS, and extends PCR 2. Older coreboot versions (4.11) used
-`CONFIG_TPM_INIT=y` before this config key existed.  This is not universal: X280
-measured boot is disabled, Librem Mini TPM support is disabled, and Talos and
+`CONFIG_TPM_INIT=y` before this config key existed.  This is not universal: Librem Mini TPM support is disabled, and Talos and
 LinuxBoot do not follow this direct x86 path. See [tpm.md](tpm.md#pcr-assignments)
 for the PCR map and the PCR 4 boot path values.
 

@@ -1,0 +1,45 @@
+From: Chris Wiggins <chris@cwiggs.com>
+Subject: [PATCH] soc/intel/smm: Invoke deferred SPI and LPC lockdown
+
+This restores the SMI handler hunk from Michał Żygowski's original
+patch:
+
+https://review.coreboot.org/c/coreboot/+/85278
+d8ee9def7fe87b647cdeb951485efc679d119d86
+("soc/intel/lockdown: Allow locking down SPI and LPC in SMM")
+
+Original-patch-by: Michał Żygowski <michal.zygowski@3mdeb.com>
+Link: https://review.coreboot.org/c/coreboot/+/85278
+Signed-off-by: Chris Wiggins <chris@cwiggs.com>
+---
+ src/soc/intel/common/block/smm/smihandler.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -15,6 +15,7 @@
+ #include <device/pci_def.h>
+ #include <device/pci_ops.h>
+ #include <elog.h>
++#include <intelblocks/cfg.h>
+ #include <intelblocks/fast_spi.h>
+ #include <intelblocks/oc_wdt.h>
+ #include <intelblocks/pmclib.h>
+@@ -321,6 +321,14 @@ static void finalize(void)
+ 	}
+ 	finalize_done = 1;
+ 
++	if (CONFIG(SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM)) {
++		/* SPI lock down configuration */
++		fast_spi_lockdown_bios(CHIPSET_LOCKDOWN_COREBOOT);
++
++		/* LPC/eSPI lock down configuration */
++		lpc_lockdown_config(CHIPSET_LOCKDOWN_COREBOOT);
++	}
++
+ 	if (CONFIG(SPI_FLASH_SMM))
+ 		/* Re-init SPI driver to handle locked BAR */
+ 		fast_spi_init();
+-- 
+2.39.5

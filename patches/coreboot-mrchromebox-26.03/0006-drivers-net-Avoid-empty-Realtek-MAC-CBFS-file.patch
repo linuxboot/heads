@@ -1,0 +1,30 @@
+From: Chris Wiggins <chris@cwiggs.com>
+Subject: [PATCH] drivers/net: Avoid empty Realtek MAC CBFS file
+
+CONFIG_REALTEK_8168_MACADDRESS is unavailable when the board selects
+RT8168_GET_MAC_FROM_VPD. The quoted empty string in the Make comparison is
+literal, so an unset value still satisfies the condition and creates a
+zero-byte rt8168-macaddress CBFS entry.
+
+Use the standard empty-value comparison so the entry is only created when a
+MAC address is configured for the CBFS path.
+
+Signed-off-by: Chris Wiggins <chris@cwiggs.com>
+---
+ src/drivers/net/Makefile.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/drivers/net/Makefile.mk b/src/drivers/net/Makefile.mk
+--- a/src/drivers/net/Makefile.mk
++++ b/src/drivers/net/Makefile.mk
+@@ -6,7 +6,7 @@ ramstage-$(CONFIG_CONSOLE_NE2K) += ne2k.c
+ ramstage-$(CONFIG_REALTEK_8168_RESET) += r8168.c
+ ramstage-$(CONFIG_ATHEROS_ATL1E_SETMAC) += atl1e.c
+ 
+-ifneq ($(CONFIG_REALTEK_8168_MACADDRESS),"")
++ifneq ($(CONFIG_REALTEK_8168_MACADDRESS),)
+ $(obj)/rt8168-macaddress: $(DOTCONFIG)
+ 		echo "    Creating a file holding the rt8168 macaddress"
+ 		printf %s $(CONFIG_REALTEK_8168_MACADDRESS) > $@
+-- 
+2.39.5

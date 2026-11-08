@@ -72,7 +72,7 @@ them is a Heads or coreboot build option.
    `CBNT_BP_TYPE_M` (`src/security/intel/cbnt/measurement.c:641-647`,
    `cbnt.h:15-16`).
 5. Coreboot reconstructs the event log on Meteor Lake and newer so that
-   `cbmem -L` or `tpm2_eventlog` replay matches the PCR 0 value
+   `cbmem --tcpa-log` or `tpm2_eventlog` replay matches the PCR 0 value
    (`measurement.c:748-823`; Dasharo fork commits a74cb058c3 and b577aaac21).
    The CRTM version and IBB digest are log only (`measurement.c:777` and
    `:786`); the one PCR 0 value coreboot itself extends is POLICY_DATA
@@ -170,7 +170,7 @@ All of these are read only and need no special build:
   `BTG_SACM_INFO`. It needs access to `/dev/mem` for the ACM status registers;
   see `3rdparty/intel-sec-tools/cmd/pcr0tool/README.md`.
 * `tpm2_pcrread` reads the current PCR 0 value.
-* `tpm2_eventlog` from an OS, or `cbmem -L` from the recovery shell, shows the
+* `tpm2_eventlog` from an OS, or `cbmem --tcpa-log` from the recovery shell, shows the
   event log. The Boot Guard entries coreboot records should be present and
   should replay to the PCR 0 value.
 * `cbnt-prov show-all` prints the FIT, Key Manifest, Boot Policy Manifest and

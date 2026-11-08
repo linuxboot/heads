@@ -1,0 +1,153 @@
+From 4206a60f8dc85ed731208f05e1449bf7cc571771 Mon Sep 17 00:00:00 2001
+From: Thierry Laurion <insurgo@riseup.net>
+Date: Tue, 13 Oct 2026 19:10:09 -0400
+Subject: [PATCH 8/9] soc/intel/common/block/smm: add APM_CNT_GPIO_LOCK command
+
+Refs: "TPM GPIO fail" https://mkukri.xyz/2024-06-01/tpm-gpio-fail.html ; coreboot ticket #576 ; https://github.com/tlaurion/tpm-gpio-fail
+
+Add a dedicated APM_CNT command (0xcd) that makes the SMI handler lock
+only the GPIO pads returned by soc_gpio_lock_config(), on its own latch.
+
+It is deliberately separate from APM_CNT_FINALIZE: that command runs the
+SPI and LPC lockdown and ends by locking down the sideband interface,
+which the pad lock itself needs. Keeping the pad lock in its own SMI
+lets firmware issue it before the payload, without touching the PR0 /
+FLOCKDN timing, and leaves the sideband usable for the later finalize
+SMI. Locking an already locked pad is idempotent, so issuing both
+commands is harmless.
+
+soc_lock_gpios() now returns gpio_lock_pads()'s result, and the handler
+sets its done latch only on success: a failed pad write is logged and
+leaves the latch clear, so a later command -- or the finalize SMI, which
+re-locks the same pads -- retries instead of the failure being recorded
+as success.
+
+The latch is file scope and finalize() consults it, so the two lock paths
+no longer hold independent opinions about whether the pads are already
+locked. finalize() still calls soc_lock_gpios() directly when the latch is
+clear, which is the retry path when the dedicated SMI failed.
+
+gpio_lock_smi() rejects an empty pad list instead of taking
+soc_lock_gpios()'s success for it. An empty list is legitimate for
+finalize(), which also locks mainboard-requested pads, but this command
+exists solely to lock the pad driving PLTRST#: recording that as done
+would report the mitigation in place while no pad was locked. The check
+therefore lives here rather than in the shared helper, which also keeps
+finalize() quiet on boards that request no SoC pad.
+
+The APM_CNT value is firmware-defined, like the other commands
+dispatched by smihandler_southbridge_apmc(); 0xcd is unused. It matches
+the APM_CNT_GPIO_LOCK value used by the Dasharo coreboot fork PLTRST
+series, so both converge on the same channel.
+
+Signed-off-by: Thierry Laurion <insurgo@riseup.net>
+Heads-Note: heads-specific, no upstream equivalent; carried against coreboot-dasharo_nv4x 281a7fec1a1e; re-anchored.
+	The soc_lock_gpios() signature hunk is re-anchored because CB:95514 moved the
+	weak soc_gpio_lock_config() out of smihandler.c, so the context differs.
+Heads-Note: converges with the APM_CNT_GPIO_LOCK command of the Dasharo coreboot
+	fork PLTRST series -- same 0xcd token, same latch semantics -- written by
+	Filip Lewinski but not carried in patches/coreboot-dasharo_nv4x/. The fork
+	commit defining it is referenced nowhere in this tree, so it is left
+	unstated rather than guessed.
+
+---
+diff --git a/src/include/cpu/x86/smm.h b/src/include/cpu/x86/smm.h
+index b552d33..04320b7 100644
+--- a/src/include/cpu/x86/smm.h
++++ b/src/include/cpu/x86/smm.h
+@@ -25,6 +25,7 @@
+ #define APM_CNT_ROUTE_ALL_XHCI	0xca
+ #define APM_CNT_FINALIZE	0xcb
+ #define APM_CNT_LEGACY		0xcc
++#define APM_CNT_GPIO_LOCK	0xcd
+ #define APM_CNT_MBI_UPDATE	0xeb
+ #define APM_CNT_SMMINFO		0xec
+ #define APM_CNT_SMMSTORE	0xed
+diff --git a/src/soc/intel/common/block/smm/smihandler.c b/src/soc/intel/common/block/smm/smihandler.c
+index 44184ec..000b95a 100644
+--- a/src/soc/intel/common/block/smm/smihandler.c
++++ b/src/soc/intel/common/block/smm/smihandler.c
+@@ -320,7 +320,7 @@ static void southbridge_smi_store(
+ 	}
+ }
+ 
+-static void soc_lock_gpios(void)
++static int soc_lock_gpios(void)
+ {
+ 	const struct gpio_lock_config *soc_gpios;
+ 	size_t soc_gpio_num;
+@@ -330,7 +330,49 @@ static void soc_lock_gpios(void)
+ 
+ 	/* Lock any soc requested gpios */
+ 	if (soc_gpio_num)
+-		gpio_lock_pads(soc_gpios, soc_gpio_num);
++		return gpio_lock_pads(soc_gpios, soc_gpio_num);
++
++	return 0;
++}
++
++/* Set once the SoC pads are locked, so both lock paths agree on the state. */
++static int gpio_lock_done;
++
++/*
++ * Lock the SoC GPIO pads from a dedicated SMI, independent of finalize().
++ * That command runs the SPI and LPC lockdown and ends by locking down the
++ * sideband interface, which the pad lock itself needs. Locking an already
++ * locked pad is idempotent.
++ */
++static void gpio_lock_smi(void)
++{
++	const struct gpio_lock_config *soc_gpios;
++	size_t soc_gpio_num;
++
++	if (gpio_lock_done)
++		return;
++
++	/*
++	 * An empty pad list is not a successful lock here: this command
++	 * exists to lock the pad driving PLTRST#, so a SoC that returns no
++	 * pad has left the mitigation out. soc_lock_gpios() reports an empty
++	 * list as success, which is what finalize() wants from it, so the
++	 * check belongs here rather than in the shared helper.
++	 */
++	soc_gpios = soc_gpio_lock_config(&soc_gpio_num);
++	if (!soc_gpio_num) {
++		printk(BIOS_ERR, "%s: no SoC GPIO pad to lock for PLTRST#\n",
++			__func__);
++		return;
++	}
++
++	if (gpio_lock_pads(soc_gpios, soc_gpio_num)) {
++		printk(BIOS_ERR,
++		       "%s: pad lock failed; payload handoff unprotected\n",
++		       __func__);
++		return;
++	}
++	gpio_lock_done = 1;
+ }
+ 
+ static void finalize(void)
+@@ -368,8 +410,10 @@ static void finalize(void)
+ 	mainboard_smi_finalize();
+ 
+ 	/* Lock down all GPIOs that may have been requested by the SoC and/or the mainboard. */
+-	if (CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS))
+-		soc_lock_gpios();
++	if (CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS) &&
++	    !gpio_lock_done && soc_lock_gpios())
++		printk(BIOS_ERR, "%s: SoC pad lock failed during finalize\n",
++			__func__);
+ 
+ 	/* Specific SOC SMI handler during ramstage finalize phase */
+ 	smihandler_soc_at_finalize();
+@@ -399,6 +443,10 @@ void smihandler_southbridge_apmc(
+ 	case APM_CNT_FINALIZE:
+ 		finalize();
+ 		break;
++	case APM_CNT_GPIO_LOCK:
++		if (CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS))
++			gpio_lock_smi();
++		break;
+ 	}
+ 
+ 	mainboard_smi_apmc(reg8);

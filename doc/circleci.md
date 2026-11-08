@@ -103,7 +103,7 @@ cache results indirectly through the workspace chain:
 
 The cache hit happens upstream, but the `build` job consumes the result.
 
-For same-fork `build` jobs (e.g. 25.09 downstream boards), the seed's
+For same-fork `build` jobs (e.g. 26.09 upstream boards), the seed's
 fork source is inherited through the workspace -- no clone needed.
 
 For Dasharo shared-toolchain `build` jobs where the seed uses a different
@@ -186,7 +186,7 @@ and returns failure only when the marker created by the build step is present.
 - See [architecture.md](architecture.md) and [config.md](config.md) for
   ppc64 board and build details.
 
-### Seeds (6 x86; 1 ppc64)
+### Seeds (5 x86; 1 ppc64)
 
 Seed job names in CircleCI include their upstream coreboot base in
 `[seed:coreboot-VERSION]` format:
@@ -196,8 +196,7 @@ Seed job names in CircleCI include their upstream coreboot base in
 | `novacustom-nv4x_adl [seed:coreboot-24.12]` | 7 (8 configured Dasharo boards including this seed) | coreboot 24.12 |
 | `librem_14 [seed:coreboot-24.02.01]` | 8 Purism boards | coreboot 24.02.01 |
 | `kano [seed:coreboot-mrchromebox-26.03]` | 1 (`kano-hotp`) | MrChromebox fork (coreboot 26.03) |
-| `EOL_t480-hotp-maximized [seed:coreboot-25.09]` | 30 | coreboot 25.09 |
-| `EOL_x280-hotp-maximized [seed:coreboot-25.12]` | 1 (`EOL_x280-maximized`) | coreboot 25.12 |
+| `EOL_t480-hotp-maximized [seed:coreboot-26.09]` | 33 | coreboot 26.09 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
 

@@ -8,6 +8,7 @@ CONFIG_MAINBOARD_VERSION="v2.1"
 CONFIG_CBFS_SIZE=0x1000000
 # CONFIG_CONSOLE_SERIAL is not set
 # CONFIG_POST_IO is not set
+CONFIG_DEBUG_SMI=y
 CONFIG_IFD_BIN_PATH="3rdparty/dasharo-blobs/novacustom/nv4x_adl/descriptor.bin"
 CONFIG_ME_BIN_PATH="3rdparty/dasharo-blobs/novacustom/nv4x_adl/me.bin"
 CONFIG_CONSOLE_CBMEM_BUFFER_SIZE=0x20000

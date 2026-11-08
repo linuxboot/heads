@@ -1,0 +1,89 @@
+From 6c1043c10751106d81195d37d68bc4aafe210acf Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Filip=20Lewi=C5=84ski?= <filip.lewinski@3mdeb.com>
+Date: Tue, 8 Sep 2026 15:23:16 +0200
+Subject: [PATCH 3/9] soc/intel/common/block/gpio: honour the SoC lock method in
+ SMM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+gpio_lock_pads(), the SMM pad lock path, always set the lock bits with
+a sideband interface (SBI) message, while gpio_non_smm_lock_pad() uses
+the method the SoC selects: SBI, or a private configuration register
+(PCR) write. On SoCs that select PCR locking (Apollo Lake, Gemini Lake,
+and Meteor Lake onwards), the SMM path therefore used the wrong method.
+
+Lock each pad with gpio_pad_config_lock(), which is also used by
+gpio_non_smm_lock_pad(), so that both paths honour the SoC's choice.
+Only unhide and hide the P2SB around the loop when locking with SBI,
+as PCR writes do not need it.
+
+Nothing selects SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS yet, so this
+has no effect on its own.
+
+Change-Id: I3d08e78a6a6b55d2788365edd00db99fc1e4756e
+Co-authored-by: Sean Rhodes <sean@starlabs.systems>
+Co-authored-by: Matt DeVillier <matt.devillier@gmail.com>
+Signed-off-by: Filip Lewiński <filip.lewinski@3mdeb.com>
+Reviewed-on: https://review.coreboot.org/c/coreboot/+/95510
+Reviewed-by: Angel Pons <th3fanbus@gmail.com>
+Reviewed-by: Nicholas Chin <nic.c3.14@gmail.com>
+Tested-by: build bot (Jenkins) <no-reply@coreboot.org>
+Origin: https://review.coreboot.org/c/coreboot/+/95510
+Upstream-Status: Merged (2026-10-01)
+Heads-Note: carried against coreboot-dasharo_nv4x 281a7fec1a1e; applies unmodified to the pinned fork.
+
+---
+ src/soc/intel/common/block/gpio/gpio.c | 30 ++++++--------------------
+ 1 file changed, 6 insertions(+), 24 deletions(-)
+
+diff --git a/src/soc/intel/common/block/gpio/gpio.c b/src/soc/intel/common/block/gpio/gpio.c
+index 6fa6c0b..abd6695 100644
+--- a/src/soc/intel/common/block/gpio/gpio.c
++++ b/src/soc/intel/common/block/gpio/gpio.c
+@@ -662,11 +662,6 @@ static int gpio_pad_config_lock(const struct gpio_lock_config *pad_info)
+ 
+ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ {
+-	const struct pad_community *comm;
+-	uint16_t offset;
+-	size_t rel_pad;
+-	gpio_t pad;
+-
+ 	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_SMM_LOCK_GPIO_PADS))
+ 		return -1;
+ 
+@@ -687,27 +682,14 @@ int gpio_lock_pads(const struct gpio_lock_config *pad_list, const size_t count)
+ 		return -1;
+ 	}
+ 
+-	p2sb_unhide();
++	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI))
++		p2sb_unhide();
+ 
+-	for (int x = 0; x < count; x++) {
+-		pad = pad_list[x].pad;
+-		comm = gpio_get_community(pad);
+-		rel_pad = relative_pad_in_comm(comm, pad);
+-		offset = comm->pad_cfg_lock_offset;
+-		if (!offset) {
+-			printk(BIOS_ERR, "%s: Error: offset not defined for pad %d!\n",
+-					__func__, pad);
+-			continue;
+-		}
+-		/* PADCFGLOCK and PADCFGLOCKTX registers for each community are contiguous */
+-		offset += gpio_group_index_scaled(comm, rel_pad, 2 * sizeof(uint32_t));
+-
+-		const uint32_t bit_mask = gpio_bitmask_within_group(comm, rel_pad);
+-
+-		gpio_pad_config_lock_using_sbi(&pad_list[x], comm->port, offset, bit_mask);
+-	}
++	for (int x = 0; x < count; x++)
++		gpio_pad_config_lock(&pad_list[x]);
+ 
+-	p2sb_hide();
++	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_LOCK_USING_SBI))
++		p2sb_hide();
+ 
+ 	return 0;
+ }

@@ -1,0 +1,45 @@
+From: Chris Wiggins <chris@cwiggs.com>
+Subject: [PATCH] 3rdparty/blobs: Update Fizz ECRW
+
+Pin Fizz builds to the MrChromebox 26.09 hotfix blobs revision that provides
+fizz_v1.1.7936-baf4587. In addition to preserving USB-PD power across an EC
+RO-to-RW sysjump, this image fixes previous-power-state detection on Fizz.
+
+The image comes from MrChromebox coreboot commit 47461fe6c788 ("blobs: pull
+in ECRW update for fizz"), which advances the blobs submodule to commit
+7fc4c0d16459 ("fizz: fix previous power state detection").
+
+The blobs repository is configured with update=none, so fetch and check out
+the pinned revision explicitly after initializing the submodule. Fail the
+build instead of silently using a different EC image if checkout fails.
+
+Link: https://github.com/MrChromebox/coreboot/commit/47461fe6c788b4529b266315de92a3b3f21276ba
+Link: https://github.com/coreboot/blobs/commit/7fc4c0d16459a73f0e4c1eb5ef4289a2fdaa1601
+Signed-off-by: Chris Wiggins <chris@cwiggs.com>
+---
+ Makefile.mk | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/Makefile.mk b/Makefile.mk
+--- a/Makefile.mk
++++ b/Makefile.mk
+@@ -258,6 +258,17 @@ ifeq ($(CONFIG_USE_BLOBS),y)
+ # These items are necessary because each has update=none in .gitmodules.  They are ignored
+ # until expressly requested and enabled with --checkout
+ forgetthis:=$(shell git submodule update --init --checkout 3rdparty/blobs $(quiet_errors))
++ifeq ($(CONFIG_BOARD_GOOGLE_FIZZ),y)
++fizz_blobs_commit:=7fc4c0d16459a73f0e4c1eb5ef4289a2fdaa1601
++ifneq ($(shell git -C 3rdparty/blobs rev-parse HEAD),$(fizz_blobs_commit))
++forgetthis:=$(shell \
++	git -C 3rdparty/blobs fetch --quiet origin $(fizz_blobs_commit) && \
++	git -C 3rdparty/blobs checkout --quiet --detach $(fizz_blobs_commit))
++endif
++ifneq ($(shell git -C 3rdparty/blobs rev-parse HEAD),$(fizz_blobs_commit))
++$(error Failed to check out Fizz blobs revision $(fizz_blobs_commit))
++endif
++endif
+ forgetthis:=$(shell git submodule update --init --checkout 3rdparty/intel-microcode $(quiet_errors))
+ ifeq ($(CONFIG_FSP_USE_REPO),y)
+ forgetthis:=$(shell git submodule update --init --checkout 3rdparty/fsp $(quiet_errors))
+-- 
+2.39.5
