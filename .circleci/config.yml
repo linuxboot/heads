@@ -542,6 +542,7 @@ workflows:
       # Downstream boards:
       # - kano, kano-hotp
       # - fizz, fizz-hotp
+      # - kuldax
       - x86_coreboot:
           name: fizz [seed:coreboot-mrchromebox-26.03]
           target: fizz
@@ -570,6 +571,14 @@ workflows:
       - build:
           name: kano-hotp
           target: kano-hotp
+          subcommand: ""
+          requires:
+            - fizz [seed:coreboot-mrchromebox-26.03]
+
+      # kuldax (seeded by fizz -- reuses coreboot-mrchromebox-26.03 workspace)
+      - build:
+          name: kuldax
+          target: kuldax
           subcommand: ""
           requires:
             - fizz [seed:coreboot-mrchromebox-26.03]
@@ -798,14 +807,6 @@ workflows:
           subcommand: ""
           requires:
             - EOL_t480-hotp-maximized [seed:coreboot-26.09]
-
- # ── coreboot 25.03 boards (alphabetical) ───────────────────────────────
-      - build:
-          name: kuldax
-          target: kuldax
-          subcommand: ""
-          requires:
-            - x86-musl-cross-make [cross compiler]
 
       # ── purism boards (alphabetical) ──────────────────────────────────────
       - build:
