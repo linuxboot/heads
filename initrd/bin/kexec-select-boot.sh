@@ -69,24 +69,6 @@ if [ -z "$_HEADS_TEST" ]; then
 	paramsdir="${paramsdir%%/}"
 fi
 
-PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
-	if [ -s "$PRIMHASH_FILE" ]; then
-		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
-			{
-				WARN "Hash of TPM2 primary key handle mismatch - if you have not intentionally regenerated the TPM2 primary key, your system may have been compromised"
-				DEBUG "Hash of TPM2 primary key handle mismatched for $PRIMHASH_FILE"
-				DEBUG "Contents of $PRIMHASH_FILE:"
-				DEBUG "$(cat $PRIMHASH_FILE)"
-				DIE "Hash of TPM2 primary key handle mismatch ($PRIMHASH_FILE). If you did not intentionally regenerate the TPM2 primary key, this may indicate compromise."
-			}
-	else
-		WARN "Hash of TPM2 primary key handle does not exist - rebuild it by setting a default OS to boot: Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default"
-		default_failed="y"
-		DEBUG "Hash of TPM2 primary key handle does not exist under $PRIMHASH_FILE"
-	fi
-fi
-
 verify_rollback_counter() {
 	TRACE_FUNC
 	TPM_COUNTER=$(grep counter $TMP_ROLLBACK_FILE | cut -d- -f2)
