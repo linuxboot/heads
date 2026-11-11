@@ -88,8 +88,13 @@ $(info !!!!!! Build starts !!!!!!)
 $(if $(BOARD),$(info COMMIT $(GIT_HASH) $(HEADS_GIT_VERSION)),)
 
 
+# Build metadata timestamps are derived from the current commit rather than
+# the wall clock, so hashes.txt/sizes.txt headers, the measurement log lines,
+# and the update ZIP are deterministic for a given commit.  Fall back to
+# SOURCE_DATE_EPOCH, then epoch 0, when the tree has no commit (source tarball).
+COMMIT_EPOCH := $(shell git log -1 --format=%ct 2>/dev/null || echo $${SOURCE_DATE_EPOCH:-0})
 # Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+DATE := $(shell date -u -d "@$(COMMIT_EPOCH)" --rfc-3339=seconds)
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 
