@@ -190,7 +190,11 @@ measurement boundary.
 The x86 update ZIP receives a copy of `hashes.txt` only when its ZIP recipe
 rebuilds the package; a manifest reset alone does not rewrite an existing ZIP.
 Inside a rebuilt ZIP, `hashes.txt` supports same-commit build comparison, while
-`sha256sum.txt` is the update package's final-ROM integrity check.
+`sha256sum.txt` is the update package's final-ROM integrity check.  The ZIP's
+member mtimes are pinned to the commit timestamp, their modes are normalized,
+and its extended-timestamp/uid-gid extra fields are omitted (`zip -X` in UTC),
+so a rebuilt package is byte-identical for a given commit when its packaged
+contents match.
 
 ### Understanding hashes.txt
 
@@ -223,7 +227,11 @@ separated by `-----` lines:
 When CI and local build the **same git commit** with comparable invocations, the
 recorded hashes may match.  A match is evidence for the compared artifacts; it
 does not by itself establish reproducibility for every board, environment, or
-future build.
+future build.  The manifest header and the update ZIP are byte-identical for a
+given commit *when their packaged contents are identical* (their timestamps and
+modes are commit-derived), so a full-file `cmp` of `hashes.txt` (when rule
+coverage matches) or of the `.zip` is a same-commit comparison, not a
+guarantee that the ROM itself rebuilt identically.
 
 ```bash
 grep '\.rom' /tmp/ci-hashes.txt build/x86/EOL_t480-hotp-maximized/hashes.txt

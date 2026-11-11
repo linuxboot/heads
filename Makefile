@@ -310,6 +310,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
+	rm -f "$@"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -318,7 +319,14 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	# after the zip was already assembled.
 	sha256sum "$(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE)" >> "$(board_build)/update_pkg/$(notdir $(HASHES))"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+	# Pin member mtimes to the commit-derived timestamp, normalize their modes,
+	# and drop zip's extended-timestamp/uid-gid extra fields (and run zip in
+	# UTC) so the package is byte-identical for a given commit regardless of
+	# the build host's clock, umask, or timezone.
+	cd "$(board_build)/update_pkg" && \
+		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		TZ=UTC zip -9 -X "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)

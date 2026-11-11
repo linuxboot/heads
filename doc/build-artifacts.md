@@ -194,9 +194,12 @@ report of how much of a particular SPI/IFD region is available.
 An x86 update ZIP copies the current `hashes.txt` only when the ZIP recipe
 rebuilds the package.  Resetting the build-directory manifest alone does not
 invalidate or rewrite an already-existing ZIP.  Its `sha256sum.txt` covers the
-packaged ROM.  In the Talos II `.tgz`, `sha256sum.txt` covers the ROM,
-bootblock, and bundled Linux image.  These package checksums and the
-build-directory manifests have different scopes.
+packaged ROM.  The ZIP's member mtimes are pinned to the commit timestamp, its
+member modes are normalized, and its extended-timestamp/uid-gid extra fields are
+omitted (run in UTC), so a rebuilt package is byte-identical for a given commit
+when its packaged contents match.  In the Talos II `.tgz`, `sha256sum.txt`
+covers the ROM, bootblock, and bundled Linux image.  These package checksums and
+the build-directory manifests have different scopes.
 
 ## Coreboot filename variables
 
