@@ -463,6 +463,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 sha256sum ; \
 		echo "-----" ; \
 		) >> "$(HASHES)" \
@@ -471,6 +472,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 stat -c "%8s:%n" ; \
 		echo "-----" ; \
 		) >> "$(SIZES)" \
