@@ -282,8 +282,16 @@ CROSS_TOOLS := \
 	$(CROSS_TOOLS_NOCC) \
 
 # Targets to build payload only
-.PHONY: payload
+.PHONY: payload compare-zip
 payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
+
+# Disassemble/compare update ZIPs for same-commit reproducibility.
+# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
+compare-zip:
+	@zip="$(ZIP)"; \
+	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
+	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
+	./bin/compare-update-zip.sh $(if $(EXTRACT),--extract $(EXTRACT),) $(if $(ROM_TOOLS),--rom-tools,) "$$zip" $(REF)
 
 ifeq ($(CONFIG_COREBOOT), y)
 
