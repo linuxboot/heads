@@ -53,8 +53,14 @@ while true; do
 	if [ "$totp_confirm" = "y" -o -n "$totp_confirm" ]; then
 		# Try to boot the default
 		mount_boot
-		DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg" \
-		|| recovery "Failed default boot"
+		# A cancel (exit 3) returns to the prompt below instead of reaching
+		# recovery; a genuine failure (1) and the different-ISO status (2,
+		# unreachable here without -a) still reach recovery.
+		DO_WITH_DEBUG kexec-select-boot.sh -b /boot -c "grub.cfg"
+		status=$?
+		if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
+			recovery "Failed default boot"
+		fi
 	fi
 
 done

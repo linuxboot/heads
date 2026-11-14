@@ -50,12 +50,17 @@ if [ -d "/etc" ] && [ -f "/etc/functions.sh" ]; then
 	KEXEC_SELECT="/bin/kexec-select-boot.sh"
 	KEXEC_PARSE="/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="/bin/kexec-parse-bls.sh"
+	ROOT_HASHES_GUI="/bin/root-hashes-gui.sh"
+	GUI_INIT="/bin/gui-init.sh"
+	GUI_INIT_BASIC="/bin/gui-init-basic.sh"
 	UNPACK="/bin/unpack_initramfs.sh"
 	MOUNT_CMD="mount -o loop,ro"
 	UMOUNT_CMD="umount"
 	IS_INITRD="y"
 	_PATCHED_ISO="$KEXEC_ISO"
 	_PATCHED_SELECT="$KEXEC_SELECT"
+	_PATCHED_GUI_INIT="$GUI_INIT"
+	_PATCHED_GUI_INIT_BASIC="$GUI_INIT_BASIC"
 else
 	# On host (development): paths relative to repo
 	REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -65,6 +70,9 @@ else
 	KEXEC_SELECT="$REPO/initrd/bin/kexec-select-boot.sh"
 	KEXEC_PARSE="$REPO/initrd/bin/kexec-parse-boot.sh"
 	KEXEC_BLS="$REPO/initrd/bin/kexec-parse-bls.sh"
+	ROOT_HASHES_GUI="$REPO/initrd/bin/root-hashes-gui.sh"
+	GUI_INIT="$REPO/initrd/bin/gui-init.sh"
+	GUI_INIT_BASIC="$REPO/initrd/bin/gui-init-basic.sh"
 	UNPACK="$REPO/initrd/bin/unpack_initramfs.sh"
 
 	# Create patched script copies that source functions.sh from the repo
@@ -93,6 +101,20 @@ else
 	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
 		"$KEXEC_SELECT" > "$_PATCHED_SELECT"
 
+	# Patched copies of the two GUI callers for the Step 7d behavioural test.
+	# gui-init.sh sources gpg_functions.sh (self-contained function defs) and
+	# luks-functions.sh (which itself sources functions.sh/gui_functions.sh/
+	# tmp/config), so patch luks-functions.sh too.
+	_PATCHED_LUKS="$TMPDIR/luks-functions.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
+		"$REPO/initrd/etc/luks-functions.sh" > "$_PATCHED_LUKS"
+	_PATCHED_GUI_INIT="$TMPDIR/gui-init.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; s|\. /etc/gpg_functions\.sh|. '"$REPO/initrd/etc/gpg_functions.sh"'|g; s|\. /etc/luks-functions\.sh|. '"$_PATCHED_LUKS"'|g; /\. \/tmp\/config/d' \
+		"$GUI_INIT" > "$_PATCHED_GUI_INIT"
+	_PATCHED_GUI_INIT_BASIC="$TMPDIR/gui-init-basic.sh"
+	sed 's|\. /etc/functions\.sh|. '"$FUNCTIONS"'|g; s|\. /etc/gui_functions\.sh|. '"$_PATCHED_GUI"'|g; /\. \/tmp\/config/d' \
+		"$GUI_INIT_BASIC" > "$_PATCHED_GUI_INIT_BASIC"
+
 	# Prefer fuseiso on host, fall back to mount -o loop
 	if command -v fuseiso >/dev/null 2>&1; then
 		MOUNT_CMD="fuseiso -n"
@@ -105,13 +127,16 @@ else
 fi
 
 # ---- Source production functions and scripts ----
+# shellcheck disable=SC1090
 . "$FUNCTIONS"
 # Source kexec-iso-init.sh + kexec-select-boot.sh via sourcing guard.
 # Only function definitions are loaded; main body is skipped.
 # This replaces the old sed-extraction pattern that created copies
 # diverging from the production code.
 export _HEADS_TEST=y
+# shellcheck disable=SC1090
 . "$_PATCHED_ISO"
+# shellcheck disable=SC1090
 . "$_PATCHED_SELECT"
 unset _HEADS_TEST
 
@@ -314,6 +339,318 @@ check "$(echo "$r" | grep -qF "root=/dev/sda2" && echo pass || echo fail)" \
 	"edited append root= appears in final kernel cmdline"
 unset bootdir option params name kernel kexectype initrd
 echo ""
+echo ""
+
+# ================================================================
+# Step 7c (production): default-entry hash verification
+# ================================================================
+echo "=== Step 7c: Default boot hash verification ==="
+echo ""
+
+# --- Boot-side fixture: fake boot dir, menu, saved default entry, manifest ---
+FAKE_BOOT="$TMPDIR/fakeboot"
+FAKE_KEXEC="$TMPDIR/kexecdir"
+mkdir -p "$FAKE_BOOT" "$FAKE_KEXEC"
+printf 'kernel-data\n' > "$FAKE_BOOT/vmlinuz-x"
+printf 'initrd-data\n' > "$FAKE_BOOT/initrd-x"
+ENTRY='linux|linux|kernel /vmlinuz-x|initrd /initrd-x|append root=/dev/sda1'
+printf '%s\n' "$ENTRY" > "$FAKE_KEXEC/kexec_menu.txt"
+printf '%s\n' "$ENTRY" > "$FAKE_KEXEC/kexec_default.1.txt"
+
+bootdir="$FAKE_BOOT"
+TMP_MENU_FILE="$FAKE_KEXEC/kexec_menu.txt"
+TMP_DEFAULT_FILE="$FAKE_KEXEC/kexec_default.1.txt"
+TMP_DEFAULT_HASH_FILE="$FAKE_KEXEC/kexec_default_hashes.txt"
+
+# Manifest generated relative to bootdir, as kexec-save-default.sh does.
+( cd "$FAKE_BOOT" && sha256sum ./vmlinuz-x ./initrd-x ) > "$TMP_DEFAULT_HASH_FILE"
+
+# Globals read by default_select()/do_boot().
+gui_menu="n"
+CONFIG_BASIC="n"
+CONFIG_BOOT_REQ_ROLLBACK="n"
+CONFIG_TPM="n"
+
+# Test 1: master's global /boot hash gate is still present (DIE form).
+# The global gate calls DIE, which exits the shell, so it cannot be invoked
+# directly here.  Assert its source instead of executing it.
+check "$(grep -qF 'DIE "Failed to verify global hashes"' "$KEXEC_SELECT" && echo pass || echo fail)" \
+	"kexec-select-boot: global hash gate (DIE) present in source"
+
+# Test 1b: the removed board-wide hash knob must not come back unnoticed.
+# The knob name is split across two adjacent string literals so its literal
+# form does not appear in this test (git grep must find it only in the docs).
+removed_knob="CONFIG_BOOT_REQ_""HASH"
+check "$(grep -qF "$removed_knob" "$KEXEC_SELECT" && echo fail || echo pass)" \
+	"kexec-select-boot: removed board-wide hash knob absent from source"
+
+# Test 1c: the hash-verification flag lost its only reader when the knob was
+# removed, so it must no longer be written in the three production sources that
+# used to set it.  Name split across two literals as above.
+removed_hash_flag="valid_""hash"
+check "$({ grep -qF "$removed_hash_flag" "$KEXEC_SELECT" "$GUI_FUNCTIONS" "$ROOT_HASHES_GUI" 2>/dev/null; } && echo fail || echo pass)" \
+	"hash-verification flag: no longer written in kexec-select-boot.sh, gui_functions.sh, root-hashes-gui.sh"
+
+# Stub do_boot AFTER the real-do_boot tests above, so default_select's boot
+# path is counted without touching the real kexec.
+boot_count=0
+do_boot() {
+	boot_count=$((boot_count + 1))
+	return 0
+}
+
+# Test 2: matching manifest -> verified, and the boot path runs exactly once.
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "1" ] && echo pass || echo fail)" \
+	"default_select: matching manifest boots exactly once"
+
+# Test 3: mismatching manifest -> not verified, no boot, menu fallback.
+# default_select returns (without booting) on a mismatch; the main loop then
+# sets default_failed=y so the user is prompted to set a new default.
+printf 'mutated-kernel\n' > "$FAKE_BOOT/vmlinuz-x"
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
+	"default_select: mismatched manifest does not boot (menu fallback)"
+
+# Test 4: stdin-marker manifest (64 hex + "  -") must be treated as failure.
+# The digest is the real sha256 of empty stdin, so this test would pass for
+# the wrong reason if the guard were removed: without it, sha256sum -c reads
+# the (empty) console, matches, reports "-: OK", and the entry boots with
+# nothing actually verified.  A fabricated digest used to mask that gap.
+STDIN_MARKER="$(printf '' | sha256sum | cut -d' ' -f1)  -"
+printf '%s\n' "$STDIN_MARKER" > "$TMP_DEFAULT_HASH_FILE"
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
+	"default_select: stdin-marker manifest treated as failure (no boot)"
+
+# Test 4b: the single-space stdin-marker form ("<hash> -") is the one the
+# guard historically missed: BusyBox's md5_sha1_sum.c accepts "HASH FILENAME"
+# with a single separator and verifies it as OK against an empty stdin, so
+# without the widened pattern the entry would boot with nothing verified.  It
+# must be refused like the two-space text and binary star forms.
+STDIN_MARKER_SINGLE="$(printf '' | sha256sum | cut -d' ' -f1) -"
+printf '%s\n' "$STDIN_MARKER_SINGLE" > "$TMP_DEFAULT_HASH_FILE"
+boot_count=0
+if default_select; then rc=0; else rc=1; fi
+check "$([ "$rc" = "0" ] && [ "$boot_count" = "0" ] && echo pass || echo fail)" \
+	"default_select: single-space stdin-marker treated as failure (no boot)"
+
+# --- GUI-mode variant: the `|| true` guards hold under set -e, and the prompt's
+# answer is honoured (decline/dismiss -> exit 3, accept -> menu). ---
+# The CLI checks above run with gui_menu="n", so neither dialog is reached.
+# In production the script runs under `set -e -o pipefail` (sourced from
+# kexec-select-boot.sh); a dismissed whiptail_error (Esc -> non-zero) must not
+# abort default_select, or the caller lands in a recovery shell.  Run each path
+# in a subshell with `set -e` re-enabled, so the guards are genuinely
+# exercised: without them the subshell would exit non-zero on the dismissal.
+# The production STATUS/STATUS_OK/WARN helpers write to /dev/console, which is
+# not writable on the host, so they are stubbed to no-ops here — otherwise they
+# would fail under set -e for the wrong reason.
+gui_menu="y"
+whiptail_error() { return 255; }
+# The shared boot-menu prompt's wrapper: record that it was offered and answer
+# per gui_prompt_status (255 = dismiss/decline -> exit 3; 0 = accept -> menu).
+gui_prompt_sentinel="$TMPDIR/gui_prompt_happened"
+gui_prompt_status=255
+whiptail_warning() {
+	: > "$gui_prompt_sentinel"
+	return "$gui_prompt_status"
+}
+STATUS() { return 0; }
+STATUS_OK() { return 0; }
+WARN() { return 0; }
+# Record do_boot via a file so it survives the subshell boundary below.
+gui_boot_sentinel="$TMPDIR/gui_boot_happened"
+do_boot() {
+	: > "$gui_boot_sentinel"
+	return 0
+}
+
+# Reset the saved default to differ from the menu entry, reaching the
+# "Boot Entry Has Changed" dialog (the first `|| true` guard).
+printf '%s\n' 'linux|linux|kernel /vmlinuz-y|initrd /initrd-y|append root=/dev/sda2' \
+	> "$TMP_DEFAULT_FILE"
+rm -f "$gui_boot_sentinel"
+set +e
+( set -e; default_select )
+gui_rc=$?
+set -e
+check "$([ "$gui_rc" = "0" ] && [ ! -e "$gui_boot_sentinel" ] && echo pass || echo fail)" \
+	"default_select GUI: changed entry refuses and survives a dismissed dialog under set -e"
+
+# Reset to a matching entry, then break the manifest hash so the hash-mismatch
+# path is reached: a warning dialog (whiptail_error, guarded) then the shared
+# boot-menu prompt (whiptail_warning).  The prompt is dismissed
+# (gui_prompt_status=255), which is a decline: default_select must exit 3 — no
+# boot, no fall-through to the menu — so the caller routes back to the main
+# menu (status 3 is the existing non-recovery cancel).
+printf '%s\n' "$ENTRY" > "$TMP_DEFAULT_FILE"
+printf 'kernel-data\n' > "$FAKE_BOOT/vmlinuz-x"
+printf 'initrd-data\n' > "$FAKE_BOOT/initrd-x"
+( cd "$FAKE_BOOT" && sha256sum ./vmlinuz-x ./initrd-x ) > "$TMP_DEFAULT_HASH_FILE"
+printf 'mutated-kernel\n' > "$FAKE_BOOT/vmlinuz-x"
+gui_prompt_status=255
+rm -f "$gui_boot_sentinel" "$gui_prompt_sentinel"
+set +e
+( set -e; default_select )
+gui_rc=$?
+set -e
+check "$([ "$gui_rc" = "3" ] && [ ! -e "$gui_boot_sentinel" ] && [ -e "$gui_prompt_sentinel" ] && echo pass || echo fail)" \
+	"default_select GUI: hash mismatch prompt decline exits 3 (back to main menu, no boot)"
+
+# Accepting the prompt (gui_prompt_status=0) falls through to the boot menu:
+# default_select returns 0 without booting, and the main loop's default_failed=y
+# then runs user_select() on the next pass.
+gui_prompt_status=0
+rm -f "$gui_boot_sentinel" "$gui_prompt_sentinel"
+set +e
+( set -e; default_select )
+gui_rc=$?
+set -e
+check "$([ "$gui_rc" = "0" ] && [ ! -e "$gui_boot_sentinel" ] && [ -e "$gui_prompt_sentinel" ] && echo pass || echo fail)" \
+	"default_select GUI: hash mismatch prompt accept returns to the menu (no boot)"
+
+# GUI stdin-marker case: the marker guard matches, so sha256sum -c never runs
+# and /tmp/hash_output stays empty.  The hash-mismatch path is then reached
+# with an empty CHANGED_FILES, which exercises the `grep -v 'OK$' ... || true`
+# guard (grep exits 1 on empty input) under set -e — without that guard the
+# subshell would abort here instead of reaching the prompt.  The prompt is
+# dismissed, so the subshell exits 3.
+gui_prompt_status=255
+printf '%s\n' "$STDIN_MARKER" > "$TMP_DEFAULT_HASH_FILE"
+rm -f "$gui_boot_sentinel" "$gui_prompt_sentinel"
+set +e
+( set -e; default_select )
+gui_rc=$?
+set -e
+check "$([ "$gui_rc" = "3" ] && [ ! -e "$gui_boot_sentinel" ] && echo pass || echo fail)" \
+	"default_select GUI: stdin-marker refuses and survives an empty CHANGED_FILES under set -e"
+
+# Clean up fixture variables.
+unset bootdir option params name kernel kexectype initrd gui_menu \
+	ENTRY FAKE_BOOT FAKE_KEXEC \
+	rc boot_count gui_rc valid_rollback removed_knob removed_hash_flag \
+	STDIN_MARKER STDIN_MARKER_SINGLE gui_boot_sentinel gui_prompt_sentinel
+unset -f do_boot whiptail_error whiptail_warning 2>/dev/null || true
+echo ""
+
+# ================================================================
+# Step 7d (production): boot-menu cancel must not reach the recovery shell
+# ================================================================
+echo "=== Step 7d: Boot menu cancel routing ==="
+echo ""
+
+# Re-fixture a two-entry menu so the whiptail branch (not the single-entry
+# fast path) is exercised. TMP_MENU_FILE still names the fixture path from
+# Step 7c (the variable survives the cleanup above).
+printf '%s\n' \
+	'linux|linux|kernel /vmlinuz-x|initrd /initrd-x|append root=/dev/sda1' \
+	'linux2|linux|kernel /vmlinuz-y|initrd /initrd-y|append root=/dev/sda2' \
+	> "$TMP_MENU_FILE"
+gui_menu="y"
+rm -f /tmp/whiptail
+
+# --- Cancel path: whiptail_type fails (Esc/newt cancel) and leaves the output
+# file empty. get_menu_option runs in a subshell because it `exit 3`s on
+# cancel; the production `set -e` (sourced from kexec-select-boot.sh) is
+# inherited, so the cancel marker must survive to reach the `exit 3`.
+# whiptail_mode drives a single stub so shellcheck doesn't flag the (intended)
+# redefinition of the sourced whiptail_type.
+whiptail_type() {
+	if [ "$whiptail_mode" = "cancel" ]; then
+		return 255
+	fi
+	printf '2\n' >/tmp/whiptail
+	return 0
+}
+whiptail_mode="cancel"
+: > /tmp/whiptail
+rc=0
+( get_menu_option ) || rc=$?
+check "$([ "$rc" = "3" ] && echo pass || echo fail)" \
+	"get_menu_option: cancel (whiptail 255, empty output) exits 3, not a bare failure"
+
+# --- Success path: smoke test of the success branch — a valid whiptail result
+# (exit 0, index written to the output file) is read into option_index.  This
+# branch never had an empty output file, so the check does not discriminate the
+# cancel-marker overwrite (that is exercised by the cancel case above); it only
+# confirms the success branch reads the selected index.
+whiptail_mode="success"
+rm -f /tmp/whiptail
+option_index=""
+get_menu_option
+check "$([ "$option_index" = "2" ] && echo pass || echo fail)" \
+	"get_menu_option: success selects the index written to /tmp/whiptail"
+
+# --- Behavioural: drive attempt_default_boot() in both gui-init variants with
+# stubbed recovery()/DO_WITH_DEBUG so the routing is executed, not grepped.
+# The _HEADS_TEST source guard loads only the function definitions and skips
+# each caller's main menu loop.
+DEFAULT_FILE_FIXTURE="$TMPDIR/default_boot_fixture.txt"
+: > "$DEFAULT_FILE_FIXTURE"
+
+# Stub the dependencies of attempt_default_boot() and drive the currently
+# sourced caller.  DO_WITH_DEBUG stands in for kexec-select-boot.sh and returns
+# the chosen status; recovery() records its argument so the routing is asserted.
+# attempt_default_boot() itself is left untouched, so its own routing runs.
+test_default_boot_routing() {
+	local caller="$1"
+	mount_boot() { return 0; }
+	verify_global_hashes() { return 0; }
+	find() { printf '%s\n' "$DEFAULT_FILE_FIXTURE"; }
+	DO_WITH_DEBUG() { return "$do_with_debug_status"; }
+	recovery() { recovery_called="$*"; }
+
+	recovery_called=""
+	do_with_debug_status=3
+	set +e
+	attempt_default_boot
+	set -e
+	check "$([ -z "$recovery_called" ] && echo pass || echo fail)" \
+		"$caller attempt_default_boot: cancel (3) does not reach recovery"
+
+	recovery_called=""
+	do_with_debug_status=1
+	set +e
+	attempt_default_boot
+	set -e
+	check "$([ -n "$recovery_called" ] && echo pass || echo fail)" \
+		"$caller attempt_default_boot: genuine failure (1) reaches recovery"
+}
+
+export _HEADS_TEST=y
+# shellcheck disable=SC1090
+. "$_PATCHED_GUI_INIT"
+unset _HEADS_TEST
+test_default_boot_routing "gui-init"
+
+# gui-init-basic auto-boots the first entry unless CONFIG_BASIC_NO_AUTOMATIC_DEFAULT
+# is set; force the saved-default branch so its routing is exercised.
+CONFIG_BASIC_NO_AUTOMATIC_DEFAULT="y"
+export _HEADS_TEST=y
+# shellcheck disable=SC1090
+. "$_PATCHED_GUI_INIT_BASIC"
+unset _HEADS_TEST
+test_default_boot_routing "gui-init-basic"
+
+unset DEFAULT_FILE_FIXTURE recovery_called do_with_debug_status \
+	CONFIG_BASIC_NO_AUTOMATIC_DEFAULT gui_menu CONFIG_BASIC \
+	CONFIG_BOOT_REQ_ROLLBACK CONFIG_TPM whiptail_mode option_index rc
+
+# Step 7d's behavioural stubs (mount_boot/verify_global_hashes/find/
+# DO_WITH_DEBUG/recovery) leak out of test_default_boot_routing() and replace
+# the production definitions.  Re-source functions.sh so Step 6's ISO chain
+# sees the real DO_WITH_DEBUG (scan_boot_options calls it) and recovery, and
+# drop the remaining stubs/helpers: find is an external binary, and mount_boot/
+# verify_global_hashes/attempt_default_boot are not needed by Step 6.
+# shellcheck disable=SC1090
+. "$FUNCTIONS"
+unset -f mount_boot verify_global_hashes find attempt_default_boot \
+	test_default_boot_routing 2>/dev/null || true
+
 echo ""
 
 # ================================================================

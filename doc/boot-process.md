@@ -27,7 +27,8 @@ bzImage payload + separate CBFS initrd.cpio.xz
   │  TPM preflight, GPG key check, TOTP/HOTP attestation
   ▼
 kexec-select-boot
-  │  verify /boot hashes + GPG signature, rollback counter
+  │  verify /boot hashes + GPG signature, rollback counter,
+  │  default-entry hash gate
   ▼
 kexec  ← hands off to OS kernel
 ```
@@ -113,6 +114,10 @@ for the no-TPM path.
 
 If HOTP succeeded and `CONFIG_AUTO_BOOT_TIMEOUT` is set, a countdown starts and
 the default boot entry is selected automatically if the user does not intervene.
+On non-Basic boards, if the saved default entry's own hash manifest no longer
+matches, that automatic boot is aborted; in GUI the user is asked whether to
+open the OS boot menu (declining returns to the main menu), in CLI the menu is
+shown directly.
 
 ### Main menu loop
 
@@ -312,6 +317,78 @@ an interactive whiptail menu offers options: investigate discrepancies,
 update checksums, or return to the main menu.
 
 Optionally, root partition hashes are also checked if `CONFIG_ROOT_CHECK_AT_BOOT=y`.
+
+### Default boot hash verification
+
+When the user saves a default boot entry
+(`Options -> Boot Options -> Show OS Boot Menu -> pick OS -> Make default`),
+`kexec-save-default.sh` hashes the files that entry needs into
+`kexec_default_hashes.txt`. On non-Basic boards, `kexec-save-default.sh` signs
+that manifest together with the other `kexec*.txt` files (Basic boards leave it
+unsigned), and before the saved default entry is automatically booted
+`kexec-select-boot` verifies it with `sha256sum -c`.  Basic boards never run
+the gate: by default they boot the first scanned entry via
+`basic-autoboot.sh`; with `CONFIG_BASIC_NO_AUTOMATIC_DEFAULT=y` they boot the
+saved default unverified.
+
+A manifest line that hashes standard input — 64 hex digits (either case)
+followed by a single space and `-`, by two spaces and `-` (the text form
+`<hash>  -`), or by `*` and `-` (the binary form `<hash> *-`) — is refused
+before `sha256sum` runs: it would read the console instead of a file and can
+report success, so the entry would boot with nothing verified.
+`kexec-save-default.sh` can no longer emit that marker: it uses
+`xargs -r sha256sum`, so an entry with no files yields an empty manifest,
+which it refuses at save time ("No files to hash for this boot entry").
+
+The manifest can go stale without the boot entry changing: a file is
+replaced under the same path (a QubesOS Xen security update, for example)
+while the entry still names it. That is what the per-entry manifest is for,
+and why the entry cannot be trusted just because it still looks the same.
+
+On non-Basic boards (`CONFIG_BASIC != y`), a mismatch gates the automatic
+default boot: the entry is not auto-booted, and the user is warned that the
+default boot entry changed.  In GUI mode the user is then asked — through the
+same prompt shown when no default is configured — whether to load the boot
+menu: yes shows it, no (or dismissing the dialog) returns to the main menu —
+on media-scan's dd bootable-USB path, when it carries a default manifest, a
+decline reaches recovery instead.
+In CLI mode the boot menu is shown directly.  The files that failed the
+verification are listed only in the GUI dialog; in CLI mode and for the
+stdin-marker case there is no file list.  From the boot menu the user can pick
+another entry or set a new default — including the mismatched entry itself,
+which a manual selection boots under the global `/boot` trust state (the
+`kexec*.txt` signature plus `kexec_hashes.txt`); there is no per-entry check
+in `user_select`/`do_boot`, and a missing `kexec.sig` makes `check_config`
+skip the signature check, while a missing `kexec_hashes.txt` skips the global
+hash check.  Setting a new
+default is the normal repair: it recomputes the manifest from the selected
+entry and re-signs it, which trusts the files now in place.  Restoring the
+entry's files from a known-good backup is the alternative — the stored
+manifest matches again, but the recomputed global `kexec_hashes.txt` now
+mismatches, so it needs recomputing and re-signing ("Update checksums"), not
+just re-signing.
+"Update checksums" cannot do it, because it re-signs the existing manifest
+without recomputing it, so the default entry stays out of date.
+If the manifest is missing or unreadable, the automatic default boot is
+skipped entirely — `kexec-select-boot` shows the OS boot menu directly, with
+no dialog and no warning — but only while the global `/boot` signature still
+verifies, i.e. the signature was recomputed after the manifest went away.
+Removing a manifest that was part of the signed set instead fails the
+signature check in `check_config` and drops to the recovery shell.  A missing
+`/boot/kexec.sig` is different again: `check_config` skips the signature
+check, so the serial `generic-init.sh` path shows the menu without any
+signature verification.
+This is not a whole-system tamper alarm — the rest of `/boot` is covered
+separately by `kexec_hashes.txt` (see the subsection above); that list
+skips the `kexec*` files, which are signed directly instead.
+
+`CONFIG_BOOT_REQ_HASH` has been removed. It was introduced in 2017 to require
+the default boot entry's hash verification before a non-recovery boot, but no
+shipped board config enabled it, so the gate it controlled was unreachable in
+the shipped board configs (a user override could still enable it).  The
+default boot entry's manifest is now verified on every non-Basic board
+regardless of any board flag, and a mismatch asks the user to set a new
+default instead of falling through and booting the stale entry.
 
 ### Rollback counter verification (`verify_rollback_counter`)
 

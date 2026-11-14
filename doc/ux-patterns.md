@@ -20,6 +20,18 @@ All interactive dialogs use `whiptail` through one of three wrapper functions de
 **Never call `whiptail` directly** from initrd scripts — always go through a wrapper.
 The wrappers handle color selection for both `fbwhiptail` (framebuffer) and `newt` (text) backends.
 
+### Dismissible dialogs and `set -e`
+
+A dialog the user may dismiss (Esc) must be invoked so that a non-zero exit
+does not abort the script under `set -e`. In this tree that means guarding the
+call so errexit cannot abort it — with `|| true`, with `|| <handler>` (for
+example `|| recovery "GUI menu failed"`), or with an `if` condition around
+`whiptail_type` — and handling the outcome explicitly, because an aborted boot
+script is not always routed to a recovery shell: the main-disk and media-scan
+callers turn it into a recovery shell (which shreds the secrets in
+`/tmp/secret` and extends TPM PCR 4), while the ISO-file caller returns to the
+ISO menu.
+
 ### Message folding — centralized in `_whiptail_preprocess_args`
 
 `_whiptail_preprocess_args` in `initrd/etc/gui_functions` is the **single place** responsible

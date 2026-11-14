@@ -58,6 +58,52 @@ eras with a single decompression pass:
 | 2 | vesafb (fbdev) | `vesafb_probe` | 5.x/6.x | "vesa-framebuffer" via VLFB |
 | 3 | simpledrm (DRM) | `simpledrm_probe` + `sysfb_parse_mode` | 6.x/7.x | "simple-framebuffer" via SYSFB_SIMPLEFB |
 
+## Default boot hash gate and boot-menu cancel (Steps 7c and 7d)
+
+Beyond the per-ISO Step 7 menu checks, `iso-boot-test.sh` runs two production
+regression checks that need no ISO image.
+
+### Step 7c — default-entry hash verification
+
+Exercises `default_select()`'s gate on the saved default boot entry's own hash
+manifest (`kexec_default_hashes.txt`):
+
+- A matching manifest boots the entry exactly once.
+- A mismatching manifest does not boot the entry: the user is warned the
+  default boot entry changed and is offered the boot menu through the shared
+  prompt.  Accepting the prompt returns to the boot menu (`default_select`
+  returns and the main loop sets `default_failed=y`); declining or dismissing
+  it exits with status 3, which the callers route back to the main menu.
+- A GUI-mode check stubs the prompt's wrapper to answer accept or decline and
+  asserts the accept path returns to the menu, the decline/dismiss path exits
+  3, and that a dismissed dialog cannot abort the script under `set -e`.
+- A stdin-marker manifest line — 64 hex digits (either case) followed by
+  a single space and `-`, two spaces and `-` (the text form), or `*` and
+  `-` (the binary form) — is treated as a failure and does not boot.
+- The surviving global-hash gate (`DIE "Failed to verify global hashes"`) is
+  asserted present in the source, because `DIE` exits the shell and cannot be
+  invoked directly.
+- The removed `CONFIG_BOOT_REQ_HASH` knob is asserted absent from
+  `kexec-select-boot.sh`, and its orphaned `valid_hash` flag is asserted
+  absent from `kexec-select-boot.sh`, `gui_functions.sh` and
+  `root-hashes-gui.sh` (board configs are not scanned).
+
+### Step 7d — boot-menu cancel routing
+
+Verifies that cancelling the main-disk OS boot menu does not reach the
+recovery shell.  The bootable-USB boot menu treats a cancel as a failure and
+enters recovery; the ISO-file boot menu instead returns to the ISO selection
+menu:
+
+- A cancelled menu (whiptail exit 255, empty output) exits with status 3.
+- `attempt_default_boot()` in both `gui-init.sh` and `gui-init-basic.sh` is
+  driven behaviourally with statuses 3 and 1, and routes only status 1 (not 3)
+  to `recovery`; status 3 returns to the main menu (a GUI-only destination).
+  Only statuses 1 and 3 are driven — the distinctness of status 2 (different
+  ISO) from 1 (genuine failure) is not exercised.  `generic-init.sh` also
+  honours status 3 (returning to its own `y/n/r/u/m` prompt) but is not
+  covered by a test.
+
 ## Per-ISO Results
 
 ### Tested ISO Versions

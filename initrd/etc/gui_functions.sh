@@ -128,6 +128,18 @@ whiptail_type() {
 	esac
 }
 
+# Offer the OS boot menu when there is no usable default boot option — either
+# none is configured, or the saved default's files changed so its recorded
+# hashes no longer match.  Returns whiptail's status: 0 when the user chooses
+# to load the menu, non-zero when they decline (or dismiss the dialog).  Where
+# a decline goes depends on the caller (main menu, recovery, or the ISO
+# selection menu), so the prompt stays destination-neutral.
+prompt_load_boot_options_menu() {
+	TRACE_FUNC
+	whiptail_warning --title 'No Usable Default Boot Option' \
+		--yesno "There is no usable default boot option.\nWould you like to load a menu of boot options?" 0 80
+}
+
 # Create display text for a size in bytes in either MB or GB, unit selected
 # automatically, rounded to nearest
 display_size() {
@@ -867,8 +879,8 @@ get_inverted_config_display_action() {
 # Defined here so kexec-select-boot.sh (which sources gui_functions.sh)
 # can call it without requiring gui-init.sh to be in scope.
 # Returns 0 on success (hashes match, or user updated them), 1 on failure.
-# Sets valid_hash='y' and valid_global_hash='y' on success for callers
-# that check those variables (kexec-select-boot.sh:596).
+# Sets valid_global_hash='y' on success for callers
+# that check that variable (kexec-select-boot.sh:795).
 # Dependencies: TRACE_FUNC, check_config, verify_checksums, update_checksums
 # (functions.sh), whiptail_error, investigate_integrity_discrepancies
 # (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
@@ -920,7 +932,6 @@ verify_global_hashes() {
 	DEBUG "verify_global_hashes: checking /boot files against $TMP_HASH_FILE"
 	if verify_checksums /boot; then
 		DEBUG "verify_global_hashes: /boot files match checksums in $TMP_HASH_FILE"
-		valid_hash="y"
 		valid_global_hash="y"
 		# If user enables it, check root hashes before boot as well
 		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then
