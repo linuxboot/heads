@@ -629,11 +629,11 @@ test_default_boot_routing "gui-init"
 
 # gui-init-basic auto-boots the first entry unless CONFIG_BASIC_NO_AUTOMATIC_DEFAULT
 # is set; force the saved-default branch so its routing is exercised.
-CONFIG_BASIC_NO_AUTOMATIC_DEFAULT="y"
 export _HEADS_TEST=y
 # shellcheck disable=SC1090
 . "$_PATCHED_GUI_INIT_BASIC"
 unset _HEADS_TEST
+CONFIG_BASIC_NO_AUTOMATIC_DEFAULT="y"
 test_default_boot_routing "gui-init-basic"
 
 unset DEFAULT_FILE_FIXTURE recovery_called do_with_debug_status \
