@@ -11,7 +11,6 @@ add=""
 remove=""
 config="*.cfg"
 unique="n"
-valid_hash="n"
 valid_global_hash="n"
 valid_rollback="n"
 force_menu="n"
@@ -34,13 +33,11 @@ while getopts "b:d:p:a:r:c:uimgfs" arg; do
 	u) unique="y" ;;
 	m) force_menu="y" ;;
 	i)
-		valid_hash="y"
 		valid_rollback="y"
 		;;
 	g) gui_menu="y" ;;
 	f)
 		force_boot="y"
-		valid_hash="y"
 		valid_rollback="y"
 		;;
 	s) skip_confirm="y" ;;
@@ -127,6 +124,7 @@ build_legend() {
 }
 
 first_menu="y"
+# Present the boot menu and set option_index; exit 3 on cancel, 2 for a different ISO.
 get_menu_option() {
 	num_options=$(cat $TMP_MENU_FILE | wc -l)
 	if [ $num_options -eq 0 ]; then
@@ -178,12 +176,26 @@ get_menu_option() {
 		else
 			local menu_prompt="Choose the boot option [1-$n, Esc to abort]:"
 		fi
-		whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
+		# Use whiptail_type's exit status directly: on success read its output
+		# file; on cancel/Esc (non-zero) the output file is empty, so reading
+		# it would produce no index and must not overwrite the cancel marker.
+		if whiptail_type $BG_COLOR_MAIN_MENU --title "Select your boot option" \
 			--menu "$menu_prompt" 0 80 8 \
 			-- "${MENU_OPTIONS[@]}" \
-			2>/tmp/whiptail || option_index="a"
-
-		option_index=$(cat /tmp/whiptail)
+			2>/tmp/whiptail; then
+			option_index=$(cat /tmp/whiptail)
+		else
+			# Any non-zero whiptail exit sets the cancel marker (return to the
+			# caller's menu).  whiptail's own cancel codes are 1 (Cancel/No)
+			# and 255 (Esc); any other status means the dialog itself failed,
+			# so surface it rather than letting a broken dialog be
+			# indistinguishable from the user pressing Esc.
+			whiptail_status=$?
+			if [ "$whiptail_status" != "1" ] && [ "$whiptail_status" != "255" ]; then
+				WARN "Boot menu dialog failed (whiptail exit status $whiptail_status)"
+			fi
+			option_index="a"
+		fi
 	else
 		STATUS "Select your boot option:"
 		n=0
@@ -216,7 +228,14 @@ get_menu_option() {
 
 	if [ "$option_index" = "a" ]; then
 		STATUS "Boot aborted by user"
-		exit 1
+		# Exit 3 means "cancelled by the user": distinct from 1 (a genuine
+		# failure) and 2 (different ISO).  The main-disk callers (gui-init.sh,
+		# gui-init-basic.sh, generic-init.sh) honour it by returning to their
+		# menu/prompt.  The bootable-USB path (media-scan.sh) treats a cancel
+		# as a failure because it has no menu to return to (it falls through
+		# to DIE, which usb-init.sh routes to recovery); the ISO-file path
+		# (kexec-iso-init.sh) instead returns to the ISO selection menu.
+		exit 3
 	fi
 	if [ "$option_index" = "b" ] && [ -n "$add" ]; then
 		STATUS "Returning to ISO selection"
@@ -631,6 +650,7 @@ save_default_option() {
 	option_confirm="n"
 }
 
+# Boot the saved default entry after verifying its manifest hashes match the files.
 default_select() {
 	# Attempt boot with expected parameters
 
@@ -642,8 +662,10 @@ default_select() {
 	option=$(head -n $default_index $TMP_MENU_FILE | tail -1)
 	if [ "$option" != "$expectedoption" ]; then
 		if [ "$gui_menu" = "y" ]; then
+			# `|| true`: a dismissed dialog (Esc -> non-zero) must not abort the
+			# script under `set -e`, or the caller would land in a recovery shell.
 			whiptail_error --title 'ERROR: Boot Entry Has Changed' \
-				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80
+				--msgbox "The list of boot entries has changed\n\nPlease set a new default" 0 80 || true
 		fi
 		WARN "Boot entry has changed - please set a new default"
 		return
@@ -653,22 +675,62 @@ default_select() {
 	if [ "$CONFIG_BASIC" != "y" ]; then
 		# Enforce that default option hashes are valid
 		STATUS "Checking verified default boot hash file"
-		# Check the hashes of all the files
-		if (cd $bootdir && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
+		# Check the hashes of all the files.  A manifest line that hashes STDIN
+		# must never be trusted, in any of the three spellings sha256sum
+		# accepts: the text form "<hash>  -" (two spaces), the binary form
+		# "<hash> *-", and the single-space form "<hash> -" that BusyBox's
+		# md5_sha1_sum.c accepts as "HASH FILENAME" and verifies as OK against
+		# an empty stdin.  sha256sum -c would read the console instead of a
+		# file and can report OK, so the default entry would boot with nothing
+		# actually verified.  The pattern accepts uppercase hex, the binary "*"
+		# flag, and an optional second separator character.
+		: >/tmp/hash_output
+		if ! grep -qE '^[0-9a-fA-F]{64} [ *]?-$' "$TMP_DEFAULT_HASH_FILE" \
+			&& (cd "$bootdir" && sha256sum -c "$TMP_DEFAULT_HASH_FILE" >/tmp/hash_output); then
 			STATUS_OK "Verified default boot hashes"
-			valid_hash='y'
 		else
+			DEBUG "Default boot hash verification failed"
 			if [ "$gui_menu" = "y" ]; then
-				CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':')
-				whiptail_error --title 'ERROR: Default Boot Hash Mismatch' \
-					--msgbox "The following files failed the verification process:\n${CHANGED_FILES}\nExiting to a recovery shell" 0 80
+				# `|| true`: an empty or all-OK hash_output makes grep exit 1,
+				# which under `set -e -o pipefail` would kill the script here
+				# instead of falling through to the WARN/return below.
+				CHANGED_FILES=$(grep -v 'OK$' /tmp/hash_output | cut -f1 -d ':') || true
+				if [ -n "$CHANGED_FILES" ]; then
+					TEXT="The following files failed the verification process:\n${CHANGED_FILES}\n\n"
+				else
+					TEXT=""
+				fi
+				# `|| true`: a dismissed dialog (Esc -> non-zero) must not abort the
+				# script under `set -e`, or the caller would land in a recovery shell.
+				whiptail_error --title 'ERROR: Default Boot Entry Changed' \
+					--msgbox "${TEXT}The saved default boot entry changed: its files no longer match their recorded hashes.\n\nInspect the changes, then select the desired entry and choose 'Make default' to update the saved hashes." 0 80 || true
+				# Offer the boot menu through the shared prompt so the user can
+				# re-select the entry and "Make default" (which re-hashes and
+				# re-signs it).  Yes falls through to the boot menu below (the
+				# loop's `default_select || true` then sets default_failed=y, so
+				# user_select() runs on the next pass).  No — and a dismissed
+				# dialog (whiptail's 1/255, both non-zero) — is a decline: exit 3,
+				# which the callers (gui-init.sh, gui-init-basic.sh,
+				# generic-init.sh) treat as a non-recovery cancel and route back
+				# to the main menu.  A dismissal is therefore a clean exit 3 here,
+				# not an abort under `set -e`.
+				if ! prompt_load_boot_options_menu; then
+					exit 3
+				fi
 			fi
+			WARN "Default boot entry changed - please set a new default"
+			return
 		fi
 	fi
 
 	STATUS "Executing default boot for $name"
-	do_boot
-	WARN "Failed to boot default option"
+	# Defence-in-depth: do_boot either kexecs away or exits via DIE, so this
+	# branch is normally unreachable.  It exists so an unexpected do_boot
+	# failure still returns non-zero instead of silently continuing.
+	if ! do_boot; then
+		WARN "Failed to boot default option"
+		return 1
+	fi
 }
 
 user_select() {
@@ -702,13 +764,10 @@ user_select() {
 	do_boot
 }
 
+# Enforce rollback/TPM state, then kexec the selected boot option (does not return on success).
 do_boot() {
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_ROLLBACK" = "y" ] && [ "$valid_rollback" = "n" ]; then
 		DIE "Missing required rollback counter state"
-	fi
-
-	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_BOOT_REQ_HASH" = "y" ] && [ "$valid_hash" = "n" ]; then
-		DIE "Missing required boot hashes"
 	fi
 
 	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ] && [ "$force_boot" != "y" ]; then
@@ -809,7 +868,10 @@ while true; do
 		-a -r "$TMP_DEFAULT_FILE" \
 		-a -r "$TMP_DEFAULT_HASH_FILE" ] \
 		; then
-		default_select
+		# `|| true` suspends errexit across default_select and its callees, so
+		# a dismissed dialog (Esc -> non-zero) or a non-zero return returns to
+		# the loop; default_failed=y then shows the menu on the next pass.
+		default_select || true
 		default_failed="y"
 	else
 		user_select

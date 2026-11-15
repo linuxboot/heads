@@ -70,6 +70,7 @@ update_root_checksums() {
 
 	unmount_root_device
 }
+# Verify the root hash signature and file hashes, offering to update on mismatch or new files.
 check_root_checksums() {
 	TRACE_FUNC
 	DEBUG "verifying existing hash file for $CONFIG_ROOT_DIRLIST_PRETTY"
@@ -138,7 +139,6 @@ check_root_checksums() {
 	STATUS "Checking hashes for all files in $CONFIG_ROOT_DIRLIST_PRETTY (this may take a while)"
 	if (cd $ROOT_MOUNT && sha256sum -c ${HASH_FILE} >/tmp/hash_output 2>/dev/null); then
 		STATUS_OK "Verified root hashes"
-		valid_hash='y'
 		unmount_root_device
 
 		if [ "$new_files_found" == "y" ]; then
