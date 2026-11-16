@@ -317,6 +317,7 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 | `coreboot.modify_defconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as defconfig |
 | `coreboot.modify_and_save_oldconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as full .config |
 | `linux.save_in_defconfig_format_in_place` | `modules/linux` | Normalize kernel config to defconfig |
+| `linux.save_in_defconfig_format_backup` | `modules/linux` | Same as defconfig but saves as `_defconfig` backup |
 | `linux.save_in_olddefconfig_format_in_place` | `modules/linux` | Normalize to olddefconfig format |
 | `linux.save_in_versioned_defconfig_format` | `modules/linux` | Save defconfig with version stamp |
 | `linux.save_in_versioned_oldconfig` | `modules/linux` | Save full .config with version stamp |
@@ -329,6 +330,32 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 These are used after manually editing `config/coreboot-BOARD.config` or
 `config/linux-BOARD.config` to normalize the file back to the convention
 expected by the build system.
+
+Defconfig backups (`config/coreboot-*.config_defconfig` and
+`config/linux-*.config_defconfig`) and the in-place oldconfig normalization
+(`coreboot.save_in_oldconfig_format_in_place` /
+`linux.save_in_olddefconfig_format_in_place`) are updated by the explicit
+`config_sync` target.  It depends on the corresponding module's `.build`
+stamp and runs the oldconfig helper before the backup, so the committed
+`config/*.config` (accepting any new defaults added by build-system or
+version changes) and the `_defconfig` backups (deviations from default
+visible at a glance) stay in step
+(https://github.com/linuxboot/heads/issues/2238).  Normal board builds do
+not run it: CI and `bin/build_all_boards.sh` invoke it after the build, so a
+warm cache or a targeted module build cannot skip it.  Generation happens in
+a `mktemp` dir outside the source/build tree, so neither the board's build
+`.config` nor any cached/workspace path is written.  The shared
+copy/compare/write-back logic lives in `bin/config-sync.sh`; each `save_in_*`
+target is a thin wrapper that supplies the mode and paths.
+
+The committed file is replaced **only when the regenerated content
+differs**, via an atomic .tmp+rename, so unchanged content keeps its mtime
+and does not retrigger the module's `.configured` prerequisite.  A
+save-helper failure fails `config_sync`.  Locally the drift shows up as a
+`git` diff (and a `-dirty` version string on the next build); CI runs the
+target after the artifacts are stored and fails the job when it or the
+subsequent `git` diff check fails (`doc/circleci.md`).  See
+`doc/variation-to-defconfig.md` for auditing those deviations across boards.
 
 ## Build lifecycle
 

@@ -287,68 +287,38 @@ linux.modify_and_save_oldconfig_in_place:
 # save_in_versioned_defconfig_format: same as avove but doesn't overwrite: writes it in seperate versioned file
 # same for oldconfig
 linux.save_in_defconfig_format_in_place:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_defconfig_format_backup:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& cp "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig" \
+	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_defconfig_format:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		savedefconfig \
-	&& mv "$(build)/$(linux_dir)/defconfig" "$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)" \
+	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 # This one can be used in kernel version bump, which will accept all new defconfig options for the new version.
 #  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
 linux.save_in_olddefconfig_format_in_place:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		olddefconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 # non-interactive: olddefconfig (accepts defaults for new options), not the
 # interactive oldconfig used by save_in_versioned_oldconfig
 linux.save_in_oldconfig_format_backup:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		olddefconfig \
-	&& cp "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig" \
+	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_oldconfig:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		oldconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)" \
+	MODE=linux-oldconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 # Prior of attempting to bump kernel version, call make BOARD=xyz linux.save_in_oldconfig_format_in_place
 # Then bump board config's CONFIG_LINUX_VERSION. build as usual to extract new linux tarball.
@@ -356,11 +326,6 @@ linux.save_in_versioned_oldconfig:
 #The following ask new config choice for all new symbols that should be evaluated prior of creating PR
 # Tip: Open a browser at https://www.kernelconfig.io/index.html
 linux.prompt_for_new_config_options_for_kernel_version_bump:
-	mkdir -p "$(build)/$(linux_dir)" \
-	&& cp "$(pwd)/$(linux_kconfig)" "$(build)/$(linux_dir)/.config" \
-	&& $(MAKE) -C "$(build)/$(linux_base_dir)" \
-		O="$(build)/$(linux_dir)" \
-		ARCH="$(LINUX_ARCH)" \
-		CROSS_COMPILE="$(CROSS)" \
-		oldconfig \
-	&& mv "$(build)/$(linux_dir)/.config" "$(pwd)/$(linux_kconfig)"
+	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	MODE=linux-oldconfig SRC_DIR="$(build)/$(linux_base_dir)" \
+	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"

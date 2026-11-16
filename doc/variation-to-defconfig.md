@@ -231,8 +231,28 @@ CONFIG_BOOTMEDIA_LOCK_CONTROLLER=y
 
 Generated via:
 ```
+make BOARD=<board> coreboot.save_in_oldconfig_format_in_place
 make BOARD=<board> coreboot.save_in_defconfig_format_backup
+make BOARD=<board> linux.save_in_olddefconfig_format_in_place
+make BOARD=<board> linux.save_in_defconfig_format_backup
 ```
+
+These targets are updated by the explicit
+`make BOARD=<board> config_sync` target, run after the board build.  It
+depends on the module's `.build` stamp, runs the in-place oldconfig first
+(accepting defaults for new build-system/version options into the committed
+`config/*.config`) and the defconfig backup second, so
+`config/coreboot-*.config_defconfig` and `config/linux-*.config_defconfig`
+are refreshed.  Normal board builds do not run it: CI and
+`bin/build_all_boards.sh` invoke it after the build, so a warm cache or a
+targeted module build cannot skip it.  Generation happens in a `mktemp` dir
+outside the source/build tree, so nothing under `build/` (or any
+cached/workspace path) is written.  The committed config is overwritten
+**only when the regenerated content differs**, otherwise the operation is
+skipped.  A save-helper failure fails `config_sync`.  Locally the drift
+shows up as a `git` diff (and a `-dirty` version string on the next build);
+CI runs the target after the artifacts are stored and fails the job when it
+or the subsequent `git` diff check fails (see `doc/circleci.md`).
 
 Intended for diffing with upstream defconfigs and for reviewing what
 non-default options a board sets.

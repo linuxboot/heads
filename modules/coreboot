@@ -416,35 +416,19 @@ endif
 # Helpful target for reconfiguring the coreboot target
 #
 coreboot.save_in_defconfig_format_in_place:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		olddefconfig && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		savedefconfig && \
-	mv "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
+	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+	MODE=coreboot-defconfig-in-place SRC_DIR="$(build)/$(coreboot_base_dir)" \
+	"$(pwd)/bin/config-sync.sh"
 
 coreboot.save_in_oldconfig_format_in_place:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		olddefconfig \
-	&& mv "$(build)/$(coreboot_dir)/.config" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)"
+	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+	MODE=coreboot-olddefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
+	"$(pwd)/bin/config-sync.sh"
 
 coreboot.save_in_defconfig_format_backup:
-	mkdir -p "$(build)/$(coreboot_dir)" && \
-	cp "$(pwd)/$(CONFIG_COREBOOT_CONFIG)" "$(build)/$(coreboot_dir)/.config" && \
-	$(MAKE) \
-		-C "$(build)/$(coreboot_base_dir)" \
-		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
-		savedefconfig && \
-	cp "$(build)/$(coreboot_base_dir)/defconfig" "$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig"
+	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig" \
+	MODE=coreboot-savedefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
+	"$(pwd)/bin/config-sync.sh"
 
 coreboot.modify_defconfig_in_place:
 	mkdir -p "$(build)/$(coreboot_dir)" && \

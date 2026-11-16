@@ -195,16 +195,28 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
-# Create the board output directory if it doesn't already exist
+# Create the board output directory if it doesn't already exist.
+# config_sync only reads existing build outputs; resetting the manifests here
+# would discard the records from the build it is checking.
+ifeq ($(MAKECMDGOALS),config_sync)
+BOARD_LOG	:= $(shell mkdir -p "$(board_build)")
+else
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
+endif
 
+# config_sync-only runs must not clobber a bundled board's initrd artifact.
+ifneq ($(MAKECMDGOALS),config_sync)
+# config_sync-only runs must not clobber a bundled board's initrd artifact.
+ifneq ($(MAKECMDGOALS),config_sync)
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
+endif
+endif
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -401,6 +413,30 @@ endef
 # these are the external pieces that will be downloaded and built
 # as part of creating the Heads firmware image.
 include modules/*
+
+# Regenerate the in-place oldconfig and the defconfig backups after a board
+# has been built.  This is an explicit post-build target, not a side effect
+# of `all` or of the module aliases: CI and bin/build_all_boards.sh invoke
+# it after the build, so a warm cache or a targeted module build cannot skip
+# it.  The save helpers run in a mktemp dir outside the tree, compare the
+# regenerated content with the committed file, and replace it only when it
+# differs.  A helper failure fails this target; normal board builds are
+# unaffected.
+.PHONY: config_sync \
+	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_defconfig_format_backup \
+	coreboot.save_in_oldconfig_format_in_place \
+	coreboot.save_in_defconfig_format_backup
+config_sync: linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup
+ifeq "$(CONFIG_COREBOOT)" "y"
+config_sync: coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
+endif
+linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_dir)/.build
+linux.save_in_defconfig_format_backup: linux.save_in_olddefconfig_format_in_place
+ifeq "$(CONFIG_COREBOOT)" "y"
+coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_dir)/.build
+coreboot.save_in_defconfig_format_backup: coreboot.save_in_oldconfig_format_in_place
+endif
 
 # Collect all data files from enabled modules
 data_files :=
