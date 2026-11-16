@@ -17,6 +17,9 @@
 #   SRC_DIR       linux/coreboot source tree
 # Optional:
 #   ARCH, CROSS   Linux only
+#   BUILD_CONFIG  consumed build .config to compare against
+#   BOARD_BUILD_DIR, BRAND_NAME  Linux template substitution inputs
+#   BLOB_DIR, BRAND_DIR         Linux template substitution inputs
 #
 set -euo pipefail
 
@@ -44,24 +47,44 @@ run_coreboot() {
 
 # Ensure committed configs match the configuration actually consumed by the
 # built module outputs (guards against stale cached .configured/.build stamps).
-case "$MODE" in
-	linux-*)
-		if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
-			if ! cmp -s "$CONFIG_PATH" "$BUILD_CONFIG"; then
+normalize_coreboot_config() {
+	grep -v -E '^(CONFIG_LOCALVERSION|CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME|CONFIG_MAINBOARD_SMBIOS_MANUFACTURER)=' "$1" || true
+}
+
+if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+	case "$MODE" in
+		linux-*)
+			expected="$tmp/expected.config"
+			cp "$CONFIG_PATH" "$expected"
+			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
+				sed -i "s!@BOARD_BUILD_DIR@!${BOARD_BUILD_DIR}!g" "$expected"
+			fi
+			if [ -n "${BLOB_DIR:-}" ]; then
+				sed -i "s!@BLOB_DIR@!${BLOB_DIR}!g" "$expected"
+			fi
+			if [ -n "${BRAND_DIR:-}" ]; then
+				sed -i "s!@BRAND_DIR@!${BRAND_DIR}!g" "$expected"
+			fi
+			if [ -n "${BRAND_NAME:-}" ]; then
+				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
+			fi
+			if ! cmp -s "$expected" "$BUILD_CONFIG"; then
 				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
 				exit 1
 			fi
-		fi
-		;;
-	coreboot-*)
-		if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
-			if ! cmp -s "$CONFIG_PATH" "$BUILD_CONFIG"; then
+			;;
+		coreboot-*)
+			expected_norm="$tmp/expected.norm"
+			build_norm="$tmp/build.norm"
+			normalize_coreboot_config "$CONFIG_PATH" >"$expected_norm"
+			normalize_coreboot_config "$BUILD_CONFIG" >"$build_norm"
+			if ! cmp -s "$expected_norm" "$build_norm"; then
 				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
 				exit 1
 			fi
-		fi
-		;;
-esac
+			;;
+	esac
+fi
 
 case "$MODE" in
 	linux-olddefconfig)

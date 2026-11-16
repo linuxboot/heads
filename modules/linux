@@ -288,19 +288,22 @@ linux.modify_and_save_oldconfig_in_place:
 # same for oldconfig
 linux.save_in_defconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_defconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_defconfig_format:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
@@ -308,7 +311,8 @@ linux.save_in_versioned_defconfig_format:
 #  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
 linux.save_in_olddefconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
@@ -316,13 +320,15 @@ linux.save_in_olddefconfig_format_in_place:
 # interactive oldconfig used by save_in_versioned_oldconfig
 linux.save_in_oldconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_oldconfig:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)" \
-	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
+	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-oldconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
@@ -333,5 +339,6 @@ linux.save_in_versioned_oldconfig:
 # Tip: Open a browser at https://www.kernelconfig.io/index.html
 linux.prompt_for_new_config_options_for_kernel_version_bump:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	BOARD_BUILD_DIR="$(board_build)" BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
 	MODE=linux-oldconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
