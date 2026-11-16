@@ -196,11 +196,12 @@ HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
 # Create the board output directory if it doesn't already exist.
-# config_sync only reads existing build outputs; resetting the manifests here
-# would discard the records from the build it is checking.  Save helpers run
-# under a recursive make with CONFIG_SYNC_MODE=1 so protections still apply.
-config_sync_mode := $(if $(filter config_sync,$(MAKECMDGOALS)),1,$(CONFIG_SYNC_MODE))
-ifeq ($(config_sync_mode),1)
+# Sync-only runs read existing build outputs; resetting manifests or clobbering
+# a bundled initrd placeholder would discard build state.  Recursive save-helper
+# sub-makes set CONFIG_SYNC_MODE=1 so protections apply while syncing.
+config_sync_only := $(and $(filter config_sync,$(MAKECMDGOALS)),$(if $(filter-out config_sync,$(MAKECMDGOALS)),,1))
+config_sync_preserve := $(if $(or $(config_sync_only),$(CONFIG_SYNC_MODE)),1,)
+ifeq ($(config_sync_preserve),1)
 BOARD_LOG	:= $(shell mkdir -p "$(board_build)")
 else
 BOARD_LOG	:= $(shell \
@@ -210,8 +211,8 @@ BOARD_LOG	:= $(shell \
 )
 endif
 
-# config_sync-only runs must not clobber a bundled board's initrd artifact.
-ifneq ($(config_sync_mode),1)
+# Sync-only/preserving runs must not clobber a bundled board's initrd artifact.
+ifneq ($(config_sync_preserve),1)
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
@@ -330,8 +331,10 @@ ifeq ($(wildcard split_8mb4mb.mk),)
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	$(maybe_config_sync_after_build)
 else
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
+	$(maybe_config_sync_after_build)
 endif
 endif
 endif
@@ -342,13 +345,29 @@ endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
 all: $(board_build)/$(LB_OUTPUT_FILE)
+	$(maybe_config_sync_after_build)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
-all payload:
+payload:
 	@sha256sum $(<:$(pwd)/%=%) | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $(<:$(pwd)/%=%) | tee -a "$(SIZES)"
+
+# After normal board builds, regenerate committed configs from consumed outputs.
+# Local flows warn/report drift; CI runs strict config_sync after artifacts.
+define maybe_config_sync_after_build =
+	@if [ -z "$(filter config_sync musl-cross-make payload validate_cbfs_ifd fix_cbfs_ifd,$(MAKECMDGOALS))" ] && [ "$(CONFIG_SYNC_SKIP_AUTO)" != "1" ]; then \
+		if $(MAKE) BOARD=$(BOARD) CONFIG_SYNC_WARN=1 config_sync; then \
+			if [ -n "$$(git --no-pager status --porcelain -- config/ 2>/dev/null)" ]; then \
+				echo "WARN: config/ changed after build; review and commit regenerated files:" >&2; \
+				git --no-pager status --porcelain -- config/ >&2 || true; \
+			fi; \
+		else \
+			echo "WARN: config_sync failed; config/ may be out of sync with the build." >&2; \
+		fi; \
+	fi
+endef
 
 # Validate coreboot CBFS size against IFD BIOS region
 validate_cbfs_ifd:
@@ -412,28 +431,33 @@ endef
 # as part of creating the Heads firmware image.
 include modules/*
 
-# Regenerate the in-place oldconfig and the defconfig backups after a board
-# has been built.  This is an explicit post-build target, not a side effect
-# of `all` or of the module aliases: CI and bin/build_all_boards.sh invoke
-# it after the build, so a warm cache or a targeted module build cannot skip
-# it.  The save helpers run in a mktemp dir outside the tree, compare the
-# regenerated content with the committed file, and replace it only when it
-# differs.  A helper failure fails this target; normal board builds are
-# unaffected.
+# Regenerate committed linux/coreboot configs and defconfig backups against the
+# consumed build outputs.  Runs unconditionally after normal board builds:
+# local make/build_all warn on drift or helper issues, CI runs strict
+# config_sync and fails on helper error or config drift.  Save helpers run in a
+# temp obj tree and replace files only when content differs.
 .PHONY: config_sync \
 	linux.save_in_olddefconfig_format_in_place \
 	linux.save_in_defconfig_format_backup \
 	coreboot.save_in_oldconfig_format_in_place \
 	coreboot.save_in_defconfig_format_backup
 config_sync:
-	$(MAKE) CHECK_BUILD_CONFIG=1 CONFIG_SYNC_MODE=1 \
-		linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup \
-		$(if $(filter y,$(CONFIG_COREBOOT)),coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup)
+	@if [ -n "$(filter-out config_sync,$(MAKECMDGOALS))" ]; then \
+		echo "config_sync must be run as a standalone goal" >&2; exit 1; \
+	fi
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		linux.save_in_olddefconfig_format_in_place
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		linux.save_in_defconfig_format_backup
+ifeq "$(CONFIG_COREBOOT)" "y"
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		coreboot.save_in_oldconfig_format_in_place
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		coreboot.save_in_defconfig_format_backup
+endif
 linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_base_dir)/.canary
-linux.save_in_defconfig_format_backup: linux.save_in_olddefconfig_format_in_place
 ifeq "$(CONFIG_COREBOOT)" "y"
 coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_base_dir)/.canary
-coreboot.save_in_defconfig_format_backup: coreboot.save_in_oldconfig_format_in_place
 endif
 
 # Collect all data files from enabled modules

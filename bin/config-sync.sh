@@ -17,8 +17,10 @@
 #   SRC_DIR       linux/coreboot source tree
 # Optional:
 #   ARCH, CROSS   Linux only
-#   BUILD_CONFIG  consumed build .config to compare against
-#   CHECK_BUILD_CONFIG  set to 1 to validate against BUILD_CONFIG
+#   BUILD_CONFIG            consumed build .config to compare against
+#   VALIDATE_BUILD_CONFIG   set to 1 to compare against BUILD_CONFIG
+#   REQUIRE_BUILD_CONFIG    with VALIDATE_BUILD_CONFIG, fail/warn if missing
+#   WARN_BUILD_CONFIG       set to 1 to warn instead of fail on validation drift
 #   BOARD_BUILD_DIR, BRAND_NAME  template substitution inputs
 #   BLOB_DIR, BRAND_DIR         template substitution inputs
 #
@@ -52,11 +54,33 @@ normalize_coreboot_config() {
 	grep -v -E '^(CONFIG_LOCALVERSION|CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME|CONFIG_MAINBOARD_SMBIOS_MANUFACTURER)=' "$1" || true
 }
 
-if [ "${CHECK_BUILD_CONFIG:-0}" = "1" ] && [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+fail_build_config() {
+	if [ "${WARN_BUILD_CONFIG:-0}" = "1" ]; then
+		echo "WARN: $*" >&2
+		return 0
+	fi
+	echo "FAIL-SAFE: $*" >&2
+	exit 1
+}
+
+validate_build_config=0
+if [ "${VALIDATE_BUILD_CONFIG:-0}" = "1" ]; then
+	if [ -z "${BUILD_CONFIG:-}" ] || [ ! -f "$BUILD_CONFIG" ]; then
+		if [ "${REQUIRE_BUILD_CONFIG:-0}" = "1" ]; then
+			fail_build_config "$CONFIG_PATH: consumed build config missing (${BUILD_CONFIG:-unset})"
+		fi
+	else
+		validate_build_config=1
+	fi
+fi
+
+if [ "$validate_build_config" = "1" ]; then
 	module_dir="$(realpath "$(dirname "$BUILD_CONFIG")/..")"
 	case "$MODE" in
 		linux-*)
 			expected="$tmp/expected.config"
+			expected_obj="$tmp/expected-obj"
+			mkdir -p "$expected_obj"
 			cp "$CONFIG_PATH" "$expected"
 			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
 				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
@@ -70,9 +94,10 @@ if [ "${CHECK_BUILD_CONFIG:-0}" = "1" ] && [ -n "${BUILD_CONFIG:-}" ] && [ -f "$
 			if [ -n "${BRAND_NAME:-}" ]; then
 				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
 			fi
-			if ! cmp -s "$expected" "$BUILD_CONFIG"; then
-				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
-				exit 1
+			cp "$expected" "$expected_obj/.config"
+			make -C "$SRC_DIR" O="$expected_obj" ARCH="${ARCH:-}" CROSS_COMPILE="${CROSS:-}" olddefconfig >/dev/null
+			if ! cmp -s "$expected_obj/.config" "$BUILD_CONFIG"; then
+				fail_build_config "$CONFIG_PATH differs from consumed build config $BUILD_CONFIG"
 			fi
 			;;
 		coreboot-*)
@@ -95,8 +120,7 @@ if [ "${CHECK_BUILD_CONFIG:-0}" = "1" ] && [ -n "${BUILD_CONFIG:-}" ] && [ -f "$
 			normalize_coreboot_config "$expected" >"$expected_norm"
 			normalize_coreboot_config "$BUILD_CONFIG" >"$build_norm"
 			if ! cmp -s "$expected_norm" "$build_norm"; then
-				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
-				exit 1
+				fail_build_config "$CONFIG_PATH differs from consumed build config $BUILD_CONFIG"
 			fi
 			;;
 	esac
@@ -137,6 +161,10 @@ esac
 if ! cmp -s "$out" "$OUTPUT_PATH"; then
 	staged="$(mktemp "${OUTPUT_PATH}.XXXXXX")" && \
 	cp "$out" "$staged" && \
+	if [ -e "$OUTPUT_PATH" ]; then
+		chown --reference="$OUTPUT_PATH" "$staged" 2>/dev/null || true
+	fi && \
+	chmod 0644 "$staged" && \
 	mv "$staged" "$OUTPUT_PATH" || \
 	{ rm -f "${staged:-}"; exit 1; }
 fi

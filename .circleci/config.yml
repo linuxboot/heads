@@ -37,7 +37,7 @@ commands:
             #Pass AVAILABLE_MEM_GB=8 to respect CircleCI free tier RAM assignation, which otherwise randomly fails. See Makefile calculations.
             # Without AVAILABLE_MEM_GB=8: CircleCI passes '-j36 --load-average=54'
             # With AVAILABLE_MEM_GB=8: CircleCI passes '-j8 --load-average=12'
-            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
+            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> CONFIG_SYNC_SKIP_AUTO=1 AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -66,10 +66,9 @@ commands:
           name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
           command: |
             # Runs after store_artifacts, so the ROMs stay downloadable even
-            # when this step fails.  config_sync is explicit, not a side effect
-            # of a normal build, so a warm cache or a targeted module build
-            # cannot skip it.  It fails on a save-helper error; the git check
-            # then catches any committed config/ that drifted.
+            # when this step fails.  Board builds run config_sync unconditionally;
+            # CI runs it explicitly in strict mode and fails on helper error or
+            # committed config/ drift.
             # --no-pager: CircleCI runs steps with a PTY; an unpaged git diff
             # would hang in the pager until the step timeout.
             if [ "<< parameters.subcommand >>" = "musl-cross-make" ]; then

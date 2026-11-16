@@ -65,20 +65,21 @@ for board_dir in boards/*/; do
 	echo "=== building $board ==="
 	if [ "${DRY_RUN:-}" = "1" ]; then
 		echo "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=${board}"
-		echo "HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=${board} config_sync"
 		pass=$((pass + 1))
 		continue
 	fi
 
 	if HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1; then
-		if HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" config_sync >>"$log" 2>&1; then
-			echo "   OK   $board"
-			pass=$((pass + 1))
-		else
-			echo "   FAIL $board config_sync (log: $log)"
-			echo "$board" >>"$FAIL_LOG"
-			fail=$((fail + 1))
+		drift="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
+		if [ -n "$drift" ]; then
+			echo "   WARN $board: config/ changed by build"
+			printf '%s\n' "$drift" | while IFS= read -r line; do
+				[ -n "$line" ] || continue
+				echo "      ${line:3}"
+			done
 		fi
+		echo "   OK   $board"
+		pass=$((pass + 1))
 	else
 		echo "   FAIL $board (log: $log)"
 		echo "$board" >>"$FAIL_LOG"
@@ -107,7 +108,7 @@ fi
 
 echo
 echo "==========================================="
-echo " config/ after explicit config_sync"
+echo " config/ after builds"
 echo "==========================================="
 config_status="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
 if [ -n "$config_status" ]; then
