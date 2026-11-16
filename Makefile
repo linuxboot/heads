@@ -345,6 +345,8 @@ endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
 all: $(board_build)/$(LB_OUTPUT_FILE)
+	@sha256sum $(board_build:$(pwd)/%=%)/$(LB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(LB_OUTPUT_FILE) | tee -a "$(SIZES)"
 	$(maybe_config_sync_after_build)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")

@@ -21,6 +21,9 @@
 #
 set -uo pipefail
 
+interrupted=0
+trap 'interrupted=1; echo "Interrupted, stopping build_all_boards." >&2' INT TERM
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
 
@@ -70,26 +73,34 @@ for board_dir in boards/*/; do
 		continue
 	fi
 
-	if HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1; then
-		if grep -q 'WARN: config_sync failed' "$log"; then
-			echo "   WARN $board: config_sync failed (see $log)"
-			sync_warn=$((sync_warn + 1))
-		fi
-		drift="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
-		if [ -n "$drift" ]; then
-			echo "   WARN $board: config/ changed by build"
-			printf '%s\n' "$drift" | while IFS= read -r line; do
-				[ -n "$line" ] || continue
-				echo "      ${line:3}"
-			done
-		fi
-		echo "   OK   $board"
-		pass=$((pass + 1))
-	else
+	build_status=0
+	HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 || build_status=$?
+	if [ "$interrupted" -ne 0 ]; then
+		echo "   INT  $board (interrupted, log: $log)"
+		fail=$((fail + 1))
+		echo "$board" >>"$FAIL_LOG"
+		break
+	fi
+	if [ "$build_status" -ne 0 ]; then
 		echo "   FAIL $board (log: $log)"
 		echo "$board" >>"$FAIL_LOG"
 		fail=$((fail + 1))
+		continue
 	fi
+	if grep -q 'WARN: config_sync failed' "$log"; then
+		echo "   WARN $board: config_sync failed (see $log)"
+		sync_warn=$((sync_warn + 1))
+	fi
+	drift="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
+	if [ -n "$drift" ]; then
+		echo "   WARN $board: config/ changed by build"
+		printf '%s\n' "$drift" | while IFS= read -r line; do
+			[ -n "$line" ] || continue
+			echo "      ${line:3}"
+		done
+	fi
+	echo "   OK   $board"
+	pass=$((pass + 1))
 done
 
 echo

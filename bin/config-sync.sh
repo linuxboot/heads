@@ -61,7 +61,7 @@ normalize_coreboot_config() {
 
 fail_build_config() {
 	if [ "${WARN_BUILD_CONFIG:-0}" = "1" ]; then
-		echo "WARN: $*" >&2
+		echo "WARN: config_sync failed: $*" >&2
 		return 0
 	fi
 	echo "FAIL-SAFE: $*" >&2
@@ -79,50 +79,38 @@ if [ "${VALIDATE_BUILD_CONFIG:-0}" = "1" ]; then
 	fi
 fi
 
+apply_template_substitutions() {
+	local file=$1
+	if [ -n "${BOARD_BUILD_DIR:-}" ]; then
+		sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$file"
+	fi
+	if [ -n "${BLOB_DIR:-}" ]; then
+		sed -i "s!@BLOB_DIR@!$(realpath --relative-to "$module_dir" "$BLOB_DIR")!g" "$file"
+	fi
+	if [ -n "${BRAND_DIR:-}" ]; then
+		sed -i "s!@BRAND_DIR@!$(realpath --relative-to "$module_dir" "$BRAND_DIR")!g" "$file"
+	fi
+	if [ -n "${BRAND_NAME:-}" ]; then
+		sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$file"
+	fi
+}
+
 if [ "$validate_build_config" = "1" ]; then
 	module_dir="$(realpath "$(dirname "$BUILD_CONFIG")/..")"
+	expected="$tmp/expected.config"
+	expected_obj="$tmp/expected-obj"
+	mkdir -p "$expected_obj"
+	cp "$CONFIG_PATH" "$expected"
+	apply_template_substitutions "$expected"
+	cp "$expected" "$expected_obj/.config"
 	case "$MODE" in
 		linux-*)
-			expected="$tmp/expected.config"
-			expected_obj="$tmp/expected-obj"
-			mkdir -p "$expected_obj"
-			cp "$CONFIG_PATH" "$expected"
-			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
-				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
-			fi
-			if [ -n "${BLOB_DIR:-}" ]; then
-				sed -i "s!@BLOB_DIR@!$(realpath --relative-to "$module_dir" "$BLOB_DIR")!g" "$expected"
-			fi
-			if [ -n "${BRAND_DIR:-}" ]; then
-				sed -i "s!@BRAND_DIR@!$(realpath --relative-to "$module_dir" "$BRAND_DIR")!g" "$expected"
-			fi
-			if [ -n "${BRAND_NAME:-}" ]; then
-				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
-			fi
-			cp "$expected" "$expected_obj/.config"
 			make -C "$SRC_DIR" O="$expected_obj" ARCH="${ARCH:-}" CROSS_COMPILE="${CROSS:-}" olddefconfig >/dev/null
 			if ! cmp -s "$expected_obj/.config" "$BUILD_CONFIG"; then
 				fail_build_config "$CONFIG_PATH differs from consumed build config $BUILD_CONFIG"
 			fi
 			;;
 		coreboot-*)
-			expected="$tmp/expected.config"
-			expected_obj="$tmp/expected-obj"
-			mkdir -p "$expected_obj"
-			cp "$CONFIG_PATH" "$expected"
-			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
-				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
-			fi
-			if [ -n "${BLOB_DIR:-}" ]; then
-				sed -i "s!@BLOB_DIR@!$(realpath --relative-to "$module_dir" "$BLOB_DIR")!g" "$expected"
-			fi
-			if [ -n "${BRAND_DIR:-}" ]; then
-				sed -i "s!@BRAND_DIR@!$(realpath --relative-to "$module_dir" "$BRAND_DIR")!g" "$expected"
-			fi
-			if [ -n "${BRAND_NAME:-}" ]; then
-				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
-			fi
-			cp "$expected" "$expected_obj/.config"
 			make -C "$SRC_DIR" obj="$expected_obj" DOTCONFIG="$expected_obj/.config" olddefconfig >/dev/null
 			expected_norm="$tmp/expected.norm"
 			build_norm="$tmp/build.norm"
