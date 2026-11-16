@@ -419,6 +419,7 @@ coreboot.save_in_defconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
 	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
 	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
+	COREBOOT_OVERRIDE_SMBIOS_MANUFACTURER="$(if $(CONFIG_COREBOOT_SMBIOS_MANUFACTURER),1,0)" \
 	MODE=coreboot-defconfig-in-place SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 
@@ -426,6 +427,7 @@ coreboot.save_in_oldconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
 	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
 	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
+	COREBOOT_OVERRIDE_SMBIOS_MANUFACTURER="$(if $(CONFIG_COREBOOT_SMBIOS_MANUFACTURER),1,0)" \
 	MODE=coreboot-olddefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 
@@ -433,6 +435,7 @@ coreboot.save_in_defconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig" \
 	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" BOARD_BUILD_DIR="$(board_build)" \
 	BLOB_DIR="$(pwd)/blobs" BRAND_DIR="$(pwd)/branding/$(BRAND_NAME)" BRAND_NAME="$(BRAND_NAME)" \
+	COREBOOT_OVERRIDE_SMBIOS_MANUFACTURER="$(if $(CONFIG_COREBOOT_SMBIOS_MANUFACTURER),1,0)" \
 	MODE=coreboot-savedefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 

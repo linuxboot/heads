@@ -144,27 +144,22 @@ refreshes restored build stamps to prevent spurious rebuilds, and creates
 `logs.tar.gz` on every build.  A separate step emits recent failing-build logs
 and returns failure only when the marker created by the build step is present.
 
-Every board job ends with a **config sync fail-safe** step.  After the
-build (and after `store_artifacts`, so produced ROMs stay downloadable), it
-runs `make BOARD=<target> config_sync`.  That target is explicit, not a
-side effect of a normal build, so a warm cache or a targeted module build
-cannot skip it; it depends on the linux/coreboot `.build` stamps and fails
-the step if a save helper fails.  It then checks
-`git --no-pager status --porcelain -- config/` to reveal whether any
-committed `config/` file drifted from what linux/coreboot actually
-consumed.  The save helpers (see
+Normal board builds run `config_sync` automatically in warning mode after
+build (`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so
+they can regenerate/replace committed `config/` files and report helper issues
+or drift for review.  CI skips that automatic hook during the build step and
+runs a separate strict `config_sync` after `store_artifacts` (so produced ROMs
+stay downloadable): `make BOARD=<target> config_sync` fails on helper error or
+when `git --no-pager status --porcelain -- config/` shows committed `config/`
+drift, so the developer must commit the regenerated files.  Toolchain-only jobs
+skip the step.  Locally, `bin/build_all_boards.sh` reports warnings from board
+logs and resulting `config/` status.  The save helpers (see
 [modules.md](modules.md#module-level-helpers) and
 [variation-to-defconfig.md](variation-to-defconfig.md)) generate in a
-`mktemp` dir outside the tree, compare the regenerated content with the
-committed file, and replace it only when it differs.  Toolchain-only jobs
-skip the step because they have no board config.  On failure the developer
-reviews the diff, keeps it minimal, and commits the regenerated files
-(e.g. a manual edit that was never regenerated, or a coreboot/kernel
-bump).  Locally, `bin/build_all_boards.sh` runs the same target after each
-board build and reports the resulting `git` diff.  The step runs its git
-commands with `--no-pager` because
-CircleCI runs steps with a PTY: an unpaged `git diff` would open the pager
-and hang the step until the no-output timeout.
+`mktemp` dir outside the tree, compare committed configs with the consumed
+build config (accounting for build-time template/generated fields), and
+replace committed files only when content differs.  Git commands use
+`--no-pager` because CircleCI runs steps with a PTY.
 
 1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
    files and persists `tmpDir/` to workspace.  Four hash files are created:

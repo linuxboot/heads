@@ -51,7 +51,12 @@ run_coreboot() {
 # Ensure committed configs match the configuration actually consumed by the
 # built module outputs (guards against stale cached .configured/.build stamps).
 normalize_coreboot_config() {
-	grep -v -E '^(CONFIG_LOCALVERSION|CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME|CONFIG_MAINBOARD_SMBIOS_MANUFACTURER)=' "$1" || true
+	local ignore='^(CONFIG_LOCALVERSION|CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME'
+	if [ "${COREBOOT_OVERRIDE_SMBIOS_MANUFACTURER:-0}" = "1" ]; then
+		ignore="${ignore}|CONFIG_MAINBOARD_SMBIOS_MANUFACTURER"
+	fi
+	ignore="${ignore})="
+	grep -v -E "$ignore" "$1" || true
 }
 
 fail_build_config() {

@@ -40,6 +40,7 @@ pass=0
 fail=0
 skip=0
 selected=0
+sync_warn=0
 
 echo "==========================================="
 echo " build_all_boards: starting"
@@ -70,6 +71,10 @@ for board_dir in boards/*/; do
 	fi
 
 	if HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1; then
+		if grep -q 'WARN: config_sync failed' "$log"; then
+			echo "   WARN $board: config_sync failed (see $log)"
+			sync_warn=$((sync_warn + 1))
+		fi
 		drift="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
 		if [ -n "$drift" ]; then
 			echo "   WARN $board: config/ changed by build"
@@ -95,6 +100,7 @@ echo "   selected: $selected"
 echo "   passed: $pass"
 echo "   failed: $fail"
 echo "   skipped: $skip"
+echo "   sync warnings: $sync_warn"
 if [ "$fail" -gt 0 ]; then
 	echo "   failed boards:"
 	cat "$FAIL_LOG" | sed 's/^/      - /'
@@ -121,6 +127,10 @@ if [ -n "$config_status" ]; then
 	git --no-pager diff -- config/ || true
 	echo
 	echo "Review and commit the regenerated config/ files with the change that caused them."
+elif [ "${DRY_RUN:-}" = "1" ]; then
+	echo "config/ not checked: DRY_RUN=1 ran no builds or config_sync."
+elif [ "$sync_warn" -gt 0 ] || [ "$fail" -gt 0 ]; then
+	echo "config/ unchanged, but agreement is unverified: $sync_warn config_sync warning(s), $fail failed build(s). See the per-board logs."
 else
 	echo "config/ unchanged: committed configs match what linux and coreboot consumed."
 fi

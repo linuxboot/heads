@@ -332,30 +332,23 @@ These are used after manually editing `config/coreboot-BOARD.config` or
 expected by the build system.
 
 Defconfig backups (`config/coreboot-*.config_defconfig` and
-`config/linux-*.config_defconfig`) and the in-place oldconfig normalization
+`config/linux-*.config_defconfig`) and in-place oldconfig normalization
 (`coreboot.save_in_oldconfig_format_in_place` /
-`linux.save_in_olddefconfig_format_in_place`) are updated by the explicit
-`config_sync` target.  It depends on the corresponding module's `.build`
-stamp and runs the oldconfig helper before the backup, so the committed
-`config/*.config` (accepting any new defaults added by build-system or
-version changes) and the `_defconfig` backups (deviations from default
-visible at a glance) stay in step
-(https://github.com/linuxboot/heads/issues/2238).  Normal board builds do
-not run it: CI and `bin/build_all_boards.sh` invoke it after the build, so a
-warm cache or a targeted module build cannot skip it.  Generation happens in
-a `mktemp` dir outside the source/build tree, so neither the board's build
-`.config` nor any cached/workspace path is written.  The shared
-copy/compare/write-back logic lives in `bin/config-sync.sh`; each `save_in_*`
-target is a thin wrapper that supplies the mode and paths.
-
-The committed file is replaced **only when the regenerated content
-differs**, via an atomic .tmp+rename, so unchanged content keeps its mtime
-and does not retrigger the module's `.configured` prerequisite.  A
-save-helper failure fails `config_sync`.  Locally the drift shows up as a
-`git` diff (and a `-dirty` version string on the next build); CI runs the
-target after the artifacts are stored and fails the job when it or the
-subsequent `git` diff check fails (`doc/circleci.md`).  See
-`doc/variation-to-defconfig.md` for auditing those deviations across boards.
+`linux.save_in_olddefconfig_format_in_place`) are kept in sync by
+`config_sync` (https://github.com/linuxboot/heads/issues/2238).  Normal
+Coreboot/LinuxBoot board builds run `config_sync` automatically in warning
+mode via a post-build hook (unless `CONFIG_SYNC_SKIP_AUTO=1`), so they can
+regenerate/replace committed `config/` files and warn on helper issues or
+drift.  CI runs a separate strict `config_sync` after storing artifacts and
+fails the job on helper error or `config/` drift.  `config_sync` depends on
+the module `.build` outputs, regenerates in a `mktemp` dir outside the
+source/build tree, compares committed configs with the consumed build config
+(accounting for build-time template/generated fields), and replaces committed
+files **only when content differs** (atomic rename) so unchanged content keeps
+its mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*`
+target is a thin wrapper.  Standalone save helpers remain available for
+intentional normalization/manual edits.  See `doc/circleci.md` and
+`doc/variation-to-defconfig.md`.
 
 ## Build lifecycle
 

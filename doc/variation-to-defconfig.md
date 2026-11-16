@@ -237,22 +237,17 @@ make BOARD=<board> linux.save_in_olddefconfig_format_in_place
 make BOARD=<board> linux.save_in_defconfig_format_backup
 ```
 
-These targets are updated by the explicit
-`make BOARD=<board> config_sync` target, run after the board build.  It
-depends on the module's `.build` stamp, runs the in-place oldconfig first
-(accepting defaults for new build-system/version options into the committed
-`config/*.config`) and the defconfig backup second, so
-`config/coreboot-*.config_defconfig` and `config/linux-*.config_defconfig`
-are refreshed.  Normal board builds do not run it: CI and
-`bin/build_all_boards.sh` invoke it after the build, so a warm cache or a
-targeted module build cannot skip it.  Generation happens in a `mktemp` dir
-outside the source/build tree, so nothing under `build/` (or any
-cached/workspace path) is written.  The committed config is overwritten
-**only when the regenerated content differs**, otherwise the operation is
-skipped.  A save-helper failure fails `config_sync`.  Locally the drift
-shows up as a `git` diff (and a `-dirty` version string on the next build);
-CI runs the target after the artifacts are stored and fails the job when it
-or the subsequent `git` diff check fails (see `doc/circleci.md`).
+These targets are refreshed by `config_sync`.  Normal board builds run
+`config_sync` automatically in warning mode after build
+(`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so they
+can regenerate/replace committed `config/` files and report helper issues or
+drift for review.  CI runs a separate strict `config_sync` after storing
+artifacts and fails the job on helper error or `config/` drift.  `config_sync`
+regenerates from the committed config against consumed build outputs in a
+`mktemp` dir outside the source/build tree, runs in-place oldconfig
+normalization then defconfig backup, and replaces committed files **only when
+content differs**.  Mixed build+sync goals are not supported; strict CI sync is
+run standalone.  See `doc/circleci.md` and `doc/modules.md`.
 
 Intended for diffing with upstream defconfigs and for reviewing what
 non-default options a board sets.
