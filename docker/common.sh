@@ -1023,7 +1023,12 @@ print_digest_info() {
 
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
-	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm -ti)
+	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm)
+	# Keep stdin open for piped/redirected input; allocate TTY only on a terminal.
+	opts+=(--interactive)
+	if [ -t 0 ]; then
+		opts+=(--tty)
+	fi
 
 	# USB passthrough
 	if [ -d "/dev/bus/usb" ] && [ "${HEADS_DISABLE_USB:-0}" != "1" ]; then
