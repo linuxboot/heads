@@ -144,6 +144,28 @@ refreshes restored build stamps to prevent spurious rebuilds, and creates
 `logs.tar.gz` on every build.  A separate step emits recent failing-build logs
 and returns failure only when the marker created by the build step is present.
 
+Every board job ends with a **config sync fail-safe** step.  After the
+build (and after `store_artifacts`, so produced ROMs stay downloadable), it
+runs `make BOARD=<target> config_sync`.  That target is explicit, not a
+side effect of a normal build, so a warm cache or a targeted module build
+cannot skip it; it depends on the linux/coreboot `.build` stamps and fails
+the step if a save helper fails.  It then checks
+`git --no-pager status --porcelain -- config/` to reveal whether any
+committed `config/` file drifted from what linux/coreboot actually
+consumed.  The save helpers (see
+[modules.md](modules.md#module-level-helpers) and
+[variation-to-defconfig.md](variation-to-defconfig.md)) generate in a
+`mktemp` dir outside the tree, compare the regenerated content with the
+committed file, and replace it only when it differs.  Toolchain-only jobs
+skip the step because they have no board config.  On failure the developer
+reviews the diff, keeps it minimal, and commits the regenerated files
+(e.g. a manual edit that was never regenerated, or a coreboot/kernel
+bump).  Locally, `bin/build_all_boards.sh` runs the same target after each
+board build and reports the resulting `git` diff.  The step runs its git
+commands with `--no-pager` because
+CircleCI runs steps with a PTY: an unpaged `git diff` would open the pager
+and hang the step until the no-output timeout.
+
 1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
    files and persists `tmpDir/` to workspace.  Four hash files are created:
    - `all_modules_and_patches.sha256sums`: `Makefile`, `flake.lock`,
@@ -195,7 +217,7 @@ Seed job names in CircleCI include their upstream coreboot base in
 |---|---|---|
 | `novacustom-nv4x_adl [seed:coreboot-24.12]` | 7 (8 configured Dasharo boards including this seed) | coreboot 24.12 |
 | `librem_14 [seed:coreboot-24.02.01]` | 8 Purism boards | coreboot 24.02.01 |
-| `kano [seed:coreboot-mrchromebox-26.03]` | 1 (`kano-hotp`) | MrChromebox fork (coreboot 26.03) |
+| `fizz [seed:coreboot-mrchromebox-26.03]` | 3 (`fizz-hotp, kano-hotp, kano`) | MrChromebox fork (coreboot 26.03) |
 | `EOL_t480-hotp-maximized [seed:coreboot-26.09]` | 33 | coreboot 26.09 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
@@ -283,9 +305,13 @@ complexity (different source types: tarball vs git fork).
 When changing `.circleci/config.yml`, update this document:
 
 - **Job graph changed**: Update Pipeline shape and seed list.
+- **`build_board` command steps changed** (e.g. the config sync fail-safe):
+  Update Step details.
 - **Cache key, restore order, or saved path changed**: Update Cache
   model and `Why musl could rebuild`.
 - **Runtime or rebuild semantics changed**: Update Pipeline details.
+- **Config regeneration behavior changed** (overwrite-on-diff, fail-hard):
+  Update Step details and the fail-safe description above.
 - **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
   to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in
   `.circleci/config.yml` depending on `novacustom-nv4x_adl`.  If sum

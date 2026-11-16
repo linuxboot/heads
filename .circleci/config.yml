@@ -62,6 +62,31 @@ commands:
             fi
       - store_artifacts:
           path: build/<< parameters.arch >>/<< parameters.target >>
+      - run:
+          name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
+          command: |
+            # Runs after store_artifacts, so the ROMs stay downloadable even
+            # when this step fails.  config_sync is explicit, not a side effect
+            # of a normal build, so a warm cache or a targeted module build
+            # cannot skip it.  It fails on a save-helper error; the git check
+            # then catches any committed config/ that drifted.
+            # --no-pager: CircleCI runs steps with a PTY; an unpaged git diff
+            # would hang in the pager until the step timeout.
+            if [ "<< parameters.subcommand >>" = "musl-cross-make" ]; then
+              echo "Toolchain-only job; no board config to sync."
+              exit 0
+            fi
+            source /devenv.sh
+            make BOARD=<< parameters.target >> config_sync AVAILABLE_MEM_GB=8 \
+              || { echo "FAIL-SAFE: config regeneration failed (see above)." >&2; exit 1; }
+            drift="$(git --no-pager status --porcelain -- config/)" || exit 1
+            if [ -n "$drift" ]; then
+              printf '%s\n' "$drift" >&2
+              git --no-pager diff -- config/ >&2
+              echo "FAIL-SAFE: committed config/ drifted from the build." >&2
+              exit 1
+            fi
+            echo "config/ in sync: committed files match what linux and coreboot consumed."
 
 jobs:
 
@@ -113,12 +138,13 @@ jobs:
           name: Creating all modules and patches digest (All modules cache digest)
           command: |
             # TODO: Add .circleci/config.yml back once cache model is stable
-            find ./Makefile ./flake.lock ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
+            # config/ included so config-only changes invalidate caches.
+            find ./Makefile ./flake.lock ./config ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
             # TODO: Add .circleci/config.yml back once cache model is stable
-            find ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
+            find ./flake.lock ./config ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
