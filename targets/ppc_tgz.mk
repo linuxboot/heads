@@ -15,3 +15,4 @@ $(board_build)/$(OUTPUT_PREFIX).tgz: \
 	cd $(board_build)/pkg && sha256sum * > sha256sum.txt
 	cd $(board_build)/pkg && tar zcf $@ *
 	rm -r $(board_build)/pkg
+	$(maybe_config_sync_after_build)

@@ -107,6 +107,8 @@ if [ "$validate_build_config" = "1" ]; then
 			;;
 		coreboot-*)
 			expected="$tmp/expected.config"
+			expected_obj="$tmp/expected-obj"
+			mkdir -p "$expected_obj"
 			cp "$CONFIG_PATH" "$expected"
 			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
 				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
@@ -120,9 +122,11 @@ if [ "$validate_build_config" = "1" ]; then
 			if [ -n "${BRAND_NAME:-}" ]; then
 				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
 			fi
+			cp "$expected" "$expected_obj/.config"
+			make -C "$SRC_DIR" obj="$expected_obj" DOTCONFIG="$expected_obj/.config" olddefconfig >/dev/null
 			expected_norm="$tmp/expected.norm"
 			build_norm="$tmp/build.norm"
-			normalize_coreboot_config "$expected" >"$expected_norm"
+			normalize_coreboot_config "$expected_obj/.config" >"$expected_norm"
 			normalize_coreboot_config "$BUILD_CONFIG" >"$build_norm"
 			if ! cmp -s "$expected_norm" "$build_norm"; then
 				fail_build_config "$CONFIG_PATH differs from consumed build config $BUILD_CONFIG"
