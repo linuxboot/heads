@@ -424,10 +424,10 @@ include modules/*
 	linux.save_in_defconfig_format_backup \
 	coreboot.save_in_oldconfig_format_in_place \
 	coreboot.save_in_defconfig_format_backup
-config_sync: linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup
-ifeq "$(CONFIG_COREBOOT)" "y"
-config_sync: coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
-endif
+config_sync:
+	$(MAKE) CHECK_BUILD_CONFIG=1 \
+		linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup \
+		$(if $(filter y,$(CONFIG_COREBOOT)),coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup)
 linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_base_dir)/.canary
 linux.save_in_defconfig_format_backup: linux.save_in_olddefconfig_format_in_place
 ifeq "$(CONFIG_COREBOOT)" "y"

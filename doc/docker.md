@@ -262,9 +262,9 @@ HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x220-maximized
 ```
 
-```bash
-HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
-```
+`make BOARD=... run` starts an interactive graphical QEMU session and its
+cleanup runs `stty sane`; use it from an interactive terminal, not unattended
+build scripts.
 
 For details about selecting or forwarding a physical USB token to QEMU (handled by the
 `USB_TOKEN` make variable), see [qemu.md](qemu.md).

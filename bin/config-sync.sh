@@ -18,8 +18,9 @@
 # Optional:
 #   ARCH, CROSS   Linux only
 #   BUILD_CONFIG  consumed build .config to compare against
-#   BOARD_BUILD_DIR, BRAND_NAME  Linux template substitution inputs
-#   BLOB_DIR, BRAND_DIR         Linux template substitution inputs
+#   CHECK_BUILD_CONFIG  set to 1 to validate against BUILD_CONFIG
+#   BOARD_BUILD_DIR, BRAND_NAME  template substitution inputs
+#   BLOB_DIR, BRAND_DIR         template substitution inputs
 #
 set -euo pipefail
 
@@ -51,19 +52,20 @@ normalize_coreboot_config() {
 	grep -v -E '^(CONFIG_LOCALVERSION|CONFIG_MAINBOARD_SMBIOS_PRODUCT_NAME|CONFIG_MAINBOARD_SMBIOS_MANUFACTURER)=' "$1" || true
 }
 
-if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+if [ "${CHECK_BUILD_CONFIG:-0}" = "1" ] && [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+	module_dir="$(realpath "$(dirname "$BUILD_CONFIG")/..")"
 	case "$MODE" in
 		linux-*)
 			expected="$tmp/expected.config"
 			cp "$CONFIG_PATH" "$expected"
 			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
-				sed -i "s!@BOARD_BUILD_DIR@!${BOARD_BUILD_DIR}!g" "$expected"
+				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
 			fi
 			if [ -n "${BLOB_DIR:-}" ]; then
-				sed -i "s!@BLOB_DIR@!${BLOB_DIR}!g" "$expected"
+				sed -i "s!@BLOB_DIR@!$(realpath --relative-to "$module_dir" "$BLOB_DIR")!g" "$expected"
 			fi
 			if [ -n "${BRAND_DIR:-}" ]; then
-				sed -i "s!@BRAND_DIR@!${BRAND_DIR}!g" "$expected"
+				sed -i "s!@BRAND_DIR@!$(realpath --relative-to "$module_dir" "$BRAND_DIR")!g" "$expected"
 			fi
 			if [ -n "${BRAND_NAME:-}" ]; then
 				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
@@ -74,9 +76,23 @@ if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
 			fi
 			;;
 		coreboot-*)
+			expected="$tmp/expected.config"
+			cp "$CONFIG_PATH" "$expected"
+			if [ -n "${BOARD_BUILD_DIR:-}" ]; then
+				sed -i "s!@BOARD_BUILD_DIR@!$(realpath --relative-to "$module_dir" "$BOARD_BUILD_DIR")!g" "$expected"
+			fi
+			if [ -n "${BLOB_DIR:-}" ]; then
+				sed -i "s!@BLOB_DIR@!$(realpath --relative-to "$module_dir" "$BLOB_DIR")!g" "$expected"
+			fi
+			if [ -n "${BRAND_DIR:-}" ]; then
+				sed -i "s!@BRAND_DIR@!$(realpath --relative-to "$module_dir" "$BRAND_DIR")!g" "$expected"
+			fi
+			if [ -n "${BRAND_NAME:-}" ]; then
+				sed -i "s!@BRAND_NAME@!${BRAND_NAME}!g" "$expected"
+			fi
 			expected_norm="$tmp/expected.norm"
 			build_norm="$tmp/build.norm"
-			normalize_coreboot_config "$CONFIG_PATH" >"$expected_norm"
+			normalize_coreboot_config "$expected" >"$expected_norm"
 			normalize_coreboot_config "$BUILD_CONFIG" >"$build_norm"
 			if ! cmp -s "$expected_norm" "$build_norm"; then
 				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
