@@ -197,8 +197,10 @@ SIZES		:= $(board_build)/sizes.txt
 
 # Create the board output directory if it doesn't already exist.
 # config_sync only reads existing build outputs; resetting the manifests here
-# would discard the records from the build it is checking.
-ifeq ($(MAKECMDGOALS),config_sync)
+# would discard the records from the build it is checking.  Save helpers run
+# under a recursive make with CONFIG_SYNC_MODE=1 so protections still apply.
+config_sync_mode := $(if $(filter config_sync,$(MAKECMDGOALS)),1,$(CONFIG_SYNC_MODE))
+ifeq ($(config_sync_mode),1)
 BOARD_LOG	:= $(shell mkdir -p "$(board_build)")
 else
 BOARD_LOG	:= $(shell \
@@ -209,13 +211,12 @@ BOARD_LOG	:= $(shell \
 endif
 
 # config_sync-only runs must not clobber a bundled board's initrd artifact.
-ifneq ($(MAKECMDGOALS),config_sync)
+ifneq ($(config_sync_mode),1)
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
 endif
-
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
 ifeq "$V" ""
@@ -425,7 +426,7 @@ include modules/*
 	coreboot.save_in_oldconfig_format_in_place \
 	coreboot.save_in_defconfig_format_backup
 config_sync:
-	$(MAKE) CHECK_BUILD_CONFIG=1 \
+	$(MAKE) CHECK_BUILD_CONFIG=1 CONFIG_SYNC_MODE=1 \
 		linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup \
 		$(if $(filter y,$(CONFIG_COREBOOT)),coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup)
 linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_base_dir)/.canary
