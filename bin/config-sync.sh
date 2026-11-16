@@ -42,6 +42,27 @@ run_coreboot() {
 		"$@"
 }
 
+# Ensure committed configs match the configuration actually consumed by the
+# built module outputs (guards against stale cached .configured/.build stamps).
+case "$MODE" in
+	linux-*)
+		if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+			if ! cmp -s "$CONFIG_PATH" "$BUILD_CONFIG"; then
+				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
+				exit 1
+			fi
+		fi
+		;;
+	coreboot-*)
+		if [ -n "${BUILD_CONFIG:-}" ] && [ -f "$BUILD_CONFIG" ]; then
+			if ! cmp -s "$CONFIG_PATH" "$BUILD_CONFIG"; then
+				echo "FAIL-SAFE: $CONFIG_PATH differs from build config $BUILD_CONFIG" >&2
+				exit 1
+			fi
+		fi
+		;;
+esac
+
 case "$MODE" in
 	linux-olddefconfig)
 		run_linux olddefconfig
@@ -75,7 +96,8 @@ case "$MODE" in
 esac
 
 if ! cmp -s "$out" "$OUTPUT_PATH"; then
-	cp "$out" "$OUTPUT_PATH.tmp" && \
-	mv "$OUTPUT_PATH.tmp" "$OUTPUT_PATH" || \
-	{ rm -f "$OUTPUT_PATH.tmp"; exit 1; }
+	staged="$(mktemp "${OUTPUT_PATH}.XXXXXX")" && \
+	cp "$out" "$staged" && \
+	mv "$staged" "$OUTPUT_PATH" || \
+	{ rm -f "${staged:-}"; exit 1; }
 fi

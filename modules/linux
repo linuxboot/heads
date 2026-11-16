@@ -288,16 +288,19 @@ linux.modify_and_save_oldconfig_in_place:
 # same for oldconfig
 linux.save_in_defconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_defconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_defconfig_format:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_defconfig_$(CONFIG_LINUX_VERSION)" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-savedefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
@@ -305,6 +308,7 @@ linux.save_in_versioned_defconfig_format:
 #  PLEASE VERIFY CHANGES AND KEEP THINGS MINIMAL IN PRs.
 linux.save_in_olddefconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
@@ -312,11 +316,13 @@ linux.save_in_olddefconfig_format_in_place:
 # interactive oldconfig used by save_in_versioned_oldconfig
 linux.save_in_oldconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-olddefconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 
 linux.save_in_versioned_oldconfig:
 	@CONFIG_PATH="$(pwd)/$(linux_kconfig)" OUTPUT_PATH="$(pwd)/$(linux_kconfig)_oldconfig_$(CONFIG_LINUX_VERSION)" \
+	BUILD_CONFIG="$(build)/$(linux_dir)/.config" \
 	MODE=linux-oldconfig SRC_DIR="$(build)/$(linux_base_dir)" \
 	ARCH="$(LINUX_ARCH)" CROSS="$(CROSS)" "$(pwd)/bin/config-sync.sh"
 

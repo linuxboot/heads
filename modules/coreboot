@@ -417,16 +417,19 @@ endif
 #
 coreboot.save_in_defconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" \
 	MODE=coreboot-defconfig-in-place SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 
 coreboot.save_in_oldconfig_format_in_place:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" \
+	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" \
 	MODE=coreboot-olddefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 
 coreboot.save_in_defconfig_format_backup:
 	@CONFIG_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)" OUTPUT_PATH="$(pwd)/$(CONFIG_COREBOOT_CONFIG)_defconfig" \
+	BUILD_CONFIG="$(build)/$(coreboot_dir)/.config" \
 	MODE=coreboot-savedefconfig SRC_DIR="$(build)/$(coreboot_base_dir)" \
 	"$(pwd)/bin/config-sync.sh"
 

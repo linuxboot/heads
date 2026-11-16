@@ -210,12 +210,9 @@ endif
 
 # config_sync-only runs must not clobber a bundled board's initrd artifact.
 ifneq ($(MAKECMDGOALS),config_sync)
-# config_sync-only runs must not clobber a bundled board's initrd artifact.
-ifneq ($(MAKECMDGOALS),config_sync)
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
-endif
 endif
 endif
 
@@ -431,10 +428,10 @@ config_sync: linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_
 ifeq "$(CONFIG_COREBOOT)" "y"
 config_sync: coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup
 endif
-linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_dir)/.build
+linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_base_dir)/.canary
 linux.save_in_defconfig_format_backup: linux.save_in_olddefconfig_format_in_place
 ifeq "$(CONFIG_COREBOOT)" "y"
-coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_dir)/.build
+coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_base_dir)/.canary
 coreboot.save_in_defconfig_format_backup: coreboot.save_in_oldconfig_format_in_place
 endif
 

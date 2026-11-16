@@ -39,6 +39,7 @@ FAIL_LOG="$LOG_DIR/failed_boards.txt"
 pass=0
 fail=0
 skip=0
+selected=0
 
 echo "==========================================="
 echo " build_all_boards: starting"
@@ -59,6 +60,7 @@ for board_dir in boards/*/; do
 		esac
 	fi
 
+	selected=$((selected + 1))
 	log="${LOG_DIR}/${board}.log"
 	echo "=== building $board ==="
 	if [ "${DRY_RUN:-}" = "1" ]; then
@@ -88,6 +90,7 @@ echo
 echo "==========================================="
 echo " build_all_boards: done"
 echo "   log dir: $LOG_DIR"
+echo "   selected: $selected"
 echo "   passed: $pass"
 echo "   failed: $fail"
 echo "   skipped: $skip"
@@ -96,6 +99,11 @@ if [ "$fail" -gt 0 ]; then
 	cat "$FAIL_LOG" | sed 's/^/      - /'
 fi
 echo "==========================================="
+
+if [ "$selected" -eq 0 ]; then
+	echo "No boards matched pattern: ${PATTERN:-<none>}" >&2
+	exit 1
+fi
 
 echo
 echo "==========================================="
