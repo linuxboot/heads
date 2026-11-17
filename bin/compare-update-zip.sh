@@ -74,7 +74,7 @@ tmp=$(cd "$tmp" && pwd)
 find_tool() {
 	local name=$1 archdir="" f d
 	case "$zip1" in
-		*/build/*/*/*) archdir=$(echo "$zip1" | sed -n 's#\(.*build/[^/]*\)/.*#\1#p') ;;
+		*/build/*/*|build/*/*) archdir=$(echo "$zip1" | sed -n 's#\(.*build/[^/]*\)/.*#\1#p') ;;
 	esac
 	for d in ${archdir:+$archdir} build; do
 		[ -d "$d" ] || continue
@@ -102,7 +102,7 @@ inspect() {
 		sha256sum "$f"
 		stat -c '%a %Y %n' "$f"
 	done )
-	if [ -f "$out/hashes.txt" ]; then
+	if [ -f "$out/hashes.txt" ] && [ ! -L "$out/hashes.txt" ]; then
 		echo "-- hashes.txt header --"
 		head -n 1 "$out/hashes.txt"
 	fi
