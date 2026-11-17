@@ -140,7 +140,7 @@ fi
 # compare the sorted hash-entry lines so an empty sorted diff reveals an
 # ordering-only difference in otherwise identical content.
 rom_a="" rom_b=""
-for m in $( (cd "$tmp/a" && find . -type f; cd "$tmp/b" && find . -type f) 2>/dev/null | LC_ALL=C sort -u ); do
+while IFS= read -r -d '' m; do
 	ma="$tmp/a/$m"; mb="$tmp/b/$m"
 	if [ ! -f "$ma" ]; then echo "member only in second: $m"; rc=1; continue; fi
 	if [ ! -f "$mb" ]; then echo "member only in first: $m"; rc=1; continue; fi
@@ -165,7 +165,7 @@ for m in $( (cd "$tmp/a" && find . -type f; cd "$tmp/b" && find . -type f) 2>/de
 		esac
 		rc=1
 	fi
-done
+done < <( (cd "$tmp/a" && find . -type f -print0; cd "$tmp/b" && find . -type f -print0) 2>/dev/null | LC_ALL=C sort -zu )
 
 # Optionally diff ROM structure with host-built coreboot tools from the local
 # build tree to attribute content differences to flash regions or CBFS entries.
