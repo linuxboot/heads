@@ -10,7 +10,7 @@
 #
 # This script inspects ZIP/member metadata and contents, and compares two ZIPs
 # to attribute differences: whole-archive/byte identity, per-member diffs, and
-# for hashes.txt/sizes.txt a sorted hash-entry diff that distinguishes
+# for hashes.txt/sizes.txt a sorted entry diff that distinguishes
 # member-order differences from content differences. Optionally it keeps the
 # extracted ROMs and runs host-built coreboot utilities (ifdtool/cbfstool) from
 # the local build tree to diff IFD/CBFS layout.
@@ -31,7 +31,7 @@ same-commit reproducibility.
   <zip> [zip2]    Compare <zip> to <zip2>; exits 0 if identical
 
 Reports ZIP byte identity, member checksums/modes/mtimes, hashes.txt header and
-content, and a sorted hash-entry diff for hashes.txt/sizes.txt.
+content, and a sorted entry diff for hashes.txt/sizes.txt.
 EOF
 	exit 2
 }
@@ -65,6 +65,7 @@ else
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT
 fi
+tmp=$(cd "$tmp" && pwd)
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
 # tree. For a ZIP under build/<arch>/<board>/ the coreboot utilities live under
@@ -89,6 +90,7 @@ find_tool() {
 # extract members into the given directory for byte-level comparison.
 inspect() {
 	local z=$1 out=$2
+	rm -rf "$out"
 	mkdir -p "$out"
 	echo "== archive: $z"
 	sha256sum "$z"
@@ -109,8 +111,8 @@ inspect() {
 inspect "$zip1" "$tmp/a"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/a"
 
-if [ -z "$zip2" ]; then
-	[ "$rom_tools" -eq 1 ] && echo "note: --rom-tools compares two ROMs; provide a second ZIP"
+if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
+	[ -z "$zip2" ] && [ "$rom_tools" -eq 1 ] && echo "note: --rom-tools compares two ROMs; provide a second ZIP"
 	exit 0
 fi
 
@@ -145,10 +147,15 @@ for m in $( (cd "$tmp/a" && find . -type f; cd "$tmp/b" && find . -type f) 2>/de
 		diff -u "$ma" "$mb" | head -80 || true
 		case "$(basename "$m")" in
 			hashes.txt|sizes.txt)
-				echo "-- sorted hash-entry diff (header/order-only differences excluded) --"
+				if [ "$(basename "$m")" = sizes.txt ]; then
+					entry='^[[:space:]]*[0-9][0-9]*:'
+				else
+					entry='^[0-9a-f]\{64\}  '
+				fi
+				echo "-- sorted entry diff (header/order-only differences excluded) --"
 				diff -u \
-					<(grep '^[0-9a-f]\{64\}  ' "$ma" | LC_ALL=C sort) \
-					<(grep '^[0-9a-f]\{64\}  ' "$mb" | LC_ALL=C sort) | head -80 || true
+					<(grep "$entry" "$ma" | LC_ALL=C sort) \
+					<(grep "$entry" "$mb" | LC_ALL=C sort) | head -80 || true
 				;;
 		esac
 		rc=1

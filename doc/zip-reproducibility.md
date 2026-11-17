@@ -25,9 +25,10 @@ bin/compare-update-zip.sh --rom-tools --extract /tmp/zipcmp /path/to/build/<pkg>
 ```
 
 The comparison reports ZIP byte identity, per-member checksums and diffs, and
-for `hashes.txt`/`sizes.txt` a sorted hash-entry diff. A sorted-entry diff that
-is empty while the raw files differ means only member-entry order differs; a
-non-empty sorted diff means the recorded contents differ.
+for `hashes.txt`/`sizes.txt` a sorted entry diff. An empty sorted diff while the
+raw files differ can mean a header-only change, a member-entry order change, or
+another difference outside the compared entries; it does not prove that ordering
+alone changed. A non-empty sorted diff means the recorded entries differ.
 
 ## ROM inspection with coreboot host tools
 
@@ -62,9 +63,10 @@ diff <(grep '^[0-9a-f]\{64\}  ' /tmp/zip-a/hashes.txt | sort) \
 
 - **ZIP and members identical**: bit-identical package for the compared
   contents (for a given commit, when packaged contents match).
-- **`hashes.txt` differs but sorted hash entries match**: manifest entry order
-  differs (member bytes unchanged). A deterministic build sorts `do-cpio`
-  member listings in the manifest.
+- **`hashes.txt` differs but sorted entries match**: the difference is outside
+  the compared entries — a header-only change, a member-entry order change, or
+  other content. A deterministic build sorts `do-cpio` member listings; compare
+  the raw files to tell these cases apart.
 - **ROM/`sha256sum.txt` differ**: packaged image contents differ; use
   `--rom-tools` or `ifdtool`/`cbfstool` on the extracted ROMs to attribute the
   difference to flash regions or CBFS contents.
