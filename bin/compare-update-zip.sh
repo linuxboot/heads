@@ -67,6 +67,20 @@ else
 fi
 tmp=$(cd "$tmp" && pwd)
 
+# inspect() clears "$tmp/a" and "$tmp/b" before it reads its ZIP. Reject an
+# input that lies inside a directory cleared before that input is read.
+extract_abs=$(cd -P -- "$tmp" && pwd -P)
+zip1_abs=$(cd -P -- "$(dirname -- "$zip1")" && pwd -P)/$(basename -- "$zip1")
+case "$zip1_abs" in
+	"$extract_abs/a"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
+esac
+if [ -n "$zip2" ]; then
+	zip2_abs=$(cd -P -- "$(dirname -- "$zip2")" && pwd -P)/$(basename -- "$zip2")
+	case "$zip2_abs" in
+		"$extract_abs/a"/*|"$extract_abs/b"/*) echo "input inside extraction directory: $zip2" >&2; exit 2 ;;
+	esac
+fi
+
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
 # tree. For a ZIP under build/<arch>/<board>/ the coreboot utilities live under
 # build/<arch>/coreboot-*/util (the same host tools pointed to by the Makefile),
