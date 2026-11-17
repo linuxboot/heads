@@ -66,7 +66,6 @@ else
 	trap 'rm -rf "$tmp"' EXIT
 fi
 tmp=$(cd "$tmp" && pwd)
-tmp_rel=$(realpath --relative-to="$PWD" "$tmp" 2>/dev/null || printf '%s' "$tmp")
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
 # tree. For a ZIP under build/<arch>/<board>/ the coreboot utilities live under
@@ -75,16 +74,17 @@ tmp_rel=$(realpath --relative-to="$PWD" "$tmp" 2>/dev/null || printf '%s' "$tmp"
 # Only coreboot build outputs are trusted: the extraction root is pruned so a
 # crafted archive can never supply an executable that is run here.
 find_tool() {
-	local name=$1 archdir="" f d
+	local name=$1 archdir="" f d d_abs
 	case "$zip1" in
 		*/build/*/*|build/*/*) archdir=$(echo "$zip1" | sed -n 's#\(.*build/[^/]*\)/.*#\1#p') ;;
 	esac
 	for d in ${archdir:+$archdir} build; do
 		[ -d "$d" ] || continue
-		f=$(find "$d" -path "$tmp_rel" -prune -o \
+		d_abs=$(cd "$d" && pwd -P)
+		f=$(find "$d_abs" -path "$tmp" -prune -o \
 			-path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
-		f=$(find "$d" -path "$tmp_rel" -prune -o \
+		f=$(find "$d_abs" -path "$tmp" -prune -o \
 			-path "*/coreboot-*/util/$name" -type f ! -path "*/Documentation/*" -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 	done
