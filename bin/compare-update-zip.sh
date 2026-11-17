@@ -85,8 +85,9 @@ fi
 # tree. For a ZIP under build/<arch>/<board>/ the coreboot utilities live under
 # build/<arch>/coreboot-*/util (the same host tools pointed to by the Makefile),
 # so search the ZIP's arch directory first, then fall back to the whole build/.
-# Only coreboot build outputs are trusted: the extraction root is pruned so a
-# crafted archive can never supply an executable that is run here.
+# Only coreboot build outputs are trusted: candidates under the physical
+# extraction root are filtered out so a crafted archive can never supply an
+# executable that is run here.
 find_tool() {
 	local name=$1 archdir="" f d d_abs
 	case "$zip1" in
@@ -95,11 +96,11 @@ find_tool() {
 	for d in ${archdir:+$archdir} build; do
 		[ -d "$d" ] || continue
 		d_abs=$(cd "$d" && pwd -P)
-		f=$(find "$d_abs" -path "$tmp" -prune -o \
-			-path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
+		f=$(find "$d_abs" -path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null \
+			| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
-		f=$(find "$d_abs" -path "$tmp" -prune -o \
-			-path "*/coreboot-*/util/$name" -type f ! -path "*/Documentation/*" -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
+		f=$(find "$d_abs" -path "*/coreboot-*/util/$name" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
+			| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 	done
 	return 1
@@ -117,7 +118,7 @@ inspect() {
 	unzip -lv "$z" || unzip -l "$z"
 	echo "-- members --"
 	unzip -q -o "$z" -d "$out"
-	( cd "$out" && find . -type f | LC_ALL=C sort | while IFS= read -r f; do
+	( cd "$out" && find . -type f -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' f; do
 		sha256sum "$f"
 		stat -c '%a %Y %n' "$f"
 	done )
