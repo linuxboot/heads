@@ -93,7 +93,7 @@ find_tool() {
 	case "$zip1" in
 		*/build/*/*|build/*/*) archdir=$(echo "$zip1" | sed -n 's#\(.*build/[^/]*\)/.*#\1#p') ;;
 	esac
-	for d in ${archdir:+$archdir} build; do
+	for d in "$archdir" build; do
 		[ -d "$d" ] || continue
 		d_abs=$(cd "$d" && pwd -P)
 		f=$(find "$d_abs" -path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null \

@@ -212,8 +212,11 @@ BOARD_LOG	:= $(shell \
 endif
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
-# Create empty initrd for initial kernel "without" initrd.
+# Create empty initrd for initial kernel "without" initrd. Skip for
+# compare-zip-only invocations so an existing build artifact is preserved.
+ifneq ($(MAKECMDGOALS),compare-zip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
+endif
 endif
 
 # If V is set in the environment, do not redirect the tee
