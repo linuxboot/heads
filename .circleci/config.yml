@@ -137,13 +137,12 @@ jobs:
           name: Creating all modules and patches digest (All modules cache digest)
           command: |
             # TODO: Add .circleci/config.yml back once cache model is stable
-            # config/ included so config-only changes invalidate caches.
-            find ./Makefile ./flake.lock ./config ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
+            find ./Makefile ./flake.lock ./patches/ ./modules/ -type f | sort -h |xargs sha256sum > ./tmpDir/all_modules_and_patches.sha256sums
       - run:
           name: Creating coreboot (and associated patches) and musl-cross-make modules digest (musl-cross-make and coreboot cache digest)
           command: |
             # TODO: Add .circleci/config.yml back once cache model is stable
-            find ./flake.lock ./config ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
+            find ./flake.lock ./modules/coreboot ./modules/musl-cross-make* ./patches/coreboot* -type f | sort -h | xargs sha256sum > ./tmpDir/coreboot_musl-cross-make.sha256sums
       - run:
           name: Creating musl-cross-make and musl-cross-make patches digest (musl-cross-make cache digest)
           command: |
