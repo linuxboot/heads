@@ -29,7 +29,8 @@ set -euo pipefail
 : "${MODE:?}" "${CONFIG_PATH:?}" "${OUTPUT_PATH:?}" "${SRC_DIR:?}"
 
 tmp="$(mktemp -d /tmp/heads-config.XXXXXX)"
-trap 'rm -rf "$tmp"' EXIT
+staged=""
+trap 'rm -rf "$tmp"; [ -n "$staged" ] && rm -f "$staged"' EXIT
 
 cp "$CONFIG_PATH" "$tmp/.config"
 

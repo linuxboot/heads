@@ -340,14 +340,17 @@ Coreboot/LinuxBoot board builds run `config_sync` automatically in warning
 mode via a post-build hook (unless `CONFIG_SYNC_SKIP_AUTO=1`), so they can
 regenerate/replace committed `config/` files and warn on helper issues or
 drift.  CI runs a separate strict `config_sync` after storing artifacts and
-fails the job on helper error or `config/` drift.  `config_sync` depends on
-the module `.build` outputs, regenerates in a `mktemp` dir outside the
-source/build tree, compares committed configs with the consumed build config
-(accounting for build-time template/generated fields), and replaces committed
-files **only when content differs** (atomic rename) so unchanged content keeps
-its mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*`
-target is a thin wrapper.  Standalone save helpers remain available for
-intentional normalization/manual edits.  See `doc/circleci.md` and
+then fails the job if `git status --porcelain -- config/` shows drift (the
+Make target may succeed while updating files).  Run `make BOARD=<board>
+config_sync` after completing a board build (it reads consumed
+module `.config` outputs and uses source `.canary` trees; it does not build
+missing modules).  It regenerates in a `mktemp` dir outside the source/build
+tree, compares committed configs with the consumed build config (accounting
+for build-time template/generated fields), and replaces committed files
+**only when content differs** (atomic rename) so unchanged content keeps its
+mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*` target
+is a thin wrapper.  Standalone save helpers remain available for intentional
+normalization/manual edits.  See `doc/circleci.md` and
 `doc/variation-to-defconfig.md`.
 
 ## Build lifecycle

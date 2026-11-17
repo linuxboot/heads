@@ -149,11 +149,12 @@ build (`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so
 they can regenerate/replace committed `config/` files and report helper issues
 or drift for review.  CI skips that automatic hook during the build step and
 runs a separate strict `config_sync` after `store_artifacts` (so produced ROMs
-stay downloadable): `make BOARD=<target> config_sync` fails on helper error or
-when `git --no-pager status --porcelain -- config/` shows committed `config/`
-drift, so the developer must commit the regenerated files.  Toolchain-only jobs
-skip the step.  Locally, `bin/build_all_boards.sh` reports warnings from board
-logs and resulting `config/` status.  The save helpers (see
+stay downloadable): `make BOARD=<target> config_sync` followed by
+`git --no-pager status --porcelain -- config/` fails the job on any committed
+`config/` drift (the Make target may succeed while updating an outdated
+defconfig backup).  Toolchain-only jobs skip the step.  Locally,
+`bin/build_all_boards.sh` reports warnings from board logs and resulting
+`config/` status.  The save helpers (see
 [modules.md](modules.md#module-level-helpers) and
 [variation-to-defconfig.md](variation-to-defconfig.md)) generate in a
 `mktemp` dir outside the tree, compare committed configs with the consumed
