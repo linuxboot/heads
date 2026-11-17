@@ -146,13 +146,17 @@ and returns failure only when the marker created by the build step is present.
 
 Normal board builds run `config_sync` automatically in warning mode after
 build (`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so
-they can regenerate/replace committed `config/` files and report helper issues
-or drift for review.  CI skips that automatic hook during the build step and
-runs a separate strict `config_sync` after `store_artifacts` (so produced ROMs
-stay downloadable): `make BOARD=<target> config_sync` followed by
+they can normalize/validate committed `config/` files against the consumed
+build outputs and report helper issues or drift for review.  CI skips that
+automatic hook via `CONFIG_SYNC_SKIP_AUTO=1` in the build step and runs a
+separate strict `config_sync` before `store_artifacts`, so unverified
+ROMs/ZIPs are never published: `make BOARD=<target> config_sync` followed by
 `git --no-pager status --porcelain -- config/` fails the job on any committed
 `config/` drift (the Make target may succeed while updating an outdated
-defconfig backup).  Toolchain-only jobs skip the step.  Locally,
+defconfig backup).  CI does not overwrite committed `config/`: it fails on
+committed `config/` drift.  `config_sync` must be run standalone — mixed goals
+are rejected — and only that standalone invocation preserves
+`hashes.txt`/`sizes.txt`.  Toolchain-only jobs skip the step.  Locally,
 `bin/build_all_boards.sh` reports warnings from board logs and resulting
 `config/` status.  The save helpers (see
 [modules.md](modules.md#module-level-helpers) and
@@ -306,7 +310,8 @@ When changing `.circleci/config.yml`, update this document:
 - **Cache key, restore order, or saved path changed**: Update Cache
   model and `Why musl could rebuild`.
 - **Runtime or rebuild semantics changed**: Update Pipeline details.
-- **Config regeneration behavior changed** (overwrite-on-diff, fail-hard):
+- **Config sync behavior changed** (fails on committed `config/`
+  drift; CI does not overwrite committed `config/`):
   Update Step details and the fail-safe description above.
 - **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
   to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in

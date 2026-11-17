@@ -334,6 +334,8 @@ all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 	$(maybe_config_sync_after_build)
 else
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
+	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
 	$(maybe_config_sync_after_build)
 endif
 endif
@@ -341,6 +343,7 @@ endif
 
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
 all: $(board_build)/$(CB_BOOTBLOCK_FILE)
+	$(maybe_config_sync_after_build)
 endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
@@ -356,11 +359,16 @@ payload:
 	@sha256sum $(<:$(pwd)/%=%) | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $(<:$(pwd)/%=%) | tee -a "$(SIZES)"
 
-# After normal board builds, regenerate committed configs from consumed outputs.
-# Local flows warn/report drift; CI runs strict config_sync after artifacts.
+# After normal board builds, normalize/validate committed configs against
+# consumed outputs.  Local flows warn/report drift; CI runs strict config_sync
+# before publishing artifacts.  Never normalize on top of unreviewed edits: a
+# dirty config/ tree skips the sync entirely and warns instead.
 define maybe_config_sync_after_build =
 	@if [ -z "$(filter config_sync musl-cross-make payload validate_cbfs_ifd fix_cbfs_ifd,$(MAKECMDGOALS))" ] && [ "$(CONFIG_SYNC_SKIP_AUTO)" != "1" ]; then \
-		if $(MAKE) BOARD=$(BOARD) CONFIG_SYNC_WARN=1 config_sync; then \
+		if [ -n "$$(git --no-pager status --porcelain -- config/ 2>/dev/null)" ]; then \
+			echo "WARN: config_sync skipped due to uncommitted config changes; review and commit them:" >&2; \
+			git --no-pager status --porcelain -- config/ >&2 || true; \
+		elif $(MAKE) BOARD=$(BOARD) CONFIG_SYNC_WARN=1 config_sync; then \
 			if [ -n "$$(git --no-pager status --porcelain -- config/ 2>/dev/null)" ]; then \
 				echo "WARN: config/ changed after build; review and commit regenerated files:" >&2; \
 				git --no-pager status --porcelain -- config/ >&2 || true; \
@@ -433,14 +441,21 @@ endef
 # as part of creating the Heads firmware image.
 include modules/*
 
-# Regenerate committed linux/coreboot configs and defconfig backups against the
-# consumed build outputs.  Runs unconditionally after normal board builds:
-# local make/build_all warn on drift or helper issues, CI runs strict
-# config_sync and fails on helper error or config drift.  Save helpers run in a
-# temp obj tree and replace files only when content differs.
+# Normalize/validate committed linux/coreboot configs and defconfig backups
+# against consumed build outputs.  The post-build hook runs after normal builds
+# unless skipped; local make/build_all warn on drift or helper issues, CI runs
+# strict config_sync before publishing artifacts and fails on helper error or
+# config drift.  Save helpers run in a temp obj tree and replace files only when
+# content differs.
 .PHONY: config_sync \
-	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_defconfig_format_in_place \
 	linux.save_in_defconfig_format_backup \
+	linux.save_in_versioned_defconfig_format \
+	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_oldconfig_format_backup \
+	linux.save_in_versioned_oldconfig \
+	linux.prompt_for_new_config_options_for_kernel_version_bump \
+	coreboot.save_in_defconfig_format_in_place \
 	coreboot.save_in_oldconfig_format_in_place \
 	coreboot.save_in_defconfig_format_backup
 config_sync:
@@ -457,9 +472,17 @@ ifeq "$(CONFIG_COREBOOT)" "y"
 	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
 		coreboot.save_in_defconfig_format_backup
 endif
-linux.save_in_olddefconfig_format_in_place linux.save_in_defconfig_format_backup: $(build)/$(linux_base_dir)/.canary
+linux.save_in_defconfig_format_in_place \
+	linux.save_in_defconfig_format_backup \
+	linux.save_in_versioned_defconfig_format \
+	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_oldconfig_format_backup \
+	linux.save_in_versioned_oldconfig \
+	linux.prompt_for_new_config_options_for_kernel_version_bump: $(build)/$(linux_base_dir)/.canary
 ifeq "$(CONFIG_COREBOOT)" "y"
-coreboot.save_in_oldconfig_format_in_place coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_base_dir)/.canary
+coreboot.save_in_defconfig_format_in_place \
+	coreboot.save_in_oldconfig_format_in_place \
+	coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_base_dir)/.canary
 endif
 
 # Collect all data files from enabled modules

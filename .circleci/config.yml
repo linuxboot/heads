@@ -60,21 +60,23 @@ commands:
             else
               echo "Step hasn't failed. Continuing with next step..."
             fi
-      - store_artifacts:
-          path: build/<< parameters.arch >>/<< parameters.target >>
       - run:
           name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
           command: |
-            # Runs after store_artifacts, so the ROMs stay downloadable even
-            # when this step fails.  Board builds run config_sync unconditionally;
-            # CI runs it explicitly in strict mode and fails on helper error or
-            # committed config/ drift.
+            # Runs before store_artifacts, so unverified ROMs/ZIPs are never
+            # published: if this step fails, the job stops and nothing is
+            # stored.  CI skips the automatic post-build hook via
+            # CONFIG_SYNC_SKIP_AUTO=1 (passed to the build step above) and runs
+            # strict config_sync separately here, failing on helper error or
+            # committed config/ drift; it never overwrites committed config/.
             # --no-pager: CircleCI runs steps with a PTY; an unpaged git diff
             # would hang in the pager until the step timeout.
-            if [ "<< parameters.subcommand >>" = "musl-cross-make" ]; then
-              echo "Toolchain-only job; no board config to sync."
-              exit 0
-            fi
+            case "<< parameters.subcommand >>" in
+              musl-cross-make*)
+                echo "Toolchain-only job; no board config to sync."
+                exit 0
+                ;;
+            esac
             source /devenv.sh
             make BOARD=<< parameters.target >> config_sync AVAILABLE_MEM_GB=8 \
               || { echo "FAIL-SAFE: config regeneration failed (see above)." >&2; exit 1; }
@@ -86,6 +88,8 @@ commands:
               exit 1
             fi
             echo "config/ in sync: committed files match what linux and coreboot consumed."
+      - store_artifacts:
+          path: build/<< parameters.arch >>/<< parameters.target >>
 
 jobs:
 

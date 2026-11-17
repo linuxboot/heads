@@ -338,17 +338,21 @@ Defconfig backups (`config/coreboot-*.config_defconfig` and
 `config_sync` (https://github.com/linuxboot/heads/issues/2238).  Normal
 Coreboot/LinuxBoot board builds run `config_sync` automatically in warning
 mode via a post-build hook (unless `CONFIG_SYNC_SKIP_AUTO=1`), so they can
-regenerate/replace committed `config/` files and warn on helper issues or
-drift.  CI runs a separate strict `config_sync` after storing artifacts and
-then fails the job if `git status --porcelain -- config/` shows drift (the
-Make target may succeed while updating files).  Run `make BOARD=<board>
-config_sync` after completing a board build (it reads consumed
-module `.config` outputs and uses source `.canary` trees; it does not build
-missing modules).  It regenerates in a `mktemp` dir outside the source/build
-tree, compares committed configs with the consumed build config (accounting
-for build-time template/generated fields), and replaces committed files
-**only when content differs** (atomic rename) so unchanged content keeps its
-mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*` target
+normalize/validate committed `config/` files against the consumed build
+outputs and warn on helper issues or drift.  CI skips that automatic hook via
+`CONFIG_SYNC_SKIP_AUTO=1` and runs a separate strict `config_sync` before
+storing artifacts, so unverified ROMs/ZIPs are not published; it then fails
+the job if `git status --porcelain -- config/` shows drift (the Make target
+may succeed while updating files).  CI does not overwrite committed `config/`:
+it fails on committed `config/` drift.  Run `make BOARD=<board> config_sync`
+standalone after completing a board build — mixed goals are rejected, and only
+that standalone invocation preserves `hashes.txt`/`sizes.txt` (it reads
+consumed module `.config` outputs and uses source `.canary` trees; it does not
+build missing modules).  It normalizes/validates in a `mktemp` dir outside the
+source/build tree, compares committed configs with the consumed build config
+(accounting for build-time template/generated fields), and replaces committed
+files **only when content differs** (atomic rename) so unchanged content keeps
+its mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*` target
 is a thin wrapper.  Standalone save helpers remain available for intentional
 normalization/manual edits.  See `doc/circleci.md` and
 `doc/variation-to-defconfig.md`.

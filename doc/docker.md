@@ -253,9 +253,10 @@ the token. Set `HEADS_DISABLE_USB=1` to opt out of this automatic cleanup.
 
 For fully unattended builds (script/non-interactive shell), set
 `HEADS_DISABLE_USB=1` to skip the USB token passthrough (and its 3-second
-abort window) so nothing prompts.  The wrapper detects when stdin is not a
-terminal and omits `-ti`, so no pseudo-TTY workaround (e.g. util-linux
-`script`) is required in an agent/CI context:
+abort window) so nothing prompts.  The wrapper always keeps stdin open with
+`--interactive` and adds `--tty` only when both stdin and stdout are terminals,
+so no pseudo-TTY workaround (e.g. util-linux `script`) is required in an
+agent/CI context:
 
 ```bash
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_t480-hotp-maximized
@@ -263,8 +264,8 @@ HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x220-maximized
 ```
 
 `make BOARD=... run` starts an interactive graphical QEMU session and its
-cleanup runs `stty sane`; use it from an interactive terminal, not unattended
-build scripts.
+cleanup runs `stty sane`; unattended `make ... run` still requires an
+interactive terminal, so do not run it from unattended build scripts.
 
 For details about selecting or forwarding a physical USB token to QEMU (handled by the
 `USB_TOKEN` make variable), see [qemu.md](qemu.md).

@@ -22,7 +22,13 @@
 set -uo pipefail
 
 interrupted=0
-trap 'interrupted=1; echo "Interrupted, stopping build_all_boards." >&2' INT TERM
+child_pid=""
+
+# Separate INT/TERM traps: mark interrupted, report, and forward the signal to
+# the active docker_repro.sh child (if any).  The main loop reaps the child
+# before reporting the board's result.
+trap 'interrupted=1; echo "Interrupted (INT), stopping build_all_boards." >&2; if [ -n "${child_pid:-}" ]; then kill -INT "$child_pid" 2>/dev/null || true; fi' INT
+trap 'interrupted=1; echo "Interrupted (TERM), stopping build_all_boards." >&2; if [ -n "${child_pid:-}" ]; then kill -TERM "$child_pid" 2>/dev/null || true; fi' TERM
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -44,6 +50,8 @@ fail=0
 skip=0
 selected=0
 sync_warn=0
+verified=0
+unverified=0
 
 echo "==========================================="
 echo " build_all_boards: starting"
@@ -73,8 +81,21 @@ for board_dir in boards/*/; do
 		continue
 	fi
 
+	# Snapshot config/ before this build so pre-existing uncommitted changes
+	# are not attributed to the board built below.
+	config_before="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
+
 	build_status=0
-	HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 || build_status=$?
+	child_pid=""
+	HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 &
+	child_pid=$!
+	wait "$child_pid" || build_status=$?
+	# A signal trap interrupts wait before the child exits; the trap has
+	# already signaled it, so reap it here before reporting the board.
+	if [ "$interrupted" -ne 0 ]; then
+		wait "$child_pid" 2>/dev/null || true
+	fi
+	child_pid=""
 	if [ "$interrupted" -ne 0 ]; then
 		echo "   INT  $board (interrupted, log: $log)"
 		fail=$((fail + 1))
@@ -87,20 +108,37 @@ for board_dir in boards/*/; do
 		fail=$((fail + 1))
 		continue
 	fi
+	sync_warned=0
 	if grep -q 'WARN: config_sync failed' "$log"; then
 		echo "   WARN $board: config_sync failed (see $log)"
 		sync_warn=$((sync_warn + 1))
+		sync_warned=1
 	fi
-	drift="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
-	if [ -n "$drift" ]; then
+	config_after="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
+	config_changed=0
+	if [ "$config_after" != "$config_before" ]; then
+		config_changed=1
 		echo "   WARN $board: config/ changed by build"
-		printf '%s\n' "$drift" | while IFS= read -r line; do
+		# Show only entries this build changed (present after, absent before).
+		printf '%s\n' "$config_after" | while IFS= read -r line; do
 			[ -n "$line" ] || continue
-			echo "      ${line:3}"
+			if ! printf '%s\n' "$config_before" | grep -Fxq -- "$line"; then
+				echo "      ${line:3}"
+			fi
 		done
 	fi
-	echo "   OK   $board"
-	pass=$((pass + 1))
+	if [ "$sync_warned" -ne 0 ]; then
+		echo "   UNVERIFIED $board: config_sync warning (not counted as passed, log: $log)"
+		unverified=$((unverified + 1))
+	else
+		echo "   OK   $board"
+		pass=$((pass + 1))
+		# Positive evidence: only a non-dry-run success with no sync warning
+		# and no config/ change counts as verified.
+		if [ "$config_changed" -eq 0 ]; then
+			verified=$((verified + 1))
+		fi
+	fi
 done
 
 echo
@@ -109,6 +147,8 @@ echo " build_all_boards: done"
 echo "   log dir: $LOG_DIR"
 echo "   selected: $selected"
 echo "   passed: $pass"
+echo "   verified: $verified"
+echo "   unverified: $unverified"
 echo "   failed: $fail"
 echo "   skipped: $skip"
 echo "   sync warnings: $sync_warn"
@@ -140,10 +180,10 @@ if [ -n "$config_status" ]; then
 	echo "Review and commit the regenerated config/ files with the change that caused them."
 elif [ "${DRY_RUN:-}" = "1" ]; then
 	echo "config/ not checked: DRY_RUN=1 ran no builds or config_sync."
-elif [ "$sync_warn" -gt 0 ] || [ "$fail" -gt 0 ]; then
-	echo "config/ unchanged, but agreement is unverified: $sync_warn config_sync warning(s), $fail failed build(s). See the per-board logs."
-else
+elif [ "$verified" -eq "$selected" ]; then
 	echo "config/ unchanged: committed configs match what linux and coreboot consumed."
+else
+	echo "config/ unchanged, but agreement is unverified: verified $verified/$selected board(s), unverified $unverified, $sync_warn config_sync warning(s), $fail failed build(s). See the per-board logs."
 fi
 echo "==========================================="
 

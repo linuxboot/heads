@@ -240,14 +240,18 @@ make BOARD=<board> linux.save_in_defconfig_format_backup
 These targets are refreshed by `config_sync`.  Normal board builds run
 `config_sync` automatically in warning mode after build
 (`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so they
-can regenerate/replace committed `config/` files and report helper issues or
-drift for review.  CI runs a separate strict `config_sync` after storing
-artifacts and fails the job on helper error or `config/` drift.  `config_sync`
-regenerates from the committed config against consumed build outputs in a
-`mktemp` dir outside the source/build tree, runs in-place oldconfig
-normalization then defconfig backup, and replaces committed files **only when
-content differs**.  Mixed build+sync goals are not supported; strict CI sync is
-run standalone.  See `doc/circleci.md` and `doc/modules.md`.
+can normalize/validate committed `config/` files against the consumed build
+outputs and report helper issues or drift for review.  CI skips that
+automatic hook via `CONFIG_SYNC_SKIP_AUTO=1` and runs a separate strict
+`config_sync` before storing artifacts — so unverified ROMs/ZIPs are not
+published — and fails the job on helper error or `config/` drift; it never
+overwrites committed `config/`.  `config_sync` normalizes/validates committed
+configs against consumed build outputs in a `mktemp` dir outside the
+source/build tree, runs in-place oldconfig normalization then defconfig
+backup, and replaces committed files **only when content differs**.  It must
+be run standalone — mixed build+sync goals are rejected — and only that
+standalone invocation preserves `hashes.txt`/`sizes.txt`.  See
+`doc/circleci.md` and `doc/modules.md`.
 
 Intended for diffing with upstream defconfigs and for reviewing what
 non-default options a board sets.

@@ -261,9 +261,10 @@ or compare the recorded hashes as described in
 > **Dry-run warning:** this command is not side-effect-free.  Every normal
 > build's Makefile parse executes `BOARD_LOG := $(shell ...)`, which resets
 > `hashes.txt` and `sizes.txt` before recipe expansion.  `make -n` does not run
-> the measurement recipes, so the manifests can be left header-only.  A make
-> invocation whose only goal is `config_sync` is the exception: it skips the
-> reset and preserves the build's manifests.  This does not rebuild or update an
+> the measurement recipes, so the manifests can be left header-only.  Only the
+> standalone `make BOARD=<board> config_sync` invocation is the exception
+> (mixed goals are rejected): it skips the reset and preserves the build's
+> manifests.  This does not rebuild or update an
 > existing ZIP's copied `hashes.txt`; CI deletes `*.rom` and `*.zip` before its
 > default build so the package is regenerated.
 

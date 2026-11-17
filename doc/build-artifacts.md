@@ -169,9 +169,10 @@ when they execute.
 - Every normal build's Makefile parse resets both files, including `make -n`,
   because the `BOARD_LOG := $(shell ...)` assignment executes before recipe
   expansion.  Measurement recipes append as they execute, including
-  FORCE-driven recipes whose output bytes are unchanged.  A make invocation
-  whose only goal is `config_sync` skips the reset and preserves the build's
-  manifests.
+  FORCE-driven recipes whose output bytes are unchanged.  `config_sync` must
+  be run standalone (mixed goals are rejected), and only that standalone
+  `make BOARD=<board> config_sync` invocation skips the reset and preserves
+  the build's manifests.
 
 > **Dry-run warning:** `make -n` is not side-effect-free here.  Its parse still
 > resets `hashes.txt` and `sizes.txt`; because recipe measurement commands do not

@@ -1024,9 +1024,10 @@ print_digest_info() {
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
 	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm)
-	# Keep stdin open for piped/redirected input; allocate TTY only on a terminal.
+	# Keep stdin open (--interactive) so piped/redirected input still works;
+	# allocate --tty only when both stdin and stdout are terminals.
 	opts+=(--interactive)
-	if [ -t 0 ]; then
+	if [ -t 0 ] && [ -t 1 ]; then
 		opts+=(--tty)
 	fi
 

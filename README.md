@@ -86,13 +86,17 @@ git fetch --tags origin
 ./docker_repro.sh make BOARD=qemu-coreboot-fbwhiptail-tpm2 run
 ```
 
-For non-interactive/CI use, the wrapper detects a non-terminal stdin and omits
-`-ti`; set `HEADS_DISABLE_USB=1` to skip USB passthrough. No `script` wrapper
-is needed:
+For non-interactive/CI use, the wrapper always keeps stdin open with
+`--interactive` and adds `--tty` only when both stdin and stdout are terminals,
+so no `script` wrapper is needed; set `HEADS_DISABLE_USB=1` to skip USB
+passthrough:
 
 ```bash
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=EOL_x230-hotp-maximized
 ```
+
+Unattended `make BOARD=... run` still requires an interactive terminal: it
+starts a graphical QEMU session whose cleanup runs `stty sane`.
 
 **No hardware required for testing** — Docker provides the full build stack
 and QEMU runtime with software TPM (swtpm) and the bundled `canokey-qemu`
