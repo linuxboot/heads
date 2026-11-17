@@ -66,11 +66,14 @@ else
 	trap 'rm -rf "$tmp"' EXIT
 fi
 tmp=$(cd "$tmp" && pwd)
+tmp_rel=$(realpath --relative-to="$PWD" "$tmp" 2>/dev/null || printf '%s' "$tmp")
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
 # tree. For a ZIP under build/<arch>/<board>/ the coreboot utilities live under
 # build/<arch>/coreboot-*/util (the same host tools pointed to by the Makefile),
 # so search the ZIP's arch directory first, then fall back to the whole build/.
+# Only coreboot build outputs are trusted: the extraction root is pruned so a
+# crafted archive can never supply an executable that is run here.
 find_tool() {
 	local name=$1 archdir="" f d
 	case "$zip1" in
@@ -78,9 +81,11 @@ find_tool() {
 	esac
 	for d in ${archdir:+$archdir} build; do
 		[ -d "$d" ] || continue
-		f=$(find "$d" -path "*/util/$name/$name" -type f 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
+		f=$(find "$d" -path "$tmp_rel" -prune -o \
+			-path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
-		f=$(find "$d" -path "*/util/$name" -type f ! -path "*/Documentation/*" 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
+		f=$(find "$d" -path "$tmp_rel" -prune -o \
+			-path "*/coreboot-*/util/$name" -type f ! -path "*/Documentation/*" -print 2>/dev/null | LC_ALL=C sort | head -n 1 || true)
 		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 	done
 	return 1
