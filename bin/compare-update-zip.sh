@@ -48,7 +48,7 @@ while [ $# -gt 0 ]; do
 		*) break ;;
 	esac
 done
-[ $# -ge 1 ] || usage
+[ $# -ge 1 ] && [ $# -le 2 ] || usage
 zip1=$1
 zip2=${2:-}
 [ -f "$zip1" ] || { echo "not found: $zip1" >&2; exit 2; }
