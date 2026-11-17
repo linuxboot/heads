@@ -23,12 +23,28 @@ set -uo pipefail
 
 interrupted=0
 child_pid=""
+setsid_bin="$(command -v setsid 2>/dev/null || true)"
+
+# A background command started without job control inherits SIGINT ignored, so
+# forwarding INT to the direct child cannot stop it or its descendants.  When
+# setsid is available the child is launched under `setsid --wait`, making it a
+# new session/process-group leader; both traps then TERM the whole group.
+# Without setsid, fall back to signaling the child directly.
+forward_signal() {
+	# $1 = signal used only by the no-setsid fallback (INT or TERM).
+	[ -n "${child_pid:-}" ] || return 0
+	if [ -n "${setsid_bin:-}" ]; then
+		kill -TERM -- "-$child_pid" 2>/dev/null || true
+	else
+		kill "-${1:-TERM}" "$child_pid" 2>/dev/null || true
+	fi
+}
 
 # Separate INT/TERM traps: mark interrupted, report, and forward the signal to
-# the active docker_repro.sh child (if any).  The main loop reaps the child
-# before reporting the board's result.
-trap 'interrupted=1; echo "Interrupted (INT), stopping build_all_boards." >&2; if [ -n "${child_pid:-}" ]; then kill -INT "$child_pid" 2>/dev/null || true; fi' INT
-trap 'interrupted=1; echo "Interrupted (TERM), stopping build_all_boards." >&2; if [ -n "${child_pid:-}" ]; then kill -TERM "$child_pid" 2>/dev/null || true; fi' TERM
+# the active docker_repro.sh child's process group (if any).  The main loop
+# reaps the process-group leader before reporting the board's result.
+trap 'interrupted=1; echo "Interrupted (INT), stopping build_all_boards." >&2; forward_signal INT' INT
+trap 'interrupted=1; echo "Interrupted (TERM), stopping build_all_boards." >&2; forward_signal TERM' TERM
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -87,11 +103,19 @@ for board_dir in boards/*/; do
 
 	build_status=0
 	child_pid=""
-	HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 &
+	if [ -n "$setsid_bin" ]; then
+		# setsid --wait: the child leads a fresh session/process group, so the
+		# traps can TERM the whole group; --wait propagates the exit status
+		# even when setsid has to fork.
+		"$setsid_bin" --wait env HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 &
+	else
+		HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 &
+	fi
 	child_pid=$!
 	wait "$child_pid" || build_status=$?
 	# A signal trap interrupts wait before the child exits; the trap has
-	# already signaled it, so reap it here before reporting the board.
+	# already TERM'd the process group, so reap the process-group leader
+	# here before reporting the board.
 	if [ "$interrupted" -ne 0 ]; then
 		wait "$child_pid" 2>/dev/null || true
 	fi
@@ -108,9 +132,15 @@ for board_dir in boards/*/; do
 		fail=$((fail + 1))
 		continue
 	fi
+	# Both a failed and a skipped sync leave the build unverified; count at
+	# most one sync warning per board (elif) and never fail the script for it.
 	sync_warned=0
 	if grep -q 'WARN: config_sync failed' "$log"; then
 		echo "   WARN $board: config_sync failed (see $log)"
+		sync_warn=$((sync_warn + 1))
+		sync_warned=1
+	elif grep -q 'config_sync skipped' "$log"; then
+		echo "   WARN $board: config_sync skipped (see $log)"
 		sync_warn=$((sync_warn + 1))
 		sync_warned=1
 	fi

@@ -153,8 +153,12 @@ separate strict `config_sync` before `store_artifacts`, so unverified
 ROMs/ZIPs are never published: `make BOARD=<target> config_sync` followed by
 `git --no-pager status --porcelain -- config/` fails the job on any committed
 `config/` drift (the Make target may succeed while updating an outdated
-defconfig backup).  CI does not overwrite committed `config/`: it fails on
-committed `config/` drift.  `config_sync` must be run standalone — mixed goals
+defconfig backup).  `config_sync` can replace a differing defconfig backup in
+the checkout before that `git status` check fails the job; CI does not commit
+the change.  ROMs/ZIPs are staged into `verified-artifacts` only after the
+fail-safe passes and only that staged directory is published, while
+`logs.tar.gz` is stored separately so failed builds keep their logs.
+`config_sync` must be run standalone — mixed goals
 are rejected — and only that standalone invocation preserves
 `hashes.txt`/`sizes.txt`.  Toolchain-only jobs skip the step.  Locally,
 `bin/build_all_boards.sh` reports warnings from board logs and resulting
@@ -311,7 +315,8 @@ When changing `.circleci/config.yml`, update this document:
   model and `Why musl could rebuild`.
 - **Runtime or rebuild semantics changed**: Update Pipeline details.
 - **Config sync behavior changed** (fails on committed `config/`
-  drift; CI does not overwrite committed `config/`):
+  drift; `config_sync` may replace a differing defconfig backup in the
+  checkout, but CI does not commit it):
   Update Step details and the fail-safe description above.
 - **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
   to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in

@@ -1024,10 +1024,13 @@ print_digest_info() {
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
 	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm)
-	# Keep stdin open (--interactive) so piped/redirected input still works;
-	# allocate --tty only when both stdin and stdout are terminals.
+	# Keep stdin open (--interactive) so piped/redirected input still works.
+	# --tty is decided by the CALLER (run_docker): this function may run inside a
+	# process substitution, where [ -t 0 ]/[ -t 1 ] see a pipe and never a
+	# terminal. run_docker captures its own tty state beforehand and passes it
+	# in via DOCKER_TTY (1 = allocate a tty, 0 = do not).
 	opts+=(--interactive)
-	if [ -t 0 ] && [ -t 1 ]; then
+	if [ "${DOCKER_TTY:-0}" = "1" ]; then
 		opts+=(--tty)
 	fi
 
@@ -1425,8 +1428,15 @@ run_docker() {
 	local image="$1"
 	shift
 	local opts host_workdir container_workdir git_common_dir DOCKER_OPTS_ARRAY
+	# Capture the caller's original stdin/stdout tty state BEFORE the process
+	# substitution below: inside <(...) both are pipes, so build_docker_opts
+	# cannot re-test them itself.
+	local caller_tty=0
+	if [ -t 0 ] && [ -t 1 ]; then
+		caller_tty=1
+	fi
 	# Read docker options (one-per-line) into an array, preserving spaces within options
-	mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
+	mapfile -t DOCKER_OPTS_ARRAY < <(DOCKER_TTY="$caller_tty" build_docker_opts)
 	host_workdir="$(pwd)"
 	container_workdir="${host_workdir}"
 	# --path-format requires git >= 2.31 (2021); fall back for older git.

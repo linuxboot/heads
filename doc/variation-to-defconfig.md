@@ -244,8 +244,10 @@ can normalize/validate committed `config/` files against the consumed build
 outputs and report helper issues or drift for review.  CI skips that
 automatic hook via `CONFIG_SYNC_SKIP_AUTO=1` and runs a separate strict
 `config_sync` before storing artifacts — so unverified ROMs/ZIPs are not
-published — and fails the job on helper error or `config/` drift; it never
-overwrites committed `config/`.  `config_sync` normalizes/validates committed
+published — and fails the job on helper error or `config/` drift.  `config_sync`
+can replace a differing defconfig backup in the checkout before that drift
+check fails the job; CI does not commit the change.  `config_sync`
+normalizes/validates committed
 configs against consumed build outputs in a `mktemp` dir outside the
 source/build tree, runs in-place oldconfig normalization then defconfig
 backup, and replaces committed files **only when content differs**.  It must

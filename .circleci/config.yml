@@ -63,12 +63,15 @@ commands:
       - run:
           name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
           command: |
-            # Runs before store_artifacts, so unverified ROMs/ZIPs are never
-            # published: if this step fails, the job stops and nothing is
-            # stored.  CI skips the automatic post-build hook via
-            # CONFIG_SYNC_SKIP_AUTO=1 (passed to the build step above) and runs
-            # strict config_sync separately here, failing on helper error or
-            # committed config/ drift; it never overwrites committed config/.
+            # CI skips the automatic post-build hook via CONFIG_SYNC_SKIP_AUTO=1
+            # (passed to the build step above) and runs strict config_sync
+            # separately here, failing on helper error or committed config/
+            # drift.  ROMs/ZIPs are staged into ./verified-artifacts only after
+            # this check passes, and only that staged directory is published;
+            # build logs are stored separately, so failed builds keep them.
+            # Note that config_sync can replace a differing defconfig backup in
+            # the checkout before the git status check below fails the job:
+            # CI does not commit that change.
             # --no-pager: CircleCI runs steps with a PTY; an unpaged git diff
             # would hang in the pager until the step timeout.
             case "<< parameters.subcommand >>" in
@@ -88,8 +91,22 @@ commands:
               exit 1
             fi
             echo "config/ in sync: committed files match what linux and coreboot consumed."
+      - run:
+          name: Stage verified artifacts
+          command: |
+            # Only reached when the fail-safe above passed: ROMs/ZIPs are
+            # staged for publication from this point on.  Logs are stored from
+            # the build directory separately, so failed builds keep them.
+            # Toolchain-only jobs have no board dir to stage from.
+            rm -rf ./verified-artifacts
+            mkdir -p ./verified-artifacts
+            if [ -d "build/<< parameters.arch >>/<< parameters.target >>" ]; then
+              cp -a build/<< parameters.arch >>/<< parameters.target >>/. ./verified-artifacts/
+            fi
       - store_artifacts:
-          path: build/<< parameters.arch >>/<< parameters.target >>
+          path: verified-artifacts
+      - store_artifacts:
+          path: build/<< parameters.arch >>/<< parameters.target >>/logs.tar.gz
 
 jobs:
 

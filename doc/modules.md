@@ -343,8 +343,9 @@ outputs and warn on helper issues or drift.  CI skips that automatic hook via
 `CONFIG_SYNC_SKIP_AUTO=1` and runs a separate strict `config_sync` before
 storing artifacts, so unverified ROMs/ZIPs are not published; it then fails
 the job if `git status --porcelain -- config/` shows drift (the Make target
-may succeed while updating files).  CI does not overwrite committed `config/`:
-it fails on committed `config/` drift.  Run `make BOARD=<board> config_sync`
+may succeed while updating files).  `config_sync` can replace a differing
+defconfig backup in the checkout before that `git status` check fails the job;
+CI does not commit that change.  Run `make BOARD=<board> config_sync`
 standalone after completing a board build — mixed goals are rejected, and only
 that standalone invocation preserves `hashes.txt`/`sizes.txt` (it reads
 consumed module `.config` outputs and uses source `.canary` trees; it does not
