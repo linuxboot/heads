@@ -118,6 +118,10 @@ inspect() {
 	unzip -lv "$z" || unzip -l "$z"
 	echo "-- members --"
 	unzip -q -o "$z" -d "$out"
+	if [ -n "$(find "$out" -type l -print -quit 2>/dev/null)" ]; then
+		echo "refusing symlink members in $z" >&2
+		exit 2
+	fi
 	( cd "$out" && find . -type f -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' f; do
 		sha256sum "$f"
 		stat -c '%a %Y %n' "$f"
