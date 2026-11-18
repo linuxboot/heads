@@ -1001,6 +1001,18 @@ HEADS_INITRD_FILES := $(shell find $(pwd)/initrd -type f 2>/dev/null)
 $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 	$(call do-cpio,$@,$(pwd)/initrd)
 
+# do-cpio appends each component's section to the shared HASHES/SIZES
+# manifests. Serialize the cpio writers in a fixed order so parallel make
+# cannot reorder those sections and change the manifest for a given commit.
+$(build)/$(initrd_dir)/tools.cpio: | $(build)/$(initrd_dir)/modules.cpio
+$(build)/$(initrd_dir)/board.cpio: | $(build)/$(initrd_dir)/tools.cpio
+ifneq ($(strip $(data_files)),)
+$(build)/$(initrd_dir)/data.cpio: | $(build)/$(initrd_dir)/board.cpio
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/data.cpio
+else
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/board.cpio
+endif
+
 # --- FINAL INITRD PACKAGING ---
 
 # Initrd compression.  What each xz option does here:
