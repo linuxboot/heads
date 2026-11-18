@@ -88,8 +88,13 @@ $(info !!!!!! Build starts !!!!!!)
 $(if $(BOARD),$(info COMMIT $(GIT_HASH) $(HEADS_GIT_VERSION)),)
 
 
+# Build metadata timestamps are derived from the current commit rather than
+# the wall clock, so hashes.txt/sizes.txt headers, the measurement log lines,
+# and the update ZIP are deterministic for a given commit.  Fall back to
+# SOURCE_DATE_EPOCH, then epoch 0, when the tree has no commit (source tarball).
+COMMIT_EPOCH := $(shell git log -1 --format=%ct 2>/dev/null || echo $${SOURCE_DATE_EPOCH:-0})
 # Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+DATE := $(shell date -u -d "@$(COMMIT_EPOCH)" --rfc-3339=seconds)
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 
@@ -195,16 +200,23 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
-# Create the board output directory if it doesn't already exist
+# Create the board output directory if it doesn't already exist. Skip for
+# compare-zip-only invocations so inspecting an archive preserves the board's
+# existing build manifests.
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
+endif
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
-# Create empty initrd for initial kernel "without" initrd.
+# Create empty initrd for initial kernel "without" initrd. Skip for
+# compare-zip-only invocations so an existing build artifact is preserved.
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
+endif
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -277,8 +289,23 @@ CROSS_TOOLS := \
 	$(CROSS_TOOLS_NOCC) \
 
 # Targets to build payload only
-.PHONY: payload
+.PHONY: payload compare-zip
 payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
+
+# Disassemble/compare update ZIPs for same-commit reproducibility.
+# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
+compare-zip:
+	@zip="$$ZIP"; ref="$$REF"; extract="$$EXTRACT"; rom_tools="$$ROM_TOOLS"; \
+	set --; \
+	if [ -n "$$extract" ]; then set -- "$$@" --extract "$$extract"; fi; \
+	if [ "$$rom_tools" = 1 ]; then set -- "$$@" --rom-tools; fi; \
+	case "$$zip" in -*) zip="./$$zip" ;; esac; \
+	case "$$ref" in -*) ref="./$$ref" ;; esac; \
+	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
+	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
+	set -- "$$@" "$$zip"; \
+	if [ -n "$$ref" ]; then set -- "$$@" "$$ref"; fi; \
+	./bin/compare-update-zip.sh "$$@"
 
 ifeq ($(CONFIG_COREBOOT), y)
 
@@ -305,6 +332,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
+	rm -f "$@.tmp"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -313,7 +341,22 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	# after the zip was already assembled.
 	sha256sum "$(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE)" >> "$(board_build)/update_pkg/$(notdir $(HASHES))"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+	# Pin member mtimes to the commit-derived timestamp, normalize their modes,
+	# and drop zip's extended-timestamp/uid-gid extra fields (and run zip in
+	# UTC) so the package is byte-identical for a given commit regardless of
+	# the build host's clock, umask, or timezone.
+	cd "$(board_build)/update_pkg" && \
+		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		ZIPOPT= ZIP= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		mv -f "$@.tmp" "$@"
+
+# When payload is an explicit goal its measurement recipe also appends to the
+# shared manifests. Order it before the ZIP snapshot so the packaged manifest
+# is the same regardless of job scheduling.
+ifneq ($(filter payload,$(MAKECMDGOALS)),)
+$(board_build)/$(CB_UPDATE_PKG_FILE): | payload
+endif
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
@@ -450,6 +493,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 sha256sum ; \
 		echo "-----" ; \
 		) >> "$(HASHES)" \
@@ -458,6 +502,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 stat -c "%8s:%n" ; \
 		echo "-----" ; \
 		) >> "$(SIZES)" \
@@ -970,6 +1015,21 @@ endif
 HEADS_INITRD_FILES := $(shell find $(pwd)/initrd -type f 2>/dev/null)
 $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 	$(call do-cpio,$@,$(pwd)/initrd)
+
+# do-cpio appends each component's section to the shared HASHES/SIZES
+# manifests. Serialize the cpio writers in a fixed order so parallel make
+# cannot reorder those sections and change the manifest for a given commit.
+# The kernel install recipe also appends to the shared manifests; order it
+# before the first cpio writer so its rows precede the cpio sections.
+$(build)/$(initrd_dir)/modules.cpio: | $(build)/$(BOARD)/$(LINUX_IMAGE_FILE)
+$(build)/$(initrd_dir)/tools.cpio: | $(build)/$(initrd_dir)/modules.cpio
+$(build)/$(initrd_dir)/board.cpio: | $(build)/$(initrd_dir)/tools.cpio
+ifneq ($(strip $(data_files)),)
+$(build)/$(initrd_dir)/data.cpio: | $(build)/$(initrd_dir)/board.cpio
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/data.cpio
+else
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/board.cpio
+endif
 
 # --- FINAL INITRD PACKAGING ---
 
