@@ -227,11 +227,13 @@ separated by `-----` lines:
 When CI and local build the **same git commit** with comparable invocations, the
 recorded hashes may match.  A match is evidence for the compared artifacts; it
 does not by itself establish reproducibility for every board, environment, or
-future build.  The manifest header and the update ZIP are byte-identical for a
-given commit *when their packaged contents are identical* (their timestamps and
-modes are commit-derived), so a full-file `cmp` of `hashes.txt` (when rule
-coverage matches) or of the `.zip` is a same-commit comparison, not a
-guarantee that the ROM itself rebuilt identically.
+future build.  Matching manifests show that the recorded measurements match.
+A byte-identical update ZIP additionally contains a byte-identical packaged ROM.
+Both require identical packaged contents and the same recorded Git status; the
+manifest timestamp and ZIP member metadata are fixed to the commit, not derived
+from the build clock.  Comparing existing ZIPs does not show that either build
+rebuilt the ROM: for that, remove both the ROM and its ZIP in each build tree
+before rebuilding, then compare the freshly regenerated ZIPs.
 
 ```bash
 grep '\.rom' /tmp/ci-hashes.txt build/x86/EOL_t480-hotp-maximized/hashes.txt

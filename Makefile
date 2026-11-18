@@ -203,7 +203,7 @@ SIZES		:= $(board_build)/sizes.txt
 # Create the board output directory if it doesn't already exist. Skip for
 # compare-zip-only invocations so inspecting an archive preserves the board's
 # existing build manifests.
-ifneq ($(MAKECMDGOALS),compare-zip)
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
@@ -214,7 +214,7 @@ endif
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd. Skip for
 # compare-zip-only invocations so an existing build artifact is preserved.
-ifneq ($(MAKECMDGOALS),compare-zip)
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
 endif
@@ -295,10 +295,17 @@ payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 # Disassemble/compare update ZIPs for same-commit reproducibility.
 # Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
 compare-zip:
-	@zip="$(ZIP)"; \
+	@zip="$$ZIP"; ref="$$REF"; extract="$$EXTRACT"; rom_tools="$$ROM_TOOLS"; \
+	set --; \
+	if [ -n "$$extract" ]; then set -- "$$@" --extract "$$extract"; fi; \
+	if [ "$$rom_tools" = 1 ]; then set -- "$$@" --rom-tools; fi; \
+	case "$$zip" in -*) zip="./$$zip" ;; esac; \
+	case "$$ref" in -*) ref="./$$ref" ;; esac; \
 	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
 	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
-	./bin/compare-update-zip.sh $(if $(EXTRACT),--extract "$(EXTRACT)",) $(if $(ROM_TOOLS),--rom-tools,) "$$zip" $(if $(REF),"$(REF)",)
+	set -- "$$@" "$$zip"; \
+	if [ -n "$$ref" ]; then set -- "$$@" "$$ref"; fi; \
+	./bin/compare-update-zip.sh "$$@"
 
 ifeq ($(CONFIG_COREBOOT), y)
 
@@ -325,7 +332,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
-	rm -f "$@"
+	rm -f "$@.tmp"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -341,7 +348,15 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	cd "$(board_build)/update_pkg" && \
 		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
 		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
-		TZ=UTC zip -9 -X "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+		ZIPOPT= ZIP= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		mv -f "$@.tmp" "$@"
+
+# When payload is an explicit goal its measurement recipe also appends to the
+# shared manifests. Order it before the ZIP snapshot so the packaged manifest
+# is the same regardless of job scheduling.
+ifneq ($(filter payload,$(MAKECMDGOALS)),)
+$(board_build)/$(CB_UPDATE_PKG_FILE): | payload
+endif
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)

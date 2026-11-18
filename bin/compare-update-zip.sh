@@ -24,8 +24,8 @@ Usage: compare-update-zip.sh [--extract DIR] [--rom-tools] [--disassemble] <zip>
 Disassemble a Heads update ZIP and, when two ZIPs are given, compare them for
 same-commit reproducibility.
 
-  --extract DIR   Extract members into DIR/<a|b> and keep them (for external
-                  inspection, e.g. ifdtool/cbfstool on the ROMs)
+  --extract DIR   Keep members in a fresh DIR/zipcmp.XXXXXX/<a|b> workspace
+                  (for external inspection, e.g. ifdtool/cbfstool on the ROMs)
   --rom-tools     Diff host-built ifdtool/cbfstool output on the extracted ROMs
   --disassemble   Print archive/member details for <zip> and exit
   <zip> [zip2]    Compare <zip> to <zip2>; exits 0 if identical
@@ -51,54 +51,29 @@ done
 [ $# -ge 1 ] && [ $# -le 2 ] || usage
 zip1=$1
 zip2=${2:-}
+[ "$disassemble" -eq 1 ] && zip2=""
 [ -f "$zip1" ] || { echo "not found: $zip1" >&2; exit 2; }
 if [ -n "$zip2" ] && [ ! -f "$zip2" ]; then
 	echo "not found: $zip2" >&2; exit 2
 fi
 
-# Extract into a caller-supplied directory (kept) or a temporary directory that
-# is removed on exit unless extraction was requested to be kept.
+# Always create a fresh workspace per run: a retained --extract directory is
+# only a parent, never a set of member trees that an earlier run could mutate.
 if [ -n "$extract_dir" ]; then
-	tmp=$extract_dir
-	mkdir -p "$tmp"
+	mkdir -p -- "$extract_dir"
+	tmp=$(mktemp -d -- "$extract_dir/zipcmp.XXXXXX")
 else
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT
 fi
-tmp=$(cd "$tmp" && pwd)
+tmp=$(CDPATH= cd -- "$tmp" && pwd)
 
-# inspect() clears "$tmp/a" and "$tmp/b" before it reads its ZIP. Reject an
-# input that lies inside a directory cleared before that input is read.
-extract_abs=$(cd -P -- "$tmp" && pwd -P)
-# True if the input path, or any symlink in its chain, lies inside a directory
-# that inspect() clears before reading the input.
-input_overlaps_extract() {
-	local p=$1 comp cur prefix="" target
-	local -a comps
-	IFS='/' read -r -a comps <<< "$p"
-	case "$p" in /*) ;; *) prefix=$PWD/ ;; esac
-	cur=$prefix
-	for comp in "${comps[@]}"; do
-		case "$comp" in ""|".") continue ;; "..") cur=${cur%/}; cur=${cur%/*}/; continue ;; esac
-		cur=${cur%/}/$comp
-		while :; do
-		case "$cur" in
-			"$extract_abs/a"|"$extract_abs/a"/*|"$extract_abs/b"|"$extract_abs/b"/*) return 0 ;;
-		esac
-			[ -L "$cur" ] || break
-			target=$(readlink -- "$cur")
-			case "$target" in
-				/*) cur=$target ;;
-				*) cur=$(dirname -- "$cur")/$target ;;
-			esac
-			cur=$(cd -P -- "$(dirname -- "$cur")" 2>/dev/null && pwd -P)/$(basename -- "$cur") || return 0
-		done
-	done
-	return 1
-}
-input_overlaps_extract "$zip1" && { echo "input inside extraction directory: $zip1" >&2; exit 2; }
+# Each run gets a fresh workspace, so inputs can never be removed by a prior
+# extraction and there is no overlap state to guard. Stage inputs under fixed
+# names: Info-ZIP interprets brackets in an archive name as a pattern.
+cp -- "$zip1" "$tmp/input1.zip"
 if [ -n "$zip2" ]; then
-	input_overlaps_extract "$zip2" && { echo "input inside extraction directory: $zip2" >&2; exit 2; }
+	cp -- "$zip2" "$tmp/input2.zip"
 fi
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
@@ -117,7 +92,7 @@ find_tool() {
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
-	root=$(cd build 2>/dev/null && pwd -P) || return 1
+	root=$(CDPATH= cd -- build 2>/dev/null && pwd -P) || return 1
 	# Enumerate direct coreboot-* children of known arch dirs only. No recursive
 	# wildcard search: an extraction tree retained under build/ must never be
 	# able to supply an executable for --rom-tools.
@@ -130,12 +105,12 @@ find_tool() {
 		[ -d "$d" ] && [ ! -L "$d" ] || continue
 		for c in "$d"/coreboot-*; do
 			[ -d "$c" ] && [ ! -L "$c" ] || continue
-			# coreboot builds cbfstool in the board output directory, which
-			# has no util/ subdirectory.
-			if [ "$name" = cbfstool ] && [ -n "$board" ]; then
-				[ -d "$c/$board" ] && [ ! -L "$c/$board" ] || continue
-				f="$c/$board/$name"
-				[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			# Some tools are built in the board output directory, flat or
+			# under its util/ subdirectory.
+			if [ -n "$board" ] && [ -d "$c/$board" ] && [ ! -L "$c/$board" ]; then
+				for f in "$c/$board/$name" "$c/$board/util/$name/$name"; do
+					[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+				done
 			fi
 			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
 			[ ! -L "$c/util/$name" ] || continue
@@ -173,7 +148,6 @@ select_rom() {
 # extract members into the given directory for byte-level comparison.
 inspect() {
 	local z=$1 out=$2
-	rm -rf "$out"
 	mkdir -p "$out"
 	echo "== archive: $z"
 	sha256sum "$z"
@@ -195,7 +169,7 @@ inspect() {
 	fi
 }
 
-inspect "$zip1" "$tmp/a"
+inspect "$tmp/input1.zip" "$tmp/a"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/a"
 
 if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
@@ -204,17 +178,22 @@ if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
 fi
 
 echo
-inspect "$zip2" "$tmp/b"
+inspect "$tmp/input2.zip" "$tmp/b"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/b"
 
 echo
 echo "== comparison =="
-if cmp -s "$zip1" "$zip2"; then
+cmp_rc=0
+cmp -s "$tmp/input1.zip" "$tmp/input2.zip" || cmp_rc=$?
+if [ "$cmp_rc" -eq 0 ]; then
 	echo "zip: identical"
 	rc=0
-else
+elif [ "$cmp_rc" -eq 1 ]; then
 	echo "zip: different"
 	cmp -l "$zip1" "$zip2" | head -20 || true
+	rc=1
+else
+	echo "zip: comparison error (cmp exit $cmp_rc)" >&2
 	rc=1
 fi
 
@@ -225,9 +204,11 @@ while IFS= read -r -d '' m; do
 	ma="$tmp/a/$m"; mb="$tmp/b/$m"
 	if [ ! -f "$ma" ]; then echo "member only in second: $m"; rc=1; continue; fi
 	if [ ! -f "$mb" ]; then echo "member only in first: $m"; rc=1; continue; fi
-	if cmp -s "$ma" "$mb"; then
+	member_cmp_rc=0
+	cmp -s "$ma" "$mb" || member_cmp_rc=$?
+	if [ "$member_cmp_rc" -eq 0 ]; then
 		echo "member identical: $m"
-	else
+	elif [ "$member_cmp_rc" -eq 1 ]; then
 		echo "member different: $m"
 		diff -u "$ma" "$mb" | head -80 || true
 		case "$(basename "$m")" in
@@ -235,7 +216,7 @@ while IFS= read -r -d '' m; do
 				if [ "$(basename "$m")" = sizes.txt ]; then
 					entry='^[[:space:]]*[0-9][0-9]*:'
 				else
-					entry='^[0-9a-f]\{64\}  '
+					entry='^[\\]\?[0-9a-f]\{64\}  '
 				fi
 				echo "-- sorted entry diff (header/order-only differences excluded) --"
 				diff -u \
@@ -243,6 +224,9 @@ while IFS= read -r -d '' m; do
 					<(grep "$entry" "$mb" | LC_ALL=C sort) | head -80 || true
 				;;
 		esac
+		rc=1
+	else
+		echo "member comparison error (cmp exit $member_cmp_rc): $m" >&2
 		rc=1
 	fi
 done < <( (cd "$tmp/a" && find . -type f -print0; cd "$tmp/b" && find . -type f -print0) 2>/dev/null | LC_ALL=C sort -zu )
