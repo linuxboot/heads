@@ -73,20 +73,27 @@ extract_abs=$(cd -P -- "$tmp" && pwd -P)
 # True if the input path, or any symlink in its chain, lies inside a directory
 # that inspect() clears before reading the input.
 input_overlaps_extract() {
-	local p=$1 target
-	p=$(cd -P -- "$(dirname -- "$p")" && pwd -P)/$(basename -- "$p")
-	while :; do
-		case "$p" in
-			"$extract_abs/a"/*|"$extract_abs/b"/*) return 0 ;;
-		esac
-		[ -L "$p" ] || return 1
-		target=$(readlink -- "$p")
-		case "$target" in
-			/*) p=$target ;;
-			*) p=$(dirname -- "$p")/$target ;;
-		esac
-		p=$(cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)/$(basename -- "$p") || return 1
+	local p=$1 comp cur prefix="" target
+	case "$p" in /*) ;; *) prefix=$PWD/ ;; esac
+	cur=$prefix
+	local IFS=/
+	for comp in $p; do
+		case "$comp" in ""|".") continue ;; "..") cur=${cur%/}; cur=${cur%/*}/; continue ;; esac
+		cur=${cur%/}/$comp
+		while :; do
+			case "$cur" in
+				"$extract_abs/a"/*|"$extract_abs/b"/*) return 0 ;;
+			esac
+			[ -L "$cur" ] || break
+			target=$(readlink -- "$cur")
+			case "$target" in
+				/*) cur=$target ;;
+				*) cur=$(dirname -- "$cur")/$target ;;
+			esac
+			cur=$(cd -P -- "$(dirname -- "$cur")" 2>/dev/null && pwd -P)/$(basename -- "$cur") || return 0
+		done
 	done
+	return 1
 }
 input_overlaps_extract "$zip1" && { echo "input inside extraction directory: $zip1" >&2; exit 2; }
 if [ -n "$zip2" ]; then
