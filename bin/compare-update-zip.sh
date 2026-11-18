@@ -109,8 +109,11 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 arch="" root d c f
+	local name=$1 arch="" board="" root d c f
 	local -a roots
+	case "$zip1" in
+		*/build/*/*/*|build/*/*/*) board=$(echo "$zip1" | sed -n 's#.*build/[^/]*/\([^/]*\)/.*#\1#p') ;;
+	esac
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
@@ -127,6 +130,13 @@ find_tool() {
 		[ -d "$d" ] && [ ! -L "$d" ] || continue
 		for c in "$d"/coreboot-*; do
 			[ -d "$c" ] && [ ! -L "$c" ] || continue
+			# coreboot builds cbfstool in the board output directory, which
+			# has no util/ subdirectory.
+			if [ "$name" = cbfstool ] && [ -n "$board" ]; then
+				[ -d "$c/$board" ] && [ ! -L "$c/$board" ] || continue
+				f="$c/$board/$name"
+				[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			fi
 			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
 			[ ! -L "$c/util/$name" ] || continue
 			f="$c/util/$name/$name"
