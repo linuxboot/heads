@@ -70,26 +70,27 @@ tmp=$(cd "$tmp" && pwd)
 # inspect() clears "$tmp/a" and "$tmp/b" before it reads its ZIP. Reject an
 # input that lies inside a directory cleared before that input is read.
 extract_abs=$(cd -P -- "$tmp" && pwd -P)
-zip1_abs=$(readlink -f -- "$zip1")
-zip1_link=$(cd -P -- "$(dirname -- "$zip1")" && pwd -P)/$(basename -- "$zip1")
-for p in "$zip1_link" "$zip1_abs"; do
-	case "$p" in
-		"$extract_abs/a"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
-	esac
-done
+# True if the input path, or any symlink in its chain, lies inside a directory
+# that inspect() clears before reading the input.
+input_overlaps_extract() {
+	local p=$1 target
+	p=$(cd -P -- "$(dirname -- "$p")" && pwd -P)/$(basename -- "$p")
+	while :; do
+		case "$p" in
+			"$extract_abs/a"/*|"$extract_abs/b"/*) return 0 ;;
+		esac
+		[ -L "$p" ] || return 1
+		target=$(readlink -- "$p")
+		case "$target" in
+			/*) p=$target ;;
+			*) p=$(dirname -- "$p")/$target ;;
+		esac
+		p=$(cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)/$(basename -- "$p") || return 1
+	done
+}
+input_overlaps_extract "$zip1" && { echo "input inside extraction directory: $zip1" >&2; exit 2; }
 if [ -n "$zip2" ]; then
-	zip2_abs=$(readlink -f -- "$zip2")
-	zip2_link=$(cd -P -- "$(dirname -- "$zip2")" && pwd -P)/$(basename -- "$zip2")
-	for p in "$zip2_link" "$zip2_abs"; do
-		case "$p" in
-			"$extract_abs/a"/*|"$extract_abs/b"/*) echo "input inside extraction directory: $zip2" >&2; exit 2 ;;
-		esac
-	done
-	for p in "$zip1_link" "$zip1_abs"; do
-		case "$p" in
-			"$extract_abs/b"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
-		esac
-	done
+	input_overlaps_extract "$zip2" && { echo "input inside extraction directory: $zip2" >&2; exit 2; }
 fi
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
