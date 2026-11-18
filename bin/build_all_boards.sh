@@ -86,6 +86,12 @@ for board_dir in boards/*/; do
 	board_config="${board_dir}${board}.config"
 	[ -f "$board_config" ] || continue
 
+	# A signal may arrive while the previous child is being reaped, after its
+	# PID was cleared.  Stop before starting another board.
+	if [ "$interrupted" -ne 0 ]; then
+		break
+	fi
+
 	if [ -n "$PATTERN" ]; then
 		case "$board" in
 			*"$PATTERN"*) ;;
@@ -117,6 +123,11 @@ for board_dir in boards/*/; do
 		HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD="${board}" >"$log" 2>&1 &
 	fi
 	child_pid=$!
+	# If a signal arrived before child_pid was assigned, the trap had no PID
+	# to forward to; signal the child now before waiting on it.
+	if [ "$interrupted" -ne 0 ]; then
+		forward_signal TERM
+	fi
 	wait "$child_pid" || build_status=$?
 	# A signal trap interrupts wait before the child exits; the trap has
 	# already TERM'd the process group, so reap the process-group leader
