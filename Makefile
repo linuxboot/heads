@@ -1004,6 +1004,9 @@ $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 # do-cpio appends each component's section to the shared HASHES/SIZES
 # manifests. Serialize the cpio writers in a fixed order so parallel make
 # cannot reorder those sections and change the manifest for a given commit.
+# The kernel install recipe also appends to the shared manifests; order it
+# before the first cpio writer so its rows precede the cpio sections.
+$(build)/$(initrd_dir)/modules.cpio: | $(build)/$(BOARD)/$(LINUX_IMAGE_FILE)
 $(build)/$(initrd_dir)/tools.cpio: | $(build)/$(initrd_dir)/modules.cpio
 $(build)/$(initrd_dir)/board.cpio: | $(build)/$(initrd_dir)/tools.cpio
 ifneq ($(strip $(data_files)),)
