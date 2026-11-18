@@ -34,7 +34,12 @@ forward_signal() {
 	# $1 = signal used only by the no-setsid fallback (INT or TERM).
 	[ -n "${child_pid:-}" ] || return 0
 	if [ -n "${setsid_bin:-}" ]; then
-		kill -TERM -- "-$child_pid" 2>/dev/null || true
+		# The group may not exist yet if the signal arrived after the child
+		# PID was assigned but before setsid created the new session.  Fall
+		# back to terminating the direct child in that race.
+		if ! kill -TERM -- "-$child_pid" 2>/dev/null; then
+			kill -TERM "$child_pid" 2>/dev/null || true
+		fi
 	else
 		kill "-${1:-TERM}" "$child_pid" 2>/dev/null || true
 	fi
