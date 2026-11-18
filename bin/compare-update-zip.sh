@@ -51,6 +51,7 @@ done
 [ $# -ge 1 ] && [ $# -le 2 ] || usage
 zip1=$1
 zip2=${2:-}
+[ "$disassemble" -eq 1 ] && zip2=""
 [ -f "$zip1" ] || { echo "not found: $zip1" >&2; exit 2; }
 if [ -n "$zip2" ] && [ ! -f "$zip2" ]; then
 	echo "not found: $zip2" >&2; exit 2
@@ -104,12 +105,12 @@ find_tool() {
 		[ -d "$d" ] && [ ! -L "$d" ] || continue
 		for c in "$d"/coreboot-*; do
 			[ -d "$c" ] && [ ! -L "$c" ] || continue
-			# coreboot builds cbfstool in the board output directory, which
-			# has no util/ subdirectory.
-			if [ "$name" = cbfstool ] && [ -n "$board" ] &&
-				[ -d "$c/$board" ] && [ ! -L "$c/$board" ]; then
-				f="$c/$board/$name"
-				[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			# Some tools are built in the board output directory, flat or
+			# under its util/ subdirectory.
+			if [ -n "$board" ] && [ -d "$c/$board" ] && [ ! -L "$c/$board" ]; then
+				for f in "$c/$board/$name" "$c/$board/util/$name/$name"; do
+					[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+				done
 			fi
 			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
 			[ ! -L "$c/util/$name" ] || continue
@@ -183,7 +184,7 @@ inspect "$tmp/input2.zip" "$tmp/b"
 echo
 echo "== comparison =="
 cmp_rc=0
-cmp -s "$zip1" "$zip2" || cmp_rc=$?
+cmp -s "$tmp/input1.zip" "$tmp/input2.zip" || cmp_rc=$?
 if [ "$cmp_rc" -eq 0 ]; then
 	echo "zip: identical"
 	rc=0

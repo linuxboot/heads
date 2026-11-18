@@ -62,6 +62,8 @@ bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp <pkg>.zip
 bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp /path/to/reference/<pkg>.zip
 
 # Use the two "extracted:" run directories printed above for the comparison.
+# Stop if either manifest is unreadable; an empty grep result is not a match.
+[ -r /path/to/runA/a/hashes.txt ] && [ -r /path/to/runB/a/hashes.txt ] || exit 1
 diff <(grep '^[0-9a-f]\{64\}  ' /path/to/runA/a/hashes.txt | sort) \
      <(grep '^[0-9a-f]\{64\}  ' /path/to/runB/a/hashes.txt | sort)
 ```
@@ -74,9 +76,11 @@ diff <(grep '^[0-9a-f]\{64\}  ' /path/to/runA/a/hashes.txt | sort) \
   the compared entries — a header-only change, a member-entry order change, or
   other content. A deterministic build sorts `do-cpio` member listings; compare
   the raw files to tell these cases apart.
-- **ROM/`sha256sum.txt` differ**: packaged image contents differ; use
-  `--rom-tools` or `ifdtool`/`cbfstool` on the extracted ROMs to attribute the
-  difference to flash regions or CBFS contents.
+- **ROM/`sha256sum.txt` differ**: compare the ROM digests or bytes first.
+  `sha256sum.txt` also records the ROM filename, so identical ROM bytes under
+  different names make that file differ without any flash-region change. Only
+  when the ROM bytes actually differ should you use `--rom-tools` or
+  `ifdtool`/`cbfstool` to attribute the difference to flash regions or CBFS.
 - **Same commit, different contents**: byte-identical manifests/ZIPs require
   identical packaged contents; compare as a reproducibility test, not a proof
   that a ROM rebuilt identically (see [reproducible-builds.md](reproducible-builds.md)).

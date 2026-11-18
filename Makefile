@@ -203,7 +203,7 @@ SIZES		:= $(board_build)/sizes.txt
 # Create the board output directory if it doesn't already exist. Skip for
 # compare-zip-only invocations so inspecting an archive preserves the board's
 # existing build manifests.
-ifneq ($(MAKECMDGOALS),compare-zip)
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
@@ -214,7 +214,7 @@ endif
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd. Skip for
 # compare-zip-only invocations so an existing build artifact is preserved.
-ifneq ($(MAKECMDGOALS),compare-zip)
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
 endif
@@ -348,7 +348,7 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	cd "$(board_build)/update_pkg" && \
 		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
 		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
-		ZIPOPT= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		ZIPOPT= ZIP= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
 		mv -f "$@.tmp" "$@"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
