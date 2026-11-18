@@ -89,19 +89,22 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 archdir="" f d d_abs
+	local name=$1 arch="" root f pat
 	case "$zip1" in
-		*/build/*/*|build/*/*) archdir=$(echo "$zip1" | sed -n 's#\(.*build/[^/]*\)/.*#\1#p') ;;
+		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
-	for d in "$archdir" build; do
-		[ -d "$d" ] || continue
-		d_abs=$(cd "$d" && pwd -P)
-		f=$(find "$d_abs" -path "*/coreboot-*/util/$name/$name" -type f -print 2>/dev/null \
-			| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
-		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
-		f=$(find "$d_abs" -path "*/coreboot-*/util/$name" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
-			| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
-		[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+	root=$(cd build 2>/dev/null && pwd -P) || return 1
+	# Search only the trusted ./build tree. The ZIP's architecture is a
+	# preference filter, never a search root, so a directory chosen by the
+	# archive path cannot supply an executable.
+	for try_arch in "$arch" ""; do
+		for pat in "*/coreboot-*/util/$name/$name" "*/coreboot-*/util/$name"; do
+			f=$(find "$root" -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
+				| LC_ALL=C grep -v -F -e "$extract_abs/" \
+				| { if [ -n "$try_arch" ]; then LC_ALL=C grep -F -e "/build/$try_arch/" || true; else cat; fi; } \
+				| LC_ALL=C sort | head -n 1 || true)
+			[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+		done
 	done
 	return 1
 }
