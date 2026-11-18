@@ -195,18 +195,29 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
-# Create the board output directory if it doesn't already exist
+# Create the board output directory if it doesn't already exist.
+# Sync-only runs read existing build outputs; resetting manifests or clobbering
+# a bundled initrd placeholder would discard build state.  Recursive save-helper
+# sub-makes set CONFIG_SYNC_MODE=1 so protections apply while syncing.
+config_sync_only := $(and $(filter config_sync,$(MAKECMDGOALS)),$(if $(filter-out config_sync,$(MAKECMDGOALS)),,1))
+config_sync_preserve := $(if $(or $(config_sync_only),$(CONFIG_SYNC_MODE)),1,)
+ifeq ($(config_sync_preserve),1)
+BOARD_LOG	:= $(shell mkdir -p "$(board_build)")
+else
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
+endif
 
+# Sync-only/preserving runs must not clobber a bundled board's initrd artifact.
+ifneq ($(config_sync_preserve),1)
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
 # Create empty initrd for initial kernel "without" initrd.
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
 endif
-
+endif
 # If V is set in the environment, do not redirect the tee
 # command to /dev/null.
 ifeq "$V" ""
@@ -320,25 +331,53 @@ ifeq ($(wildcard split_8mb4mb.mk),)
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
 	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	$(maybe_config_sync_after_build)
 else
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
+	@sha256sum $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	$(maybe_config_sync_after_build)
 endif
 endif
 endif
 
 ifneq ($(CONFIG_COREBOOT_BOOTBLOCK),)
 all: $(board_build)/$(CB_BOOTBLOCK_FILE)
+	$(maybe_config_sync_after_build)
 endif
 
 else ifeq ($(CONFIG_LINUXBOOT), y)
 all: $(board_build)/$(LB_OUTPUT_FILE)
+	@sha256sum $(board_build:$(pwd)/%=%)/$(LB_OUTPUT_FILE) | tee -a "$(HASHES)"
+	@stat -c "%8s:%n" $(board_build:$(pwd)/%=%)/$(LB_OUTPUT_FILE) | tee -a "$(SIZES)"
+	$(maybe_config_sync_after_build)
 else
 $(error "$(BOARD): neither CONFIG_COREBOOT nor CONFIG_LINUXBOOT is set?")
 endif
 
-all payload:
+payload:
 	@sha256sum $(<:$(pwd)/%=%) | tee -a "$(HASHES)"
 	@stat -c "%8s:%n" $(<:$(pwd)/%=%) | tee -a "$(SIZES)"
+
+# After normal board builds, normalize/validate committed configs against
+# consumed outputs.  Local flows warn/report drift; CI runs strict config_sync
+# before publishing artifacts.  Never normalize on top of unreviewed edits: a
+# dirty config/ tree skips the sync entirely and warns instead.
+define maybe_config_sync_after_build =
+	@if [ -z "$(filter config_sync musl-cross-make payload validate_cbfs_ifd fix_cbfs_ifd,$(MAKECMDGOALS))" ] && [ "$(CONFIG_SYNC_SKIP_AUTO)" != "1" ]; then \
+		if [ -n "$$(git --no-pager status --porcelain -- config/ 2>/dev/null)" ]; then \
+			echo "WARN: config_sync skipped due to uncommitted config changes; review and commit them:" >&2; \
+			git --no-pager status --porcelain -- config/ >&2 || true; \
+		elif $(MAKE) BOARD=$(BOARD) CONFIG_SYNC_WARN=1 config_sync; then \
+			if [ -n "$$(git --no-pager status --porcelain -- config/ 2>/dev/null)" ]; then \
+				echo "WARN: config/ changed after build; review and commit regenerated files:" >&2; \
+				git --no-pager status --porcelain -- config/ >&2 || true; \
+			fi; \
+		else \
+			echo "WARN: config_sync failed; config/ may be out of sync with the build." >&2; \
+		fi; \
+	fi
+endef
 
 # Validate coreboot CBFS size against IFD BIOS region
 validate_cbfs_ifd:
@@ -401,6 +440,50 @@ endef
 # these are the external pieces that will be downloaded and built
 # as part of creating the Heads firmware image.
 include modules/*
+
+# Normalize/validate committed linux/coreboot configs and defconfig backups
+# against consumed build outputs.  The post-build hook runs after normal builds
+# unless skipped; local make/build_all warn on drift or helper issues, CI runs
+# strict config_sync before publishing artifacts and fails on helper error or
+# config drift.  Save helpers run in a temp obj tree and replace files only when
+# content differs.
+.PHONY: config_sync \
+	linux.save_in_defconfig_format_in_place \
+	linux.save_in_defconfig_format_backup \
+	linux.save_in_versioned_defconfig_format \
+	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_oldconfig_format_backup \
+	linux.save_in_versioned_oldconfig \
+	linux.prompt_for_new_config_options_for_kernel_version_bump \
+	coreboot.save_in_defconfig_format_in_place \
+	coreboot.save_in_oldconfig_format_in_place \
+	coreboot.save_in_defconfig_format_backup
+config_sync:
+	@if [ -n "$(filter-out config_sync,$(MAKECMDGOALS))" ]; then \
+		echo "config_sync must be run as a standalone goal" >&2; exit 1; \
+	fi
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		linux.save_in_olddefconfig_format_in_place
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		linux.save_in_defconfig_format_backup
+ifeq "$(CONFIG_COREBOOT)" "y"
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		coreboot.save_in_oldconfig_format_in_place
+	@$(MAKE) BOARD=$(BOARD) CONFIG_SYNC_MODE=1 VALIDATE_BUILD_CONFIG=1 REQUIRE_BUILD_CONFIG=1 WARN_BUILD_CONFIG=$(if $(CONFIG_SYNC_WARN),1,0) \
+		coreboot.save_in_defconfig_format_backup
+endif
+linux.save_in_defconfig_format_in_place \
+	linux.save_in_defconfig_format_backup \
+	linux.save_in_versioned_defconfig_format \
+	linux.save_in_olddefconfig_format_in_place \
+	linux.save_in_oldconfig_format_backup \
+	linux.save_in_versioned_oldconfig \
+	linux.prompt_for_new_config_options_for_kernel_version_bump: $(build)/$(linux_base_dir)/.canary
+ifeq "$(CONFIG_COREBOOT)" "y"
+coreboot.save_in_defconfig_format_in_place \
+	coreboot.save_in_oldconfig_format_in_place \
+	coreboot.save_in_defconfig_format_backup: $(build)/$(coreboot_base_dir)/.canary
+endif
 
 # Collect all data files from enabled modules
 data_files :=

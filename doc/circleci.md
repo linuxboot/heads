@@ -144,6 +144,32 @@ refreshes restored build stamps to prevent spurious rebuilds, and creates
 `logs.tar.gz` on every build.  A separate step emits recent failing-build logs
 and returns failure only when the marker created by the build step is present.
 
+Normal board builds run `config_sync` automatically in warning mode after
+build (`maybe_config_sync_after_build`, unless `CONFIG_SYNC_SKIP_AUTO=1`), so
+they can normalize/validate committed `config/` files against the consumed
+build outputs and report helper issues or drift for review.  CI skips that
+automatic hook via `CONFIG_SYNC_SKIP_AUTO=1` in the build step and runs a
+separate strict `config_sync` before `store_artifacts`, so unverified
+ROMs/ZIPs are never published: `make BOARD=<target> config_sync` followed by
+`git --no-pager status --porcelain -- config/` fails the job on any committed
+`config/` drift (the Make target may succeed while updating an outdated
+defconfig backup).  `config_sync` can replace a differing defconfig backup in
+the checkout before that `git status` check fails the job; CI does not commit
+the change.  ROMs/ZIPs are staged into `verified-artifacts` only after the
+fail-safe passes and only that staged directory is published, while
+`logs.tar.gz` is stored separately so failed builds keep their logs.
+`config_sync` must be run standalone — mixed goals
+are rejected — and only that standalone invocation preserves
+`hashes.txt`/`sizes.txt`.  Toolchain-only jobs skip the step.  Locally,
+`bin/build_all_boards.sh` reports warnings from board logs and resulting
+`config/` status.  The save helpers (see
+[modules.md](modules.md#module-level-helpers) and
+[variation-to-defconfig.md](variation-to-defconfig.md)) generate in a
+`mktemp` dir outside the tree, compare committed configs with the consumed
+build config (accounting for build-time template/generated fields), and
+replace committed files only when content differs.  Git commands use
+`--no-pager` because CircleCI runs steps with a PTY.
+
 1. **`create_hashes`**: Computes sha256 hashes (cache keys) from source
    files and persists `tmpDir/` to workspace.  Four hash files are created:
    - `all_modules_and_patches.sha256sums`: `Makefile`, `flake.lock`,
@@ -195,7 +221,7 @@ Seed job names in CircleCI include their upstream coreboot base in
 |---|---|---|
 | `novacustom-nv4x_adl [seed:coreboot-24.12]` | 7 (8 configured Dasharo boards including this seed) | coreboot 24.12 |
 | `librem_14 [seed:coreboot-24.02.01]` | 8 Purism boards | coreboot 24.02.01 |
-| `kano [seed:coreboot-mrchromebox-26.03]` | 1 (`kano-hotp`) | MrChromebox fork (coreboot 26.03) |
+| `fizz [seed:coreboot-mrchromebox-26.03]` | 3 (`fizz-hotp, kano-hotp, kano`) | MrChromebox fork (coreboot 26.03) |
 | `EOL_t480-hotp-maximized [seed:coreboot-26.09]` | 33 | coreboot 26.09 |
 | `EOL_librem_l1um [seed:coreboot-4.11]` | none (standalone) | coreboot 4.11 |
 | `ppc64_talos_2 [seed:coreboot-talos-2]` | none (standalone) | Dasharo fork for Talos 2 |
@@ -283,9 +309,15 @@ complexity (different source types: tarball vs git fork).
 When changing `.circleci/config.yml`, update this document:
 
 - **Job graph changed**: Update Pipeline shape and seed list.
+- **`build_board` command steps changed** (e.g. the config sync fail-safe):
+  Update Step details.
 - **Cache key, restore order, or saved path changed**: Update Cache
   model and `Why musl could rebuild`.
 - **Runtime or rebuild semantics changed**: Update Pipeline details.
+- **Config sync behavior changed** (fails on committed `config/`
+  drift; `config_sync` may replace a differing defconfig backup in the
+  checkout, but CI does not commit it):
+  Update Step details and the fail-safe description above.
 - **New Dasharo fork added**: In `modules/coreboot`, set its toolchain
   to `dasharo_nv4x` if crossgcc sum files match; add a `build` job in
   `.circleci/config.yml` depending on `novacustom-nv4x_adl`.  If sum

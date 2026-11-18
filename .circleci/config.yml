@@ -37,7 +37,7 @@ commands:
             #Pass AVAILABLE_MEM_GB=8 to respect CircleCI free tier RAM assignation, which otherwise randomly fails. See Makefile calculations.
             # Without AVAILABLE_MEM_GB=8: CircleCI passes '-j36 --load-average=54'
             # With AVAILABLE_MEM_GB=8: CircleCI passes '-j8 --load-average=12'
-            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
+            make V=1 BOARD=<< parameters.target >> << parameters.subcommand >> CONFIG_SYNC_SKIP_AUTO=1 AVAILABLE_MEM_GB=8  | ts || touch ./tmpDir/failed_build
           no_output_timeout: 3h
       - run:
           name: Output hashes
@@ -60,8 +60,53 @@ commands:
             else
               echo "Step hasn't failed. Continuing with next step..."
             fi
+      - run:
+          name: "Config sync fail-safe: config/ must match what linux and coreboot actually consume"
+          command: |
+            # CI skips the automatic post-build hook via CONFIG_SYNC_SKIP_AUTO=1
+            # (passed to the build step above) and runs strict config_sync
+            # separately here, failing on helper error or committed config/
+            # drift.  ROMs/ZIPs are staged into ./verified-artifacts only after
+            # this check passes, and only that staged directory is published;
+            # build logs are stored separately, so failed builds keep them.
+            # Note that config_sync can replace a differing defconfig backup in
+            # the checkout before the git status check below fails the job:
+            # CI does not commit that change.
+            # --no-pager: CircleCI runs steps with a PTY; an unpaged git diff
+            # would hang in the pager until the step timeout.
+            case "<< parameters.subcommand >>" in
+              musl-cross-make*)
+                echo "Toolchain-only job; no board config to sync."
+                exit 0
+                ;;
+            esac
+            source /devenv.sh
+            make BOARD=<< parameters.target >> config_sync AVAILABLE_MEM_GB=8 \
+              || { echo "FAIL-SAFE: config regeneration failed (see above)." >&2; exit 1; }
+            drift="$(git --no-pager status --porcelain -- config/)" || exit 1
+            if [ -n "$drift" ]; then
+              printf '%s\n' "$drift" >&2
+              git --no-pager diff -- config/ >&2
+              echo "FAIL-SAFE: committed config/ drifted from the build." >&2
+              exit 1
+            fi
+            echo "config/ in sync: committed files match what linux and coreboot consumed."
+      - run:
+          name: Stage verified artifacts
+          command: |
+            # Only reached when the fail-safe above passed: ROMs/ZIPs are
+            # staged for publication from this point on.  Logs are stored from
+            # the build directory separately, so failed builds keep them.
+            # Toolchain-only jobs have no board dir to stage from.
+            rm -rf ./verified-artifacts
+            mkdir -p ./verified-artifacts
+            if [ -d "build/<< parameters.arch >>/<< parameters.target >>" ]; then
+              cp -a build/<< parameters.arch >>/<< parameters.target >>/. ./verified-artifacts/
+            fi
       - store_artifacts:
-          path: build/<< parameters.arch >>/<< parameters.target >>
+          path: verified-artifacts
+      - store_artifacts:
+          path: build/<< parameters.arch >>/<< parameters.target >>/logs.tar.gz
 
 jobs:
 
