@@ -71,17 +71,25 @@ tmp=$(cd "$tmp" && pwd)
 # input that lies inside a directory cleared before that input is read.
 extract_abs=$(cd -P -- "$tmp" && pwd -P)
 zip1_abs=$(readlink -f -- "$zip1")
-case "$zip1_abs" in
-	"$extract_abs/a"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
-esac
+zip1_link=$(cd -P -- "$(dirname -- "$zip1")" && pwd -P)/$(basename -- "$zip1")
+for p in "$zip1_link" "$zip1_abs"; do
+	case "$p" in
+		"$extract_abs/a"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
+	esac
+done
 if [ -n "$zip2" ]; then
-	case "$zip1_abs" in
-		"$extract_abs/b"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
-	esac
 	zip2_abs=$(readlink -f -- "$zip2")
-	case "$zip2_abs" in
-		"$extract_abs/a"/*|"$extract_abs/b"/*) echo "input inside extraction directory: $zip2" >&2; exit 2 ;;
-	esac
+	zip2_link=$(cd -P -- "$(dirname -- "$zip2")" && pwd -P)/$(basename -- "$zip2")
+	for p in "$zip2_link" "$zip2_abs"; do
+		case "$p" in
+			"$extract_abs/a"/*|"$extract_abs/b"/*) echo "input inside extraction directory: $zip2" >&2; exit 2 ;;
+		esac
+	done
+	for p in "$zip1_link" "$zip1_abs"; do
+		case "$p" in
+			"$extract_abs/b"/*) echo "input inside extraction directory: $zip1" >&2; exit 2 ;;
+		esac
+	done
 fi
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
@@ -203,6 +211,7 @@ done < <( (cd "$tmp/a" && find . -type f -print0; cd "$tmp/b" && find . -type f 
 
 # Optionally diff ROM structure with host-built coreboot tools from the local
 # build tree to attribute content differences to flash regions or CBFS entries.
+inspection_failed=0
 if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	echo
 	echo "== ROM tools =="
@@ -212,13 +221,33 @@ if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	[ -n "$cbf" ] && echo "cbfstool: $cbf" || echo "cbfstool: not found in build tree"
 	if [ -n "$ifd" ]; then
 		echo "-- ifdtool -d (diff) --"
-		diff -u \
-			<("$ifd" -d "$rom_a" 2>&1 | normalize_rom_path "$rom_a" || true) \
-			<("$ifd" -d "$rom_b" 2>&1 | normalize_rom_path "$rom_b" || true) | head -120 || true
+		ifd_a=""; ifd_b=""; ifd_rc_a=0; ifd_rc_b=0
+		ifd_a=$("$ifd" -d "$rom_a" 2>&1) || ifd_rc_a=$?
+		ifd_b=$("$ifd" -d "$rom_b" 2>&1) || ifd_rc_b=$?
+		if [ "$ifd_rc_a" -ne 0 ] || [ "$ifd_rc_b" -ne 0 ]; then
+			echo "ifdtool inspection failed (a=$ifd_rc_a, b=$ifd_rc_b)"
+			[ "$ifd_rc_a" -ne 0 ] && printf 'ifdtool (a):\n%s\n' "$ifd_a" || true
+			[ "$ifd_rc_b" -ne 0 ] && printf 'ifdtool (b):\n%s\n' "$ifd_b" || true
+			inspection_failed=1
+		else
+			diff -u \
+				<(printf '%s\n' "$ifd_a" | normalize_rom_path "$rom_a") \
+				<(printf '%s\n' "$ifd_b" | normalize_rom_path "$rom_b") | head -120 || true
+		fi
 	fi
 	if [ -n "$cbf" ]; then
 		echo "-- cbfstool print (diff) --"
-		diff -u <("$cbf" "$rom_a" print 2>&1 || true) <("$cbf" "$rom_b" print 2>&1 || true) | head -120 || true
+		cbf_a=""; cbf_b=""; cbf_rc_a=0; cbf_rc_b=0
+		cbf_a=$("$cbf" "$rom_a" print 2>&1) || cbf_rc_a=$?
+		cbf_b=$("$cbf" "$rom_b" print 2>&1) || cbf_rc_b=$?
+		if [ "$cbf_rc_a" -ne 0 ] || [ "$cbf_rc_b" -ne 0 ]; then
+			echo "cbfstool inspection failed (a=$cbf_rc_a, b=$cbf_rc_b)"
+			[ "$cbf_rc_a" -ne 0 ] && printf 'cbfstool (a):\n%s\n' "$cbf_a" || true
+			[ "$cbf_rc_b" -ne 0 ] && printf 'cbfstool (b):\n%s\n' "$cbf_b" || true
+			inspection_failed=1
+		else
+			diff -u <(printf '%s\n' "$cbf_a") <(printf '%s\n' "$cbf_b") | head -120 || true
+		fi
 	fi
 	[ -z "$ifd" ] && [ -z "$cbf" ] && echo "hint: build the board locally so host tools exist under build/<arch>/coreboot-*/util"
 fi
@@ -228,4 +257,5 @@ if [ $rc -eq 0 ]; then
 else
 	echo "result: NOT identical (see differences above)"
 fi
+[ "$inspection_failed" -eq 1 ] && echo "result: ROM inspection incomplete (see diagnostics above)"
 exit $rc
