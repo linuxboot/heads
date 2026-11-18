@@ -154,7 +154,9 @@ filenames.  The Talos `ppc_tgz` target has its own `heads-` prefix convention.
 `build/<arch>/<board>/hashes.txt` and `sizes.txt` are measurement records for
 the current `make` invocation.  At Makefile parse time,
 `BOARD_LOG := $(shell ...)` writes a fresh build metadata header to both files
-before recipes are considered.  Measurement recipes then append their records
+before recipes are considered.  The header's timestamp field is the current
+commit's committer date (not the build wall clock), so two builds of the same
+commit write the same header.  Measurement recipes then append their records
 when they execute.
 
 - These are rule-dependent records, not complete manifests: only explicit
@@ -192,9 +194,12 @@ report of how much of a particular SPI/IFD region is available.
 An x86 update ZIP copies the current `hashes.txt` only when the ZIP recipe
 rebuilds the package.  Resetting the build-directory manifest alone does not
 invalidate or rewrite an already-existing ZIP.  Its `sha256sum.txt` covers the
-packaged ROM.  In the Talos II `.tgz`, `sha256sum.txt` covers the ROM,
-bootblock, and bundled Linux image.  These package checksums and the
-build-directory manifests have different scopes.
+packaged ROM.  The ZIP's member mtimes are pinned to the commit timestamp, its
+member modes are normalized, and its extended-timestamp/uid-gid extra fields are
+omitted (run in UTC), so a rebuilt package is byte-identical for a given commit
+when its packaged contents match.  In the Talos II `.tgz`, `sha256sum.txt`
+covers the ROM, bootblock, and bundled Linux image.  These package checksums and
+the build-directory manifests have different scopes.
 
 ## Coreboot filename variables
 

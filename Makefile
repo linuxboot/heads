@@ -88,8 +88,13 @@ $(info !!!!!! Build starts !!!!!!)
 $(if $(BOARD),$(info COMMIT $(GIT_HASH) $(HEADS_GIT_VERSION)),)
 
 
+# Build metadata timestamps are derived from the current commit rather than
+# the wall clock, so hashes.txt/sizes.txt headers, the measurement log lines,
+# and the update ZIP are deterministic for a given commit.  Fall back to
+# SOURCE_DATE_EPOCH, then epoch 0, when the tree has no commit (source tarball).
+COMMIT_EPOCH := $(shell git log -1 --format=%ct 2>/dev/null || echo $${SOURCE_DATE_EPOCH:-0})
 # Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+DATE := $(shell date -u -d "@$(COMMIT_EPOCH)" --rfc-3339=seconds)
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 
@@ -305,6 +310,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
+	rm -f "$@"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -313,7 +319,14 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	# after the zip was already assembled.
 	sha256sum "$(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE)" >> "$(board_build)/update_pkg/$(notdir $(HASHES))"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+	# Pin member mtimes to the commit-derived timestamp, normalize their modes,
+	# and drop zip's extended-timestamp/uid-gid extra fields (and run zip in
+	# UTC) so the package is byte-identical for a given commit regardless of
+	# the build host's clock, umask, or timezone.
+	cd "$(board_build)/update_pkg" && \
+		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		TZ=UTC zip -9 -X "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
@@ -450,6 +463,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 sha256sum ; \
 		echo "-----" ; \
 		) >> "$(HASHES)" \
@@ -458,6 +472,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 stat -c "%8s:%n" ; \
 		echo "-----" ; \
 		) >> "$(SIZES)" \
