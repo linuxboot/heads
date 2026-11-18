@@ -81,9 +81,9 @@ input_overlaps_extract() {
 		case "$comp" in ""|".") continue ;; "..") cur=${cur%/}; cur=${cur%/*}/; continue ;; esac
 		cur=${cur%/}/$comp
 		while :; do
-			case "$cur" in
-				"$extract_abs/a"/*|"$extract_abs/b"/*) return 0 ;;
-			esac
+		case "$cur" in
+			"$extract_abs/a"|"$extract_abs/a"/*|"$extract_abs/b"|"$extract_abs/b"/*) return 0 ;;
+		esac
 			[ -L "$cur" ] || break
 			target=$(readlink -- "$cur")
 			case "$target" in
@@ -108,24 +108,24 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 arch="" root roots="" d f pat
+	local name=$1 arch="" root roots d f pat
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
 	root=$(cd build 2>/dev/null && pwd -P) || return 1
-	# Only the two build architectures Heads produces coreboot tools for are
-	# trusted. An --extract tree kept under build/ is never a candidate, even
-	# from an earlier run.
-	for d in "$root/x86" "$root/ppc64"; do
-		[ -d "$d" ] && roots="$roots $d"
-	done
-	[ -n "$roots" ] || return 1
-	for try_arch in "$arch" ""; do
-		for pat in "*/coreboot-*/util/$name/$name" "*/coreboot-*/util/$name"; do
-			f=$(find $roots -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
-				| LC_ALL=C grep -v -F -e "$extract_abs/" \
-				| { if [ -n "$try_arch" ]; then LC_ALL=C grep -F -e "/build/$try_arch/" || true; else cat; fi; } \
-				| LC_ALL=C sort | head -n 1 || true)
+	# Only tools directly under a coreboot build output of a known architecture
+	# are trusted. Patterns are anchored so an extraction tree retained under
+	# build/ (with an extra path component) can never supply an executable.
+	if [ "$arch" = ppc64 ]; then
+		roots="$root/ppc64 $root/x86"
+	else
+		roots="$root/x86 $root/ppc64"
+	fi
+	for d in $roots; do
+		[ -d "$d" ] || continue
+		for pat in "$d/coreboot-*/util/$name/$name" "$d/coreboot-*/util/$name"; do
+			f=$(find "$d" -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
+				| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
 			[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 		done
 	done
