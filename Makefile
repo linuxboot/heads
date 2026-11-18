@@ -295,10 +295,16 @@ payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 # Disassemble/compare update ZIPs for same-commit reproducibility.
 # Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
 compare-zip:
-	@zip="$(ZIP)"; \
+	@zip="$(ZIP)"; ref="$(REF)"; \
+	case "$$zip" in -*) zip="./$$zip" ;; esac; \
+	case "$$ref" in -*) ref="./$$ref" ;; esac; \
 	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
 	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
-	./bin/compare-update-zip.sh $(if $(EXTRACT),--extract "$(EXTRACT)",) $(if $(ROM_TOOLS),--rom-tools,) "$$zip" $(if $(REF),"$(REF)",)
+	if [ -n "$$ref" ]; then \
+		./bin/compare-update-zip.sh $(if $(EXTRACT),--extract "$(EXTRACT)",) $(if $(ROM_TOOLS),--rom-tools,) "$$zip" "$$ref"; \
+	else \
+		./bin/compare-update-zip.sh $(if $(EXTRACT),--extract "$(EXTRACT)",) $(if $(ROM_TOOLS),--rom-tools,) "$$zip"; \
+	fi
 
 ifeq ($(CONFIG_COREBOOT), y)
 
@@ -325,7 +331,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
-	rm -f "$@"
+	rm -f "$@.tmp"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -341,7 +347,8 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	cd "$(board_build)/update_pkg" && \
 		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
 		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
-		TZ=UTC zip -9 -X "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+		TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		mv -f "$@.tmp" "$@"
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)

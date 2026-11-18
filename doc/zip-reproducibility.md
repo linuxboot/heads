@@ -40,16 +40,21 @@ already present in the corresponding coreboot build directory and are reused.
 `--extract` keeps the unpacked ROMs so you can also run them manually:
 
 ```sh
-# --rom-tools prints these host-tool paths; a local build does not put them on PATH.
-IFDTOOL=$(find build/x86 -path '*/util/ifdtool/ifdtool' -type f -print -quit)
-CBFSTOOL=$(find build/x86 \( -path '*/util/cbfstool/cbfstool' -o -path '*/util/cbfstool' \) -type f -print -quit)
-"$IFDTOOL" -d /tmp/zipcmp/a/*.rom
-"$CBFSTOOL" /tmp/zipcmp/a/*.rom print
+# Use the exact paths printed by --rom-tools; a local build does not put these
+# tools on PATH. Skip an inspection when its tool is absent rather than
+# selecting an arbitrary file from the build tree.
+IFDTOOL=build/x86/coreboot-<version>/util/ifdtool/ifdtool
+CBFSTOOL=build/x86/coreboot-<version>/<board>/cbfstool
+# --extract prints a fresh run directory containing a/ and b/.
+[ -x "$IFDTOOL" ] && "$IFDTOOL" -d /tmp/zipcmp/zipcmp.*/a/*.rom
+[ -x "$CBFSTOOL" ] && "$CBFSTOOL" /tmp/zipcmp/zipcmp.*/a/*.rom print
 ```
 
 ## Manual disassembly
 
-```sh
+The final comparison uses Bash process substitution; run this block in Bash.
+
+```bash
 # Archive listing and member metadata
 unzip -lv <pkg>.zip
 
