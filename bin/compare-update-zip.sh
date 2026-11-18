@@ -106,6 +106,15 @@ find_tool() {
 	return 1
 }
 
+# Replace a literal path in tool output without interpreting it as a regex or
+# sed program (member names come from an untrusted archive).
+normalize_rom_path() {
+	local path=$1 line
+	while IFS= read -r line || [ -n "$line" ]; do
+		printf '%s\n' "${line//"$path"/<rom>}"
+	done
+}
+
 # Print archive details and checksums/modes/mtimes for every member, then
 # extract members into the given directory for byte-level comparison.
 inspect() {
@@ -198,8 +207,8 @@ if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	if [ -n "$ifd" ]; then
 		echo "-- ifdtool -d (diff) --"
 		diff -u \
-			<("$ifd" -d "$rom_a" 2>&1 | sed "s@$rom_a@<rom>@g" || true) \
-			<("$ifd" -d "$rom_b" 2>&1 | sed "s@$rom_b@<rom>@g" || true) | head -120 || true
+			<("$ifd" -d "$rom_a" 2>&1 | normalize_rom_path "$rom_a" || true) \
+			<("$ifd" -d "$rom_b" 2>&1 | normalize_rom_path "$rom_b" || true) | head -120 || true
 	fi
 	if [ -n "$cbf" ]; then
 		echo "-- cbfstool print (diff) --"
