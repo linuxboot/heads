@@ -87,8 +87,12 @@ for board_dir in boards/*/; do
 	[ -f "$board_config" ] || continue
 
 	# A signal may arrive while the previous child is being reaped, after its
-	# PID was cleared.  Stop before starting another board.
+	# PID was cleared.  Stop before starting another board and count it as
+	# not verified so the batch exits non-zero.
 	if [ "$interrupted" -ne 0 ]; then
+		echo "   INT  $board (interrupted before start, not run)"
+		echo "$board" >>"$FAIL_LOG"
+		fail=$((fail + 1))
 		break
 	fi
 
@@ -206,6 +210,14 @@ echo "==========================================="
 
 if [ "$selected" -eq 0 ]; then
 	echo "No boards matched pattern: ${PATTERN:-<none>}" >&2
+	exit 1
+fi
+
+# A signal received between boards can leave a remaining board unstarted (counted
+# as failed above) or a child-only interruption race; require a clean, uninterrupted
+# batch before reporting success.
+if [ "$interrupted" -ne 0 ]; then
+	echo "build_all_boards: interrupted; batch incomplete (selected=$selected, passed=$pass, failed=$fail)." >&2
 	exit 1
 fi
 
