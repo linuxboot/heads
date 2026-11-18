@@ -50,13 +50,15 @@ cbfstool /tmp/zipcmp/a/*.rom print
 # Archive listing and member metadata
 unzip -lv <pkg>.zip
 
-# Extract and checksum members
-mkdir /tmp/zip-a && unzip -q <pkg>.zip -d /tmp/zip-a
-(cd /tmp/zip-a && sha256sum *)
+# Extract both archives into fresh directories and checksum their members
+A=$(mktemp -d) && unzip -q <pkg>.zip -d "$A"
+B=$(mktemp -d) && unzip -q /path/to/reference/<pkg>.zip -d "$B"
+(cd "$A" && sha256sum *)
+(cd "$B" && sha256sum *)
 
 # Compare member hash entries independent of order
-diff <(grep '^[0-9a-f]\{64\}  ' /tmp/zip-a/hashes.txt | sort) \
-     <(grep '^[0-9a-f]\{64\}  ' /tmp/zip-b/hashes.txt | sort)
+diff <(grep '^[0-9a-f]\{64\}  ' "$A/hashes.txt" | sort) \
+     <(grep '^[0-9a-f]\{64\}  ' "$B/hashes.txt" | sort)
 ```
 
 ## Interpreting results
