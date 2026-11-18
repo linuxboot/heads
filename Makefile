@@ -200,16 +200,23 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
-# Create the board output directory if it doesn't already exist
+# Create the board output directory if it doesn't already exist. Skip for
+# compare-zip-only invocations so inspecting an archive preserves the board's
+# existing build manifests.
+ifneq ($(MAKECMDGOALS),compare-zip)
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
+endif
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
-# Create empty initrd for initial kernel "without" initrd.
+# Create empty initrd for initial kernel "without" initrd. Skip for
+# compare-zip-only invocations so an existing build artifact is preserved.
+ifneq ($(MAKECMDGOALS),compare-zip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
+endif
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -282,8 +289,16 @@ CROSS_TOOLS := \
 	$(CROSS_TOOLS_NOCC) \
 
 # Targets to build payload only
-.PHONY: payload
+.PHONY: payload compare-zip
 payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
+
+# Disassemble/compare update ZIPs for same-commit reproducibility.
+# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
+compare-zip:
+	@zip="$(ZIP)"; \
+	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
+	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
+	./bin/compare-update-zip.sh $(if $(EXTRACT),--extract "$(EXTRACT)",) $(if $(ROM_TOOLS),--rom-tools,) "$$zip" $(if $(REF),"$(REF)",)
 
 ifeq ($(CONFIG_COREBOOT), y)
 
