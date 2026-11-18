@@ -108,25 +108,28 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 arch="" root roots d f pat
+	local name=$1 arch="" root d c f
+	local -a roots
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
 	root=$(cd build 2>/dev/null && pwd -P) || return 1
-	# Only tools directly under a coreboot build output of a known architecture
-	# are trusted. Patterns are anchored so an extraction tree retained under
-	# build/ (with an extra path component) can never supply an executable.
+	# Enumerate direct coreboot-* children of known arch dirs only. No recursive
+	# wildcard search: an extraction tree retained under build/ must never be
+	# able to supply an executable for --rom-tools.
 	if [ "$arch" = ppc64 ]; then
-		roots="$root/ppc64 $root/x86"
+		roots=("$root/ppc64" "$root/x86")
 	else
-		roots="$root/x86 $root/ppc64"
+		roots=("$root/x86" "$root/ppc64")
 	fi
-	for d in $roots; do
+	for d in "${roots[@]}"; do
 		[ -d "$d" ] || continue
-		for pat in "$d/coreboot-*/util/$name/$name" "$d/coreboot-*/util/$name"; do
-			f=$(find "$d" -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
-				| LC_ALL=C grep -v -F -e "$extract_abs/" | LC_ALL=C sort | head -n 1 || true)
-			[ -n "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+		for c in "$d"/coreboot-*; do
+			[ -d "$c" ] && [ ! -L "$c" ] || continue
+			f="$c/util/$name/$name"
+			[ -f "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			f="$c/util/$name"
+			[ -f "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 		done
 	done
 	return 1
