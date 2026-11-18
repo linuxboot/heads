@@ -24,8 +24,8 @@ Usage: compare-update-zip.sh [--extract DIR] [--rom-tools] [--disassemble] <zip>
 Disassemble a Heads update ZIP and, when two ZIPs are given, compare them for
 same-commit reproducibility.
 
-  --extract DIR   Extract members into DIR/<a|b> and keep them (for external
-                  inspection, e.g. ifdtool/cbfstool on the ROMs)
+  --extract DIR   Keep members in a fresh DIR/zipcmp.XXXXXX/<a|b> workspace
+                  (for external inspection, e.g. ifdtool/cbfstool on the ROMs)
   --rom-tools     Diff host-built ifdtool/cbfstool output on the extracted ROMs
   --disassemble   Print archive/member details for <zip> and exit
   <zip> [zip2]    Compare <zip> to <zip2>; exits 0 if identical
@@ -65,47 +65,14 @@ else
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT
 fi
-tmp=$(cd "$tmp" && pwd)
+tmp=$(CDPATH= cd -- "$tmp" && pwd)
 
-# inspect() clears "$tmp/a" and "$tmp/b" before it reads its ZIP. Reject an
-# input that lies inside a directory cleared before that input is read.
-extract_abs=$(cd -P -- "$tmp" && pwd -P)
-check_b=0
-[ -n "$zip2" ] && [ "$disassemble" -eq 0 ] && check_b=1
-# True if the input path, or any symlink in its chain, lies inside a directory
-# that this invocation clears before reading the input.
-input_overlaps_extract() {
-	local p=$1 comp cur prefix="" target
-	local -a comps
-	IFS='/' read -r -a comps <<< "$p"
-	case "$p" in /*) ;; *) prefix=$PWD/ ;; esac
-	cur=$prefix
-	for comp in "${comps[@]}"; do
-		case "$comp" in ""|".") continue ;; "..") cur=${cur%/}; cur=${cur%/*}/; continue ;; esac
-		cur=${cur%/}/$comp
-		while :; do
-		case "$cur" in
-			"$extract_abs/a"|"$extract_abs/a"/*) return 0 ;;
-		esac
-		if [ "$check_b" -eq 1 ]; then
-			case "$cur" in
-				"$extract_abs/b"|"$extract_abs/b"/*) return 0 ;;
-			esac
-		fi
-			[ -L "$cur" ] || break
-			target=$(readlink -- "$cur")
-			case "$target" in
-				/*) cur=$target ;;
-				*) cur=$(dirname -- "$cur")/$target ;;
-			esac
-			cur=$(cd -P -- "$(dirname -- "$cur")" 2>/dev/null && pwd -P)/$(basename -- "$cur") || return 0
-		done
-	done
-	return 1
-}
-input_overlaps_extract "$zip1" && { echo "input inside extraction directory: $zip1" >&2; exit 2; }
+# Each run gets a fresh workspace, so inputs can never be removed by a prior
+# extraction and there is no overlap state to guard. Stage inputs under fixed
+# names: Info-ZIP interprets brackets in an archive name as a pattern.
+cp -- "$zip1" "$tmp/input1.zip"
 if [ -n "$zip2" ]; then
-	input_overlaps_extract "$zip2" && { echo "input inside extraction directory: $zip2" >&2; exit 2; }
+	cp -- "$zip2" "$tmp/input2.zip"
 fi
 
 # Locate a host-built coreboot utility (ifdtool/cbfstool) in the local build
@@ -124,7 +91,7 @@ find_tool() {
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
-	root=$(cd build 2>/dev/null && pwd -P) || return 1
+	root=$(CDPATH= cd -- build 2>/dev/null && pwd -P) || return 1
 	# Enumerate direct coreboot-* children of known arch dirs only. No recursive
 	# wildcard search: an extraction tree retained under build/ must never be
 	# able to supply an executable for --rom-tools.
@@ -201,7 +168,7 @@ inspect() {
 	fi
 }
 
-inspect "$zip1" "$tmp/a"
+inspect "$tmp/input1.zip" "$tmp/a"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/a"
 
 if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
@@ -210,7 +177,7 @@ if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
 fi
 
 echo
-inspect "$zip2" "$tmp/b"
+inspect "$tmp/input2.zip" "$tmp/b"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/b"
 
 echo
@@ -248,7 +215,7 @@ while IFS= read -r -d '' m; do
 				if [ "$(basename "$m")" = sizes.txt ]; then
 					entry='^[[:space:]]*[0-9][0-9]*:'
 				else
-					entry='^[0-9a-f]\{64\}  '
+					entry='^[\\]\?[0-9a-f]\{64\}  '
 				fi
 				echo "-- sorted entry diff (header/order-only differences excluded) --"
 				diff -u \

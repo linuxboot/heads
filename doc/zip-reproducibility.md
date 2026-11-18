@@ -45,9 +45,10 @@ already present in the corresponding coreboot build directory and are reused.
 # selecting an arbitrary file from the build tree.
 IFDTOOL=build/x86/coreboot-<version>/util/ifdtool/ifdtool
 CBFSTOOL=build/x86/coreboot-<version>/<board>/cbfstool
-# --extract prints a fresh run directory containing a/ and b/.
-[ -x "$IFDTOOL" ] && "$IFDTOOL" -d /tmp/zipcmp/zipcmp.*/a/*.rom
-[ -x "$CBFSTOOL" ] && "$CBFSTOOL" /tmp/zipcmp/zipcmp.*/a/*.rom print
+# Use the exact "extracted:" run directory printed for the run you inspect.
+RUN=/tmp/zipcmp/zipcmp.XXXXXX
+[ -x "$IFDTOOL" ] && "$IFDTOOL" -d "$RUN/a/"*.rom
+[ -x "$CBFSTOOL" ] && "$CBFSTOOL" "$RUN/a/"*.rom print
 ```
 
 ## Manual disassembly
@@ -55,18 +56,14 @@ CBFSTOOL=build/x86/coreboot-<version>/<board>/cbfstool
 The final comparison uses Bash process substitution; run this block in Bash.
 
 ```bash
-# Archive listing and member metadata
-unzip -lv <pkg>.zip
+# Let the script list, checksum and extract each archive (it also rejects
+# symlink members and handles literal archive names).
+bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp <pkg>.zip
+bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp /path/to/reference/<pkg>.zip
 
-# Extract both archives into fresh directories and checksum their members
-A=$(mktemp -d) && unzip -q <pkg>.zip -d "$A"
-B=$(mktemp -d) && unzip -q /path/to/reference/<pkg>.zip -d "$B"
-(cd "$A" && sha256sum *)
-(cd "$B" && sha256sum *)
-
-# Compare member hash entries independent of order
-diff <(grep '^[0-9a-f]\{64\}  ' "$A/hashes.txt" | sort) \
-     <(grep '^[0-9a-f]\{64\}  ' "$B/hashes.txt" | sort)
+# Use the two "extracted:" run directories printed above for the comparison.
+diff <(grep '^[0-9a-f]\{64\}  ' /path/to/runA/a/hashes.txt | sort) \
+     <(grep '^[0-9a-f]\{64\}  ' /path/to/runB/a/hashes.txt | sort)
 ```
 
 ## Interpreting results
