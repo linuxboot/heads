@@ -60,8 +60,8 @@ fi
 # Always create a fresh workspace per run: a retained --extract directory is
 # only a parent, never a set of member trees that an earlier run could mutate.
 if [ -n "$extract_dir" ]; then
-	mkdir -p "$extract_dir"
-	tmp=$(mktemp -d "$extract_dir/zipcmp.XXXXXX")
+	mkdir -p -- "$extract_dir"
+	tmp=$(mktemp -d -- "$extract_dir/zipcmp.XXXXXX")
 else
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT

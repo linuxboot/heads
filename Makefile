@@ -351,6 +351,13 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 		ZIPOPT= ZIP= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
 		mv -f "$@.tmp" "$@"
 
+# When payload is an explicit goal its measurement recipe also appends to the
+# shared manifests. Order it before the ZIP snapshot so the packaged manifest
+# is the same regardless of job scheduling.
+ifneq ($(filter payload,$(MAKECMDGOALS)),)
+$(board_build)/$(CB_UPDATE_PKG_FILE): | payload
+endif
+
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
 all: $(board_build)/$(CB_OUTPUT_FILE) $(board_build)/$(CB_UPDATE_PKG_FILE)
