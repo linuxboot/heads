@@ -74,10 +74,11 @@ extract_abs=$(cd -P -- "$tmp" && pwd -P)
 # that inspect() clears before reading the input.
 input_overlaps_extract() {
 	local p=$1 comp cur prefix="" target
+	local -a comps
+	IFS='/' read -r -a comps <<< "$p"
 	case "$p" in /*) ;; *) prefix=$PWD/ ;; esac
 	cur=$prefix
-	local IFS=/
-	for comp in $p; do
+	for comp in "${comps[@]}"; do
 		case "$comp" in ""|".") continue ;; "..") cur=${cur%/}; cur=${cur%/*}/; continue ;; esac
 		cur=${cur%/}/$comp
 		while :; do
@@ -123,13 +124,15 @@ find_tool() {
 		roots=("$root/x86" "$root/ppc64")
 	fi
 	for d in "${roots[@]}"; do
-		[ -d "$d" ] || continue
+		[ -d "$d" ] && [ ! -L "$d" ] || continue
 		for c in "$d"/coreboot-*; do
 			[ -d "$c" ] && [ ! -L "$c" ] || continue
+			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
+			[ ! -L "$c/util/$name" ] || continue
 			f="$c/util/$name/$name"
-			[ -f "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 			f="$c/util/$name"
-			[ -f "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
 		done
 	done
 	return 1
