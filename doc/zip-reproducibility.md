@@ -42,7 +42,7 @@ already present in the corresponding coreboot build directory and are reused.
 ```sh
 # --rom-tools prints these host-tool paths; a local build does not put them on PATH.
 IFDTOOL=$(find build/x86 -path '*/util/ifdtool/ifdtool' -type f -print -quit)
-CBFSTOOL=$(find build/x86 -path '*/util/cbfstool' -type f -print -quit)
+CBFSTOOL=$(find build/x86 \( -path '*/util/cbfstool/cbfstool' -o -path '*/util/cbfstool' \) -type f -print -quit)
 "$IFDTOOL" -d /tmp/zipcmp/a/*.rom
 "$CBFSTOOL" /tmp/zipcmp/a/*.rom print
 ```
