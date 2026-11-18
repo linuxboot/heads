@@ -197,7 +197,9 @@ if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	[ -n "$cbf" ] && echo "cbfstool: $cbf" || echo "cbfstool: not found in build tree"
 	if [ -n "$ifd" ]; then
 		echo "-- ifdtool -d (diff) --"
-		diff -u <("$ifd" -d "$rom_a" 2>&1 || true) <("$ifd" -d "$rom_b" 2>&1 || true) | head -120 || true
+		diff -u \
+			<("$ifd" -d "$rom_a" 2>&1 | sed "s@$rom_a@<rom>@g" || true) \
+			<("$ifd" -d "$rom_b" 2>&1 | sed "s@$rom_b@<rom>@g" || true) | head -120 || true
 	fi
 	if [ -n "$cbf" ]; then
 		echo "-- cbfstool print (diff) --"

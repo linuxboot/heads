@@ -53,6 +53,8 @@ unzip -lv <pkg>.zip
 # Extract and checksum members
 mkdir /tmp/zip-a && unzip -q <pkg>.zip -d /tmp/zip-a
 (cd /tmp/zip-a && sha256sum *)
+mkdir /tmp/zip-b && unzip -q /path/to/reference/<pkg>.zip -d /tmp/zip-b
+(cd /tmp/zip-b && sha256sum *)
 
 # Compare member hash entries independent of order
 diff <(grep '^[0-9a-f]\{64\}  ' /tmp/zip-a/hashes.txt | sort) \
