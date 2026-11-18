@@ -108,17 +108,21 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 arch="" root f pat
+	local name=$1 arch="" root roots="" d f pat
 	case "$zip1" in
 		*/build/*/*|build/*/*) arch=$(echo "$zip1" | sed -n 's#.*build/\([^/]*\)/.*#\1#p') ;;
 	esac
 	root=$(cd build 2>/dev/null && pwd -P) || return 1
-	# Search only the trusted ./build tree. The ZIP's architecture is a
-	# preference filter, never a search root, so a directory chosen by the
-	# archive path cannot supply an executable.
+	# Only the two build architectures Heads produces coreboot tools for are
+	# trusted. An --extract tree kept under build/ is never a candidate, even
+	# from an earlier run.
+	for d in "$root/x86" "$root/ppc64"; do
+		[ -d "$d" ] && roots="$roots $d"
+	done
+	[ -n "$roots" ] || return 1
 	for try_arch in "$arch" ""; do
 		for pat in "*/coreboot-*/util/$name/$name" "*/coreboot-*/util/$name"; do
-			f=$(find "$root" -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
+			f=$(find $roots -path "$pat" -type f ! -path "*/Documentation/*" -print 2>/dev/null \
 				| LC_ALL=C grep -v -F -e "$extract_abs/" \
 				| { if [ -n "$try_arch" ]; then LC_ALL=C grep -F -e "/build/$try_arch/" || true; else cat; fi; } \
 				| LC_ALL=C sort | head -n 1 || true)
@@ -135,6 +139,18 @@ normalize_rom_path() {
 	while IFS= read -r line || [ -n "$line" ]; do
 		printf '%s\n' "${line//"$path"/<rom>}"
 	done
+}
+
+# Pick the single ROM in one extracted tree, independent of member names.
+select_rom() {
+	local dir=$1 f n=0 out=""
+	while IFS= read -r -d '' f; do
+		n=$((n + 1))
+		out=$f
+	done < <(find "$dir" -type f -name '*.rom' -print0 2>/dev/null)
+	[ "$n" -le 1 ] || { echo "multiple ROMs in $dir; skipping ROM tools" >&2; return 1; }
+	[ "$n" -eq 1 ] && printf '%s' "$out"
+	return 0
 }
 
 # Print archive details and checksums/modes/mtimes for every member, then
@@ -189,12 +205,10 @@ fi
 # Compare every member present in either archive. For manifest files, also
 # compare the sorted hash-entry lines so an empty sorted diff reveals an
 # ordering-only difference in otherwise identical content.
-rom_a="" rom_b=""
 while IFS= read -r -d '' m; do
 	ma="$tmp/a/$m"; mb="$tmp/b/$m"
 	if [ ! -f "$ma" ]; then echo "member only in second: $m"; rc=1; continue; fi
 	if [ ! -f "$mb" ]; then echo "member only in first: $m"; rc=1; continue; fi
-	case "$m" in *.rom) rom_a=$ma; rom_b=$mb ;; esac
 	if cmp -s "$ma" "$mb"; then
 		echo "member identical: $m"
 	else
@@ -220,6 +234,8 @@ done < <( (cd "$tmp/a" && find . -type f -print0; cd "$tmp/b" && find . -type f 
 # Optionally diff ROM structure with host-built coreboot tools from the local
 # build tree to attribute content differences to flash regions or CBFS entries.
 inspection_failed=0
+rom_a=$(select_rom "$tmp/a") || rom_a=""
+rom_b=$(select_rom "$tmp/b") || rom_b=""
 if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	echo
 	echo "== ROM tools =="
