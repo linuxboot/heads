@@ -7,6 +7,7 @@
 u-root_url := github.com/u-root/u-root
 u-root_output := $(build)/$(BOARD)/u-root.cpio
 UROOT_CMDS ?=
+UROOT_TEMPLATE ?=
 
 export GOPATH=$(build)/go
 u-root_src_cmds := $(foreach cmd,$(UROOT_CMDS),github.com/u-root/u-root/cmds/$(cmd))
@@ -34,6 +35,7 @@ $(u-root_output): $(u-root_build) $(u-root_uinit)
 			-format=cpio \
 			-o $@  \
 			$(u-root_src_cmds)\
+			$(UROOT_TEMPLATE) \
 	)
 
 # Override the initrd inputs and add in the kernel modules
