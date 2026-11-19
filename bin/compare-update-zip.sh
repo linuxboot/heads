@@ -84,6 +84,18 @@ fi
 # Only coreboot build outputs are trusted: candidates under the physical
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
+trusted_tool_file() {
+	local f=$1 d
+	[ -f "$f" ] && [ ! -L "$f" ] || return 1
+	d=$(dirname -- "$f")
+	while [ "$d" != / ] && [ "$d" != . ]; do
+		[ ! -L "$d" ] || return 1
+		case "$d" in "$extract_abs"/*) return 1 ;; esac
+		d=$(dirname -- "$d")
+	done
+	return 0
+}
+
 find_tool() {
 	local name=$1 arch="" board="" root d c b f
 	local -a roots boards
@@ -124,15 +136,12 @@ find_tool() {
 			for b in "${boards[@]}"; do
 				[ -d "$c/$b" ] && [ ! -L "$c/$b" ] || continue
 				for f in "$c/$b/$name" "$c/$b/util/$name/$name"; do
-					[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+					trusted_tool_file "$f" && [ -x "$f" ] && { echo "$f"; return 0; }
 				done
 			done
-			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
-			[ ! -L "$c/util/$name" ] || continue
-			f="$c/util/$name/$name"
-			[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
-			f="$c/util/$name"
-			[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			for f in "$c/util/$name/$name" "$c/util/$name"; do
+				trusted_tool_file "$f" && [ -x "$f" ] && { echo "$f"; return 0; }
+			done
 		done
 	done
 	return 1
