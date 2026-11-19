@@ -147,12 +147,12 @@ select_rom() {
 # Print archive details and checksums/modes/mtimes for every member, then
 # extract members into the given directory for byte-level comparison.
 inspect() {
-	local z=$1 out=$2
+	local z=$1 out=$2 label=$3
 	mkdir -p "$out"
-	echo "== archive: $z"
-	sha256sum "$z"
+	echo "== archive: $label"
+	printf '%s  %s\n' "$(sha256sum "$z" | cut -d' ' -f1)" "$label"
 	echo "-- listing --"
-	unzip -lv "$z" || unzip -l "$z"
+	{ unzip -lv "$z" || unzip -l "$z"; } 2>/dev/null | grep -v '^Archive:' || true
 	echo "-- members --"
 	unzip -q -o "$z" -d "$out"
 	if [ -n "$(find "$out" -type l -print -quit 2>/dev/null)" ]; then
@@ -169,7 +169,7 @@ inspect() {
 	fi
 }
 
-inspect "$tmp/input1.zip" "$tmp/a"
+inspect "$tmp/input1.zip" "$tmp/a" "$zip1"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/a"
 
 if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
@@ -178,11 +178,11 @@ if [ "$disassemble" -eq 1 ] || [ -z "$zip2" ]; then
 fi
 
 echo
-inspect "$tmp/input2.zip" "$tmp/b"
+inspect "$tmp/input2.zip" "$tmp/b" "$zip2"
 [ -n "$extract_dir" ] && echo "extracted: $tmp/b"
 
 echo
-echo "== comparison =="
+echo "== comparison: $zip1 vs $zip2 =="
 cmp_rc=0
 cmp -s "$tmp/input1.zip" "$tmp/input2.zip" || cmp_rc=$?
 if [ "$cmp_rc" -eq 0 ]; then
