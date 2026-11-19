@@ -67,6 +67,7 @@ else
 	trap 'rm -rf "$tmp"' EXIT
 fi
 tmp=$(CDPATH= cd -- "$tmp" && pwd)
+extract_abs=$tmp
 
 # Each run gets a fresh workspace, so inputs can never be removed by a prior
 # extraction and there is no overlap state to guard. Stage inputs under fixed
@@ -84,8 +85,8 @@ fi
 # extraction root are filtered out so a crafted archive can never supply an
 # executable that is run here.
 find_tool() {
-	local name=$1 arch="" board="" root d c f
-	local -a roots
+	local name=$1 arch="" board="" root d c b f
+	local -a roots boards
 	case "$zip1" in
 		*/build/*/*/*|build/*/*/*) board=$(echo "$zip1" | sed -n 's#.*build/[^/]*/\([^/]*\)/.*#\1#p') ;;
 	esac
@@ -106,12 +107,26 @@ find_tool() {
 		for c in "$d"/coreboot-*; do
 			[ -d "$c" ] && [ ! -L "$c" ] || continue
 			# Some tools are built in the board output directory, flat or
-			# under its util/ subdirectory.
-			if [ -n "$board" ] && [ -d "$c/$board" ] && [ ! -L "$c/$board" ]; then
-				for f in "$c/$board/$name" "$c/$board/util/$name/$name"; do
-					[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+			# under its util/ subdirectory. If the ZIP path does not name a
+			# board, probe the direct (non-symlink) board-output children of
+			# this coreboot build, never extraction trees.
+			boards=()
+			if [ -n "$board" ]; then
+				boards=("$board")
+			else
+				for b in "$c"/*; do
+					[ -d "$b" ] && [ ! -L "$b" ] || continue
+					[ "$(basename "$b")" = util ] && continue
+					case "$b" in "$extract_abs"/*) continue ;; esac
+					boards+=("$(basename "$b")")
 				done
 			fi
+			for b in "${boards[@]}"; do
+				[ -d "$c/$b" ] && [ ! -L "$c/$b" ] || continue
+				for f in "$c/$b/$name" "$c/$b/util/$name/$name"; do
+					[ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ] && { echo "$f"; return 0; }
+				done
+			done
 			[ -d "$c/util" ] && [ ! -L "$c/util" ] || continue
 			[ ! -L "$c/util/$name" ] || continue
 			f="$c/util/$name/$name"
