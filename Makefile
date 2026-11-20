@@ -113,6 +113,15 @@ endif
 # By default, we are building for x86, up to a board to change this variable
 CONFIG_TARGET_ARCH := x86
 
+# Modules must be rebuilt when the build inputs that affect their binaries
+# change. Otherwise a reused tree can stage a binary compiled with another
+# board's toolchain/config into the initrd, and the same commit then produces
+# different hashes.txt and update ZIP bytes. The stamp is rewritten in place
+# only when its content changes, so Make uses it as a reliable prerequisite.
+build_env_inputs := $(wildcard Makefile modules/* $(CONFIG) docker/DOCKER_REPRO_DIGEST)
+build_env_sig := $(shell cat $(build_env_inputs) 2>/dev/null | sha256sum | cut -d' ' -f1)
+build_env_stamp := $(build)/build-env.sha256
+
 # Legacy flash boards have to be handled specifically for some functionality
 # (e.g. they don't generate upgrade packages, lack bash, etc.)  Use this to
 # guard behavior that is specific to legacy flash boards only.  Don't use it for
@@ -415,6 +424,14 @@ endif
 .INTERMEDIATE:
 .SUFFIXES:
 FORCE:
+
+# Refresh the build-environment stamp only when the signature changes.
+$(build_env_stamp): FORCE
+	@mkdir -p "$(dir $@)"
+	@sig='$(build_env_sig)'; \
+	if [ ! -r "$@" ] || [ "$$(cat "$@")" != "$$sig" ]; then \
+		printf '%s\n' "$$sig" > "$@"; \
+	fi
 
 # Copies config while replacing predefined placeholders with actual values
 # This is used in a command like 'this && $(call install_config ...) && that'
@@ -743,6 +760,7 @@ define define_module =
 
   #TODO: something better then removing .build: $($1.force) so that newt/ncurses are not rebuilt inconditionally?
   $(build)/$($1_dir)/.build: \
+		$(build_env_stamp) \
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
