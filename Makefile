@@ -119,7 +119,9 @@ CONFIG_TARGET_ARCH := x86
 # different hashes.txt and update ZIP bytes. The stamp is rewritten in place
 # only when its content changes, so Make uses it as a reliable prerequisite.
 build_env_inputs := $(wildcard Makefile modules/* $(CONFIG) docker/DOCKER_REPRO_DIGEST)
-build_env_sig := $(shell cat $(build_env_inputs) 2>/dev/null | sha256sum | cut -d' ' -f1)
+build_env_sig := $(shell { cat $(build_env_inputs) 2>/dev/null; \
+	printf '%s\n' '$(DOCKER_REPRO_DIGEST)' '$(HEADS_MAINTAINER_DOCKER_IMAGE)'; \
+} | sha256sum | cut -d' ' -f1)
 build_env_stamp := $(build)/build-env.sha256
 
 # Legacy flash boards have to be handled specifically for some functionality
@@ -296,6 +298,18 @@ CROSS_TOOLS_NOCC := \
 CROSS_TOOLS := \
 	CC="$(heads_cc)" \
 	$(CROSS_TOOLS_NOCC) \
+
+# Compiler settings must trigger reconfiguration, not only a rebuild: modules
+# such as OpenSSL read CROSS_TOOLS at Configure time and would otherwise keep
+# the previous compiler in their generated build configuration.
+compiler_env_sig := $(shell printf '%s\n' '$(heads_cc)' '$(CROSS_TOOLS)' | sha256sum | cut -d' ' -f1)
+compiler_env_stamp := $(build)/compiler-env.sha256
+$(compiler_env_stamp): FORCE
+	@mkdir -p "$(dir $@)"
+	@sig='$(compiler_env_sig)'; \
+	if [ ! -r "$@" ] || [ "$$(cat "$@")" != "$$sig" ]; then \
+		printf '%s\n' "$$sig" > "$@"; \
+	fi
 
 # Targets to build payload only
 .PHONY: payload compare-zip
@@ -727,6 +741,7 @@ define define_module =
   # this has to wait for the dependencies to be built since
   # cross compilers and libraries might be messed up
   $(dir $($1_config_file_path)).configured: \
+		$(compiler_env_stamp) \
 		$(build)/$($1_base_dir)/.canary \
 		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
 		$($1_config_file_path) \
