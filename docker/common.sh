@@ -1024,6 +1024,8 @@ print_digest_info() {
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
 	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm -ti)
+	# Pass image-selection overrides so build stamps can reflect the toolchain image.
+	opts+=(-e DOCKER_REPRO_DIGEST -e HEADS_MAINTAINER_DOCKER_IMAGE)
 
 	# USB passthrough
 	if [ -d "/dev/bus/usb" ] && [ "${HEADS_DISABLE_USB:-0}" != "1" ]; then
