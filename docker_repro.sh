@@ -46,6 +46,10 @@ if [[ ! "${DOCKER_IMAGE}" =~ @sha256:[0-9a-f]{64} ]]; then
 	exit 1
 fi
 
+# Pass the resolved image identity into the container so build stamps reflect
+# the selected toolchain image, not raw override variables.
+export HEADS_BUILD_IMAGE="$DOCKER_IMAGE"
+
 # Extract digest for CircleCI validation
 DIGEST="${DOCKER_IMAGE#*@}"
 VERSION=$(grep '^# Version:' "$(dirname "$0")/docker/DOCKER_REPRO_DIGEST" 2>/dev/null | sed 's/# Version: //' | head -n1)

@@ -120,7 +120,7 @@ CONFIG_TARGET_ARCH := x86
 # only when its content changes, so Make uses it as a reliable prerequisite.
 build_env_inputs := $(wildcard Makefile modules/* $(CONFIG) docker/DOCKER_REPRO_DIGEST)
 build_env_sig := $(shell { cat $(build_env_inputs) 2>/dev/null; \
-	printf '%s\n' '$(DOCKER_REPRO_DIGEST)' '$(HEADS_MAINTAINER_DOCKER_IMAGE)'; \
+	printf '%s\n' '$(HEADS_BUILD_IMAGE)'; \
 } | sha256sum | cut -d' ' -f1)
 build_env_stamp := $(build)/build-env.sha256
 
