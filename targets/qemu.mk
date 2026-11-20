@@ -118,6 +118,7 @@ run: $(TPMDIR)/.manufacture $(ROOT_DISK_IMG) $(MEMORY_SIZE_FILE) $(USB_FD_IMG)
 		-device usb-tablet \
 		-drive file="$(QEMU_USB_FD_IMG)",if=none,id=usb-fd-drive,format=raw \
 		-device usb-storage,bus=usb.0,drive=usb-fd-drive \
+		$(QEMU_SMBIOS_ARGS) \
 		$(QEMU_USB_TOKEN_DEV) \
 
 	stty sane
