@@ -190,6 +190,8 @@ if [ "$cmdline_len" -gt 2047 ]; then
 	WARN "Report to ISO distributor: duplicate options waste command line space."
 fi
 
+kexec_diag_state
+
 STATUS "Loading the new kernel"
 DEBUG "kexec command: $kexeccmd"
 DO_WITH_DEBUG eval "$kexeccmd" \
