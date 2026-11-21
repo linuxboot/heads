@@ -1418,13 +1418,33 @@ compare_image_reproducibility() {
 run_docker() {
 	local image="$1"
 	shift
-	local opts host_workdir container_workdir DOCKER_OPTS_ARRAY
+	local opts host_workdir container_workdir git_common_dir DOCKER_OPTS_ARRAY
 	# Read docker options (one-per-line) into an array, preserving spaces within options
 	mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
-	# Also create a single-string representation for legacy substring checks
-	opts=$(printf '%s\n' "${DOCKER_OPTS_ARRAY[@]}")
 	host_workdir="$(pwd)"
 	container_workdir="${host_workdir}"
+	# --path-format requires git >= 2.31 (2021); fall back for older git.
+	# Resolve relative fallback paths (including worktrees) against the
+	# workdir so Docker receives an absolute bind-mount source.
+	git_common_dir="$(git -C "${host_workdir}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ||
+		git_common_dir="$(git -C "${host_workdir}" rev-parse --git-common-dir 2>/dev/null || true)"
+	if [[ -n "${git_common_dir}" && "${git_common_dir}" != /* ]]; then
+		git_common_dir="$(cd -- "${host_workdir}/${git_common_dir}" 2>/dev/null && pwd -P)" || git_common_dir=""
+	fi
+
+	# A linked worktree's .git file points outside the worktree. Mount that
+	# shared Git directory at the same absolute path so Git works in-container
+	# (must be writable: worktree state like index and ref locks lives there).
+	case "${git_common_dir}" in
+		"" | "${host_workdir}" | "${host_workdir}"/*) ;;
+		*)
+			DOCKER_OPTS_ARRAY+=(-v "${git_common_dir}:${git_common_dir}")
+			echo "--->Git worktree detected ; mounting common directory ${git_common_dir}" >&2
+			;;
+	esac
+
+	# Also create a single-string representation for legacy substring checks
+	opts=$(printf '%s\n' "${DOCKER_OPTS_ARRAY[@]}")
 
 	local -a parts=()
 	case "${opts}" in *"/dev/kvm"*) parts+=(KVM=on) ;; *) parts+=(KVM=off) ;; esac

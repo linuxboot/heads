@@ -113,6 +113,11 @@ while true; do
 	# full kexec command line is never shown. Omitting -s makes the dd'ed
 	# bootable-USB path show the same boot confirmation (and Edit [e]) as
 	# the ISO boot path.
+	# A cancel (exit 3) from the boot menu is deliberately treated as a
+	# failure here: unlike the main-disk callers (gui-init.sh, generic-init.sh),
+	# this bootable-USB path has no menu to return to, so it falls through to
+	# DIE below (usb-init.sh routes that to recovery).  The ISO-file path
+	# (kexec-iso-init.sh) instead returns to the ISO selection menu.
 	if [ -x /bin/whiptail ]; then
 		# -s (skip_confirm) intentionally omitted: confirm before booting.
 		if DO_WITH_DEBUG kexec-select-boot.sh -b /media -c "*.cfg" -u -g; then

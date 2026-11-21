@@ -308,13 +308,24 @@ echo "$entry" >"$stagedir/kexec_default.$index.txt"
 (
 	hash_pipeline_exit=0
 	cd $bootdir || exit 1
+	# `-r` (no-run-if-empty) keeps a file-less entry from hashing stdin: with
+	# plain `xargs`, an entry whose kernel/initrd list is empty pipes nothing
+	# and sha256sum falls back to stdin, emitting the "<hash>  -" marker that
+	# the boot-side gate must refuse.  The result is an empty manifest, which
+	# is refused below at save time.
 	kexec-boot.sh -b "$bootdir" -e "$entry" -f |
-		xargs sha256sum >"$stagedir/kexec_default_hashes.txt" ||
+		xargs -r sha256sum >"$stagedir/kexec_default_hashes.txt" ||
 		hash_pipeline_exit=$?
 	exit $hash_pipeline_exit
 ) || DIE "Failed to create hashes of boot files"
 if [ ! -r "$stagedir/kexec_default.$index.txt" -o ! -r "$stagedir/kexec_default_hashes.txt" ]; then
 	DIE "Failed to write default config to staging"
+fi
+# A file-less entry produces an empty manifest (xargs -r hashes nothing).
+# Refuse it here, at save time, so the user can act on it immediately instead
+# of discovering only at the next boot that the saved default cannot verify.
+if [ ! -s "$stagedir/kexec_default_hashes.txt" ]; then
+	DIE "No files to hash for this boot entry"
 fi
 
 if [ "$save_key" = "y" ]; then
