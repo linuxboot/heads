@@ -194,10 +194,20 @@ kexec_diag_state
 
 STATUS "Loading the new kernel"
 DEBUG "kexec command: $kexeccmd"
+if [ "${KEXEC_BOOT_CONFIRM:-n}" = "y" ]; then
+	printf '%s\n' "$kexeccmd" >"${KEXEC_BOOT_CONFIRM_FILE:-/tmp/manual_kexec_default}"
+	STATUS "kexec command saved to ${KEXEC_BOOT_CONFIRM_FILE:-/tmp/manual_kexec_default}"
+	STATUS "kexec command: $kexeccmd"
+	INPUT "Continue with kexec? [Y/n]:" -s -n 1 boot_confirm
+	if [ "${boot_confirm^^}" = N ]; then
+		WARN "Boot aborted. To run manually: $(cat "${KEXEC_BOOT_CONFIRM_FILE:-/tmp/manual_kexec_default}") && kexec -e"
+		return 1 2>/dev/null || exit 1
+	fi
+fi
 DO_WITH_DEBUG eval "$kexeccmd" \
 || DIE "Failed to load the new kernel${cmdline_len:+ (cmdline length: $cmdline_len bytes, kernel limit typically 2047)}"
 
-if [ "$CONFIG_DEBUG_OUTPUT" = "y" ];then
+if [ "$CONFIG_DEBUG_OUTPUT" = "y" ] && [ "${KEXEC_BOOT_CONFIRM:-n}" != "y" ]; then
 	#Ask user if they want to continue booting without echoing back the input (-s)
 	INPUT "[DEBUG] Continue booting? [Y/n]:" -s -n 1 debug_boot_confirm
 	if [ "${debug_boot_confirm^^}" = N ]; then
