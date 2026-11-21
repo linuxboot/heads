@@ -170,7 +170,7 @@ xx30 (Ivy Bridge, 3rd Gen -- EOL)
 
 ThinkCentre (Skylake, 6th Gen Desktop -- EOL)
 ===
-- [ ] M900 Tower: @notgivenby
+- [ ] M900 Tower (unmaintained: coreboot 26.09 regression, local builds only): @notgivenby
 
 xx4x (Haswell, 4th Gen -- EOL)
 ===
