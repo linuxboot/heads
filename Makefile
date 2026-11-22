@@ -741,7 +741,7 @@ define define_module =
   # module submake is not enough because object rules do not depend on the stamp.
   $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(build)/$($1_base_dir)/.canary
 	@mkdir -p $$(dir $$@)
-	@if [ -r "$$@" ] && [ "$$(cat $$@)" != "$(build_env_sig)" ]; then \
+	@if [ -r "$$@" ] && [ "$$$$(cat $$@)" != "$(build_env_sig)" ]; then \
 		echo "$(DATE) CLEAN $1 (build env changed)"; \
 		if [ -e "$(build)/$($1_dir)/Makefile" ] || [ -e "$(build)/$($1_dir)/makefile" ]; then \
 			$(MAKE) -C "$(build)/$($1_dir)" clean >/dev/null 2>&1 || true; \
