@@ -737,11 +737,27 @@ define define_module =
   $(eval $1_config_wait := $(foreach d,$($1_depends),\
 	$(shell [ -r $(build)/$($d_dir)/.build ] || echo $d)))
 
+  # Invalidate module outputs when the build environment changes; rerunning the
+  # module submake is not enough because object rules do not depend on the stamp.
+  $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(build)/$($1_base_dir)/.canary
+	@mkdir -p $$(dir $$@)
+	@if [ -r "$$@" ] && [ "$$(cat $$@)" != "$(build_env_sig)" ]; then \
+		echo "$(DATE) CLEAN $1 (build env changed)"; \
+		if [ -e "$(build)/$($1_dir)/Makefile" ] || [ -e "$(build)/$($1_dir)/makefile" ]; then \
+			$(MAKE) -C "$(build)/$($1_dir)" clean >/dev/null 2>&1 || true; \
+		fi; \
+		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete 2>/dev/null || true; \
+		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured"; \
+		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)"; fi; \
+	fi
+	@printf '%s\n' "$(build_env_sig)" > "$$@"
+
   # Use the module's configure variable to build itself
   # this has to wait for the dependencies to be built since
   # cross compilers and libraries might be messed up
   $(dir $($1_config_file_path)).configured: \
 		$(compiler_env_stamp) \
+		$(build)/$($1_dir)/.build_env_applied \
 		$(build)/$($1_base_dir)/.canary \
 		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
 		$($1_config_file_path) \
@@ -776,6 +792,7 @@ define define_module =
   #TODO: something better then removing .build: $($1.force) so that newt/ncurses are not rebuilt inconditionally?
   $(build)/$($1_dir)/.build: \
 		$(build_env_stamp) \
+		$(build)/$($1_dir)/.build_env_applied \
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
