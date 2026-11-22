@@ -155,6 +155,7 @@ for board_dir in boards/*/; do
 	# Both a failed and a skipped sync leave the build unverified; count at
 	# most one sync warning per board (elif) and never fail the script for it.
 	sync_warned=0
+	sync_ran=0
 	if grep -q 'WARN: config_sync failed' "$log"; then
 		echo "   WARN $board: config_sync failed (see $log)"
 		sync_warn=$((sync_warn + 1))
@@ -163,6 +164,8 @@ for board_dir in boards/*/; do
 		echo "   WARN $board: config_sync skipped (see $log)"
 		sync_warn=$((sync_warn + 1))
 		sync_warned=1
+	elif grep -q 'INFO: config_sync completed for ' "$log"; then
+		sync_ran=1
 	fi
 	config_after="$(git --no-pager status --porcelain -- config/ 2>/dev/null || true)"
 	config_changed=0
@@ -180,11 +183,14 @@ for board_dir in boards/*/; do
 	if [ "$sync_warned" -ne 0 ]; then
 		echo "   UNVERIFIED $board: config_sync warning (not counted as passed, log: $log)"
 		unverified=$((unverified + 1))
+	elif [ "$sync_ran" -eq 0 ]; then
+		echo "   UNVERIFIED $board: no config_sync completion evidence (see $log)"
+		unverified=$((unverified + 1))
 	else
 		echo "   OK   $board"
 		pass=$((pass + 1))
-		# Positive evidence: only a non-dry-run success with no sync warning
-		# and no config/ change counts as verified.
+		# Positive evidence: only a non-dry-run success with config_sync
+		# completion evidence and no config/ change counts as verified.
 		if [ "$config_changed" -eq 0 ]; then
 			verified=$((verified + 1))
 		fi

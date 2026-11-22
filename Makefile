@@ -373,6 +373,7 @@ define maybe_config_sync_after_build =
 				echo "WARN: config/ changed after build; review and commit regenerated files:" >&2; \
 				git --no-pager status --porcelain -- config/ >&2 || true; \
 			fi; \
+			echo "INFO: config_sync completed for $(BOARD)"; \
 		else \
 			echo "WARN: config_sync failed; config/ may be out of sync with the build." >&2; \
 		fi; \
