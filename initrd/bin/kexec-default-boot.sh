@@ -43,8 +43,10 @@ if ! grep -q " ${bootdir} " /proc/mounts 2>/dev/null; then
 	fi
 fi
 
-# Same gate as gui-init.sh attempt_default_boot(): verify /boot hashes first.
-verify_global_hashes
+# Same gate as gui-init.sh attempt_default_boot(): verify bootdir hashes first.
+if ! verify_global_hashes "$bootdir"; then
+	exit 1
+fi
 
 # Skip TPM DUK unseal/injection in recovery; use default boot entry as-is.
 # Print kexec command and ask confirmation before loading.

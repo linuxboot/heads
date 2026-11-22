@@ -886,14 +886,15 @@ get_inverted_config_display_action() {
 # (gui_functions.sh), BG_COLOR_MAIN_MENU (exported from gui-init.sh).
 verify_global_hashes() {
 	TRACE_FUNC
+	local bootdir="${1:-/boot}"
 	#
 	# Two call contexts, with different check_config semantics:
 	#
 	# Context A — gui-init.sh (attempt_default_boot / select_os_boot_option)
-	#   /tmp/kexec/ is empty.  We call check_config /boot force here to
+	#   /tmp/kexec/ is empty.  We call check_config $bootdir force here to
 	#   populate it.  Because the caller is the GUI menu (not a verified
 	#   boot path), we always pass "force" which copies the kexec files
-	#   from /boot without verifying the GPG detached signature on them.
+	#   from $bootdir without verifying the GPG detached signature on them.
 	#   The hash check STATUS will say
 	#   "Verifying boot file checksums" (no "against signed boot hashes").
 	#
@@ -902,7 +903,7 @@ verify_global_hashes() {
 	#   verifies the GPG signature on the kexec*.txt files) before
 	#   calling this function.  /tmp/kexec/ is already populated.
 	#   Skipping check_config here avoids the destructive rm -rf
-	#   /tmp/kexec/* + re-copy (which, if /boot/kexec.sig is absent,
+	#   /tmp/kexec/* + re-copy (which, if $bootdir/kexec.sig is absent,
 	#   would leave /tmp/kexec/ empty and break the caller).
 	#
 	#   Whether GPG was actually verified is determined by the
@@ -917,7 +918,7 @@ verify_global_hashes() {
 	# partial copy from a failed run), check_config will repopulate.
 	#
 	if [ ! -r /tmp/kexec/kexec_hashes.txt -o ! -r /tmp/kexec/kexec_tree.txt ]; then
-		check_config /boot force
+		check_config "$bootdir" force
 	fi
 	TMP_HASH_FILE="/tmp/kexec/kexec_hashes.txt"
 	TMP_TREE_FILE="/tmp/kexec/kexec_tree.txt"
@@ -929,9 +930,9 @@ verify_global_hashes() {
 	else
 		STATUS "Verifying boot file checksums"
 	fi
-	DEBUG "verify_global_hashes: checking /boot files against $TMP_HASH_FILE"
-	if verify_checksums /boot; then
-		DEBUG "verify_global_hashes: /boot files match checksums in $TMP_HASH_FILE"
+	DEBUG "verify_global_hashes: checking $bootdir files against $TMP_HASH_FILE"
+	if verify_checksums "$bootdir"; then
+		DEBUG "verify_global_hashes: $bootdir files match checksums in $TMP_HASH_FILE"
 		valid_global_hash="y"
 		# If user enables it, check root hashes before boot as well
 		if [[ "$CONFIG_ROOT_CHECK_AT_BOOT" = "y" && "$force_menu" == "n" ]]; then

@@ -69,7 +69,9 @@ if [ -z "$_HEADS_TEST" ]; then
 fi
 
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+# Skip primary-handle preflight when -n (skip DUK): recovery wipes /tmp/secret
+# including primary.handle, but DUK unseal is not used on this path.
+if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ "$skip_duk" != "y" ]; then
 	if [ -s "$PRIMHASH_FILE" ]; then
 		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
 			{
