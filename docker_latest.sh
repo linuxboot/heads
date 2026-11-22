@@ -43,6 +43,8 @@ fi
 echo "Using latest image: $DOCKER_IMAGE" >&2
 echo "" >&2
 
+export HEADS_BUILD_IMAGE="$DOCKER_IMAGE"
+
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 	require_docker || exit $?

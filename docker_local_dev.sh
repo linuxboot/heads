@@ -60,6 +60,8 @@ require_docker || exit $?
 maybe_rebuild_local_image "$DOCKER_IMAGE"
 echo "Using local dev image: $DOCKER_IMAGE" >&2
 
+export HEADS_BUILD_IMAGE="$DOCKER_IMAGE"
+
 # Optional: verify reproducibility against docker.io latest
 # Requires HEADS_CHECK_REPRODUCIBILITY=1 and either skopeo or curl installed
 if [ "${HEADS_CHECK_REPRODUCIBILITY:-0}" = "1" ]; then
