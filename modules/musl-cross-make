@@ -18,6 +18,11 @@ ifneq "$(wildcard $(CROSS_CHECK))" ""
 CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
 endif
 
+musl_cross_make_setup := \
+	echo -e >> Makefile 'musl-target:' ; \
+	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
+	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
+
 ifneq "$(CROSS)" ""
 
 # check that $(CROSS)gcc exists or else things just won't work
@@ -31,6 +36,7 @@ endif
 # is a NOP. If the build-env invalidation removed the cached compiler during
 # this make invocation, rebuild it instead of running --version.
 musl-cross-make_target = $(if $(wildcard $(CROSS)gcc),--version,\
+	$(musl_cross_make_setup) ; \
 	SOURCE_DATE_EPOCH=$(shell cd $(build)/$(musl-cross-make_dir) && git log -1 --format=%ct 2>/dev/null || echo 0) \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
@@ -56,10 +62,7 @@ else
 #     debug-section compression
 # SOURCE_DATE_EPOCH from the pinned commit epoch prevents __DATE__/__TIME__
 # embedding during the GCC build.
-musl-cross-make_configure := \
-	echo -e >> Makefile 'musl-target:' ; \
-	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
-	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
+musl-cross-make_configure := $(musl_cross_make_setup)
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
