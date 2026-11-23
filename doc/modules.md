@@ -317,6 +317,7 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 | `coreboot.modify_defconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as defconfig |
 | `coreboot.modify_and_save_oldconfig_in_place` | `modules/coreboot` | Run `menuconfig`, save as full .config |
 | `linux.save_in_defconfig_format_in_place` | `modules/linux` | Normalize kernel config to defconfig |
+| `linux.save_in_defconfig_format_backup` | `modules/linux` | Same as defconfig but saves as `_defconfig` backup |
 | `linux.save_in_olddefconfig_format_in_place` | `modules/linux` | Normalize to olddefconfig format |
 | `linux.save_in_versioned_defconfig_format` | `modules/linux` | Save defconfig with version stamp |
 | `linux.save_in_versioned_oldconfig` | `modules/linux` | Save full .config with version stamp |
@@ -329,6 +330,33 @@ Common ones (run with `nix develop --command make BOARD=$BOARD <target>`):
 These are used after manually editing `config/coreboot-BOARD.config` or
 `config/linux-BOARD.config` to normalize the file back to the convention
 expected by the build system.
+
+Defconfig backups (`config/coreboot-*.config_defconfig` and
+`config/linux-*.config_defconfig`) and in-place oldconfig normalization
+(`coreboot.save_in_oldconfig_format_in_place` /
+`linux.save_in_olddefconfig_format_in_place`) are kept in sync by
+`config_sync` (https://github.com/linuxboot/heads/issues/2238).  Normal
+Coreboot/LinuxBoot board builds run `config_sync` automatically in warning
+mode via a post-build hook (unless `CONFIG_SYNC_SKIP_AUTO=1`), so they can
+normalize/validate committed `config/` files against the consumed build
+outputs and warn on helper issues or drift.  CI skips that automatic hook via
+`CONFIG_SYNC_SKIP_AUTO=1` and runs a separate strict `config_sync` before
+storing artifacts, so unverified ROMs/ZIPs are not published; it then fails
+the job if `git status --porcelain -- config/` shows drift (the Make target
+may succeed while updating files).  `config_sync` can replace a differing
+defconfig backup in the checkout before that `git status` check fails the job;
+CI does not commit that change.  Run `make BOARD=<board> config_sync`
+standalone after completing a board build — mixed goals are rejected, and only
+that standalone invocation preserves `hashes.txt`/`sizes.txt` (it reads
+consumed module `.config` outputs and uses source `.canary` trees; it does not
+build missing modules).  It normalizes/validates in a `mktemp` dir outside the
+source/build tree, compares committed configs with the consumed build config
+(accounting for build-time template/generated fields), and replaces committed
+files **only when content differs** (atomic rename) so unchanged content keeps
+its mtime.  Shared logic lives in `bin/config-sync.sh`; each `save_in_*` target
+is a thin wrapper.  Standalone save helpers remain available for intentional
+normalization/manual edits.  See `doc/circleci.md` and
+`doc/variation-to-defconfig.md`.
 
 ## Build lifecycle
 
