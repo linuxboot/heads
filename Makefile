@@ -737,30 +737,31 @@ define define_module =
   $(eval $1_config_wait := $(foreach d,$($1_depends),\
 	$(shell [ -r $(build)/$($d_dir)/.build ] || echo $d)))
 
-  # Invalidate module outputs when the build environment changes; rerunning the
-  # module submake is not enough because object rules do not depend on the stamp.
-  $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(build)/$($1_base_dir)/.canary
+  # Invalidate module outputs when the build or compiler environment changes;
+  # rerunning the module submake is not enough because object rules do not depend
+  # on these stamps.
+  $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(compiler_env_stamp) $(build)/$($1_base_dir)/.canary
 	@mkdir -p $$(dir $$@)
-	@if [ ! -r "$$@" ] || [ "$$$$(cat $$@)" != "$(build_env_sig)" ]; then \
+	@if [ ! -r "$$@" ] || [ "$$$$(cat $$@)" != "$(build_env_sig)|$(compiler_env_sig)" ]; then \
 		echo "$(DATE) CLEAN $1 (build env changed)"; \
 		if [ -e "$(build)/$($1_dir)/Makefile" ] || [ -e "$(build)/$($1_dir)/makefile" ]; then \
 			$(MAKE) -C "$(build)/$($1_dir)" clean >/dev/null 2>&1 || true; \
 		fi; \
-		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete 2>/dev/null || true; \
-		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured"; \
-		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)"; fi; \
+		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete || exit 1; \
+		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured" || exit 1; \
+		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)" || exit 1; fi; \
 		if [ -f "$(build)/$($1_base_dir)/.heads-toolchain" ] || [ -d "$(build)/$($1_base_dir)/util/crossgcc/xgcc" ]; then \
-			rm -f "$(build)/$($1_base_dir)/.heads-toolchain"; \
-			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc"; \
+			rm -f "$(build)/$($1_base_dir)/.heads-toolchain" || exit 1; \
+			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
 		fi; \
 		case "$1" in coreboot|coreboot-*) \
 			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
-				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain"; \
-				rm -rf "$(COREBOOT_TOOLCHAIN_DIR)/util/crossgcc/xgcc"; \
+				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain" || exit 1; \
+				rm -rf "$(COREBOOT_TOOLCHAIN_DIR)/util/crossgcc/xgcc" || exit 1; \
 			fi ;; \
 		esac; \
 	fi
-	@printf '%s\n' "$(build_env_sig)" > "$$@"
+	@printf '%s\n' "$(build_env_sig)|$(compiler_env_sig)" > "$$@"
 
   # Use the module's configure variable to build itself
   # this has to wait for the dependencies to be built since
