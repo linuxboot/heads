@@ -19,9 +19,9 @@ CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
 endif
 
 musl_cross_make_setup := \
-	echo -e >> Makefile 'musl-target:' ; \
-	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
-	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
+	grep -q '^musl-target:' Makefile || { echo -e >> Makefile 'musl-target:' ; echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; } ; \
+	grep -q '^heads-musl-target:' Makefile || { echo -e >> Makefile 'heads-musl-target:' ; echo -e >> Makefile '\t@if [ -x "$(CROSS)gcc" ]; then "$(CROSS)gcc" --version; else $(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" SOURCE_DATE_EPOCH=$$$$(git log -1 --format=%ct 2>/dev/null || echo 0) OUTPUT="$(CROSS_PATH)" $(MAKE_JOBS) install; fi' ; } ; \
+	grep -q '^SOURCES = $(packages)' config.mak 2>/dev/null || echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
 
 ifneq "$(CROSS)" ""
 
@@ -34,14 +34,9 @@ endif
 
 # The cross compiler has already been built, so the musl-cross-make target
 # is a NOP. If the build-env invalidation removed the cached compiler during
-# this make invocation, rebuild it instead of running --version.
-musl-cross-make_target = $(if $(wildcard $(CROSS)gcc),--version,\
-	$(musl_cross_make_setup) ; \
-	SOURCE_DATE_EPOCH=$(shell cd $(build)/$(musl-cross-make_dir) && git log -1 --format=%ct 2>/dev/null || echo 0) \
-	OUTPUT="$(CROSS_PATH)" \
-	MAKE="$(MAKE)" \
-	$(MAKE_JOBS) \
-	musl-target)
+# this make invocation, rebuild it at recipe execution time.
+musl-cross-make_configure := $(musl_cross_make_setup)
+musl-cross-make_target = heads-musl-target
 
 # Ask the compiler where to find its own libc.so
 musl-cross-make_libraries := \

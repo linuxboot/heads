@@ -155,11 +155,13 @@ filenames.  The Talos `ppc_tgz` target has its own `heads-` prefix convention.
 the current `make` invocation.  At Makefile parse time,
 `BOARD_LOG := $(shell ...)` writes a fresh build metadata header to both files
 before recipes are considered, except for `compare-zip`-only invocations, which
-preserve the existing manifests.  The header's timestamp field is the current
-commit's committer date (not the build wall clock), so that field matches for
-two builds of the same commit; the full header also requires the same recorded
-Git status (`clean` versus `dirty`).  Measurement recipes then append their
-records when they execute.
+preserve the existing manifests.  The header's timestamp field is the current commit's committer date (not the
+  build wall clock) when Git metadata is available; in a source tarball without
+  Git metadata it falls back to `SOURCE_DATE_EPOCH`, or epoch 0 if unset.  Two
+  builds of the same source snapshot can therefore differ in header/ZIP
+  timestamps when that fallback value differs.  The full header also requires
+  the same recorded Git status (`clean` versus `dirty`).  Measurement recipes
+  then append their records when they execute.
 
 - These are rule-dependent records, not complete manifests: only explicit
   measurement recipes append rows.  Components rebuilt through `do-cpio` receive

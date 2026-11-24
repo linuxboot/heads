@@ -139,7 +139,7 @@ find_tool() {
 					trusted_tool_file "$f" && [ -x "$f" ] && { echo "$f"; return 0; }
 				done
 			done
-			for f in "$c/util/$name/$name" "$c/util/$name"; do
+			for f in "$c/$name" "$c/util/$name/$name" "$c/util/$name"; do
 				trusted_tool_file "$f" && [ -x "$f" ] && { echo "$f"; return 0; }
 			done
 		done

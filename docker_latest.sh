@@ -43,7 +43,11 @@ fi
 echo "Using latest image: $DOCKER_IMAGE" >&2
 echo "" >&2
 
-export HEADS_BUILD_IMAGE="$DOCKER_IMAGE"
+HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || {
+	echo "Error: cannot inspect image $DOCKER_IMAGE; aborting." >&2
+	exit 1
+}
+export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
 
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

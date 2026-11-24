@@ -60,7 +60,11 @@ require_docker || exit $?
 maybe_rebuild_local_image "$DOCKER_IMAGE"
 echo "Using local dev image: $DOCKER_IMAGE" >&2
 
-export HEADS_BUILD_IMAGE="$DOCKER_IMAGE"
+HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || {
+	echo "Error: cannot inspect local image $DOCKER_IMAGE; aborting." >&2
+	exit 1
+}
+export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
 
 # Optional: verify reproducibility against docker.io latest
 # Requires HEADS_CHECK_REPRODUCIBILITY=1 and either skopeo or curl installed
