@@ -17,12 +17,13 @@ force_menu="n"
 gui_menu="n"
 force_boot="n"
 skip_confirm="n"
+skip_duk="n"
 # Source guard: when _HEADS_TEST=y, skip argument processing and main body.
 # The getopts loop below runs during sourcing even with empty args;
 # check the guard first to avoid interfering with the caller's positional
 # parameters (e.g. the test harness passes --iso-dir to the test script).
 if [ -z "$_HEADS_TEST" ]; then
-while getopts "b:d:p:a:r:c:uimgfs" arg; do
+while getopts "b:d:p:a:r:c:uimgfns" arg; do
 	case $arg in
 	b) bootdir="$OPTARG" ;;
 	d) paramsdev="$OPTARG" ;;
@@ -40,6 +41,7 @@ while getopts "b:d:p:a:r:c:uimgfs" arg; do
 		force_boot="y"
 		valid_rollback="y"
 		;;
+	n) skip_duk="y" ;;
 	s) skip_confirm="y" ;;
 	esac
 done
@@ -67,7 +69,9 @@ if [ -z "$_HEADS_TEST" ]; then
 fi
 
 PRIMHASH_FILE="$paramsdir/kexec_primhdl_hash.txt"
-if [ "$CONFIG_TPM2_TOOLS" = "y" ]; then
+# Recovery wipes /tmp/secret, including primary.handle. The -n path does not
+# unseal a DUK, so it must not require the primary-handle hash preflight.
+if [ "$CONFIG_TPM2_TOOLS" = "y" ] && [ "$skip_duk" != "y" ]; then
 	if [ -s "$PRIMHASH_FILE" ]; then
 		sha256sum -c "$PRIMHASH_FILE" >/dev/null 2>&1 ||
 			{
@@ -770,7 +774,7 @@ do_boot() {
 		DIE "Missing required rollback counter state"
 	fi
 
-	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ] && [ "$force_boot" != "y" ]; then
+	if [ "$CONFIG_BASIC" != y ] && [ "$CONFIG_TPM" = "y" ] && [ -r "$TMP_KEY_DEVICES" ] && [ "$force_boot" != "y" ] && [ "$skip_duk" != "y" ]; then
 		INITRD=$(kexec-boot.sh -b "$bootdir" -e "$option" -i) ||
 			DIE "Failed to extract the initrd from boot option"
 		if [ -z "$INITRD" ]; then

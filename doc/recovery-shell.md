@@ -147,6 +147,15 @@ secrets.
 kexec-boot -b /boot -e 'foo|elf|kernel /vmlinuz|initrd /initrd.img|append root=/dev/whatever'
 ```
 
+### Default boot from recovery
+
+`kexec-default-boot.sh` mounts `/boot`, verifies its global hashes, and runs
+the saved default boot path. It skips TPM Disk Unlock Key injection because
+recovery wipes `/tmp/secret`. The exact `kexec` load command is printed and
+saved to `/tmp/manual_kexec_default`; type `BOOT` to load it. This path is used
+to compare GUI and recovery handoffs when debugging `linuxboot/heads#2265`.
+No further log can be captured after `kexec -e` succeeds.
+
 ### Sign /boot after manual changes
 
 ```bash

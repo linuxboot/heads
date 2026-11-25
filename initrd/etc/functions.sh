@@ -1116,8 +1116,6 @@ recovery() {
 		#Going to recovery shell should be authenticated if supported
 		gpg_auth
 
-		# Debug and measurement logs are always captured; show copy guidance directly.
-		cat /etc/DEBUG_LOG_COPY_INSTRUCTIONS
 		# display any custom recovery message just before the banner
 		if [ -n "$*" ]; then
 			WARN "$*"
@@ -1130,6 +1128,10 @@ recovery() {
 				INFO "$line"
 			done
 		fi
+
+		# Debug and measurement logs are always captured; show copy guidance last
+		# so it remains visible above the shell prompt.
+		cat /etc/DEBUG_LOG_COPY_INSTRUCTIONS
 
 		# Drain any queued serial input before starting the interactive shell.
 		# This avoids stale bytes being interpreted as bash commands on entry.
@@ -1525,6 +1527,23 @@ DEBUG_STACK() {
 	for i in $(seq 1 "$((FRAMES - 1))"); do
 		DEBUG "- $((i - 1)) - ${BASH_SOURCE[$i]}(${BASH_LINENO[$((i - 1))]}): ${FUNCNAME[$i]}"
 	done
+}
+
+# Log kexec preload state for comparable GUI/recovery diagnostics (#2265).
+# Emits DEBUG only (per doc/logging.md): console/fb/tty state influences kexec
+# handoff but is not captured when kexec is invoked manually from recovery shell.
+kexec_diag_state() {
+	TRACE_FUNC
+	DEBUG "kexec-diag: HEADS_TTY=${HEADS_TTY:-unset} GPG_TTY=${GPG_TTY:-unset}"
+	DEBUG "kexec-diag: tty=$(tty 2>/dev/null || echo unknown)"
+	DEBUG "kexec-diag: console_active=$(cat /sys/class/tty/console/active 2>/dev/null || echo unknown)"
+	DEBUG "kexec-diag: tty0_active=$(cat /sys/class/tty/tty0/active 2>/dev/null || echo unknown)"
+	DEBUG "kexec-diag: cmdline=$(cat /proc/cmdline 2>/dev/null || echo unknown)"
+	DEBUG "kexec-diag: fb=$(tr '\n' ';' </proc/fb 2>/dev/null || echo none)"
+	DEBUG "kexec-diag: fb0_name=$(cat /sys/class/graphics/fb0/name 2>/dev/null || echo none)"
+	DEBUG "kexec-diag: vtcon0=$(cat /sys/class/vtconsole/vtcon0/name 2>/dev/null || echo none) bind=$(cat /sys/class/vtconsole/vtcon0/bind 2>/dev/null || echo none)"
+	DEBUG "kexec-diag: vtcon1=$(cat /sys/class/vtconsole/vtcon1/name 2>/dev/null || echo none) bind=$(cat /sys/class/vtconsole/vtcon1/bind 2>/dev/null || echo none)"
+	DEBUG "kexec-diag: kexec_loaded=$(cat /sys/kernel/kexec_loaded 2>/dev/null || echo unknown)"
 }
 
 pcrs() {
