@@ -43,6 +43,12 @@ fi
 echo "Using latest image: $DOCKER_IMAGE" >&2
 echo "" >&2
 
+if ! docker image inspect "$DOCKER_IMAGE" >/dev/null 2>&1; then
+	docker pull "$DOCKER_IMAGE" || {
+		echo "Error: cannot pull image $DOCKER_IMAGE; aborting." >&2
+		exit 1
+	}
+fi
 HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || {
 	echo "Error: cannot inspect image $DOCKER_IMAGE; aborting." >&2
 	exit 1

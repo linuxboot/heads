@@ -62,10 +62,15 @@ bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp <pkg>.zip
 bin/compare-update-zip.sh --disassemble --extract /tmp/zipcmp /path/to/reference/<pkg>.zip
 
 # Use the two "extracted:" run directories printed above for the comparison.
-# Stop if either manifest is unreadable; an empty grep result is not a match.
-[ -r /path/to/runA/a/hashes.txt ] && [ -r /path/to/runB/a/hashes.txt ] || exit 1
-diff <(grep '^[0-9a-f]\{64\}  ' /path/to/runA/a/hashes.txt | sort) \
-     <(grep '^[0-9a-f]\{64\}  ' /path/to/runB/a/hashes.txt | sort)
+# Stop on unreadable manifests or any grep/sort failure; only report a match
+# when both manifests yield at least one hash entry.
+A=/path/to/runA/a/hashes.txt
+B=/path/to/runB/a/hashes.txt
+[ -r "$A" ] && [ -r "$B" ] || { echo "unreadable manifest"; exit 1; }
+a=$(grep '^[0-9a-f]\{64\}  ' "$A" | LC_ALL=C sort) || exit 1
+b=$(grep '^[0-9a-f]\{64\}  ' "$B" | LC_ALL=C sort) || exit 1
+[ -n "$a" ] && [ -n "$b" ] || { echo "no matching hash entries"; exit 1; }
+diff <(printf '%s\n' "$a") <(printf '%s\n' "$b")
 ```
 
 ## Interpreting results

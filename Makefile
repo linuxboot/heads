@@ -754,7 +754,12 @@ define define_module =
 			rm -f "$(build)/$($1_base_dir)/.heads-toolchain" || exit 1; \
 			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
 		fi; \
-		rm -rf "$(build)/$($1_base_dir)/util/cbmem" "$(build)/$($1_base_dir)/util/ifdtool" || exit 1; \
+		for _u in cbmem ifdtool; do \
+			_d="$(build)/$($1_base_dir)/util/$$_u"; \
+			[ -d "$$_d" ] || continue; \
+			find "$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
+			rm -f "$$_d/$$_u" || exit 1; \
+		done; \
 		case "$1" in coreboot|coreboot-*) \
 			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
 				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain" || exit 1; \
