@@ -19,7 +19,7 @@ set -euo pipefail
 
 usage() {
 	cat >&2 <<'EOF'
-Usage: compare-update-zip.sh [--extract DIR] [--rom-tools] [--disassemble] <zip> [zip2]
+Usage: compare-update-zip.sh [--extract DIR] [--rom-tools] [--ifd-platform NAME] [--disassemble] <zip> [zip2]
 
 Disassemble a Heads update ZIP and, when two ZIPs are given, compare them for
 same-commit reproducibility.
@@ -27,6 +27,8 @@ same-commit reproducibility.
   --extract DIR   Keep members in a fresh DIR/zipcmp.XXXXXX/<a|b> workspace
                   (for external inspection, e.g. ifdtool/cbfstool on the ROMs)
   --rom-tools     Diff host-built ifdtool/cbfstool output on the extracted ROMs
+  --ifd-platform NAME
+                  Pass NAME to ifdtool --platform for IFDv2 decoding
   --disassemble   Print archive/member details for <zip> and exit
   <zip> [zip2]    Compare <zip> to <zip2>; exits 0 if identical
 
@@ -39,10 +41,12 @@ EOF
 extract_dir=""
 disassemble=0
 rom_tools=0
+ifd_platform=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--extract) [ $# -ge 2 ] || usage; extract_dir=$2; shift 2 ;;
 		--rom-tools) rom_tools=1; shift ;;
+		--ifd-platform) [ $# -ge 2 ] || usage; ifd_platform=$2; shift 2 ;;
 		--disassemble) disassemble=1; shift ;;
 		-*) usage ;;
 		*) break ;;
@@ -269,9 +273,11 @@ if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	[ -n "$cbf" ] && echo "cbfstool: $cbf" || echo "cbfstool: not found in build tree"
 	if [ -n "$ifd" ]; then
 		echo "-- ifdtool -d (diff) --"
+		ifd_args=(-d)
+		[ -n "$ifd_platform" ] && ifd_args=(--platform "$ifd_platform" -d)
 		ifd_a=""; ifd_b=""; ifd_rc_a=0; ifd_rc_b=0
-		ifd_a=$("$ifd" -d "$rom_a" 2>&1) || ifd_rc_a=$?
-		ifd_b=$("$ifd" -d "$rom_b" 2>&1) || ifd_rc_b=$?
+		ifd_a=$("$ifd" "${ifd_args[@]}" "$rom_a" 2>&1) || ifd_rc_a=$?
+		ifd_b=$("$ifd" "${ifd_args[@]}" "$rom_b" 2>&1) || ifd_rc_b=$?
 		if [ "$ifd_rc_a" -ne 0 ] || [ "$ifd_rc_b" -ne 0 ]; then
 			echo "ifdtool inspection failed (a=$ifd_rc_a, b=$ifd_rc_b)"
 			[ "$ifd_rc_a" -ne 0 ] && printf 'ifdtool (a):\n%s\n' "$ifd_a" || true

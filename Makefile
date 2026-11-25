@@ -316,12 +316,16 @@ $(compiler_env_stamp): FORCE
 payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
 
 # Disassemble/compare update ZIPs for same-commit reproducibility.
-# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]
+# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1] [IFD_PLATFORM=<name>]
 compare-zip:
-	@zip="$$ZIP"; ref="$$REF"; extract="$$EXTRACT"; rom_tools="$$ROM_TOOLS"; \
+	@zip="$$ZIP"; ref="$$REF"; extract="$$EXTRACT"; rom_tools="$$ROM_TOOLS"; ifd_platform="$$IFD_PLATFORM"; \
+	if [ -z "$$ifd_platform" ] && [ -n "$(CONFIG_COREBOOT_CONFIG)" ]; then \
+		ifd_platform="$$(sed -n 's/^CONFIG_IFD_CHIPSET="\(.*\)"/\1/p' "$(CONFIG_COREBOOT_CONFIG)" 2>/dev/null || true)"; \
+	fi; \
 	set --; \
 	if [ -n "$$extract" ]; then set -- "$$@" --extract "$$extract"; fi; \
 	if [ "$$rom_tools" = 1 ]; then set -- "$$@" --rom-tools; fi; \
+	if [ -n "$$ifd_platform" ]; then set -- "$$@" --ifd-platform "$$ifd_platform"; fi; \
 	case "$$zip" in -*) zip="./$$zip" ;; esac; \
 	case "$$ref" in -*) ref="./$$ref" ;; esac; \
 	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
@@ -755,10 +759,10 @@ define define_module =
 			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
 		fi; \
 		for _u in cbmem ifdtool; do \
-			_d="$(build)/$($1_base_dir)/util/$$_u"; \
-			[ -d "$$_d" ] || continue; \
-			find "$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
-			rm -f "$$_d/$$_u" || exit 1; \
+			_d="$(build)/$($1_base_dir)/util/$$$$_u"; \
+			[ -d "$$$$_d" ] || continue; \
+			find "$$$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
+			rm -f "$$$$_d/$$$$_u" || exit 1; \
 		done; \
 		case "$1" in coreboot|coreboot-*) \
 			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
