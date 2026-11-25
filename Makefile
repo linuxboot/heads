@@ -754,6 +754,7 @@ define define_module =
 			rm -f "$(build)/$($1_base_dir)/.heads-toolchain" || exit 1; \
 			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
 		fi; \
+		rm -rf "$(build)/$($1_base_dir)/util/cbmem" "$(build)/$($1_base_dir)/util/ifdtool" || exit 1; \
 		case "$1" in coreboot|coreboot-*) \
 			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
 				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain" || exit 1; \
@@ -771,7 +772,7 @@ define define_module =
 		$(build)/$($1_dir)/.build_env_applied \
 		$(build)/$($1_base_dir)/.canary \
 		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
-		$(if $(filter $(musl_dep),$($1_depends)),$(build)/$($(musl_dep)_dir)/.build_env_applied) \
+		$(if $(filter $(musl_dep),$($1_depends)),$(build)/$($(musl_dep)_dir)/.build) \
 		$($1_config_file_path) \
 		modules/$($1_module_file)
 	@echo "$(DATE) CONFIG $1"

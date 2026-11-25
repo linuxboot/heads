@@ -20,7 +20,7 @@ endif
 
 musl_cross_make_setup := \
 	grep -q '^musl-target:' Makefile || { echo -e >> Makefile 'musl-target:' ; echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; } ; \
-	grep -q '^heads-musl-target:' Makefile || { echo -e >> Makefile 'heads-musl-target:' ; echo -e >> Makefile '\t@if [ -x "$(CROSS)gcc" ]; then "$(CROSS)gcc" --version; else $(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" SOURCE_DATE_EPOCH=$$$$(git log -1 --format=%ct 2>/dev/null || echo 0) OUTPUT="$(CROSS_PATH)" $(MAKE_JOBS) install; fi' ; } ; \
+	grep -q '^heads-musl-target:' Makefile || { echo -e >> Makefile 'heads-musl-target:' ; echo -e >> Makefile '\t@if [ -x "$(CROSS)gcc" ]; then "$(CROSS)gcc" --version; else $(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" SOURCE_DATE_EPOCH=$(COMMIT_EPOCH) OUTPUT="$(CROSS_PATH)" $(MAKE_JOBS) install; fi' ; } ; \
 	grep -q '^SOURCES = $(packages)' config.mak 2>/dev/null || echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
 
 ifneq "$(CROSS)" ""

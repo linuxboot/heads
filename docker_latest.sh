@@ -57,5 +57,5 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
 	# Execute the docker run command with the provided parameters
 	# Delegate to shared run_docker so all docker_* scripts share identical device/X11/KVM handling
-	run_docker "$DOCKER_IMAGE" "$@"
+	run_docker "$HEADS_BUILD_IMAGE_ID" "$@"
 fi
