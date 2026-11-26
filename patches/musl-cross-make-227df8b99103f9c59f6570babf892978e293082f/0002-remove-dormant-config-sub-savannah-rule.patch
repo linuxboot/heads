@@ -1,0 +1,27 @@
+diff --git a/Makefile b/Makefile
+index 0236f6e..3df1e84 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,6 @@
+ 
+ SOURCES = sources
+ 
+-CONFIG_SUB_REV = 3d5db9ebe860
+ BINUTILS_VER = 2.44
+ GCC_VER = 9.4.0
+ MUSL_VER = 1.2.6
+@@ -75,14 +74,6 @@ $(patsubst hashes/%.sha1,$(SOURCES)/%,$(wildcard hashes/linux-headers-*)): SITE
+ $(SOURCES):
+ 	mkdir -p $@
+ 
+-$(SOURCES)/config.sub: | $(SOURCES)
+-	mkdir -p $@.tmp
+-	cd $@.tmp && $(DL_CMD) $(notdir $@) "https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=$(CONFIG_SUB_REV)"
+-	cd $@.tmp && touch $(notdir $@)
+-	cd $@.tmp && $(SHA1_CMD) $(CURDIR)/hashes/$(notdir $@).$(CONFIG_SUB_REV).sha1
+-	mv $@.tmp/$(notdir $@) $@
+-	rm -rf $@.tmp
+-
+ $(SOURCES)/%: hashes/%.sha1 | $(SOURCES)
+ 	mkdir -p $@.tmp
+ 	cd $@.tmp && $(DL_CMD) $(notdir $@) $(SITE)/$(notdir $@)

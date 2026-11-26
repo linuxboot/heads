@@ -202,6 +202,19 @@ $(eval $(call coreboot_module,26.09,))
 coreboot-mrchromebox-26.03_repo := https://github.com/MrChromebox/coreboot.git
 coreboot-mrchromebox-26.03_commit_hash := f8244f2508d486d833eb8dee5c0b1d777cf37d39
 $(eval $(call coreboot_module,mrchromebox-26.03,))
+# KGPE-D16 uses the AGESA-based 15h fork, derived from coreboot 4.11.
+# Advantages of using 15h.org 4.11 fork includes
+#  - improved ram init
+#  - support for up to 512gb
+#  - high quality fan contol
+# Pinned to newest commit on 4.11_staging (2026-11-26), includes TPM 1.2/2.0 support
+# https://git.15h.org/mrothfuss/coreboot-15h/src/branch/4.11_staging
+coreboot-15h_repo := https://git.15h.org/mrothfuss/coreboot-15h.git
+coreboot-15h_commit_hash := 6c82051a38690e72e12970fa247c97cb6cebda90
+$(eval $(call coreboot_module,15h,))
+# The AGESA 15h fork uses GCC which requires BUILD_LANGUAGES=c to avoid Ada compiler errors
+coreboot-15h_toolchain_build_args := BUILD_LANGUAGES=c
+
 
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""

@@ -208,15 +208,14 @@ ChromeOS Devices
 
 Desktops / Servers
 ==
-All EOL unless marked Active.
-- [ ] Optiplex 7010/9010 SFF/DT (Ivy Bridge, 3rd Gen): @tlaurion(owns DT variant)
-- [ ] HP Z220 CMT (Ivy Bridge, 3rd Gen): @d-wid
-- [ ] KGPE-D16 (AMD Family 15h): @arhabd @Tonux599 @zifxify
-- [ ] Librem L1UM v1 (Broadwell, 5th Gen): @JonathonHall-Purism
-- [ ] Librem L1UM v2 (Coffee Lake, 9th Gen): @JonathonHall-Purism
-- [ ] Librem mini v1 (Whiskey Lake, 8th Gen): @JonathonHall-Purism
-- [ ] Librem mini v2 (Comet Lake, 10th Gen -- Active): @JonathonHall-Purism
-- [ ] Talos II (POWER9, PPC64LE): @tlaurion (became untested, low community interest despite large investment)
+- [ ] Optiplex 7010/9010 SFF/DT (Ivy Bridge: Intel 3rd Gen CPU): @tlaurion(owns DT variant)
+- [ ] HP Z220 CMT (Ivy Bridge: Intel 3rd Gen CPU): @d-wid
+- [ ] KGPE-D16 (Bulldozer: AMD Family 15h CPU) - dropped in coreboot 4.12, brought back in 15h fork: @arhabd @zifxify
+- [ ] Librem L1UM v1 (Broadwell: Intel 5th Gen CPU): @JonathonHall-Purism
+- [ ] Librem L1UM v2 (Coffee Lake: Intel 9th Gen CPU): @JonathonHall-Purism
+- [ ] Librem mini v1 (Whiskey Lake: Intel 8th Gen CPU : ESU ends 03/31/2026): @JonathonHall-Purism
+- [ ] Librem mini v2 (Comet Lake: Intel 10th Gen CPU -- Active): @JonathonHall-Purism
+- [ ] Talos II (Power9, PPC64LE): @tlaurion (became untested, low community interest despite large investment)
 
 MSI (Alder/Raptor Lake — Active)
 ---
