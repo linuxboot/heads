@@ -744,12 +744,16 @@ define define_module =
   # Invalidate module outputs when the build or compiler environment changes;
   # rerunning the module submake is not enough because object rules do not depend
   # on these stamps.
+  # Use `mostlyclean`, not `clean`: `make clean` removes shipped files listed in
+  # CLEANFILES (e.g. tpm2-tss man/man7/tss2-tcti-swtpm.7) that are not
+  # regenerated, breaking cached-tree rebuilds. `mostlyclean` drops only
+  # compiled artifacts, which the find below also covers as a belt-and-braces.
   $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(compiler_env_stamp) $(build)/$($1_base_dir)/.canary
 	@mkdir -p $$(dir $$@)
 	@if [ ! -r "$$@" ] || [ "$$$$(cat $$@)" != "$(build_env_sig)|$(compiler_env_sig)" ]; then \
 		echo "$(DATE) CLEAN $1 (build env changed)"; \
 		if [ -e "$(build)/$($1_dir)/Makefile" ] || [ -e "$(build)/$($1_dir)/makefile" ]; then \
-			$(MAKE) -C "$(build)/$($1_dir)" clean >/dev/null 2>&1 || true; \
+			$(MAKE) -C "$(build)/$($1_dir)" mostlyclean >/dev/null 2>&1 || true; \
 		fi; \
 		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete || exit 1; \
 		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured" || exit 1; \
