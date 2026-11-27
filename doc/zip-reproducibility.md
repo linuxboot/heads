@@ -47,7 +47,7 @@ IFDTOOL=build/x86/coreboot-<version>/util/ifdtool/ifdtool
 CBFSTOOL=build/x86/coreboot-<version>/<board>/cbfstool
 # Use the exact "extracted:" run directory printed for the run you inspect.
 RUN=/tmp/zipcmp/zipcmp.XXXXXX
-[ -x "$IFDTOOL" ] && "$IFDTOOL" -d "$RUN/a/"*.rom
+[ -x "$IFDTOOL" ] && "$IFDTOOL" -d -p ifd2 "$RUN/a/"*.rom
 [ -x "$CBFSTOOL" ] && "$CBFSTOOL" "$RUN/a/"*.rom print
 ```
 

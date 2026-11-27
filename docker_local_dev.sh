@@ -60,12 +60,6 @@ require_docker || exit $?
 maybe_rebuild_local_image "$DOCKER_IMAGE"
 echo "Using local dev image: $DOCKER_IMAGE" >&2
 
-HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || {
-	echo "Error: cannot inspect local image $DOCKER_IMAGE; aborting." >&2
-	exit 1
-}
-export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
-
 # Optional: verify reproducibility against docker.io latest
 # Requires HEADS_CHECK_REPRODUCIBILITY=1 and either skopeo or curl installed
 if [ "${HEADS_CHECK_REPRODUCIBILITY:-0}" = "1" ]; then
@@ -76,10 +70,8 @@ fi
 
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-	# If USB passthrough is possible, clean up host processes that may hold tokens (interactive abort allowed).
+	HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || { echo "Error: cannot inspect image $DOCKER_IMAGE; aborting." >&2; exit 1; }
+	export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
 	kill_usb_processes
-
-	# Execute the docker run command with the provided parameters
-	# Delegate to shared run_docker so all docker_* scripts share identical device/X11/KVM handling
 	run_docker "$HEADS_BUILD_IMAGE_ID" "$@"
 fi

@@ -63,7 +63,7 @@ musl-cross-make_configure := $(musl_cross_make_setup)
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
 musl-cross-make_target = \
-	SOURCE_DATE_EPOCH=$(shell cd $(build)/$(musl-cross-make_dir) && git log -1 --format=%ct 2>/dev/null || echo 0) \
+	SOURCE_DATE_EPOCH=$(COMMIT_EPOCH) \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
 	$(MAKE_JOBS) \

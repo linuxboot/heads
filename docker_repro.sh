@@ -78,5 +78,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
 	# Clean up host processes holding USB devices first (if applicable)
 	kill_usb_processes
+	HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null || true)"
+	if [ -n "$HEADS_BUILD_IMAGE_ID" ]; then export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"; fi
 	run_docker "$DOCKER_IMAGE" "$@"
 fi

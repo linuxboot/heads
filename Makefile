@@ -757,23 +757,23 @@ define define_module =
 		fi; \
 		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete || exit 1; \
 		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured" || exit 1; \
-		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)" || exit 1; fi; \
+		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)" || exit 1; find "$(build)/$($1_dir)" -type f -name '.lc_*' -delete 2>/dev/null || true; fi; \
 		if [ -f "$(build)/$($1_base_dir)/.heads-toolchain" ] || [ -d "$(build)/$($1_base_dir)/util/crossgcc/xgcc" ]; then \
 			rm -f "$(build)/$($1_base_dir)/.heads-toolchain" || exit 1; \
 			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
 		fi; \
-		for _u in cbmem ifdtool; do \
-			_d="$(build)/$($1_base_dir)/util/$$$$_u"; \
-			[ -d "$$$$_d" ] || continue; \
-			find "$$$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
-			rm -f "$$$$_d/$$$$_u" || exit 1; \
-		done; \
 		case "$1" in coreboot|coreboot-*) \
 			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
 				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain" || exit 1; \
 				rm -rf "$(COREBOOT_TOOLCHAIN_DIR)/util/crossgcc/xgcc" || exit 1; \
 			fi ;; \
 		esac; \
+		for _u in cbmem ifdtool; do \
+			_d="$(build)/$($1_base_dir)/util/$$$$_u"; \
+			[ -d "$$$$_d" ] || continue; \
+			find "$$$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
+			rm -f "$$$$_d/$$$$_u" || exit 1; \
+		done; \
 	fi
 	@printf '%s\n' "$(build_env_sig)|$(compiler_env_sig)" > "$$@"
 
