@@ -122,7 +122,7 @@ build_env_inputs := $(wildcard Makefile modules/* $(CONFIG) docker/DOCKER_REPRO_
 build_env_sig := $(shell { cat $(build_env_inputs) 2>/dev/null; \
 	printf '%s\n' '$(HEADS_BUILD_IMAGE)'; \
 } | sha256sum | cut -d' ' -f1)
-build_env_stamp := $(build)/build-env.sha256
+build_env_stamp = $(build)/build-env.sha256
 
 # Legacy flash boards have to be handled specifically for some functionality
 # (e.g. they don't generate upgrade packages, lack bash, etc.)  Use this to
