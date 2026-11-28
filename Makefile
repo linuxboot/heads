@@ -1086,7 +1086,7 @@ board.move_untested_to_tested:
 	NEW_BOARD=$$(echo "$(BOARD)" | sed -E 's/(^EOL_|^)UNTESTED_/\1/'); \
 	DST_DIR=boards; \
 	if [ -e "$$DST_DIR/$$NEW_BOARD" ] && [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then echo "Error: destination $$DST_DIR/$$NEW_BOARD already exists"; exit 1; fi; \
-	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
+	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
 	mkdir -p "$$DST_DIR"; \
 	if [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then git mv "$$SRC_DIR/$(BOARD)" "$$DST_DIR/$$NEW_BOARD"; fi; \
 	if [ -f "$$DST_DIR/$$NEW_BOARD/$(BOARD).config" ]; then \
@@ -1109,7 +1109,7 @@ board.move_unmaintained_to_tested:
 		sed -i -E '/^(export[[:space:]]+)?CONFIG_(COREBOOT|LINUX)_CONFIG=/!s/$(BOARD)/'"$$NEW_BOARD"'/g' "$$DST_DIR/$$NEW_BOARD/$(BOARD).config"; \
 		if [ "$(BOARD).config" != "$$NEW_BOARD.config" ]; then git mv "$$DST_DIR/$$NEW_BOARD/$(BOARD).config" "$$DST_DIR/$$NEW_BOARD/$$NEW_BOARD.config"; fi; \
 	fi; \
-	if ! grep -qE '^[[:space:]]*(name|target):[[:space:]]*'"$$NEW_BOARD"'[[:space:]]*$$' .circleci/config.yml; then echo "Warning: no active CircleCI build job found for $$NEW_BOARD; add job manually if ROM publishing is desired"; fi; \
+	if ! grep -qE '^[[:space:]]*(name|target):[[:space:]]*["]?'$$NEW_BOARD'["]?[[:space:]]*$$' .circleci/config.yml; then echo "Warning: no active CircleCI build job found for $$NEW_BOARD; add job manually if ROM publishing is desired"; fi; \
 	echo "Board $(BOARD) has been moved to tested status as $$NEW_BOARD"
 
 board.move_untested_to_unmaintained:
@@ -1136,7 +1136,7 @@ board.move_tested_to_untested:
 	NEW_BOARD=$$(echo "$(BOARD)" | sed -E 's/(^EOL_|^)/\1UNTESTED_/'); \
 	DST_DIR=boards; \
 	if [ -e "$$DST_DIR/$$NEW_BOARD" ] && [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then echo "Error: destination $$DST_DIR/$$NEW_BOARD already exists"; exit 1; fi; \
-	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
+	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
 	mkdir -p "$$DST_DIR"; \
 	if [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then git mv "$$SRC_DIR/$(BOARD)" "$$DST_DIR/$$NEW_BOARD"; fi; \
 	if [ -f "$$DST_DIR/$$NEW_BOARD/$(BOARD).config" ]; then \
@@ -1152,7 +1152,7 @@ board.move_tested_to_EOL:
 	NEW_BOARD=EOL_$$(echo "$(BOARD)" | sed -E 's/^EOL_//'); \
 	DST_DIR=$$SRC_DIR; \
 	if [ -e "$$DST_DIR/$$NEW_BOARD" ] && [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then echo "Error: destination $$DST_DIR/$$NEW_BOARD already exists"; exit 1; fi; \
-	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*)$(BOARD)([[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
+	sed -i -E -e "s/^(#?[[:space:]]*(name|target):[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\3/" -e "s/^(#?[[:space:]]*-[[:space:]]*[\x22]?)$(BOARD)([\x22]?[[:space:]]*(\\[[^]]*\\])?[[:space:]]*)$$/\\1$$NEW_BOARD\\2/" .circleci/config.yml; \
 	if [ "$$SRC_DIR/$(BOARD)" != "$$DST_DIR/$$NEW_BOARD" ]; then git mv "$$SRC_DIR/$(BOARD)" "$$DST_DIR/$$NEW_BOARD"; fi; \
 	if [ -f "$$DST_DIR/$$NEW_BOARD/$(BOARD).config" ]; then \
 		sed -i -E '/^(export[[:space:]]+)?CONFIG_(COREBOOT|LINUX)_CONFIG=/!s/$(BOARD)/'"$$NEW_BOARD"'/g' "$$DST_DIR/$$NEW_BOARD/$(BOARD).config"; \
