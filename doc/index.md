@@ -14,6 +14,7 @@ Quick reference: read the relevant doc when working on a topic.
 | [`patches.md`](patches.md) | Creating and maintaining source patches for upstream packages |
 | [`prerequisites.md`](prerequisites.md) | Tools and libraries needed before building Heads |
 | [`reproducible-builds.md`](reproducible-builds.md) | Deterministic build/archive flags and verifying recorded hashes against CI |
+| [`zip-reproducibility.md`](zip-reproducibility.md) | Disassemble and compare update ZIPs, inspect ROMs, and interpret reproducibility results |
 | Hardware Compatibility — intended publication target | Not a working link: `https://osresearch.net/Hardware-Compatibility/` currently returns 404.  Board configs carry the HCL summaries and anchors; the deployment status is recorded once, in [`modules.md`](modules.md#hardware-compatibility-list-hcl) |
 
 ## Architecture & Boot Flow

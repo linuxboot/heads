@@ -70,10 +70,8 @@ fi
 
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-	# If USB passthrough is possible, clean up host processes that may hold tokens (interactive abort allowed).
+	HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || { echo "Error: cannot inspect image $DOCKER_IMAGE; aborting." >&2; exit 1; }
+	export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
 	kill_usb_processes
-
-	# Execute the docker run command with the provided parameters
-	# Delegate to shared run_docker so all docker_* scripts share identical device/X11/KVM handling
-	run_docker "$DOCKER_IMAGE" "$@"
+	run_docker "$HEADS_BUILD_IMAGE_ID" "$@"
 fi

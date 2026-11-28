@@ -88,8 +88,13 @@ $(info !!!!!! Build starts !!!!!!)
 $(if $(BOARD),$(info COMMIT $(GIT_HASH) $(HEADS_GIT_VERSION)),)
 
 
+# Build metadata timestamps are derived from the current commit rather than
+# the wall clock, so hashes.txt/sizes.txt headers, the measurement log lines,
+# and the update ZIP are deterministic for a given commit.  Fall back to
+# SOURCE_DATE_EPOCH, then epoch 0, when the tree has no commit (source tarball).
+COMMIT_EPOCH := $(shell git log -1 --format=%ct 2>/dev/null || echo $${SOURCE_DATE_EPOCH:-0})
 # Timestamps should be in ISO format
-DATE=`date --rfc-3339=seconds`
+DATE := $(shell date -u -d "@$(COMMIT_EPOCH)" --rfc-3339=seconds)
 
 BOARD		?= qemu-coreboot-fbwhiptail-tpm1
 
@@ -107,6 +112,17 @@ endif
 
 # By default, we are building for x86, up to a board to change this variable
 CONFIG_TARGET_ARCH := x86
+
+# Modules must be rebuilt when the build inputs that affect their binaries
+# change. Otherwise a reused tree can stage a binary compiled with another
+# board's toolchain/config into the initrd, and the same commit then produces
+# different hashes.txt and update ZIP bytes. The stamp is rewritten in place
+# only when its content changes, so Make uses it as a reliable prerequisite.
+build_env_inputs := $(wildcard Makefile modules/* $(CONFIG) docker/DOCKER_REPRO_DIGEST)
+build_env_sig := $(shell { cat $(build_env_inputs) 2>/dev/null; \
+	printf '%s\n' '$(HEADS_BUILD_IMAGE)'; \
+} | sha256sum | cut -d' ' -f1)
+build_env_stamp = $(build)/build-env.sha256
 
 # Legacy flash boards have to be handled specifically for some functionality
 # (e.g. they don't generate upgrade packages, lack bash, etc.)  Use this to
@@ -195,16 +211,23 @@ PACKAGES	:= $(shell mkdir -p "$(packages)")
 HASHES		:= $(board_build)/hashes.txt
 SIZES		:= $(board_build)/sizes.txt
 
-# Create the board output directory if it doesn't already exist
+# Create the board output directory if it doesn't already exist. Skip for
+# compare-zip-only invocations so inspecting an archive preserves the board's
+# existing build manifests.
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 BOARD_LOG	:= $(shell \
 	mkdir -p "$(board_build)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(HASHES)" ; \
 	echo "$(DATE) $(GIT_HASH) $(GIT_STATUS)" > "$(SIZES)" ; \
 )
+endif
 
 ifeq "y" "$(CONFIG_LINUX_BUNDLED)"
-# Create empty initrd for initial kernel "without" initrd.
+# Create empty initrd for initial kernel "without" initrd. Skip for
+# compare-zip-only invocations so an existing build artifact is preserved.
+ifneq ($(if $(MAKECMDGOALS),$(if $(filter-out compare-zip,$(MAKECMDGOALS)),,skip),),skip)
 $(shell cpio -o < /dev/null > $(board_build)/initrd.cpio)
+endif
 endif
 
 # If V is set in the environment, do not redirect the tee
@@ -276,9 +299,40 @@ CROSS_TOOLS := \
 	CC="$(heads_cc)" \
 	$(CROSS_TOOLS_NOCC) \
 
+# Compiler settings must trigger reconfiguration, not only a rebuild: modules
+# such as OpenSSL read CROSS_TOOLS at Configure time and would otherwise keep
+# the previous compiler in their generated build configuration.
+compiler_env_sig := $(shell printf '%s\n' '$(heads_cc)' '$(CROSS_TOOLS)' | sha256sum | cut -d' ' -f1)
+compiler_env_stamp := $(build)/compiler-env.sha256
+$(compiler_env_stamp): FORCE
+	@mkdir -p "$(dir $@)"
+	@sig='$(compiler_env_sig)'; \
+	if [ ! -r "$@" ] || [ "$$(cat "$@")" != "$$sig" ]; then \
+		printf '%s\n' "$$sig" > "$@"; \
+	fi
+
 # Targets to build payload only
-.PHONY: payload
+.PHONY: payload compare-zip
 payload: $(build)/$(BOARD)/bzImage $(build)/$(initrd_dir)/initrd.cpio.xz
+
+# Disassemble/compare update ZIPs for same-commit reproducibility.
+# Usage: make BOARD=<board> compare-zip [ZIP=<update.zip>] [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1] [IFD_PLATFORM=<name>]
+compare-zip:
+	@zip="$$ZIP"; ref="$$REF"; extract="$$EXTRACT"; rom_tools="$$ROM_TOOLS"; ifd_platform="$$IFD_PLATFORM"; \
+	if [ -z "$$ifd_platform" ] && [ -n "$(CONFIG_COREBOOT_CONFIG)" ]; then \
+		ifd_platform="$$(sed -n 's/^CONFIG_IFD_CHIPSET="\(.*\)"/\1/p' "$(CONFIG_COREBOOT_CONFIG)" 2>/dev/null || true)"; \
+	fi; \
+	set --; \
+	if [ -n "$$extract" ]; then set -- "$$@" --extract "$$extract"; fi; \
+	if [ "$$rom_tools" = 1 ]; then set -- "$$@" --rom-tools; fi; \
+	if [ -n "$$ifd_platform" ]; then set -- "$$@" --ifd-platform "$$ifd_platform"; fi; \
+	case "$$zip" in -*) zip="./$$zip" ;; esac; \
+	case "$$ref" in -*) ref="./$$ref" ;; esac; \
+	if [ -z "$$zip" ] && [ -n "$(CB_UPDATE_PKG_FILE)" ]; then zip="$(board_build)/$(CB_UPDATE_PKG_FILE)"; fi; \
+	test -n "$$zip" || { echo "compare-zip: set ZIP=<update.zip> or BOARD with built package [REF=<other.zip>] [EXTRACT=<dir>] [ROM_TOOLS=1]" >&2; exit 2; }; \
+	set -- "$$@" "$$zip"; \
+	if [ -n "$$ref" ]; then set -- "$$@" "$$ref"; fi; \
+	./bin/compare-update-zip.sh "$$@"
 
 ifeq ($(CONFIG_COREBOOT), y)
 
@@ -305,6 +359,7 @@ else
 #                      or kernel changed before deciding to flash
 $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	rm -rf "$(board_build)/update_pkg"
+	rm -f "$@.tmp"
 	mkdir -p "$(board_build)/update_pkg"
 	cp "$<" "$(board_build)/update_pkg/"
 	cp "$(HASHES)" "$(board_build)/update_pkg/"
@@ -313,7 +368,22 @@ $(board_build)/$(CB_UPDATE_PKG_FILE): $(board_build)/$(CB_OUTPUT_FILE)
 	# after the zip was already assembled.
 	sha256sum "$(board_build:$(pwd)/%=%)/$(CB_OUTPUT_FILE)" >> "$(board_build)/update_pkg/$(notdir $(HASHES))"
 	cd "$(board_build)/update_pkg" && sha256sum "$(CB_OUTPUT_FILE)" >sha256sum.txt
-	cd "$(board_build)/update_pkg" && zip -9 "$@" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))"
+	# Pin member mtimes to the commit-derived timestamp, normalize their modes,
+	# and drop zip's extended-timestamp/uid-gid extra fields (and run zip in
+	# UTC) so the package is byte-identical for a given commit regardless of
+	# the build host's clock, umask, or timezone.
+	cd "$(board_build)/update_pkg" && \
+		touch -d "@$(COMMIT_EPOCH)" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		chmod 644 "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		ZIPOPT= ZIP= TZ=UTC zip -9 -X "$@.tmp" "$(CB_OUTPUT_FILE)" sha256sum.txt "$(notdir $(HASHES))" && \
+		mv -f "$@.tmp" "$@"
+
+# When payload is an explicit goal its measurement recipe also appends to the
+# shared manifests. Order it before the ZIP snapshot so the packaged manifest
+# is the same regardless of job scheduling.
+ifneq ($(filter payload,$(MAKECMDGOALS)),)
+$(board_build)/$(CB_UPDATE_PKG_FILE): | payload
+endif
 
 # Only add the hash and size if split_8mb4mb.mk is not included
 ifeq ($(wildcard split_8mb4mb.mk),)
@@ -372,6 +442,14 @@ endif
 .INTERMEDIATE:
 .SUFFIXES:
 FORCE:
+
+# Refresh the build-environment stamp only when the signature changes.
+$(build_env_stamp): FORCE
+	@mkdir -p "$(dir $@)"
+	@sig='$(build_env_sig)'; \
+	if [ ! -r "$@" ] || [ "$$(cat "$@")" != "$$sig" ]; then \
+		printf '%s\n' "$$sig" > "$@"; \
+	fi
 
 # Copies config while replacing predefined placeholders with actual values
 # This is used in a command like 'this && $(call install_config ...) && that'
@@ -450,6 +528,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 sha256sum ; \
 		echo "-----" ; \
 		) >> "$(HASHES)" \
@@ -458,6 +537,7 @@ define do-cpio =
 		( cd "$2"; \
 		echo "-----" ; \
 		find . -type f -print0 \
+		| LC_ALL=C sort -z \
 		| xargs -0 stat -c "%8s:%n" ; \
 		echo "-----" ; \
 		) >> "$(SIZES)" \
@@ -661,12 +741,51 @@ define define_module =
   $(eval $1_config_wait := $(foreach d,$($1_depends),\
 	$(shell [ -r $(build)/$($d_dir)/.build ] || echo $d)))
 
+  # Invalidate module outputs when the build or compiler environment changes;
+  # rerunning the module submake is not enough because object rules do not depend
+  # on these stamps.
+  # Use `mostlyclean`, not `clean`: `make clean` removes shipped files listed in
+  # CLEANFILES (e.g. tpm2-tss man/man7/tss2-tcti-swtpm.7) that are not
+  # regenerated, breaking cached-tree rebuilds. `mostlyclean` drops only
+  # compiled artifacts, which the find below also covers as a belt-and-braces.
+  $(build)/$($1_dir)/.build_env_applied: $(build_env_stamp) $(compiler_env_stamp) $(build)/$($1_base_dir)/.canary
+	@mkdir -p $$(dir $$@)
+	@if [ ! -r "$$@" ] || [ "$$$$(cat $$@)" != "$(build_env_sig)|$(compiler_env_sig)" ]; then \
+		echo "$(DATE) CLEAN $1 (build env changed)"; \
+		if [ -e "$(build)/$($1_dir)/Makefile" ] || [ -e "$(build)/$($1_dir)/makefile" ]; then \
+			$(MAKE) -C "$(build)/$($1_dir)" mostlyclean >/dev/null 2>&1 || true; \
+		fi; \
+		find "$(build)/$($1_dir)" \( -name '*.o' -o -name '*.a' -o -name '*.so' -o -name '*.so.*' -o -name '*.lo' -o -name '*.la' \) -type f -delete || exit 1; \
+		rm -f "$(build)/$($1_dir)/.build" "$(dir $($1_config_file_path)).configured" || exit 1; \
+		if [ "$1" = "musl-cross-make" ]; then rm -rf "$(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)" || exit 1; find "$(build)/$($1_dir)" -type f -name '.lc_*' -delete 2>/dev/null || true; fi; \
+		if [ -f "$(build)/$($1_base_dir)/.heads-toolchain" ] || [ -d "$(build)/$($1_base_dir)/util/crossgcc/xgcc" ]; then \
+			rm -f "$(build)/$($1_base_dir)/.heads-toolchain" || exit 1; \
+			rm -rf "$(build)/$($1_base_dir)/util/crossgcc/xgcc" || exit 1; \
+		fi; \
+		case "$1" in coreboot|coreboot-*) \
+			if [ "$(build)/$($1_base_dir)" != "$(COREBOOT_TOOLCHAIN_DIR)" ] && [ -n "$(COREBOOT_TOOLCHAIN_DIR)" ]; then \
+				rm -f "$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain" || exit 1; \
+				rm -rf "$(COREBOOT_TOOLCHAIN_DIR)/util/crossgcc/xgcc" || exit 1; \
+			fi ;; \
+		esac; \
+		for _u in cbmem ifdtool; do \
+			_d="$(build)/$($1_base_dir)/util/$$$$_u"; \
+			[ -d "$$$$_d" ] || continue; \
+			find "$$$$_d" -type f \( -name '*.o' -o -name '*.d' -o -name '*.a' \) -delete || exit 1; \
+			rm -f "$$$$_d/$$$$_u" || exit 1; \
+		done; \
+	fi
+	@printf '%s\n' "$(build_env_sig)|$(compiler_env_sig)" > "$$@"
+
   # Use the module's configure variable to build itself
   # this has to wait for the dependencies to be built since
   # cross compilers and libraries might be messed up
   $(dir $($1_config_file_path)).configured: \
+		$(compiler_env_stamp) \
+		$(build)/$($1_dir)/.build_env_applied \
 		$(build)/$($1_base_dir)/.canary \
 		$(foreach d,$($1_config_wait),$(build)/$($d_dir)/.build) \
+		$(if $(filter $(musl_dep),$($1_depends)),$(build)/$($(musl_dep)_dir)/.build) \
 		$($1_config_file_path) \
 		modules/$($1_module_file)
 	@echo "$(DATE) CONFIG $1"
@@ -698,6 +817,8 @@ define define_module =
 
   #TODO: something better then removing .build: $($1.force) so that newt/ncurses are not rebuilt inconditionally?
   $(build)/$($1_dir)/.build: \
+		$(build_env_stamp) \
+		$(build)/$($1_dir)/.build_env_applied \
 		$(foreach d,$($1_depends),$(build)/$($d_dir)/.build) \
 		$(dir $($1_config_file_path)).configured \
 
@@ -970,6 +1091,21 @@ endif
 HEADS_INITRD_FILES := $(shell find $(pwd)/initrd -type f 2>/dev/null)
 $(build)/$(initrd_dir)/heads.cpio: $(HEADS_INITRD_FILES) FORCE
 	$(call do-cpio,$@,$(pwd)/initrd)
+
+# do-cpio appends each component's section to the shared HASHES/SIZES
+# manifests. Serialize the cpio writers in a fixed order so parallel make
+# cannot reorder those sections and change the manifest for a given commit.
+# The kernel install recipe also appends to the shared manifests; order it
+# before the first cpio writer so its rows precede the cpio sections.
+$(build)/$(initrd_dir)/modules.cpio: | $(build)/$(BOARD)/$(LINUX_IMAGE_FILE)
+$(build)/$(initrd_dir)/tools.cpio: | $(build)/$(initrd_dir)/modules.cpio
+$(build)/$(initrd_dir)/board.cpio: | $(build)/$(initrd_dir)/tools.cpio
+ifneq ($(strip $(data_files)),)
+$(build)/$(initrd_dir)/data.cpio: | $(build)/$(initrd_dir)/board.cpio
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/data.cpio
+else
+$(build)/$(initrd_dir)/heads.cpio: | $(build)/$(initrd_dir)/board.cpio
+endif
 
 # --- FINAL INITRD PACKAGING ---
 

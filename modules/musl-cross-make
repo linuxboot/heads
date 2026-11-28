@@ -18,6 +18,12 @@ ifneq "$(wildcard $(CROSS_CHECK))" ""
 CROSS := $(CROSS_PATH)/bin/$(subst -,_,$(MUSL_ARCH))-linux-musl-
 endif
 
+musl_cross_make_setup := \
+	grep -q '^musl-target:' Makefile || { echo -e >> Makefile 'musl-target:' ; echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; } ; \
+	_heads_rule=$$$$(printf '@if [ -x "$(CROSS)gcc" ]; then "$(CROSS)gcc" --version; else $(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" SOURCE_DATE_EPOCH=$(COMMIT_EPOCH) OUTPUT="$(CROSS_PATH)" $(MAKE_JOBS) install; fi') ; \
+	if grep -q '^heads-musl-target:' Makefile; then awk -v r="$$$$_heads_rule" '/^heads-musl-target:/{print; getline; if($$$$0 ~ /^\t/) print "\t" r; else {print "\t" r; print}; next} {print}' Makefile > Makefile.tmp && mv Makefile.tmp Makefile; else { echo -e 'heads-musl-target:' ; echo -e "\t$$$$_heads_rule" ; } >> Makefile; fi ; \
+	grep -q '^SOURCES = $(packages)' config.mak 2>/dev/null || echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
+
 ifneq "$(CROSS)" ""
 
 # check that $(CROSS)gcc exists or else things just won't work
@@ -28,9 +34,10 @@ $(info Using $(CROSS)gcc)
 endif
 
 # The cross compiler has already been built, so the musl-cross-make target
-# is a NOP.  We really don't need to check out this code tree, but it is easier
-# if we have a target for it.
-musl-cross-make_target := --version
+# is a NOP. If the build-env invalidation removed the cached compiler during
+# this make invocation, rebuild it at recipe execution time.
+musl-cross-make_configure := $(musl_cross_make_setup)
+musl-cross-make_target = heads-musl-target
 
 # Ask the compiler where to find its own libc.so
 musl-cross-make_libraries := \
@@ -51,15 +58,12 @@ else
 #     debug-section compression
 # SOURCE_DATE_EPOCH from the pinned commit epoch prevents __DATE__/__TIME__
 # embedding during the GCC build.
-musl-cross-make_configure := \
-	echo -e >> Makefile 'musl-target:' ; \
-	echo -e >> Makefile '\t$$(MAKE) TARGET="$(MUSL_ARCH)-linux-musl" install' ; \
-	echo -e 'BUILD = x86_64-pc-linux-gnu\nCOMMON_CONFIG += CFLAGS="-Wa,--no-pad-sections"\nCOMMON_CONFIG += --with-debug-prefix-map=$(pwd)=.\nBINUTILS_CONFIG += --enable-compressed-debug-sections=no\nSOURCES = $(packages)' >> config.mak
+musl-cross-make_configure := $(musl_cross_make_setup)
 
 CROSS_PATH ?= $(pwd)/crossgcc/$(CONFIG_TARGET_ARCH)
 
 musl-cross-make_target = \
-	SOURCE_DATE_EPOCH=$(shell cd $(build)/$(musl-cross-make_dir) && git log -1 --format=%ct 2>/dev/null || echo 0) \
+	SOURCE_DATE_EPOCH=$(COMMIT_EPOCH) \
 	OUTPUT="$(CROSS_PATH)" \
 	MAKE="$(MAKE)" \
 	$(MAKE_JOBS) \

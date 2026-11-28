@@ -1024,6 +1024,8 @@ print_digest_info() {
 # Build docker options (returns single string on stdout)
 build_docker_opts() {
 	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm -ti)
+	# Pass image-selection overrides so build stamps can reflect the toolchain image.
+	opts+=(-e DOCKER_REPRO_DIGEST -e HEADS_MAINTAINER_DOCKER_IMAGE -e HEADS_BUILD_IMAGE)
 
 	# USB passthrough
 	if [ -d "/dev/bus/usb" ] && [ "${HEADS_DISABLE_USB:-0}" != "1" ]; then
@@ -1419,6 +1421,13 @@ run_docker() {
 	local image="$1"
 	shift
 	local opts host_workdir container_workdir git_common_dir DOCKER_OPTS_ARRAY
+	# Derive the toolchain image identity from the image actually passed in when
+	# the caller did not set HEADS_BUILD_IMAGE, so build stamps can never share an
+	# empty value across different images. Resolve mutable tags to an immutable ID.
+	if [ -z "${HEADS_BUILD_IMAGE:-}" ]; then
+		HEADS_BUILD_IMAGE="$(docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || printf '%s' "$image")"
+	fi
+	export HEADS_BUILD_IMAGE
 	# Read docker options (one-per-line) into an array, preserving spaces within options
 	mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
 	host_workdir="$(pwd)"

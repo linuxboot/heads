@@ -234,8 +234,10 @@ reset or initialize the pinned source before writing or updating `.canary`; when
 `.patched` is absent, its patch branch processes zero or more configured patches
 and then creates `.patched`, including the no-patch case.  `.configured`
 depends on `.canary`, and `.build` depends on `.configured` and dependency-module
-`.build` stamps.  Plain `make` does not
-infer arbitrary source-file or `CFLAGS` changes.  The `.clean` targets remove
+`.build` stamps.  Plain `make` does not infer arbitrary prepared-source changes.
+The `.build_env_applied` stamp tracks the resolved build image and compiler
+environment; when either signature changes, it cleans module objects and
+toolchain outputs before configure/build continues.  The `.clean` targets remove
 the selected `.configured` stamps and clean generated outputs while leaving
 `.build` in place.  On the next normal build, the regenerated `.configured` file
 is newer, so the configured step reruns and the dependent `.build` step follows.

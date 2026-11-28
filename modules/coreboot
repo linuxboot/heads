@@ -291,12 +291,14 @@ $(coreboot_module)_configure := \
 # Create a dependency from coreboot to the toolchain.  Use .heads-toolchain to
 # mark that the toolchain was built.
 COREBOOT_TOOLCHAIN_DIR=$(build)/$($(coreboot_toolchain_module)_base_dir)
-$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.canary
+$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.canary \
+		$(build)/$($(coreboot_toolchain_module)_dir)/.build_env_applied \
+		$(build)/$(coreboot_dir)/.build_env_applied
 	$(MAKE) -C "$(build)/$($(coreboot_toolchain_module)_base_dir)" CPUS=$(CPUS) "crossgcc-$(COREBOOT_TARGET)" \
 		$($(coreboot_toolchain_module)_toolchain_build_args)
 	touch "$@"
 
-$(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
+$(build)/$(coreboot_dir)/.build: $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
 
 ## Toolchain packages ##
 # coreboot likes to download its own toolchain packages, but these sources can
