@@ -75,10 +75,13 @@ fi
 # Only perform host-side side-effects when executed directly (not when sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 	require_docker || exit $?
+	if ! docker image inspect "$DOCKER_IMAGE" >/dev/null 2>&1; then
+		docker pull "$DOCKER_IMAGE" || { echo "Error: cannot pull image $DOCKER_IMAGE; aborting." >&2; exit 1; }
+	fi
+	HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null)" || { echo "Error: cannot inspect image $DOCKER_IMAGE; aborting." >&2; exit 1; }
+	export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"
 
 	# Clean up host processes holding USB devices first (if applicable)
 	kill_usb_processes
-	HEADS_BUILD_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$DOCKER_IMAGE" 2>/dev/null || true)"
-	if [ -n "$HEADS_BUILD_IMAGE_ID" ]; then export HEADS_BUILD_IMAGE="$HEADS_BUILD_IMAGE_ID"; fi
-	run_docker "$DOCKER_IMAGE" "$@"
+	run_docker "$HEADS_BUILD_IMAGE_ID" "$@"
 fi
