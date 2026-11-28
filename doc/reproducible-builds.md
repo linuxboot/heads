@@ -198,8 +198,8 @@ Inside a rebuilt ZIP, `hashes.txt` supports same-commit build comparison, while
 `sha256sum.txt` is the update package's final-ROM integrity check.  The ZIP's
 member mtimes are pinned to the commit timestamp, their modes are normalized,
 and its extended-timestamp/uid-gid extra fields are omitted (`zip -X` in UTC),
-so a rebuilt package is byte-identical for a given commit when its packaged
-contents match.
+so a rebuilt package is byte-identical for a given commit and build environment
+when its packaged contents match.
 
 ### Understanding hashes.txt
 

@@ -274,7 +274,7 @@ if [ "$rom_tools" -eq 1 ] && [ -n "$rom_a" ] && [ -n "$rom_b" ]; then
 	if [ -n "$ifd" ]; then
 		echo "-- ifdtool -d (diff) --"
 		ifd_args=(-d)
-		[ -n "$ifd_platform" ] && ifd_args=(--platform "$ifd_platform" -d)
+		[ -n "$ifd_platform" ] && ifd_args=(-p "$ifd_platform" -d)
 		ifd_a=""; ifd_b=""; ifd_rc_a=0; ifd_rc_b=0
 		ifd_a=$("$ifd" "${ifd_args[@]}" "$rom_a" 2>&1) || ifd_rc_a=$?
 		ifd_b=$("$ifd" "${ifd_args[@]}" "$rom_b" 2>&1) || ifd_rc_b=$?
